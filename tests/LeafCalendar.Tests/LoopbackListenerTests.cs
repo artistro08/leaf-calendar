@@ -112,7 +112,25 @@ public class LoopbackListenerTests
     }
 
     [Fact]
-    public async Task WaitForCallbackAsync_Cancelled_Throws()
+    public async Task WaitForCallbackAsync_HugeCookieHeader_CompletesWithSuccessPage()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var listener = new LoopbackListener();
+        var wait = listener.WaitForCallbackAsync(ct);
+
+        // Browsers send every 127.0.0.1 cookie from local dev servers along with the redirect
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(listener.RedirectUri, "?code=abc&state=xyz"));
+        request.Headers.Add("Cookie", "dev=" + new string('c', 16 * 1024));
+        using var response = await Http.SendAsync(request, ct);
+        var query = await wait.WaitAsync(TimeSpan.FromSeconds(10), ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("You're signed in", await response.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
+        Assert.Equal("abc", query["code"]);
+    }
+
+    [Fact]
+    public async Task WaitForCallbackAsync_Canceled_Throws()
     {
         using var listener = new LoopbackListener();
         using var cts = new CancellationTokenSource();

@@ -14,11 +14,16 @@ namespace LeafCalendar.Core.Auth;
 /// unrelated requests (favicon, bare <c>/</c>, requests without <c>code</c> or <c>error</c> in the query,
 /// oversized or malformed input) with 404 and keeps waiting; only a <c>GET /?...</c> with <c>code</c> or <c>error</c>
 /// ends the wait. It never echoes tokens or codes into the page.
+/// Only the request line is read (up to 8 KB), so any amount of browser headers, such as cookies
+/// that local dev servers set for 127.0.0.1, can't stall sign-in. After answering, the listener
+/// closes its sending side and briefly reads away the headers it skipped. Closing a socket with
+/// unread data makes Windows send a reset, and a browser that sees the reset can drop the page.
 /// </remarks>
 public sealed class LoopbackListener : IDisposable
 {
-    const int MaxHeaderBytes = 8192;
-    static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(3);
+    const int MaxRequestLineBytes = 8192;
+    static readonly TimeSpan ReadTimeout  = TimeSpan.FromSeconds(3);
+    static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(1);
 
     const string SuccessPage =
         "<!doctype html><html><head><meta charset=\"utf-8\"><title>Leaf Calendar</title></head>" +
@@ -43,7 +48,7 @@ public sealed class LoopbackListener : IDisposable
     /// <summary>
     /// Waits for the OAuth redirect and returns its query parameters.
     /// </summary>
-    /// <exception cref="OperationCanceledException">When <paramref name="ct"/> is cancelled.</exception>
+    /// <exception cref="OperationCanceledException">When <paramref name="ct"/> is canceled.</exception>
     public async Task<IReadOnlyDictionary<string, string>> WaitForCallbackAsync(CancellationToken ct)
     {
         while (true)
@@ -72,7 +77,7 @@ public sealed class LoopbackListener : IDisposable
             // Ignore Anything That Isn't The Redirect
             if (target is null || !target.StartsWith("/?", StringComparison.Ordinal))
             {
-                await TryWriteAsync(stream, "404 Not Found", "", ct);
+                await RespondAsync(client, stream, "404 Not Found", "", ct);
                 continue;
             }
 
@@ -80,11 +85,11 @@ public sealed class LoopbackListener : IDisposable
             var query = QueryString.Parse(target[2..]);
             if (!query.ContainsKey("code") && !query.ContainsKey("error"))
             {
-                await TryWriteAsync(stream, "404 Not Found", "", ct);
+                await RespondAsync(client, stream, "404 Not Found", "", ct);
                 continue;
             }
 
-            await TryWriteAsync(stream, "200 OK", SuccessPage, ct);
+            await RespondAsync(client, stream, "200 OK", SuccessPage, ct);
             return query;
         }
     }
@@ -92,10 +97,10 @@ public sealed class LoopbackListener : IDisposable
     /// <summary>Stops listening.</summary>
     public void Dispose() => _listener.Stop();
 
-    // Reads the request headers (up to 8 KB) and returns the GET target, or null for anything else.
+    // Reads up to the end of the request line (8 KB at most) and returns the GET target, or null for anything else.
     static async Task<string?> ReadTargetAsync(NetworkStream stream, CancellationToken ct)
     {
-        var buffer = new byte[MaxHeaderBytes];
+        var buffer = new byte[MaxRequestLineBytes];
         var length = 0;
 
         while (length < buffer.Length)
@@ -107,13 +112,13 @@ public sealed class LoopbackListener : IDisposable
             }
 
             length += read;
-            if (buffer.AsSpan(0, length).IndexOf("\r\n\r\n"u8) < 0)
+            var lineEnd = buffer.AsSpan(0, length).IndexOf("\r\n"u8);
+            if (lineEnd < 0)
             {
                 continue;
             }
 
-            var lineEnd = buffer.AsSpan(0, length).IndexOf("\r\n"u8);
-            var parts   = Encoding.ASCII.GetString(buffer, 0, lineEnd).Split(' ');
+            var parts = Encoding.ASCII.GetString(buffer, 0, lineEnd).Split(' ');
 
             return parts is ["GET", var target, var version] && version.StartsWith("HTTP/", StringComparison.Ordinal)
                 ? target
@@ -121,6 +126,31 @@ public sealed class LoopbackListener : IDisposable
         }
 
         return null;
+    }
+
+    // Writes the response, closes the sending side, then reads away unread headers until the
+    // browser closes (or a second passes), so the browser gets the page instead of a reset
+    static async Task RespondAsync(TcpClient client, NetworkStream stream, string status, string body, CancellationToken ct)
+    {
+        await TryWriteAsync(stream, status, body, ct);
+
+        try
+        {
+            client.Client.Shutdown(SocketShutdown.Send);
+
+            using var drainTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            drainTimeout.CancelAfter(DrainTimeout);
+
+            var scratch = new byte[4096];
+            while (await stream.ReadAsync(scratch, drainTimeout.Token) > 0)
+            {
+                // Discard.
+            }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or IOException or SocketException)
+        {
+            // Timed out or the browser already hung up; either way the connection closes now.
+        }
     }
 
     static async Task TryWriteAsync(NetworkStream stream, string status, string body, CancellationToken ct)
