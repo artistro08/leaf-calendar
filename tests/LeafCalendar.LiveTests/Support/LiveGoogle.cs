@@ -46,6 +46,29 @@ public sealed class LiveGoogle(LiveAccount live)
     public Task DeleteEventAsync(string calendarId, string eventId, CancellationToken ct) =>
         SendAsync(HttpMethod.Delete, $"calendars/{Uri.EscapeDataString(calendarId)}/events/{Uri.EscapeDataString(eventId)}", null, ct);
 
+    /// <summary>Creates a repeating event with a start in <paramref name="timeZone"/> and returns its ID.</summary>
+    public async Task<string> InsertRecurringEventAsync(string calendarId, string startLocal, string endLocal, string timeZone, string[] recurrence, CancellationToken ct)
+    {
+        var body = new JsonObject
+        {
+            ["summary"]    = "Leaf live recurrence",
+            ["start"]      = new JsonObject { ["dateTime"] = startLocal, ["timeZone"] = timeZone },
+            ["end"]        = new JsonObject { ["dateTime"] = endLocal, ["timeZone"] = timeZone },
+            ["recurrence"] = new JsonArray([.. recurrence.Select(r => (JsonNode)r)]),
+        };
+
+        var created = await SendAsync(HttpMethod.Post, $"calendars/{Uri.EscapeDataString(calendarId)}/events", body, ct);
+        return created!["id"]!.GetValue<string>();
+    }
+
+    /// <summary>Returns Google's own occurrence starts (UTC) for a repeating event.</summary>
+    public async Task<List<DateTimeOffset>> ListInstanceStartsAsync(string calendarId, string eventId, CancellationToken ct)
+    {
+        var page = await SendAsync(HttpMethod.Get, $"calendars/{Uri.EscapeDataString(calendarId)}/events/{Uri.EscapeDataString(eventId)}/instances?maxResults=250", null, ct);
+
+        return [.. page!["items"]!.AsArray().Select(i => DateTimeOffset.Parse(i!["start"]!["dateTime"]!.GetValue<string>(), System.Globalization.CultureInfo.InvariantCulture).ToUniversalTime())];
+    }
+
     async Task<JsonNode?> SendAsync(HttpMethod method, string path, JsonObject? body, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(method, new Uri(BaseUri, path));

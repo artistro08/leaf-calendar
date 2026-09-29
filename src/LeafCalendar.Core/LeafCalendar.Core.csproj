@@ -8,6 +8,7 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.Data.Sqlite" />
+        <PackageReference Include="Meziantou.Framework.Scheduling" />
     </ItemGroup>
 
     <ItemGroup>
