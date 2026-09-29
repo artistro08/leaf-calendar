@@ -1,0 +1,28 @@
+{
+  "kind": "calendar#events",
+  "timeZone": "America/New_York",
+  "nextSyncToken": "sync-token-1",
+  "items": [
+    {
+      "id": "evt-weekly",
+      "status": "confirmed",
+      "etag": "\"3181161784712002\"",
+      "iCalUID": "evt-weekly@google.com",
+      "summary": "Team standup",
+      "start": { "dateTime": "2026-10-05T09:30:00-04:00", "timeZone": "America/New_York" },
+      "end": { "dateTime": "2026-10-05T10:00:00-04:00", "timeZone": "America/New_York" },
+      "recurrence": [ "RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR" ],
+      "updated": "2026-09-20T12:00:00.000Z"
+    },
+    {
+      "id": "evt-weekly_20261007T133000Z",
+      "status": "cancelled",
+      "recurringEventId": "evt-weekly",
+      "originalStartTime": { "dateTime": "2026-10-07T09:30:00-04:00", "timeZone": "America/New_York" }
+    },
+    {
+      "id": "evt-deleted",
+      "status": "cancelled"
+    }
+  ]
+}

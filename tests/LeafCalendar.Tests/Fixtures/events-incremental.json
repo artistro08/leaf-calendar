@@ -1,0 +1,30 @@
+{
+  "kind": "calendar#events",
+  "nextSyncToken": "sync-token-2",
+  "items": [
+    {
+      "id": "evt-single",
+      "status": "confirmed",
+      "etag": "\"3181161784712010\"",
+      "iCalUID": "evt-single@google.com",
+      "summary": "Dentist appointment (moved)",
+      "start": { "dateTime": "2026-10-01T11:00:00-04:00", "timeZone": "America/New_York" },
+      "end": { "dateTime": "2026-10-01T12:00:00-04:00", "timeZone": "America/New_York" },
+      "updated": "2026-09-28T12:00:00.000Z"
+    },
+    {
+      "id": "evt-allday",
+      "status": "cancelled"
+    },
+    {
+      "id": "evt-new",
+      "status": "confirmed",
+      "etag": "\"3181161784712011\"",
+      "iCalUID": "evt-new@google.com",
+      "summary": "Lunch with Sam",
+      "start": { "dateTime": "2026-10-02T12:00:00-04:00", "timeZone": "America/New_York" },
+      "end": { "dateTime": "2026-10-02T13:00:00-04:00", "timeZone": "America/New_York" },
+      "updated": "2026-09-28T12:00:00.000Z"
+    }
+  ]
+}

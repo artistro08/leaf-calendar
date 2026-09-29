@@ -1,0 +1,8 @@
+{
+  "access_token": "ya29.test-access-token",
+  "expires_in": 3599,
+  "refresh_token": "1//test-refresh-token",
+  "scope": "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly https://www.googleapis.com/auth/directory.readonly",
+  "token_type": "Bearer",
+  "id_token": "eyJ0ZXN0.header.signature"
+}

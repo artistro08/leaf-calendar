@@ -1,0 +1,7 @@
+{
+  "access_token": "ya29.test-refreshed-token",
+  "expires_in": 3599,
+  "refresh_token": "1//test-rotated-refresh-token",
+  "scope": "openid https://www.googleapis.com/auth/calendar",
+  "token_type": "Bearer"
+}

@@ -1,0 +1,24 @@
+{
+  "kind": "calendar#calendarList",
+  "items": [
+    {
+      "id": "leaf.tester@gmail.com",
+      "summary": "leaf.tester@gmail.com",
+      "timeZone": "America/New_York",
+      "backgroundColor": "#9fe1e7",
+      "foregroundColor": "#000000",
+      "accessRole": "owner",
+      "primary": true,
+      "defaultReminders": [ { "method": "popup", "minutes": 10 } ]
+    },
+    {
+      "id": "family123@group.calendar.google.com",
+      "summary": "Family",
+      "timeZone": "America/New_York",
+      "backgroundColor": "#f83a22",
+      "foregroundColor": "#000000",
+      "accessRole": "writer",
+      "defaultReminders": []
+    }
+  ]
+}

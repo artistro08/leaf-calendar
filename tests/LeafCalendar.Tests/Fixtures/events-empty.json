@@ -1,0 +1,5 @@
+{
+  "kind": "calendar#events",
+  "nextSyncToken": "sync-token-empty",
+  "items": []
+}

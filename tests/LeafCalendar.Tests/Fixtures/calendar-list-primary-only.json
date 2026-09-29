@@ -1,0 +1,12 @@
+{
+  "kind": "calendar#calendarList",
+  "items": [
+    {
+      "id": "leaf.tester@gmail.com",
+      "summary": "leaf.tester@gmail.com",
+      "timeZone": "America/New_York",
+      "accessRole": "owner",
+      "primary": true
+    }
+  ]
+}

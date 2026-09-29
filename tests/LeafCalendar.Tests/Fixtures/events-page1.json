@@ -1,0 +1,27 @@
+{
+  "kind": "calendar#events",
+  "timeZone": "America/New_York",
+  "nextPageToken": "page-2",
+  "items": [
+    {
+      "id": "evt-single",
+      "status": "confirmed",
+      "etag": "\"3181161784712000\"",
+      "iCalUID": "evt-single@google.com",
+      "summary": "Dentist appointment",
+      "start": { "dateTime": "2026-10-01T09:00:00-04:00", "timeZone": "America/New_York" },
+      "end": { "dateTime": "2026-10-01T10:00:00-04:00", "timeZone": "America/New_York" },
+      "updated": "2026-09-20T12:00:00.000Z"
+    },
+    {
+      "id": "evt-allday",
+      "status": "confirmed",
+      "etag": "\"3181161784712001\"",
+      "iCalUID": "evt-allday@google.com",
+      "summary": "Company holiday",
+      "start": { "date": "2026-10-12" },
+      "end": { "date": "2026-10-13" },
+      "updated": "2026-09-20T12:00:00.000Z"
+    }
+  ]
+}
