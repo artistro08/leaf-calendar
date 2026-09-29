@@ -63,17 +63,22 @@ public class ViewNavigatorTests
     }
 
     [Fact]
-    public void MiniMonthAnchor_WeekSpanningMonths_UsesMiddleDay()
+    public void MiniMonthAnchor_TodayInSpan_UsesToday()
     {
-        // Sep 27 - Oct 3 is mostly October
-        Assert.Equal(D(2026, 9, 30), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Week, D(2026, 9, 27), 7));
-        Assert.Equal(D(2026, 10, 1), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Week, D(2026, 9, 28), 7));
-        Assert.Equal(D(2026, 10, 1), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Days, D(2026, 9, 30), 3));
+        // Sep 27 - Oct 3 with today Oct 1 shows October
+        Assert.Equal(D(2026, 10, 1), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Week, D(2026, 9, 27), 7, D(2026, 10, 1)));
+    }
+
+    [Fact]
+    public void MiniMonthAnchor_TodayOutsideSpan_UsesMiddleDay()
+    {
+        Assert.Equal(D(2026, 9, 30), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Week, D(2026, 9, 27), 7, D(2026, 10, 20)));
+        Assert.Equal(D(2026, 10, 1), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Days, D(2026, 9, 30), 3, D(2026, 12, 1)));
     }
 
     [Fact]
     public void MiniMonthAnchor_Month_UsesPeriodStart()
     {
-        Assert.Equal(D(2026, 10, 1), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Month, D(2026, 10, 1), 7));
+        Assert.Equal(D(2026, 10, 1), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Month, D(2026, 10, 1), 7, D(2026, 10, 15)));
     }
 }
