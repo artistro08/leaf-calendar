@@ -244,14 +244,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
         for (var i = 0; i <= 90; i++, day = day.AddDays(direction))
         {
-            var candidates = Cache.ForDay(day)
-                .Where(o => direction > 0 ? o.Start > from || (o.Start == from && anchor is not null && string.CompareOrdinal(o.Key, anchor.Key) > 0) : o.Start < from)
-                .OrderBy(o => direction * o.Start.UtcTicks)
-                .ToList();
-
-            if (candidates.Count > 0)
+            if (OccurrenceOrder.Adjacent(Cache.ForDay(day), from, anchor?.Key, direction) is { } next)
             {
-                var next = candidates[0];
                 Select(next);
                 NavigateTo(LocalDate(next.Start));
                 ScrollToTimeRequested?.Invoke(this, next.Start);
