@@ -13,6 +13,9 @@ public sealed record CalendarPageArgs(CalendarViewModel ViewModel, Action OpenAc
 public sealed partial class CalendarPage : Page
 {
     CalendarPageArgs _args = null!;
+    [SuppressMessage("Performance", "CA1859", Justification = "Holds the month view too from Task 14.")]
+    IDisposable? _view;
+    bool _viewIsMonth;
 
     /// <summary>Creates the page.</summary>
     public CalendarPage() => InitializeComponent();
@@ -41,6 +44,8 @@ public sealed partial class CalendarPage : Page
         ViewModel.LayoutChanged    -= OnLayoutChanged;
         ViewModel.CalendarsChanged -= OnCalendarsChanged;
         Sidebar.Detach();
+        _view?.Dispose();
+        _view = null;
         ViewHost.Children.Clear();
     }
 
@@ -56,10 +61,22 @@ public sealed partial class CalendarPage : Page
         }
     }
 
-    /// <summary>Puts the view for the current mode into <see cref="ViewHost"/> (views arrive in Tasks 13 and 14).</summary>
-    [SuppressMessage("Performance", "CA1822", Justification = "Instance API; Tasks 13 and 14 fill in the views.")]
+    /// <summary>Puts the view for the current mode into <see cref="ViewHost"/>, keeping one view per mode family.</summary>
     public void ApplyView()
     {
+        var wantMonth = ViewModel.Mode == Core.Settings.CalendarViewMode.Month;
+        if (_view is not null && wantMonth == _viewIsMonth)
+        {
+            return;
+        }
+
+        _view?.Dispose();
+        ViewHost.Children.Clear();
+
+        var view = new Controls.TimeGridView(ViewModel);
+        _view        = view;
+        _viewIsMonth = false;
+        ViewHost.Children.Add(view);
     }
 
     void OnLayoutChanged(object? sender, EventArgs e) => ApplyView();

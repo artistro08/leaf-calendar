@@ -152,10 +152,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         NavigateRequested?.Invoke(this, PeriodStart);
     }
 
-    /// <summary>Switches view (and day count for <see cref="CalendarViewMode.Days"/>), keeping the current date.</summary>
+    /// <summary>Switches view (and day count for <see cref="CalendarViewMode.Days"/>), keeping the selected event's day, else today when it's showing, else the period start.</summary>
     public void SetMode(CalendarViewMode mode, int? days = null)
     {
-        var anchor = SelectedInfo?.Occurrence is { } selected ? LocalDate(selected.Start) : PeriodStart;
+        var todayShown = Mode == CalendarViewMode.Month
+            ? ViewNavigator.MonthStartOf(Today) == PeriodStart
+            : Today >= PeriodStart && Today < PeriodStart.AddDays(VisibleColumns);
+        var anchor = SelectedInfo?.Occurrence is { } selected ? LocalDate(selected.Start) : todayShown ? Today : PeriodStart;
         Update(s => s with { ViewMode = mode, CustomDayCount = days ?? s.CustomDayCount });
         NavigateTo(anchor);
     }
