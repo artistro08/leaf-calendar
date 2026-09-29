@@ -151,6 +151,33 @@ public sealed partial class SidebarView : UserControl
         flyout.ShowAt(button);
     }
 
+    // Color Each Checkbox With Its Calendar's Color (The Default Style Ignores Background When Checked)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822", Justification = "XAML event handlers must be instance methods.")]
+    void OnCalendarRowChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (args.Item is not CalendarRow row || args.ItemContainer.ContentTemplateRoot is not Grid { Children: [CheckBox box, ..] })
+        {
+            return;
+        }
+
+        var brush = LeafBrushes.FromHex(row.Color);
+        foreach (var key in new[]
+        {
+            "CheckBoxCheckBackgroundFillChecked",
+            "CheckBoxCheckBackgroundFillCheckedPointerOver",
+            "CheckBoxCheckBackgroundFillCheckedPressed",
+            "CheckBoxCheckBackgroundStrokeChecked",
+            "CheckBoxCheckBackgroundStrokeCheckedPointerOver",
+            "CheckBoxCheckBackgroundStrokeCheckedPressed",
+            "CheckBoxCheckBackgroundStrokeUnchecked",
+            "CheckBoxCheckBackgroundStrokeUncheckedPointerOver",
+            "CheckBoxCheckBackgroundStrokeUncheckedPressed",
+        })
+        {
+            box.Resources[key] = brush;
+        }
+    }
+
     void OnCalendarsReordered(ListViewBase sender, DragItemsCompletedEventArgs args)
     {
         if (_viewModel is null || sender.ItemsSource is not IEnumerable<CalendarRow> rows)

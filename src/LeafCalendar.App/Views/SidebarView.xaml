@@ -43,6 +43,7 @@
                                     CanDragItems="True"
                                     AllowDrop="True"
                                     DragItemsCompleted="OnCalendarsReordered"
+                                    ContainerContentChanging="OnCalendarRowChanging"
                                     Tag="{x:Bind Email}">
                                     <ListView.ItemContainerStyle>
                                         <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
