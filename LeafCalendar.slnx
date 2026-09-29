@@ -1,8 +1,12 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/LeafCalendar.App/LeafCalendar.App.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/LeafCalendar.Core/LeafCalendar.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/LeafCalendar.Tests/LeafCalendar.Tests.csproj" />
+    <Project Path="tests/LeafCalendar.UITests/LeafCalendar.UITests.csproj" />
   </Folder>
 </Solution>

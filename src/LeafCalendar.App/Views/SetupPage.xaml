@@ -1,0 +1,60 @@
+<Page
+    x:Class="LeafCalendar.App.Views.SetupPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer>
+        <StackPanel MaxWidth="560" Padding="32" Spacing="16">
+
+            <!-- Heading -->
+            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Connect Leaf to Google" />
+
+            <!-- Setup Guide -->
+            <RichTextBlock AutomationProperties.AutomationId="SetupGuideText">
+                <Paragraph>
+                    Leaf signs in with your own Google OAuth client. You only need to do this once.
+                </Paragraph>
+                <Paragraph>
+                    1. Open
+                    <Hyperlink NavigateUri="https://console.cloud.google.com/">
+                        Google Cloud Console
+                    </Hyperlink>
+                    and create a project.
+                </Paragraph>
+                <Paragraph>
+                    2. In APIs &amp; Services, open Library and enable the Google Calendar API and the People API.
+                </Paragraph>
+                <Paragraph>
+                    3. In OAuth consent screen, choose External and add your Google accounts as test users. Then set the publishing status to In production. While it's in Testing, Google signs you out every 7 days.
+                </Paragraph>
+                <Paragraph>
+                    4. In Credentials, create an OAuth client ID of type Desktop app. Paste its Client ID and Client secret below.
+                </Paragraph>
+            </RichTextBlock>
+            <!-- /Setup Guide -->
+
+            <!-- Credentials Form -->
+            <TextBox
+                Header="Client ID"
+                Text="{x:Bind ViewModel.ClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                AutomationProperties.AutomationId="ClientIdBox" />
+            <PasswordBox
+                Header="Client secret"
+                Password="{x:Bind ViewModel.ClientSecret, Mode=TwoWay}"
+                AutomationProperties.AutomationId="ClientSecretBox" />
+            <InfoBar
+                Severity="Error"
+                IsClosable="False"
+                IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
+                Message="{x:Bind ViewModel.Error, Mode=OneWay}"
+                AutomationProperties.AutomationId="SetupError" />
+            <Button
+                Style="{StaticResource AccentButtonStyle}"
+                Content="Save"
+                Command="{x:Bind ViewModel.SaveCommand}"
+                AutomationProperties.AutomationId="SaveCredentialsButton" />
+            <!-- /Credentials Form -->
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>
