@@ -1,12 +1,17 @@
 using LeafCalendar.App.ViewModels;
+using LeafCalendar.Core.Views;
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
+using Windows.System;
+using Windows.UI.Core;
 
 namespace LeafCalendar.App.Views;
 
 /// <summary>Navigation parameter for <see cref="CalendarPage"/>.</summary>
-public sealed record CalendarPageArgs(CalendarViewModel ViewModel, Action OpenAccounts);
+public sealed record CalendarPageArgs(CalendarViewModel ViewModel, Action OpenAccounts, Action ToggleTheme);
 
 /// <summary>The main calendar page: sidebar, the current view, and (from Task 16) the details panel.</summary>
 public sealed partial class CalendarPage : Page
@@ -16,7 +21,13 @@ public sealed partial class CalendarPage : Page
     bool _viewIsMonth;
 
     /// <summary>Creates the page.</summary>
-    public CalendarPage() => InitializeComponent();
+    public CalendarPage()
+    {
+        InitializeComponent();
+
+        // Take focus once loaded so shortcuts work before the first click
+        Loaded += (_, _) => Focus(FocusState.Programmatic);
+    }
 
     /// <summary>The page's view model.</summary>
     public CalendarViewModel ViewModel => _args.ViewModel;
@@ -118,6 +129,68 @@ public sealed partial class CalendarPage : Page
         ViewModel.ClearSelection();
         args.Handled = true;
     }
+
+    // Calendar shortcuts, ignored while typing in a text field
+    void OnPreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (FocusManager.GetFocusedElement(XamlRoot) is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox)
+        {
+            return;
+        }
+
+        var result = ShortcutMap.Resolve(e.Key.ToString(), IsDown(VirtualKey.Control), IsDown(VirtualKey.Shift), IsDown(VirtualKey.Menu));
+        if (result.Command == CalendarCommand.None)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        Execute(result);
+    }
+
+    void Execute(ShortcutResult result)
+    {
+        var vm = ViewModel;
+        switch (result.Command)
+        {
+            case CalendarCommand.Today:          vm.GoToToday(); break;
+            case CalendarCommand.Previous:       vm.Previous(); break;
+            case CalendarCommand.Next:           vm.Next(); break;
+            case CalendarCommand.DayView:        vm.SetMode(Core.Settings.CalendarViewMode.Day); break;
+            case CalendarCommand.WeekView:       vm.SetMode(Core.Settings.CalendarViewMode.Week); break;
+            case CalendarCommand.MonthView:      vm.SetMode(Core.Settings.CalendarViewMode.Month); break;
+            case CalendarCommand.Days:           vm.SetMode(Core.Settings.CalendarViewMode.Days, result.Days); break;
+            case CalendarCommand.GoToDate:       ShowGoToDate(); break;
+            case CalendarCommand.ToggleWeekends: vm.ToggleWeekends(); break;
+            case CalendarCommand.ToggleDeclined: vm.ToggleDeclined(); break;
+            case CalendarCommand.ZoomIn:         vm.ZoomBy(8); break;
+            case CalendarCommand.ZoomOut:        vm.ZoomBy(-8); break;
+            case CalendarCommand.ZoomReset:      vm.ZoomReset(); break;
+            case CalendarCommand.ToggleTheme:    _args.ToggleTheme(); break;
+            case CalendarCommand.NextEvent:      vm.SelectAdjacent(1); break;
+            case CalendarCommand.PreviousEvent:  vm.SelectAdjacent(-1); break;
+        }
+    }
+
+    void ShowGoToDate()
+    {
+        var picker = new CalendarView { SelectionMode = CalendarViewSelectionMode.Single, IsTodayHighlighted = true };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(picker, "GoToDateCalendar");
+        picker.SetDisplayDate(new DateTimeOffset(ViewModel.PeriodStart.ToDateTime(TimeOnly.MinValue)));
+
+        var flyout = new Flyout { Content = picker, Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Bottom };
+        picker.SelectedDatesChanged += (s, a) =>
+        {
+            if (a.AddedDates.Count > 0)
+            {
+                flyout.Hide();
+                ViewModel.NavigateTo(DateOnly.FromDateTime(a.AddedDates[0].Date));
+            }
+        };
+        flyout.ShowAt(ViewHost);
+    }
+
+    static bool IsDown(VirtualKey key) => InputKeyboardSource.GetKeyStateForCurrentThread(key).HasFlag(CoreVirtualKeyStates.Down);
 
     void OnLayoutChanged(object? sender, EventArgs e) => ApplyView();
 

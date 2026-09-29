@@ -82,7 +82,7 @@ public sealed partial class MainWindow : Window
             ApplyTheme(_calendar.Settings.Theme);
         }
 
-        ContentFrame.Navigate(typeof(CalendarPage), new CalendarPageArgs(_calendar, ShowAccounts));
+        ContentFrame.Navigate(typeof(CalendarPage), new CalendarPageArgs(_calendar, ShowAccounts, ToggleTheme));
         ContentFrame.BackStack.Clear();
     }
 
@@ -246,6 +246,20 @@ public sealed partial class MainWindow : Window
             _calendar.Update(s => s with { Theme = theme });
             ApplyTheme(theme);
         }
+    }
+
+    // Ctrl+Shift+L: flip between light and dark based on what's showing now
+    void ToggleTheme()
+    {
+        if (_calendar is null)
+        {
+            return;
+        }
+
+        var next = RootGrid.ActualTheme == ElementTheme.Dark ? AppTheme.Light : AppTheme.Dark;
+        _calendar.Update(s => s with { Theme = next });
+        ApplyTheme(next);
+        SyncMenu();
     }
 
     // Keep the menu's check marks and the button label in step with the settings
