@@ -44,7 +44,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         using (var conn = services.Database.Open())
         {
             Settings  = SettingsStore.Load(conn);
-            Calendars = CalendarStore.GetAll(conn);
+            Calendars     = CalendarStore.GetAll(conn);
+            AccountEmails = AccountStore.GetAll(conn).ToDictionary(a => a.Id, a => a.Email);
         }
 
         Today = services.Options.StartDate ?? DateOnly.FromDateTime(DateTime.Now);
@@ -87,6 +88,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     /// <summary>Every calendar, grouped by account.</summary>
     public IReadOnlyList<CalendarInfo> Calendars { get; private set; }
+
+    /// <summary>Account ID → email, for sidebar headers.</summary>
+    public IReadOnlyDictionary<string, string> AccountEmails { get; private set; } = new Dictionary<string, string>();
 
     /// <summary>Events in the next <see cref="UpcomingWindow"/>.</summary>
     public ObservableCollection<UpcomingItem> Upcoming { get; } = [];
@@ -298,7 +302,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         using (var conn = _services.Database.Open())
         {
-            Calendars = CalendarStore.GetAll(conn);
+            Calendars     = CalendarStore.GetAll(conn);
+            AccountEmails = AccountStore.GetAll(conn).ToDictionary(a => a.Id, a => a.Email);
         }
 
         CalendarsChanged?.Invoke(this, EventArgs.Empty);
@@ -426,4 +431,30 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             _services.Log.Error("calendar.load.failed", ex);
         }
     }
+}
+
+/// <summary>One calendar in the sidebar.</summary>
+public sealed partial class CalendarRow(CalendarInfo info) : ObservableObject
+{
+    /// <summary>The stored calendar.</summary>
+    public CalendarInfo Info { get; } = info;
+
+    /// <summary>Display name.</summary>
+    public string Name => Info.Summary;
+
+    /// <summary>Checked when shown.</summary>
+    public bool IsVisible => Info.IsVisible;
+
+    /// <summary>Hex color.</summary>
+    public string Color => Info.DisplayColor;
+}
+
+/// <summary>An account's calendars in the sidebar.</summary>
+public sealed class AccountGroup(string email, IEnumerable<CalendarRow> calendars)
+{
+    /// <summary>Account email (header).</summary>
+    public string Email { get; } = email;
+
+    /// <summary>Calendars in Leaf's order (drag to reorder).</summary>
+    public ObservableCollection<CalendarRow> Calendars { get; } = new(calendars);
 }
