@@ -113,7 +113,15 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
 
         foreach (var item in items)
         {
-            EventStore.Apply(conn, tx, calendar.AccountId, calendar.Id, item);
+            // One Bad Event Must Not Block The Calendar
+            try
+            {
+                EventStore.Apply(conn, tx, calendar.AccountId, calendar.Id, item);
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidDataException)
+            {
+                log.Info("sync.event.skipped", $"account={calendar.AccountId}");
+            }
         }
 
         CalendarStore.SetSyncToken(conn, tx, calendar.AccountId, calendar.Id, page.NextSyncToken);

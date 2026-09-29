@@ -105,13 +105,36 @@ public sealed class SyncEngineTests : IDisposable
     [Fact]
     public async Task SyncAccountAsync_OneCalendarForbidden_OthersStillSync()
     {
-        _h.Google.On(HttpMethod.Get, SyncHarness.FamilyEventsUrl, HttpStatusCode.Forbidden, Fixture.Read("error-forbidden.json"));
+        _h.Google.On(HttpMethod.Get, SyncHarness.PrimaryEventsUrl, HttpStatusCode.Forbidden, Fixture.Read("error-forbidden.json"));
         _h.RouteStandardGoogle();
 
         await _h.Engine.SyncAccountAsync(Account, TestContext.Current.CancellationToken);
 
-        Assert.Equal("sync-token-1", Calendar(Primary).SyncToken);
-        Assert.Null(Calendar(Family).SyncToken);
+        var log = File.ReadAllText(_h.LogPath);
+        Assert.Equal("sync-token-empty", Calendar(Family).SyncToken);
+        Assert.Null(Calendar(Primary).SyncToken);
+        Assert.Contains("sync.calendar.failed", log, StringComparison.Ordinal);
+        Assert.DoesNotContain("sync.account.failed", log, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SyncAccountAsync_MalformedEventItem_SkipsItAndStillAdvances()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _h.Google.On(
+            r => r.Uri.AbsoluteUri.StartsWith(SyncHarness.PrimaryEventsUrl, StringComparison.Ordinal) && r.Query("syncToken") == "sync-token-1",
+            _ => FakeHttpHandler.Json(
+                HttpStatusCode.OK,
+                """{"nextSyncToken":"sync-token-9","items":[{"id":"evt-bad","status":"confirmed","start":"not-an-object"},{"id":"evt-good","status":"confirmed","start":{"dateTime":"2026-10-03T10:00:00Z"},"end":{"dateTime":"2026-10-03T11:00:00Z"}}]}"""));
+        _h.RouteStandardGoogle();
+        await _h.Engine.SyncAccountAsync(Account, ct);
+
+        await _h.Engine.SyncAccountAsync(Account, ct);
+
+        Assert.NotNull(Get("evt-good"));
+        Assert.Null(Get("evt-bad"));
+        Assert.Equal("sync-token-9", Calendar(Primary).SyncToken);
+        Assert.Contains("sync.event.skipped", File.ReadAllText(_h.LogPath), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -153,8 +176,10 @@ public sealed class SyncEngineTests : IDisposable
         var ct = TestContext.Current.CancellationToken;
         _h.Google.On(HttpMethod.Get, SyncHarness.ListUrl, HttpStatusCode.OK, Fixture.Read("calendar-list.json"), once: true);
         _h.Google.On(HttpMethod.Get, SyncHarness.ListUrl, HttpStatusCode.OK, Fixture.Read("calendar-list-primary-only.json"));
+        _h.RouteEvents(SyncHarness.FamilyEventsUrl, null, null, "events-page2.json");
         _h.RouteStandardGoogle();
         await _h.Engine.SyncAccountAsync(Account, ct);
+        Assert.True(CountEvents(Family) > 0);
 
         await _h.Engine.SyncAccountAsync(Account, ct);
 
