@@ -34,7 +34,11 @@ public sealed partial class AccountsViewModel : ObservableObject
 
     /// <summary>True while signing in or syncing.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNotBusy))]
     public partial bool IsBusy { get; set; }
+
+    /// <summary>True when no sign-in or sync is running.</summary>
+    public bool IsNotBusy => !IsBusy;
 
     /// <summary>Status or error text, or null.</summary>
     [ObservableProperty]
@@ -110,9 +114,11 @@ public sealed partial class AccountsViewModel : ObservableObject
         {
             try
             {
-                var account = await google.CreateSignIn(uri => Launcher.LaunchUriAsync(uri).AsTask()).RunAsync(null, CancellationToken.None);
+                var account = await google.CreateSignIn(OpenBrowserAsync).RunAsync(null, CancellationToken.None);
                 Message = $"Signed in as {account.Email}. Syncing…";
-                await google.Sync.SyncAccountAsync(account.Id, CancellationToken.None);
+
+                // Sync Off The UI Thread; Property Updates Resume On It After The Await
+                await Task.Run(() => google.Sync.SyncAccountAsync(account.Id, CancellationToken.None));
                 Message = null;
             }
             finally
@@ -135,6 +141,15 @@ public sealed partial class AccountsViewModel : ObservableObject
         }
     }
 
+    // A browser that never opens would leave the user waiting for the sign-in timeout
+    static async Task OpenBrowserAsync(Uri uri)
+    {
+        if (!await Launcher.LaunchUriAsync(uri))
+        {
+            throw new SignInException("Couldn't open your browser. Try again.");
+        }
+    }
+
     [RelayCommand]
     async Task SyncNowAsync()
     {
@@ -148,7 +163,7 @@ public sealed partial class AccountsViewModel : ObservableObject
         {
             try
             {
-                await google.Sync.SyncAllAsync(CancellationToken.None);
+                await Task.Run(() => google.Sync.SyncAllAsync(CancellationToken.None));
             }
             finally
             {

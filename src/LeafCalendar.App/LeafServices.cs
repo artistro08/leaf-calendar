@@ -58,9 +58,17 @@ public sealed class LeafServices : IAsyncDisposable
     /// <summary>Rebuilds Google services after the OAuth client changes.</summary>
     public async Task ReloadGoogleAsync()
     {
-        if (Google is { } old)
+        try
         {
-            await old.DisposeAsync();
+            if (Google is { } old)
+            {
+                await old.DisposeAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            // A failed teardown must not leave the app without Google services
+            Log.Error("google.dispose.failed", ex);
         }
 
         Google = CreateGoogle();

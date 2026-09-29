@@ -1,4 +1,5 @@
 using LeafCalendar.App.Interop;
+using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Hosting;
 using LeafCalendar.Core.Sync;
 using Microsoft.UI.Dispatching;
@@ -12,15 +13,39 @@ public partial class App : Application
 {
     MainWindow? _window;
     DispatcherQueueTimer? _probeTimer;
+    AppLog? _log;
 
-    /// <summary>Loads XAML resources.</summary>
-    public App() => InitializeComponent();
+    /// <summary>Loads XAML resources and hooks crash logging.</summary>
+    public App()
+    {
+        InitializeComponent();
+
+        // Crash Logging
+        UnhandledException                    += (_, e) => _log?.Error("app.unhandled", e.Exception);
+        TaskScheduler.UnobservedTaskException += (_, e) => _log?.Error("app.task.unobserved", e.Exception);
+    }
 
     /// <inheritdoc />
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        var options  = LaunchOptions.Parse([.. Environment.GetCommandLineArgs().Skip(1)]);
-        var services = new LeafServices(options, ApplicationData.Current.LocalFolder.Path);
+        var options     = LaunchOptions.Parse([.. Environment.GetCommandLineArgs().Skip(1)]);
+        var localFolder = ApplicationData.Current.LocalFolder.Path;
+
+        // Log First, So A Startup Failure Is Recorded Before The Process Ends
+        _log = new AppLog(new LeafPaths(localFolder, options.Profile).LogDirectory, TimeProvider.System);
+
+        LeafServices services;
+        try
+        {
+            services = new LeafServices(options, localFolder);
+        }
+        catch (Exception ex)
+        {
+            _log.Error("app.start.failed", ex);
+            throw;
+        }
+
+        _log = services.Log;
 
         _window = new MainWindow(services);
         _window.Activate();

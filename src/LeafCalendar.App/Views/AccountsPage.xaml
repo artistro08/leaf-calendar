@@ -29,6 +29,7 @@
             <Button
                 Content="Change OAuth client"
                 Click="OnChangeClientClick"
+                IsEnabled="{x:Bind ViewModel.IsNotBusy, Mode=OneWay}"
                 AutomationProperties.AutomationId="ChangeClientButton" />
             <ProgressRing IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" Width="20" Height="20" />
         </StackPanel>
