@@ -12,7 +12,11 @@ public static partial class EventDetailsParser
 
     const int MaxDescriptionLength = 10_000;
 
+    // Input bound applied before any regex runs, so a huge invite can't stall the UI thread
+    const int MaxHtmlInputLength = MaxDescriptionLength * 4;
+
     /// <summary>Parses one event.</summary>
+    /// <remarks>Valid JSON of an unexpected shape (a non-object root, or fields of the wrong type) reads as missing fields.</remarks>
     /// <exception cref="JsonException">The JSON is invalid.</exception>
     public static EventDetails Parse(string rawJson)
     {
@@ -30,8 +34,8 @@ public static partial class EventDetailsParser
             String(root, "colorId"),
             ConferenceUri(root),
             String(root, "transparency") == "transparent",
-            root.TryGetProperty("attendees", out var attendees) && attendees.ValueKind == JsonValueKind.Array ? attendees.GetArrayLength() : 0,
-            root.TryGetProperty("organizer", out var organizer) ? String(organizer, "email") : null);
+            Get(root, "attendees") is { ValueKind: JsonValueKind.Array } guests ? guests.GetArrayLength() : 0,
+            Get(root, "organizer") is { } organizer ? String(organizer, "email") : null);
     }
 
     /// <summary>
@@ -41,6 +45,11 @@ public static partial class EventDetailsParser
     /// </summary>
     public static string HtmlToText(string html)
     {
+        if (html.Length > MaxHtmlInputLength)
+        {
+            html = html[..MaxHtmlInputLength];
+        }
+
         var text = ListItemOpen().Replace(html, "• ");
         text = LineBreak().Replace(text, "\n");
         text = AnyTag().Replace(text, "");
@@ -61,14 +70,14 @@ public static partial class EventDetailsParser
 
     static ResponseStatus SelfResponse(JsonElement root)
     {
-        if (!root.TryGetProperty("attendees", out var attendees) || attendees.ValueKind != JsonValueKind.Array)
+        if (Get(root, "attendees") is not { ValueKind: JsonValueKind.Array } attendees)
         {
             return ResponseStatus.Accepted;
         }
 
         foreach (var attendee in attendees.EnumerateArray())
         {
-            if (attendee.TryGetProperty("self", out var self) && self.ValueKind == JsonValueKind.True)
+            if (Get(attendee, "self") is { ValueKind: JsonValueKind.True })
             {
                 return String(attendee, "responseStatus") switch
                 {
@@ -86,9 +95,7 @@ public static partial class EventDetailsParser
     // Only https links count; anything else from an invite is ignored
     static Uri? ConferenceUri(JsonElement root)
     {
-        if (root.TryGetProperty("conferenceData", out var conference)
-            && conference.TryGetProperty("entryPoints", out var entryPoints)
-            && entryPoints.ValueKind == JsonValueKind.Array)
+        if (Get(Get(root, "conferenceData"), "entryPoints") is { ValueKind: JsonValueKind.Array } entryPoints)
         {
             foreach (var entry in entryPoints.EnumerateArray())
             {
@@ -105,18 +112,20 @@ public static partial class EventDetailsParser
     static Uri? Https(string? value) =>
         Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps ? uri : null;
 
-    static string? String(JsonElement element, string name) =>
-        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : null;
+    // Property lookup that tolerates non-object parents
+    static JsonElement? Get(JsonElement? element, string name) =>
+        element is { ValueKind: JsonValueKind.Object } parent && parent.TryGetProperty(name, out var value) ? value : null;
 
-    [GeneratedRegex(@"<\s*li\b[^>]*>", RegexOptions.IgnoreCase)]
+    static string? String(JsonElement element, string name) =>
+        Get(element, name) is { ValueKind: JsonValueKind.String } value ? value.GetString() : null;
+
+    [GeneratedRegex(@"<\s*li\b[^<>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex ListItemOpen();
 
     [GeneratedRegex(@"<\s*br\s*/?\s*>|<\s*/\s*(p|div|li|ul|ol|h[1-6])\s*>", RegexOptions.IgnoreCase)]
     private static partial Regex LineBreak();
 
-    [GeneratedRegex(@"<[^>]*>")]
+    [GeneratedRegex(@"<[^<>]*>")]
     private static partial Regex AnyTag();
 
     [GeneratedRegex(@"\n{2,}")]

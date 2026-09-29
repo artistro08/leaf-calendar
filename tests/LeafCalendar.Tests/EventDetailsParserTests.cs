@@ -90,4 +90,25 @@ public class EventDetailsParserTests
     {
         Assert.Equal(10_001, EventDetailsParser.HtmlToText(new string('x', 50_000)).Length);
     }
+
+    [Fact]
+    public void HtmlToText_HugeUnclosedTags_FinishesAndIsCapped()
+    {
+        Assert.True(EventDetailsParser.HtmlToText(new string('<', 200_000)).Length <= 10_001);
+        Assert.True(EventDetailsParser.HtmlToText(string.Concat(Enumerable.Repeat("<li", 70_000))).Length <= 10_001);
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("""{"id":"a","conferenceData":"x"}""")]
+    [InlineData("""{"id":"a","attendees":[null]}""")]
+    [InlineData("""{"id":"a","attendees":[1,"x"],"organizer":"me"}""")]
+    public void Parse_OddShapes_TreatedAsMissing(string json)
+    {
+        var details = EventDetailsParser.Parse(json);
+
+        Assert.Equal(EventDetailsParser.NoTitle, details.Title);
+        Assert.Null(details.ConferenceUri);
+        Assert.Equal(ResponseStatus.Accepted, details.SelfResponse);
+    }
 }
