@@ -12,6 +12,7 @@ public sealed class SyncLoopTests : IDisposable
 
     readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
     readonly Channel<int> _runs = Channel.CreateUnbounded<int>();
+    readonly Channel<int> _invoked = Channel.CreateUnbounded<int>();
     readonly TempFolder _logs = new();
     int _count;
 
@@ -20,6 +21,8 @@ public sealed class SyncLoopTests : IDisposable
     SyncLoop CreateLoop(Func<Task>? body = null) => new(
         async _ =>
         {
+            _invoked.Writer.TryWrite(1);
+
             if (body is not null)
             {
                 await body();
@@ -31,6 +34,10 @@ public sealed class SyncLoopTests : IDisposable
         new AppLog(_logs.Path, _time));
 
     async Task<int> NextRunAsync() => await _runs.Reader.ReadAsync(TestContext.Current.CancellationToken).AsTask().WaitAsync(Wait, TestContext.Current.CancellationToken);
+
+    static async Task SettleAsync() => await Task.Delay(100, TestContext.Current.CancellationToken);
+
+    async Task AwaitInvokedAsync() => await _invoked.Reader.ReadAsync(TestContext.Current.CancellationToken).AsTask().WaitAsync(Wait, TestContext.Current.CancellationToken);
 
     // Negative check: gives the loop a moment to (wrongly) run. ponytail: timing-based; raise the delay if CI is slow.
     async Task AssertNoRunAsync()
@@ -55,6 +62,7 @@ public sealed class SyncLoopTests : IDisposable
 
         loop.Start();
         Assert.Equal(1, await NextRunAsync());
+        await SettleAsync();
 
         _time.Advance(TimeSpan.FromSeconds(14));
         await AssertNoRunAsync();
@@ -69,6 +77,7 @@ public sealed class SyncLoopTests : IDisposable
         await using var loop = CreateLoop();
         loop.Start();
         await NextRunAsync();
+        await SettleAsync();
 
         loop.TriggerNow();
 
@@ -91,6 +100,8 @@ public sealed class SyncLoopTests : IDisposable
         });
 
         loop.Start();
+        await AwaitInvokedAsync();
+        await SettleAsync();
         _time.Advance(SyncLoop.IntervalFor(SyncMode.Tray));
 
         Assert.Equal(1, await NextRunAsync());
