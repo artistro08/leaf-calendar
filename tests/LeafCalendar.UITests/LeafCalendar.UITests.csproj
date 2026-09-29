@@ -27,4 +27,8 @@
     <ItemGroup>
         <None Include="memory-budget.json" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\LeafCalendar.Tests\Fixtures\*.json" Link="Fixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
 </Project>

@@ -126,7 +126,7 @@ Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manag
 4. Event data kept in a bounded sliding window (Section 6.4). Event visuals recycled.
 5. No WebView2. Event descriptions render with native text controls.
 6. Avatars and images decoded at display size (`DecodePixelWidth`).
-7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64. Measured with no OAuth client configured, so no sync loop was running. Re-measure with the fake-Google test mode in Milestone 2.
+7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64. Measured 2026-09-29 at 78-79 MB private bytes and 11 MB working set (three runs), measured with sync running against the fake Google.
 
 ---
 

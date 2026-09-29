@@ -1,6 +1,8 @@
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
+using FlaUI.Core.WindowsAPI;
 using FlaUI.UIA3;
 using LeafCalendar.Core.Auth;
 using Windows.Management.Deployment;
@@ -44,18 +46,21 @@ public sealed class LeafApp : IDisposable
     public static LeafApp Launch(string? profile = null, string extraArguments = "") =>
         new(Application.LaunchStoreApp($"{Package.Id.FamilyName}!App", $"--profile {profile ?? NewProfile()} {extraArguments}".Trim()));
 
+    /// <summary>The package's local folder for <paramref name="profile"/>.</summary>
+    public static string ProfileFolder(string profile) => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Packages",
+        Package.Id.FamilyName,
+        "LocalState",
+        "profiles",
+        profile);
+
     /// <summary>Deletes a profile's secrets and local files.</summary>
     public static void DeleteProfile(string profile)
     {
         new CredentialLockerTokenStore(profile).DeleteAll();
 
-        var folder = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Packages",
-            Package.Id.FamilyName,
-            "LocalState",
-            "profiles",
-            profile);
+        var folder = ProfileFolder(profile);
 
         if (Directory.Exists(folder))
         {
@@ -67,6 +72,30 @@ public sealed class LeafApp : IDisposable
     public AutomationElement WaitFor(string automationId) =>
         Retry.WhileNull(() => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)), TimeSpan.FromSeconds(15)).Result
         ?? throw new InvalidOperationException($"Element '{automationId}' didn't appear.");
+
+    /// <summary>Waits up to 15 s for an element by its accessible name.</summary>
+    public AutomationElement WaitForName(string name) =>
+        Retry.WhileNull(() => MainWindow.FindFirstDescendant(cf => cf.ByName(name)), TimeSpan.FromSeconds(15)).Result
+        ?? throw new InvalidOperationException($"Element named '{name}' didn't appear.");
+
+    /// <summary>Waits up to 15 s for an element in any of the app's windows (flyouts and dialogs can be separate).</summary>
+    public AutomationElement WaitForAnywhere(string automationId) =>
+        Retry.WhileNull(
+            () => App.GetAllTopLevelWindows(_automation)
+                .Select(w => w.FindFirstDescendant(cf => cf.ByAutomationId(automationId)))
+                .FirstOrDefault(e => e is not null),
+            TimeSpan.FromSeconds(15)).Result
+        ?? throw new InvalidOperationException($"Element '{automationId}' didn't appear in any window.");
+
+    /// <summary>True when an element with this ID is currently in the main window.</summary>
+    public bool Exists(string automationId) => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) is not null;
+
+    /// <summary>Focuses the main window and presses a key chord (e.g. Control + Shift + E).</summary>
+    public void Press(params VirtualKeyShort[] keys)
+    {
+        MainWindow.Focus();
+        Keyboard.TypeSimultaneously(keys);
+    }
 
     /// <inheritdoc />
     public void Dispose()

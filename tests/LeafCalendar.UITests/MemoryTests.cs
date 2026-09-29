@@ -14,13 +14,15 @@ public class MemoryTests(ITestOutputHelper output)
             Assert.Skip("Memory budget applies to the Release AOT package. Run tools/publish-aot.ps1 -Register first.");
         }
 
-        var profile = LeafApp.NewProfile();
+        using var google = new FakeGoogleServer();
+        var profile      = SeededProfile.Create();
         try
         {
-            using var leaf = LeafApp.Launch(profile, "--tray-probe");
+            using var leaf = LeafApp.Launch(profile, $"--fake-google {google.BaseUri} --tray-probe");
 
-            // Probe closes the window at ~3 s and trims; give it time to settle
+            // Probe closes the window at ~3 s, keeps sync running in tray mode, and trims; let it settle
             await Task.Delay(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken);
+            Assert.Contains(google.Requests, r => r.Contains("/events", StringComparison.Ordinal));
 
             using var process = Process.GetProcessById(leaf.App.ProcessId);
             process.Refresh();

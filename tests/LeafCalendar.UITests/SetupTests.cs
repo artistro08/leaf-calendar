@@ -6,7 +6,7 @@ namespace LeafCalendar.UITests;
 
 public class SetupTests
 {
-    static void EnterCredentials(LeafApp leaf, string clientId, string secret)
+    internal static void EnterCredentials(LeafApp leaf, string clientId, string secret)
     {
         leaf.WaitFor("ClientIdBox").AsTextBox().Enter(clientId);
         leaf.WaitFor("ClientSecretBox").Focus();
