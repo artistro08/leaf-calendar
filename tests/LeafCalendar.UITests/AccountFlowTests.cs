@@ -14,6 +14,7 @@ public sealed class AccountFlowTests : IDisposable
     {
         var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri}");
         SetupTests.EnterCredentials(leaf, "123-uitest.apps.googleusercontent.com", "GOCSPX-uitest");
+        leaf.WaitFor("AccountsButton").AsButton().Invoke();
         leaf.WaitFor("AddAccountButton").AsButton().Invoke();
         leaf.WaitForName("2 calendars · 4 events");
         return leaf;

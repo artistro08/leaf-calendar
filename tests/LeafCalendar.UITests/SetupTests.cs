@@ -50,7 +50,7 @@ public class SetupTests
     }
 
     [Fact]
-    public void Save_ValidCredentials_OpensAccountsAndPersistsAcrossLaunches()
+    public void Save_ValidCredentials_OpensCalendarAndPersistsAcrossLaunches()
     {
         var profile = LeafApp.NewProfile();
         try
@@ -59,12 +59,12 @@ public class SetupTests
             {
                 EnterCredentials(leaf, "123-uitest.apps.googleusercontent.com", "GOCSPX-uitest");
 
-                Assert.NotNull(leaf.WaitFor("AddAccountButton"));
+                Assert.NotNull(leaf.WaitFor("CalendarRoot"));
             }
 
             using (var relaunched = LeafApp.Launch(profile))
             {
-                Assert.NotNull(relaunched.WaitFor("AddAccountButton"));
+                Assert.NotNull(relaunched.WaitFor("CalendarRoot"));
             }
         }
         finally

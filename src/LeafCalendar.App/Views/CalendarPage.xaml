@@ -1,0 +1,43 @@
+<Page
+    x:Class="LeafCalendar.App.Views.CalendarPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:LeafCalendar.App.Views">
+
+    <Grid x:Name="Root" AutomationProperties.Name="Calendar" AutomationProperties.AutomationId="CalendarRoot">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="SidebarColumn" Width="264" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition x:Name="DetailsColumn" Width="0" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Sidebar -->
+        <local:SidebarView x:Name="Sidebar" AutomationProperties.Name="Sidebar" AutomationProperties.LandmarkType="Navigation" AutomationProperties.AutomationId="Sidebar" />
+
+        <!-- View -->
+        <Border Grid.Column="1" Style="{StaticResource LeafSurfaceBorderStyle}">
+            <Grid x:Name="ViewHost" AutomationProperties.Name="Calendar view" AutomationProperties.LandmarkType="Main" AutomationProperties.AutomationId="ViewHost" />
+        </Border>
+
+        <!-- Empty State -->
+        <StackPanel
+            x:Name="EmptyState"
+            Grid.Column="1"
+            Spacing="12"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Visibility="Collapsed"
+            AutomationProperties.Name="No calendars yet"
+            AutomationProperties.AutomationId="EmptyState">
+            <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="No calendars yet" HorizontalAlignment="Center" />
+            <TextBlock Text="Add a Google account to see your events here." Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
+            <Button
+                Style="{StaticResource AccentButtonStyle}"
+                Content="Add a Google account"
+                HorizontalAlignment="Center"
+                Click="OnAddAccountClick"
+                AutomationProperties.AutomationId="EmptyAddAccountButton" />
+        </StackPanel>
+        <!-- /Empty State -->
+    </Grid>
+</Page>

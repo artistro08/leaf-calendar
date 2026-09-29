@@ -63,6 +63,9 @@ public sealed class LeafServices : IAsyncDisposable
     /// <summary>Google services, or null before the OAuth client is set up.</summary>
     public GoogleServices? Google { get; private set; }
 
+    /// <summary>Raised after <see cref="ReloadGoogleAsync"/> replaces <see cref="Google"/>.</summary>
+    public event EventHandler? GoogleChanged;
+
     /// <summary>Rebuilds Google services after the OAuth client changes.</summary>
     public async Task ReloadGoogleAsync()
     {
@@ -80,6 +83,7 @@ public sealed class LeafServices : IAsyncDisposable
         }
 
         Google = CreateGoogle();
+        GoogleChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <inheritdoc />

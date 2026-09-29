@@ -8,7 +8,7 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid>
+    <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -21,18 +21,80 @@
             IsBackButtonVisible="{x:Bind ContentFrame.CanGoBack, Mode=OneWay}"
             IsPaneToggleButtonVisible="False"
             BackRequested="OnBackRequested"
+            PaneToggleRequested="OnPaneToggleRequested"
             AutomationProperties.AutomationId="AppTitleBar">
-            <!-- Without center content the control uses its 32 px compact height; match the tall caption buttons -->
             <TitleBar.Resources>
                 <x:Double x:Key="TitleBarCompactHeight">48</x:Double>
             </TitleBar.Resources>
             <TitleBar.IconSource>
                 <ImageIconSource ImageSource="ms-appx:///Assets/Square44x44Logo.png" />
             </TitleBar.IconSource>
+
+            <!-- Period Title -->
+            <TitleBar.Content>
+                <TextBlock
+                    x:Name="PeriodTitle"
+                    Margin="16,0,0,0"
+                    VerticalAlignment="Center"
+                    FontSize="16"
+                    FontWeight="SemiBold"
+                    Visibility="Collapsed"
+                    AutomationProperties.AutomationId="PeriodTitle" />
+            </TitleBar.Content>
+
+            <!-- Toolbar -->
+            <TitleBar.RightHeader>
+                <StackPanel x:Name="CalendarToolbar" Orientation="Horizontal" Spacing="4" Margin="0,0,8,0" Visibility="Collapsed">
+                    <Button Style="{StaticResource LeafToolbarButtonStyle}" Content="Today" Click="OnTodayClick" ToolTipService.ToolTip="Today (T)" AutomationProperties.AutomationId="TodayButton" />
+                    <Button Style="{StaticResource LeafToolbarButtonStyle}" Click="OnPreviousClick" ToolTipService.ToolTip="Previous (←)" AutomationProperties.Name="Previous" AutomationProperties.AutomationId="PreviousButton">
+                        <FontIcon Glyph="&#xE76B;" FontSize="12" />
+                    </Button>
+                    <Button Style="{StaticResource LeafToolbarButtonStyle}" Click="OnNextClick" ToolTipService.ToolTip="Next (→)" AutomationProperties.Name="Next" AutomationProperties.AutomationId="NextButton">
+                        <FontIcon Glyph="&#xE76C;" FontSize="12" />
+                    </Button>
+                    <DropDownButton x:Name="ViewModeButton" Height="32" Content="Week" AutomationProperties.AutomationId="ViewModeButton">
+                        <DropDownButton.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                <MenuFlyoutItem Text="Day" Tag="Day" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDay" />
+                                <MenuFlyoutItem Text="Week" Tag="Week" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewWeek" />
+                                <MenuFlyoutItem Text="Month" Tag="Month" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewMonth" />
+                                <MenuFlyoutSubItem Text="Number of days">
+                                    <MenuFlyoutItem Text="2 days" Tag="Days:2" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays2" />
+                                    <MenuFlyoutItem Text="3 days" Tag="Days:3" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays3" />
+                                    <MenuFlyoutItem Text="4 days" Tag="Days:4" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays4" />
+                                    <MenuFlyoutItem Text="5 days" Tag="Days:5" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays5" />
+                                    <MenuFlyoutItem Text="6 days" Tag="Days:6" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays6" />
+                                    <MenuFlyoutItem Text="7 days" Tag="Days:7" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays7" />
+                                    <MenuFlyoutItem Text="8 days" Tag="Days:8" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays8" />
+                                    <MenuFlyoutItem Text="9 days" Tag="Days:9" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays9" />
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem Text="Custom…" Click="OnCustomDaysClick" AutomationProperties.AutomationId="ViewDaysCustom" />
+                                </MenuFlyoutSubItem>
+                                <MenuFlyoutSeparator />
+                                <ToggleMenuFlyoutItem x:Name="WeekendsItem" Text="Show weekends" Click="OnWeekendsClick" AutomationProperties.AutomationId="ToggleWeekends" />
+                                <ToggleMenuFlyoutItem x:Name="DeclinedItem" Text="Show declined events" Click="OnDeclinedClick" AutomationProperties.AutomationId="ToggleDeclined" />
+                                <ToggleMenuFlyoutItem x:Name="WeekNumbersItem" Text="Show week numbers" Click="OnWeekNumbersClick" AutomationProperties.AutomationId="ToggleWeekNumbers" />
+                                <ToggleMenuFlyoutItem x:Name="Clock24Item" Text="24-hour time" Click="On24HourClick" AutomationProperties.AutomationId="Toggle24Hour" />
+                                <MenuFlyoutSubItem Text="Start week on">
+                                    <RadioMenuFlyoutItem x:Name="WeekStartSunday" Text="Sunday" GroupName="WeekStart" Tag="Sunday" Click="OnWeekStartClick" AutomationProperties.AutomationId="WeekStartSunday" />
+                                    <RadioMenuFlyoutItem x:Name="WeekStartMonday" Text="Monday" GroupName="WeekStart" Tag="Monday" Click="OnWeekStartClick" AutomationProperties.AutomationId="WeekStartMonday" />
+                                    <RadioMenuFlyoutItem x:Name="WeekStartSaturday" Text="Saturday" GroupName="WeekStart" Tag="Saturday" Click="OnWeekStartClick" AutomationProperties.AutomationId="WeekStartSaturday" />
+                                </MenuFlyoutSubItem>
+                                <MenuFlyoutSubItem Text="Theme">
+                                    <RadioMenuFlyoutItem x:Name="ThemeSystem" Text="Use Windows setting" GroupName="Theme" Tag="System" Click="OnThemeClick" AutomationProperties.AutomationId="ThemeSystem" />
+                                    <RadioMenuFlyoutItem x:Name="ThemeLight" Text="Light" GroupName="Theme" Tag="Light" Click="OnThemeClick" AutomationProperties.AutomationId="ThemeLight" />
+                                    <RadioMenuFlyoutItem x:Name="ThemeDark" Text="Dark" GroupName="Theme" Tag="Dark" Click="OnThemeClick" AutomationProperties.AutomationId="ThemeDark" />
+                                </MenuFlyoutSubItem>
+                            </MenuFlyout>
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
+                </StackPanel>
+            </TitleBar.RightHeader>
+            <!-- /Toolbar -->
         </TitleBar>
         <!-- /Title Bar -->
 
         <!-- Content -->
-        <Frame x:Name="ContentFrame" Grid.Row="1" />
+        <Frame x:Name="ContentFrame" Grid.Row="1" Navigated="OnNavigated" />
     </Grid>
 </Window>
