@@ -461,3 +461,26 @@ public sealed class AccountGroup(string email, IEnumerable<CalendarRow> calendar
     /// <summary>Calendars in Leaf's order (drag to reorder).</summary>
     public ObservableCollection<CalendarRow> Calendars { get; } = new(calendars);
 }
+
+/// <summary>An extra time zone in the time-zone panel.</summary>
+public sealed partial class ZoneRow(string id, string city, string detail) : ObservableObject
+{
+    /// <summary>IANA ID.</summary>
+    public string Id { get; } = id;
+
+    /// <summary>City name (placeholder when no label).</summary>
+    public string City { get; } = city;
+
+    /// <summary>"UTC+9 · Tokyo Standard Time".</summary>
+    public string Detail { get; } = detail;
+
+    /// <summary>Custom column label (blank means the city).</summary>
+    [ObservableProperty]
+    public partial string Label { get; set; } = "";
+
+    /// <summary>Automation ID of the label box.</summary>
+    public string LabelBoxId => $"ZoneLabelBox_{Id}";
+
+    /// <summary>Automation ID of the remove button.</summary>
+    public string RemoveId => $"ZoneRemove_{Id}";
+}

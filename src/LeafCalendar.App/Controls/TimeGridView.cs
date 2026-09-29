@@ -52,7 +52,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     readonly AllDayCanvas _allDay;
     readonly TimeZoneGutter _gutter;
     readonly StackPanel _zoneLabels = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 4) };
-    readonly TextBlock _weekNumber = new() { FontSize = 11, Margin = new Thickness(8, 6, 0, 0) };
+    readonly TextBlock _weekNumber = new() { FontSize = 11, Margin = new Thickness(30, 6, 0, 0) };
     readonly Button _allDayExpand = new() { Padding = new Thickness(4), Background = LeafBrushes.Transparent, BorderThickness = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
     readonly DispatcherQueueTimer _clock;
     readonly HashSet<DayColumn> _columns = [];
@@ -92,6 +92,28 @@ public sealed partial class TimeGridView : Grid, IDisposable
             RenderAllDay();
         };
         Children.Add(Corner);
+
+        // Add Time Zone
+        var addZone = new Button
+        {
+            Content             = new FontIcon { Glyph = "", FontSize = 10 },
+            Padding             = new Thickness(4),
+            Background          = LeafBrushes.Transparent,
+            BorderThickness     = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment   = VerticalAlignment.Top,
+            Margin              = new Thickness(4, 4, 0, 0),
+        };
+        AutomationProperties.SetAutomationId(addZone, "AddTimeZoneButton");
+        AutomationProperties.SetName(addZone, "Time zones");
+        ToolTipService.SetToolTip(addZone, "Time zones");
+        addZone.Click += (_, _) =>
+        {
+            var panel = new Views.TimeZonePanel();
+            panel.Attach(_vm);
+            new Flyout { Content = panel, Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedLeft }.ShowAt(addZone);
+        };
+        Corner.Children.Add(addZone);
 
         // Header (day names + all-day row)
         _headerRepeater.Layout = _headerLayout;
