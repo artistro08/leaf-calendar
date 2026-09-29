@@ -38,6 +38,20 @@ public class RecurrenceExpanderTests
     }
 
     [Fact]
+    public void ExpandTimed_ExdateInFallBackHour_RemovesFirstOccurrence()
+    {
+        var result = RecurrenceExpander.ExpandTimed(
+            ["RRULE:FREQ=DAILY;COUNT=4", "EXDATE;TZID=America/New_York:20261101T013000"],
+            Ny(2026, 10, 30, 1, 30, -4),
+            NewYork,
+            Always,
+            Never);
+
+        Assert.Equal(3, result.Count);
+        Assert.DoesNotContain("2026-11-01 05:30", Utc(result));
+    }
+
+    [Fact]
     public void ExpandTimed_Rdate_AddsOccurrencesInOrder()
     {
         var result = RecurrenceExpander.ExpandTimed(

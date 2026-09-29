@@ -170,7 +170,10 @@ public static class RecurrenceExpander
                 {
                     // A wall-clock time inside a DST gap doesn't exist; shift it forward like the RFC does
                     var valid = zone.IsInvalidTime(local) ? local.AddHours(1) : local;
-                    yield return (null, TimeZoneInfo.ConvertTimeToUtc(valid, zone));
+                    // A repeated fall-back time means the first (daylight) occurrence, matching the rule expansion
+                    yield return (null, zone.IsAmbiguousTime(valid)
+                        ? new DateTimeOffset(valid, zone.GetAmbiguousTimeOffsets(valid).Max()).UtcDateTime
+                        : TimeZoneInfo.ConvertTimeToUtc(valid, zone));
                 }
             }
         }
