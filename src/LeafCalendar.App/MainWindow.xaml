@@ -88,6 +88,9 @@
                             </MenuFlyout>
                         </DropDownButton.Flyout>
                     </DropDownButton>
+                    <ToggleButton x:Name="DetailsToggle" Height="32" Click="OnDetailsToggleClick" ToolTipService.ToolTip="Details panel" AutomationProperties.Name="Details panel" AutomationProperties.AutomationId="DetailsToggleButton">
+                        <SymbolIcon Symbol="DockRight" />
+                    </ToggleButton>
                 </StackPanel>
             </TitleBar.RightHeader>
             <!-- /Toolbar -->

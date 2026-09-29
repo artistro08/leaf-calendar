@@ -4,6 +4,10 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:LeafCalendar.App.Views">
 
+    <Page.KeyboardAccelerators>
+        <KeyboardAccelerator Key="Escape" Invoked="OnEscapeInvoked" />
+    </Page.KeyboardAccelerators>
+
     <Grid x:Name="Root" AutomationProperties.Name="Calendar" AutomationProperties.AutomationId="CalendarRoot">
         <Grid.ColumnDefinitions>
             <ColumnDefinition x:Name="SidebarColumn" Width="264" />
@@ -17,6 +21,11 @@
         <!-- View -->
         <Border Grid.Column="1" Style="{StaticResource LeafSurfaceBorderStyle}">
             <Grid x:Name="ViewHost" AutomationProperties.Name="Calendar view" AutomationProperties.LandmarkType="Main" AutomationProperties.AutomationId="ViewHost" />
+        </Border>
+
+        <!-- Details -->
+        <Border x:Name="DetailsHost" Grid.Column="2" Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1,1,0,0">
+            <local:DetailsPanel x:Name="Details" />
         </Border>
 
         <!-- Empty State -->

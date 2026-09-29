@@ -78,6 +78,7 @@ public sealed partial class MainWindow : Window
         {
             _calendar = new CalendarViewModel(_services, DispatcherQueue);
             _calendar.PropertyChanged += OnCalendarPropertyChanged;
+            _calendar.LayoutChanged   += (_, _) => SyncMenu();
             ApplyTheme(_calendar.Settings.Theme);
         }
 
@@ -198,6 +199,14 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    void OnDetailsToggleClick(object sender, RoutedEventArgs e)
+    {
+        if (ContentFrame.Content is CalendarPage page)
+        {
+            page.SetDetailsOpen(DetailsToggle.IsChecked == true);
+        }
+    }
+
     void OnWeekendsClick(object sender, RoutedEventArgs e)
     {
         if (!_syncingMenu)
@@ -267,6 +276,7 @@ public sealed partial class MainWindow : Window
         ThemeSystem.IsChecked       = s.Theme == AppTheme.System;
         ThemeLight.IsChecked        = s.Theme == AppTheme.Light;
         ThemeDark.IsChecked         = s.Theme == AppTheme.Dark;
+        DetailsToggle.IsChecked     = s.DetailsPanelOpen;
 
         _syncingMenu = false;
     }
