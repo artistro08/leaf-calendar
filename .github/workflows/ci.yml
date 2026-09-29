@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      # Build (Debug, JIT) - includes the NuGet vulnerability audit
+      - run: dotnet build LeafCalendar.slnx -c Debug
+
+      # Logic Tests (UI and live tests run locally or by manual trigger)
+      - run: dotnet test tests/LeafCalendar.Tests/LeafCalendar.Tests.csproj -c Debug --no-build

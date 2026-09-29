@@ -1,0 +1,24 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+[*.cs]
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_prefer_braces = when_multiline:warning
+dotnet_sort_system_directives_first = true
+
+# Leaf is an app, not a reusable library: public types in app assemblies are intended.
+dotnet_diagnostic.CA1515.severity = none
+# UI code resumes on the UI thread on purpose; ConfigureAwait(false) everywhere would be noise.
+dotnet_diagnostic.CA2007.severity = none
+# Leaf exceptions carry required data; parameterless constructors would allow invalid instances.
+dotnet_diagnostic.CA1032.severity = none
