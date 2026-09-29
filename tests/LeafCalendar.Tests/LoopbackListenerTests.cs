@@ -67,13 +67,37 @@ public class LoopbackListenerTests
             var stream = junk.GetStream();
             await stream.WriteAsync(Encoding.ASCII.GetBytes("GET /?" + new string('a', 9000)), ct);
             var buffer = new byte[64];
-            _ = await stream.ReadAsync(buffer, ct);
+            try
+            {
+                _ = await stream.ReadAsync(buffer, ct);
+            }
+            catch (IOException)
+            {
+                // Server closed connection with unread data; expected.
+            }
         }
         Assert.False(wait.IsCompleted);
 
         using var redirect = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=ok&state=s"), ct);
 
         Assert.Equal("ok", (await wait)["code"]);
+    }
+
+    [Fact]
+    public async Task WaitForCallbackAsync_JunkQueryParameters_RejectsThenAcceptsValidRedirect()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var listener = new LoopbackListener();
+        var wait = listener.WaitForCallbackAsync(ct);
+
+        using var junk = await Http.GetAsync(new Uri(listener.RedirectUri, "?x=1"), ct);
+        Assert.Equal(HttpStatusCode.NotFound, junk.StatusCode);
+        Assert.False(wait.IsCompleted);
+
+        using var redirect = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=abc&state=xyz"), ct);
+
+        Assert.Equal(HttpStatusCode.OK, redirect.StatusCode);
+        Assert.Equal("abc", (await wait)["code"]);
     }
 
     [Fact]

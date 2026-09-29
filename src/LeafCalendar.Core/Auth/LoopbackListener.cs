@@ -11,13 +11,14 @@ namespace LeafCalendar.Core.Auth;
 /// </summary>
 /// <remarks>
 /// Binds the loopback interface only, so nothing else on the network can reach it. It answers
-/// unrelated requests (favicon, bare <c>/</c>, oversized or malformed input) with 404 and keeps
-/// waiting; the first <c>GET /?...</c> ends the wait. It never echoes tokens or codes into the page.
+/// unrelated requests (favicon, bare <c>/</c>, requests without <c>code</c> or <c>error</c> in the query,
+/// oversized or malformed input) with 404 and keeps waiting; only a <c>GET /?...</c> with <c>code</c> or <c>error</c>
+/// ends the wait. It never echoes tokens or codes into the page.
 /// </remarks>
 public sealed class LoopbackListener : IDisposable
 {
     const int MaxHeaderBytes = 8192;
-    static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(10);
+    static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(3);
 
     const string SuccessPage =
         "<!doctype html><html><head><meta charset=\"utf-8\"><title>Leaf Calendar</title></head>" +
@@ -75,8 +76,16 @@ public sealed class LoopbackListener : IDisposable
                 continue;
             }
 
+            // Require Code Or Error Parameter
+            var query = QueryString.Parse(target[2..]);
+            if (!query.ContainsKey("code") && !query.ContainsKey("error"))
+            {
+                await TryWriteAsync(stream, "404 Not Found", "", ct);
+                continue;
+            }
+
             await TryWriteAsync(stream, "200 OK", SuccessPage, ct);
-            return QueryString.Parse(target[2..]);
+            return query;
         }
     }
 
