@@ -13,6 +13,9 @@ public sealed record AccountRow(string Id, string Email, string Summary);
 /// <summary>Accounts page: add, sync, and disconnect Google accounts.</summary>
 public sealed partial class AccountsViewModel : ObservableObject
 {
+    // Shown when a command fails for a reason the user can't act on
+    const string GenericFailure = "Something went wrong. Try again.";
+
     readonly LeafServices _services;
 
     /// <summary>Loads the account list.</summary>
@@ -70,13 +73,27 @@ public sealed partial class AccountsViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            await google.DisconnectAsync(accountId, CancellationToken.None);
+            try
+            {
+                await google.DisconnectAsync(accountId, CancellationToken.None);
+            }
+            finally
+            {
+                IsBusy = false;
+                Refresh();
+            }
         }
-        finally
+        catch (Exception ex)
         {
-            IsBusy = false;
-            Refresh();
+            ShowError("account.disconnect.failed", ex);
         }
+    }
+
+    /// <summary>Logs a failure the UI caught and shows <paramref name="message"/>.</summary>
+    public void ShowError(string eventName, Exception exception, string message = GenericFailure)
+    {
+        _services.Log.Error(eventName, exception);
+        Message = message;
     }
 
     [RelayCommand]
@@ -91,10 +108,18 @@ public sealed partial class AccountsViewModel : ObservableObject
         Message = "Finish signing in with Google in your browser.";
         try
         {
-            var account = await google.CreateSignIn(uri => Launcher.LaunchUriAsync(uri).AsTask()).RunAsync(null, CancellationToken.None);
-            Message = $"Signed in as {account.Email}. Syncing…";
-            await google.Sync.SyncAccountAsync(account.Id, CancellationToken.None);
-            Message = null;
+            try
+            {
+                var account = await google.CreateSignIn(uri => Launcher.LaunchUriAsync(uri).AsTask()).RunAsync(null, CancellationToken.None);
+                Message = $"Signed in as {account.Email}. Syncing…";
+                await google.Sync.SyncAccountAsync(account.Id, CancellationToken.None);
+                Message = null;
+            }
+            finally
+            {
+                IsBusy = false;
+                Refresh();
+            }
         }
         catch (SignInException ex)
         {
@@ -104,10 +129,9 @@ public sealed partial class AccountsViewModel : ObservableObject
         {
             Message = "Couldn't reach Google. Check your connection and try again.";
         }
-        finally
+        catch (Exception ex)
         {
-            IsBusy = false;
-            Refresh();
+            ShowError("account.add.failed", ex, "Sign-in didn't finish. Try again.");
         }
     }
 
@@ -122,12 +146,19 @@ public sealed partial class AccountsViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            await google.Sync.SyncAllAsync(CancellationToken.None);
+            try
+            {
+                await google.Sync.SyncAllAsync(CancellationToken.None);
+            }
+            finally
+            {
+                IsBusy = false;
+                Refresh();
+            }
         }
-        finally
+        catch (Exception ex)
         {
-            IsBusy = false;
-            Refresh();
+            ShowError("sync.now.failed", ex);
         }
     }
 }

@@ -37,9 +37,17 @@ public sealed partial class AccountsPage : Page
             DefaultButton     = ContentDialogButton.Close,
         };
 
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        // async void: anything that escapes here would terminate the process
+        try
         {
-            await ViewModel.DisconnectAsync(accountId);
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                await ViewModel.DisconnectAsync(accountId);
+            }
+        }
+        catch (Exception ex)
+        {
+            ViewModel.ShowError("account.disconnect.failed", ex);
         }
     }
 }

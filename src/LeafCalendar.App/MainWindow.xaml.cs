@@ -15,7 +15,7 @@ public sealed partial class MainWindow : Window
 {
     readonly LeafServices _services;
 
-    /// <summary>Creates the window and shows setup or accounts.</summary>
+    /// <summary>Creates the window and shows setup or accounts. <see cref="App"/> owns the services.</summary>
     public MainWindow(LeafServices services)
     {
         _services = services;
@@ -27,7 +27,6 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
 
         Activated += OnActivated;
-        Closed    += async (_, _) => await _services.DisposeAsync();
 
         if (_services.Google is null)
         {
