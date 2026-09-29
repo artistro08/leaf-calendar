@@ -59,6 +59,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     readonly HashSet<DayHeaderCell> _headers = [];
     DayStrip _strip = null!;
     bool _allDayExpanded;
+    bool _disposed;
     bool _initialized;
     int _firstIndex;
 
@@ -202,6 +203,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
+        _disposed = true;
         _clock.Stop();
         _vm.OccurrencesChanged    -= OnOccurrencesChanged;
         _vm.LayoutChanged         -= OnLayoutChanged;
@@ -227,7 +229,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     void Relayout()
     {
         var viewport = _bodyScroll.ViewportWidth > 0 ? _bodyScroll.ViewportWidth : _bodyScroll.ActualWidth;
-        if (viewport <= 0)
+        if (_disposed || viewport <= 0)
         {
             return;
         }
@@ -248,6 +250,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _initialized = true;
         DispatcherQueue.TryEnqueue(() =>
         {
+            if (_disposed)
+            {
+                return;
+            }
+
             _bodyScroll.ChangeView(_firstIndex * ColumnWidth, top, null, true);
             ReportVisible();
         });
@@ -281,6 +288,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     void ReportVisible()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         var first = _strip[_firstIndex];
         var after = _firstIndex + _vm.VisibleColumns >= _strip.Count ? _strip.Last.AddDays(1) : _strip[_firstIndex + _vm.VisibleColumns];
 
@@ -335,10 +347,23 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // VIEW MODEL EVENTS
     // =========================================================================
 
-    void OnOccurrencesChanged(object? sender, EventArgs e) => RenderRealized();
+    void OnOccurrencesChanged(object? sender, EventArgs e)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        RenderRealized();
+    }
 
     void OnLayoutChanged(object? sender, EventArgs e)
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         if (_strip.SkipsWeekends == _vm.Settings.ShowWeekends)
         {
             BuildStrip(_strip[_firstIndex]);
@@ -347,7 +372,15 @@ public sealed partial class TimeGridView : Grid, IDisposable
         Relayout();
     }
 
-    void OnNavigateRequested(object? sender, DateOnly date) => ScrollToDate(date, animate: true);
+    void OnNavigateRequested(object? sender, DateOnly date)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        ScrollToDate(date, animate: true);
+    }
 
     void OnScrollToTimeRequested(object? sender, DateTimeOffset instant) => ScrollToTime(instant);
 

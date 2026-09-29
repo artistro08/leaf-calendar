@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using LeafCalendar.App.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -13,7 +12,6 @@ public sealed record CalendarPageArgs(CalendarViewModel ViewModel, Action OpenAc
 public sealed partial class CalendarPage : Page
 {
     CalendarPageArgs _args = null!;
-    [SuppressMessage("Performance", "CA1859", Justification = "Holds the month view too from Task 14.")]
     IDisposable? _view;
     bool _viewIsMonth;
 
@@ -73,10 +71,20 @@ public sealed partial class CalendarPage : Page
         _view?.Dispose();
         ViewHost.Children.Clear();
 
-        var view = new Controls.TimeGridView(ViewModel);
-        _view        = view;
-        _viewIsMonth = false;
-        ViewHost.Children.Add(view);
+        if (wantMonth)
+        {
+            var month = new Controls.MonthGridView(ViewModel);
+            _view = month;
+            ViewHost.Children.Add(month);
+        }
+        else
+        {
+            var grid = new Controls.TimeGridView(ViewModel);
+            _view = grid;
+            ViewHost.Children.Add(grid);
+        }
+
+        _viewIsMonth = wantMonth;
     }
 
     void OnLayoutChanged(object? sender, EventArgs e) => ApplyView();
