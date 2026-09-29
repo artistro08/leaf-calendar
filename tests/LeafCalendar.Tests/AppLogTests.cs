@@ -19,6 +19,9 @@ public sealed class AppLogTests : IDisposable
     [InlineData("secret GOCSPX-abc_DEF-123 leaked", "secret [token] leaked")]
     [InlineData("calendar family123@group.calendar.google.com synced", "calendar [email] synced")]
     [InlineData("account=109876543210 ok", "account=109876543210 ok")]
+    [InlineData("code=4%2F0AeanS0b-xyz leaked", "code=[token] leaked")]
+    [InlineData("refresh 1%2F%2F0gAbc-def leaked", "refresh [token] leaked")]
+    [InlineData("calendars/me%40gmail.com/events", "calendars/[email]/events")]
     public void Redact_SensitiveText_MasksIt(string input, string expected)
     {
         Assert.Equal(expected, AppLog.Redact(input));
@@ -56,5 +59,22 @@ public sealed class AppLogTests : IDisposable
 
         Assert.True(File.Exists(log.FilePath + ".1"));
         Assert.Single(File.ReadAllLines(log.FilePath));
+    }
+
+    [Fact]
+    public void Info_DetailWithNewlines_ReplacesWithSpaces()
+    {
+        var log = new AppLog(_folder.Path, _time);
+
+        log.Info("test.event", "line1\r\nline2\nline3");
+
+        var lines = File.ReadAllLines(log.FilePath);
+        Assert.Single(lines);
+        var line = lines[0];
+        Assert.DoesNotContain("\r", line);
+        Assert.DoesNotContain("\n", line);
+        Assert.Contains("line1", line);
+        Assert.Contains("line2", line);
+        Assert.Contains("line3", line);
     }
 }

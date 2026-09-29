@@ -33,28 +33,42 @@ public sealed partial class AppLog(string directory, TimeProvider time)
 
     void Write(string level, string eventName, string? detail)
     {
-        var line = detail is null
+        // Sanitize newlines to prevent log forging
+        var sanitized = detail?.Replace("\r", " ").Replace("\n", " ");
+
+        var line = sanitized is null
             ? $"{time.GetUtcNow():O} {level} {eventName}"
-            : $"{time.GetUtcNow():O} {level} {eventName} {Redact(detail)}";
+            : $"{time.GetUtcNow():O} {level} {eventName} {Redact(sanitized)}";
 
-        lock (_gate)
+        try
         {
-            Directory.CreateDirectory(directory);
-
-            // Roll At 1 MB
-            var file = new FileInfo(FilePath);
-            if (file.Exists && file.Length > MaxBytes)
+            lock (_gate)
             {
-                File.Move(FilePath, FilePath + ".1", overwrite: true);
-            }
+                Directory.CreateDirectory(directory);
 
-            File.AppendAllText(FilePath, line + Environment.NewLine);
+                // Roll At 1 MB
+                var file = new FileInfo(FilePath);
+                if (file.Exists && file.Length > MaxBytes)
+                {
+                    File.Move(FilePath, FilePath + ".1", overwrite: true);
+                }
+
+                File.AppendAllText(FilePath, line + Environment.NewLine);
+            }
+        }
+        catch (IOException)
+        {
+            // File locked, full disk, or move race; silently drop the line to avoid masking caller's error.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Permission denied; silently drop the line to avoid masking caller's error.
         }
     }
 
-    [GeneratedRegex(@"(ya29\.[\w\-.]+|1//[\w\-.]+|4/[\w\-.]+|eyJ[\w\-.]+|GOCSPX-[\w\-]+)")]
+    [GeneratedRegex(@"(ya29\.[\w\-.]+|1(?:/|%2[Ff]){2}[\w\-.]+|4(?:/|%2[Ff])[\w\-.]+|eyJ[\w\-.]+|GOCSPX-[\w\-]+)")]
     private static partial Regex TokenPattern();
 
-    [GeneratedRegex(@"[\w.+\-]+@[\w\-]+(\.[\w\-]+)+")]
+    [GeneratedRegex(@"[\w.+\-]+(?:@|%40)[\w\-]+(?:\.[\w\-]+)+")]
     private static partial Regex EmailPattern();
 }
