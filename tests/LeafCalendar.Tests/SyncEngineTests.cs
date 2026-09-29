@@ -1,6 +1,7 @@
 using System.Net;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Tests.Support;
+using Microsoft.Data.Sqlite;
 
 namespace LeafCalendar.Tests;
 
@@ -186,5 +187,51 @@ public sealed class SyncEngineTests : IDisposable
         using var conn = _h.Db.Database.Open();
         Assert.Single(CalendarStore.GetForAccount(conn, Account));
         Assert.Equal(0, EventStore.Count(conn, Account, Family));
+    }
+
+    [Fact]
+    public async Task SyncAccountAsync_CalledConcurrently_RunsOneAtATime()
+    {
+        var ct       = TestContext.Current.CancellationToken;
+        var inFlight = 0;
+        var overlap  = false;
+
+        // Probe Route: never matches, but holds every request briefly so overlapping syncs collide
+        _h.Google.On(
+            _ =>
+            {
+                overlap |= Interlocked.Increment(ref inFlight) > 1;
+                Thread.Sleep(20);
+                Interlocked.Decrement(ref inFlight);
+                return false;
+            },
+            _ => throw new InvalidOperationException("Probe route never answers."));
+        _h.RouteStandardGoogle();
+
+        var first  = Task.Run(() => _h.Engine.SyncAccountAsync(Account, ct), ct);
+        var second = Task.Run(() => _h.Engine.SyncAccountAsync(Account, ct), ct);
+        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(30), ct);
+
+        Assert.False(overlap);
+        Assert.Equal("sync-token-2", Calendar(Primary).SyncToken);
+    }
+
+    [Fact]
+    public async Task SyncAllAsync_OneAccountDatabaseError_OtherAccountsStillSync()
+    {
+        // Second Account Sorts First By Email
+        using (var conn = _h.Db.Database.Open())
+        {
+            AccountStore.Upsert(conn, new Account("222", "another@gmail.com", null, null, AccountStatus.Ok));
+        }
+
+        _h.Tokens.SetRefreshToken("222", "1//second-refresh-token");
+        _h.Google.On(r => r.Uri.AbsoluteUri.StartsWith(SyncHarness.ListUrl, StringComparison.Ordinal), _ => throw new SqliteException("database is locked", 5), once: true);
+        _h.RouteStandardGoogle();
+
+        await _h.Engine.SyncAllAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("sync-token-1", Calendar(Primary).SyncToken);
+        Assert.Contains("sync.account.failed", File.ReadAllText(_h.LogPath), StringComparison.Ordinal);
     }
 }

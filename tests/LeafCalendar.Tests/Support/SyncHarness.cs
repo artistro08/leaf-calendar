@@ -27,7 +27,7 @@ public sealed class SyncHarness : IDisposable
     public const string FamilyEventsUrl = "https://www.googleapis.com/calendar/v3/calendars/family123%40group.calendar.google.com/events";
 
     readonly TempFolder _logs = new();
-    readonly List<AccessTokenProvider> _providers = [];
+    readonly List<IDisposable> _disposables = [];
 
     /// <summary>Creates the harness with one signed-in account.</summary>
     public SyncHarness()
@@ -69,8 +69,9 @@ public sealed class SyncHarness : IDisposable
         var http  = new HttpClient(Google);
         var oauth = new GoogleOAuthClient(http, new("id.apps.googleusercontent.com", "GOCSPX-test"), Time);
         var provider = new AccessTokenProvider(oauth, Tokens, Time);
-        _providers.Add(provider);
         Engine = new SyncEngine(new GoogleCalendarClient(http, provider), Db.Database, Log);
+        _disposables.Add(provider);
+        _disposables.Add(Engine);
         return Engine;
     }
 
@@ -98,9 +99,9 @@ public sealed class SyncHarness : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        foreach (var provider in _providers)
+        foreach (var disposable in _disposables)
         {
-            provider.Dispose();
+            disposable.Dispose();
         }
 
         Db.Dispose();

@@ -3,6 +3,7 @@ using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Google;
+using Microsoft.Data.Sqlite;
 
 namespace LeafCalendar.Core.Sync;
 
@@ -16,26 +17,55 @@ namespace LeafCalendar.Core.Sync;
 /// then applied in one transaction, so a failure part-way leaves the old data and token untouched.
 /// A failing calendar is logged and skipped. A rejected refresh token marks the account
 /// <see cref="AccountStatus.NeedsSignIn"/> and keeps its data.
+/// Only one sync runs at a time: the loop, "Sync now", and the post-sign-in sync all share the
+/// engine, and a second caller waits for the running sync to finish, then runs its own.
 /// </remarks>
-public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase database, AppLog log)
+public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase database, AppLog log) : IDisposable
 {
+    // ponytail: one gate for every account; per-account gates if parallel account sync is ever wanted
+    readonly SemaphoreSlim _gate = new(1, 1);
+
     /// <summary>Syncs every account that can sync.</summary>
     public async Task SyncAllAsync(CancellationToken ct)
     {
-        IReadOnlyList<Account> accounts;
-        using (var conn = database.Open())
+        await _gate.WaitAsync(ct);
+        try
         {
-            accounts = AccountStore.GetAll(conn);
-        }
+            IReadOnlyList<Account> accounts;
+            using (var conn = database.Open())
+            {
+                accounts = AccountStore.GetAll(conn);
+            }
 
-        foreach (var account in accounts.Where(a => a.Status == AccountStatus.Ok))
+            foreach (var account in accounts.Where(a => a.Status == AccountStatus.Ok))
+            {
+                await SyncAccountCoreAsync(account.Id, ct);
+            }
+        }
+        finally
         {
-            await SyncAccountAsync(account.Id, ct);
+            _gate.Release();
         }
     }
 
     /// <summary>Syncs one account's calendar list and every calendar's events.</summary>
     public async Task SyncAccountAsync(string accountId, CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            await SyncAccountCoreAsync(accountId, ct);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <inheritdoc />
+    public void Dispose() => _gate.Dispose();
+
+    async Task SyncAccountCoreAsync(string accountId, CancellationToken ct)
     {
         try
         {
@@ -131,6 +161,6 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     }
 
     static bool IsSyncFailure(Exception ex, CancellationToken ct) =>
-        ex is GoogleApiException or HttpRequestException or JsonException or InvalidDataException ||
+        ex is GoogleApiException or HttpRequestException or JsonException or InvalidDataException or SqliteException ||
         (ex is TaskCanceledException && !ct.IsCancellationRequested);
 }

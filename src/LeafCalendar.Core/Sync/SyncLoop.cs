@@ -73,21 +73,28 @@ public sealed class SyncLoop(Func<CancellationToken, Task> syncAll, TimeProvider
 
         _disposed = true;
 
-        await _stop.CancelAsync();
-        if (_loop is not null)
+        try
         {
-            try
+            await _stop.CancelAsync();
+            if (_loop is not null)
             {
                 await _loop;
             }
-            catch (OperationCanceledException)
-            {
-                // Expected on shutdown.
-            }
         }
-
-        _stop.Dispose();
-        _wake.Dispose();
+        catch (OperationCanceledException)
+        {
+            // Expected on shutdown.
+        }
+        catch (Exception ex)
+        {
+            // Shutdown must go on, so log and still release the handles below
+            log.Error("sync.loop.dispose-failed", ex);
+        }
+        finally
+        {
+            _stop.Dispose();
+            _wake.Dispose();
+        }
     }
 
     async Task RunAsync(CancellationToken ct)

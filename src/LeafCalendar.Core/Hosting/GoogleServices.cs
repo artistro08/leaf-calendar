@@ -82,10 +82,11 @@ public sealed class GoogleServices : IAsyncDisposable
         _log.Info("account.disconnected", $"account={accountId}");
     }
 
-    /// <summary>Stops the polling loop and disposes access tokens.</summary>
+    /// <summary>Stops the polling loop, then disposes the sync engine and access tokens.</summary>
     public async ValueTask DisposeAsync()
     {
         await Loop.DisposeAsync();
+        Sync.Dispose();
         AccessTokens.Dispose();
     }
 }
