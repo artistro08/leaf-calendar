@@ -39,7 +39,7 @@ public sealed partial class MainWindow : Window
     }
 
     void ShowSetup() =>
-        ContentFrame.Navigate(typeof(SetupPage), new SetupViewModel(_services.Tokens, OnCredentialsSavedAsync));
+        ContentFrame.Navigate(typeof(SetupPage), new SetupViewModel(_services.Tokens, OnCredentialsSavedAsync, _services.Log));
 
     void ShowAccounts()
     {

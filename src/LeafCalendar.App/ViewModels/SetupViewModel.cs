@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LeafCalendar.Core.Auth;
+using LeafCalendar.Core.Diagnostics;
 
 namespace LeafCalendar.App.ViewModels;
 
@@ -9,12 +10,14 @@ public sealed partial class SetupViewModel : ObservableObject
 {
     readonly ITokenStore _tokens;
     readonly Func<Task> _onSaved;
+    readonly AppLog _log;
 
     /// <summary>Prefills the client ID when one is already saved.</summary>
-    public SetupViewModel(ITokenStore tokens, Func<Task> onSaved)
+    public SetupViewModel(ITokenStore tokens, Func<Task> onSaved, AppLog log)
     {
         _tokens   = tokens;
         _onSaved  = onSaved;
+        _log      = log;
         ClientId  = tokens.GetClientCredentials()?.ClientId ?? "";
     }
 
@@ -43,8 +46,18 @@ public sealed partial class SetupViewModel : ObservableObject
             return;
         }
 
-        _tokens.SetClientCredentials(new OAuthClientCredentials(ClientId.Trim(), ClientSecret.Trim()));
-        ClientSecret = "";
-        await _onSaved();
+        // Save And Reload: a failure here must not terminate the process (the log gets the
+        // exception type and redacted message only, never the secret)
+        try
+        {
+            _tokens.SetClientCredentials(new OAuthClientCredentials(ClientId.Trim(), ClientSecret.Trim()));
+            ClientSecret = "";
+            await _onSaved();
+        }
+        catch (Exception ex)
+        {
+            _log.Error("setup.save.failed", ex);
+            Error = "Couldn't save the client. Try again.";
+        }
     }
 }
