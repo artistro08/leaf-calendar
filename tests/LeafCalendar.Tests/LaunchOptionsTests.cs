@@ -38,7 +38,7 @@ public class LaunchOptionsTests
     [Fact]
     public void Parse_FakeGoogleLoopback_AcceptsAndNormalizes()
     {
-        var options = LaunchOptions.Parse(["--fake-google", "http://127.0.0.1:4567", "--start-date", "2026-10-01"]);
+        var options = LaunchOptions.Parse(["--profile", "uitest-abc", "--fake-google", "http://127.0.0.1:4567", "--start-date", "2026-10-01"]);
 
         Assert.Equal(new Uri("http://127.0.0.1:4567/"), options.FakeGoogle);
         Assert.Equal(new DateOnly(2026, 10, 1), options.StartDate);
@@ -52,10 +52,27 @@ public class LaunchOptionsTests
     [InlineData("file:///C:/fake")]
     public void Parse_FakeGoogleNotLoopbackHttp_Ignored(string value)
     {
-        var options = LaunchOptions.Parse(["--fake-google", value, "--start-date", "2026-10-01"]);
+        var options = LaunchOptions.Parse(["--profile", "uitest-abc", "--fake-google", value, "--start-date", "2026-10-01"]);
 
         Assert.Null(options.FakeGoogle);
         Assert.Null(options.StartDate);
+    }
+
+    [Theory]
+    [InlineData("default")]
+    [InlineData("work")]
+    public void Parse_FakeGoogleOnRealProfile_Ignored(string profile)
+    {
+        var options = LaunchOptions.Parse(["--profile", profile, "--fake-google", "http://127.0.0.1:4567", "--start-date", "2026-10-01"]);
+
+        Assert.Null(options.FakeGoogle);
+        Assert.Null(options.StartDate);
+    }
+
+    [Fact]
+    public void Parse_FakeGoogleWithNoProfile_Ignored()
+    {
+        Assert.Null(LaunchOptions.Parse(["--fake-google", "http://127.0.0.1:4567"]).FakeGoogle);
     }
 
     [Fact]
