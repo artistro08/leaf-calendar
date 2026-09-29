@@ -53,4 +53,19 @@ internal static class Schema
         CREATE INDEX ix_events_range  ON events (account_id, calendar_id, start_utc, end_utc);
         CREATE INDEX ix_events_master ON events (account_id, calendar_id, recurring_event_id);
         """;
+
+    /// <summary>
+    /// Version 2: app settings, plus Leaf's own calendar display choices. <c>leaf_hidden</c> is null
+    /// until Leaf decides (it then follows Google's "selected"), so later Google list refreshes never
+    /// override a choice the user made in Leaf.
+    /// </summary>
+    public const string V2 = """
+        CREATE TABLE settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+
+        ALTER TABLE calendars ADD COLUMN leaf_hidden INTEGER;
+        ALTER TABLE calendars ADD COLUMN leaf_color  TEXT;
+        """;
 }

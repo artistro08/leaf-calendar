@@ -130,6 +130,9 @@ public sealed class CalendarListEntry
     /// <summary>True when hidden in Google Calendar's list.</summary>
     public bool Hidden { get; set; }
 
+    /// <summary>True when the calendar is ticked in Google Calendar's list (Google omits it when false).</summary>
+    public bool Selected { get; set; }
+
     /// <summary>True when removed from the list.</summary>
     public bool Deleted { get; set; }
 

@@ -22,7 +22,7 @@ public sealed class LeafDatabaseTests : IDisposable
         foreignKeys.CommandText = "PRAGMA foreign_keys;";
 
         Assert.Equal("wal", (string)mode.ExecuteScalar()!);
-        Assert.Equal(1L, (long)version.ExecuteScalar()!);
+        Assert.Equal(2L, (long)version.ExecuteScalar()!);
         Assert.Equal(1L, (long)foreignKeys.ExecuteScalar()!);
     }
 }
