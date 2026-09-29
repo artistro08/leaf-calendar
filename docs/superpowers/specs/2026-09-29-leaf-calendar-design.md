@@ -126,7 +126,7 @@ Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manag
 4. Event data kept in a bounded sliding window (Section 6.4). Event visuals recycled.
 5. No WebView2. Event descriptions render with native text controls.
 6. Avatars and images decoded at display size (`DecodePixelWidth`).
-7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64.
+7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64. Measured with no OAuth client configured, so no sync loop was running. Re-measure with the fake-Google test mode in Milestone 2.
 
 ---
 
@@ -154,7 +154,7 @@ Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manag
 
 ### 4.3 Secret Storage
 
-- Client ID, client secret, and each account's refresh token are stored in the **Windows Credential Locker** (`PasswordVault`), scoped to the current Windows user and the Leaf package.
+- Client ID, client secret, and each account's refresh token are stored in the **Windows Credential Locker** (`PasswordVault`), scoped to the current Windows user. Leaf is a full-trust app, so the vault is user-wide, not per-package.
 - Access tokens live in memory only.
 - Disconnecting an account calls Google's revoke endpoint, removes its Credential Locker entry, and deletes its local data. If it has pending outbox changes, Leaf warns first.
 
@@ -607,6 +607,8 @@ Each milestone gets its own implementation plan. Tests are built within each mil
    - All views, scrolling and pagers
    - Time zone columns
    - In-memory event window
+   - Fake-Google app test mode, plus UI tests for add, sync, and disconnect
+   - Calendar-list sync every 15 minutes instead of on every poll
 3. **Events:**
    - Editor, drag, resize, multi-select, copy/paste
    - Repeating events, RSVP
