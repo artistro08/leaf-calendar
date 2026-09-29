@@ -106,4 +106,39 @@ public sealed class SyncLoopTests : IDisposable
 
         Assert.Equal(1, await NextRunAsync());
     }
+
+    [Fact]
+    public async Task Start_TaskCanceledExceptionThrows_KeepsLooping()
+    {
+        var first = true;
+        await using var loop = CreateLoop(() =>
+        {
+            if (first)
+            {
+                first = false;
+                throw new TaskCanceledException("timeout");
+            }
+
+            return Task.CompletedTask;
+        });
+
+        loop.Start();
+        await AwaitInvokedAsync();
+        await SettleAsync();
+        _time.Advance(SyncLoop.IntervalFor(SyncMode.Tray));
+
+        Assert.Equal(1, await NextRunAsync());
+    }
+
+    [Fact]
+    public async Task DisposeAsync_IsIdempotent_TriggerNowIsSafe()
+    {
+        await using var loop = CreateLoop();
+        loop.Start();
+        await NextRunAsync();
+
+        await loop.DisposeAsync();
+        loop.TriggerNow();
+        await loop.DisposeAsync();
+    }
 }

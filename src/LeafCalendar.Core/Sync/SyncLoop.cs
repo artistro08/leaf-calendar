@@ -26,6 +26,7 @@ public sealed class SyncLoop(Func<CancellationToken, Task> syncAll, TimeProvider
     readonly SemaphoreSlim _wake = new(0, 1);
     readonly CancellationTokenSource _stop = new();
     Task? _loop;
+    bool _disposed;
 
     /// <summary>Current cadence. Defaults to <see cref="SyncMode.Tray"/>.</summary>
     public SyncMode Mode { get; set; } = SyncMode.Tray;
@@ -40,6 +41,11 @@ public sealed class SyncLoop(Func<CancellationToken, Task> syncAll, TimeProvider
     /// <summary>Wakes the loop to sync now.</summary>
     public void TriggerNow()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         try
         {
             if (_wake.CurrentCount == 0)
@@ -51,11 +57,22 @@ public sealed class SyncLoop(Func<CancellationToken, Task> syncAll, TimeProvider
         {
             // Already signaled.
         }
+        catch (ObjectDisposedException)
+        {
+            // Disposed while triggering.
+        }
     }
 
     /// <summary>Stops the loop and waits for the current sync to finish.</summary>
     public async ValueTask DisposeAsync()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
         await _stop.CancelAsync();
         if (_loop is not null)
         {
@@ -82,7 +99,7 @@ public sealed class SyncLoop(Func<CancellationToken, Task> syncAll, TimeProvider
             {
                 await syncAll(ct);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex) when (!ct.IsCancellationRequested)
             {
                 log.Error("sync.loop.failed", ex);
             }
