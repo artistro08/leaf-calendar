@@ -20,6 +20,17 @@ public class LoopbackListenerTests
     }
 
     [Fact]
+    public void Constructor_OtherSocketReusesPort_CannotBind()
+    {
+        using var listener = new LoopbackListener();
+        using var hijacker = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        hijacker.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+
+        // Another local process must not be able to share the port and steal the redirect
+        Assert.Throws<SocketException>(() => hijacker.Bind(new IPEndPoint(IPAddress.Loopback, listener.RedirectUri.Port)));
+    }
+
+    [Fact]
     public async Task WaitForCallbackAsync_ValidRedirect_ReturnsQueryAndSuccessPage()
     {
         var ct = TestContext.Current.CancellationToken;
