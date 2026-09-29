@@ -98,13 +98,13 @@ public sealed class SignInFlowTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_UserDenies_FailsAsCancelled()
+    public async Task RunAsync_UserDenies_FailsAsCanceled()
     {
         var error = await Assert.ThrowsAsync<SignInException>(
             () => CreateFlow(GoogleRedirects(q => $"error=access_denied&state={Uri.EscapeDataString(q["state"])}"))
                 .RunAsync(null, TestContext.Current.CancellationToken));
 
-        Assert.Equal("Sign-in was cancelled.", error.Message);
+        Assert.Equal("Sign-in was canceled.", error.Message);
     }
 
     [Fact]
@@ -118,6 +118,20 @@ public sealed class SignInFlowTests : IDisposable
         Assert.Contains("calendar access", error.Message, StringComparison.Ordinal);
         Assert.Empty(_store.GetAccountIds());
         Assert.Contains(_google.Requests, r => r.Uri.AbsoluteUri == RevokeUrl);
+        using var conn = _db.Database.Open();
+        Assert.Empty(AccountStore.GetAll(conn));
+    }
+
+    [Fact]
+    public async Task RunAsync_TokenEndpointRejectsCode_FailsAndSavesNothing()
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.BadRequest, Fixture.Read("error-invalid-grant.json"));
+
+        var error = await Assert.ThrowsAsync<SignInException>(
+            () => CreateFlow(GoogleRedirects(Approve)).RunAsync(null, TestContext.Current.CancellationToken));
+
+        Assert.Equal("Google couldn't complete sign-in. Try again.", error.Message);
+        Assert.Empty(_store.GetAccountIds());
         using var conn = _db.Database.Open();
         Assert.Empty(AccountStore.GetAll(conn));
     }

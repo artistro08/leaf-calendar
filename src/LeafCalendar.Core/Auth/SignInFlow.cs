@@ -1,5 +1,6 @@
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Diagnostics;
+using System.Text.Json;
 using LeafCalendar.Core.Google;
 
 namespace LeafCalendar.Core.Auth;
@@ -30,24 +31,25 @@ public sealed class SignInFlow(
     public static readonly TimeSpan Timeout = TimeSpan.FromMinutes(5);
 
     /// <summary>Runs sign-in and returns the saved account.</summary>
-    /// <exception cref="SignInException">Sign-in failed, was cancelled, or timed out.</exception>
+    /// <exception cref="SignInException">Sign-in failed, was canceled, or timed out.</exception>
     public async Task<Account> RunAsync(string? loginHint, CancellationToken ct)
     {
         using var listener = new LoopbackListener();
         var verifier = Pkce.CreateVerifier();
         var state    = Pkce.CreateState();
 
-        // Open Consent Page
-        log.Info("signin.started");
-        await openBrowser(oauth.BuildAuthorizationUrl(listener.RedirectUri, state, Pkce.CreateChallenge(verifier), loginHint));
-
-        // Wait For Redirect
+        // Start Timeout Before Opening The Browser
         using var timeout = new CancellationTokenSource(Timeout, time);
         using var linked  = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
 
         IReadOnlyDictionary<string, string> reply;
         try
         {
+            // Open Consent Page
+            log.Info("signin.started");
+            await openBrowser(oauth.BuildAuthorizationUrl(listener.RedirectUri, state, Pkce.CreateChallenge(verifier), loginHint)).WaitAsync(linked.Token);
+
+            // Wait For Redirect
             reply = await listener.WaitForCallbackAsync(linked.Token);
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested && !ct.IsCancellationRequested)
@@ -63,7 +65,7 @@ public sealed class SignInFlow(
 
         if (reply.TryGetValue("error", out var error))
         {
-            throw Fail("google-error", error == "access_denied" ? "Sign-in was cancelled." : "Google couldn't complete sign-in. Try again.");
+            throw Fail("google-error", error == "access_denied" ? "Sign-in was canceled." : "Google couldn't complete sign-in. Try again.");
         }
 
         if (!reply.TryGetValue("code", out var code) || code.Length == 0)
@@ -72,22 +74,33 @@ public sealed class SignInFlow(
         }
 
         // Exchange Code
-        var tokens = await oauth.ExchangeCodeAsync(code, verifier, listener.RedirectUri, ct);
-
-        if (!tokens.HasScope(GoogleOAuthClient.CalendarScope))
+        TokenSet tokens;
+        GoogleUserInfo user;
+        try
         {
-            await TryRevokeAsync(tokens, ct);
-            throw Fail("calendar-scope-missing", "Leaf needs calendar access. Sign in again and allow calendar access.");
+            tokens = await oauth.ExchangeCodeAsync(code, verifier, listener.RedirectUri, ct);
+
+            if (!tokens.HasScope(GoogleOAuthClient.CalendarScope))
+            {
+                await TryRevokeAsync(tokens, ct);
+                throw Fail("calendar-scope-missing", "Leaf needs calendar access. Sign in again and allow calendar access.");
+            }
+
+            if (tokens.RefreshToken is null)
+            {
+                throw Fail("refresh-token-missing", "Google didn't allow offline access. Try again.");
+            }
+
+            user = await oauth.GetUserInfoAsync(tokens.AccessToken, ct);
         }
-
-        if (tokens.RefreshToken is null)
+        catch (Exception ex) when (ex is HttpRequestException or GoogleApiException or InvalidGrantException or InvalidDataException or JsonException)
         {
-            throw Fail("refresh-token-missing", "Google didn't allow offline access. Try again.");
+            log.Error("signin.exchange-failed", ex);
+            throw Fail("exchange-failed", "Google couldn't complete sign-in. Try again.");
         }
 
         // Save Account
-        var user = await oauth.GetUserInfoAsync(tokens.AccessToken, ct);
-        tokenStore.SetRefreshToken(user.Sub, tokens.RefreshToken);
+        tokenStore.SetRefreshToken(user.Sub, tokens.RefreshToken!);
         accessTokens.Seed(user.Sub, tokens);
 
         var account = new Account(user.Sub, user.Email, user.Name, user.Picture, AccountStatus.Ok);
