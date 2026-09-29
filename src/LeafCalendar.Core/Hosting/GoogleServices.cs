@@ -1,0 +1,91 @@
+using LeafCalendar.Core.Auth;
+using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Diagnostics;
+using LeafCalendar.Core.Google;
+using LeafCalendar.Core.Sync;
+
+namespace LeafCalendar.Core.Hosting;
+
+/// <summary>
+/// Everything that talks to Google, wired for one OAuth client.
+/// </summary>
+/// <remarks>
+/// It lives in Core, with no UI, so a future background helper can reuse it unchanged.
+/// When the user changes the OAuth client, the app disposes this object and builds a new one.
+/// </remarks>
+public sealed class GoogleServices : IAsyncDisposable
+{
+    readonly ITokenStore _tokenStore;
+    readonly LeafDatabase _database;
+    readonly AppLog _log;
+    readonly TimeProvider _time;
+
+    /// <summary>Wires the Google services.</summary>
+    public GoogleServices(HttpClient http, OAuthClientCredentials credentials, ITokenStore tokenStore, LeafDatabase database, AppLog log, TimeProvider time)
+    {
+        _tokenStore = tokenStore;
+        _database   = database;
+        _log        = log;
+        _time       = time;
+
+        OAuth        = new GoogleOAuthClient(http, credentials, time);
+        AccessTokens = new AccessTokenProvider(OAuth, tokenStore, time);
+        Calendar     = new GoogleCalendarClient(http, AccessTokens);
+        Sync         = new SyncEngine(Calendar, database, log);
+        Loop         = new SyncLoop(Sync.SyncAllAsync, time, log);
+    }
+
+    /// <summary>OAuth calls.</summary>
+    public GoogleOAuthClient OAuth { get; }
+
+    /// <summary>Access tokens per account.</summary>
+    public AccessTokenProvider AccessTokens { get; }
+
+    /// <summary>Calendar REST client.</summary>
+    public GoogleCalendarClient Calendar { get; }
+
+    /// <summary>Sync engine.</summary>
+    public SyncEngine Sync { get; }
+
+    /// <summary>Polling loop (not started until <see cref="SyncLoop.Start"/>).</summary>
+    public SyncLoop Loop { get; }
+
+    /// <summary>Creates a sign-in flow that opens pages with <paramref name="openBrowser"/>.</summary>
+    public SignInFlow CreateSignIn(Func<Uri, Task> openBrowser) =>
+        new(OAuth, _tokenStore, AccessTokens, _database, openBrowser, _time, _log);
+
+    /// <summary>
+    /// Disconnects an account. Leaf asks Google to revoke the token (best effort), then deletes the
+    /// token and the account's local data. Google Calendar itself is not changed.
+    /// </summary>
+    public async Task DisconnectAsync(string accountId, CancellationToken ct)
+    {
+        // Revoke (Best Effort)
+        if (_tokenStore.GetRefreshToken(accountId) is { } refreshToken)
+        {
+            try
+            {
+                await OAuth.RevokeAsync(refreshToken, ct);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or GoogleApiException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
+            {
+                _log.Error("account.revoke.failed", ex);
+            }
+        }
+
+        // Remove Locally
+        _tokenStore.RemoveRefreshToken(accountId);
+        AccessTokens.Forget(accountId);
+
+        using var conn = _database.Open();
+        AccountStore.Delete(conn, accountId);
+        _log.Info("account.disconnected", $"account={accountId}");
+    }
+
+    /// <summary>Stops the polling loop and disposes access tokens.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        await Loop.DisposeAsync();
+        AccessTokens.Dispose();
+    }
+}
