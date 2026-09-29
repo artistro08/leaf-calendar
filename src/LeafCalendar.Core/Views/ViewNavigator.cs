@@ -16,6 +16,10 @@ public static class ViewNavigator
         _                     => showWeekends ? 7 : 5,
     };
 
+    /// <summary>The day the mini month should show: the middle of the visible span (the period start in Month view).</summary>
+    public static DateOnly MiniMonthAnchor(CalendarViewMode mode, DateOnly periodStart, int visibleColumns) =>
+        mode == CalendarViewMode.Month ? periodStart : periodStart.AddDays(visibleColumns / 2);
+
     /// <summary>The first day of the week containing <paramref name="date"/>.</summary>
     public static DateOnly WeekStartOf(DateOnly date, DayOfWeek weekStart) =>
         date.AddDays(-(((int)date.DayOfWeek - (int)weekStart + 7) % 7));

@@ -43,7 +43,7 @@ public sealed partial class SidebarView : UserControl
 
         MiniMonth.FirstDayOfWeek = (Windows.Globalization.DayOfWeek)(int)_viewModel.Settings.WeekStart;
         Rebuild();
-        ShowMonthOf(_viewModel.PeriodStart);
+        ShowMonthOf(ViewNavigator.MiniMonthAnchor(_viewModel.Mode, _viewModel.PeriodStart, _viewModel.VisibleColumns));
     }
 
     /// <summary>Disconnects from the view model.</summary>
@@ -65,7 +65,7 @@ public sealed partial class SidebarView : UserControl
     {
         if (e.PropertyName == nameof(CalendarViewModel.PeriodStart) && _viewModel is not null)
         {
-            ShowMonthOf(_viewModel.PeriodStart);
+            ShowMonthOf(ViewNavigator.MiniMonthAnchor(_viewModel.Mode, _viewModel.PeriodStart, _viewModel.VisibleColumns));
         }
     }
 

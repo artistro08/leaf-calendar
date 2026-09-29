@@ -61,4 +61,19 @@ public class ViewNavigatorTests
         Assert.Equal(40, ViewNavigator.WeekNumber(D(2026, 10, 1)));
         Assert.Equal(53, ViewNavigator.WeekNumber(D(2026, 12, 31)));
     }
+
+    [Fact]
+    public void MiniMonthAnchor_WeekSpanningMonths_UsesMiddleDay()
+    {
+        // Sep 27 - Oct 3 is mostly October
+        Assert.Equal(D(2026, 9, 30), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Week, D(2026, 9, 27), 7));
+        Assert.Equal(D(2026, 10, 1), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Week, D(2026, 9, 28), 7));
+        Assert.Equal(D(2026, 10, 1), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Days, D(2026, 9, 30), 3));
+    }
+
+    [Fact]
+    public void MiniMonthAnchor_Month_UsesPeriodStart()
+    {
+        Assert.Equal(D(2026, 10, 1), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Month, D(2026, 10, 1), 7));
+    }
 }
