@@ -1,5 +1,6 @@
 using System.Net;
 using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Sync;
 using LeafCalendar.Tests.Support;
 using Microsoft.Data.Sqlite;
 
@@ -182,6 +183,7 @@ public sealed class SyncEngineTests : IDisposable
         await _h.Engine.SyncAccountAsync(Account, ct);
         Assert.True(CountEvents(Family) > 0);
 
+        _h.Time.Advance(SyncEngine.CalendarListInterval);
         await _h.Engine.SyncAccountAsync(Account, ct);
 
         using var conn = _h.Db.Database.Open();

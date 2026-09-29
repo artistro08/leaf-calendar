@@ -31,7 +31,7 @@ public sealed class GoogleServices : IAsyncDisposable
         OAuth        = new GoogleOAuthClient(http, credentials, time);
         AccessTokens = new AccessTokenProvider(OAuth, tokenStore, time);
         Calendar     = new GoogleCalendarClient(http, AccessTokens);
-        Sync         = new SyncEngine(Calendar, database, log);
+        Sync         = new SyncEngine(Calendar, database, log, time);
         Loop         = new SyncLoop(Sync.SyncAllAsync, time, log);
     }
 

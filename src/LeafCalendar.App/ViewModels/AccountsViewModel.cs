@@ -163,7 +163,7 @@ public sealed partial class AccountsViewModel : ObservableObject
         {
             try
             {
-                await Task.Run(() => google.Sync.SyncAllAsync(CancellationToken.None));
+                await Task.Run(() => google.Sync.SyncAllAsync(refreshCalendarLists: true, CancellationToken.None));
             }
             finally
             {

@@ -69,7 +69,7 @@ public sealed class SyncHarness : IDisposable
         var http  = new HttpClient(Google);
         var oauth = new GoogleOAuthClient(http, new("id.apps.googleusercontent.com", "GOCSPX-test"), Time);
         var provider = new AccessTokenProvider(oauth, Tokens, Time);
-        Engine = new SyncEngine(new GoogleCalendarClient(http, provider), Db.Database, Log);
+        Engine = new SyncEngine(new GoogleCalendarClient(http, provider), Db.Database, Log, Time);
         _disposables.Add(provider);
         _disposables.Add(Engine);
         return Engine;

@@ -20,17 +20,33 @@ namespace LeafCalendar.Core.Sync;
 /// Only one sync runs at a time: the loop, "Sync now", and the post-sign-in sync all share the
 /// engine, and a second caller waits for the running sync to finish, then runs its own.
 /// </remarks>
-public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase database, AppLog log) : IDisposable
+public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase database, AppLog log, TimeProvider time) : IDisposable
 {
     // ponytail: one gate for every account; per-account gates if parallel account sync is ever wanted
     readonly SemaphoreSlim _gate = new(1, 1);
 
-    /// <summary>Syncs every account that can sync.</summary>
-    public async Task SyncAllAsync(CancellationToken ct)
+    /// <summary>How often each account's calendar list is refreshed (event changes are checked every poll).</summary>
+    public static readonly TimeSpan CalendarListInterval = TimeSpan.FromMinutes(15);
+
+    // Guarded by _gate
+    readonly Dictionary<string, DateTimeOffset> _calendarListSyncedAt = new(StringComparer.Ordinal);
+    bool _changed;
+
+    /// <summary>Raised after a sync that wrote anything. Raised on the syncing thread, after the sync lock is released.</summary>
+    public event EventHandler? DataChanged;
+
+    /// <summary>Syncs every account that can sync; the calendar list only when it's due.</summary>
+    public Task SyncAllAsync(CancellationToken ct) => SyncAllAsync(false, ct);
+
+    /// <summary>Syncs every account that can sync. <paramref name="refreshCalendarLists"/> forces a calendar-list refresh ("Sync now").</summary>
+    public async Task SyncAllAsync(bool refreshCalendarLists, CancellationToken ct)
     {
+        bool changed;
         await _gate.WaitAsync(ct);
         try
         {
+            _changed = false;
+
             IReadOnlyList<Account> accounts;
             using (var conn = database.Open())
             {
@@ -39,43 +55,69 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
 
             foreach (var account in accounts.Where(a => a.Status == AccountStatus.Ok))
             {
-                await SyncAccountCoreAsync(account.Id, ct);
+                await SyncAccountCoreAsync(account.Id, refreshCalendarLists, ct);
             }
+
+            changed = _changed;
         }
         finally
         {
             _gate.Release();
+        }
+
+        if (changed)
+        {
+            DataChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
-    /// <summary>Syncs one account's calendar list and every calendar's events.</summary>
+    /// <summary>Syncs one account now, including its calendar list (used right after sign-in).</summary>
     public async Task SyncAccountAsync(string accountId, CancellationToken ct)
     {
+        bool changed;
         await _gate.WaitAsync(ct);
         try
         {
-            await SyncAccountCoreAsync(accountId, ct);
+            _changed = false;
+            await SyncAccountCoreAsync(accountId, refreshCalendarList: true, ct);
+            changed = _changed;
         }
         finally
         {
             _gate.Release();
+        }
+
+        if (changed)
+        {
+            DataChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
     /// <inheritdoc />
     public void Dispose() => _gate.Dispose();
 
-    async Task SyncAccountCoreAsync(string accountId, CancellationToken ct)
+    async Task SyncAccountCoreAsync(string accountId, bool refreshCalendarList, CancellationToken ct)
     {
         try
         {
-            // Calendar List
-            var entries = await google.ListCalendarsAsync(accountId, ct);
+            // Calendar List (When Due)
+            var now = time.GetUtcNow();
+            var due = refreshCalendarList
+                || !_calendarListSyncedAt.TryGetValue(accountId, out var last)
+                || now - last >= CalendarListInterval;
+
+            if (due)
+            {
+                var entries = await google.ListCalendarsAsync(accountId, ct);
+                using var conn = database.Open();
+                CalendarStore.ReplaceForAccount(conn, accountId, entries);
+                _calendarListSyncedAt[accountId] = now;
+                _changed = true;
+            }
 
             IReadOnlyList<CalendarInfo> calendars;
             using (var conn = database.Open())
             {
-                CalendarStore.ReplaceForAccount(conn, accountId, entries);
                 calendars = CalendarStore.GetForAccount(conn, accountId);
             }
 
@@ -156,6 +198,11 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
 
         CalendarStore.SetSyncToken(conn, tx, calendar.AccountId, calendar.Id, page.NextSyncToken);
         tx.Commit();
+
+        if (items.Count > 0 || syncToken is null)
+        {
+            _changed = true;
+        }
 
         log.Info("sync.calendar.done", $"account={calendar.AccountId} changes={items.Count} full={syncToken is null}");
     }
