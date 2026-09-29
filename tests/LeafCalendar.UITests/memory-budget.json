@@ -1,4 +1,7 @@
 {
-  "trayPrivateBytesMb": 94,
-  "trayWorkingSetMb": 14
+  "trayPrivateBytesMb": 95,
+  "trayWorkingSetMb": 25,
+  "measuredOn": "2026-09-29",
+  "measuredPrivateBytesMb": 79,
+  "measuredWorkingSetMb": 12
 }
