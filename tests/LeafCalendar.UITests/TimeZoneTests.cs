@@ -51,4 +51,47 @@ public sealed class TimeZoneTests : IDisposable
 
         Assert.True(FlaUI.Core.Tools.Retry.WhileTrue(() => leaf.Exists("ZoneLabel_Europe/London"), TimeSpan.FromSeconds(5)).Success);
     }
+
+    [Fact]
+    public void RenameZone_ShowsLabelAndPersists()
+    {
+        using (var leaf = Launch())
+        {
+            leaf.WaitFor("AddTimeZoneButton").AsButton().Invoke();
+            leaf.WaitForAnywhere("TimeZoneSearch").Focus();
+            Keyboard.Type("Tokyo");
+            Keyboard.Press(VirtualKeyShort.RETURN);
+            leaf.WaitFor("ZoneLabel_Asia/Tokyo");
+
+            var box = leaf.WaitForAnywhere("ZoneLabelBox_Asia/Tokyo").AsTextBox();
+            box.Focus();
+            Keyboard.Type("HQ");
+            leaf.WaitForAnywhere("TimeZoneSearch").Focus();
+
+            Assert.True(FlaUI.Core.Tools.Retry.WhileFalse(() => leaf.WaitFor("ZoneLabel_Asia/Tokyo").Name == "HQ", TimeSpan.FromSeconds(5)).Success);
+            Keyboard.Press(VirtualKeyShort.ESCAPE);
+        }
+
+        using var relaunched = Launch();
+        Assert.Equal("HQ", relaunched.WaitFor("ZoneLabel_Asia/Tokyo").Name);
+    }
+
+    [Fact]
+    public void FourZones_ShowsLimit()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("AddTimeZoneButton").AsButton().Invoke();
+
+        foreach (var (query, id) in new[] { ("Tokyo", "Asia/Tokyo"), ("London", "Europe/London"), ("Paris", "Europe/Paris"), ("Sydney", "Australia/Sydney") })
+        {
+            leaf.WaitForAnywhere("TimeZoneSearch").Focus();
+            Thread.Sleep(500);
+            Keyboard.Type(query);
+            Thread.Sleep(500);
+            Keyboard.Press(VirtualKeyShort.RETURN);
+            leaf.WaitFor($"ZoneLabel_{id}");
+        }
+
+        Assert.NotNull(leaf.WaitForAnywhere("TimeZoneLimit"));
+    }
 }

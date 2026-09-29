@@ -88,14 +88,33 @@ public sealed partial class TimeZonePanel : UserControl
         }
     }
 
-    void OnLabelLostFocus(object sender, RoutedEventArgs e) => Save();
+    void OnLabelLostFocus(object sender, RoutedEventArgs e)
+    {
+        // Read The Box Directly (the two-way binding may not have committed yet)
+        if (sender is TextBox { DataContext: ZoneRow row } box)
+        {
+            row.Label = box.Text;
+        }
+
+        Save();
+    }
 
     void OnReordered(ListViewBase sender, DragItemsCompletedEventArgs args) => Save();
 
     void Save()
     {
-        _vm?.Update(s => s with { TimeZones = [.. _rows.Select(r => new ExtraTimeZone(r.Id, r.Label))] });
         UpdateLimit();
+        if (_vm is null)
+        {
+            return;
+        }
+
+        // Skip When Nothing Changed (avoids a relayout per blur)
+        List<ExtraTimeZone> zones = [.. _rows.Select(r => new ExtraTimeZone(r.Id, string.IsNullOrWhiteSpace(r.Label) ? null : r.Label.Trim()))];
+        if (!zones.SequenceEqual(_vm.Settings.TimeZones))
+        {
+            _vm.Update(s => s with { TimeZones = zones });
+        }
     }
 
     void UpdateLimit()
