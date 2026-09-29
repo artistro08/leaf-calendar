@@ -1,0 +1,57 @@
+using LeafCalendar.Core.Data;
+using LeafCalendar.LiveTests.Support;
+
+namespace LeafCalendar.LiveTests;
+
+public class LiveSyncTests
+{
+    [Fact]
+    public async Task Sync_CreateUpdateDelete_MirrorsGoogle()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var live = LiveAccount.TryLoad();
+        if (live is null)
+        {
+            Assert.Skip("Live account not set up. Run LiveSignInTests once (see its comment).");
+            return;
+        }
+
+        var google     = new LiveGoogle(live);
+        var calendarId = await google.CreateTestCalendarAsync(ct);
+        try
+        {
+            // Create
+            var eventId = await google.InsertEventAsync(calendarId, "Leaf live create", ct);
+            await live.Services.Sync.SyncAccountAsync(live.AccountId, ct);
+            Assert.Contains("Leaf live create", Get(live, calendarId, eventId)!.RawJson, StringComparison.Ordinal);
+
+            // Update (incremental)
+            var token = SyncToken(live, calendarId);
+            await google.PatchSummaryAsync(calendarId, eventId, "Leaf live update", ct);
+            await live.Services.Sync.SyncAccountAsync(live.AccountId, ct);
+            Assert.Contains("Leaf live update", Get(live, calendarId, eventId)!.RawJson, StringComparison.Ordinal);
+            Assert.NotEqual(token, SyncToken(live, calendarId));
+
+            // Delete
+            await google.DeleteEventAsync(calendarId, eventId, ct);
+            await live.Services.Sync.SyncAccountAsync(live.AccountId, ct);
+            Assert.Null(Get(live, calendarId, eventId));
+        }
+        finally
+        {
+            await google.DeleteCalendarAsync(calendarId, CancellationToken.None);
+        }
+    }
+
+    static StoredEvent? Get(LiveAccount live, string calendarId, string eventId)
+    {
+        using var conn = live.Database.Open();
+        return EventStore.Get(conn, live.AccountId, calendarId, eventId);
+    }
+
+    static string? SyncToken(LiveAccount live, string calendarId)
+    {
+        using var conn = live.Database.Open();
+        return CalendarStore.GetForAccount(conn, live.AccountId).Single(c => c.Id == calendarId).SyncToken;
+    }
+}

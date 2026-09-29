@@ -6,6 +6,7 @@
     <Project Path="src/LeafCalendar.Core/LeafCalendar.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/LeafCalendar.LiveTests/LeafCalendar.LiveTests.csproj" />
     <Project Path="tests/LeafCalendar.Tests/LeafCalendar.Tests.csproj" />
     <Project Path="tests/LeafCalendar.UITests/LeafCalendar.UITests.csproj" />
   </Folder>
