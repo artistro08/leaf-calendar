@@ -17,9 +17,9 @@ namespace LeafCalendar.Core.Google;
 /// </remarks>
 /// <seealso href="https://developers.google.com/workspace/calendar/api/v3/reference/events/list"/>
 /// <seealso href="https://developers.google.com/workspace/calendar/api/guides/sync"/>
-public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider tokens)
+public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider tokens, GoogleEndpoints? endpoints = null)
 {
-    static readonly Uri BaseUri = new("https://www.googleapis.com/calendar/v3/");
+    readonly Uri _baseUri = (endpoints ?? GoogleEndpoints.Default).CalendarApi;
 
     /// <summary>Returns every calendar in the account's list (all pages).</summary>
     public async Task<IReadOnlyList<CalendarListEntry>> ListCalendarsAsync(string accountId, CancellationToken ct)
@@ -65,7 +65,7 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
 
     async Task<T> GetAsync<T>(string accountId, string relativePath, JsonTypeInfo<T> info, CancellationToken ct)
     {
-        var uri = new Uri(BaseUri, relativePath);
+        var uri = new Uri(_baseUri, relativePath);
 
         for (var attempt = 0; ; attempt++)
         {

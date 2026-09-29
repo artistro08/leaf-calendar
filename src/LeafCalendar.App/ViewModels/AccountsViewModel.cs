@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Data;
-using Windows.System;
 
 namespace LeafCalendar.App.ViewModels;
 
@@ -114,7 +113,7 @@ public sealed partial class AccountsViewModel : ObservableObject
         {
             try
             {
-                var account = await google.CreateSignIn(OpenBrowserAsync).RunAsync(null, CancellationToken.None);
+                var account = await google.CreateSignIn(_services.OpenSignInPageAsync).RunAsync(null, CancellationToken.None);
                 Message = $"Signed in as {account.Email}. Syncing…";
 
                 // Sync Off The UI Thread; Property Updates Resume On It After The Await
@@ -138,15 +137,6 @@ public sealed partial class AccountsViewModel : ObservableObject
         catch (Exception ex)
         {
             ShowError("account.add.failed", ex, "Sign-in didn't finish. Try again.");
-        }
-    }
-
-    // A browser that never opens would leave the user waiting for the sign-in timeout
-    static async Task OpenBrowserAsync(Uri uri)
-    {
-        if (!await Launcher.LaunchUriAsync(uri))
-        {
-            throw new SignInException("Couldn't open your browser. Try again.");
         }
     }
 

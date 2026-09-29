@@ -193,6 +193,7 @@ Anyone can send an invite, so event content is treated as hostile.
 | Sensitive data in logs | Redaction rules plus a test that scans logs produced by a full test run. |
 | Vulnerable dependency | Vulnerable package check on every build. |
 | Other local users reading data | Package `LocalFolder` and Credential Locker are per user. |
+| Test-mode switch pointed at a hostile server | `--fake-google` accepts only an absolute `http` loopback address. Anyone able to pass launch arguments already runs as this Windows user, who can read the Credential Locker anyway, so it exposes nothing new. |
 
 ---
 

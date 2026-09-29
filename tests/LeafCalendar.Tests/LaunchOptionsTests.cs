@@ -34,4 +34,33 @@ public class LaunchOptionsTests
         Assert.Equal(@"C:\Local\profiles\work\leaf.db", paths.DatabasePath);
         Assert.Equal(@"C:\Local\profiles\work\Logs", paths.LogDirectory);
     }
+
+    [Fact]
+    public void Parse_FakeGoogleLoopback_AcceptsAndNormalizes()
+    {
+        var options = LaunchOptions.Parse(["--fake-google", "http://127.0.0.1:4567", "--start-date", "2026-10-01"]);
+
+        Assert.Equal(new Uri("http://127.0.0.1:4567/"), options.FakeGoogle);
+        Assert.Equal(new DateOnly(2026, 10, 1), options.StartDate);
+    }
+
+    [Theory]
+    [InlineData("https://127.0.0.1:4567/")]
+    [InlineData("http://example.com/")]
+    [InlineData("http://192.168.1.5:80/")]
+    [InlineData("not a url")]
+    [InlineData("file:///C:/fake")]
+    public void Parse_FakeGoogleNotLoopbackHttp_Ignored(string value)
+    {
+        var options = LaunchOptions.Parse(["--fake-google", value, "--start-date", "2026-10-01"]);
+
+        Assert.Null(options.FakeGoogle);
+        Assert.Null(options.StartDate);
+    }
+
+    [Fact]
+    public void Parse_StartDateWithoutFakeGoogle_Ignored()
+    {
+        Assert.Null(LaunchOptions.Parse(["--start-date", "2026-10-01"]).StartDate);
+    }
 }

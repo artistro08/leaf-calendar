@@ -21,16 +21,16 @@ public sealed class GoogleServices : IAsyncDisposable
     readonly TimeProvider _time;
 
     /// <summary>Wires the Google services.</summary>
-    public GoogleServices(HttpClient http, OAuthClientCredentials credentials, ITokenStore tokenStore, LeafDatabase database, AppLog log, TimeProvider time)
+    public GoogleServices(HttpClient http, OAuthClientCredentials credentials, ITokenStore tokenStore, LeafDatabase database, AppLog log, TimeProvider time, GoogleEndpoints? endpoints = null)
     {
         _tokenStore = tokenStore;
         _database   = database;
         _log        = log;
         _time       = time;
 
-        OAuth        = new GoogleOAuthClient(http, credentials, time);
+        OAuth        = new GoogleOAuthClient(http, credentials, time, endpoints);
         AccessTokens = new AccessTokenProvider(OAuth, tokenStore, time);
-        Calendar     = new GoogleCalendarClient(http, AccessTokens);
+        Calendar     = new GoogleCalendarClient(http, AccessTokens, endpoints);
         Sync         = new SyncEngine(Calendar, database, log, time);
         Loop         = new SyncLoop(Sync.SyncAllAsync, time, log);
     }

@@ -14,7 +14,7 @@ namespace LeafCalendar.Core.Auth;
 /// to Google's token endpoint over HTTPS; it never appears in URLs or logs.
 /// </remarks>
 /// <seealso href="https://developers.google.com/identity/protocols/oauth2/native-app"/>
-public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials credentials, TimeProvider time)
+public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials credentials, TimeProvider time, GoogleEndpoints? endpoints = null)
 {
     /// <summary>Full read/write calendar access.</summary>
     public const string CalendarScope = "https://www.googleapis.com/auth/calendar";
@@ -31,10 +31,7 @@ public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials cr
         "https://www.googleapis.com/auth/directory.readonly",
     ];
 
-    static readonly Uri AuthorizationEndpoint = new("https://accounts.google.com/o/oauth2/v2/auth");
-    static readonly Uri TokenEndpoint         = new("https://oauth2.googleapis.com/token");
-    static readonly Uri RevokeEndpoint        = new("https://oauth2.googleapis.com/revoke");
-    static readonly Uri UserInfoEndpoint      = new("https://openidconnect.googleapis.com/v1/userinfo");
+    readonly GoogleEndpoints _endpoints = endpoints ?? GoogleEndpoints.Default;
 
     /// <summary>Builds the consent page address to open in the user's browser.</summary>
     public Uri BuildAuthorizationUrl(Uri redirectUri, string state, string codeChallenge, string? loginHint = null)
@@ -59,7 +56,7 @@ public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials cr
         }
 
         var encoded = string.Join('&', query.Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value)}"));
-        return new Uri($"{AuthorizationEndpoint.AbsoluteUri}?{encoded}");
+        return new Uri($"{_endpoints.Authorization.AbsoluteUri}?{encoded}");
     }
 
     /// <summary>Exchanges an authorization code for tokens.</summary>
@@ -87,7 +84,7 @@ public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials cr
     public async Task RevokeAsync(string token, CancellationToken ct)
     {
         using var content  = new FormUrlEncodedContent([new KeyValuePair<string?, string?>("token", token)]);
-        using var response = await http.PostAsync(RevokeEndpoint, content, ct);
+        using var response = await http.PostAsync(_endpoints.Revoke, content, ct);
 
         if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.BadRequest)
         {
@@ -98,7 +95,7 @@ public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials cr
     /// <summary>Reads the signed-in user's ID, email, name, and picture.</summary>
     public async Task<GoogleUserInfo> GetUserInfoAsync(string accessToken, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, UserInfoEndpoint);
+        using var request = new HttpRequestMessage(HttpMethod.Get, _endpoints.UserInfo);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         using var response = await http.SendAsync(request, ct);
@@ -118,7 +115,7 @@ public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials cr
         form.Add(new("client_secret", credentials.ClientSecret));
 
         using var content  = new FormUrlEncodedContent(form);
-        using var response = await http.PostAsync(TokenEndpoint, content, ct);
+        using var response = await http.PostAsync(_endpoints.Token, content, ct);
         var body = await response.Content.ReadAsStringAsync(ct);
 
         // Map Errors

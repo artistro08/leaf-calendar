@@ -5,6 +5,7 @@ using LeafCalendar.Core.Google;
 using LeafCalendar.Core.Hosting;
 using Microsoft.Windows.System.Power;
 using Windows.Networking.Connectivity;
+using Windows.System;
 
 namespace LeafCalendar.App;
 
@@ -14,6 +15,9 @@ namespace LeafCalendar.App;
 /// </summary>
 public sealed class LeafServices : IAsyncDisposable
 {
+    // Test Mode "Browser": follows the fake Google's sign-in redirect itself
+    static readonly HttpClient FakeBrowser = new();
+
     readonly HttpClient _http;
 
     /// <summary>Creates services for a profile under the package's local folder.</summary>
@@ -31,8 +35,12 @@ public sealed class LeafServices : IAsyncDisposable
         NetworkInformation.NetworkStatusChanged += OnNetworkStatusChanged;
         PowerManager.SystemSuspendStatusChanged += OnSuspendStatusChanged;
 
-        Google = CreateGoogle();
+        Endpoints = options.FakeGoogle is { } fake ? GoogleEndpoints.ForFake(fake) : GoogleEndpoints.Default;
+        Google    = CreateGoogle();
     }
+
+    /// <summary>Real Google, or the fake Google from <c>--fake-google</c>.</summary>
+    public GoogleEndpoints Endpoints { get; }
 
     /// <summary>Launch options.</summary>
     public LaunchOptions Options { get; }
@@ -88,6 +96,35 @@ public sealed class LeafServices : IAsyncDisposable
         _http.Dispose();
     }
 
+    /// <summary>
+    /// Opens Google's sign-in page. In fake-Google mode Leaf plays the browser itself. It doesn't wait,
+    /// because the redirect only completes once sign-in is listening for it.
+    /// </summary>
+    /// <exception cref="SignInException">The browser couldn't be opened.</exception>
+    public async Task OpenSignInPageAsync(Uri uri)
+    {
+        if (Options.FakeGoogle is not null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var response = await FakeBrowser.GetAsync(uri);
+                }
+                catch (HttpRequestException ex)
+                {
+                    Log.Error("signin.fake-browser.failed", ex);
+                }
+            });
+            return;
+        }
+
+        if (!await Launcher.LaunchUriAsync(uri))
+        {
+            throw new SignInException("Couldn't open your browser. Try again.");
+        }
+    }
+
     GoogleServices? CreateGoogle()
     {
         if (Tokens.GetClientCredentials() is not { } credentials)
@@ -95,7 +132,7 @@ public sealed class LeafServices : IAsyncDisposable
             return null;
         }
 
-        var google = new GoogleServices(_http, credentials, Tokens, Database, Log, Time);
+        var google = new GoogleServices(_http, credentials, Tokens, Database, Log, Time, Endpoints);
         google.Loop.Start();
         return google;
     }
