@@ -1,0 +1,47 @@
+using System.Globalization;
+using Microsoft.Data.Sqlite;
+
+namespace LeafCalendar.Core.Data;
+
+/// <summary>
+/// Leaf's local SQLite database (one file per profile).
+/// </summary>
+/// <remarks>
+/// Uses WAL mode so the UI can read while sync writes. Every connection turns on foreign keys,
+/// so deleting an account cascades to its calendars and events. Schema changes are numbered
+/// migrations tracked in <c>PRAGMA user_version</c>.
+/// </remarks>
+public sealed class LeafDatabase(string path)
+{
+    /// <summary>Database file path.</summary>
+    public string Path { get; } = path;
+
+    /// <summary>Opens a pooled connection with foreign keys enabled. Dispose it after use.</summary>
+    public SqliteConnection Open()
+    {
+        var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path, Pooling = true }.ToString());
+        connection.Open();
+        connection.Execute(null, "PRAGMA foreign_keys = ON;");
+        return connection;
+    }
+
+    /// <summary>Creates the file if needed and applies pending migrations.</summary>
+    public void Migrate()
+    {
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
+
+        using var conn = Open();
+        conn.Execute(null, "PRAGMA journal_mode = WAL;");
+
+        var version = Convert.ToInt32(conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single(), CultureInfo.InvariantCulture);
+
+        // Version 1
+        if (version < 1)
+        {
+            using var tx = conn.BeginTransaction();
+            conn.Execute(tx, Schema.V1);
+            conn.Execute(tx, "PRAGMA user_version = 1;");
+            tx.Commit();
+        }
+    }
+}
