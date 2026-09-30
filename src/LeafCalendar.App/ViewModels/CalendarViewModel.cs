@@ -1074,13 +1074,14 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            // Offer Undo Until The Delete Is Sent
+            // Keep The Receipt For Undo (Newest Last, Oldest Dropped Past The Cap)
             _deletes.Add(receipt);
-        if (_deletes.Count > UndoDepth)
-        {
-            _deletes.RemoveAt(0);
-        }
+            if (_deletes.Count > UndoDepth)
+            {
+                _deletes.RemoveAt(0);
+            }
 
+            // Offer Undo Until The Delete Is Sent
             ClearSelection();
             var deleted = deletable.Count == 1 ? "Event deleted" : string.Create(CultureInfo.InvariantCulture, $"{deletable.Count} events deleted");
             var skipped = permissions.Count - deletable.Count;
@@ -1240,7 +1241,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex) when (IsEditFailure(ex))
         {
-            Fail("event.undo.failed", ex);
+            _services.Log.Error("event.undo.failed", ex);
+            Say("Couldn't restore that event.", canUndo: false);
         }
     }
 

@@ -5,15 +5,18 @@
     xmlns:local="using:LeafCalendar.App.Views"
     KeyboardAcceleratorPlacementMode="Hidden">
 
-    <!-- The InfoBar's severity states paint their own see-through fill over Background; the notice is always Informational, so its fill is made solid here (Fluent's solid tertiary background) -->
+    <!-- The InfoBar's severity states paint their own see-through fill over Background; the notice is always Informational, so its fill is made solid here (Fluent's solid tertiary background; window color in high contrast) -->
     <Page.Resources>
         <ResourceDictionary>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
-                    <SolidColorBrush x:Key="InfoBarInformationalSeverityBackgroundBrush" Color="#F9F9F9" />
+                    <StaticResource x:Key="InfoBarInformationalSeverityBackgroundBrush" ResourceKey="SolidBackgroundFillColorTertiaryBrush" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
-                    <SolidColorBrush x:Key="InfoBarInformationalSeverityBackgroundBrush" Color="#282828" />
+                    <StaticResource x:Key="InfoBarInformationalSeverityBackgroundBrush" ResourceKey="SolidBackgroundFillColorTertiaryBrush" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="HighContrast">
+                    <SolidColorBrush x:Key="InfoBarInformationalSeverityBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
@@ -91,7 +94,6 @@
                             Margin="0,0,0,16"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Bottom"
-                            Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                             IsClosable="True"
                             Closed="OnNoticeClosed"
