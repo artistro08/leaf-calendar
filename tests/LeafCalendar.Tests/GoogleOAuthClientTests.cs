@@ -46,6 +46,20 @@ public class GoogleOAuthClientTests : IDisposable
     }
 
     [Fact]
+    public void BuildAuthorizationUrl_IncludesGrantedScopes()
+    {
+        var url   = CreateClient().BuildAuthorizationUrl(new Uri("http://127.0.0.1:5000/"), "state-1", "challenge-1");
+        var query = QueryString.Parse(url.Query);
+
+        Assert.Equal("true", query["include_granted_scopes"]);
+        Assert.Equal(
+            "openid email profile https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly https://www.googleapis.com/auth/directory.readonly",
+            query["scope"]);
+        Assert.Equal(GoogleOAuthClient.ContactsScope, GoogleOAuthClient.Scopes[4]);
+        Assert.Equal(GoogleOAuthClient.OtherContactsScope, GoogleOAuthClient.Scopes[5]);
+    }
+
+    [Fact]
     public async Task ExchangeCodeAsync_Success_ReturnsTokensWithExpiry()
     {
         _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-response.json"));

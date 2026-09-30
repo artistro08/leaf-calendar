@@ -14,6 +14,7 @@ namespace LeafCalendar.Core.Google;
 [JsonSerializable(typeof(EventsPage))]
 [JsonSerializable(typeof(GoogleEvent))]
 [JsonSerializable(typeof(List<ReminderOverride>))]
+[JsonSerializable(typeof(PeopleSearchResponse))]
 internal sealed partial class GoogleJsonContext : JsonSerializerContext
 {
 }

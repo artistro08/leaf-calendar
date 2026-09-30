@@ -29,10 +29,17 @@ public sealed class GoogleEndpointsTests : IDisposable
     }
 
     [Fact]
+    public void ForFake_PeopleApiUnderTheFakeRoot()
+    {
+        Assert.Equal("http://127.0.0.1:4567/people/v1/", GoogleEndpoints.ForFake(Root).PeopleApi.AbsoluteUri);
+    }
+
+    [Fact]
     public void Default_UsesGoogle()
     {
         Assert.Equal("https://oauth2.googleapis.com/token", GoogleEndpoints.Default.Token.AbsoluteUri);
         Assert.Equal("https://www.googleapis.com/calendar/v3/", GoogleEndpoints.Default.CalendarApi.AbsoluteUri);
+        Assert.Equal("https://people.googleapis.com/v1/", GoogleEndpoints.Default.PeopleApi.AbsoluteUri);
     }
 
     [Fact]

@@ -64,6 +64,14 @@ public sealed class AccessTokenProvider(GoogleOAuthClient oauth, ITokenStore sto
         }
     }
 
+    /// <summary>True when the account's grant includes <paramref name="scope"/> (or Google didn't list the grant's scopes).</summary>
+    /// <exception cref="AccountNeedsSignInException">No usable refresh token.</exception>
+    public async ValueTask<bool> HasScopeAsync(string accountId, string scope, CancellationToken ct)
+    {
+        await GetAccessTokenAsync(accountId, ct);
+        return !_cache.TryGetValue(accountId, out var tokens) || tokens.Scope.Length == 0 || tokens.HasScope(scope);
+    }
+
     /// <summary>Caches tokens obtained elsewhere (right after sign-in).</summary>
     public void Seed(string accountId, TokenSet tokens) => _cache[accountId] = tokens;
 

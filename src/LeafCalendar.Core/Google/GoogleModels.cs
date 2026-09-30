@@ -74,6 +74,9 @@ public sealed class ApiError
 
     /// <summary>Individual errors with machine-readable reasons.</summary>
     public List<ApiErrorItem>? Errors { get; set; }
+
+    /// <summary>Newer-style details (e.g. <c>SERVICE_DISABLED</c>); only <c>reason</c> is read.</summary>
+    public List<ApiErrorItem>? Details { get; set; }
 }
 
 /// <summary>One Google API error item.</summary>
@@ -215,4 +218,46 @@ public sealed class EventDateTime
 
     /// <summary>IANA time zone the event was created in.</summary>
     public string? TimeZone { get; set; }
+}
+
+// =========================================================================
+// PEOPLE
+// =========================================================================
+
+/// <summary>A People API search answer (<c>people:searchContacts</c> and <c>otherContacts:search</c>).</summary>
+public sealed class PeopleSearchResponse
+{
+    /// <summary>Matches, best first.</summary>
+    public List<PeopleSearchResult>? Results { get; set; }
+}
+
+/// <summary>One match.</summary>
+public sealed class PeopleSearchResult
+{
+    /// <summary>The matched person.</summary>
+    public PeoplePerson? Person { get; set; }
+}
+
+/// <summary>The fields Leaf asks for (<c>readMask=names,emailAddresses</c>).</summary>
+public sealed class PeoplePerson
+{
+    /// <summary>Names; the first is the primary one.</summary>
+    public List<PeopleName>? Names { get; set; }
+
+    /// <summary>Email addresses.</summary>
+    public List<PeopleEmail>? EmailAddresses { get; set; }
+}
+
+/// <summary>A person's name.</summary>
+public sealed class PeopleName
+{
+    /// <summary>Name as Google shows it.</summary>
+    public string? DisplayName { get; set; }
+}
+
+/// <summary>A person's email address.</summary>
+public sealed class PeopleEmail
+{
+    /// <summary>The address.</summary>
+    public string? Value { get; set; }
 }

@@ -1,0 +1,6 @@
+{
+  "results": [
+    { "person": { "emailAddresses": [{ "value": "ali.other@example.com" }] } },
+    { "person": { "emailAddresses": [{ "value": "alice@example.com" }] } }
+  ]
+}

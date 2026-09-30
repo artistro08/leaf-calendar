@@ -94,6 +94,29 @@ public class AccessTokenProviderTests : IDisposable
         Assert.Equal("ya29.test-refreshed-token", token);
     }
 
+    [Fact]
+    public async Task HasScopeAsync_ReadsTheGrantedScopes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _store.SetRefreshToken("acct", "1//test-refresh-token");
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        using var provider = CreateProvider();
+
+        Assert.True(await provider.HasScopeAsync("acct", GoogleOAuthClient.CalendarScope, ct));
+        Assert.False(await provider.HasScopeAsync("acct", GoogleOAuthClient.ContactsScope, ct));
+        Assert.Single(_google.Requests);
+    }
+
+    [Fact]
+    public async Task HasScopeAsync_EmptyScopeString_ReturnsTrue()
+    {
+        using var provider = CreateProvider();
+        provider.Seed("acct", new TokenSet("ya29.seeded", _time.GetUtcNow().AddHours(1), null, ""));
+
+        Assert.True(await provider.HasScopeAsync("acct", GoogleOAuthClient.ContactsScope, TestContext.Current.CancellationToken));
+        Assert.Empty(_google.Requests);
+    }
+
     public void Dispose()
     {
         _google.Dispose();

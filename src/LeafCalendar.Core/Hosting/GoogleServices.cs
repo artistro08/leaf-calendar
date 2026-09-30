@@ -2,6 +2,7 @@ using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Google;
+using LeafCalendar.Core.People;
 using LeafCalendar.Core.Sync;
 
 namespace LeafCalendar.Core.Hosting;
@@ -31,6 +32,7 @@ public sealed class GoogleServices : IAsyncDisposable
         OAuth        = new GoogleOAuthClient(http, credentials, time, endpoints);
         AccessTokens = new AccessTokenProvider(OAuth, tokenStore, time);
         Calendar     = new GoogleCalendarClient(http, AccessTokens, endpoints);
+        Contacts     = new ContactSearch(http, AccessTokens, log, endpoints);
         Sync         = new SyncEngine(Calendar, database, log, time);
         Loop         = new SyncLoop(Sync.SyncAllAsync, time, log);
     }
@@ -43,6 +45,9 @@ public sealed class GoogleServices : IAsyncDisposable
 
     /// <summary>Calendar REST client.</summary>
     public GoogleCalendarClient Calendar { get; }
+
+    /// <summary>Guest autocomplete from Google contacts (People API, read-only).</summary>
+    public ContactSearch Contacts { get; }
 
     /// <summary>Sync engine.</summary>
     public SyncEngine Sync { get; }

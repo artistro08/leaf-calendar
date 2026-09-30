@@ -29,9 +29,11 @@ public sealed record FakeWrite(string Method, string Path, string Query, string?
 /// </remarks>
 public sealed class FakeGoogleServer : IDisposable
 {
-    const string PrimaryId    = "leaf.tester@gmail.com";
-    const string FamilyId     = "family123@group.calendar.google.com";
-    const string EventsPrefix = "/calendar/v3/calendars/";
+    const string PrimaryId      = "leaf.tester@gmail.com";
+    const string FamilyId       = "family123@group.calendar.google.com";
+    const string EventsPrefix   = "/calendar/v3/calendars/";
+    const string CalendarScopes = "openid https://www.googleapis.com/auth/calendar";
+    const string ContactsScopes = "https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly";
 
     readonly TcpListener _listener = new(IPAddress.Loopback, 0);
     readonly CancellationTokenSource _stop = new();
@@ -77,6 +79,12 @@ public sealed class FakeGoogleServer : IDisposable
 
     /// <summary>When true, every connection is dropped without an answer (Leaf sees a network failure).</summary>
     public bool Offline { get; set; }
+
+    /// <summary>
+    /// Whether the account's grant includes the contacts scopes. When false, token refreshes list only <c>openid</c> and
+    /// calendar. A new sign-in (authorization code exchange) sets it back to true.
+    /// </summary>
+    public bool ContactsGranted { get; set; } = true;
 
     /// <summary>How many token revocations were requested.</summary>
     public int RevokeCount => Volatile.Read(ref _revokes);
@@ -199,8 +207,17 @@ public sealed class FakeGoogleServer : IDisposable
 
         if (method == "POST" && path == "/token")
         {
-            var grant = QueryString.Parse(body).GetValueOrDefault("grant_type");
-            return (200, Read(grant == "authorization_code" ? "token-response.json" : "token-refresh.json"), null);
+            // A new sign-in grants everything token-response.json lists, contacts included
+            if (QueryString.Parse(body).GetValueOrDefault("grant_type") == "authorization_code")
+            {
+                ContactsGranted = true;
+                return (200, Read("token-response.json"), null);
+            }
+
+            // Refresh: the scope string says which grants the account holds
+            var refresh = JsonNode.Parse(Read("token-refresh.json"))!;
+            refresh["scope"] = ContactsGranted ? $"{CalendarScopes} {ContactsScopes}" : CalendarScopes;
+            return (200, refresh.ToJsonString(), null);
         }
 
         if (method == "POST" && path == "/revoke")
@@ -224,6 +241,12 @@ public sealed class FakeGoogleServer : IDisposable
             }
 
             return (200, list.ToJsonString(), null);
+        }
+
+        // Contacts
+        if (method == "GET" && path.StartsWith("/people/v1/", StringComparison.Ordinal))
+        {
+            return People(path, query);
         }
 
         // Events
@@ -275,6 +298,44 @@ public sealed class FakeGoogleServer : IDisposable
                 _        => NotFound(),
             };
         }
+    }
+
+    // =========================================================================
+    // PEOPLE
+    // =========================================================================
+
+    // Google's contact search: a case-insensitive prefix of any word of the name, or of the address.
+    // An empty query is the warmup request and matches nothing, as on Google.
+    (int, string, string?) People(string path, IReadOnlyDictionary<string, string> query)
+    {
+        var fixture = path switch
+        {
+            "/people/v1/people:searchContacts" => "contacts-search.json",
+            "/people/v1/otherContacts:search"  => "other-contacts-search.json",
+            _                                  => null,
+        };
+
+        if (fixture is null)
+        {
+            return NotFound();
+        }
+
+        var text    = query.GetValueOrDefault("query") ?? "";
+        var results = JsonNode.Parse(Read(fixture))!["results"]!.AsArray()
+            .Where(r => text.Length > 0 && Matches(r!["person"]!, text))
+            .Select(r => r!.DeepClone());
+
+        return (200, new JsonObject { ["results"] = new JsonArray([.. results]) }.ToJsonString(), null);
+    }
+
+    static bool Matches(JsonNode person, string text)
+    {
+        var names  = person["names"]?.AsArray().Select(n => (string?)n!["displayName"] ?? "") ?? [];
+        var emails = person["emailAddresses"]?.AsArray().Select(e => (string?)e!["value"] ?? "") ?? [];
+
+        return names.SelectMany(n => n.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .Concat(emails)
+            .Any(w => w.StartsWith(text, StringComparison.OrdinalIgnoreCase));
     }
 
     // =========================================================================

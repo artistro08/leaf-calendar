@@ -19,6 +19,12 @@ public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials cr
     /// <summary>Full read/write calendar access.</summary>
     public const string CalendarScope = "https://www.googleapis.com/auth/calendar";
 
+    /// <summary>Read-only access to the user's contacts (guest autocomplete).</summary>
+    public const string ContactsScope = "https://www.googleapis.com/auth/contacts.readonly";
+
+    /// <summary>Read-only access to "other contacts", people the user has emailed (guest autocomplete).</summary>
+    public const string OtherContactsScope = "https://www.googleapis.com/auth/contacts.other.readonly";
+
     /// <summary>Every scope Leaf requests.</summary>
     public static readonly IReadOnlyList<string> Scopes =
     [
@@ -26,8 +32,8 @@ public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials cr
         "email",
         "profile",
         CalendarScope,
-        "https://www.googleapis.com/auth/contacts.readonly",
-        "https://www.googleapis.com/auth/contacts.other.readonly",
+        ContactsScope,
+        OtherContactsScope,
         "https://www.googleapis.com/auth/directory.readonly",
     ];
 
@@ -48,6 +54,7 @@ public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials cr
             new("code_challenge_method", "S256"),
             new("access_type", "offline"),
             new("prompt", "consent"),
+            new("include_granted_scopes", "true"),
         ];
 
         if (!string.IsNullOrEmpty(loginHint))

@@ -1,0 +1,7 @@
+{
+  "results": [
+    { "person": { "names": [{ "displayName": "Alice Example" }], "emailAddresses": [{ "value": "alice@example.com" }] } },
+    { "person": { "names": [{ "displayName": "Alan Smith" }], "emailAddresses": [{ "value": "alan@example.com" }] } },
+    { "person": { "names": [{ "displayName": "\u202EAli<b>ce</b>" }], "emailAddresses": [{ "value": "ali.hostile@example.com" }] } }
+  ]
+}
