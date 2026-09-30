@@ -209,6 +209,24 @@ public sealed class EditingTests : IDisposable
     }
 
     [Fact]
+    public void InviteYouCantChange_ShowsDeleteDisabled()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-meeting_202610011800").Click();
+        leaf.WaitFor("DetailsTitle");
+
+        // Delete stays in its place, disabled, and the Delete key does nothing
+        var delete = leaf.WaitFor("DeleteEventButton");
+        Assert.False(delete.IsEnabled);
+        leaf.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.DELETE);
+        Assert.False(Retry.WhileTrue(() => leaf.Exists("Event_evt-meeting_202610011800"), TimeSpan.FromSeconds(2)).Success);
+
+        // Picking a changeable event enables it again
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DeleteEventButton").IsEnabled, TimeSpan.FromSeconds(5)).Success);
+    }
+
+    [Fact]
     public void EditTwice_CalendarPickerKeepsTheEventsCalendar()
     {
         using var leaf = Launch();

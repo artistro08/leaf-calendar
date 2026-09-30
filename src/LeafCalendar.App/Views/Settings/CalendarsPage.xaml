@@ -1,0 +1,65 @@
+<Page
+    x:Class="LeafCalendar.App.Views.Settings.CalendarsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:LeafCalendar.App.Controls"
+    xmlns:vm="using:LeafCalendar.App.ViewModels"
+    xmlns:local="using:LeafCalendar.App.Views.Settings">
+
+    <ScrollViewer x:Name="PageScroll">
+        <StackPanel MaxWidth="900" Spacing="4">
+            <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Calendars" />
+
+            <!-- Empty State -->
+            <TextBlock
+                x:Name="EmptyText"
+                Style="{StaticResource LeafSecondaryTextStyle}"
+                Text="No calendars yet. Add a Google account in Accounts."
+                Visibility="Collapsed" />
+
+            <!-- Accounts (the -24 top margin cancels the first group header's gap below the page title) -->
+            <ItemsControl x:Name="GroupList" Margin="0,-24,0,0" IsTabStop="False" AutomationProperties.AutomationId="SettingsCalendarList">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AccountGroup">
+                        <StackPanel Spacing="4">
+                            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="{x:Bind Email}" />
+                            <ItemsControl ItemsSource="{x:Bind Calendars}" IsTabStop="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Spacing="4" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:CalendarRow">
+                                        <!-- Calendar Row (color picker, then the show/hide switch) -->
+                                        <controls:SettingRow Header="{x:Bind Name}" Description="{x:Bind local:CalendarsPage.ColorSource(Info)}">
+                                            <StackPanel Orientation="Horizontal" Spacing="16">
+                                                <DropDownButton
+                                                    Click="OnColorClick"
+                                                    Tag="{x:Bind}"
+                                                    ToolTipService.ToolTip="Change color"
+                                                    AutomationProperties.Name="{x:Bind local:CalendarsPage.ColorName(Name)}"
+                                                    AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.ColorId(Info)}">
+                                                    <Ellipse Width="16" Height="16" Fill="{x:Bind local:CalendarsPage.BrushFor(Color)}" />
+                                                </DropDownButton>
+                                                <ToggleSwitch
+                                                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                                                    IsOn="{x:Bind IsVisible}"
+                                                    Toggled="OnVisibleToggled"
+                                                    Tag="{x:Bind}"
+                                                    ToolTipService.ToolTip="Show in Leaf"
+                                                    AutomationProperties.Name="{x:Bind Name}"
+                                                    AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.VisibleId(Info)}" />
+                                            </StackPanel>
+                                        </controls:SettingRow>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <!-- /Accounts -->
+        </StackPanel>
+    </ScrollViewer>
+</Page>

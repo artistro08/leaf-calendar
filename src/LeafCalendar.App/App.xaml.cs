@@ -4,7 +4,6 @@ using LeafCalendar.Core.Hosting;
 using LeafCalendar.Core.Sync;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
-using Microsoft.Windows.AppLifecycle;
 using Windows.Storage;
 
 namespace LeafCalendar.App;
@@ -55,7 +54,7 @@ public partial class App : Application
 
         // Another Launch Of This Profile Was Redirected Here (see Program), so come to the front
         var dispatcher = DispatcherQueue.GetForCurrentThread();
-        AppInstance.GetCurrent().Activated += (_, _) => dispatcher.TryEnqueue(BringToFront);
+        Program.HandleActivations(() => dispatcher.TryEnqueue(BringToFront));
 
         // Services Lifetime: the tray probe keeps them alive after the window closes
         if (options.TrayProbe)
@@ -64,7 +63,13 @@ public partial class App : Application
         }
         else
         {
-            _window.Closed += async (_, _) => await DisposeServicesAsync(services);
+            _window.Closed += async (_, _) =>
+            {
+                // Nothing to bring back: the services are going away with the window
+                _window   = null;
+                _services = null;
+                await DisposeServicesAsync(services);
+            };
         }
     }
 

@@ -12,7 +12,7 @@ using Windows.System;
 namespace LeafCalendar.App.Views;
 
 /// <summary>Navigation parameter for <see cref="CalendarPage"/>.</summary>
-public sealed record CalendarPageArgs(CalendarViewModel ViewModel, Action OpenAccounts, Action ToggleTheme);
+public sealed record CalendarPageArgs(CalendarViewModel ViewModel, Action ToggleTheme);
 
 /// <summary>A side pane started to open or close.</summary>
 public sealed class PanesChangedEventArgs(bool animate, bool opening) : EventArgs
@@ -85,7 +85,7 @@ public sealed partial class CalendarPage : Page
     {
         _args = (CalendarPageArgs)e.Parameter;
 
-        Sidebar.Attach(ViewModel, _args.OpenAccounts);
+        Sidebar.Attach(ViewModel);
         Details.Attach(ViewModel);
         ViewModel.PropertyChanged  += OnViewModelPropertyChanged;
         ViewModel.LayoutChanged    += OnLayoutChanged;
@@ -383,5 +383,5 @@ public sealed partial class CalendarPage : Page
     void UpdateEmptyState() =>
         EmptyState.Visibility = ViewModel.Calendars.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-    void OnAddAccountClick(object sender, RoutedEventArgs e) => _args.OpenAccounts();
+    void OnAddAccountClick(object sender, RoutedEventArgs e) => ViewModel.OpenSettings?.Invoke(SettingsSection.Accounts);
 }

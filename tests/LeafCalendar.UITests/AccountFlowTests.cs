@@ -6,18 +6,34 @@ namespace LeafCalendar.UITests;
 
 public sealed class AccountFlowTests : IDisposable
 {
+    const string Email = "leaf.tester@gmail.com";
+
     readonly FakeGoogleServer _google = new();
 
     public void Dispose() => _google.Dispose();
 
+    // Setup, then Settings › Accounts › Add Google account
     LeafApp LaunchAndAddAccount(string profile)
     {
         var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri}");
         SetupTests.EnterCredentials(leaf, "123-uitest.apps.googleusercontent.com", "GOCSPX-uitest");
-        leaf.WaitFor("AccountsButton").AsButton().Invoke();
-        leaf.WaitFor("AddAccountButton").AsButton().Invoke();
-        leaf.WaitForName("2 calendars · 6 events");
+        leaf.OpenSettings("Accounts");
+        leaf.WaitInSettings("AddAccountButton").AsButton().Invoke();
+        WaitForNameInSettings(leaf, "2 calendars · 6 events");
         return leaf;
+    }
+
+    static AutomationElement WaitForNameInSettings(LeafApp leaf, string name) =>
+        Retry.WhileNull(() => leaf.SettingsWindow.FindFirstDescendant(cf => cf.ByName(name)), TimeSpan.FromSeconds(15)).Result
+        ?? throw new InvalidOperationException($"'{name}' didn't appear in Settings.");
+
+    static bool InSettings(LeafApp leaf, string name) => leaf.SettingsWindow.FindFirstDescendant(cf => cf.ByName(name)) is not null;
+
+    // Disconnect the only account and confirm
+    static void Disconnect(LeafApp leaf)
+    {
+        WaitForNameInSettings(leaf, "Disconnect").AsButton().Invoke();
+        leaf.WaitForAnywhere("PrimaryButton").AsButton().Invoke();
     }
 
     [Fact]
@@ -28,7 +44,10 @@ public sealed class AccountFlowTests : IDisposable
         {
             using var leaf = LaunchAndAddAccount(profile);
 
-            Assert.NotNull(leaf.WaitForName("leaf.tester@gmail.com"));
+            Assert.NotNull(WaitForNameInSettings(leaf, Email));
+
+            // The main window's sidebar lists the new account's calendars without a restart
+            Assert.NotNull(leaf.WaitForName(Email));
         }
         finally
         {
@@ -44,7 +63,7 @@ public sealed class AccountFlowTests : IDisposable
         {
             using var leaf = LaunchAndAddAccount(profile);
 
-            leaf.WaitFor("SyncNowButton").AsButton().Invoke();
+            leaf.WaitInSettings("SyncNowButton").AsButton().Invoke();
 
             Assert.True(Retry.WhileFalse(() => _google.Requests.Any(r => r.Contains("syncToken=sync-token-1", StringComparison.Ordinal)), TimeSpan.FromSeconds(15)).Success);
         }
@@ -62,10 +81,10 @@ public sealed class AccountFlowTests : IDisposable
         {
             using var leaf = LaunchAndAddAccount(profile);
 
-            leaf.WaitForName("Disconnect").AsButton().Invoke();
-            leaf.WaitForAnywhere("PrimaryButton").AsButton().Invoke();
+            Disconnect(leaf);
 
-            Assert.True(Retry.WhileTrue(() => leaf.MainWindow.FindFirstDescendant(cf => cf.ByName("leaf.tester@gmail.com")) is not null, TimeSpan.FromSeconds(15)).Success);
+            Assert.True(Retry.WhileTrue(() => InSettings(leaf, Email), TimeSpan.FromSeconds(15)).Success);
+            Assert.True(Retry.WhileTrue(() => leaf.MainWindow.FindFirstDescendant(cf => cf.ByName(Email)) is not null, TimeSpan.FromSeconds(15)).Success);
             Assert.Equal(1, _google.RevokeCount);
         }
         finally
@@ -75,7 +94,7 @@ public sealed class AccountFlowTests : IDisposable
     }
 
     [Fact]
-    public void Disconnect_BackToCalendar_RemovesAccountEvents()
+    public void Disconnect_FromSettings_RemovesAccountEventsFromCalendar()
     {
         var profile = SeededProfile.Create();
         try
@@ -83,16 +102,11 @@ public sealed class AccountFlowTests : IDisposable
             using var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
             leaf.WaitFor("Event_evt-single_202610011300");
 
-            // Disconnect the Only Account
-            leaf.WaitFor("AccountsButton").AsButton().Invoke();
-            leaf.WaitForName("Disconnect").AsButton().Invoke();
-            leaf.WaitForAnywhere("PrimaryButton").AsButton().Invoke();
-            Assert.True(Retry.WhileTrue(() => leaf.MainWindow.FindFirstDescendant(cf => cf.ByName("leaf.tester@gmail.com")) is not null, TimeSpan.FromSeconds(15)).Success);
+            leaf.OpenSettings("Accounts");
+            Disconnect(leaf);
+            Assert.True(Retry.WhileTrue(() => InSettings(leaf, Email), TimeSpan.FromSeconds(15)).Success);
 
-            // Back to the Calendar
-            leaf.WaitFor("PART_BackButton").AsButton().Invoke();
-            leaf.WaitFor("CalendarRoot");
-
+            // The calendar behind Settings drops the account's events right away
             Assert.True(Retry.WhileTrue(() => leaf.Exists("Event_evt-single_202610011300"), TimeSpan.FromSeconds(10)).Success);
         }
         finally

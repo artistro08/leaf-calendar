@@ -45,6 +45,25 @@ public sealed record GuestItem(string Email, string Detail);
 /// <summary>The bar at the bottom of the calendar ("Event deleted · Undo", or a short message).</summary>
 public sealed record NoticeInfo(string Text, bool CanUndo);
 
+/// <summary>A page of the Settings window.</summary>
+public enum SettingsSection
+{
+    /// <summary>Theme, view, and time settings.</summary>
+    General,
+
+    /// <summary>Calendar colors and visibility.</summary>
+    Calendars,
+
+    /// <summary>Extra time-zone columns.</summary>
+    TimeZones,
+
+    /// <summary>Google accounts, sync, and the OAuth client.</summary>
+    Accounts,
+
+    /// <summary>Version and links.</summary>
+    About,
+}
+
 /// <summary>
 /// State and commands for the calendar views. It owns the sliding event cache, the user's view
 /// settings (saved on every change), selection, and the upcoming list.
@@ -166,6 +185,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// change can't apply to one event). Set by the page.
     /// </summary>
     public Func<bool, bool, Task<EditScope?>>? AskScope { get; set; }
+
+    /// <summary>Opens the Settings window on a page (the sidebar's settings button, the grid corner's time zones button). Set by the main window.</summary>
+    public Action<SettingsSection>? OpenSettings { get; set; }
 
     /// <summary>The bar at the bottom of the calendar, or null.</summary>
     [ObservableProperty]
@@ -406,6 +428,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
         ReloadCalendars();
     }
+
+    /// <summary>The calendars grouped by account (in Leaf's order), for the sidebar and Settings › Calendars.</summary>
+    public List<AccountGroup> CalendarGroups() =>
+        [.. Calendars
+            .GroupBy(c => c.AccountId)
+            .Select(g => new AccountGroup(AccountEmails.GetValueOrDefault(g.Key, g.Key), g.Select(c => new CalendarRow(c))))];
 
     /// <summary>Saves the order of an account's calendars.</summary>
     public void ReorderCalendars(string accountId, IReadOnlyList<string> calendarIds)

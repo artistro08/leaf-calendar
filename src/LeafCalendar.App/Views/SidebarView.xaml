@@ -10,8 +10,8 @@
          Everything inside starts 9 in from the 5 px left padding, so all the text, the mini month, and the
          checkboxes share one left edge 14 px in, under the title bar's sidebar toggle icon; hover fills, the
          visible-days band, and today's circle reach out into that 9 px. The mini month mirrors that on the
-         right (5 px padding); the calendar list and the footer keep their own right margins. Only the
-         calendar list scrolls; the mini month and the footer stay put. -->
+         right (5 px padding); the calendar list keeps its own right margin. Only the calendar list scrolls;
+         the mini month and the settings button stay put. -->
     <Grid Padding="5,48,5,12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -101,7 +101,6 @@
                                         <!-- Row (hovering anywhere on it lights the row, the checkbox, and the name together) -->
                                         <Grid
                                             Padding="9,0,4,0"
-                                            ColumnSpacing="8"
                                             CornerRadius="4"
                                             Background="Transparent"
                                             PointerEntered="OnRowPointerEntered"
@@ -110,29 +109,17 @@
                                             <Grid.BackgroundTransition>
                                                 <BrushTransition Duration="0:0:0.083" />
                                             </Grid.BackgroundTransition>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <!-- Visibility Checkbox (colored) -->
+                                            <!-- Visibility Checkbox (colored; the name is its label, so a click anywhere on the row shows or hides the calendar) -->
                                             <CheckBox
                                                 MinWidth="0"
+                                                HorizontalAlignment="Stretch"
                                                 IsChecked="{x:Bind IsVisible, Mode=OneWay}"
                                                 Click="OnVisibilityClick"
                                                 Tag="{x:Bind}"
                                                 AutomationProperties.Name="{x:Bind Name}"
-                                                AutomationProperties.AutomationId="{x:Bind local:SidebarView.ToggleId(Info)}" />
-                                            <!-- Name + Color Flyout -->
-                                            <Button
-                                                Grid.Column="1"
-                                                Style="{StaticResource LeafRowTextButtonStyle}"
-                                                Click="OnColorButtonClick"
-                                                Tag="{x:Bind}"
-                                                ToolTipService.ToolTip="Change color"
-                                                AutomationProperties.Name="{x:Bind Name}"
-                                                AutomationProperties.AutomationId="{x:Bind local:SidebarView.ColorId(Info)}">
+                                                AutomationProperties.AutomationId="{x:Bind local:SidebarView.ToggleId(Info)}">
                                                 <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
-                                            </Button>
+                                            </CheckBox>
                                         </Grid>
                                     </DataTemplate>
                                 </ListView.ItemTemplate>
@@ -144,28 +131,17 @@
         </ScrollViewer>
         <!-- /Calendars -->
 
-        <!-- Footer -->
-        <StackPanel Grid.Row="2" Spacing="2" Margin="0,8,7,0">
-            <HyperlinkButton
-                Padding="9,5,11,6"
-                Content="Google booking pages"
-                NavigateUri="https://calendar.google.com/calendar/u/0/appointments"
-                AutomationProperties.AutomationId="BookingPagesLink" />
-            <Button
-                Padding="9,5,11,6"
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Left"
-                Background="Transparent"
-                BorderThickness="0"
-                Click="OnAccountsClick"
-                AutomationProperties.Name="Accounts"
-                AutomationProperties.AutomationId="AccountsButton">
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <SymbolIcon Symbol="People" />
-                    <TextBlock Text="Accounts" />
-                </StackPanel>
-            </Button>
-        </StackPanel>
-        <!-- /Footer -->
+        <!-- Settings (bottom-left; the glyph starts 8 in on its 32-wide button, so a 1 px margin puts it on the shared 9 px edge) -->
+        <Button
+            Grid.Row="2"
+            Margin="1,8,0,0"
+            HorizontalAlignment="Left"
+            Style="{StaticResource LeafBareIconButtonStyle}"
+            Click="OnSettingsClick"
+            ToolTipService.ToolTip="Settings"
+            AutomationProperties.Name="Settings"
+            AutomationProperties.AutomationId="SettingsButton">
+            <FontIcon Glyph="&#xE713;" FontSize="16" />
+        </Button>
     </Grid>
 </UserControl>

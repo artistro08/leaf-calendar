@@ -108,8 +108,8 @@ public sealed class KeyboardTests : IDisposable
     {
         using var leaf = Launch();
 
-        leaf.WaitFor("CalendarColor_family123@group.calendar.google.com").AsButton().Invoke();
-        leaf.WaitForAnywhere("ColorSwatch_16A765").Focus();
+        leaf.WaitFor("ViewModeButton").AsButton().Invoke();
+        leaf.WaitForAnywhere("ViewDay").Focus();
         FlaUI.Core.Input.Keyboard.Type("m");
 
         Assert.False(Retry.WhileFalse(() => leaf.Exists("MonthGrid"), TimeSpan.FromSeconds(2)).Success);

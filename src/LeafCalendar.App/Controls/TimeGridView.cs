@@ -127,7 +127,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         };
         Children.Add(Corner);
 
-        // Add Time Zone
+        // Time Zones (opens Settings › Time zones)
         var addZone = new Button
         {
             Content             = new FontIcon { Glyph = "", FontSize = 10 },
@@ -141,12 +141,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         AutomationProperties.SetAutomationId(addZone, "AddTimeZoneButton");
         AutomationProperties.SetName(addZone, "Time zones");
         ToolTipService.SetToolTip(addZone, "Time zones");
-        addZone.Click += (_, _) =>
-        {
-            var panel = new Views.TimeZonePanel();
-            panel.Attach(_vm);
-            new Flyout { Content = panel, Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedLeft }.ShowAt(addZone);
-        };
+        addZone.Click += (_, _) => _vm.OpenSettings?.Invoke(ViewModels.SettingsSection.TimeZones);
         Corner.Children.Add(addZone);
 
         // Header (day names + all-day row)

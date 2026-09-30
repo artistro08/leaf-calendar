@@ -50,15 +50,14 @@ public sealed class SidebarTests : IDisposable
         using var leaf = Launch();
         var box = leaf.WaitFor($"CalendarToggle_{FamilyId}").BoundingRectangle;
 
-        // The footer buttons pad their text 9 DIPs in (a mini-month day button is 28 DIPs wide)
-        var inset = 9 * leaf.WaitFor("MiniDay_2026-10-01").BoundingRectangle.Width / 28.0;
+        // The settings glyph starts 8 DIPs in on its button (a mini-month day button is 28 DIPs wide)
+        var inset = 8 * leaf.WaitFor("MiniDay_2026-10-01").BoundingRectangle.Width / 28.0;
         var edges = new Dictionary<string, double>
         {
             ["checkbox"]    = box.Left,
             ["mini month"]  = leaf.WaitFor("MiniMonthTitle").BoundingRectangle.Left,
             ["account"]     = leaf.MainWindow.FindAllDescendants(cf => cf.ByName("leaf.tester@gmail.com")).Where(e => e.ControlType == ControlType.Text).MinBy(e => e.BoundingRectangle.Top)!.BoundingRectangle.Left,
-            ["booking"]     = leaf.WaitFor("BookingPagesLink").BoundingRectangle.Left + inset,
-            ["accounts"]    = leaf.WaitFor("AccountsButton").BoundingRectangle.Left + inset,
+            ["settings"]    = leaf.WaitFor("SettingsButton").BoundingRectangle.Left + inset,
         };
 
         Assert.All(edges, e => Assert.True(Math.Abs(e.Value - box.Left) <= 1.5, $"{e.Key} starts at {e.Value}, the checkboxes at {box.Left}"));
@@ -94,10 +93,10 @@ public sealed class SidebarTests : IDisposable
         var scroll = list.Patterns.Scroll.Pattern;
         Assert.True(Retry.WhileFalse(() => scroll.VerticallyScrollable.ValueOrDefault, TimeSpan.FromSeconds(5)).Success);
 
-        // The mini month sits above the list and the footer below it, outside the scrolling part
+        // The mini month sits above the list and the settings button below it, outside the scrolling part
         var box    = list.BoundingRectangle;
         var month  = leaf.WaitFor("MiniMonth").BoundingRectangle;
-        var footer = leaf.WaitFor("AccountsButton").BoundingRectangle;
+        var footer = leaf.WaitFor("SettingsButton").BoundingRectangle;
         Assert.True(month.Bottom <= box.Top && footer.Top >= box.Bottom, $"The list ({box}) overlaps the mini month ({month}) or the footer ({footer}).");
 
         // Near the top (account header), the middle, and the bottom (calendar rows)
@@ -118,20 +117,20 @@ public sealed class SidebarTests : IDisposable
             Assert.True(Retry.WhileFalse(() => scroll.VerticalScrollPercent.ValueOrDefault > 0, TimeSpan.FromSeconds(5)).Success, $"The wheel at y={y} didn't scroll the calendar list.");
         }
 
-        // Scrolled, the mini month and the footer haven't moved
+        // Scrolled, the mini month and the settings button haven't moved
         Assert.Equal(month, leaf.WaitFor("MiniMonth").BoundingRectangle);
-        Assert.Equal(footer, leaf.WaitFor("AccountsButton").BoundingRectangle);
+        Assert.Equal(footer, leaf.WaitFor("SettingsButton").BoundingRectangle);
     }
 
     [Fact]
-    public void ChangeColor_PicksSwatch()
+    public void Footer_HasOnlyTheSettingsButton()
     {
         using var leaf = Launch();
+        leaf.WaitFor($"CalendarToggle_{FamilyId}");
 
-        leaf.WaitFor($"CalendarColor_{FamilyId}").AsButton().Invoke();
-        leaf.WaitForAnywhere("ColorSwatch_16A765").AsButton().Invoke();
-
-        // The flyout closes and the calendar keeps working; the color itself is covered by CalendarPreferencesTests
-        Assert.NotNull(leaf.WaitFor($"CalendarToggle_{FamilyId}"));
+        Assert.Equal("Settings", leaf.WaitFor("SettingsButton").Name);
+        Assert.False(leaf.Exists("BookingPagesLink"));
+        Assert.False(leaf.Exists("AccountsButton"));
+        Assert.False(leaf.Exists($"CalendarColor_{FamilyId}"));
     }
 }

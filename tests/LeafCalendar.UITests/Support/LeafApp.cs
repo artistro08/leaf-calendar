@@ -32,9 +32,35 @@ public sealed class LeafApp : IDisposable
     /// <summary>The running app.</summary>
     public Application App { get; }
 
-    /// <summary>The main window (waits up to 20 s).</summary>
-    public Window MainWindow => App.GetMainWindow(_automation, TimeSpan.FromSeconds(20))
+    /// <summary>The main window (waits up to 20 s). Found by title: with Settings open, it may not be the process's "main" window.</summary>
+    public Window MainWindow => TopLevelWindow("Leaf Calendar", TimeSpan.FromSeconds(20))
         ?? throw new InvalidOperationException("Leaf's main window didn't appear.");
+
+    /// <summary>The Settings window (waits up to 15 s).</summary>
+    public Window SettingsWindow => TopLevelWindow("Settings", TimeSpan.FromSeconds(15))
+        ?? throw new InvalidOperationException("Leaf's Settings window didn't appear.");
+
+    /// <summary>How many of the app's windows have this title.</summary>
+    public int WindowCount(string title) => App.GetAllTopLevelWindows(_automation).Count(w => w.Title == title);
+
+    /// <summary>Opens Settings from the sidebar's settings button and shows a page (<c>General</c>, <c>Calendars</c>, <c>TimeZones</c>, <c>Accounts</c>, <c>About</c>).</summary>
+    public Window OpenSettings(string page = "General")
+    {
+        WaitFor("SettingsButton").AsButton().Invoke();
+        var settings = SettingsWindow;
+        var item     = Retry.WhileNull(() => settings.FindFirstDescendant(cf => cf.ByAutomationId($"SettingsNav_{page}")), TimeSpan.FromSeconds(15)).Result
+            ?? throw new InvalidOperationException($"Settings page '{page}' isn't in the navigation.");
+        item.Patterns.SelectionItem.Pattern.Select();
+        return settings;
+    }
+
+    /// <summary>Waits up to 15 s for an element in the Settings window by automation ID.</summary>
+    public AutomationElement WaitInSettings(string automationId) =>
+        Retry.WhileNull(() => SettingsWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)), TimeSpan.FromSeconds(15)).Result
+        ?? throw new InvalidOperationException($"Element '{automationId}' didn't appear in Settings.");
+
+    Window? TopLevelWindow(string title, TimeSpan timeout) =>
+        Retry.WhileNull(() => App.GetAllTopLevelWindows(_automation).FirstOrDefault(w => w.Title == title), timeout).Result;
 
     /// <summary>The registered package.</summary>
     public static Windows.ApplicationModel.Package Package =>

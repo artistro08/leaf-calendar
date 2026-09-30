@@ -1,0 +1,51 @@
+<Page
+    x:Class="LeafCalendar.App.Views.Settings.AboutPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:LeafCalendar.App.Controls"
+    xmlns:local="using:LeafCalendar.App.Views.Settings">
+
+    <ScrollViewer x:Name="PageScroll">
+        <StackPanel MaxWidth="900" Spacing="4">
+            <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="About" />
+
+            <!-- App (icon, name, version) -->
+            <Border
+                MinHeight="68"
+                Padding="16"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="{StaticResource OverlayCornerRadius}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Image
+                        Width="32"
+                        Height="32"
+                        VerticalAlignment="Center"
+                        Source="ms-appx:///Assets/Square44x44Logo.png"
+                        AutomationProperties.AccessibilityView="Raw" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Leaf Calendar" />
+                        <TextBlock
+                            Style="{StaticResource LeafSecondaryTextStyle}"
+                            Text="{x:Bind local:AboutPage.VersionText}"
+                            AutomationProperties.AutomationId="AboutVersion" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Links (fixed addresses only) -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Links" />
+            <controls:SettingRow Glyph="&#xE943;" Header="Source code" Description="Leaf Calendar is open source. See the code, report a problem, or get the latest release.">
+                <HyperlinkButton
+                    Content="View on GitHub"
+                    NavigateUri="https://github.com/artistro08/leaf-calendar"
+                    AutomationProperties.AutomationId="GitHubLink" />
+            </controls:SettingRow>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

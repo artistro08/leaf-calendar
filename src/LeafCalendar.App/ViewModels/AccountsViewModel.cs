@@ -9,24 +9,25 @@ namespace LeafCalendar.App.ViewModels;
 /// <summary>One row in the accounts list.</summary>
 public sealed record AccountRow(string Id, string Email, string Summary);
 
-/// <summary>Accounts page: add, sync, and disconnect Google accounts.</summary>
+/// <summary>Settings › Accounts: add, sync, and disconnect Google accounts, and show the OAuth client.</summary>
 public sealed partial class AccountsViewModel : ObservableObject
 {
     // Shown when a command fails for a reason the user can't act on
     const string GenericFailure = "Something went wrong. Try again.";
 
     readonly LeafServices _services;
+    readonly Action _accountsChanged;
 
-    /// <summary>Loads the account list.</summary>
-    public AccountsViewModel(LeafServices services, Action openSetup)
+    /// <summary>Loads the account list. <paramref name="accountsChanged"/> runs after an add, sync, or disconnect (the main window reloads its calendars).</summary>
+    public AccountsViewModel(LeafServices services, Action accountsChanged)
     {
-        _services = services;
-        OpenSetup = openSetup;
+        _services        = services;
+        _accountsChanged = accountsChanged;
         Refresh();
     }
 
-    /// <summary>Navigates to the OAuth client setup page.</summary>
-    public Action OpenSetup { get; }
+    /// <summary>The saved OAuth client ID, or a note that there isn't one.</summary>
+    public string ClientId => _services.Tokens.GetClientCredentials()?.ClientId ?? "No OAuth client saved";
 
     /// <summary>Accounts shown in the list.</summary>
     public ObservableCollection<AccountRow> Accounts { get; } = [];
@@ -63,7 +64,16 @@ public sealed partial class AccountsViewModel : ObservableObject
 
             Accounts.Add(new AccountRow(account.Id, account.Email, summary));
         }
+
+        HasNoAccounts = Accounts.Count == 0;
     }
+
+    /// <summary>True when no account is connected.</summary>
+    [ObservableProperty]
+    public partial bool HasNoAccounts { get; set; }
+
+    /// <summary>Edits of an account Google doesn't have yet (disconnecting would lose them).</summary>
+    public int UnsentFor(string accountId) => _services.Conflicts.UnsentFor(accountId);
 
     /// <summary>Disconnects an account (after the page confirms).</summary>
     public async Task DisconnectAsync(string accountId)
@@ -83,13 +93,20 @@ public sealed partial class AccountsViewModel : ObservableObject
             finally
             {
                 IsBusy = false;
-                Refresh();
+                Reload();
             }
         }
         catch (Exception ex)
         {
             ShowError("account.disconnect.failed", ex);
         }
+    }
+
+    // The list here and the main window's calendars
+    void Reload()
+    {
+        Refresh();
+        _accountsChanged();
     }
 
     /// <summary>Logs a failure the UI caught and shows <paramref name="message"/>.</summary>
@@ -123,7 +140,7 @@ public sealed partial class AccountsViewModel : ObservableObject
             finally
             {
                 IsBusy = false;
-                Refresh();
+                Reload();
             }
         }
         catch (SignInException ex)
@@ -158,7 +175,7 @@ public sealed partial class AccountsViewModel : ObservableObject
             finally
             {
                 IsBusy = false;
-                Refresh();
+                Reload();
             }
         }
         catch (Exception ex)

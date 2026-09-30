@@ -1,46 +1,52 @@
 using System.Collections.ObjectModel;
+using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Navigation;
 
-namespace LeafCalendar.App.Views;
+namespace LeafCalendar.App.Views.Settings;
 
-/// <summary>Adds, renames, reorders, and removes extra time-zone columns (up to four). Changes save immediately.</summary>
-public sealed partial class TimeZonePanel : UserControl
+/// <summary>
+/// Settings › Time zones: adds, renames, reorders (drag), and removes the extra time-zone columns (up to four). Changes
+/// save immediately and the grid follows. The "+" in the grid's corner opens this page.
+/// </summary>
+public sealed partial class TimeZonesPage : Page
 {
     readonly ObservableCollection<ZoneRow> _rows = [];
     IReadOnlyList<TimeZoneChoice> _suggestions = [];
-    CalendarViewModel? _vm;
+    CalendarViewModel _vm = null!;
 
-    /// <summary>Creates the panel.</summary>
-    public TimeZonePanel()
+    /// <summary>Creates the page.</summary>
+    public TimeZonesPage()
     {
         InitializeComponent();
+        ScrollIndicator.ShowOnHover(PageScroll);
         ZoneList.ItemsSource = _rows;
     }
 
-    /// <summary>Loads the zones from <paramref name="vm"/>.</summary>
-    public void Attach(CalendarViewModel vm)
+    /// <inheritdoc />
+    protected override void OnNavigatedTo(NavigationEventArgs e)
     {
-        _vm = vm;
+        _vm = ((SettingsContext)e.Parameter).Calendar;
         _rows.Clear();
 
-        var now = vm.Now;
-        foreach (var zone in vm.Settings.TimeZones)
+        var now = _vm.Now;
+        foreach (var zone in _vm.Settings.TimeZones)
         {
             var match = TimeZoneCatalog.Search(TimeZoneCatalog.CityFor(zone.Id), now).FirstOrDefault(c => c.Id == zone.Id);
             _rows.Add(new ZoneRow(zone.Id, TimeZoneCatalog.CityFor(zone.Id), match?.Detail ?? zone.Id) { Label = zone.Label ?? "" });
         }
 
-        UpdateLimit();
+        UpdateState();
     }
 
     // Suggestions go to the box as plain strings: a list of Core records can't be marshaled to WinRT under Native AOT
     void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
-        if (_vm is not null && args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+        if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
         {
             _suggestions       = TimeZoneCatalog.Search(sender.Text, _vm.Now);
             sender.ItemsSource = _suggestions.Select(c => c.ToString()).ToList();
@@ -60,11 +66,6 @@ public sealed partial class TimeZonePanel : UserControl
 
     void OnQuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
-        if (_vm is null)
-        {
-            return;
-        }
-
         var found  = TimeZoneCatalog.Search(args.QueryText, _vm.Now);
         var choice = ChoiceFor(args.ChosenSuggestion) ?? (found.Count > 0 ? found[0] : null);
         if (choice is not null)
@@ -109,11 +110,7 @@ public sealed partial class TimeZonePanel : UserControl
 
     void Save()
     {
-        UpdateLimit();
-        if (_vm is null)
-        {
-            return;
-        }
+        UpdateState();
 
         // Skip When Nothing Changed (avoids a relayout per blur)
         List<ExtraTimeZone> zones = [.. _rows.Select(r => new ExtraTimeZone(r.Id, string.IsNullOrWhiteSpace(r.Label) ? null : r.Label.Trim()))];
@@ -123,10 +120,12 @@ public sealed partial class TimeZonePanel : UserControl
         }
     }
 
-    void UpdateLimit()
+    // The search box is off at the limit; an empty list says so
+    void UpdateState()
     {
         var full = _rows.Count >= LeafSettings.MaxTimeZones;
         Search.IsEnabled     = !full;
         LimitText.Visibility = full ? Visibility.Visible : Visibility.Collapsed;
+        EmptyText.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 }

@@ -12,9 +12,9 @@ using Microsoft.UI.Text;
 namespace LeafCalendar.App.Views;
 
 /// <summary>
-/// Sidebar: a mini month that jumps the view, the calendars grouped by account (checkbox shows or
-/// hides, the name opens a color picker, drag to reorder), the booking pages link, and Accounts.
-/// Visibility, color, and order are Leaf-only; Google is not changed.
+/// Sidebar: a mini month that jumps the view, the calendars grouped by account (the checkbox shows or
+/// hides, drag to reorder), and the Settings button in the bottom-left corner (colors live in
+/// Settings › Calendars). Visibility, color, and order are Leaf-only; Google is not changed.
 /// </summary>
 public sealed partial class SidebarView : UserControl
 {
@@ -30,7 +30,6 @@ public sealed partial class SidebarView : UserControl
     readonly Style _dayStyle   = (Style)Application.Current.Resources["LeafMiniDayButtonStyle"];
     readonly Style _todayStyle = (Style)Application.Current.Resources["LeafMiniTodayButtonStyle"];
     CalendarViewModel? _viewModel;
-    Action? _openAccounts;
     DateOnly _miniMonth;
 
     /// <summary>Creates the sidebar.</summary>
@@ -45,14 +44,10 @@ public sealed partial class SidebarView : UserControl
     /// <summary>x:Bind helper: automation ID of a calendar's visibility checkbox.</summary>
     public static string ToggleId(CalendarInfo info) => $"CalendarToggle_{info.Id}";
 
-    /// <summary>x:Bind helper: automation ID of a calendar's name/color button.</summary>
-    public static string ColorId(CalendarInfo info) => $"CalendarColor_{info.Id}";
-
     /// <summary>Connects the sidebar to the page's view model.</summary>
-    public void Attach(CalendarViewModel viewModel, Action openAccounts)
+    public void Attach(CalendarViewModel viewModel)
     {
-        _viewModel    = viewModel;
-        _openAccounts = openAccounts;
+        _viewModel = viewModel;
 
         _viewModel.CalendarsChanged += OnCalendarsChanged;
         _viewModel.PropertyChanged  += OnViewModelPropertyChanged;
@@ -72,8 +67,7 @@ public sealed partial class SidebarView : UserControl
             _viewModel.LayoutChanged    -= OnLayoutChanged;
         }
 
-        _viewModel    = null;
-        _openAccounts = null;
+        _viewModel = null;
     }
 
     void OnCalendarsChanged(object? sender, EventArgs e) => Rebuild();
@@ -96,10 +90,7 @@ public sealed partial class SidebarView : UserControl
             return;
         }
 
-        CalendarList.ItemsSource = _viewModel.Calendars
-            .GroupBy(c => c.AccountId)
-            .Select(g => new AccountGroup(_viewModel.AccountEmails.GetValueOrDefault(g.Key, g.Key), g.Select(c => new CalendarRow(c))))
-            .ToList();
+        CalendarList.ItemsSource = _viewModel.CalendarGroups();
     }
 
     // =========================================================================
@@ -242,49 +233,6 @@ public sealed partial class SidebarView : UserControl
         }
     }
 
-    void OnColorButtonClick(object sender, RoutedEventArgs e)
-    {
-        if (_viewModel is null || sender is not Button { Tag: CalendarRow row } button)
-        {
-            return;
-        }
-
-        // Palette Flyout
-        var grid = new VariableSizedWrapGrid { Orientation = Orientation.Horizontal, MaximumRowsOrColumns = 6, ItemWidth = 32, ItemHeight = 32 };
-        var flyout = new Flyout();
-        foreach (var hex in EventColors.CalendarPalette)
-        {
-            var swatch = new Button
-            {
-                Width           = 26,
-                Height          = 26,
-                Padding         = new Thickness(0),
-                CornerRadius    = new CornerRadius(13),
-                Background      = LeafBrushes.FromHex(hex),
-                BorderThickness = new Thickness(string.Equals(hex, row.Color, StringComparison.OrdinalIgnoreCase) ? 2 : 0),
-            };
-            AutomationProperties.SetAutomationId(swatch, $"ColorSwatch_{hex[1..]}");
-            AutomationProperties.SetName(swatch, hex);
-            swatch.Click += (_, _) =>
-            {
-                flyout.Hide();
-                _viewModel.SetCalendarColor(row.Info, hex);
-            };
-            grid.Children.Add(swatch);
-        }
-
-        var reset = new HyperlinkButton { Content = "Use Google's color", Margin = new Thickness(0, 8, 0, 0) };
-        AutomationProperties.SetAutomationId(reset, "ColorReset");
-        reset.Click += (_, _) =>
-        {
-            flyout.Hide();
-            _viewModel.SetCalendarColor(row.Info, null);
-        };
-
-        flyout.Content = new StackPanel { Children = { grid, reset } };
-        flyout.ShowAt(button);
-    }
-
     // Color Each Checkbox With Its Calendar's Color: only the 20 px box's own fill and stroke. Setting the
     // CheckBox's Background paints its whole 32 px-tall root grid, which bled past the box when unchecked.
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822", Justification = "XAML event handlers must be instance methods.")]
@@ -326,7 +274,7 @@ public sealed partial class SidebarView : UserControl
 
     // One hover for the whole row: its background fades in, and the checkbox shows its own hover state (the
     // checkbox only knows about the pointer over itself, so the row drives it). Enter and exit bubble up from
-    // the checkbox and the name too, so an exit only counts once the pointer is really outside the row.
+    // the checkbox and its name too, so an exit only counts once the pointer is really outside the row.
     void OnRowPointerEntered(object sender, PointerRoutedEventArgs e) => SetRowHover(sender, hover: true);
 
     void OnRowPointerExited(object sender, PointerRoutedEventArgs e)
@@ -368,5 +316,5 @@ public sealed partial class SidebarView : UserControl
         }
     }
 
-    void OnAccountsClick(object sender, RoutedEventArgs e) => _openAccounts?.Invoke();
+    void OnSettingsClick(object sender, RoutedEventArgs e) => _viewModel?.OpenSettings?.Invoke(SettingsSection.General);
 }

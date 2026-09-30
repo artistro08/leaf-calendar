@@ -28,31 +28,29 @@ public sealed class CalendarShellTests : IDisposable
     }
 
     [Fact]
-    public void AccountsButton_OpensAccounts_BackReturns()
+    public void ViewMenu_HasOnlyViewChoices()
     {
         using var leaf = Launch();
 
-        leaf.WaitFor("AccountsButton").AsButton().Invoke();
-        Assert.NotNull(leaf.WaitFor("AddAccountButton"));
+        leaf.WaitFor("ViewModeButton").AsButton().Invoke();
 
-        leaf.WaitForName("Back").AsButton().Invoke();
-        Assert.NotNull(leaf.WaitFor("CalendarRoot"));
+        Assert.NotNull(leaf.WaitForAnywhere("ViewMonth"));
+        Assert.NotNull(leaf.WaitForAnywhere("ViewDay"));
+        foreach (var setting in new[] { "ToggleWeekends", "ToggleDeclined", "ToggleWeekNumbers", "Toggle24Hour", "ThemeDark", "WeekStartMonday" })
+        {
+            Assert.False(leaf.ExistsAnywhere(setting), $"{setting} is still in the view menu.");
+        }
     }
 
     [Fact]
-    public void ThemeDark_Persists()
+    public void ViewMenu_Month_SwitchesAndLabelsTheButton()
     {
-        using (var leaf = Launch())
-        {
-            leaf.WaitFor("ViewModeButton").AsButton().Invoke();
-            leaf.WaitForName("Theme").AsMenuItem().Expand();
-            leaf.WaitForAnywhere("ThemeDark").Patterns.Toggle.Pattern.Toggle();
-        }
+        using var leaf = Launch();
 
-        using var relaunched = Launch();
-        relaunched.WaitFor("ViewModeButton").AsButton().Invoke();
-        relaunched.WaitForName("Theme").AsMenuItem().Expand();
-        Assert.True(Retry.WhileFalse(() => relaunched.WaitForAnywhere("ThemeDark").Patterns.SelectionItem.PatternOrDefault?.IsSelected.ValueOrDefault == true
-            || relaunched.WaitForAnywhere("ThemeDark").AsMenuItem().IsChecked == true, TimeSpan.FromSeconds(10)).Success);
+        leaf.WaitFor("ViewModeButton").AsButton().Invoke();
+        leaf.WaitForAnywhere("ViewMonth").AsMenuItem().Invoke();
+
+        Assert.NotNull(leaf.WaitFor("MonthGrid"));
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ViewModeButton").Name == "Month", TimeSpan.FromSeconds(5)).Success);
     }
 }

@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.App.Views;
+using LeafCalendar.App.Views.Settings;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Sync;
 using Microsoft.UI;
@@ -17,10 +18,11 @@ namespace LeafCalendar.App;
 
 /// <summary>
 /// Main window: a tall XAML title bar (caption buttons match its 48 px height) holding the calendar
-/// toolbar, a Mica backdrop, and a page frame (setup, calendar, accounts). On the calendar page the
+/// toolbar, a Mica backdrop, and a page frame (setup, then the calendar). On the calendar page the
 /// frame runs under the title bar, so the sidebars and the calendar island reach the top edge; the
-/// title bar stays transparent and only its buttons take clicks. The back button shows only when
-/// the frame can go back; the pane toggle only on the calendar.
+/// title bar stays transparent and only its buttons take clicks. The pane toggle shows only on the
+/// calendar. Settings and accounts live in their own window (<see cref="SettingsWindow"/>), which
+/// shares the calendar view model, so its changes show here right away.
 /// </summary>
 [SuppressMessage("Design", "CA1001", Justification = "Windows aren't disposable; the view model is disposed when the window closes.")]
 public sealed partial class MainWindow : Window
@@ -50,7 +52,6 @@ public sealed partial class MainWindow : Window
     CalendarViewModel? _calendar;
     Storyboard? _toolbarSlide;
     (double Right, bool Sidebar, bool Calendar)? _titleBarLayout;
-    bool _syncingMenu;
 
     /// <summary>Creates the window. <see cref="App"/> owns the services.</summary>
     public MainWindow(LeafServices services)
@@ -90,6 +91,9 @@ public sealed partial class MainWindow : Window
         Activated += OnActivated;
         Closed    += (_, _) =>
         {
+            // Settings Closes With The Main Window (it runs on the same services)
+            SettingsWindow.Current?.Close();
+
             // Closing doesn't navigate, so release the page's views here
             (ContentFrame.Content as CalendarPage)?.Detach();
             _calendar?.Dispose();
@@ -118,16 +122,19 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>Applies the app theme to the content and caption buttons.</summary>
-    public void ApplyTheme(AppTheme theme)
+    public void ApplyTheme(AppTheme theme) => ApplyTheme(AppWindow, RootGrid, theme);
+
+    /// <summary>Applies the app theme to a window's content (<paramref name="root"/>) and caption buttons.</summary>
+    internal static void ApplyTheme(AppWindow window, FrameworkElement root, AppTheme theme)
     {
-        RootGrid.RequestedTheme = theme switch
+        root.RequestedTheme = theme switch
         {
             AppTheme.Light => ElementTheme.Light,
             AppTheme.Dark  => ElementTheme.Dark,
             _              => ElementTheme.Default,
         };
 
-        AppWindow.TitleBar.PreferredTheme = theme switch
+        window.TitleBar.PreferredTheme = theme switch
         {
             AppTheme.Light => TitleBarTheme.Light,
             AppTheme.Dark  => TitleBarTheme.Dark,
@@ -147,7 +154,12 @@ public sealed partial class MainWindow : Window
         if (_calendar is null)
         {
             _calendar = new CalendarViewModel(_services, DispatcherQueue);
-            _calendar.LayoutChanged   += (_, _) => SyncMenu();
+            _calendar.OpenSettings     = section => SettingsWindow.Open(_services, _calendar, section);
+            _calendar.LayoutChanged   += (_, _) =>
+            {
+                SyncMenu();
+                ApplyTheme(_calendar.Settings.Theme);
+            };
             _calendar.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName is nameof(CalendarViewModel.SelectedInfo) or nameof(CalendarViewModel.Editing) or nameof(CalendarViewModel.Selection))
@@ -158,12 +170,9 @@ public sealed partial class MainWindow : Window
             ApplyTheme(_calendar.Settings.Theme);
         }
 
-        ContentFrame.Navigate(typeof(CalendarPage), new CalendarPageArgs(_calendar, ShowAccounts, ToggleTheme));
+        ContentFrame.Navigate(typeof(CalendarPage), new CalendarPageArgs(_calendar, ToggleTheme));
         ContentFrame.BackStack.Clear();
     }
-
-    void ShowAccounts() =>
-        ContentFrame.Navigate(typeof(AccountsPage), new AccountsViewModel(_services, ShowSetup));
 
     async Task OnCredentialsSavedAsync()
     {
@@ -176,7 +185,7 @@ public sealed partial class MainWindow : Window
         var page       = e.Content as CalendarPage;
         var onCalendar = page is not null;
 
-        // The calendar runs under the title bar; setup and accounts sit below it
+        // The calendar runs under the title bar; setup sits below it
         Grid.SetRow(ContentFrame, onCalendar ? 0 : 1);
         Grid.SetRowSpan(ContentFrame, onCalendar ? 2 : 1);
 
@@ -259,16 +268,22 @@ public sealed partial class MainWindow : Window
         AppTitleBar.RecomputeDragRegions();
     }
 
-    // Edit And Delete: shown in the details panel's title bar row while the open panel shows an event you can change
-    // (not while editing; the Delete key follows the same rule). Several selected events show Delete only, and it
-    // deletes the ones you can change. The title bar only lets clicks through where its buttons are when it computes
-    // its regions, so they're recomputed once the buttons have their new layout.
+    // Edit And Delete: shown in the details panel's title bar row while the open panel shows an event or a selection
+    // (not while editing). Edit shows only for one event you can change. Delete stays put for an event you can't
+    // delete, just disabled (the Delete key does nothing for it either); several selected events delete the ones you
+    // can change. The title bar only lets clicks through where its buttons are when it computes its regions, so
+    // they're recomputed once the buttons have their new layout.
     void UpdateEventActions()
     {
         var several    = _calendar is { Selection.Count: > 1 };
-        var show       = ContentFrame.Content is CalendarPage { IsDetailsOpen: true } && _calendar is { Editing: null } && (several || _calendar.SelectedInfo is { CanEdit: true });
+        var canEdit    = _calendar?.SelectedInfo is { CanEdit: true };
+        var show       = ContentFrame.Content is CalendarPage { IsDetailsOpen: true } && _calendar is { Editing: null } && (several || _calendar.SelectedInfo is not null);
         var visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        var edit       = several ? Visibility.Collapsed : Visibility.Visible;
+        var edit       = !several && canEdit ? Visibility.Visible : Visibility.Collapsed;
+        var delete     = several || canEdit;
+
+        ToolTipService.SetToolTip(DeleteEventButton, delete ? "Delete event (Delete)" : "You can't delete this event");
+        DeleteEventButton.IsEnabled = delete;
         if (EventActions.Visibility == visibility && EditEventButton.Visibility == edit)
         {
             return;
@@ -289,14 +304,6 @@ public sealed partial class MainWindow : Window
         var inner = AppWindow.ClientSize;
         _presenter.PreferredMinimumWidth  = (int)Math.Ceiling(MinimumWidth * scale) + Math.Max(0, frame.Width - inner.Width);
         _presenter.PreferredMinimumHeight = (int)Math.Ceiling(MinimumHeight * scale) + Math.Max(0, frame.Height - inner.Height);
-    }
-
-    void OnBackRequested(TitleBar sender, object args)
-    {
-        if (ContentFrame.CanGoBack)
-        {
-            ContentFrame.GoBack();
-        }
     }
 
     void OnPaneToggleRequested(TitleBar sender, object args)
@@ -397,47 +404,6 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    void OnWeekendsClick(object sender, RoutedEventArgs e)
-    {
-        if (!_syncingMenu)
-        {
-            _calendar?.ToggleWeekends();
-        }
-    }
-
-    void OnDeclinedClick(object sender, RoutedEventArgs e)
-    {
-        if (!_syncingMenu)
-        {
-            _calendar?.ToggleDeclined();
-        }
-    }
-
-    void OnWeekNumbersClick(object sender, RoutedEventArgs e) =>
-        _calendar?.Update(s => s with { ShowWeekNumbers = WeekNumbersItem.IsChecked });
-
-    void On24HourClick(object sender, RoutedEventArgs e) =>
-        _calendar?.Update(s => s with { Use24HourTime = Clock24Item.IsChecked });
-
-    void OnWeekStartClick(object sender, RoutedEventArgs e)
-    {
-        if (_calendar is not null && sender is RadioMenuFlyoutItem { Tag: string tag })
-        {
-            _calendar.Update(s => s with { WeekStart = Enum.Parse<DayOfWeek>(tag) });
-            _calendar.NavigateTo(_calendar.PeriodStart);
-        }
-    }
-
-    void OnThemeClick(object sender, RoutedEventArgs e)
-    {
-        if (_calendar is not null && sender is RadioMenuFlyoutItem { Tag: string tag })
-        {
-            var theme = Enum.Parse<AppTheme>(tag);
-            _calendar.Update(s => s with { Theme = theme });
-            ApplyTheme(theme);
-        }
-    }
-
     // Ctrl+Shift+L: flip between light and dark based on what's showing now
     void ToggleTheme()
     {
@@ -448,11 +414,9 @@ public sealed partial class MainWindow : Window
 
         var next = RootGrid.ActualTheme == ElementTheme.Dark ? AppTheme.Light : AppTheme.Dark;
         _calendar.Update(s => s with { Theme = next });
-        ApplyTheme(next);
-        SyncMenu();
     }
 
-    // Keep the menu's check marks and the button label in step with the settings
+    // Keep the view button's label and the details toggle in step with the settings (Settings, shortcuts, and the menu all change them)
     void SyncMenu()
     {
         if (_calendar is null)
@@ -460,28 +424,14 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        _syncingMenu = true;
         var s = _calendar.Settings;
-
-        ViewModeButton.Content    = s.ViewMode switch
+        ViewModeButton.Content  = s.ViewMode switch
         {
             CalendarViewMode.Day   => "Day",
             CalendarViewMode.Month => "Month",
             CalendarViewMode.Days  => $"{s.CustomDayCount} days",
             _                      => "Week",
         };
-        WeekendsItem.IsChecked      = s.ShowWeekends;
-        DeclinedItem.IsChecked      = s.ShowDeclined;
-        WeekNumbersItem.IsChecked   = s.ShowWeekNumbers;
-        Clock24Item.IsChecked       = s.Use24HourTime;
-        WeekStartSunday.IsChecked   = s.WeekStart == DayOfWeek.Sunday;
-        WeekStartMonday.IsChecked   = s.WeekStart == DayOfWeek.Monday;
-        WeekStartSaturday.IsChecked = s.WeekStart == DayOfWeek.Saturday;
-        ThemeSystem.IsChecked       = s.Theme == AppTheme.System;
-        ThemeLight.IsChecked        = s.Theme == AppTheme.Light;
-        ThemeDark.IsChecked         = s.Theme == AppTheme.Dark;
-        DetailsToggle.IsChecked     = s.DetailsPanelOpen;
-
-        _syncingMenu = false;
+        DetailsToggle.IsChecked = s.DetailsPanelOpen;
     }
 }

@@ -82,7 +82,7 @@ public sealed class DetailsActionsTests : IDisposable
     {
         using var leaf = Launch();
         leaf.WaitFor(Meeting).Click();
-        Assert.False(leaf.Exists("DeleteEventButton"));
+        Assert.False(leaf.WaitFor("DeleteEventButton").IsEnabled);
 
         leaf.WaitFor("DetailsRsvpNote").AsTextBox().Text = "Running late";
         leaf.WaitFor("DetailsRsvpMaybe").Click();

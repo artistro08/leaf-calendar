@@ -1,0 +1,95 @@
+<Page
+    x:Class="LeafCalendar.App.Views.Settings.TimeZonesPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:LeafCalendar.App.Controls"
+    xmlns:vm="using:LeafCalendar.App.ViewModels">
+
+    <ScrollViewer x:Name="PageScroll">
+        <StackPanel MaxWidth="900" Spacing="4">
+            <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Time zones" />
+
+            <!-- Add -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Extra time zones" />
+            <controls:SettingRow
+                Glyph="&#xE774;"
+                Header="Add a time zone"
+                Description="Columns show left to right in this order, next to your PC's time zone. You can show up to 4.">
+                <AutoSuggestBox
+                    x:Name="Search"
+                    Width="280"
+                    PlaceholderText="Add a city or zone (Tokyo, NYC, UTC)"
+                    QueryIcon="Add"
+                    TextChanged="OnSearchTextChanged"
+                    SuggestionChosen="OnSuggestionChosen"
+                    QuerySubmitted="OnQuerySubmitted"
+                    AutomationProperties.Name="Add a time zone"
+                    AutomationProperties.AutomationId="TimeZoneSearch" />
+            </controls:SettingRow>
+            <TextBlock
+                x:Name="LimitText"
+                Margin="0,4,0,0"
+                Style="{StaticResource LeafSecondaryTextStyle}"
+                Text="You can show up to 4 extra time zones."
+                Visibility="Collapsed"
+                AutomationProperties.AutomationId="TimeZoneLimit" />
+
+            <!-- Current Zones (drag to reorder) -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Your time zones" />
+            <TextBlock
+                x:Name="EmptyText"
+                Style="{StaticResource LeafSecondaryTextStyle}"
+                Text="No extra time zones yet."
+                Visibility="Collapsed" />
+            <ListView
+                x:Name="ZoneList"
+                SelectionMode="None"
+                CanReorderItems="True"
+                CanDragItems="True"
+                AllowDrop="True"
+                DragItemsCompleted="OnReordered"
+                AutomationProperties.Name="Your time zones"
+                AutomationProperties.AutomationId="TimeZoneList">
+                <!-- Cards draw their own background, so the item's hover and press fills are off -->
+                <ListView.Resources>
+                    <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
+                    <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />
+                </ListView.Resources>
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="0,0,0,4" />
+                        <Setter Property="MinHeight" Value="0" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ZoneRow">
+                        <!-- Zone Row (label box, then remove) -->
+                        <controls:SettingRow Glyph="&#xE76F;" Header="{x:Bind City}" Description="{x:Bind Detail}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBox
+                                    Width="180"
+                                    Text="{x:Bind Label, Mode=TwoWay}"
+                                    PlaceholderText="{x:Bind City}"
+                                    MaxLength="24"
+                                    LostFocus="OnLabelLostFocus"
+                                    AutomationProperties.Name="Column label"
+                                    AutomationProperties.AutomationId="{x:Bind LabelBoxId}" />
+                                <Button
+                                    Style="{StaticResource LeafIconButtonStyle}"
+                                    Click="OnRemoveClick"
+                                    Tag="{x:Bind}"
+                                    ToolTipService.ToolTip="Remove"
+                                    AutomationProperties.Name="Remove"
+                                    AutomationProperties.AutomationId="{x:Bind RemoveId}">
+                                    <FontIcon Glyph="&#xE74D;" FontSize="16" />
+                                </Button>
+                            </StackPanel>
+                        </controls:SettingRow>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

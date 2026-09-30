@@ -21,9 +21,8 @@
         <TitleBar
             x:Name="AppTitleBar"
             Title="Leaf Calendar"
-            IsBackButtonVisible="{x:Bind ContentFrame.CanGoBack, Mode=OneWay}"
+            IsBackButtonVisible="False"
             IsPaneToggleButtonVisible="False"
-            BackRequested="OnBackRequested"
             PaneToggleRequested="OnPaneToggleRequested"
             AutomationProperties.AutomationId="AppTitleBar">
             <TitleBar.Resources>
@@ -64,21 +63,6 @@
                                             <MenuFlyoutItem Text="9 days" Tag="Days:9" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays9" />
                                             <MenuFlyoutSeparator />
                                             <MenuFlyoutItem Text="Custom…" Click="OnCustomDaysClick" AutomationProperties.AutomationId="ViewDaysCustom" />
-                                        </MenuFlyoutSubItem>
-                                        <MenuFlyoutSeparator />
-                                        <ToggleMenuFlyoutItem x:Name="WeekendsItem" Text="Show weekends" Click="OnWeekendsClick" AutomationProperties.AutomationId="ToggleWeekends" />
-                                        <ToggleMenuFlyoutItem x:Name="DeclinedItem" Text="Show declined events" Click="OnDeclinedClick" AutomationProperties.AutomationId="ToggleDeclined" />
-                                        <ToggleMenuFlyoutItem x:Name="WeekNumbersItem" Text="Show week numbers" Click="OnWeekNumbersClick" AutomationProperties.AutomationId="ToggleWeekNumbers" />
-                                        <ToggleMenuFlyoutItem x:Name="Clock24Item" Text="24-hour time" Click="On24HourClick" AutomationProperties.AutomationId="Toggle24Hour" />
-                                        <MenuFlyoutSubItem Text="Start week on">
-                                            <RadioMenuFlyoutItem x:Name="WeekStartSunday" Text="Sunday" GroupName="WeekStart" Tag="Sunday" Click="OnWeekStartClick" AutomationProperties.AutomationId="WeekStartSunday" />
-                                            <RadioMenuFlyoutItem x:Name="WeekStartMonday" Text="Monday" GroupName="WeekStart" Tag="Monday" Click="OnWeekStartClick" AutomationProperties.AutomationId="WeekStartMonday" />
-                                            <RadioMenuFlyoutItem x:Name="WeekStartSaturday" Text="Saturday" GroupName="WeekStart" Tag="Saturday" Click="OnWeekStartClick" AutomationProperties.AutomationId="WeekStartSaturday" />
-                                        </MenuFlyoutSubItem>
-                                        <MenuFlyoutSubItem Text="Theme">
-                                            <RadioMenuFlyoutItem x:Name="ThemeSystem" Text="Use Windows setting" GroupName="Theme" Tag="System" Click="OnThemeClick" AutomationProperties.AutomationId="ThemeSystem" />
-                                            <RadioMenuFlyoutItem x:Name="ThemeLight" Text="Light" GroupName="Theme" Tag="Light" Click="OnThemeClick" AutomationProperties.AutomationId="ThemeLight" />
-                                            <RadioMenuFlyoutItem x:Name="ThemeDark" Text="Dark" GroupName="Theme" Tag="Dark" Click="OnThemeClick" AutomationProperties.AutomationId="ThemeDark" />
                                         </MenuFlyoutSubItem>
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>
@@ -136,6 +120,7 @@
                                 <FontIcon Glyph="&#xE70F;" FontSize="16" />
                             </Button>
                             <Button
+                                x:Name="DeleteEventButton"
                                 Style="{StaticResource LeafBareIconButtonStyle}"
                                 Click="OnDeleteEventClick"
                                 ToolTipService.ToolTip="Delete event (Delete)"

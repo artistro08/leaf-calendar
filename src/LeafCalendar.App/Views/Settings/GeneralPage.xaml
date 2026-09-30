@@ -1,0 +1,112 @@
+<Page
+    x:Class="LeafCalendar.App.Views.Settings.GeneralPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:LeafCalendar.App.Controls">
+
+    <ScrollViewer x:Name="PageScroll">
+        <StackPanel MaxWidth="900" Spacing="4">
+            <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="General" />
+
+            <!-- Appearance -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Appearance" />
+            <controls:SettingRow Glyph="&#xE790;" Header="App theme" Description="Choose how Leaf looks.">
+                <ComboBox
+                    x:Name="ThemeBox"
+                    MinWidth="180"
+                    SelectionChanged="OnThemeChanged"
+                    AutomationProperties.Name="App theme"
+                    AutomationProperties.AutomationId="ThemeComboBox">
+                    <ComboBoxItem Content="Use Windows setting" AutomationProperties.AutomationId="ThemeSystem" />
+                    <ComboBoxItem Content="Light" AutomationProperties.AutomationId="ThemeLight" />
+                    <ComboBoxItem Content="Dark" AutomationProperties.AutomationId="ThemeDark" />
+                </ComboBox>
+            </controls:SettingRow>
+
+            <!-- Calendar View -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Calendar view" />
+            <controls:SettingRow Glyph="&#xE8A9;" Header="Default view" Description="The layout Leaf shows when it opens. The view menu in the title bar changes it too.">
+                <ComboBox
+                    x:Name="ViewBox"
+                    MinWidth="180"
+                    SelectionChanged="OnViewChanged"
+                    AutomationProperties.Name="Default view"
+                    AutomationProperties.AutomationId="DefaultViewComboBox">
+                    <ComboBoxItem Content="Day" />
+                    <ComboBoxItem Content="Week" />
+                    <ComboBoxItem Content="Month" />
+                    <ComboBoxItem Content="Custom days" />
+                </ComboBox>
+            </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xE8BF;" Header="Days in the custom view" Description="From 1 to 31 days.">
+                <NumberBox
+                    x:Name="DaysBox"
+                    MinWidth="180"
+                    Minimum="1"
+                    Maximum="31"
+                    SpinButtonPlacementMode="Compact"
+                    ValueChanged="OnDaysChanged"
+                    AutomationProperties.Name="Days in the custom view"
+                    AutomationProperties.AutomationId="CustomDaysNumberBox" />
+            </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xE71E;" Header="Hour height" Description="How tall each hour is in the day and week views. Ctrl+Plus, Ctrl+Minus, and Ctrl+0 change it too.">
+                <Slider
+                    x:Name="HourHeightSlider"
+                    Width="180"
+                    StepFrequency="8"
+                    TickFrequency="8"
+                    TickPlacement="Outside"
+                    ValueChanged="OnHourHeightChanged"
+                    AutomationProperties.Name="Hour height"
+                    AutomationProperties.AutomationId="HourHeightSlider" />
+            </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xE8C0;" Header="Show weekends" Description="Show Saturday and Sunday in the week and month views. Ctrl+Shift+E turns them on or off.">
+                <ToggleSwitch
+                    x:Name="WeekendsSwitch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="OnWeekendsToggled"
+                    AutomationProperties.Name="Show weekends"
+                    AutomationProperties.AutomationId="WeekendsSwitch" />
+            </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xE8F8;" Header="Show declined events" Description="Show events you said no to. Ctrl+Shift+D turns them on or off.">
+                <ToggleSwitch
+                    x:Name="DeclinedSwitch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="OnDeclinedToggled"
+                    AutomationProperties.Name="Show declined events"
+                    AutomationProperties.AutomationId="DeclinedSwitch" />
+            </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xE1D3;" Header="Show week numbers" Description="Show the ISO week number next to each week.">
+                <ToggleSwitch
+                    x:Name="WeekNumbersSwitch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="OnWeekNumbersToggled"
+                    AutomationProperties.Name="Show week numbers"
+                    AutomationProperties.AutomationId="WeekNumbersSwitch" />
+            </controls:SettingRow>
+
+            <!-- Date And Time -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Date and time" />
+            <controls:SettingRow Glyph="&#xE787;" Header="First day of the week">
+                <ComboBox
+                    x:Name="WeekStartBox"
+                    MinWidth="180"
+                    SelectionChanged="OnWeekStartChanged"
+                    AutomationProperties.Name="First day of the week"
+                    AutomationProperties.AutomationId="WeekStartComboBox">
+                    <ComboBoxItem Content="Sunday" />
+                    <ComboBoxItem Content="Monday" />
+                    <ComboBoxItem Content="Saturday" />
+                </ComboBox>
+            </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xE823;" Header="Use 24-hour time" Description="Show 13:00 instead of 1 PM.">
+                <ToggleSwitch
+                    x:Name="Clock24Switch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="On24HourToggled"
+                    AutomationProperties.Name="Use 24-hour time"
+                    AutomationProperties.AutomationId="Clock24Switch" />
+            </controls:SettingRow>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

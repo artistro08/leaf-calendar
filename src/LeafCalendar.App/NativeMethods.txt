@@ -5,3 +5,5 @@ CoWaitForMultipleObjects
 CWMO_FLAGS
 INFINITE
 SetForegroundWindow
+GetCursorPos
+GetDpiForWindow
