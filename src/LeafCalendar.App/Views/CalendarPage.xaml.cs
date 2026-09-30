@@ -3,6 +3,7 @@ using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
@@ -336,17 +337,26 @@ public sealed partial class CalendarPage : Page
     bool IsInOpenPopup(object? focused)
     {
         var roots = VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot).Select(p => p.Child).OfType<object>().ToList();
-        if (roots.Count == 0 || focused is not DependencyObject node)
+        if (roots.Count == 0)
         {
             return false;
         }
 
-        for (DependencyObject? current = node; current is not null; current = VisualTreeHelper.GetParent(current))
+        try
         {
-            if (roots.Exists(root => ReferenceEquals(root, current)))
+            // A focused link (a text element, not in the visual tree) starts from the text block that holds it
+            var start = focused is TextElement text ? text.ContentStart.VisualParent : focused as DependencyObject;
+            for (var current = start; current is not null; current = VisualTreeHelper.GetParent(current))
             {
-                return true;
+                if (roots.Exists(root => ReferenceEquals(root, current)))
+                {
+                    return true;
+                }
             }
+        }
+        catch (Exception ex) when (ex is ArgumentException or System.Runtime.InteropServices.COMException)
+        {
+            // Something the visual tree can't walk (a text element Native AOT didn't recognize) isn't in a popup
         }
 
         return false;

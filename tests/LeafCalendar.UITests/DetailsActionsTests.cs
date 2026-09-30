@@ -85,4 +85,28 @@ public sealed class DetailsActionsTests : IDisposable
 
         Assert.True(Launched("mailto:boss@example.com?to=sam%40example.com&subject=Design%20review"));
     }
+
+    [Fact]
+    public void FocusedDescriptionLink_WithTooltip_StillTakesShortcuts()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Meeting).Click();
+
+        var agenda = Retry.WhileNull(() => leaf.MainWindow.FindFirstDescendant(cf => cf.ByName("agenda").And(cf.ByControlType(ControlType.Hyperlink))), TimeSpan.FromSeconds(10)).Result;
+        Assert.NotNull(agenda);
+        // Tab to the link from the reply box above it (UIA focus doesn't reach a text element), then let its tooltip open
+        leaf.WaitFor("DetailsRsvpEmail").Focus();
+        for (var i = 0; i < 10 && !agenda.Properties.HasKeyboardFocus.ValueOrDefault; i++)
+        {
+            FlaUI.Core.Input.Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.TAB);
+            Thread.Sleep(100);
+        }
+
+        Assert.True(agenda.Properties.HasKeyboardFocus.ValueOrDefault);
+        Thread.Sleep(TimeSpan.FromSeconds(2));
+        FlaUI.Core.Input.Keyboard.Type("m");
+
+        Assert.NotNull(leaf.WaitFor("MonthGrid"));
+        Assert.False(leaf.App.HasExited);
+    }
 }
