@@ -73,4 +73,31 @@ public sealed class AccountFlowTests : IDisposable
             LeafApp.DeleteProfile(profile);
         }
     }
+
+    [Fact]
+    public void Disconnect_BackToCalendar_RemovesAccountEvents()
+    {
+        var profile = SeededProfile.Create();
+        try
+        {
+            using var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+            leaf.WaitFor("Event_evt-single_202610011300");
+
+            // Disconnect the Only Account
+            leaf.WaitFor("AccountsButton").AsButton().Invoke();
+            leaf.WaitForName("Disconnect").AsButton().Invoke();
+            leaf.WaitForAnywhere("PrimaryButton").AsButton().Invoke();
+            Assert.True(Retry.WhileTrue(() => leaf.MainWindow.FindFirstDescendant(cf => cf.ByName("leaf.tester@gmail.com")) is not null, TimeSpan.FromSeconds(15)).Success);
+
+            // Back to the Calendar
+            leaf.WaitFor("PART_BackButton").AsButton().Invoke();
+            leaf.WaitFor("CalendarRoot");
+
+            Assert.True(Retry.WhileTrue(() => leaf.Exists("Event_evt-single_202610011300"), TimeSpan.FromSeconds(10)).Success);
+        }
+        finally
+        {
+            LeafApp.DeleteProfile(profile);
+        }
+    }
 }

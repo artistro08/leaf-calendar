@@ -274,7 +274,6 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
 
         ReloadCalendars();
-        Run(RefreshAsync);
     }
 
     /// <summary>Sets Leaf's color for a calendar (null restores Google's).</summary>
@@ -286,7 +285,6 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
 
         ReloadCalendars();
-        Run(RefreshAsync);
     }
 
     /// <summary>Saves the order of an account's calendars.</summary>
@@ -300,7 +298,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         ReloadCalendars();
     }
 
-    /// <summary>Re-reads the calendar list (after sync, sidebar edits, or account changes).</summary>
+    /// <summary>
+    /// Re-reads the calendar list (after sync, sidebar edits, or account changes) and reloads the cached
+    /// events, so a disconnected account's events leave the calendar.
+    /// </summary>
     public void ReloadCalendars()
     {
         using (var conn = _services.Database.Open())
@@ -310,10 +311,26 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
 
         CalendarsChanged?.Invoke(this, EventArgs.Empty);
+        Run(RefreshAsync);
     }
 
-    /// <summary>Reloads the cached events from the database.</summary>
-    public Task RefreshAsync() => Cache.RefreshAsync(_life.Token);
+    /// <summary>Reloads the cached events from the database, then drops the selection if its event is gone.</summary>
+    public async Task RefreshAsync()
+    {
+        await Cache.RefreshAsync(_life.Token);
+
+        // Clear a Selection Whose Event Was Deleted
+        if (SelectedInfo?.Occurrence is not { } selected)
+        {
+            return;
+        }
+
+        var day = selected.IsAllDay ? selected.AllDayStart : LocalDate(selected.Start);
+        if (Cache.LoadedMonths.Contains(ViewNavigator.MonthStartOf(day)) && !Cache.ForDay(day).Any(o => o.Key == selected.Key))
+        {
+            ClearSelection();
+        }
+    }
 
     /// <inheritdoc />
     public void Dispose()
@@ -363,11 +380,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     void OnGoogleChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(AttachSync);
 
     // Sync runs on a background thread; hop to the UI thread before touching the cache
-    void OnSyncDataChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(() =>
-    {
-        ReloadCalendars();
-        Run(RefreshAsync);
-    });
+    void OnSyncDataChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(ReloadCalendars);
 
     void OnMinute()
     {
