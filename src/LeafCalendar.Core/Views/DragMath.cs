@@ -22,21 +22,37 @@ public static class DragMath
     public static DateTimeOffset Instant(DateOnly day, double minutes, TimeZoneInfo zone) =>
         ToInstant(day.ToDateTime(TimeOnly.MinValue).AddMinutes(Math.Clamp(minutes, 0, 24 * 60)), zone);
 
-    /// <summary>The nearest quarter hour on the wall clock.</summary>
-    public static DateTimeOffset Snap(DateTimeOffset instant, TimeZoneInfo zone)
-    {
-        var local   = TimeZoneInfo.ConvertTime(instant, zone).DateTime;
-        var minutes = Math.Round(local.TimeOfDay.TotalMinutes / SnapMinutes) * SnapMinutes;
-        return ToInstant(local.Date.AddMinutes(minutes), zone);
-    }
+    /// <summary>
+    /// The nearest quarter hour on the wall clock. Snapping happens in offset space, so a time in the repeated
+    /// fall-back hour stays in the same (daylight or standard) half of it.
+    /// </summary>
+    public static DateTimeOffset Snap(DateTimeOffset instant, TimeZoneInfo zone) =>
+        RoundToStep(instant, zone, x => Math.Round(x, MidpointRounding.AwayFromZero));
 
-    /// <summary>A wall-clock time in <paramref name="zone"/> as an instant (a time in a DST gap moves forward out of it).</summary>
-    public static DateTimeOffset ToInstant(DateTime local, TimeZoneInfo zone)
+    /// <summary>
+    /// A wall-clock time in <paramref name="zone"/> as an instant. A time in a spring-forward gap moves forward out
+    /// of it; a time in the repeated fall-back hour takes the earlier (daylight) offset.
+    /// </summary>
+    public static DateTimeOffset ToInstant(DateTime local, TimeZoneInfo zone) => ToInstant(local, zone, null);
+
+    /// <summary>
+    /// Like <see cref="ToInstant(DateTime, TimeZoneInfo)"/>, but a time in the repeated fall-back hour keeps
+    /// <paramref name="preferredOffset"/> when it is one of the two valid offsets.
+    /// </summary>
+    public static DateTimeOffset ToInstant(DateTime local, TimeZoneInfo zone, TimeSpan? preferredOffset)
     {
         var wall = DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
         while (zone.IsInvalidTime(wall))
         {
             wall = wall.AddMinutes(SnapMinutes);
+        }
+
+        // Repeated Hour: Keep The Caller's Offset If Valid, Otherwise The Earlier (Daylight) One
+        if (zone.IsAmbiguousTime(wall))
+        {
+            var offsets = zone.GetAmbiguousTimeOffsets(wall);
+            var offset  = preferredOffset is { } p && offsets.Contains(p) ? p : offsets.Max();
+            return new DateTimeOffset(wall, offset).ToUniversalTime();
         }
 
         return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(wall, zone), TimeSpan.Zero);
@@ -78,7 +94,8 @@ public static class DragMath
             return (o.Start.AddDays(days), o.End.AddDays(days));
         }
 
-        var start = ToInstant(TimeZoneInfo.ConvertTime(o.Start, zone).DateTime.AddDays(days), zone);
+        var local = TimeZoneInfo.ConvertTime(o.Start, zone);
+        var start = ToInstant(local.DateTime.AddDays(days), zone, local.Offset);
         return (start, start + (o.End - o.Start));
     }
 
@@ -112,11 +129,14 @@ public static class DragMath
     }
 
     /// <summary>The next quarter hour at or after <paramref name="now"/> (where paste goes when no time is picked).</summary>
-    public static DateTimeOffset NextSlot(DateTimeOffset now, TimeZoneInfo zone)
+    public static DateTimeOffset NextSlot(DateTimeOffset now, TimeZoneInfo zone) =>
+        RoundToStep(now, zone, Math.Ceiling);
+
+    static DateTimeOffset RoundToStep(DateTimeOffset instant, TimeZoneInfo zone, Func<double, double> round)
     {
-        var local   = TimeZoneInfo.ConvertTime(now, zone).DateTime;
-        var minutes = Math.Ceiling(local.TimeOfDay.TotalMinutes / SnapMinutes) * SnapMinutes;
-        return ToInstant(local.Date.AddMinutes(minutes), zone);
+        var minutes = TimeZoneInfo.ConvertTime(instant, zone).TimeOfDay.TotalMinutes;
+        var steps   = round(minutes / SnapMinutes) * SnapMinutes;
+        return instant + TimeSpan.FromMinutes(steps - minutes);
     }
 
     static DateOnly LocalDay(CalendarOccurrence o, TimeZoneInfo zone) =>
