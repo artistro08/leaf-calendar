@@ -15,10 +15,10 @@ public static partial class EventDetailsParser
     // Input bound applied before any regex runs, so a huge invite can't stall the UI thread
     const int MaxHtmlInputLength = MaxDescriptionLength * 4;
 
-    /// <summary>Parses one event.</summary>
+    /// <summary>Parses one event. Pass <paramref name="includeDescription"/> false to skip the description cleanup (it reads as empty).</summary>
     /// <remarks>Valid JSON of an unexpected shape (a non-object root, or fields of the wrong type) reads as missing fields.</remarks>
     /// <exception cref="JsonException">The JSON is invalid.</exception>
-    public static EventDetails Parse(string rawJson)
+    public static EventDetails Parse(string rawJson, bool includeDescription = true)
     {
         using var doc = JsonDocument.Parse(rawJson);
         var root = doc.RootElement;
@@ -28,7 +28,7 @@ public static partial class EventDetailsParser
         return new EventDetails(
             title,
             String(root, "location"),
-            String(root, "description") is { } html ? HtmlToText(html) : "",
+            includeDescription && String(root, "description") is { } html ? HtmlToText(html) : "",
             KindOf(String(root, "eventType")),
             SelfResponse(root),
             String(root, "colorId"),
@@ -122,7 +122,7 @@ public static partial class EventDetailsParser
     [GeneratedRegex(@"<\s*li\b[^<>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex ListItemOpen();
 
-    [GeneratedRegex(@"<\s*br\s*/?\s*>|<\s*/\s*(p|div|li|ul|ol|h[1-6])\s*>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<\s*br\b[^<>]*>|<\s*/\s*(p|div|li|ul|ol|h[1-6])\s*>", RegexOptions.IgnoreCase)]
     private static partial Regex LineBreak();
 
     [GeneratedRegex(@"<[^<>]*>")]

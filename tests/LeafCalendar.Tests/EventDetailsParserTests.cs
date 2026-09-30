@@ -96,6 +96,20 @@ public class EventDetailsParserTests
     {
         Assert.True(EventDetailsParser.HtmlToText(new string('<', 200_000)).Length <= 10_001);
         Assert.True(EventDetailsParser.HtmlToText(string.Concat(Enumerable.Repeat("<li", 70_000))).Length <= 10_001);
+
+        // An unclosed line break followed by whitespace must stay linear
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        Assert.True(EventDetailsParser.HtmlToText("<br" + new string(' ', 40_000)).Length <= 10_001);
+        Assert.True(timer.ElapsedMilliseconds < 500, $"Took {timer.ElapsedMilliseconds} ms");
+    }
+
+    [Fact]
+    public void Parse_WithoutDescription_SkipsDescription()
+    {
+        var details = EventDetailsParser.Parse("""{"id":"a","summary":"Standup","description":"<p>Agenda</p>"}""", includeDescription: false);
+
+        Assert.Equal("Standup", details.Title);
+        Assert.Equal("", details.Description);
     }
 
     [Theory]

@@ -66,7 +66,7 @@ public static class OccurrenceQuery
         {
             if (row.IsMaster)
             {
-                var details = EventDetailsParser.Parse(row.RawJson);
+                var details = EventDetailsParser.Parse(row.RawJson, includeDescription: false);
                 foreach (var (start, end) in ExpandMaster(row, fromDate, toDate, from, to))
                 {
                     if (!replaced.Contains((row.AccountId, row.CalendarId, row.Id, start.ToUnixTimeMilliseconds())))
@@ -87,7 +87,7 @@ public static class OccurrenceQuery
             var e = DateTimeOffset.FromUnixTimeMilliseconds(endMs);
             if (Overlaps(row.IsAllDay, s, e, fromDate, toDate, from, to))
             {
-                result.Add(Create(row, EventDetailsParser.Parse(row.RawJson), s, e, row.RecurringEventId));
+                result.Add(Create(row, EventDetailsParser.Parse(row.RawJson, includeDescription: false), s, e, row.RecurringEventId));
             }
         }
 
