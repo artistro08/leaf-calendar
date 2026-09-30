@@ -35,6 +35,8 @@ public enum OutboxState
 /// One edit waiting for Google. <see cref="Payload"/> is the JSON body (create, patch, RSVP) or the
 /// destination calendar ID (move). <see cref="BeforeJson"/> is an <see cref="EventStore.Snapshot"/> of the
 /// rows before the edit. <see cref="NotBefore"/> holds the entry back (the undo window for deletes).
+/// <see cref="DependsOn"/> holds it while that entry is still in the outbox (a split's new series waits for
+/// the old series' end).
 /// </summary>
 public sealed record OutboxEntry(
     long Seq,
@@ -49,7 +51,8 @@ public sealed record OutboxEntry(
     DateTimeOffset? NotBefore,
     OutboxState State = OutboxState.Pending,
     int Attempts = 0,
-    string? LastError = null);
+    string? LastError = null,
+    long? DependsOn = null);
 
 /// <summary>
 /// Reads and writes the <c>outbox</c> table.
@@ -62,7 +65,7 @@ public static class OutboxStore
 {
     const string Columns = """
         SELECT seq, account_id, calendar_id, event_id, operation, payload, base_etag, send_updates,
-               before_json, not_before, state, attempts, last_error
+               before_json, not_before, state, attempts, last_error, depends_on
         FROM outbox
         """;
 
@@ -71,8 +74,8 @@ public static class OutboxStore
         conn.Query(
             tx,
             """
-            INSERT INTO outbox (account_id, calendar_id, event_id, operation, payload, base_etag, send_updates, before_json, not_before)
-            VALUES ($account, $calendar, $event, $operation, $payload, $etag, $send, $before, $notBefore)
+            INSERT INTO outbox (account_id, calendar_id, event_id, operation, payload, base_etag, send_updates, before_json, not_before, depends_on)
+            VALUES ($account, $calendar, $event, $operation, $payload, $etag, $send, $before, $notBefore, $dependsOn)
             RETURNING seq;
             """,
             r => r.GetInt64(0),
@@ -84,7 +87,8 @@ public static class OutboxStore
             ("$etag", entry.BaseEtag),
             ("$send", entry.SendUpdates),
             ("$before", entry.BeforeJson),
-            ("$notBefore", entry.NotBefore?.ToUnixTimeMilliseconds())).Single();
+            ("$notBefore", entry.NotBefore?.ToUnixTimeMilliseconds()),
+            ("$dependsOn", entry.DependsOn)).Single();
 
     /// <summary>One entry, or null.</summary>
     public static OutboxEntry? Get(SqliteConnection conn, SqliteTransaction? tx, long seq) =>
@@ -107,6 +111,29 @@ public static class OutboxStore
     /// <summary>Removes an entry (sent, undone, or dropped). Its conflict row goes with it.</summary>
     public static void Remove(SqliteConnection conn, SqliteTransaction? tx, long seq) =>
         conn.Execute(tx, "DELETE FROM outbox WHERE seq = $seq;", ("$seq", seq));
+
+    /// <summary>
+    /// Drops the entries that depend on <paramref name="seq"/> (it will never reach Google), with every entry and
+    /// local row of their events, and anything that depends on those in turn. A split's new series goes this way
+    /// when the old series' end is refused or the user keeps Google's version of it.
+    /// </summary>
+    public static void DropDependents(SqliteConnection conn, SqliteTransaction tx, long seq)
+    {
+        foreach (var dependent in conn.Query(tx, Columns + " WHERE depends_on = $seq;", Map, ("$seq", seq)))
+        {
+            foreach (var entry in ForEvent(conn, tx, dependent.AccountId, dependent.CalendarId, dependent.EventId))
+            {
+                Remove(conn, tx, entry.Seq);
+                DropDependents(conn, tx, entry.Seq);
+
+                // A move already put the local row in its destination calendar
+                var localCalendar = entry.Operation == OutboxOperation.Move ? entry.Payload ?? entry.CalendarId : entry.CalendarId;
+                EventStore.Remove(conn, tx, entry.AccountId, localCalendar, entry.EventId);
+            }
+
+            EventStore.Remove(conn, tx, dependent.AccountId, dependent.CalendarId, dependent.EventId);
+        }
+    }
 
     /// <summary>Counts a failed try. <paramref name="error"/> is a status or reason only, never event content.</summary>
     public static void RecordAttempt(SqliteConnection conn, long seq, string error) =>
@@ -175,7 +202,7 @@ public static class OutboxStore
 
     /// <summary>
     /// Pending entries a sync would send at <paramref name="now"/>: past their undo window, and not behind a
-    /// conflicted entry for the same event.
+    /// conflicted entry for the same event or a conflicted entry they depend on.
     /// </summary>
     public static int CountSendable(SqliteConnection conn, DateTimeOffset now) =>
         conn.Query(
@@ -186,7 +213,8 @@ public static class OutboxStore
               AND (o.not_before IS NULL OR o.not_before <= $now)
               AND NOT EXISTS (
                   SELECT 1 FROM outbox c
-                  WHERE c.state = 'conflict' AND c.account_id = o.account_id AND c.event_id = o.event_id AND c.seq < o.seq);
+                  WHERE c.state = 'conflict'
+                    AND ((c.account_id = o.account_id AND c.event_id = o.event_id AND c.seq < o.seq) OR c.seq = o.depends_on));
             """,
             r => r.GetInt32(0),
             ("$now", now.ToUnixTimeMilliseconds())).Single();
@@ -208,7 +236,8 @@ public static class OutboxStore
         r.GetUnixMsOrNull(9),
         r.GetString(10) == "conflict" ? OutboxState.Conflict : OutboxState.Pending,
         r.GetInt32(11),
-        r.GetStringOrNull(12));
+        r.GetStringOrNull(12),
+        r.IsDBNull(13) ? null : r.GetInt64(13));
 
     static string ToText(OutboxOperation operation) => operation switch
     {

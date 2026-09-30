@@ -161,6 +161,44 @@ public sealed class ConflictResolverTests : IDisposable
         Assert.Equal("token-family", calendars.Single(c => c.Id == Family).SyncToken);
     }
 
+    const string NewSeries = """{"id":"leafsplit001","status":"confirmed","summary":"Standup v2","start":{"dateTime":"2026-10-09T13:30:00Z"},"end":{"dateTime":"2026-10-09T14:00:00Z"},"recurrence":["RRULE:FREQ=WEEKLY"]}""";
+
+    // A split whose end (the conflicted patch) the new series waits behind
+    ConflictInfo SplitConflict()
+    {
+        var conflict = Conflict(OutboxOperation.Patch, Mine, Googles);
+        using var conn = _db.Database.Open();
+        OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Calendar, "leafsplit001", OutboxOperation.Create, NewSeries, null, false, "[]", null, DependsOn: conflict.Entry.Seq));
+        EventStore.ApplyJson(conn, null, Account, Calendar, NewSeries);
+        return conflict;
+    }
+
+    [Fact]
+    public void KeepGoogles_OnASplitsEnd_DropsTheNewSeries()
+    {
+        var conflict = SplitConflict();
+        Assert.Equal((1, 0), _resolver.Counts());
+
+        _resolver.KeepGoogles(conflict);
+
+        Assert.Empty(Pending());
+        Assert.Null(Get("leafsplit001"));
+        Assert.Contains("Google's", Get("evt-single")!.RawJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void KeepMine_OnASplitsEnd_KeepsTheNewSeriesBehindIt()
+    {
+        var conflict = SplitConflict();
+
+        _resolver.KeepMine(conflict);
+
+        var entries = Pending();
+        Assert.Equal(2, entries.Count);
+        Assert.Equal(entries[0].Seq, entries[1].DependsOn);
+        Assert.NotNull(Get("leafsplit001"));
+    }
+
     [Fact]
     public void UnsentFor_CountsPendingAndConflicted()
     {

@@ -159,12 +159,30 @@ public sealed class EventEditorTests : IDisposable
         Assert.Equal(OutboxOperation.Patch, entries[0].Operation);
         Assert.Contains("UNTIL=20261009T132959Z", entries[0].Payload!, StringComparison.Ordinal);
         Assert.Equal(OutboxOperation.Create, entries[1].Operation);
+        Assert.Null(entries[0].DependsOn);
+        Assert.Equal(entries[0].Seq, entries[1].DependsOn);
         var created = JsonNode.Parse(entries[1].Payload!)!;
         Assert.Equal("Standup v2", (string?)created["summary"]);
         Assert.Equal("2026-10-09T09:30:00-04:00", (string?)created["start"]!["dateTime"]);
         Assert.Equal("RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR", (string?)created["recurrence"]![0]);
         Assert.Equal("Team standup", Occurrence("evt-weekly", Oct5).Title);
         Assert.Equal("Standup v2", Occurrence(entries[1].EventId, Oct12).Title);
+    }
+
+    [Fact]
+    public void Save_FollowingWithStaleOccurrencePastTheEnd_CreatesNoNewSeries()
+    {
+        var fri    = Occurrence("evt-weekly", Oct9);
+        var mon    = Occurrence("evt-weekly", Oct12);
+        var before = _editor.Load(fri);
+        _editor.Save(fri, before, before with { Title = "Standup v2" }, EditScope.Following, sendUpdates: false);
+
+        // A Separate Save With An Occurrence Captured Before The Split (the old series already ends before it)
+        var stale = _editor.Load(mon);
+        _editor.Save(mon, stale, stale with { Title = "Phantom" }, EditScope.Following, sendUpdates: false);
+
+        Assert.Equal(2, Outbox().Count);
+        Assert.DoesNotContain(Day(Oct12), x => x.Title == "Phantom");
     }
 
     [Fact]

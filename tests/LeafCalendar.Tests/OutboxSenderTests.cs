@@ -33,10 +33,70 @@ public sealed class OutboxSenderTests : IDisposable
 
     public void Dispose() => _h.Dispose();
 
-    long Queue(string eventId, OutboxOperation operation, string? payload, string? etag = BaseEtag, DateTimeOffset? notBefore = null, string calendarId = Primary)
+    long Queue(string eventId, OutboxOperation operation, string? payload, string? etag = BaseEtag, DateTimeOffset? notBefore = null, string calendarId = Primary, long? dependsOn = null)
     {
         using var conn = _h.Db.Database.Open();
-        return OutboxStore.Add(conn, null, new OutboxEntry(0, Account, calendarId, eventId, operation, payload, etag, false, EventStore.Snapshot(conn, null, Account, calendarId, eventId), notBefore));
+        return OutboxStore.Add(conn, null, new OutboxEntry(0, Account, calendarId, eventId, operation, payload, etag, false, EventStore.Snapshot(conn, null, Account, calendarId, eventId), notBefore, DependsOn: dependsOn));
+    }
+
+    const string NewSeries    = """{"id":"leafsplit001","status":"confirmed","summary":"Standup v2","start":{"dateTime":"2026-10-09T13:30:00Z"},"end":{"dateTime":"2026-10-09T14:00:00Z"},"recurrence":["RRULE:FREQ=WEEKLY"]}""";
+    const string NewSeriesUrl = SyncHarness.PrimaryEventsUrl + "?";
+
+    // A split: the old series' end (a patch of evt-single here), then the new series waiting behind it
+    (long End, long Create) QueueSplit()
+    {
+        var end    = Queue("evt-single", OutboxOperation.Patch, """{"recurrence":["RRULE:FREQ=WEEKLY;UNTIL=20261009T132959Z"]}""");
+        var create = Queue("leafsplit001", OutboxOperation.Create, NewSeries, etag: null, dependsOn: end);
+        using var conn = _h.Db.Database.Open();
+        EventStore.ApplyJson(conn, null, Account, Primary, NewSeries);
+        return (end, create);
+    }
+
+    int Inserts() => _h.Google.Requests.Count(r => r.Method == HttpMethod.Post && r.Uri.AbsoluteUri.StartsWith(NewSeriesUrl, StringComparison.Ordinal));
+
+    [Fact]
+    public async Task Send_SplitWhoseEndConflicts_HoldsTheNewSeries()
+    {
+        var (_, create) = QueueSplit();
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.PreconditionFailed, "{}");
+        _h.Google.On(HttpMethod.Get, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","etag":"\"G9\"","summary":"Google's"}""");
+        _h.Google.On(HttpMethod.Post, NewSeriesUrl, HttpStatusCode.OK, NewSeries);
+
+        var report = await Send();
+        await Send();
+
+        Assert.Equal(1, report.Conflicts);
+        Assert.Equal(0, Inserts());
+        Assert.Equal(create, Assert.Single(Pending()).Seq);
+        Assert.NotNull(Get("leafsplit001"));
+    }
+
+    [Fact]
+    public async Task Send_SplitWhoseEndIsAccepted_SendsTheNewSeriesInTheSamePass()
+    {
+        QueueSplit();
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","etag":"\"E1\"","status":"confirmed","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""");
+        _h.Google.On(HttpMethod.Post, NewSeriesUrl, HttpStatusCode.OK, """{"id":"leafsplit001","etag":"\"N1\"","status":"confirmed","start":{"dateTime":"2026-10-09T13:30:00Z"},"end":{"dateTime":"2026-10-09T14:00:00Z"}}""");
+
+        await Send();
+
+        Assert.Equal(1, Inserts());
+        Assert.Empty(Pending());
+    }
+
+    [Fact]
+    public async Task Send_SplitWhoseEndIsRefused_DropsTheNewSeries()
+    {
+        QueueSplit();
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.Forbidden, Fixture.Read("error-forbidden.json"));
+        _h.Google.On(HttpMethod.Get, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","etag":"\"G2\"","status":"confirmed","summary":"Dentist appointment","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""");
+
+        var report = await Send();
+
+        Assert.Equal(1, report.Rejected);
+        Assert.Equal(0, Inserts());
+        Assert.Empty(Pending());
+        Assert.Null(Get("leafsplit001"));
     }
 
     StoredEvent? Get(string id, string calendarId = Primary)

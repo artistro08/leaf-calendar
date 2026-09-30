@@ -83,7 +83,7 @@ public sealed class ConflictResolver(LeafDatabase database, TimeProvider time)
         EventStore.ApplyJson(conn, tx, entry.AccountId, calendarId, EventJson.AsLocal(body));
     });
 
-    /// <summary>Keeps Google's version and drops the local change (and later local edits of the event).</summary>
+    /// <summary>Keeps Google's version and drops the local change (and later local edits of the event, and what waits behind them).</summary>
     public void KeepGoogles(ConflictInfo conflict) => InTransaction((conn, tx) =>
     {
         var entry      = conflict.Entry;
@@ -93,9 +93,12 @@ public sealed class ConflictResolver(LeafDatabase database, TimeProvider time)
         foreach (var edit in OutboxStore.ForEvent(conn, tx, entry.AccountId, calendarId, entry.EventId).Where(e => e.Seq > entry.Seq))
         {
             OutboxStore.Remove(conn, tx, edit.Seq);
+            OutboxStore.DropDependents(conn, tx, edit.Seq);
         }
 
+        // A Split's New Series Waits Behind The Old Series' End: Google kept the old series running, so it goes too
         OutboxStore.Remove(conn, tx, entry.Seq);
+        OutboxStore.DropDependents(conn, tx, entry.Seq);
 
         // A null GoogleJson is treated as deleted on Google
         // Google Deleted It Too

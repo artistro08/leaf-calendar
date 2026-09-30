@@ -35,7 +35,8 @@ public readonly record struct SendReport(bool Changed, int Conflicts, int Reject
 /// what was already done is still returned.</item>
 /// <item>An entry whose calendar is no longer in the account: dropped.</item>
 /// </list>
-/// Held entries (the undo window) and entries behind a held or conflicted entry for the same event wait.
+/// Held entries (the undo window), entries behind a held or conflicted entry for the same event, and entries
+/// whose <see cref="OutboxEntry.DependsOn"/> is still in the outbox wait. A refused entry drops its dependents.
 /// Only sequence numbers and statuses are logged.
 /// </remarks>
 public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase database, AppLog log, TimeProvider time)
@@ -67,8 +68,8 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
                 continue;
             }
 
-            // Held, Or Behind A Held Or Conflicted Edit Of The Same Event
-            if (waiting.Contains(entry.EventId) || entry.NotBefore > now)
+            // Held, Behind A Held Or Conflicted Edit Of The Same Event, Or Waiting For The Entry It Depends On
+            if (waiting.Contains(entry.EventId) || entry.NotBefore > now || (entry.DependsOn is { } dependsOn && Reload(dependsOn) is not null))
             {
                 waiting.Add(entry.EventId);
                 continue;
@@ -367,9 +368,11 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
         foreach (var later in OutboxStore.ForEvent(conn, tx, entry.AccountId, localCalendar, entry.EventId).Where(e => e.Seq > entry.Seq))
         {
             OutboxStore.Remove(conn, tx, later.Seq);
+            OutboxStore.DropDependents(conn, tx, later.Seq);
         }
 
         OutboxStore.Remove(conn, tx, entry.Seq);
+        OutboxStore.DropDependents(conn, tx, entry.Seq);
         EventStore.Remove(conn, tx, entry.AccountId, localCalendar, entry.EventId);
         EventStore.Restore(conn, tx, entry.AccountId, entry.CalendarId, entry.EventId, entry.BeforeJson ?? "[]");
         if (googleJson is not null)

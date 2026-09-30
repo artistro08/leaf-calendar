@@ -36,7 +36,8 @@ public sealed record EventCopy(string AccountId, string CalendarId, string RawJs
 /// Repeating events follow Google's rules. "This event" patches the instance's own ID
 /// (<see cref="EventIds.InstanceId"/>). "All events" patches the series, shifting its start by as much as
 /// the instance moved. "This and following" ends the series just before the instance and creates a new
-/// series from there; from the first instance it is the same as "All events".
+/// series from there, queued to wait behind the end (<see cref="OutboxEntry.DependsOn"/>); from the first
+/// instance it is the same as "All events".
 /// </para>
 /// <para>
 /// Deletes are held in the outbox for <see cref="UndoWindow"/>, so <see cref="Undo"/> can put the rows back
@@ -337,11 +338,14 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         // End The Old Series Just Before This Instance (its later exceptions go with it)
         var ended = masterDraft with { Recurrence = RecurrenceEdits.EndBefore(masterDraft.Recurrence, originalStart, masterDraft.IsAllDay, masterDraft.Start, masterDraft.TimeZone) };
         var endPatch = EventJson.BuildPatch(masterDraft, ended, master.RawJson);
-        if (endPatch.Count > 0)
+
+        // Already Ended Before This Instance (a stale occurrence): nothing to split
+        if (endPatch.Count == 0)
         {
-            AddPatch(conn, tx, o.AccountId, o.CalendarId, master.Id, master, endPatch, sendUpdates, notBefore: null);
+            return;
         }
 
+        var endSeq = AddPatch(conn, tx, o.AccountId, o.CalendarId, master.Id, master, endPatch, sendUpdates, notBefore: null);
         EventStore.RemoveExceptionsFrom(conn, tx, o.AccountId, o.CalendarId, master.Id, originalStart);
 
         // Start A New Series Here, With The Changes (none when a COUNT rule has nothing left at the split)
@@ -362,7 +366,8 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         };
         var newId = EventIds.NewId();
         var body  = EventJson.ApplyPatch(EventJson.CloneForCreate(master.RawJson, newId), EventJson.BuildPatch(masterDraft, next, master.RawJson));
-        AddCreate(conn, tx, o.AccountId, o.CalendarId, newId, body, sendUpdates);
+        // Sent Only After The Old Series' End Reaches Google, So The Meetings Are Never Doubled
+        AddCreate(conn, tx, o.AccountId, o.CalendarId, newId, body, sendUpdates, dependsOn: endSeq);
     }
 
     // =========================================================================
@@ -435,9 +440,9 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     // OUTBOX + LOCAL ROWS (always together, in the caller's transaction)
     // =========================================================================
 
-    static long AddCreate(SqliteConnection conn, SqliteTransaction tx, string accountId, string calendarId, string id, string bodyJson, bool sendUpdates)
+    static long AddCreate(SqliteConnection conn, SqliteTransaction tx, string accountId, string calendarId, string id, string bodyJson, bool sendUpdates, long? dependsOn = null)
     {
-        var seq = OutboxStore.Add(conn, tx, new OutboxEntry(0, accountId, calendarId, id, OutboxOperation.Create, bodyJson, null, sendUpdates, "[]", null));
+        var seq = OutboxStore.Add(conn, tx, new OutboxEntry(0, accountId, calendarId, id, OutboxOperation.Create, bodyJson, null, sendUpdates, "[]", null, DependsOn: dependsOn));
         EventStore.ApplyJson(conn, tx, accountId, calendarId, EventJson.AsLocal(bodyJson));
         return seq;
     }

@@ -33,11 +33,11 @@ public static class ConflictStore
             null,
             """
             SELECT o.seq, o.account_id, o.calendar_id, o.event_id, o.operation, o.payload, o.base_etag, o.send_updates,
-                   o.before_json, o.not_before, o.state, o.attempts, o.last_error, c.local_json, c.google_json, c.detected_utc
+                   o.before_json, o.not_before, o.state, o.attempts, o.last_error, o.depends_on, c.local_json, c.google_json, c.detected_utc
             FROM conflicts c JOIN outbox o ON o.seq = c.outbox_seq
             ORDER BY o.seq;
             """,
-            r => new ConflictInfo(OutboxStore.Map(r), r.GetStringOrNull(13), r.GetStringOrNull(14), DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(15))));
+            r => new ConflictInfo(OutboxStore.Map(r), r.GetStringOrNull(14), r.GetStringOrNull(15), DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(16))));
 
     /// <summary>Number of open conflicts (the badge).</summary>
     public static int Count(SqliteConnection conn) =>

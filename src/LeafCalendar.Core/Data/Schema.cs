@@ -102,4 +102,13 @@ internal static class Schema
             detected_utc INTEGER NOT NULL
         );
         """;
+
+    /// <summary>
+    /// Version 4: <c>outbox.depends_on</c>, the entry another one must wait behind. A "this and following" split
+    /// creates its new series only after the old series' end has reached Google, and never when the user keeps
+    /// Google's version of the old series instead.
+    /// </summary>
+    public const string V4 = """
+        ALTER TABLE outbox ADD COLUMN depends_on INTEGER;
+        """;
 }
