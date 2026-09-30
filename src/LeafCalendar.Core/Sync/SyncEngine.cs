@@ -19,6 +19,8 @@ namespace LeafCalendar.Core.Sync;
 /// <see cref="AccountStatus.NeedsSignIn"/> and keeps its data.
 /// Only one sync runs at a time: the loop, "Sync now", and the post-sign-in sync all share the
 /// engine, and a second caller waits for the running sync to finish, then runs its own.
+/// Each account's outbox is sent first (see <see cref="OutboxSender"/>), so Google has the local edits before
+/// the pull, and a pull never overwrites an event that still has edits waiting.
 /// </remarks>
 public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase database, AppLog log, TimeProvider time) : IDisposable
 {
@@ -32,6 +34,16 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     readonly Dictionary<string, DateTimeOffset> _calendarListSyncedAt = new(StringComparer.Ordinal);
     bool _changed;
 
+    // Built on first use: a field initializer that reads the primary-constructor parameters the methods also
+    // capture triggers CS9124, which warnings-as-errors turns into a build break
+    OutboxSender? _outboxSender;
+    int _rejected;
+
+    /// <summary>Raised after a sync in which Google refused edits for good (they were undone locally). The argument is how many.</summary>
+    public event EventHandler<int>? ChangesRejected;
+
+    OutboxSender Outbox => _outboxSender ??= new OutboxSender(google, database, log, time);
+
     /// <summary>Raised after a sync that wrote anything. Raised on the syncing thread, after the sync lock is released.</summary>
     public event EventHandler? DataChanged;
 
@@ -42,10 +54,12 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     public async Task SyncAllAsync(bool refreshCalendarLists, CancellationToken ct)
     {
         bool changed;
+        int rejected;
         await _gate.WaitAsync(ct);
         try
         {
-            _changed = false;
+            _changed  = false;
+            _rejected = 0;
 
             IReadOnlyList<Account> accounts;
             using (var conn = database.Open())
@@ -58,7 +72,8 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
                 await SyncAccountCoreAsync(account.Id, refreshCalendarLists, ct);
             }
 
-            changed = _changed;
+            changed  = _changed;
+            rejected = _rejected;
         }
         finally
         {
@@ -68,6 +83,11 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
         if (changed)
         {
             DataChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        if (rejected > 0)
+        {
+            ChangesRejected?.Invoke(this, rejected);
         }
     }
 
@@ -75,12 +95,15 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     public async Task SyncAccountAsync(string accountId, CancellationToken ct)
     {
         bool changed;
+        int rejected;
         await _gate.WaitAsync(ct);
         try
         {
-            _changed = false;
+            _changed  = false;
+            _rejected = 0;
             await SyncAccountCoreAsync(accountId, refreshCalendarList: true, ct);
-            changed = _changed;
+            changed  = _changed;
+            rejected = _rejected;
         }
         finally
         {
@@ -90,6 +113,11 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
         if (changed)
         {
             DataChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        if (rejected > 0)
+        {
+            ChangesRejected?.Invoke(this, rejected);
         }
     }
 
@@ -100,6 +128,11 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     {
         try
         {
+            // Local Edits First (in order; a pull never overwrites an event that still has some waiting)
+            var sent = await Outbox.SendAsync(accountId, ct);
+            _changed  |= sent.Changed;
+            _rejected += sent.Rejected;
+
             // Calendar List (When Due)
             var now = time.GetUtcNow();
             var due = refreshCalendarList

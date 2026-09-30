@@ -60,6 +60,9 @@ public sealed class SyncHarness : IDisposable
     /// <summary>Log file path.</summary>
     public string LogPath => Log.FilePath;
 
+    /// <summary>The Google client the current engine uses.</summary>
+    public GoogleCalendarClient Client { get; private set; } = null!;
+
     /// <summary>Engine under test.</summary>
     public SyncEngine Engine { get; private set; }
 
@@ -69,7 +72,8 @@ public sealed class SyncHarness : IDisposable
         var http  = new HttpClient(Google);
         var oauth = new GoogleOAuthClient(http, new("id.apps.googleusercontent.com", "GOCSPX-test"), Time);
         var provider = new AccessTokenProvider(oauth, Tokens, Time);
-        Engine = new SyncEngine(new GoogleCalendarClient(http, provider), Db.Database, Log, Time);
+        Client = new GoogleCalendarClient(http, provider);
+        Engine = new SyncEngine(Client, Db.Database, Log, Time);
         _disposables.Add(provider);
         _disposables.Add(Engine);
         return Engine;
@@ -92,7 +96,7 @@ public sealed class SyncHarness : IDisposable
     /// <summary>Routes an events URL for an exact sync/page token pair.</summary>
     public void RouteEvents(string url, string? syncToken, string? pageToken, string fixture, HttpStatusCode status = HttpStatusCode.OK, bool once = false) =>
         Google.On(
-            r => r.Uri.AbsoluteUri.StartsWith(url, StringComparison.Ordinal) && r.Query("syncToken") == syncToken && r.Query("pageToken") == pageToken,
+            r => r.Method == HttpMethod.Get && r.Uri.AbsolutePath == new Uri(url).AbsolutePath && r.Query("syncToken") == syncToken && r.Query("pageToken") == pageToken,
             _ => FakeHttpHandler.Json(status, Fixture.Read(fixture)),
             once);
 

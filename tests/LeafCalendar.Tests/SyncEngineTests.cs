@@ -314,4 +314,65 @@ public sealed class SyncEngineTests : IDisposable
         using var check = _h.Db.Database.Open();
         Assert.NotNull(EventStore.Get(check, Account, Family, "evt-single"));
     }
+
+    [Fact]
+    public async Task SyncAccountAsync_SendsOutboxBeforePulling()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _h.RouteStandardGoogle();
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        using (var conn = _h.Db.Database.Open())
+        {
+            OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Primary, "evt-single", OutboxOperation.Patch, """{"summary":"Mine"}""", "\"3181161784712000\"", false, "[]", null));
+        }
+
+        _h.Google.On(HttpMethod.Patch, SyncHarness.PrimaryEventsUrl + "/evt-single", HttpStatusCode.OK, """{"id":"evt-single","etag":"\"E1\"","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""");
+        _h.Google.Requests.Clear();
+
+        await _h.Engine.SyncAccountAsync(Account, ct);
+
+        var patch = _h.Google.Requests.FindIndex(r => r.Method == HttpMethod.Patch);
+        var pull  = _h.Google.Requests.FindIndex(r => r.Method == HttpMethod.Get && r.Uri.AbsoluteUri.StartsWith(SyncHarness.PrimaryEventsUrl, StringComparison.Ordinal));
+        Assert.InRange(patch, 0, pull - 1);
+    }
+
+    [Fact]
+    public async Task SyncAccountAsync_NeedsSignIn_KeepsOutbox()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _h.Google.On(r => r.Form("refresh_token") == "1//revoked", _ => FakeHttpHandler.Json(HttpStatusCode.BadRequest, Fixture.Read("error-invalid-grant.json")));
+        _h.RouteStandardGoogle();
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        using (var conn = _h.Db.Database.Open())
+        {
+            OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Primary, "evt-single", OutboxOperation.Patch, "{}", null, false, "[]", null));
+        }
+
+        _h.Tokens.SetRefreshToken(Account, "1//revoked");
+        await _h.NewEngine().SyncAccountAsync(Account, ct);
+
+        using var check = _h.Db.Database.Open();
+        Assert.Equal(AccountStatus.NeedsSignIn, AccountStore.GetAll(check).Single().Status);
+        Assert.Equal(1, OutboxStore.Count(check));
+    }
+
+    [Fact]
+    public async Task SyncAllAsync_RejectedEdit_RaisesChangesRejected()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _h.RouteStandardGoogle();
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        using (var conn = _h.Db.Database.Open())
+        {
+            OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Primary, "evt-single", OutboxOperation.Patch, """{"summary":"Mine"}""", "\"3181161784712000\"", false, EventStore.Snapshot(conn, null, Account, Primary, "evt-single"), null));
+        }
+
+        _h.Google.On(HttpMethod.Patch, SyncHarness.PrimaryEventsUrl + "/evt-single", HttpStatusCode.Forbidden, Fixture.Read("error-forbidden.json"));
+        var rejected = 0;
+        _h.Engine.ChangesRejected += (_, count) => rejected += count;
+
+        await _h.Engine.SyncAllAsync(ct);
+
+        Assert.Equal(1, rejected);
+    }
 }
