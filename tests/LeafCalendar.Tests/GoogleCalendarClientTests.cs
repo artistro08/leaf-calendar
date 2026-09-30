@@ -93,6 +93,89 @@ public class GoogleCalendarClientTests : IDisposable
         Assert.Equal(2, _google.Requests.Count(r => r.Uri.AbsoluteUri == TokenUrl));
     }
 
+    const string SingleUrl = EventsUrl + "/evt-single";
+
+    [Fact]
+    public async Task PatchEventAsync_SendsIfMatchBodyAndSendUpdates()
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        _google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","etag":"2","summary":"New"}""");
+
+        var json = await CreateClient().PatchEventAsync(Account, "leaf.tester@gmail.com", "evt-single", """{"summary":"New"}""", "\"1\"", sendUpdates: true, TestContext.Current.CancellationToken);
+
+        var request = _google.Requests.Single(r => r.Method == HttpMethod.Patch);
+        Assert.Equal("\"1\"", request.IfMatch);
+        Assert.Equal("""{"summary":"New"}""", request.Body);
+        Assert.Equal("all", request.Query("sendUpdates"));
+        Assert.Contains("\"etag\":\"2\"", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PatchEventAsync_NoBaseEtag_SendsNoIfMatch()
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        _google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single"}""");
+
+        await CreateClient().PatchEventAsync(Account, "leaf.tester@gmail.com", "evt-single", "{}", null, sendUpdates: false, TestContext.Current.CancellationToken);
+
+        var request = _google.Requests.Single(r => r.Method == HttpMethod.Patch);
+        Assert.Null(request.IfMatch);
+        Assert.Equal("none", request.Query("sendUpdates"));
+    }
+
+    [Fact]
+    public async Task PatchEventAsync_412_ThrowsPreconditionFailed()
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        _google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.PreconditionFailed, """{"error":{"code":412,"errors":[{"reason":"conditionNotMet"}]}}""");
+
+        await Assert.ThrowsAsync<PreconditionFailedException>(
+            () => CreateClient().PatchEventAsync(Account, "leaf.tester@gmail.com", "evt-single", "{}", "\"1\"", false, TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.Gone)]
+    public async Task DeleteEventAsync_Missing_ThrowsEventGone(HttpStatusCode status)
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        _google.On(HttpMethod.Delete, SingleUrl, status, "{}");
+
+        await Assert.ThrowsAsync<EventGoneException>(
+            () => CreateClient().DeleteEventAsync(Account, "leaf.tester@gmail.com", "evt-single", "\"1\"", false, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task InsertEventAsync_409_ThrowsDuplicate()
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        _google.On(HttpMethod.Post, EventsUrl, HttpStatusCode.Conflict, """{"error":{"code":409,"errors":[{"reason":"duplicate"}]}}""");
+
+        await Assert.ThrowsAsync<DuplicateEventException>(
+            () => CreateClient().InsertEventAsync(Account, "leaf.tester@gmail.com", """{"id":"abcde12345"}""", false, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task GetEventAsync_NotFound_ReturnsNull()
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        _google.On(HttpMethod.Get, SingleUrl, HttpStatusCode.NotFound, "{}");
+
+        Assert.Null(await CreateClient().GetEventAsync(Account, "leaf.tester@gmail.com", "evt-single", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task MoveEventAsync_PostsDestination()
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        _google.On(HttpMethod.Post, SingleUrl + "/move", HttpStatusCode.OK, """{"id":"evt-single"}""");
+
+        await CreateClient().MoveEventAsync(Account, "leaf.tester@gmail.com", "evt-single", "family123@group.calendar.google.com", false, TestContext.Current.CancellationToken);
+
+        var request = _google.Requests.Single(r => r.Uri.AbsolutePath.EndsWith("/move", StringComparison.Ordinal));
+        Assert.Equal("family123@group.calendar.google.com", request.Query("destination"));
+    }
+
     public void Dispose()
     {
         _google.Dispose();

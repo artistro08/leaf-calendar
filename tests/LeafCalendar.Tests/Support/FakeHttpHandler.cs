@@ -7,6 +7,9 @@ namespace LeafCalendar.Tests.Support;
 /// <summary>A request the fake saw, with its body already read.</summary>
 public sealed record RecordedRequest(HttpMethod Method, Uri Uri, string? BearerToken, string? Body)
 {
+    /// <summary>The <c>If-Match</c> header, or null.</summary>
+    public string? IfMatch { get; init; }
+
     /// <summary>Returns a query string value, or null.</summary>
     public string? Query(string key) => QueryString.Parse(Uri.Query).GetValueOrDefault(key);
 
@@ -45,7 +48,10 @@ public sealed class FakeHttpHandler : HttpMessageHandler
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var body     = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
-        var recorded = new RecordedRequest(request.Method, request.RequestUri!, request.Headers.Authorization?.Parameter, body);
+        var recorded = new RecordedRequest(request.Method, request.RequestUri!, request.Headers.Authorization?.Parameter, body)
+        {
+            IfMatch = request.Headers.TryGetValues("If-Match", out var ifMatch) ? string.Join(",", ifMatch) : null,
+        };
         Requests.Add(recorded);
 
         var route = _routes.FirstOrDefault(r => r.Match(recorded));
