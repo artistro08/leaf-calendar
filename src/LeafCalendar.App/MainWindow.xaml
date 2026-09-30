@@ -14,8 +14,8 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Content (spans the title bar row on the calendar page, see OnNavigated) -->
-        <Frame x:Name="ContentFrame" Grid.Row="1" Navigated="OnNavigated" />
+        <!-- Content (the calendar runs under the title bar, so it spans the title bar row) -->
+        <Frame x:Name="ContentFrame" Grid.RowSpan="2" Navigated="OnNavigated" />
 
         <!-- Title Bar -->
         <TitleBar

@@ -170,10 +170,6 @@ public sealed partial class MainWindow : Window
         var page       = e.Content as CalendarPage;
         var onCalendar = page is not null;
 
-        // The calendar runs under the title bar; setup sits below it
-        Grid.SetRow(ContentFrame, onCalendar ? 0 : 1);
-        Grid.SetRowSpan(ContentFrame, onCalendar ? 2 : 1);
-
         CalendarToolbar.Visibility            = onCalendar ? Visibility.Visible : Visibility.Collapsed;
         AppTitleBar.IsPaneToggleButtonVisible = onCalendar;
 

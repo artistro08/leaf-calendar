@@ -39,7 +39,7 @@ public sealed partial class OnboardingWindow : Window
     {
         _services = services;
         _openMain = openMain;
-        ViewModel = new OnboardingViewModel(services);
+        ViewModel = new OnboardingViewModel(services, DispatcherQueue);
         InitializeComponent();
         StepPips.NumberOfPages = OnboardingFlow.StepCount;
 
@@ -67,11 +67,7 @@ public sealed partial class OnboardingWindow : Window
 
         // Closing Asks First
         AppWindow.Closing += OnClosing;
-        Closed += (_, _) =>
-        {
-            ViewModel.Cancel();
-            ViewModel.Dispose();
-        };
+        Closed += (_, _) => ViewModel.Dispose();
 
         WindowPlacement.CenterOnCursorMonitor(AppWindow, ClientWidth, ClientHeight);
     }
@@ -99,6 +95,8 @@ public sealed partial class OnboardingWindow : Window
 
     void OnBackClick(object sender, RoutedEventArgs e) => ViewModel.GoBack();
 
+    void OnCancelClick(object sender, RoutedEventArgs e) => ViewModel.CancelSignIn();
+
     // RunPrimaryAsync never throws (failures show on the step)
     void OnPrimaryClick(object sender, RoutedEventArgs e) => _ = ViewModel.RunPrimaryAsync();
 
@@ -114,7 +112,7 @@ public sealed partial class OnboardingWindow : Window
     void Leave()
     {
         _closing = true;
-        if (!OnboardingFlow.ExitsOnLeave(ViewModel.HasAccount))
+        if (!OnboardingFlow.ExitsOnLeave(_services.HasAccount()))
         {
             _openMain();
         }
@@ -150,7 +148,7 @@ public sealed partial class OnboardingWindow : Window
             RequestedTheme    = RootGrid.ActualTheme,
             Title             = "Leave setup?",
             Content           = "Leaf needs a Google account to show your calendar. You can finish setup later.",
-            PrimaryButtonText = "Leave setup",
+            PrimaryButtonText = "Leave",
             CloseButtonText   = "Keep setting up",
             DefaultButton     = ContentDialogButton.Close,
         };

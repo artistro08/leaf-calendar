@@ -34,7 +34,7 @@
         <!-- Steps (each slides in: from the right going forward, from the left going back) -->
         <Frame x:Name="StepFrame" Grid.Row="1" />
 
-        <!-- Footer (pinned: Back on the left, the step indicator centered, the step's primary action on the right) -->
+        <!-- Footer (pinned: Back, or Cancel while sign-in waits, on the left; the step indicator centered; the step's primary action on the right) -->
         <Border
             Grid.Row="2"
             Padding="24,16"
@@ -47,6 +47,12 @@
                     Click="OnBackClick"
                     Visibility="{x:Bind ViewModel.CanGoBack, Mode=OneWay}"
                     AutomationProperties.AutomationId="OnboardingBackButton" />
+                <Button
+                    HorizontalAlignment="Left"
+                    Content="Cancel"
+                    Click="OnCancelClick"
+                    Visibility="{x:Bind ViewModel.CanCancel, Mode=OneWay}"
+                    AutomationProperties.AutomationId="OnboardingCancelButton" />
 
                 <!-- Step Indicator (a stock PipsPager, display only, with each pip drawn as a line) -->
                 <PipsPager

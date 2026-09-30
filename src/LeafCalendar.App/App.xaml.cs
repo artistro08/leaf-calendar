@@ -1,6 +1,5 @@
 using LeafCalendar.App.Interop;
 using LeafCalendar.App.Views.Onboarding;
-using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Hosting;
 using LeafCalendar.Core.Sync;
@@ -53,7 +52,7 @@ public partial class App : Application
         _services = services;
 
         // First Run: onboarding shows instead of the main window until there's an OAuth client and an account
-        if (OnboardingFlow.IsNeeded(services.Tokens.GetClientCredentials() is not null, HasAccount(services)))
+        if (OnboardingFlow.IsNeeded(services.Tokens.GetClientCredentials() is not null, services.HasAccount()))
         {
             _onboarding = new OnboardingWindow(services, () => ShowMainWindow(services));
             _onboarding.Closed += async (_, _) =>
@@ -77,13 +76,6 @@ public partial class App : Application
         // Another Launch Of This Profile Was Redirected Here (see Program), so come to the front
         var dispatcher = DispatcherQueue.GetForCurrentThread();
         Program.HandleActivations(() => dispatcher.TryEnqueue(BringToFront));
-    }
-
-    /// <summary>True when the profile has a Google account saved.</summary>
-    internal static bool HasAccount(LeafServices services)
-    {
-        using var conn = services.Database.Open();
-        return AccountStore.GetAll(conn).Count > 0;
     }
 
     // Opens the main window (at launch, or when onboarding finishes). The services live as long as it does, unless the

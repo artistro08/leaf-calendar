@@ -27,8 +27,9 @@ public enum OnboardingStep
 /// The onboarding window's step machine, kept free of UI so it's unit tested: which step shows, where Back and the
 /// primary action go, what the primary button says and when it's enabled, and whether closing asks first. The window
 /// only shows what this says. Back is offered on the client and sign-in steps only: once an account is signed in,
-/// going back would sign in a second one. The first sync moves straight to Done when it succeeds; when it fails the
-/// primary action becomes "Try again".
+/// going back would sign in a second one; while sign-in waits for the browser, Cancel takes Back's place. The first
+/// sync moves straight to Done when it succeeds; when it fails the primary action becomes "Try again", and when Google
+/// signed the account out it goes back to the sign-in step.
 /// </summary>
 public sealed class OnboardingFlow
 {
@@ -55,6 +56,9 @@ public sealed class OnboardingFlow
 
     /// <summary>True when Back shows: on the client and sign-in steps, while nothing runs.</summary>
     public bool CanGoBack => !IsBusy && Step is OnboardingStep.Client or OnboardingStep.SignIn;
+
+    /// <summary>True when Cancel shows in Back's place: while sign-in waits for the browser, so a stalled sign-in can be stopped.</summary>
+    public bool CanCancel => IsBusy && Step == OnboardingStep.SignIn;
 
     /// <summary>True when "Open Leaf Calendar" can close onboarding (the first sync finished).</summary>
     public bool CanFinish => Step == OnboardingStep.Done && HasSyncFinished;
@@ -101,6 +105,10 @@ public sealed class OnboardingFlow
     /// </summary>
     public static bool FirstSyncWorked(int calendarCount, AccountStatus status) => calendarCount > 0 && status == AccountStatus.Ok;
 
+    /// <summary>What a sync found so far, for the Syncing and Done steps ("2 calendars · 6 events").</summary>
+    public static string Summary(int calendars, int events) =>
+        string.Create(CultureInfo.InvariantCulture, $"{calendars} {(calendars == 1 ? "calendar" : "calendars")} · {events} {(events == 1 ? "event" : "events")}");
+
     /// <summary>Moves to the next step. False on the last one.</summary>
     public bool Advance()
     {
@@ -134,6 +142,17 @@ public sealed class OnboardingFlow
 
     /// <summary>The sync attempt failed: stay on Syncing and offer "Try again".</summary>
     public void SyncFailed() => HasSyncFailed = true;
+
+    /// <summary>
+    /// Google signed the account out during the first sync: a retry can't work, so go back to the sign-in step, ready
+    /// to sign in again.
+    /// </summary>
+    public void SignInExpired()
+    {
+        HasSyncFailed   = false;
+        HasSyncFinished = false;
+        Step            = OnboardingStep.SignIn;
+    }
 
     /// <summary>The first sync finished: move to Done, where "Open Leaf Calendar" is enabled.</summary>
     public void SyncSucceeded()

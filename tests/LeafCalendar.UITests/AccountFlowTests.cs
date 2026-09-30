@@ -43,11 +43,11 @@ public sealed class AccountFlowTests : IDisposable
         {
             using var leaf = LaunchAndAddAccount(profile);
 
-            // Add Google account in Settings signs in again (the fake has one user, so the same account comes back)
-            var tokenRequests = _google.Requests.Count(r => r.StartsWith("POST /token", StringComparison.Ordinal));
+            // The fake has one user, so disconnect the one onboarding added: the counts below come from the Settings add
+            Disconnect(leaf);
+            Assert.True(Retry.WhileTrue(() => InSettings(leaf, Email), TimeSpan.FromSeconds(15)).Success);
+
             leaf.WaitInSettings("AddAccountButton").AsButton().Invoke();
-            Assert.True(Retry.WhileFalse(() => _google.Requests.Count(r => r.StartsWith("POST /token", StringComparison.Ordinal)) > tokenRequests, TimeSpan.FromSeconds(15)).Success);
-            Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("AddAccountButton").IsEnabled, TimeSpan.FromSeconds(15)).Success);
 
             Assert.NotNull(WaitForNameInSettings(leaf, Email));
             Assert.NotNull(WaitForNameInSettings(leaf, "2 calendars · 6 events"));

@@ -102,6 +102,13 @@ public sealed class LeafServices : IAsyncDisposable
         GoogleChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>True when the profile has a Google account saved (reads the database).</summary>
+    public bool HasAccount()
+    {
+        using var conn = Database.Open();
+        return AccountStore.GetAll(conn).Count > 0;
+    }
+
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {

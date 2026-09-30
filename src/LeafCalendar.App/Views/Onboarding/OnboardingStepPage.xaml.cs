@@ -45,6 +45,14 @@ public sealed partial class OnboardingStepPage : Page
         Bindings.Update();
     }
 
+    /// <inheritdoc />
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        // The page is leaving: stop listening to the shared view model, so it can go away and its hidden boxes don't
+        // keep writing back
+        Bindings.StopTracking();
+    }
+
     static Visibility Shown(bool shown) => shown ? Visibility.Visible : Visibility.Collapsed;
 
     // Safe as async void: LaunchAsync logs a failed launch and returns false, it never throws

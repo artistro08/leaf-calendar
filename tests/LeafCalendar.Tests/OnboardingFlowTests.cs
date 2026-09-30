@@ -204,4 +204,40 @@ public class OnboardingFlowTests
     {
         Assert.Equal(worked, OnboardingFlow.FirstSyncWorked(calendars, status));
     }
+
+    [Theory]
+    [InlineData(OnboardingStep.SignIn, true, true)]
+    [InlineData(OnboardingStep.SignIn, false, false)]
+    [InlineData(OnboardingStep.Client, true, false)]
+    [InlineData(OnboardingStep.Syncing, true, false)]
+    public void CanCancel_OnlyWhileSigningIn(OnboardingStep step, bool busy, bool canCancel)
+    {
+        var flow = At(step);
+        flow.IsBusy = busy;
+
+        Assert.Equal(canCancel, flow.CanCancel);
+    }
+
+    [Fact]
+    public void SignInExpired_GoesBackToSignIn_ReadyToSignInAgain()
+    {
+        var flow = At(OnboardingStep.Syncing);
+        flow.SyncStarted();
+
+        flow.SignInExpired();
+
+        Assert.Equal(OnboardingStep.SignIn, flow.Step);
+        Assert.False(flow.HasSyncFailed);
+        Assert.Equal("Sign in with Google", flow.PrimaryText);
+        Assert.True(flow.CanRunPrimary);
+    }
+
+    [Theory]
+    [InlineData(0, 0, "0 calendars · 0 events")]
+    [InlineData(1, 1, "1 calendar · 1 event")]
+    [InlineData(2, 6, "2 calendars · 6 events")]
+    public void Summary_CountsCalendarsAndEvents(int calendars, int events, string summary)
+    {
+        Assert.Equal(summary, OnboardingFlow.Summary(calendars, events));
+    }
 }

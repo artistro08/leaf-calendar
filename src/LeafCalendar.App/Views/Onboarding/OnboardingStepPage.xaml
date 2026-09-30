@@ -105,6 +105,10 @@
                 <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay}">
                     <ProgressBar IsIndeterminate="True" AutomationProperties.AutomationId="OnboardingSyncProgress" />
                     <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" TextWrapping="Wrap" Text="{x:Bind ViewModel.Status, Mode=OneWay}" />
+                    <TextBlock
+                        Style="{StaticResource LeafSecondaryTextStyle}"
+                        Text="{x:Bind ViewModel.SyncSummary, Mode=OneWay}"
+                        AutomationProperties.AutomationId="OnboardingSyncCounts" />
                 </StackPanel>
                 <InfoBar
                     Severity="Error"

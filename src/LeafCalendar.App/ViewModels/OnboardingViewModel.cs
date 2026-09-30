@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Hosting;
+using Microsoft.UI.Dispatching;
 
 namespace LeafCalendar.App.ViewModels;
 
@@ -9,7 +10,9 @@ namespace LeafCalendar.App.ViewModels;
 /// The onboarding window's view model: runs each step's work (save the OAuth client, sign in, first sync) and exposes
 /// the <see cref="OnboardingFlow"/> state the footer shows. Every state change raises one "everything changed"
 /// notification, so the window's bindings and the step pages stay in step. Errors show in the step's InfoBar, never
-/// as a popup, and never as raw exception text.
+/// as a popup, and never as raw exception text. While the first sync runs, what it has saved so far is read back
+/// every 500 ms. Disposing (the window closed) cancels any work and ignores whatever it finishes with; the
+/// cancellation source is released once that work has ended.
 /// </summary>
 public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
 {
@@ -19,16 +22,26 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     // Where the OAuth client is created (the setup guide's link)
     static readonly Uri ConsoleUri = new("https://console.cloud.google.com/");
 
+    // How often the Syncing step reads back what the sync has saved so far
+    static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(500);
+
     readonly LeafServices _services;
     readonly OnboardingFlow _flow = new();
     readonly CancellationTokenSource _cancel = new();
+    readonly DispatcherQueueTimer _progress;
+    CancellationTokenSource? _signIn;
     Account? _account;
+    bool _closed;
 
-    /// <summary>Starts on Welcome. The client step's form prefills a saved client ID.</summary>
-    public OnboardingViewModel(LeafServices services)
+    /// <summary>Starts on Welcome. The client step's form prefills a saved client ID. The dispatcher runs the sync progress timer.</summary>
+    public OnboardingViewModel(LeafServices services, DispatcherQueue dispatcher)
     {
         _services = services;
         Client    = new SetupViewModel(services.Tokens, OnClientSavedAsync, services.Log);
+
+        _progress          = dispatcher.CreateTimer();
+        _progress.Interval = ProgressInterval;
+        _progress.Tick    += (_, _) => ShowProgress();
     }
 
     /// <summary>The step moved: true going forward, false going back. The window slides the new step in.</summary>
@@ -58,6 +71,9 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     /// <summary>True when Back shows.</summary>
     public bool CanGoBack => _flow.CanGoBack;
 
+    /// <summary>True when Cancel shows in Back's place (sign-in is waiting for the browser).</summary>
+    public bool CanCancel => _flow.CanCancel;
+
     /// <summary>True while a step's work runs.</summary>
     public bool IsBusy => _flow.IsBusy;
 
@@ -79,11 +95,8 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     /// <summary>The signed-in account's email, once there is one.</summary>
     public string Email => _account?.Email ?? "";
 
-    /// <summary>What the first sync found ("2 calendars · 6 events").</summary>
+    /// <summary>What the first sync has found so far, then in total ("2 calendars · 6 events").</summary>
     public string SyncSummary { get; private set; } = "";
-
-    /// <summary>True when an account is saved (leaving setup then opens the main window instead of exiting).</summary>
-    public bool HasAccount => App.HasAccount(_services);
 
     /// <summary>
     /// Runs the step's primary action: move on, save the client, sign in, retry the sync, or finish. It never throws
@@ -135,11 +148,34 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         Move(_flow.GoBack(), forward: false);
     }
 
-    /// <summary>Stops a sign-in or sync that's still running (the window is closing).</summary>
-    public void Cancel() => _cancel.Cancel();
+    /// <summary>Stops a sign-in that's waiting for the browser; the sign-in step is ready to try again.</summary>
+    public void CancelSignIn()
+    {
+        if (_flow.CanCancel)
+        {
+            _signIn?.Cancel();
+        }
+    }
 
-    /// <inheritdoc />
-    public void Dispose() => _cancel.Dispose();
+    /// <summary>
+    /// The window closed: cancels any sign-in or sync, stops the progress timer, and ignores what the work finishes
+    /// with. The cancellation source is released now, or when running work ends.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_closed)
+        {
+            return;
+        }
+
+        _closed = true;
+        _progress.Stop();
+        _cancel.Cancel();
+        if (!_flow.IsBusy)
+        {
+            _cancel.Dispose();
+        }
+    }
 
     // =========================================================================
     // STEPS
@@ -181,20 +217,26 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     // Sign In: the browser opens Google's consent page; on success the first sync starts right away
     async Task SignInAsync()
     {
-        if (_services.Google is not { } google)
+        if (_closed || _services.Google is not { } google)
         {
             return;
         }
+
+        // Its Own Cancellation (Cancel stops just this sign-in; closing the window stops everything)
+        using var signIn = CancellationTokenSource.CreateLinkedTokenSource(_cancel.Token);
+        _signIn = signIn;
 
         Error  = null;
         Status = "Finish signing in with Google in your browser.";
         SetBusy(true);
         try
         {
-            _account = await google.CreateSignIn(_services.OpenSignInPageAsync).RunAsync(null, _cancel.Token);
+            _account = await google.CreateSignIn(_services.OpenSignInPageAsync).RunAsync(null, signIn.Token);
         }
-        catch (OperationCanceledException) when (_cancel.IsCancellationRequested)
+        catch (Exception) when (signIn.IsCancellationRequested)
         {
+            // Canceled (or the window closed): the sign-in step is ready again
+            Status = null;
             return;
         }
         catch (SignInException ex)
@@ -215,7 +257,13 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         }
         finally
         {
+            _signIn = null;
             SetBusy(false);
+        }
+
+        if (_closed)
+        {
+            return;
         }
 
         Status = null;
@@ -223,39 +271,54 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         await SyncAsync();
     }
 
-    // First Sync: off the UI thread; judged by what it saved, since the engine logs and swallows Google failures
+    // First Sync: off the UI thread, with what it has saved so far read back every 500 ms; judged by what it saved,
+    // since the engine logs and swallows Google failures. Google signing the account out sends you back to sign in.
     async Task SyncAsync()
     {
-        if (_services.Google is not { } google || _account is not { } account)
+        if (_closed || _services.Google is not { } google || _account is not { } account)
         {
             return;
         }
 
         var ct = _cancel.Token;
         _flow.SyncStarted();
-        Error  = null;
-        Status = "Syncing your calendars…";
+        Error       = null;
+        Status      = "Syncing your calendars…";
+        SyncSummary = "";
         SetBusy(true);
+        _progress.Start();
         try
         {
             await Task.Run(() => google.Sync.SyncAccountAsync(account.Id, ct), ct);
-
-            var (calendars, events, status) = Counts(account.Id);
-            if (!OnboardingFlow.FirstSyncWorked(calendars, status))
+            if (_closed)
             {
-                _flow.SyncFailed();
-                Fail(status == AccountStatus.NeedsSignIn ? "Google signed Leaf out. Close setup and try again." : NoConnection);
                 return;
             }
 
-            SyncSummary = $"{calendars} {(calendars == 1 ? "calendar" : "calendars")} · {events} {(events == 1 ? "event" : "events")}";
-            Status      = null;
+            var (calendars, events, status) = Counts(account.Id);
+            SyncSummary = OnboardingFlow.Summary(calendars, events);
+            if (status == AccountStatus.NeedsSignIn)
+            {
+                _flow.SignInExpired();
+                Fail("Google needs you to sign in again.");
+                StepChanged?.Invoke(this, false);
+                return;
+            }
+
+            if (!OnboardingFlow.FirstSyncWorked(calendars, status))
+            {
+                _flow.SyncFailed();
+                Fail(NoConnection);
+                return;
+            }
+
+            Status = null;
             _flow.SyncSucceeded();
             StepChanged?.Invoke(this, true);
         }
-        catch (OperationCanceledException) when (_cancel.IsCancellationRequested)
+        catch (Exception) when (_closed)
         {
-            return;
+            // The window closed; nothing to show
         }
         catch (Exception ex)
         {
@@ -265,11 +328,25 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         }
         finally
         {
+            _progress.Stop();
             SetBusy(false);
         }
     }
 
-    // The account's calendars, events, and sign-in status, read back after the sync
+    // Live Progress: what the sync has saved so far
+    void ShowProgress()
+    {
+        if (_closed || _account is not { } account)
+        {
+            return;
+        }
+
+        var (calendars, events, _) = Counts(account.Id);
+        SyncSummary = OnboardingFlow.Summary(calendars, events);
+        Changed();
+    }
+
+    // The account's calendars, events, and sign-in status, as saved so far
     (int Calendars, int Events, AccountStatus Status) Counts(string accountId)
     {
         using var conn = _services.Database.Open();
@@ -293,18 +370,32 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     void SetBusy(bool busy)
     {
         _flow.IsBusy = busy;
+
+        // Closed While Working: the work has ended, so its cancellation source can go
+        if (!busy && _closed)
+        {
+            _cancel.Dispose();
+            return;
+        }
+
         Changed();
     }
 
     void Move(bool moved, bool forward)
     {
         Changed();
-        if (moved)
+        if (moved && !_closed)
         {
             StepChanged?.Invoke(this, forward);
         }
     }
 
-    // One notification for everything: x:Bind refreshes every binding on this object
-    void Changed() => OnPropertyChanged(string.Empty);
+    // One notification for everything: x:Bind refreshes every binding on this object (nothing once the window closed)
+    void Changed()
+    {
+        if (!_closed)
+        {
+            OnPropertyChanged(string.Empty);
+        }
+    }
 }
