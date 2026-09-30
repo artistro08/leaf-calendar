@@ -1,3 +1,4 @@
+using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
 using LeafCalendar.UITests.Support;
@@ -77,5 +78,28 @@ public sealed class KeyboardTests : IDisposable
 
         // Which event is "next" depends on the PC's zone (8:00 local vs 9:00 New York), so any title will do
         Assert.False(string.IsNullOrEmpty(leaf.WaitFor("DetailsTitle").Name));
+    }
+
+    [Fact]
+    public void M_AfterClickingTitleBarButton_StillSwitchesToMonth()
+    {
+        using var leaf = Launch();
+
+        leaf.WaitFor("DetailsToggleButton").Click();
+        leaf.Press(VirtualKeyShort.KEY_M);
+
+        Assert.NotNull(leaf.WaitFor("MonthGrid"));
+    }
+
+    [Fact]
+    public void TypingM_InTextInput_DoesNotSwitchView()
+    {
+        using var leaf = Launch();
+
+        leaf.WaitFor("AddTimeZoneButton").AsButton().Invoke();
+        leaf.WaitForAnywhere("TimeZoneSearch").Focus();
+        FlaUI.Core.Input.Keyboard.Type("m");
+
+        Assert.False(Retry.WhileFalse(() => leaf.Exists("MonthGrid"), TimeSpan.FromSeconds(2)).Success);
     }
 }

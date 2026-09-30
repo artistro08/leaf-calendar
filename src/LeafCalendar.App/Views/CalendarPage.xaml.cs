@@ -21,13 +21,7 @@ public sealed partial class CalendarPage : Page
     bool _viewIsMonth;
 
     /// <summary>Creates the page.</summary>
-    public CalendarPage()
-    {
-        InitializeComponent();
-
-        // Take focus once loaded so shortcuts work before the first click
-        Loaded += (_, _) => Focus(FocusState.Programmatic);
-    }
+    public CalendarPage() => InitializeComponent();
 
     /// <summary>The page's view model.</summary>
     public CalendarViewModel ViewModel => _args.ViewModel;
@@ -130,22 +124,27 @@ public sealed partial class CalendarPage : Page
         args.Handled = true;
     }
 
-    // Calendar shortcuts, ignored while typing in a text field
-    void OnPreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    /// <summary>
+    /// Runs the calendar shortcut for a key press, called by the window so shortcuts work wherever focus is.
+    /// Ignored while typing, or while a flyout, menu, dialog, or the go-to-date picker is open.
+    /// </summary>
+    /// <returns>True when the key was a shortcut and has been handled.</returns>
+    public bool HandleShortcut(KeyRoutedEventArgs e)
     {
-        if (FocusManager.GetFocusedElement(XamlRoot) is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox)
+        if (FocusManager.GetFocusedElement(XamlRoot) is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox or CalendarView
+            || Microsoft.UI.Xaml.Media.VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot).Count > 0)
         {
-            return;
+            return false;
         }
 
         var result = ShortcutMap.Resolve(e.Key.ToString(), IsDown(VirtualKey.Control), IsDown(VirtualKey.Shift), IsDown(VirtualKey.Menu));
         if (result.Command == CalendarCommand.None)
         {
-            return;
+            return false;
         }
 
-        e.Handled = true;
         Execute(result);
+        return true;
     }
 
     void Execute(ShortcutResult result)

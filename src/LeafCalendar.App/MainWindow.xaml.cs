@@ -29,6 +29,15 @@ public sealed partial class MainWindow : Window
         _services = services;
         InitializeComponent();
 
+        // Shortcuts are handled at the root so they work wherever focus is
+        RootGrid.PreviewKeyDown += (_, e) =>
+        {
+            if (ContentFrame.Content is CalendarPage page && page.HandleShortcut(e))
+            {
+                e.Handled = true;
+            }
+        };
+
         // Title Bar
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
