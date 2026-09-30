@@ -47,7 +47,7 @@ public sealed record DeleteReceipt(IReadOnlyList<long> Seqs)
 /// <summary>What <see cref="EventEditor.Undo"/> did.</summary>
 public enum UndoResult
 {
-    /// <summary>Nothing (an empty receipt, or one already used).</summary>
+    /// <summary>Nothing (an empty receipt, one already used, or everything in it is back already, e.g. Google refused the delete).</summary>
     Nothing,
 
     /// <summary>The delete was still held: the rows were put back and nothing is sent.</summary>
@@ -189,7 +189,8 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     /// Brings a delete back. While every entry is still held (<see cref="UndoWindow"/>), the snapshots are put back
     /// and nothing is sent (<see cref="UndoResult.Restored"/>). After that the delete may be at Google already, so it is
     /// left alone and each item comes back quietly (<see cref="UndoResult.Recreated"/>, no emails): a copy with a new
-    /// ID for an event or a whole series, a restore for one instance or "this and following". Each receipt works once.
+    /// ID for an event or a whole series, a restore for one instance or "this and following". Items already back (a refused
+    /// delete) are skipped, and a calendar that became read-only refuses. Each receipt works once.
     /// </summary>
     public UndoResult Undo(DeleteReceipt receipt)
     {
@@ -218,14 +219,15 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
             }
             else
             {
-                // Late: Bring Each One Back Quietly
+                // Late: Bring Each One Back Quietly (behind the delete while it's still in the outbox, even in conflict, as the sender does)
+                var brought = 0;
                 foreach (var item in receipt.Items)
                 {
-                    var queued = OutboxStore.Get(conn, tx, item.Entry.Seq) is { State: OutboxState.Pending } ? item.Entry.Seq : (long?)null;
-                    BringBack(conn, tx, item, queued);
+                    var queued = OutboxStore.Get(conn, tx, item.Entry.Seq) is not null ? item.Entry.Seq : (long?)null;
+                    brought += BringBack(conn, tx, item, queued) ? 1 : 0;
                 }
 
-                result = UndoResult.Recreated;
+                result = brought > 0 ? UndoResult.Recreated : UndoResult.Nothing;
             }
 
             _undone.UnionWith(receipt.Seqs);
@@ -526,16 +528,36 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         return seq;
     }
 
-    // Late undo for one deleted item, sent quietly; waits behind the delete when it's still queued
-    static void BringBack(SqliteConnection conn, SqliteTransaction tx, DeletedItem item, long? dependsOn)
+    // Late undo for one deleted item, sent quietly; waits behind the delete when it's still queued. False when there's nothing to bring back.
+    static bool BringBack(SqliteConnection conn, SqliteTransaction tx, DeletedItem item, long? dependsOn)
     {
-        var e    = item.Entry;
-        var rows = JsonNode.Parse(e.BeforeJson ?? "[]")!.AsArray().OfType<JsonObject>().ToList();
+        var e       = item.Entry;
+        var rows    = JsonNode.Parse(e.BeforeJson ?? "[]")!.AsArray().OfType<JsonObject>().ToList();
+        var current = EventStore.Get(conn, tx, e.AccountId, e.CalendarId, e.EventId);
 
         // An instance Google never stored has an empty snapshot; restoring it still drops the local canceled row
         if (rows.Count == 0 && item.Kind != DeleteKind.Instance)
         {
-            return;
+            return false;
+        }
+
+        // Already Back (Google refused the delete, or "Keep Google's" won a conflict)
+        var alreadyBack = item.Kind switch
+        {
+            DeleteKind.Instance  => current is not { Status: "cancelled" },
+            DeleteKind.Following => current is null || EventJson.RecurrenceOf(current.RawJson).SequenceEqual(EventJson.RecurrenceOf(rows[0].ToJsonString())),
+            _                    => current is not null,
+        };
+        if (alreadyBack)
+        {
+            return false;
+        }
+
+        // Same Permission Check As Every Other Write (a calendar may have become read-only)
+        var role = CalendarStore.GetForAccount(conn, e.AccountId, tx).FirstOrDefault(c => c.Id == e.CalendarId)?.AccessRole ?? "reader";
+        if (!EventJson.CanEdit(rows.FirstOrDefault()?.ToJsonString() ?? current!.RawJson, role))
+        {
+            throw new InvalidOperationException("You can't change this event.");
         }
 
         switch (item.Kind)
@@ -546,12 +568,13 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
                 break;
 
             case DeleteKind.Following:
-                // Keep The Etag The Row Has Now, Not The Snapshot's
-                var etag = EventStore.Get(conn, tx, e.AccountId, e.CalendarId, e.EventId)?.Etag;
+                // Snapshot The Ended Series First, And Keep The Etag The Row Has Now (not the snapshot's)
+                var before = EventStore.Snapshot(conn, tx, e.AccountId, e.CalendarId, e.EventId);
+                var etag   = current!.Etag;
                 EventStore.Restore(conn, tx, e.AccountId, e.CalendarId, e.EventId, e.BeforeJson!);
                 EventStore.SetEtag(conn, tx, e.AccountId, e.CalendarId, e.EventId, etag);
                 var patch = new JsonObject { ["recurrence"] = rows[0]["recurrence"]?.DeepClone() };
-                OutboxStore.Add(conn, tx, new OutboxEntry(0, e.AccountId, e.CalendarId, e.EventId, OutboxOperation.Patch, patch.ToJsonString(), etag, false, EventStore.Snapshot(conn, tx, e.AccountId, e.CalendarId, e.EventId), null, DependsOn: dependsOn));
+                OutboxStore.Add(conn, tx, new OutboxEntry(0, e.AccountId, e.CalendarId, e.EventId, OutboxOperation.Patch, patch.ToJsonString(), etag, false, before, null, DependsOn: dependsOn));
                 break;
 
             default:
@@ -571,6 +594,8 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
                 AddCreate(conn, tx, e.AccountId, e.CalendarId, id, copy.ToJsonString(), sendUpdates: false, dependsOn);
                 break;
         }
+
+        return true;
     }
 
     // =========================================================================

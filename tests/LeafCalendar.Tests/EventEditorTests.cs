@@ -359,6 +359,138 @@ public sealed class EventEditorTests : IDisposable
         Assert.Single(Outbox());
     }
 
+    [Fact]
+    public void Undo_AfterHoldEnds_DeleteInConflict_CopyStillWaitsBehindIt()
+    {
+        var receipt = _editor.Delete([Occurrence("evt-single", Oct1)], EditScope.This, sendUpdates: true);
+        _time.Advance(EventEditor.UndoWindow);
+        using (var conn = _db.Database.Open())
+        {
+            ConflictStore.Add(conn, null, receipt.Seqs[0], null, "{}", _time.GetUtcNow());
+        }
+
+        Assert.Equal(UndoResult.Recreated, _editor.Undo(receipt));
+
+        using (var conn = _db.Database.Open())
+        {
+            var create = Assert.Single(OutboxStore.Pending(conn, Account), e => e.Operation == OutboxOperation.Create);
+            Assert.Equal(receipt.Seqs[0], create.DependsOn);
+        }
+    }
+
+    [Fact]
+    public void Undo_AfterHoldEnds_RepeatingInstance_PatchWaitsBehindTheDelete()
+    {
+        var receipt = _editor.Delete([Occurrence("evt-weekly", Oct9)], EditScope.This, sendUpdates: true);
+        _time.Advance(EventEditor.UndoWindow);
+
+        Assert.Equal(UndoResult.Recreated, _editor.Undo(receipt));
+
+        var entries = Outbox();
+        Assert.Equal(2, entries.Count);
+        Assert.Equal(OutboxOperation.Patch, entries[1].Operation);
+        Assert.Equal("evt-weekly_20261009T133000Z", entries[1].EventId);
+        Assert.Equal(entries[0].Seq, entries[1].DependsOn);
+        Assert.Contains(Day(Oct9), x => x.RecurringEventId == "evt-weekly");
+    }
+
+    [Fact]
+    public void Undo_AfterHoldEnds_ThisAndFollowing_PatchWaitsBehindTheEndAndSnapshotsTheEndedSeries()
+    {
+        var receipt = _editor.Delete([Occurrence("evt-weekly", Oct9)], EditScope.Following, sendUpdates: true);
+        _time.Advance(EventEditor.UndoWindow);
+
+        Assert.Equal(UndoResult.Recreated, _editor.Undo(receipt));
+
+        var entries = Outbox();
+        Assert.Equal(2, entries.Count);
+        Assert.Equal("evt-weekly", entries[1].EventId);
+        Assert.Equal(entries[0].Seq, entries[1].DependsOn);
+        var before = JsonNode.Parse(entries[1].BeforeJson!)!.AsArray()[0]!;
+        Assert.Contains("UNTIL=", (string)before["recurrence"]![0]!, StringComparison.Ordinal);
+        Assert.Contains(Day(Oct12), x => x.RecurringEventId == "evt-weekly");
+    }
+
+    [Fact]
+    public void Undo_AfterSend_AllDaySeries_CanceledDaysBecomeDateExDates()
+    {
+        Seed("""{"id":"evt-yoga","status":"confirmed","etag":"\"9\"","summary":"Yoga","start":{"date":"2026-10-05"},"end":{"date":"2026-10-06"},"recurrence":["RRULE:FREQ=WEEKLY;BYDAY=MO"]}""");
+        _editor.Delete([Occurrence("evt-yoga", Oct12)], EditScope.This, sendUpdates: false);
+        SendAll();
+        var receipt = _editor.Delete([Occurrence("evt-yoga", Oct5)], EditScope.All, sendUpdates: false);
+        SendAll();
+
+        Assert.Equal(UndoResult.Recreated, _editor.Undo(receipt));
+
+        var create = Assert.Single(Outbox());
+        var lines  = JsonNode.Parse(create.Payload!)!["recurrence"]!.AsArray().Select(l => (string)l!).ToList();
+        Assert.Equal(["RRULE:FREQ=WEEKLY;BYDAY=MO", "EXDATE;VALUE=DATE:20261012"], lines);
+        Assert.DoesNotContain(Day(Oct12), x => x.RecurringEventId == create.EventId);
+        Assert.Contains(Day(Oct5), x => x.RecurringEventId == create.EventId);
+    }
+
+    [Fact]
+    public void Undo_AfterSend_MixedReceipt_CopiesTheEventAndRestoresTheInstance()
+    {
+        var receipt = _editor.Delete([Occurrence("evt-single", Oct1), Occurrence("evt-weekly", Oct9)], EditScope.This, sendUpdates: true);
+        SendAll();
+
+        Assert.Equal(UndoResult.Recreated, _editor.Undo(receipt));
+
+        var entries = Outbox();
+        Assert.Equal(2, entries.Count);
+        Assert.Single(entries, e => e.Operation == OutboxOperation.Create && e.EventId != "evt-single");
+        Assert.Single(entries, e => e.Operation == OutboxOperation.Patch && e.EventId == "evt-weekly_20261009T133000Z");
+        Assert.All(entries, e => Assert.False(e.SendUpdates));
+        Assert.Contains(Day(Oct9), x => x.RecurringEventId == "evt-weekly");
+    }
+
+    [Theory]
+    [InlineData("evt-single", "2026-10-01", EditScope.This)]
+    [InlineData("evt-weekly", "2026-10-09", EditScope.This)]
+    [InlineData("evt-weekly", "2026-10-09", EditScope.Following)]
+    public void Undo_AfterGoogleRefusedTheDelete_DoesNothing(string eventId, string day, EditScope scope)
+    {
+        var date    = DateOnly.Parse(day, System.Globalization.CultureInfo.InvariantCulture);
+        var receipt = _editor.Delete([Occurrence(eventId, date)], scope, sendUpdates: true);
+        Refuse(receipt);
+        var shown   = Day(date).Count;
+
+        Assert.Equal(UndoResult.Nothing, _editor.Undo(receipt));
+
+        Assert.Empty(Outbox());
+        Assert.Equal(shown, Day(date).Count);
+    }
+
+    [Fact]
+    public void Undo_AfterSend_CalendarNowReadOnly_Refuses()
+    {
+        var receipt = _editor.Delete([Occurrence("evt-single", Oct1)], EditScope.This, sendUpdates: true);
+        SendAll();
+        using (var conn = _db.Database.Open())
+        {
+            var entries = JsonSerializer.Deserialize(Fixture.Read("calendar-list.json"), GoogleJsonContext.Default.CalendarListPage)!.Items;
+            entries[0].AccessRole = "reader";
+            CalendarStore.ReplaceForAccount(conn, Account, entries);
+        }
+
+        Assert.Throws<InvalidOperationException>(() => _editor.Undo(receipt));
+
+        Assert.Empty(Outbox());
+        Assert.DoesNotContain(Day(Oct1), x => x.Title == "Dentist appointment");
+    }
+
+    // What the sender does when Google refuses an entry: it leaves the outbox and the snapshot comes back
+    void Refuse(DeleteReceipt receipt)
+    {
+        using var conn = _db.Database.Open();
+        foreach (var item in receipt.Items)
+        {
+            OutboxStore.Remove(conn, null, item.Entry.Seq);
+            EventStore.Restore(conn, null, item.Entry.AccountId, item.Entry.CalendarId, item.Entry.EventId, item.Entry.BeforeJson ?? "[]");
+        }
+    }
+
     // What the sender does on success: the entries leave the outbox
     void SendAll()
     {
