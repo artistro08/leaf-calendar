@@ -8,7 +8,7 @@
         <Grid Padding="32">
 
             <!-- Welcome -->
-            <StackPanel x:Name="WelcomeStep" Spacing="16" Visibility="Collapsed" AutomationProperties.AutomationId="OnboardingWelcome">
+            <StackPanel x:Name="WelcomeStep" Spacing="16" Visibility="Collapsed" AutomationProperties.Name="Welcome to Leaf Calendar" AutomationProperties.AutomationId="OnboardingWelcome">
                 <FontIcon HorizontalAlignment="Left" FontSize="48" Glyph="&#xE787;" AutomationProperties.AccessibilityView="Raw" />
                 <StackPanel Spacing="4">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Welcome to Leaf Calendar" />
@@ -19,7 +19,7 @@
             <!-- /Welcome -->
 
             <!-- Google Cloud OAuth Client -->
-            <StackPanel x:Name="ClientStep" Spacing="16" Visibility="Collapsed" AutomationProperties.AutomationId="OnboardingClient">
+            <StackPanel x:Name="ClientStep" Spacing="16" Visibility="Collapsed" AutomationProperties.Name="Connect your Google Cloud client" AutomationProperties.AutomationId="OnboardingClient">
                 <FontIcon HorizontalAlignment="Left" FontSize="48" Glyph="&#xE8D7;" AutomationProperties.AccessibilityView="Raw" />
                 <StackPanel Spacing="4">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Connect your Google Cloud client" />
@@ -71,7 +71,7 @@
             <!-- /Google Cloud OAuth Client -->
 
             <!-- Sign In -->
-            <StackPanel x:Name="SignInStep" Spacing="16" Visibility="Collapsed" AutomationProperties.AutomationId="OnboardingSignIn">
+            <StackPanel x:Name="SignInStep" Spacing="16" Visibility="Collapsed" AutomationProperties.Name="Sign in with Google" AutomationProperties.AutomationId="OnboardingSignIn">
                 <FontIcon HorizontalAlignment="Left" FontSize="48" Glyph="&#xE77B;" AutomationProperties.AccessibilityView="Raw" />
                 <StackPanel Spacing="4">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Sign in with Google" />
@@ -96,7 +96,7 @@
             <!-- /Sign In -->
 
             <!-- Syncing -->
-            <StackPanel x:Name="SyncingStep" Spacing="16" Visibility="Collapsed" AutomationProperties.AutomationId="OnboardingSyncing">
+            <StackPanel x:Name="SyncingStep" Spacing="16" Visibility="Collapsed" AutomationProperties.Name="Syncing your calendars" AutomationProperties.AutomationId="OnboardingSyncing">
                 <FontIcon HorizontalAlignment="Left" FontSize="48" Glyph="&#xE72C;" AutomationProperties.AccessibilityView="Raw" />
                 <StackPanel Spacing="4">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Syncing your calendars" />
@@ -120,7 +120,7 @@
             <!-- /Syncing -->
 
             <!-- Done -->
-            <StackPanel x:Name="DoneStep" Spacing="16" Visibility="Collapsed" AutomationProperties.AutomationId="OnboardingDone">
+            <StackPanel x:Name="DoneStep" Spacing="16" Visibility="Collapsed" AutomationProperties.Name="You're all set" AutomationProperties.AutomationId="OnboardingDone">
                 <FontIcon HorizontalAlignment="Left" FontSize="48" Glyph="&#xE73E;" AutomationProperties.AccessibilityView="Raw" />
                 <StackPanel Spacing="4">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="You're all set" />
