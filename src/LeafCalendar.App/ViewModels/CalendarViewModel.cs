@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.Mvvm.ComponentModel;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Events;
@@ -33,6 +32,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     readonly DispatcherQueue _dispatcher;
     readonly DispatcherQueueTimer _minuteTimer;
     readonly CancellationTokenSource _life = new();
+    readonly LocalZoneWatcher _zones = new();
+    (DateOnly First, DateOnly Last) _ensuredMonths;
     SyncEngine? _attachedSync;
 
     /// <summary>Loads settings and calendars and starts the minute clock.</summary>
@@ -57,7 +58,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         };
 
         PeriodStart = ViewNavigator.PeriodStart(Settings.ViewMode, Today, Settings.WeekStart);
-        PeriodTitle = TitleFor(PeriodStart, PeriodStart.AddDays(VisibleColumns));
+        PeriodTitle = ViewNavigator.MonthTitle(PeriodStart);
 
         services.GoogleChanged += OnGoogleChanged;
         AttachSync();
@@ -76,9 +77,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         ? OccurrenceQuery.LocalMidnight(d, Zone).AddHours(8)
         : _services.Time.GetUtcNow();
 
-    /// <summary>The zone the grid is drawn in.</summary>
-    [SuppressMessage("Performance", "CA1822", Justification = "View-model state that views read per instance.")]
-    public TimeZoneInfo Zone => TimeZoneInfo.Local;
+    /// <summary>The zone the grid is drawn in: the PC's, followed while Leaf runs (see <see cref="CheckTimeZone"/>).</summary>
+    public TimeZoneInfo Zone => _zones.Zone;
 
     /// <summary>The user's view settings.</summary>
     public LeafSettings Settings { get; private set; }
@@ -105,7 +105,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial DateOnly PeriodStart { get; set; }
 
-    /// <summary>Title-bar text such as "October 2026".</summary>
+    /// <summary>The island's title: the month and year of the first visible day (month view: the focused month), such as "October 2026".</summary>
     [ObservableProperty]
     public partial string PeriodTitle { get; set; }
 
@@ -163,25 +163,62 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         NavigateTo(anchor);
     }
 
-    /// <summary>Called by a view when scrolling settles.</summary>
+    /// <summary>
+    /// Called by a view for each new first day while it scrolls, and when it lands. Sets the period and
+    /// title, and makes sure the months around the visible days are loaded. The cache only works in whole
+    /// months, so the load is skipped while the visible days stay in the same months.
+    /// </summary>
     public void OnViewScrolled(DateOnly first, DateOnly lastExclusive, DateOnly? focus = null)
     {
         PeriodStart = Mode == CalendarViewMode.Month ? ViewNavigator.MonthStartOf(focus ?? first) : first;
-        PeriodTitle = Mode == CalendarViewMode.Month ? ViewNavigator.MonthTitle(focus ?? first) : TitleFor(first, lastExclusive);
-        Run(() => Cache.EnsureAsync(first, lastExclusive, _life.Token));
+        PeriodTitle = ViewNavigator.MonthTitle(Mode == CalendarViewMode.Month ? focus ?? first : first);
+
+        var months = (ViewNavigator.MonthStartOf(first), ViewNavigator.MonthStartOf(lastExclusive.AddDays(-1)));
+        if (months == _ensuredMonths)
+        {
+            return;
+        }
+
+        _ensuredMonths = months;
+        Run(async () =>
+        {
+            try
+            {
+                await Cache.EnsureAsync(first, lastExclusive, _life.Token);
+            }
+            catch
+            {
+                // Try again on the next report
+                _ensuredMonths = default;
+                throw;
+            }
+        });
     }
 
     // =========================================================================
     // SETTINGS
     // =========================================================================
 
-    /// <summary>Changes and saves settings, then tells views to relayout (and reloads data when filters changed).</summary>
+    /// <summary>
+    /// Changes and saves settings, then tells views to relayout (and reloads data when filters changed).
+    /// Opening or closing the sidebar or details panel is only saved: the page already moved the panes,
+    /// and a relayout of the calendar would land on the first frame of the pane's slide.
+    /// </summary>
     public void Update(Func<LeafSettings, LeafSettings> change, bool reloadData = false)
     {
+        var before = Settings;
         Settings = change(Settings).Normalize();
         using (var conn = _services.Database.Open())
         {
             SettingsStore.Save(conn, Settings);
+        }
+
+        // Pane Flags Only
+        var panesOnly = Settings with { SidebarOpen = before.SidebarOpen, DetailsPanelOpen = before.DetailsPanelOpen, TimeZones = before.TimeZones } == before
+            && Settings.TimeZones.SequenceEqual(before.TimeZones);
+        if (panesOnly && !reloadData)
+        {
+            return;
         }
 
         LayoutChanged?.Invoke(this, EventArgs.Empty);
@@ -332,6 +369,31 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Follows the PC's time zone. When it changed since the last check, the events are sorted into the new
+    /// local days and the views redraw (hour labels, now line, today, the selected event's time, and the
+    /// upcoming list). Runs every minute and whenever the window is activated.
+    /// </summary>
+    public void CheckTimeZone()
+    {
+        var before = Zone;
+        if (!_zones.Check())
+        {
+            return;
+        }
+
+        _services.Log.Info("calendar.timezone.changed", $"{before.Id} -> {Zone.Id}");
+        Cache.Zone = Zone;
+        Today      = _services.Options.StartDate ?? DateOnly.FromDateTime(DateTime.Now);
+        if (SelectedInfo is { } selected)
+        {
+            SelectedInfo = selected with { When = WhenText(selected.Occurrence) };
+        }
+
+        LayoutChanged?.Invoke(this, EventArgs.Empty);
+        Run(RefreshAsync);
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -384,6 +446,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     void OnMinute()
     {
+        CheckTimeZone();
         var today = _services.Options.StartDate ?? DateOnly.FromDateTime(DateTime.Now);
         if (today != Today)
         {
@@ -426,8 +489,6 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
         return $"{TimeLabels.LongDate(LocalDate(o.Start))} · {TimeLabels.Range(o.Start, o.End, Zone, Settings.Use24HourTime)}";
     }
-
-    static string TitleFor(DateOnly first, DateOnly lastExclusive) => ViewNavigator.PeriodTitle(first, lastExclusive.AddDays(-1) < first ? first : lastExclusive.AddDays(-1));
 
     DateOnly LocalDate(DateTimeOffset instant) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, Zone).DateTime);
 

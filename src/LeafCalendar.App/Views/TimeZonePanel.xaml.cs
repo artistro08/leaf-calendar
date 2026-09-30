@@ -11,6 +11,7 @@ namespace LeafCalendar.App.Views;
 public sealed partial class TimeZonePanel : UserControl
 {
     readonly ObservableCollection<ZoneRow> _rows = [];
+    IReadOnlyList<TimeZoneChoice> _suggestions = [];
     CalendarViewModel? _vm;
 
     /// <summary>Creates the panel.</summary>
@@ -36,21 +37,26 @@ public sealed partial class TimeZonePanel : UserControl
         UpdateLimit();
     }
 
+    // Suggestions go to the box as plain strings: a list of Core records can't be marshaled to WinRT under Native AOT
     void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
         if (_vm is not null && args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
         {
-            sender.ItemsSource = TimeZoneCatalog.Search(sender.Text, _vm.Now);
+            _suggestions       = TimeZoneCatalog.Search(sender.Text, _vm.Now);
+            sender.ItemsSource = _suggestions.Select(c => c.ToString()).ToList();
         }
     }
 
     void OnSuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
     {
-        if (args.SelectedItem is TimeZoneChoice choice)
+        if (ChoiceFor(args.SelectedItem) is { } choice)
         {
             Add(choice);
         }
     }
+
+    TimeZoneChoice? ChoiceFor(object? item) =>
+        item is string text ? _suggestions.FirstOrDefault(c => c.ToString() == text) : null;
 
     void OnQuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
@@ -60,7 +66,7 @@ public sealed partial class TimeZonePanel : UserControl
         }
 
         var found  = TimeZoneCatalog.Search(args.QueryText, _vm.Now);
-        var choice = args.ChosenSuggestion as TimeZoneChoice ?? (found.Count > 0 ? found[0] : null);
+        var choice = ChoiceFor(args.ChosenSuggestion) ?? (found.Count > 0 ? found[0] : null);
         if (choice is not null)
         {
             Add(choice);

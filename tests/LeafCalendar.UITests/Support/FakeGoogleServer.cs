@@ -15,6 +15,7 @@ namespace LeafCalendar.UITests.Support;
 public sealed class FakeGoogleServer : IDisposable
 {
     const string PrimaryId = "leaf.tester@gmail.com";
+    const string FamilyId  = "family123@group.calendar.google.com";
 
     readonly TcpListener _listener = new(IPAddress.Loopback, 0);
     readonly CancellationTokenSource _stop = new();
@@ -34,6 +35,9 @@ public sealed class FakeGoogleServer : IDisposable
 
     /// <summary>Every request seen, as <c>"GET /path?query"</c>.</summary>
     public ConcurrentQueue<string> Requests { get; } = new();
+
+    /// <summary>Serve ten calendars instead of two, so the sidebar overflows and scrolls (set before launching).</summary>
+    public bool ManyCalendars { get; set; }
 
     /// <summary>How many token revocations were requested.</summary>
     public int RevokeCount => Volatile.Read(ref _revokes);
@@ -127,13 +131,19 @@ public sealed class FakeGoogleServer : IDisposable
         // Calendar
         if (method == "GET" && path == "/calendar/v3/users/me/calendarList")
         {
-            return (200, Read("calendar-list.json"), null);
+            return (200, Read(ManyCalendars ? "calendar-list-many.json" : "calendar-list.json"), null);
         }
 
         const string eventsPrefix = "/calendar/v3/calendars/";
         if (method == "GET" && path.StartsWith(eventsPrefix, StringComparison.Ordinal) && path.EndsWith("/events", StringComparison.Ordinal))
         {
             var calendarId = Uri.UnescapeDataString(path[eventsPrefix.Length..^"/events".Length]);
+            // The family calendar has one evening event with a long description (UI tests only)
+            if (calendarId == FamilyId && !query.ContainsKey("syncToken"))
+            {
+                return (200, Read("events-family.json"), null);
+            }
+
             if (calendarId != PrimaryId)
             {
                 return (200, Read("events-empty.json"), null);

@@ -22,6 +22,9 @@ public sealed class EventWindowCache(Func<DateOnly, DateOnly, CancellationToken,
     /// <summary>Raised on the calling thread whenever the cached data changes.</summary>
     public event EventHandler? Changed;
 
+    /// <summary>The zone that decides which local days an instance touches. After changing it, <see cref="RefreshAsync"/> re-buckets the held months.</summary>
+    public TimeZoneInfo Zone { get; set; } = zone;
+
     /// <summary>First days of the months currently held.</summary>
     public IReadOnlyCollection<DateOnly> LoadedMonths => _months.Keys;
 
@@ -122,7 +125,7 @@ public sealed class EventWindowCache(Func<DateOnly, DateOnly, CancellationToken,
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    DateOnly LocalDate(DateTimeOffset instant) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, zone).DateTime);
+    DateOnly LocalDate(DateTimeOffset instant) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, Zone).DateTime);
 
     static DateOnly MonthOf(DateOnly day) => new(day.Year, day.Month, 1);
 

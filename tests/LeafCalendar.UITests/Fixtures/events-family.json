@@ -1,0 +1,19 @@
+{
+  "kind": "calendar#events",
+  "timeZone": "America/New_York",
+  "nextSyncToken": "family-sync-token-1",
+  "items": [
+    {
+      "id": "evt-family-play",
+      "status": "confirmed",
+      "etag": "\"3181161784712100\"",
+      "iCalUID": "evt-family-play@google.com",
+      "summary": "School play",
+      "location": "Lincoln Elementary auditorium, 400 Main Street",
+      "description": "Doors open at 5:30.\n\nBring:\n- Tickets (on the fridge)\n- Flowers for after the show\n- A sweater, the auditorium runs cold\n\nParking:\nThe front lot fills up early. Use the church lot across the street and walk over.\n\nAfter the show:\nPizza at Tony's with the cast families. Tony's closes at 9, so head over right after the bows.\n\nNotes:\nPhotos are allowed during the curtain call only.\nPlease keep phones on silent for the whole show.\nThe show runs about 90 minutes with one short break.",
+      "start": { "dateTime": "2026-10-02T18:00:00-04:00", "timeZone": "America/New_York" },
+      "end": { "dateTime": "2026-10-02T19:30:00-04:00", "timeZone": "America/New_York" },
+      "updated": "2026-09-20T12:00:00.000Z"
+    }
+  ]
+}

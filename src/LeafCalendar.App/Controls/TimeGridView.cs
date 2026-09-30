@@ -5,6 +5,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Hosting;
 
 namespace LeafCalendar.App.Controls;
 
@@ -17,9 +18,13 @@ namespace LeafCalendar.App.Controls;
 /// the day columns. The day columns live in an <see cref="ItemsRepeater"/> over a <see cref="DayStrip"/>
 /// of about 8 years, so only the visible days plus one screen on each side are built, and they're
 /// recycled as you scroll. The header and gutter follow the body's scrolling (they never scroll on
-/// their own, so they can't fight the body's animations). When scrolling stops, the view snaps to a
-/// day edge and tells the view model which days are showing (that loads data and sets the title).
-/// Navigation reports the new days right away. Pagers and "today" scroll with animation.
+/// their own, so they can't fight the body's animations; the mouse wheel over them is passed to the
+/// body). The compositor draws them where the body is, frame by frame (see <see cref="FollowBody"/>),
+/// and their own scrollers catch up afterward so the right header cells are built. Columns are a whole
+/// number of screen pixels wide, so every day edge is a whole-pixel scroll offset and text stays sharp. While you scroll by hand, the view model hears about each new first
+/// day as it comes into view (title, mini month, data); when scrolling stops, the view snaps to a day
+/// edge. Navigation (pagers, "today", resizing, mode changes) reports the new days right away, then
+/// runs one scroll to the exact target and ignores the offsets it passes on the way.
 /// </remarks>
 public sealed partial class TimeGridView : Grid, IDisposable
 {
@@ -39,9 +44,12 @@ public sealed partial class TimeGridView : Grid, IDisposable
     const int StripDaysEachSide = 1500;
 
     readonly CalendarViewModel _vm;
-    readonly ScrollViewer _headerScroll = new() { HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Disabled, VerticalScrollMode = ScrollMode.Disabled, ZoomMode = ZoomMode.Disabled };
-    readonly ScrollViewer _gutterScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollMode = ScrollMode.Disabled, HorizontalScrollMode = ScrollMode.Disabled, ZoomMode = ZoomMode.Disabled };
-    readonly ScrollViewer _bodyScroll = new() { HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollMode = ScrollMode.Enabled, ZoomMode = ZoomMode.Disabled };
+    // Wheel step over the gutter and header (three 16 px lines per notch, like a ScrollViewer)
+    const double WheelStep = 48.0 / 120;
+
+    readonly ScrollViewer _headerScroll = new() { Background = LeafBrushes.Transparent, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalScrollMode = ScrollMode.Disabled, VerticalScrollMode = ScrollMode.Disabled, ZoomMode = ZoomMode.Disabled };
+    readonly ScrollViewer _gutterScroll = new() { Background = LeafBrushes.Transparent, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollMode = ScrollMode.Disabled, HorizontalScrollMode = ScrollMode.Disabled, ZoomMode = ZoomMode.Disabled };
+    readonly ScrollViewer _bodyScroll = new() { HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Enabled, ZoomMode = ZoomMode.Disabled };
     // One row of fixed-size cells: positions are exact (index × width), unlike StackLayout's estimates,
     // which drift by weeks when jumping deep into the strip after the column width changes
     readonly UniformGridLayout _headerLayout = new() { Orientation = Orientation.Vertical, MaximumRowsOrColumns = 1 };
@@ -49,6 +57,10 @@ public sealed partial class TimeGridView : Grid, IDisposable
     readonly ItemsRepeater _headerRepeater = new() { HorizontalCacheLength = 2 };
     readonly ItemsRepeater _bodyRepeater = new() { HorizontalCacheLength = 2 };
     readonly Grid _headerContent = new();
+    // What the header and gutter scrollers scroll; the header content and the gutter inside them are
+    // shifted by the compositor to where the body is (see FollowBody)
+    readonly Grid _headerHost = new();
+    readonly Grid _gutterHost = new();
     readonly AllDayCanvas _allDay;
     readonly TimeZoneGutter _gutter;
     readonly StackPanel _zoneLabels = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 4) };
@@ -61,7 +73,26 @@ public sealed partial class TimeGridView : Grid, IDisposable
     bool _allDayExpanded;
     bool _disposed;
     bool _initialized;
+    bool _following;
+    bool _renderDeferred;
     int _firstIndex;
+    int _reportedIndex = -1;
+    double _wheelTarget = double.NaN;
+
+    // The day a navigation is scrolling to. Until the body lands there, offsets it passes on the way (an
+    // animation's frames, or a clamp to a stale extent right after the columns change width) are ignored
+    // instead of being taken as the new first day
+    int? _pendingIndex;
+
+    // The XamlRoot this view listens to for scale changes (kept: it's already gone when a closing window unloads the view)
+    XamlRoot? _root;
+
+    // An animated scroll is running. A jump issued now doesn't cancel it: the ScrollViewer adds the rest of
+    // the animation on top of the jump (a mode change once landed three years out), so jumps wait for it
+    bool _animating;
+
+    // The first layout's jump to 7:30 AM, kept until the body is tall enough to reach it
+    double? _pendingTop;
 
     /// <summary>Builds the view for <paramref name="vm"/>.</summary>
     public TimeGridView(CalendarViewModel vm)
@@ -126,12 +157,14 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _headerContent.Children.Add(_headerRepeater);
         SetRow(_allDay, 1);
         _headerContent.Children.Add(_allDay);
-        _headerScroll.Content = _headerContent;
+        _headerHost.Children.Add(_headerContent);
+        _headerScroll.Content = _headerHost;
         SetColumn(_headerScroll, 1);
         Children.Add(_headerScroll);
 
         // Gutter
-        _gutterScroll.Content = _gutter;
+        _gutterHost.Children.Add(_gutter);
+        _gutterScroll.Content = _gutterHost;
         SetRow(_gutterScroll, 1);
         Children.Add(_gutterScroll);
 
@@ -140,14 +173,32 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _bodyRepeater.ElementPrepared += (_, e) => _columns.Add((DayColumn)e.Element);
         _bodyRepeater.ElementClearing += (_, e) => _columns.Remove((DayColumn)e.Element);
         _bodyScroll.Content = _bodyRepeater;
+        ScrollIndicator.ShowOnHover(_bodyScroll);
         SetRow(_bodyScroll, 1);
         SetColumn(_bodyScroll, 1);
         Children.Add(_bodyScroll);
 
+        // No Scroll Anchoring: this view keeps its own first day. The ScrollViewer's default anchoring
+        // "keeps an element in place" when the columns change width, which shifted the offset by
+        // hundreds of days after every resize (the view landed years away and loaded that data).
+        _bodyScroll.HorizontalAnchorRatio   = double.NaN;
+        _bodyScroll.VerticalAnchorRatio     = double.NaN;
+        _headerScroll.HorizontalAnchorRatio = double.NaN;
+        _gutterScroll.VerticalAnchorRatio   = double.NaN;
+
         // Scroll Sync And Snapping
-        _bodyScroll.ViewChanging += OnBodyViewChanging;
-        _bodyScroll.ViewChanged  += OnBodyViewChanged;
-        _bodyScroll.SizeChanged  += (_, _) => Relayout();
+        _bodyScroll.ViewChanging  += OnBodyViewChanging;
+        _bodyScroll.ViewChanged   += OnBodyViewChanged;
+        _bodyScroll.SizeChanged   += (_, _) => Relayout(force: false);
+        _bodyRepeater.SizeChanged += (_, _) => RetryPendingScroll();
+        _headerRepeater.SizeChanged += (_, _) => SyncSides();
+
+        // Wheel Over The Gutter And Header Scrolls The Body
+        _gutterScroll.AddHandler(PointerWheelChangedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler(OnSideWheel), handledEventsToo: true);
+        _headerScroll.AddHandler(PointerWheelChangedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler(OnSideWheel), handledEventsToo: true);
+
+        // The user took over (touch, wheel, trackpad): drop any unreached navigation target
+        _bodyScroll.DirectManipulationStarted += (_, _) => _pendingIndex = null;
 
         // View Model
         _vm.OccurrencesChanged    += OnOccurrencesChanged;
@@ -155,6 +206,12 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _vm.NavigateRequested     += OnNavigateRequested;
         _vm.ScrollToTimeRequested += OnScrollToTimeRequested;
         ActualThemeChanged        += (_, _) => RenderRealized();
+        Loaded                    += (_, _) =>
+        {
+            (_root = XamlRoot).Changed += OnXamlRootChanged;
+            FollowBody();
+        };
+        Unloaded                  += (_, _) => _root?.Changed -= OnXamlRootChanged;
 
         // Now Line Clock
         _clock = DispatcherQueue.GetForCurrentThread().CreateTimer();
@@ -191,9 +248,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
             BuildStrip(date);
         }
 
-        _firstIndex = _strip.IndexOf(date);
-        _bodyScroll.ChangeView(_firstIndex * ColumnWidth, null, null, !animate);
+        // Report the destination first (title, mini month, data); data that loads now paints once the scroll lands
+        _firstIndex   = _strip.IndexOf(date);
+        _pendingIndex = _firstIndex;
         ReportVisible();
+        ScrollToIndex(_firstIndex, animate);
     }
 
     /// <summary>Scrolls vertically so <paramref name="instant"/> sits a third of the way down.</summary>
@@ -201,23 +260,14 @@ public sealed partial class TimeGridView : Grid, IDisposable
     {
         var local = TimeZoneInfo.ConvertTime(instant, _vm.Zone);
         var y     = local.TimeOfDay.TotalHours * HourHeight - _bodyScroll.ViewportHeight / 3;
+        ScrollIndicator.Hide(_bodyScroll);
         _bodyScroll.ChangeView(null, Math.Max(0, y), null, false);
     }
 
-    /// <summary>Repaints every built column, header, the all-day row, and the gutter.</summary>
+    /// <summary>Repaints every built column, header, the all-day row, the corner, and the gutter.</summary>
     public void RenderRealized()
     {
-        foreach (var column in _columns)
-        {
-            column.Render();
-        }
-
-        foreach (var header in _headers)
-        {
-            header.Bind(header.Date);
-        }
-
-        RenderAllDay();
+        RenderColumns();
         RenderCorner();
         _gutter.Render(_strip[_firstIndex]);
     }
@@ -243,20 +293,33 @@ public sealed partial class TimeGridView : Grid, IDisposable
         var items = Enumerable.Range(0, _strip.Count).Select(i => new DayItem(_strip[i])).ToList();
         _headerRepeater.ItemsSource = items;
         _bodyRepeater.ItemsSource   = items;
-        _firstIndex = _strip.IndexOf(around);
+        _firstIndex    = _strip.IndexOf(around);
+        _reportedIndex = -1;
     }
 
-    // Resizes columns for the viewport, then keeps the same first day (reading _firstIndex when the
-    // queued scroll runs, so a navigation that lands in between wins)
-    void Relayout()
+    // Sizes the columns for the space available and keeps the same first day. Resizing the window calls
+    // this for every step of the drag, so it does nothing unless the column width or body height really
+    // changed (a height-only resize costs nothing), and it only repaints what depends on the width.
+    void Relayout(bool force)
     {
-        var viewport = _bodyScroll.ViewportWidth > 0 ? _bodyScroll.ViewportWidth : _bodyScroll.ActualWidth;
-        if (_disposed || viewport <= 0)
+        var available = _bodyScroll.ActualWidth + _bodyScroll.Margin.Right;
+        if (_disposed || available <= 0)
         {
             return;
         }
 
-        ColumnWidth = Math.Max(48, viewport / _vm.VisibleColumns);
+        // Whole-Pixel Columns (the few pixels left over become a margin at the right edge)
+        var scale = XamlRoot?.RasterizationScale ?? 1;
+        var width = Math.Max(48, Math.Floor(available * scale / _vm.VisibleColumns) / scale);
+        if (!force && width == ColumnWidth && _bodyRepeater.Height == BodyHeight)
+        {
+            return;
+        }
+
+        var spare = new Thickness(0, 0, Math.Max(0, available - width * _vm.VisibleColumns), 0);
+        ColumnWidth                 = width;
+        _bodyScroll.Margin          = spare;
+        _headerScroll.Margin        = spare;
         _bodyRepeater.Height        = BodyHeight;
         _headerRepeater.Height      = DayHeaderHeight;
         _bodyLayout.MinItemWidth    = ColumnWidth;
@@ -265,22 +328,60 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _headerLayout.MinItemHeight = DayHeaderHeight;
         _bodyRepeater.InvalidateMeasure();
         _headerRepeater.InvalidateMeasure();
-        RenderRealized();
+        RenderColumns();
 
-        // First Layout: also jump to 7:30 AM
-        double? top = _initialized ? null : Math.Max(0, 7.5 * HourHeight - 20);
-        _initialized = true;
-        DispatcherQueue.TryEnqueue(() =>
+        // First Layout: the corner and hour labels (they don't depend on the width), and a jump to 7:30 AM
+        if (!_initialized)
         {
-            if (_disposed)
-            {
-                return;
-            }
+            _initialized = true;
+            _pendingTop  = Math.Max(0, 7.5 * HourHeight - 20);
+            RenderCorner();
+            _gutter.Render(_strip[_firstIndex]);
+        }
 
-            _bodyScroll.ChangeView(_firstIndex * ColumnWidth, top, null, true);
-            ReportVisible();
-        });
+        // Keep The Same First Day (right away, so no frame shows the old offset at the new width)
+
+        ScrollToIndex(_firstIndex, animate: false);
     }
+
+    // Draws the header content and the gutter where the body is, in the same compositor frame. Syncing
+    // their scrollers from the body's ViewChanging lands a frame late, so the day names and all-day chips
+    // trailed the columns mid-scroll. Each one gets a translation of (body offset − its own scroller's
+    // offset): wherever its scroller has got to, it's drawn at the body's offset. At rest the scrollers
+    // agree and the translation is 0, so hit testing and automation bounds are exact.
+    void FollowBody()
+    {
+        if (_following)
+        {
+            return;
+        }
+
+        _following = true;
+        var body = ElementCompositionPreview.GetScrollViewerManipulationPropertySet(_bodyScroll);
+        Follow(_headerContent, "Vector3(body.Translation.X - side.Translation.X, 0, 0)", body, ElementCompositionPreview.GetScrollViewerManipulationPropertySet(_headerScroll));
+        Follow(_gutter, "Vector3(0, body.Translation.Y - side.Translation.Y, 0)", body, ElementCompositionPreview.GetScrollViewerManipulationPropertySet(_gutterScroll));
+    }
+
+    static void Follow(UIElement element, string expression, Microsoft.UI.Composition.CompositionPropertySet body, Microsoft.UI.Composition.CompositionPropertySet side)
+    {
+        ElementCompositionPreview.SetIsTranslationEnabled(element, true);
+        var visual    = ElementCompositionPreview.GetElementVisual(element);
+        var animation = visual.Compositor.CreateExpressionAnimation(expression);
+        animation.SetReferenceParameter("body", body);
+        animation.SetReferenceParameter("side", side);
+        visual.StartAnimation("Translation", animation);
+    }
+
+    // One scroll to the exact day edge (animated for pagers and "today"; a new animated scroll retargets one
+    // that's running)
+    void ScrollToIndex(int index, bool animate)
+    {
+        _pendingIndex = index;
+        RetryPendingScroll(animate);
+    }
+
+    // A monitor with a different scale changes what a whole pixel is
+    void OnXamlRootChanged(XamlRoot sender, XamlRootChangedEventArgs args) => Relayout(force: false);
 
     void OnBodyViewChanging(object? sender, ScrollViewerViewChangingEventArgs e)
     {
@@ -290,38 +391,175 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     void OnBodyViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
+        SyncSides();
+        if (!e.IsIntermediate)
+        {
+            _wheelTarget = double.NaN;
+            _animating   = false;
+        }
+
+        // Navigating: wait for the target, then take it (the destination was reported when the navigation began)
+        if (_pendingIndex is not null)
+        {
+            if (e.IsIntermediate)
+            {
+                return;
+            }
+
+            RetryPendingScroll();
+            return;
+        }
+
+        // Scrolling By Hand: report each new first day as it comes into view
+        var index = Math.Clamp((int)Math.Round(_bodyScroll.HorizontalOffset / ColumnWidth), 0, _strip.Count - 1);
+        _firstIndex = index;
+        ReportVisible();
         if (e.IsIntermediate)
         {
             return;
         }
 
-        // Snap To A Day Edge
-        var index  = (int)Math.Round(_bodyScroll.HorizontalOffset / ColumnWidth);
+        // Stopped: Snap To A Day Edge
         var target = index * ColumnWidth;
-        if (Math.Abs(target - _bodyScroll.HorizontalOffset) > 0.5)
+        if (!IsAt(target, _bodyScroll.HorizontalOffset))
         {
+            _animating = true;
             _bodyScroll.ChangeView(target, null, null, false);
             return;
         }
 
-        _firstIndex = index;
-        ReportVisible();
+        Settle();
     }
 
-    void ReportVisible()
+    static bool IsAt(double target, double offset) => Math.Abs(target - offset) < 0.5;
+
+    // Catches the header and gutter up with the body when ViewChanging's sync was clamped (right after the
+    // columns change width, the header's extent is still the old one)
+    void SyncSides()
     {
-        if (_disposed)
+        if (!IsAt(_bodyScroll.HorizontalOffset, _headerScroll.HorizontalOffset))
+        {
+            _headerScroll.ChangeView(_bodyScroll.HorizontalOffset, null, null, true);
+        }
+
+        if (!IsAt(_bodyScroll.VerticalOffset, _gutterScroll.VerticalOffset))
+        {
+            _gutterScroll.ChangeView(null, _bodyScroll.VerticalOffset, null, true);
+        }
+    }
+
+    // Once the body is still: paint data that arrived while it was moving
+    void Settle()
+    {
+        ReportVisible();
+        PublishOffset();
+        if (_renderDeferred)
+        {
+            _renderDeferred = false;
+            RenderColumns();
+        }
+    }
+
+    // Heads for the pending day (and the first layout's 7:30 AM), or finishes the navigation when the body
+    // is already there (no scroll means no ViewChanged to finish it). Only the navigation's own first
+    // scroll animates, and only inside the measured strip; catching up after a clamp or a relayout jumps.
+    void RetryPendingScroll(bool animate = false)
+    {
+        if (_disposed || _pendingIndex is not { } pending || (_animating && !animate))
         {
             return;
         }
 
+        // The 7:30 AM jump (as far as the body can go, once it has been measured at full height)
+        var top = _pendingTop;
+        if (top is { } y && _bodyScroll.ExtentHeight >= BodyHeight - 0.5)
+        {
+            top = Math.Min(y, _bodyScroll.ScrollableHeight);
+            if (IsAt(top.Value, _bodyScroll.VerticalOffset))
+            {
+                _pendingTop = top = null;
+            }
+        }
+
+        // Arrived
+        var target = pending * ColumnWidth;
+        if (top is null && IsAt(target, _bodyScroll.HorizontalOffset))
+        {
+            _pendingIndex = null;
+            _firstIndex   = pending;
+            Settle();
+            return;
+        }
+
+        animate    = animate && target <= _bodyScroll.ScrollableWidth;
+        _animating = animate;
+        ScrollIndicator.Hide(_bodyScroll);
+        _bodyScroll.ChangeView(target, top, null, !animate);
+    }
+
+    // Tells the view model which days show (title, mini month, data), and redraws what follows the first
+    // day. Runs for each new first day while scrolling, so it's skipped when the first day hasn't changed.
+    void ReportVisible()
+    {
+        if (_disposed || _firstIndex == _reportedIndex)
+        {
+            return;
+        }
+
+        _reportedIndex = _firstIndex;
         var first = _strip[_firstIndex];
         var after = _firstIndex + _vm.VisibleColumns >= _strip.Count ? _strip.Last.AddDays(1) : _strip[_firstIndex + _vm.VisibleColumns];
 
         _vm.OnViewScrolled(first, after);
         RenderAllDay();
-        RenderCorner();
-        _gutter.Render(first);
+        RenderWeekNumber();
+
+        // Extra time zones label each local hour of the first day (their offsets can differ across a DST change)
+        if (_vm.Settings.TimeZones.Count > 0)
+        {
+            _gutter.Render(first);
+        }
+
+    }
+
+    // Where the body came to rest, for UI tests (the first day, the offsets, and the column width)
+    void PublishOffset() =>
+        AutomationProperties.SetItemStatus(this, string.Create(CultureInfo.InvariantCulture, $"first={_strip[_firstIndex]:yyyy-MM-dd};offset={_bodyScroll.HorizontalOffset:R};column={ColumnWidth:R};top={_bodyScroll.VerticalOffset:R}"));
+
+    // The mouse wheel over the hour gutter or the day headers scrolls the body (vertically; a tilt wheel or
+    // Shift+wheel horizontally), building on a scroll that's still animating so fast notches add up
+    void OnSideWheel(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        var point      = e.GetCurrentPoint(this).Properties;
+        var horizontal = point.IsHorizontalMouseWheel || (e.KeyModifiers & Windows.System.VirtualKeyModifiers.Shift) != 0;
+        var delta      = point.MouseWheelDelta * WheelStep;
+        e.Handled = true;
+
+        if (horizontal)
+        {
+            _bodyScroll.ChangeView(_bodyScroll.HorizontalOffset + delta, null, null, false);
+            return;
+        }
+
+        var from = double.IsNaN(_wheelTarget) ? _bodyScroll.VerticalOffset : _wheelTarget;
+        _wheelTarget = Math.Clamp(from - delta, 0, _bodyScroll.ScrollableHeight);
+        _bodyScroll.ChangeView(null, _wheelTarget, null, false);
+    }
+
+    // Everything that depends on the column width: the columns, the headers, and the all-day row
+    void RenderColumns()
+    {
+        foreach (var column in _columns)
+        {
+            column.Render();
+        }
+
+        foreach (var header in _headers)
+        {
+            header.Bind(header.Date);
+        }
+
+        RenderAllDay();
     }
 
     void RenderAllDay()
@@ -342,8 +580,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
         var dark = IsDark;
         _zoneLabels.Children.Clear();
 
-        var zones = new List<(string Id, string Label)> { ("Local", TimeZoneCatalog.OffsetLabel(_vm.Zone.GetUtcOffset(_vm.Now))) };
-        zones.AddRange(_vm.Settings.TimeZones.Select(z => (z.Id, TimeZoneCatalog.ShortLabel(z))));
+        // Extra zones oldest first, then this PC's zone next to the days (the gutter's column order)
+        var zones = _vm.Settings.TimeZones.Select(z => (z.Id, Label: TimeZoneCatalog.ShortLabel(z))).ToList();
+        zones.Add(("Local", TimeZoneCatalog.OffsetLabel(_vm.Zone.GetUtcOffset(_vm.Now))));
 
         foreach (var (id, label) in zones)
         {
@@ -352,10 +591,13 @@ public sealed partial class TimeGridView : Grid, IDisposable
             _zoneLabels.Children.Add(text);
         }
 
-        Corner.Width = zones.Count * ZoneColumnWidth;
-        _weekNumber.Text       = _vm.Settings.ShowWeekNumbers ? string.Create(CultureInfo.InvariantCulture, $"W{ViewNavigator.WeekNumber(_strip[_firstIndex])}") : "";
+        Corner.Width           = zones.Count * ZoneColumnWidth;
         _weekNumber.Foreground = LeafBrushes.SecondaryText(dark);
+        RenderWeekNumber();
     }
+
+    void RenderWeekNumber() =>
+        _weekNumber.Text = _vm.Settings.ShowWeekNumbers ? string.Create(CultureInfo.InvariantCulture, $"W{ViewNavigator.WeekNumber(_strip[_firstIndex])}") : "";
 
     void RenderToday()
     {
@@ -369,6 +611,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // VIEW MODEL EVENTS
     // =========================================================================
 
+    // Data only changes the columns and the all-day row. While a navigation is scrolling, painting waits
+    // until it lands, so a month loading mid-scroll can't drop animation frames.
     void OnOccurrencesChanged(object? sender, EventArgs e)
     {
         if (_disposed)
@@ -376,7 +620,13 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
-        RenderRealized();
+        if (_pendingIndex is not null)
+        {
+            _renderDeferred = true;
+            return;
+        }
+
+        RenderColumns();
     }
 
     void OnLayoutChanged(object? sender, EventArgs e)
@@ -391,7 +641,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
             BuildStrip(_strip[_firstIndex]);
         }
 
-        Relayout();
+        _reportedIndex = -1;
+        Relayout(force: true);
+        RenderCorner();
+        _gutter.Render(_strip[_firstIndex]);
+        ReportVisible();
     }
 
     void OnNavigateRequested(object? sender, DateOnly date)

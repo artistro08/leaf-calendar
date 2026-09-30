@@ -6,29 +6,66 @@
     xmlns:local="using:LeafCalendar.App.Views"
     x:Name="Self">
 
-    <Grid Padding="12,4,12,12">
+    <!-- Top padding clears the title bar row (app icon, name, and sidebar toggle) this sidebar runs under.
+         Everything inside starts 9 in from the 5 px left padding, so all the text, the mini month, and the
+         checkboxes share one left edge 14 px in, under the title bar's sidebar toggle icon; hover fills, the
+         visible-days band, and today's circle reach out into that 9 px. -->
+    <Grid Padding="5,48,12,12">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Content -->
-        <ScrollViewer x:Name="ContentScroll" Padding="0,0,4,0">
+        <ScrollViewer x:Name="ContentScroll" Padding="0,0,4,0" AutomationProperties.AutomationId="SidebarScroll">
             <StackPanel Spacing="4">
 
-                <!-- Mini Month -->
-                <CalendarView
+                <!-- Mini Month (built in code: fixed 32 px cells, so it fits the sidebar and text lands on whole pixels;
+                     the first column's labels, centered in their cells, line up with the shared left edge) -->
+                <StackPanel
                     x:Name="MiniMonth"
-                    SelectionMode="Single"
-                    IsTodayHighlighted="True"
-                    IsOutOfScopeEnabled="True"
-                    BorderThickness="0"
-                    Background="Transparent"
-                    DayItemFontSize="12"
-                    FirstOfMonthLabelFontSize="0"
-                    HorizontalAlignment="Stretch"
-                    SelectedDatesChanged="OnMiniMonthSelectedDatesChanged"
-                    AutomationProperties.AutomationId="MiniMonth" />
+                    Spacing="2"
+                    HorizontalAlignment="Left"
+                    AutomationProperties.Name="Mini month"
+                    AutomationProperties.AutomationId="MiniMonth">
+                    <Grid Margin="0,0,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            x:Name="MiniMonthTitle"
+                            Margin="9,0,0,0"
+                            VerticalAlignment="Center"
+                            FontWeight="SemiBold"
+                            AutomationProperties.AutomationId="MiniMonthTitle" />
+                        <Button
+                            Grid.Column="1"
+                            Width="28"
+                            Height="28"
+                            Style="{StaticResource LeafIconButtonStyle}"
+                            Click="OnMiniMonthPreviousClick"
+                            ToolTipService.ToolTip="Previous month"
+                            AutomationProperties.Name="Previous month"
+                            AutomationProperties.AutomationId="MiniMonthPrevious">
+                            <FontIcon Glyph="&#xE70E;" FontSize="10" />
+                        </Button>
+                        <Button
+                            Grid.Column="2"
+                            Width="28"
+                            Height="28"
+                            Style="{StaticResource LeafIconButtonStyle}"
+                            Click="OnMiniMonthNextClick"
+                            ToolTipService.ToolTip="Next month"
+                            AutomationProperties.Name="Next month"
+                            AutomationProperties.AutomationId="MiniMonthNext">
+                            <FontIcon Glyph="&#xE70D;" FontSize="10" />
+                        </Button>
+                    </Grid>
+                    <Grid x:Name="MiniMonthDays" />
+                </StackPanel>
+                <!-- /Mini Month -->
 
                 <!-- Calendars -->
                 <ItemsControl x:Name="CalendarList" AutomationProperties.AutomationId="CalendarList">
@@ -39,21 +76,41 @@
                                 <ListView
                                     ItemsSource="{x:Bind Calendars}"
                                     SelectionMode="None"
+                                    ScrollViewer.VerticalScrollMode="Disabled"
+                                    ScrollViewer.VerticalScrollBarVisibility="Disabled"
                                     CanReorderItems="True"
                                     CanDragItems="True"
                                     AllowDrop="True"
                                     DragItemsCompleted="OnCalendarsReordered"
                                     ContainerContentChanging="OnCalendarRowChanging"
                                     Tag="{x:Bind Email}">
+                                    <!-- The row draws its own hover (it fades), so the item's built-in one is off -->
+                                    <ListView.Resources>
+                                        <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
+                                        <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />
+                                    </ListView.Resources>
                                     <ListView.ItemContainerStyle>
                                         <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
                                             <Setter Property="MinHeight" Value="32" />
-                                            <Setter Property="Padding" Value="4,0" />
+                                            <Setter Property="Padding" Value="0" />
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                            <Setter Property="VerticalContentAlignment" Value="Stretch" />
                                         </Style>
                                     </ListView.ItemContainerStyle>
                                     <ListView.ItemTemplate>
                                         <DataTemplate x:DataType="vm:CalendarRow">
-                                            <Grid ColumnSpacing="8">
+                                            <!-- Row (hovering anywhere on it lights the row, the checkbox, and the name together) -->
+                                            <Grid
+                                                Padding="9,0,4,0"
+                                                ColumnSpacing="8"
+                                                CornerRadius="4"
+                                                Background="Transparent"
+                                                PointerEntered="OnRowPointerEntered"
+                                                PointerExited="OnRowPointerExited"
+                                                PointerCanceled="OnRowPointerExited">
+                                                <Grid.BackgroundTransition>
+                                                    <BrushTransition Duration="0:0:0.083" />
+                                                </Grid.BackgroundTransition>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />
@@ -62,8 +119,6 @@
                                                 <CheckBox
                                                     MinWidth="0"
                                                     IsChecked="{x:Bind IsVisible, Mode=OneWay}"
-                                                    Background="{x:Bind local:SidebarView.Brush(Color), Mode=OneWay}"
-                                                    BorderBrush="{x:Bind local:SidebarView.Brush(Color), Mode=OneWay}"
                                                     Click="OnVisibilityClick"
                                                     Tag="{x:Bind}"
                                                     AutomationProperties.Name="{x:Bind Name}"
@@ -71,11 +126,7 @@
                                                 <!-- Name + Color Flyout -->
                                                 <Button
                                                     Grid.Column="1"
-                                                    Padding="0"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    HorizontalAlignment="Stretch"
-                                                    HorizontalContentAlignment="Left"
+                                                    Style="{StaticResource LeafRowTextButtonStyle}"
                                                     Click="OnColorButtonClick"
                                                     Tag="{x:Bind}"
                                                     ToolTipService.ToolTip="Change color"
@@ -97,10 +148,12 @@
         <!-- Footer -->
         <StackPanel Grid.Row="1" Spacing="2" Margin="0,8,0,0">
             <HyperlinkButton
+                Padding="9,5,11,6"
                 Content="Google booking pages"
                 NavigateUri="https://calendar.google.com/calendar/u/0/appointments"
                 AutomationProperties.AutomationId="BookingPagesLink" />
             <Button
+                Padding="9,5,11,6"
                 HorizontalAlignment="Stretch"
                 HorizontalContentAlignment="Left"
                 Background="Transparent"

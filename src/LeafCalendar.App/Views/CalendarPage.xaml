@@ -2,51 +2,99 @@
     x:Class="LeafCalendar.App.Views.CalendarPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:LeafCalendar.App.Views">
+    xmlns:local="using:LeafCalendar.App.Views"
+    KeyboardAcceleratorPlacementMode="Hidden">
 
     <Page.KeyboardAccelerators>
         <KeyboardAccelerator Key="Escape" Invoked="OnEscapeInvoked" />
     </Page.KeyboardAccelerators>
 
+    <!-- Three parts: the sidebar and the details panel are the panes of two nested inline SplitViews
+         (WinUI's own slide), on the window's Mica; the calendar island fills the space between them.
+         The page runs under the title bar, so the top 48 px of each part sits in the title bar row. -->
     <Grid x:Name="Root" AutomationProperties.Name="Calendar" AutomationProperties.AutomationId="CalendarRoot">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition x:Name="SidebarColumn" Width="264" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition x:Name="DetailsColumn" Width="0" />
-        </Grid.ColumnDefinitions>
 
-        <!-- Sidebar -->
-        <local:SidebarView x:Name="Sidebar" AutomationProperties.Name="Sidebar" AutomationProperties.LandmarkType="Navigation" AutomationProperties.AutomationId="Sidebar" />
+        <!-- Sidebar Pane -->
+        <SplitView
+            x:Name="SidebarSplit"
+            DisplayMode="Inline"
+            PanePlacement="Left"
+            OpenPaneLength="264"
+            PaneBackground="Transparent"
+            BorderThickness="0">
+            <SplitView.Pane>
+                <local:SidebarView
+                    x:Name="Sidebar"
+                    AutomationProperties.Name="Sidebar"
+                    AutomationProperties.LandmarkType="Navigation"
+                    AutomationProperties.AutomationId="Sidebar" />
+            </SplitView.Pane>
 
-        <!-- View -->
-        <Border Grid.Column="1" Style="{StaticResource LeafSurfaceBorderStyle}">
-            <Grid x:Name="ViewHost" AutomationProperties.Name="Calendar view" AutomationProperties.LandmarkType="Main" AutomationProperties.AutomationId="ViewHost" />
-        </Border>
+            <!-- Details Pane -->
+            <SplitView
+                x:Name="DetailsSplit"
+                DisplayMode="Inline"
+                PanePlacement="Right"
+                OpenPaneLength="320"
+                PaneBackground="Transparent"
+                BorderThickness="0"
+                SizeChanged="OnDetailsSplitSizeChanged">
+                <SplitView.Pane>
+                    <local:DetailsPanel x:Name="Details" />
+                </SplitView.Pane>
 
-        <!-- Details -->
-        <Border x:Name="DetailsHost" Grid.Column="2" Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1,1,0,0">
-            <local:DetailsPanel x:Name="Details" />
-        </Border>
+                <Grid>
+                    <!-- Island (flat, top to bottom; its fill against the Mica is the only edge) -->
+                    <Grid x:Name="Island" Background="{ThemeResource LayerFillColorDefaultBrush}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="49" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
 
-        <!-- Empty State -->
-        <StackPanel
-            x:Name="EmptyState"
-            Grid.Column="1"
-            Spacing="12"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Visibility="Collapsed"
-            AutomationProperties.Name="No calendars yet"
-            AutomationProperties.AutomationId="EmptyState">
-            <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="No calendars yet" HorizontalAlignment="Center" />
-            <TextBlock Text="Add a Google account to see your events here." Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
-            <Button
-                Style="{StaticResource AccentButtonStyle}"
-                Content="Add a Google account"
-                HorizontalAlignment="Center"
-                Click="OnAddAccountClick"
-                AutomationProperties.AutomationId="EmptyAddAccountButton" />
-        </StackPanel>
-        <!-- /Empty State -->
+                        <!-- Period Title (under the title bar's drag area; the toolbar floats over the right end; the left inset is CalendarPage.TitleInset, set in code) -->
+                        <TextBlock
+                            x:Name="PeriodTitle"
+                            Margin="0,9,0,8"
+                            VerticalAlignment="Center"
+                            FontSize="22"
+                            FontWeight="Bold"
+                            TextTrimming="CharacterEllipsis"
+                            AutomationProperties.AutomationId="PeriodTitle" />
+
+                        <!-- View -->
+                        <Grid
+                            x:Name="ViewHost"
+                            Grid.Row="1"
+                            Tapped="OnViewHostTapped"
+                            AutomationProperties.Name="Calendar view"
+                            AutomationProperties.LandmarkType="Main"
+                            AutomationProperties.AutomationId="ViewHost" />
+                    </Grid>
+                    <!-- /Island -->
+
+                    <!-- Empty State -->
+                    <StackPanel
+                        x:Name="EmptyState"
+                        Spacing="12"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Visibility="Collapsed"
+                        AutomationProperties.Name="No calendars yet"
+                        AutomationProperties.AutomationId="EmptyState">
+                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="No calendars yet" HorizontalAlignment="Center" />
+                        <TextBlock Text="Add a Google account to see your events here." Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
+                        <Button
+                            Style="{StaticResource AccentButtonStyle}"
+                            Content="Add a Google account"
+                            HorizontalAlignment="Center"
+                            Click="OnAddAccountClick"
+                            AutomationProperties.AutomationId="EmptyAddAccountButton" />
+                    </StackPanel>
+                    <!-- /Empty State -->
+                </Grid>
+            </SplitView>
+            <!-- /Details Pane -->
+        </SplitView>
+        <!-- /Sidebar Pane -->
     </Grid>
 </Page>

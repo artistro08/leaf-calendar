@@ -1,5 +1,6 @@
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
+using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
 using LeafCalendar.UITests.Support;
 
@@ -34,6 +35,47 @@ public sealed class DetailsPanelTests : IDisposable
     }
 
     [Fact]
+    public void ClickEmptyGridSpace_ClearsSelection()
+    {
+        using var leaf = Launch();
+
+        var dentist = leaf.WaitFor("Event_evt-single_202610011300");
+        dentist.Click();
+        Assert.Equal("Dentist appointment", leaf.WaitFor("DetailsTitle").Name);
+
+        // Same Day Column, Well Below The Event
+        var box = dentist.BoundingRectangle;
+        Mouse.Click(new System.Drawing.Point(box.X + box.Width / 2, box.Bottom + 150));
+
+        Assert.NotNull(leaf.WaitFor("UpcomingHeader"));
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("DetailsTitle"), TimeSpan.FromSeconds(5)).Success);
+    }
+
+    [Fact]
+    public void Wheel_OverDetailsPanel_ScrollsIt()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300");
+
+        // The family calendar's school play has a long description; N steps through events until it's selected
+        Assert.True(Retry.WhileFalse(() =>
+        {
+            leaf.Press(VirtualKeyShort.KEY_N);
+            Thread.Sleep(300);
+            return leaf.Exists("DetailsTitle") && leaf.WaitFor("DetailsTitle").Name == "School play";
+        }, TimeSpan.FromSeconds(10)).Success);
+
+        // At the smallest window height the details overflow
+        leaf.Resize(1300, 200);
+        var scroll = leaf.WaitFor("DetailsScroll").Patterns.Scroll.Pattern;
+        Assert.True(Retry.WhileFalse(() => scroll.VerticallyScrollable.ValueOrDefault, TimeSpan.FromSeconds(5)).Success);
+
+        LeafApp.WheelOver(leaf.WaitFor("DetailsWhen"), -3);
+
+        Assert.True(Retry.WhileFalse(() => scroll.VerticalScrollPercent.ValueOrDefault > 0, TimeSpan.FromSeconds(5)).Success);
+    }
+
+    [Fact]
     public void Upcoming_OnStartDateMorning_ListsDentist()
     {
         using var leaf = Launch();
@@ -48,7 +90,7 @@ public sealed class DetailsPanelTests : IDisposable
         using (var leaf = Launch())
         {
             leaf.WaitFor("DetailsToggleButton").AsToggleButton().Toggle();
-            Assert.True(FlaUI.Core.Tools.Retry.WhileTrue(() => leaf.Exists("UpcomingHeader"), TimeSpan.FromSeconds(5)).Success);
+            Assert.True(Retry.WhileTrue(() => leaf.Exists("UpcomingHeader"), TimeSpan.FromSeconds(5)).Success);
         }
 
         using var relaunched = Launch();

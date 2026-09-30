@@ -17,8 +17,12 @@ public sealed partial class AllDayCanvas : Canvas
     readonly TimeGridView _owner;
     readonly List<Border> _chips = [];
 
-    /// <summary>Creates the row owned by <paramref name="owner"/>.</summary>
-    public AllDayCanvas(TimeGridView owner) => _owner = owner;
+    /// <summary>Creates the row owned by <paramref name="owner"/>. Its background is hit-testable, so a click on empty all-day space reaches the page and clears the selection.</summary>
+    public AllDayCanvas(TimeGridView owner)
+    {
+        _owner     = owner;
+        Background = LeafBrushes.Transparent;
+    }
 
     /// <summary>Lanes used by the last render.</summary>
     public int LaneCount { get; private set; }

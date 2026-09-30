@@ -52,10 +52,10 @@ public sealed partial class DayHeaderCell : Grid
         var isToday = date == _owner.ViewModel.Today;
 
         _weekday.Text       = TimeLabels.WeekdayShort(date);
-        _weekday.Foreground = isToday ? LeafBrushes.Accent : LeafBrushes.SecondaryText(dark);
+        _weekday.Foreground = isToday ? LeafBrushes.Accent(dark) : LeafBrushes.SecondaryText(dark);
         _number.Text        = date.Day.ToString(CultureInfo.InvariantCulture);
-        _number.Foreground  = isToday ? LeafBrushes.OnAccent : LeafBrushes.PrimaryText(dark);
-        _circle.Background  = isToday ? LeafBrushes.Accent : LeafBrushes.Transparent;
+        _number.Foreground  = isToday ? LeafBrushes.OnAccent(dark) : LeafBrushes.PrimaryText(dark);
+        _circle.Background  = isToday ? LeafBrushes.Accent(dark) : LeafBrushes.Transparent;
         _divider.Fill       = LeafBrushes.GridLine(dark);
 
         AutomationProperties.SetAutomationId(this, string.Create(CultureInfo.InvariantCulture, $"DayHeader_{date:yyyy-MM-dd}"));

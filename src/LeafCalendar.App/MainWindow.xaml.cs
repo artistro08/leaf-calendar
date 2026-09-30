@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.App.Views;
@@ -7,20 +6,43 @@ using LeafCalendar.Core.Sync;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace LeafCalendar.App;
 
 /// <summary>
-/// Main window: a tall XAML title bar (caption buttons match its 48 px height) holding the period
-/// title and the calendar toolbar, a Mica backdrop, and a page frame (setup, calendar, accounts).
-/// The back button shows only when the frame can go back; the pane toggle only on the calendar.
+/// Main window: a tall XAML title bar (caption buttons match its 48 px height) holding the calendar
+/// toolbar, a Mica backdrop, and a page frame (setup, calendar, accounts). On the calendar page the
+/// frame runs under the title bar, so the sidebars and the calendar island reach the top edge; the
+/// title bar stays transparent and only its buttons take clicks. The back button shows only when
+/// the frame can go back; the pane toggle only on the calendar.
 /// </summary>
 [SuppressMessage("Design", "CA1001", Justification = "Windows aren't disposable; the view model is disposed when the window closes.")]
 public sealed partial class MainWindow : Window
 {
+    // Title Bar Toolbar Slide (the island's right edge moves with the details pane, so the toolbar follows it
+    // on the SplitView's own timing and curve; the transform is built here and kept, since reading
+    // RenderTransform back fails its cast under Native AOT)
+    static readonly TimeSpan PaneOpenDuration  = TimeSpan.FromMilliseconds(200);
+    static readonly TimeSpan PaneCloseDuration = TimeSpan.FromMilliseconds(100);
+
+    // Smallest window, in DIPs: both panes open (264 + 320) around an island that still fits the
+    // widest title ("September 2026": 17 in, 170 wide), a 16 gap, and the widest toolbar (about 257,
+    // with "31 days" on the view button) 6 in from the island's right edge, which also leaves the
+    // week grid its 56 gutter and seven 48-wide days. The height keeps the sidebar's mini month, an account with three calendars, and
+    // its footer, and shows about eight hours of the grid at the default hour height.
+    const double MinimumWidth  = CalendarPage.SidebarWidth + CalendarPage.TitleInset + 170 + 16 + 257 + CalendarPage.ToolbarInset + CalendarPage.DetailsWidth;
+    const double MinimumHeight = 540;
+
     readonly LeafServices _services;
+    readonly IconSource? _appIcon;
+    readonly TranslateTransform _toolbarShift = new();
+    readonly OverlappedPresenter _presenter = OverlappedPresenter.Create();
     CalendarViewModel? _calendar;
+    Storyboard? _toolbarSlide;
+    (double Right, bool Sidebar, bool Calendar)? _titleBarLayout;
     bool _syncingMenu;
 
     /// <summary>Creates the window. <see cref="App"/> owns the services.</summary>
@@ -28,6 +50,8 @@ public sealed partial class MainWindow : Window
     {
         _services = services;
         InitializeComponent();
+        _appIcon = AppTitleBar.IconSource;
+        CalendarToolbar.RenderTransform = _toolbarShift;
 
         // Shortcuts are handled at the root so they work wherever focus is
         RootGrid.PreviewKeyDown += (_, e) =>
@@ -38,10 +62,23 @@ public sealed partial class MainWindow : Window
             }
         };
 
+        // Window Presenter (ours, kept, so its minimum size can be set without casting AppWindow.Presenter)
+        AppWindow.SetPresenter(_presenter);
+
         // Title Bar
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
+        ToolbarHost.SizeChanged += (_, _) => UpdateTitleBarLayout(animate: false);
+        RootGrid.Loaded += (_, _) =>
+        {
+            ApplyMinimumSize();
+            RootGrid.XamlRoot.Changed += (_, _) =>
+            {
+                ApplyMinimumSize();
+                UpdateTitleBarLayout(animate: false);
+            };
+        };
 
         Activated += OnActivated;
         Closed    += (_, _) =>
@@ -91,7 +128,6 @@ public sealed partial class MainWindow : Window
         if (_calendar is null)
         {
             _calendar = new CalendarViewModel(_services, DispatcherQueue);
-            _calendar.PropertyChanged += OnCalendarPropertyChanged;
             _calendar.LayoutChanged   += (_, _) => SyncMenu();
             ApplyTheme(_calendar.Settings.Theme);
         }
@@ -111,17 +147,98 @@ public sealed partial class MainWindow : Window
 
     void OnNavigated(object sender, NavigationEventArgs e)
     {
-        var onCalendar = e.Content is CalendarPage;
+        var page       = e.Content as CalendarPage;
+        var onCalendar = page is not null;
+
+        // The calendar runs under the title bar; setup and accounts sit below it
+        Grid.SetRow(ContentFrame, onCalendar ? 0 : 1);
+        Grid.SetRowSpan(ContentFrame, onCalendar ? 2 : 1);
 
         CalendarToolbar.Visibility            = onCalendar ? Visibility.Visible : Visibility.Collapsed;
-        PeriodTitle.Visibility                = onCalendar ? Visibility.Visible : Visibility.Collapsed;
         AppTitleBar.IsPaneToggleButtonVisible = onCalendar;
 
-        if (onCalendar && _calendar is not null)
+        if (page is not null)
         {
-            PeriodTitle.Text = _calendar.PeriodTitle;
+            page.PanesChanged += (_, e) =>
+            {
+                UpdateTitleBarLayout(e.Animate);
+                DetailsToggle.IsChecked = page.IsDetailsOpen;
+            };
             SyncMenu();
         }
+
+        UpdateTitleBarLayout(animate: false);
+    }
+
+    // Line the toolbar up with the calendar island's right edge (next to the caption buttons when
+    // the details panel is closed), and hide the app name when the sidebar is closed so the
+    // island's title has room. Then re-punch the title bar's click-through holes for the buttons.
+    // Where the title bar's content area ends is measured, not assumed: TitleBar reserves the caption
+    // buttons' width in screen pixels as if they were DIPs, so above 100% its content area stops short
+    // of the buttons (about 34 DIPs at 125%). Resizing calls this for every step of the drag, so
+    // nothing happens unless the layout really changed.
+    void UpdateTitleBarLayout(bool animate)
+    {
+        var page = ContentFrame.Content as CalendarPage;
+        if (ToolbarHost.ActualWidth <= 0 || RootGrid.XamlRoot is null)
+        {
+            return;
+        }
+
+        // Target: The Toolbar Inset In From The Island's Right Edge, Or From The Caption Buttons
+        var scale   = RootGrid.XamlRoot.RasterizationScale;
+        var width   = RootGrid.ActualWidth;
+        var caption = AppWindow.TitleBar.RightInset / scale;
+        var hostEnd = ToolbarHost.TransformToVisual(RootGrid).TransformPoint(new Windows.Foundation.Point(ToolbarHost.ActualWidth, 0)).X;
+        var target  = page is { IsDetailsOpen: true } ? width - CalendarPage.DetailsWidth - CalendarPage.ToolbarInset : width - caption - CalendarPage.ToolbarInset;
+        var right   = page is null ? 0 : Math.Round((hostEnd - target) * scale) / scale;
+        var layout  = (Right: right, Sidebar: page?.IsSidebarOpen ?? true, Calendar: page is not null);
+        if (layout == _titleBarLayout)
+        {
+            return;
+        }
+
+        var previous = _titleBarLayout;
+        _titleBarLayout = layout;
+
+        CalendarToolbar.Margin = new Thickness(0, 0, layout.Right, 0);
+        AppTitleBar.Title      = layout.Sidebar ? "Leaf Calendar" : "";
+        AppTitleBar.IconSource = layout.Sidebar ? _appIcon : null;
+
+        // Slide From The Old Spot (so the toolbar tracks the island's edge instead of jumping ahead of it)
+        _toolbarSlide?.Stop();
+        _toolbarShift.X = 0;
+        var distance = layout.Right - (previous?.Right ?? layout.Right);
+        if (animate && distance != 0 && new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
+        {
+            var slide = new DoubleAnimationUsingKeyFrames();
+            slide.KeyFrames.Add(new DiscreteDoubleKeyFrame { KeyTime = TimeSpan.Zero, Value = distance });
+            slide.KeyFrames.Add(new SplineDoubleKeyFrame
+            {
+                KeyTime   = distance > 0 ? PaneOpenDuration : PaneCloseDuration,
+                KeySpline = new KeySpline { ControlPoint1 = new Windows.Foundation.Point(0, 0.35), ControlPoint2 = new Windows.Foundation.Point(0.15, 1) },
+                Value     = 0,
+            });
+            Storyboard.SetTarget(slide, _toolbarShift);
+            Storyboard.SetTargetProperty(slide, "X");
+
+            _toolbarSlide = new Storyboard { Children = { slide } };
+            _toolbarSlide.Completed += (_, _) => AppTitleBar.RecomputeDragRegions();
+            _toolbarSlide.Begin();
+        }
+
+        AppTitleBar.RecomputeDragRegions();
+    }
+
+    // The minimum size is the content's, in DIPs; the presenter takes the whole window in screen pixels, so it
+    // follows the monitor's scale and adds the window frame (the invisible resize borders, about 14 DIPs across)
+    void ApplyMinimumSize()
+    {
+        var scale = RootGrid.XamlRoot?.RasterizationScale ?? 1;
+        var frame = AppWindow.Size;
+        var inner = AppWindow.ClientSize;
+        _presenter.PreferredMinimumWidth  = (int)Math.Ceiling(MinimumWidth * scale) + Math.Max(0, frame.Width - inner.Width);
+        _presenter.PreferredMinimumHeight = (int)Math.Ceiling(MinimumHeight * scale) + Math.Max(0, frame.Height - inner.Height);
     }
 
     void OnBackRequested(TitleBar sender, object args)
@@ -136,13 +253,20 @@ public sealed partial class MainWindow : Window
     {
         if (ContentFrame.Content is CalendarPage page && _calendar is not null)
         {
-            page.SetSidebarOpen(!_calendar.Settings.SidebarOpen);
+            page.SetSidebarOpen(!_calendar.Settings.SidebarOpen, animate: true);
         }
     }
 
     void OnActivated(object sender, WindowActivatedEventArgs args)
     {
-        if (args.WindowActivationState == WindowActivationState.Deactivated || _services.Google is not { } google)
+        if (args.WindowActivationState == WindowActivationState.Deactivated)
+        {
+            return;
+        }
+
+        // Back From Settings: The PC's Time Zone May Have Changed
+        _calendar?.CheckTimeZone();
+        if (_services.Google is not { } google)
         {
             return;
         }
@@ -154,14 +278,6 @@ public sealed partial class MainWindow : Window
     // =========================================================================
     // TOOLBAR
     // =========================================================================
-
-    void OnCalendarPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(CalendarViewModel.PeriodTitle) && _calendar is not null)
-        {
-            PeriodTitle.Text = _calendar.PeriodTitle;
-        }
-    }
 
     void OnTodayClick(object sender, RoutedEventArgs e) => _calendar?.GoToToday();
 
@@ -217,7 +333,7 @@ public sealed partial class MainWindow : Window
     {
         if (ContentFrame.Content is CalendarPage page)
         {
-            page.SetDetailsOpen(DetailsToggle.IsChecked == true);
+            page.SetDetailsOpen(DetailsToggle.IsChecked == true, animate: true);
         }
     }
 

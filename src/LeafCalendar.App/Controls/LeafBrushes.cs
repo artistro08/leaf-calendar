@@ -45,17 +45,28 @@ public static class LeafBrushes
     /// <summary>Secondary text (hour labels, weekday names).</summary>
     public static SolidColorBrush SecondaryText(bool dark) => FromHex(dark ? "#C5FFFFFF" : "#9E000000");
 
+    /// <summary>Hover fill for rows (the theme's SubtleFillColorSecondary).</summary>
+    public static SolidColorBrush Hover(bool dark) => FromHex(dark ? "#0FFFFFFF" : "#09000000");
+
     /// <summary>Primary text.</summary>
     public static SolidColorBrush PrimaryText(bool dark) => FromHex(dark ? "#FFFFFFFF" : "#E4000000");
 
     /// <summary>Days outside the focused month.</summary>
     public static SolidColorBrush DimText(bool dark) => FromHex(dark ? "#5DFFFFFF" : "#5C000000");
 
-    /// <summary>The system accent brush.</summary>
-    public static Brush Accent => (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+    /// <summary>
+    /// The accent fill for a theme (what AccentFillColorDefaultBrush resolves to: the system accent's
+    /// Light 2 shade in dark, Dark 1 in light). Looked up from the system rather than the app's resources,
+    /// which follow the Windows theme even when Leaf is set to the other one.
+    /// </summary>
+    public static SolidColorBrush Accent(bool dark) => dark ? AccentDark.Value : AccentLight.Value;
 
-    /// <summary>Text on the accent brush.</summary>
-    public static Brush OnAccent => (Brush)Application.Current.Resources["TextOnAccentFillColorPrimaryBrush"];
+    /// <summary>Text on <see cref="Accent"/> (TextOnAccentFillColorPrimary: black in dark, white in light).</summary>
+    public static SolidColorBrush OnAccent(bool dark) => FromHex(dark ? "#FF000000" : "#FFFFFFFF");
+
+    // ponytail: read once; an accent color change while Leaf runs shows after a restart
+    static readonly Lazy<SolidColorBrush> AccentDark  = new(() => new SolidColorBrush(new Windows.UI.ViewManagement.UISettings().GetColorValue(Windows.UI.ViewManagement.UIColorType.AccentLight2)));
+    static readonly Lazy<SolidColorBrush> AccentLight = new(() => new SolidColorBrush(new Windows.UI.ViewManagement.UISettings().GetColorValue(Windows.UI.ViewManagement.UIColorType.AccentDark1)));
 
     static Color Parse(string hex)
     {

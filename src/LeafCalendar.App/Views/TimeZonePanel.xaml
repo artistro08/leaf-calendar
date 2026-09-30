@@ -7,6 +7,11 @@
 
     <StackPanel Width="320" Spacing="8">
         <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Time zones" />
+        <TextBlock
+            Style="{StaticResource CaptionTextBlockStyle}"
+            Text="Columns show left to right in this order, next to your PC's time zone. Drag to reorder."
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            TextWrapping="Wrap" />
 
         <!-- Add -->
         <AutoSuggestBox

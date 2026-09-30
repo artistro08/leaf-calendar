@@ -7,77 +7,63 @@
     AutomationProperties.Name="Details"
     AutomationProperties.AutomationId="DetailsPanel">
 
-    <Grid Padding="20,16,16,16">
+    <!-- Top padding clears the title bar row this panel runs under; everything below it scrolls as one -->
+    <Grid Padding="0,48,0,0">
+        <ScrollViewer x:Name="ContentScroll" AutomationProperties.AutomationId="DetailsScroll">
+            <Grid Margin="16,8,16,16">
 
-        <!-- Upcoming -->
-        <StackPanel x:Name="UpcomingView" Spacing="8">
-            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Upcoming" AutomationProperties.AutomationId="UpcomingHeader" />
-            <TextBlock x:Name="UpcomingEmpty" Text="Nothing in the next 8 hours." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-            <ItemsControl x:Name="UpcomingList" AutomationProperties.Name="Upcoming events" AutomationProperties.AutomationId="UpcomingList">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:UpcomingItem">
-                        <Button
-                            Padding="8,6"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Stretch"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Click="OnUpcomingClick"
-                            Tag="{x:Bind Occurrence}"
-                            AutomationProperties.Name="{x:Bind Title}">
-                            <Grid ColumnSpacing="10">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{x:Bind local:DetailsPanel.Brush(Color)}" />
-                                <StackPanel Grid.Column="1">
-                                    <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
-                                        <Run Text="{x:Bind When}" /><Run Text=" · " /><Run Text="{x:Bind Relative}" />
-                                    </TextBlock>
-                                </StackPanel>
-                            </Grid>
-                        </Button>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </StackPanel>
-        <!-- /Upcoming -->
-
-        <!-- Event Details (plain text only: event content comes from anyone who can invite you) -->
-        <ScrollViewer x:Name="DetailsView" Visibility="Collapsed">
-            <StackPanel Spacing="14">
-                <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock x:Name="TitleText" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsTitle" />
-                    <Button
-                        Grid.Column="1"
-                        VerticalAlignment="Top"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Click="OnCloseClick"
-                        ToolTipService.ToolTip="Close (Esc)"
-                        AutomationProperties.Name="Close details"
-                        AutomationProperties.AutomationId="DetailsCloseButton">
-                        <SymbolIcon Symbol="Cancel" />
-                    </Button>
-                </Grid>
-                <TextBlock x:Name="WhenText" TextWrapping="Wrap" AutomationProperties.AutomationId="DetailsWhen" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Ellipse x:Name="CalendarDot" Width="10" Height="10" VerticalAlignment="Center" />
-                    <TextBlock x:Name="CalendarText" AutomationProperties.AutomationId="DetailsCalendar" />
+                <!-- Upcoming -->
+                <StackPanel x:Name="UpcomingView" Spacing="8">
+                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Upcoming" AutomationProperties.AutomationId="UpcomingHeader" />
+                    <TextBlock x:Name="UpcomingEmpty" Text="Nothing in the next 8 hours." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                    <ItemsControl x:Name="UpcomingList" AutomationProperties.Name="Upcoming events" AutomationProperties.AutomationId="UpcomingList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:UpcomingItem">
+                                <Button
+                                    Padding="8,6"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Click="OnUpcomingClick"
+                                    Tag="{x:Bind Occurrence}"
+                                    AutomationProperties.Name="{x:Bind Title}">
+                                    <Grid ColumnSpacing="10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{x:Bind local:DetailsPanel.Brush(Color)}" />
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                                                <Run Text="{x:Bind When}" /><Run Text=" · " /><Run Text="{x:Bind Relative}" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
-                <TextBlock x:Name="LocationText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsLocation" />
-                <TextBlock x:Name="ConferenceText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsConference" />
-                <TextBlock x:Name="ResponseText" AutomationProperties.AutomationId="DetailsResponse" />
-                <TextBlock x:Name="GuestsText" />
-                <TextBlock x:Name="DescriptionText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsDescription" />
-            </StackPanel>
+                <!-- /Upcoming -->
+
+                <!-- Event Details (plain text only: event content comes from anyone who can invite you) -->
+                <StackPanel x:Name="DetailsView" Spacing="14" Visibility="Collapsed">
+                    <TextBlock x:Name="TitleText" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsTitle" />
+                    <TextBlock x:Name="WhenText" TextWrapping="Wrap" AutomationProperties.AutomationId="DetailsWhen" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Ellipse x:Name="CalendarDot" Width="10" Height="10" VerticalAlignment="Center" />
+                        <TextBlock x:Name="CalendarText" AutomationProperties.AutomationId="DetailsCalendar" />
+                    </StackPanel>
+                    <TextBlock x:Name="LocationText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsLocation" />
+                    <TextBlock x:Name="ConferenceText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsConference" />
+                    <TextBlock x:Name="ResponseText" AutomationProperties.AutomationId="DetailsResponse" />
+                    <TextBlock x:Name="GuestsText" />
+                    <TextBlock x:Name="DescriptionText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsDescription" />
+                </StackPanel>
+                <!-- /Event Details -->
+            </Grid>
         </ScrollViewer>
-        <!-- /Event Details -->
     </Grid>
 </UserControl>

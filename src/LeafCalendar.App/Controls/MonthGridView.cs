@@ -11,9 +11,12 @@ namespace LeafCalendar.App.Controls;
 /// </summary>
 /// <remarks>
 /// Week rows scroll vertically in a virtualized <see cref="ItemsRepeater"/> of about 10 years of weeks.
-/// Six rows fill the screen. When scrolling stops, the view snaps to a row edge; the month containing
-/// the middle of the third row becomes the "focused" month (the title, with other months' days
-/// dimmed). Pagers jump a month. Navigation reports the new weeks right away.
+/// Six rows fill the screen, each a whole number of screen pixels tall so row edges are whole-pixel
+/// scroll offsets and text stays sharp. The month containing the middle of the third row is the
+/// "focused" month (the title, with other months' days dimmed); while you scroll by hand it follows
+/// each new top week, and when scrolling stops the view snaps to a row edge. Pagers jump a month.
+/// Navigation reports the new weeks right away, then runs one scroll to the exact target and ignores
+/// the offsets it passes on the way.
 /// </remarks>
 public sealed partial class MonthGridView : Grid, IDisposable
 {
@@ -30,12 +33,27 @@ public sealed partial class MonthGridView : Grid, IDisposable
 
     readonly CalendarViewModel _vm;
     readonly Grid _weekdays = new() { Height = 32 };
-    readonly ScrollViewer _scroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollMode = ScrollMode.Disabled, ZoomMode = ZoomMode.Disabled };
-    readonly ItemsRepeater _repeater = new() { Layout = new StackLayout { Orientation = Orientation.Vertical }, VerticalCacheLength = 2 };
+    readonly ScrollViewer _scroll = new() { HorizontalScrollMode = ScrollMode.Disabled, ZoomMode = ZoomMode.Disabled };
+    // One column of fixed-size rows: positions are exact (index × height), unlike StackLayout's estimates,
+    // which put rows off by part of a row after the row height changes
+    readonly UniformGridLayout _layout = new() { Orientation = Orientation.Horizontal, MaximumRowsOrColumns = 1 };
+    readonly ItemsRepeater _repeater = new() { VerticalCacheLength = 2 };
     readonly HashSet<WeekRow> _rows = [];
     List<WeekItem> _weeks = [];
     bool _disposed;
+    bool _renderDeferred;
     int _firstIndex;
+    int _reportedIndex = -1;
+    double _layoutWidth;
+
+    // The week a navigation is scrolling to; until the body lands there, offsets on the way are ignored
+    int? _pendingIndex;
+
+    // The XamlRoot this view listens to for scale changes (kept: it's already gone when a closing window unloads the view)
+    XamlRoot? _root;
+
+    // An animated scroll is running; jumps wait for it (see TimeGridView: a jump doesn't cancel it)
+    bool _animating;
 
     /// <summary>Builds the view for <paramref name="vm"/>.</summary>
     public MonthGridView(CalendarViewModel vm)
@@ -50,17 +68,30 @@ public sealed partial class MonthGridView : Grid, IDisposable
         Children.Add(_weekdays);
 
         // Weeks
+        _repeater.Layout       = _layout;
         _repeater.ItemTemplate = new WeekRowFactory(this);
         _repeater.ElementPrepared += (_, e) => _rows.Add((WeekRow)e.Element);
         _repeater.ElementClearing += (_, e) => _rows.Remove((WeekRow)e.Element);
         _scroll.Content = _repeater;
+        ScrollIndicator.ShowOnHover(_scroll);
         SetRow(_scroll, 1);
         Children.Add(_scroll);
 
         // Scrolling And Theme
-        _scroll.ViewChanged += OnViewChanged;
-        _scroll.SizeChanged += (_, _) => Relayout();
-        ActualThemeChanged  += (_, _) =>
+        // No Scroll Anchoring: this view keeps its own first week (anchoring shifts the offset when rows change height)
+        _scroll.VerticalAnchorRatio = double.NaN;
+
+        _scroll.ViewChanged   += OnViewChanged;
+        _scroll.SizeChanged   += (_, _) => Relayout(force: false);
+        _repeater.SizeChanged += (_, _) => RetryPendingScroll();
+        _scroll.DirectManipulationStarted += (_, _) => _pendingIndex = null;
+        Loaded                += (_, _) =>
+        {
+            BuildWeekdayHeader();
+            (_root = XamlRoot).Changed += OnXamlRootChanged;
+        };
+        Unloaded              += (_, _) => _root?.Changed -= OnXamlRootChanged;
+        ActualThemeChanged    += (_, _) =>
         {
             BuildWeekdayHeader();
             RenderAll();
@@ -105,9 +136,11 @@ public sealed partial class MonthGridView : Grid, IDisposable
             index = WeekIndexOf(ViewNavigator.MonthStartOf(date));
         }
 
-        _firstIndex = index;
-        _scroll.ChangeView(null, index * RowHeight, null, !animate);
+        // Report the destination first; data that loads now paints once the scroll lands
+        _firstIndex   = index;
+        _pendingIndex = index;
         ReportVisible();
+        ScrollToIndex(index, animate);
     }
 
     /// <inheritdoc />
@@ -128,6 +161,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
         var start = ViewNavigator.WeekStartOf(around, _vm.Settings.WeekStart);
         _weeks = [.. Enumerable.Range(-WeeksEachSide, WeeksEachSide * 2 + 1).Select(i => new WeekItem(start.AddDays(i * 7)))];
         _repeater.ItemsSource = _weeks;
+        _reportedIndex        = -1;
     }
 
     int WeekIndexOf(DateOnly date)
@@ -136,9 +170,9 @@ public sealed partial class MonthGridView : Grid, IDisposable
         return _weeks.FindIndex(w => w.WeekStart == weekStart);
     }
 
-    // Resizes rows for the viewport, then keeps the same first week (reading _firstIndex when the
-    // queued scroll runs, so a navigation that lands in between wins)
-    void Relayout()
+    // Sizes the rows for the viewport and keeps the same first week. Resizing the window calls this for
+    // every step of the drag, so rows are only repainted when their height or the column width changed.
+    void Relayout(bool force)
     {
         var viewport = _scroll.ViewportHeight > 0 ? _scroll.ViewportHeight : _scroll.ActualHeight;
         if (_disposed || viewport <= 0)
@@ -146,22 +180,28 @@ public sealed partial class MonthGridView : Grid, IDisposable
             return;
         }
 
-        RowHeight = Math.Max(MinRowHeight, viewport / 6);
-        BuildWeekdayHeader();
+        // Whole-Pixel Rows
+        var scale  = XamlRoot?.RasterizationScale ?? 1;
+        var height = Math.Max(MinRowHeight, Math.Floor(viewport * scale / 6) / scale);
+        var width  = ColumnWidth;
+        if (!force && height == RowHeight && width == _layoutWidth)
+        {
+            return;
+        }
+
+        RowHeight             = height;
+        _layoutWidth          = width;
+        _layout.MinItemHeight = height;
+        _layout.MinItemWidth  = width * ViewNavigator.VisibleColumnCount(Core.Settings.CalendarViewMode.Month, 0, _vm.Settings.ShowWeekends);
         _repeater.InvalidateMeasure();
         RenderAll();
 
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _scroll.ChangeView(null, _firstIndex * RowHeight, null, true);
-            ReportVisible();
-        });
+        // Keep The Same First Week (right away, so no frame shows the old offset at the new height)
+        ScrollToIndex(_firstIndex, animate: false);
     }
+
+    // A monitor with a different scale changes what a whole pixel is
+    void OnXamlRootChanged(XamlRoot sender, XamlRootChangedEventArgs args) => Relayout(force: false);
 
     void BuildWeekdayHeader()
     {
@@ -186,42 +226,113 @@ public sealed partial class MonthGridView : Grid, IDisposable
         }
     }
 
+    void ScrollToIndex(int index, bool animate)
+    {
+        _pendingIndex = index;
+        RetryPendingScroll(animate);
+    }
+
+    // Heads for the pending week, or finishes the navigation when the body is already there. Only the
+    // navigation's own first scroll animates; catching up after a clamp or a relayout jumps.
+    void RetryPendingScroll(bool animate = false)
+    {
+        if (_disposed || _pendingIndex is not { } pending || (_animating && !animate))
+        {
+            return;
+        }
+
+        var target = pending * RowHeight;
+        if (IsAt(target, _scroll.VerticalOffset))
+        {
+            _pendingIndex = null;
+            _firstIndex   = pending;
+            Settle();
+            return;
+        }
+
+        animate    = animate && target <= _scroll.ScrollableHeight;
+        _animating = animate;
+        ScrollIndicator.Hide(_scroll);
+        _scroll.ChangeView(null, target, null, !animate);
+    }
+
     void OnViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
+        if (!e.IsIntermediate)
+        {
+            _animating = false;
+        }
+
+        // Navigating: wait for the target (the destination was reported when the navigation began)
+        if (_pendingIndex is not null)
+        {
+            if (!e.IsIntermediate)
+            {
+                RetryPendingScroll();
+            }
+
+            return;
+        }
+
+        // Scrolling By Hand: report each new top week as it comes into view
+        _firstIndex = Math.Clamp((int)Math.Round(_scroll.VerticalOffset / RowHeight), 0, _weeks.Count - 1);
+        ReportVisible();
         if (e.IsIntermediate)
         {
             return;
         }
 
-        // Snap To A Row
-        var index  = (int)Math.Round(_scroll.VerticalOffset / RowHeight);
-        var target = index * RowHeight;
-        if (Math.Abs(target - _scroll.VerticalOffset) > 0.5)
+        // Stopped: Snap To A Row
+        var target = _firstIndex * RowHeight;
+        if (!IsAt(target, _scroll.VerticalOffset))
         {
+            _animating = true;
             _scroll.ChangeView(null, target, null, false);
             return;
         }
 
-        _firstIndex = index;
-        ReportVisible();
+        Settle();
     }
 
+    static bool IsAt(double target, double offset) => Math.Abs(target - offset) < 0.5;
+
+    // Once the body is still: paint data that arrived while it was moving
+    void Settle()
+    {
+        ReportVisible();
+        if (_renderDeferred)
+        {
+            _renderDeferred = false;
+            RenderAll();
+        }
+    }
+
+    // Tells the view model which weeks show; a new focused month only re-colors the day numbers
     void ReportVisible()
     {
-        if (_disposed)
+        if (_disposed || _weeks.Count == 0)
         {
             return;
         }
 
         _firstIndex = Math.Clamp(_firstIndex, 0, _weeks.Count - 1);
-        var first   = _weeks[_firstIndex].WeekStart;
-        var focus   = _weeks[Math.Min(_firstIndex + 2, _weeks.Count - 1)].WeekStart.AddDays(3);
-        var month   = ViewNavigator.MonthStartOf(focus);
+        if (_firstIndex == _reportedIndex)
+        {
+            return;
+        }
+
+        _reportedIndex = _firstIndex;
+        var first = _weeks[_firstIndex].WeekStart;
+        var focus = _weeks[Math.Min(_firstIndex + 2, _weeks.Count - 1)].WeekStart.AddDays(3);
+        var month = ViewNavigator.MonthStartOf(focus);
 
         if (month != FocusMonth)
         {
             FocusMonth = month;
-            RenderAll();
+            foreach (var row in _rows)
+            {
+                row.RenderFocus();
+            }
         }
 
         _vm.OnViewScrolled(first, first.AddDays(42), focus);
@@ -231,10 +342,18 @@ public sealed partial class MonthGridView : Grid, IDisposable
     // VIEW MODEL EVENTS
     // =========================================================================
 
+    // While a navigation is scrolling, painting new data waits until it lands, so a month loading
+    // mid-scroll can't drop animation frames
     void OnOccurrencesChanged(object? sender, EventArgs e)
     {
         if (_disposed)
         {
+            return;
+        }
+
+        if (_pendingIndex is not null)
+        {
+            _renderDeferred = true;
             return;
         }
 
@@ -250,7 +369,9 @@ public sealed partial class MonthGridView : Grid, IDisposable
 
         BuildWeeks(FocusMonth);
         _firstIndex = WeekIndexOf(FocusMonth);
-        Relayout();
+        BuildWeekdayHeader();
+        Relayout(force: true);
+        ReportVisible();
     }
 
     void OnNavigateRequested(object? sender, DateOnly date)

@@ -90,6 +90,23 @@ public sealed class LeafApp : IDisposable
     /// <summary>True when an element with this ID is currently in the main window.</summary>
     public bool Exists(string automationId) => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) is not null;
 
+    /// <summary>Turns the mouse wheel over the middle of <paramref name="element"/> (positive clicks scroll up, negative down).</summary>
+    public static void WheelOver(AutomationElement element, int clicks)
+    {
+        var box = element.BoundingRectangle;
+        Mouse.MoveTo(new System.Drawing.Point(box.X + box.Width / 2, box.Y + box.Height / 2));
+        Thread.Sleep(100);
+        Mouse.Scroll(clicks);
+    }
+
+    /// <summary>Sizes the main window (in screen pixels), so panes overflow and scroll.</summary>
+    public void Resize(int width, int height)
+    {
+        MainWindow.Patterns.Transform.Pattern.Move(40, 40);
+        MainWindow.Patterns.Transform.Pattern.Resize(width, height);
+        Thread.Sleep(500);
+    }
+
     /// <summary>Focuses the main window and presses a key chord (e.g. Control + Shift + E).</summary>
     public void Press(params VirtualKeyShort[] keys)
     {

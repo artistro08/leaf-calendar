@@ -11,16 +11,21 @@ using Microsoft.UI.Xaml.Media;
 namespace LeafCalendar.App.Views;
 
 /// <summary>
-/// Right panel. With nothing selected it lists upcoming events (next 8 hours); with an event
-/// selected it shows that event's details as plain text. Links aren't clickable until Milestone 3
-/// adds the link allowlist and Join.
+/// Right panel, on the window's Mica like the sidebar. With nothing selected it lists upcoming
+/// events (next 8 hours); with an event selected it shows that event's details as plain text.
+/// Esc or a click on empty calendar space clears the selection and brings the list back. Links
+/// aren't clickable until Milestone 3 adds the link allowlist and Join.
 /// </summary>
 public sealed partial class DetailsPanel : UserControl
 {
     CalendarViewModel? _vm;
 
     /// <summary>Creates the panel.</summary>
-    public DetailsPanel() => InitializeComponent();
+    public DetailsPanel()
+    {
+        InitializeComponent();
+        ScrollIndicator.ShowOnHover(ContentScroll);
+    }
 
     /// <summary>x:Bind helper: a brush for a hex color.</summary>
     public static SolidColorBrush Brush(string hex) => LeafBrushes.FromHex(hex);
@@ -66,6 +71,8 @@ public sealed partial class DetailsPanel : UserControl
     {
         UpcomingView.Visibility = info is null ? Visibility.Visible : Visibility.Collapsed;
         DetailsView.Visibility  = info is null ? Visibility.Collapsed : Visibility.Visible;
+        ScrollIndicator.Hide(ContentScroll);
+        ContentScroll.ChangeView(null, 0, null, true);
         if (info is null)
         {
             return;
@@ -101,6 +108,4 @@ public sealed partial class DetailsPanel : UserControl
             _vm.Select(occurrence);
         }
     }
-
-    void OnCloseClick(object sender, RoutedEventArgs e) => _vm?.ClearSelection();
 }

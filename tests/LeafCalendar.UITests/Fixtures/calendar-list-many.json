@@ -1,0 +1,111 @@
+{
+  "kind": "calendar#calendarList",
+  "items": [
+    {
+      "id": "leaf.tester@gmail.com",
+      "summary": "leaf.tester@gmail.com",
+      "timeZone": "America/New_York",
+      "backgroundColor": "#9fe1e7",
+      "foregroundColor": "#000000",
+      "accessRole": "owner",
+      "selected": true,
+      "primary": true,
+      "defaultReminders": [
+        {
+          "method": "popup",
+          "minutes": 10
+        }
+      ]
+    },
+    {
+      "id": "family123@group.calendar.google.com",
+      "summary": "Family",
+      "timeZone": "America/New_York",
+      "backgroundColor": "#f83a22",
+      "foregroundColor": "#000000",
+      "accessRole": "writer",
+      "selected": true,
+      "defaultReminders": []
+    },
+    {
+      "id": "work@group.calendar.google.com",
+      "summary": "Work",
+      "timeZone": "America/New_York",
+      "backgroundColor": "#4986e7",
+      "foregroundColor": "#000000",
+      "accessRole": "writer",
+      "selected": true,
+      "defaultReminders": []
+    },
+    {
+      "id": "gym@group.calendar.google.com",
+      "summary": "Gym",
+      "timeZone": "America/New_York",
+      "backgroundColor": "#16a765",
+      "foregroundColor": "#000000",
+      "accessRole": "writer",
+      "selected": true,
+      "defaultReminders": []
+    },
+    {
+      "id": "books@group.calendar.google.com",
+      "summary": "Book club",
+      "timeZone": "America/New_York",
+      "backgroundColor": "#b99aff",
+      "foregroundColor": "#000000",
+      "accessRole": "writer",
+      "selected": true,
+      "defaultReminders": []
+    },
+    {
+      "id": "soccer@group.calendar.google.com",
+      "summary": "Soccer",
+      "timeZone": "America/New_York",
+      "backgroundColor": "#ffad46",
+      "foregroundColor": "#000000",
+      "accessRole": "writer",
+      "selected": true,
+      "defaultReminders": []
+    },
+    {
+      "id": "piano@group.calendar.google.com",
+      "summary": "Piano lessons",
+      "timeZone": "America/New_York",
+      "backgroundColor": "#cd74e6",
+      "foregroundColor": "#000000",
+      "accessRole": "writer",
+      "selected": true,
+      "defaultReminders": []
+    },
+    {
+      "id": "travel@group.calendar.google.com",
+      "summary": "Travel",
+      "timeZone": "America/New_York",
+      "backgroundColor": "#42d692",
+      "foregroundColor": "#000000",
+      "accessRole": "writer",
+      "selected": true,
+      "defaultReminders": []
+    },
+    {
+      "id": "school@group.calendar.google.com",
+      "summary": "School",
+      "timeZone": "America/New_York",
+      "backgroundColor": "#fad165",
+      "foregroundColor": "#000000",
+      "accessRole": "writer",
+      "selected": true,
+      "defaultReminders": []
+    },
+    {
+      "id": "church@group.calendar.google.com",
+      "summary": "Church",
+      "timeZone": "America/New_York",
+      "backgroundColor": "#9a9cff",
+      "foregroundColor": "#000000",
+      "accessRole": "writer",
+      "selected": true,
+      "defaultReminders": []
+    }
+  ]
+}

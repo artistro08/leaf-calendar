@@ -77,6 +77,33 @@ public sealed class TimeZoneTests : IDisposable
     }
 
     [Fact]
+    public void AddedZones_SitLeftOfThePcZone_NewestNextToIt()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("AddTimeZoneButton").AsButton().Invoke();
+
+        foreach (var (query, id) in new[] { ("Tokyo", "Asia/Tokyo"), ("London", "Europe/London") })
+        {
+            leaf.WaitForAnywhere("TimeZoneSearch").Focus();
+            Thread.Sleep(500);
+            Keyboard.Type(query);
+            Thread.Sleep(500);
+            Keyboard.Press(VirtualKeyShort.RETURN);
+            leaf.WaitFor($"ZoneLabel_{id}");
+        }
+
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+
+        // Left To Right: Tokyo (added first), London (added last), then the PC's zone next to the days
+        var tokyo  = leaf.WaitFor("ZoneLabel_Asia/Tokyo").BoundingRectangle;
+        var london = leaf.WaitFor("ZoneLabel_Europe/London").BoundingRectangle;
+        var local  = leaf.WaitFor("ZoneLabel_Local").BoundingRectangle;
+        Assert.True(tokyo.Right <= london.Left, $"Tokyo {tokyo} should be left of London {london}");
+        Assert.True(london.Right <= local.Left, $"London {london} should be left of the PC's zone {local}");
+        Assert.True(local.Left - london.Right < london.Width, "London should be the column right next to the PC's zone");
+    }
+
+    [Fact]
     public void FourZones_ShowsLimit()
     {
         using var leaf = Launch();

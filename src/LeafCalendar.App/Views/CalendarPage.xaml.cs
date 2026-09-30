@@ -4,6 +4,7 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.System;
 using Windows.UI.Core;
@@ -13,9 +14,43 @@ namespace LeafCalendar.App.Views;
 /// <summary>Navigation parameter for <see cref="CalendarPage"/>.</summary>
 public sealed record CalendarPageArgs(CalendarViewModel ViewModel, Action OpenAccounts, Action ToggleTheme);
 
-/// <summary>The main calendar page: sidebar, the current view, and (from Task 16) the details panel.</summary>
+/// <summary>A side pane started to open or close.</summary>
+public sealed class PanesChangedEventArgs(bool animate, bool opening) : EventArgs
+{
+    /// <summary>True when the pane slides (a user toggle); false for the first layout.</summary>
+    public bool Animate { get; } = animate;
+
+    /// <summary>True when the pane is opening.</summary>
+    public bool Opening { get; } = opening;
+}
+
+/// <summary>
+/// The main calendar page in three parts: the sidebar and the details panel on the window's Mica,
+/// and between them a flat "island" holding the period title and the current view. The page runs
+/// under the title bar. The side panes are the panes of two nested inline <see cref="SplitView"/>s
+/// (sidebar on the outer one, details on the inner one), so they open and close with WinUI's own slide.
+/// </summary>
 public sealed partial class CalendarPage : Page
 {
+    /// <summary>Width of the open sidebar.</summary>
+    public const double SidebarWidth = 264;
+
+    /// <summary>Width of the open details panel.</summary>
+    public const double DetailsWidth = 320;
+
+    /// <summary>The period title's inset from the island's left edge.</summary>
+    public const double TitleInset = 17;
+
+    /// <summary>
+    /// The title bar toolbar ends this far in from the island's right edge, or from the caption buttons when
+    /// the details panel is closed. Its last icon's glyph sits 8 further in, so the icons' ink ends about as
+    /// far from the edge as the title's starts from the other one.
+    /// </summary>
+    public const double ToolbarInset = 6;
+
+    // Room for the title bar's pane toggle, which sits over the island's corner while the sidebar is closed
+    const double PaneToggleClearance = 44;
+
     CalendarPageArgs _args = null!;
     IDisposable? _view;
     bool _viewIsMonth;
@@ -25,6 +60,15 @@ public sealed partial class CalendarPage : Page
 
     /// <summary>The page's view model.</summary>
     public CalendarViewModel ViewModel => _args.ViewModel;
+
+    /// <summary>True when the sidebar takes up room. A SplitView resizes its content as soon as the pane starts to open or close, then slides it.</summary>
+    public bool IsSidebarOpen => SidebarSplit.IsPaneOpen;
+
+    /// <summary>True when the details panel takes up room.</summary>
+    public bool IsDetailsOpen => DetailsSplit.IsPaneOpen;
+
+    /// <summary>The sidebar or details panel started to open or close (the island has its new size and is sliding into place).</summary>
+    public event EventHandler<PanesChangedEventArgs>? PanesChanged;
 
     /// <inheritdoc />
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -37,8 +81,9 @@ public sealed partial class CalendarPage : Page
         ViewModel.LayoutChanged    += OnLayoutChanged;
         ViewModel.CalendarsChanged += OnCalendarsChanged;
 
-        SetSidebarOpen(ViewModel.Settings.SidebarOpen);
-        SetDetailsOpen(ViewModel.Settings.DetailsPanelOpen);
+        PeriodTitle.Text = ViewModel.PeriodTitle;
+        SetSidebarOpen(ViewModel.Settings.SidebarOpen, animate: false);
+        SetDetailsOpen(ViewModel.Settings.DetailsPanelOpen, animate: false);
         ViewModel.ReloadCalendars();
         UpdateEmptyState();
         ApplyView();
@@ -64,11 +109,10 @@ public sealed partial class CalendarPage : Page
         ViewHost.Children.Clear();
     }
 
-    /// <summary>Shows or hides the sidebar and remembers the choice.</summary>
-    public void SetSidebarOpen(bool open)
+    /// <summary>Shows or hides the sidebar (sliding when <paramref name="animate"/>) and remembers the choice.</summary>
+    public void SetSidebarOpen(bool open, bool animate)
     {
-        SidebarColumn.Width = new GridLength(open ? 264 : 0);
-        Sidebar.Visibility  = open ? Visibility.Visible : Visibility.Collapsed;
+        SetPaneOpen(SidebarSplit, open, animate);
 
         if (ViewModel.Settings.SidebarOpen != open)
         {
@@ -76,17 +120,31 @@ public sealed partial class CalendarPage : Page
         }
     }
 
-    /// <summary>Shows or hides the details panel and remembers the choice.</summary>
-    public void SetDetailsOpen(bool open)
+    /// <summary>Shows or hides the details panel (sliding when <paramref name="animate"/>) and remembers the choice.</summary>
+    public void SetDetailsOpen(bool open, bool animate)
     {
-        DetailsColumn.Width    = new GridLength(open ? 320 : 0);
-        DetailsHost.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        SetPaneOpen(DetailsSplit, open, animate);
 
         if (ViewModel.Settings.DetailsPanelOpen != open)
         {
             ViewModel.Update(s => s with { DetailsPanelOpen = open });
         }
     }
+
+    // The SplitView plays its own pane transition; this only reports the change so the title bar can follow
+    void SetPaneOpen(SplitView split, bool open, bool animate)
+    {
+        split.IsPaneOpen = open;
+
+        // With the sidebar closed the title bar's pane toggle sits over the island's corner, so the title moves right
+        PeriodTitle.Margin = new Thickness(IsSidebarOpen ? TitleInset : PaneToggleClearance + TitleInset, 9, 0, 8);
+        PanesChanged?.Invoke(this, new PanesChangedEventArgs(animate, open));
+    }
+
+    // Inline panes slide the content with them, and a closing right pane starts the content one pane width
+    // to the left; clip it so the island never shows through the sidebar's see-through pane
+    void OnDetailsSplitSizeChanged(object sender, SizeChangedEventArgs e) =>
+        DetailsSplit.Clip = new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
 
     /// <summary>Puts the view for the current mode into <see cref="ViewHost"/>, keeping one view per mode family.</summary>
     public void ApplyView()
@@ -116,16 +174,25 @@ public sealed partial class CalendarPage : Page
         _viewIsMonth = wantMonth;
     }
 
-    // Selecting an event opens the panel so the details are visible
+    // Selecting an event opens the panel so the details are visible; the title follows the period
     void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(CalendarViewModel.PeriodTitle))
+        {
+            PeriodTitle.Text = ViewModel.PeriodTitle;
+            return;
+        }
+
         if (e.PropertyName == nameof(CalendarViewModel.SelectedInfo) && ViewModel.SelectedInfo is not null && !ViewModel.Settings.DetailsPanelOpen)
         {
-            SetDetailsOpen(true);
+            SetDetailsOpen(true, animate: true);
         }
     }
 
-    void OnEscapeInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    // A tap on empty calendar space clears the selection (events and chips mark their own taps handled)
+    void OnViewHostTapped(object sender, TappedRoutedEventArgs e) => ViewModel.ClearSelection();
+
+    void OnEscapeInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
         ViewModel.ClearSelection();
         args.Handled = true;
@@ -139,7 +206,7 @@ public sealed partial class CalendarPage : Page
     public bool HandleShortcut(KeyRoutedEventArgs e)
     {
         if (FocusManager.GetFocusedElement(XamlRoot) is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox or CalendarView
-            || Microsoft.UI.Xaml.Media.VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot).Count > 0)
+            || VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot).Count > 0)
         {
             return false;
         }

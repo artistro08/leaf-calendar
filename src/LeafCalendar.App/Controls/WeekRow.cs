@@ -22,6 +22,7 @@ namespace LeafCalendar.App.Controls;
 public sealed partial class WeekRow : Canvas
 {
     readonly MonthGridView _owner;
+    readonly List<(Button Button, DateOnly Date)> _dayNumbers = [];
 
     /// <summary>Creates a row owned by <paramref name="owner"/>.</summary>
     public WeekRow(MonthGridView owner) => _owner = owner;
@@ -46,6 +47,7 @@ public sealed partial class WeekRow : Canvas
         var height = _owner.RowHeight;
 
         Children.Clear();
+        _dayNumbers.Clear();
         Width      = colW * dates.Count;
         Height     = height;
         Background = LeafBrushes.Transparent;
@@ -98,6 +100,21 @@ public sealed partial class WeekRow : Canvas
         }
     }
 
+    /// <summary>Re-colors the day numbers for a new focused month (other months' days are dimmed), without rebuilding the row.</summary>
+    public void RenderFocus()
+    {
+        var dark = _owner.IsDark;
+        foreach (var (button, date) in _dayNumbers)
+        {
+            if (date != _owner.ViewModel.Today)
+            {
+                button.Foreground = InFocusMonth(date) ? LeafBrushes.PrimaryText(dark) : LeafBrushes.DimText(dark);
+            }
+        }
+    }
+
+    bool InFocusMonth(DateOnly date) => date.Month == _owner.FocusMonth.Month && date.Year == _owner.FocusMonth.Year;
+
     void AddLine(double x, double y, double w, double h, bool dark)
     {
         var line = new Rectangle { Width = w, Height = h, Fill = LeafBrushes.GridLine(dark) };
@@ -110,7 +127,7 @@ public sealed partial class WeekRow : Canvas
     {
         var vm      = _owner.ViewModel;
         var isToday = date == vm.Today;
-        var inMonth = date.Month == _owner.FocusMonth.Month && date.Year == _owner.FocusMonth.Year;
+        var inMonth = InFocusMonth(date);
         var text    = date.Day == 1 ? date.ToString("MMM d", CultureInfo.GetCultureInfo("en-US")) : date.Day.ToString(CultureInfo.InvariantCulture);
 
         var button = new Button
@@ -121,8 +138,8 @@ public sealed partial class WeekRow : Canvas
             Height          = 22,
             CornerRadius    = new CornerRadius(11),
             BorderThickness = new Thickness(0),
-            Background      = isToday ? LeafBrushes.Accent : LeafBrushes.Transparent,
-            Foreground      = isToday ? LeafBrushes.OnAccent : inMonth ? LeafBrushes.PrimaryText(dark) : LeafBrushes.DimText(dark),
+            Background      = isToday ? LeafBrushes.Accent(dark) : LeafBrushes.Transparent,
+            Foreground      = isToday ? LeafBrushes.OnAccent(dark) : inMonth ? LeafBrushes.PrimaryText(dark) : LeafBrushes.DimText(dark),
         };
         AutomationProperties.SetAutomationId(button, $"MonthDay_{date:yyyy-MM-dd}");
         AutomationProperties.SetName(button, TimeLabels.LongDate(date));
@@ -134,6 +151,7 @@ public sealed partial class WeekRow : Canvas
 
         SetLeft(button, x + 4);
         SetTop(button, 3);
+        _dayNumbers.Add((button, date));
         return button;
     }
 
