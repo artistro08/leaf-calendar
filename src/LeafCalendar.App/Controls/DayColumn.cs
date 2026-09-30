@@ -1,4 +1,5 @@
 using LeafCalendar.Core.Views;
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Shapes;
@@ -19,6 +20,8 @@ public sealed partial class DayColumn : Canvas
     readonly Rectangle _nowLine = new() { Height = 2, Fill = LeafBrushes.NowLine };
     readonly Ellipse _nowDot = new() { Width = 10, Height = 10, Fill = LeafBrushes.NowLine };
     readonly List<EventBlock> _blocks = [];
+    readonly Border _ghost = new() { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+    readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 2, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
 
     /// <summary>Creates a column owned by <paramref name="owner"/>.</summary>
     public DayColumn(TimeGridView owner)
@@ -26,13 +29,38 @@ public sealed partial class DayColumn : Canvas
         _owner = owner;
         for (var h = 0; h < 24; h++)
         {
-            Children.Add(_hourLines[h] = new Rectangle { Height = 1 });
-            Children.Add(_halfLines[h] = new Rectangle { Height = 1 });
+            Children.Add(_hourLines[h] = new Rectangle { Height = 1, IsHitTestVisible = false });
+            Children.Add(_halfLines[h] = new Rectangle { Height = 1, IsHitTestVisible = false });
         }
 
+        _divider.IsHitTestVisible = false;
+        _nowLine.IsHitTestVisible = false;
+        _nowDot.IsHitTestVisible  = false;
         Children.Add(_divider);
         Children.Add(_nowLine);
         Children.Add(_nowDot);
+
+        // Drag Ghost
+        _ghost.Child = _ghostLabel;
+        Children.Add(_ghost);
+        SetZIndex(_ghost, 20);
+
+        // Empty Time: drag to create, double-click for a one-hour event, click to pick the paste time (a press on a
+        // card you can't change isn't empty time, so it doesn't create)
+        PointerPressed += (_, e) =>
+        {
+            var point = e.GetCurrentPoint(this);
+            if (!_owner.IsDragPending && ReferenceEquals(e.OriginalSource, this) && point.Properties.IsLeftButtonPressed && e.Pointer.PointerDeviceType != PointerDeviceType.Touch)
+            {
+                _owner.BeginCreateDrag(e);
+            }
+        };
+        DoubleTapped += (_, e) => _owner.CreateAt(Date, e.GetPosition(this).Y);
+        Tapped       += (_, e) =>
+        {
+            var zone = _owner.ViewModel.Zone;
+            _owner.ViewModel.CursorTime = DragMath.Snap(DragMath.Instant(Date, e.GetPosition(this).Y / _owner.HourHeight * 60, zone), zone);
+        };
     }
 
     /// <summary>The day shown.</summary>
@@ -112,11 +140,29 @@ public sealed partial class DayColumn : Canvas
         }
     }
 
+    /// <summary>Shows where a dragged or new event would land (minutes past local midnight).</summary>
+    public void SetGhost(double startMinute, double endMinute, string label)
+    {
+        var hour  = _owner.HourHeight;
+        var dark  = _owner.IsDark;
+        _ghost.Width       = Math.Max(_owner.ColumnWidth - 6, 10);
+        _ghost.Height      = Math.Max((endMinute - startMinute) / 60 * hour - 2, 10);
+        _ghost.BorderBrush = LeafBrushes.Accent(dark);
+        _ghost.Background  = LeafBrushes.Hover(dark);
+        _ghostLabel.Text   = label;
+        SetLeft(_ghost, 2);
+        SetTop(_ghost, startMinute / 60 * hour + 1);
+        _ghost.Visibility  = Visibility.Visible;
+    }
+
+    /// <summary>Hides the ghost.</summary>
+    public void ClearGhost() => _ghost.Visibility = Visibility.Collapsed;
+
     void EnsureBlocks(int count)
     {
         while (_blocks.Count < count)
         {
-            var block = new EventBlock();
+            var block = new EventBlock(_owner);
             _blocks.Add(block);
             Children.Add(block);
         }

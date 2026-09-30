@@ -22,17 +22,7 @@ public sealed class EditingTests : IDisposable
     // After Next the week slides in; an event found mid-slide would be clicked where it no longer is
     static void ClickWhenSettled(AutomationElement element)
     {
-        var last = element.BoundingRectangle;
-        Retry.WhileFalse(
-            () =>
-            {
-                Thread.Sleep(TimeSpan.FromMilliseconds(200));
-                var now = element.BoundingRectangle;
-                var settled = now == last && !element.IsOffscreen;
-                last = now;
-                return settled;
-            },
-            TimeSpan.FromSeconds(5));
+        LeafApp.WaitUntilStill(element);
         element.Click();
     }
 

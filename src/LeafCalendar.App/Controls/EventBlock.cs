@@ -1,10 +1,12 @@
 using System.Globalization;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Views;
+using Microsoft.UI.Input;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Shapes;
 using Windows.UI.Text;
 
@@ -22,6 +24,11 @@ public sealed partial class EventBlock : Grid
     const string AwayGlyph     = ""; // Airplane
     const string BirthdayGlyph = ""; // Giftbox
 
+    // Bottom strip that resizes instead of moving (only on cards tall enough to have one)
+    const double ResizeZone = 6;
+    static InputCursor? _resizeCursor;
+    readonly TimeGridView? _owner;
+
     readonly Border _card = new() { CornerRadius = new CornerRadius(4) };
     readonly Rectangle _accent = new() { Width = 3, RadiusX = 1.5, RadiusY = 1.5, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(2) };
     readonly TextBlock _title = new() { FontSize = 12, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.WrapWholeWords, MaxLines = 2 };
@@ -30,9 +37,10 @@ public sealed partial class EventBlock : Grid
     CalendarOccurrence? _occurrence;
     Action<CalendarOccurrence>? _select;
 
-    /// <summary>Builds the card.</summary>
-    public EventBlock()
+    /// <summary>Builds the card; <paramref name="owner"/> (the time grid) runs its drags and edits.</summary>
+    public EventBlock(TimeGridView? owner = null)
     {
+        _owner = owner;
         var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
         titleRow.Children.Add(_icon);
         titleRow.Children.Add(_title);
@@ -57,7 +65,37 @@ public sealed partial class EventBlock : Grid
 
             e.Handled = true;
         };
+
+        // Drag To Move, Bottom Edge To Resize, Double-Click To Edit
+        PointerPressed += OnPointerPressed;
+        PointerMoved   += (_, e) => ProtectedCursor = IsResizeZone(e.GetCurrentPoint(this).Position.Y)
+            ? _resizeCursor ??= InputSystemCursor.Create(InputSystemCursorShape.SizeNorthSouth)
+            : null;
+        DoubleTapped   += (_, e) =>
+        {
+            if (_occurrence is { } o && _owner is { } owner)
+            {
+                owner.ViewModel.Select(o);
+                owner.ViewModel.BeginEdit();
+            }
+
+            e.Handled = true;
+        };
     }
+
+    // The grid decides whether the press becomes a drag (it waits for the pointer to move a few pixels)
+    void OnPointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        var point = e.GetCurrentPoint(this);
+        if (_owner is null || _occurrence is not { } o || !point.Properties.IsLeftButtonPressed || e.Pointer.PointerDeviceType == PointerDeviceType.Touch)
+        {
+            return;
+        }
+
+        _owner.BeginEventDrag(o, e, resize: IsResizeZone(point.Position.Y));
+    }
+
+    bool IsResizeZone(double y) => ActualHeight >= ResizeZone * 3 && y >= ActualHeight - ResizeZone;
 
     /// <summary>The automation ID tests use: <c>Event_{id}_{UTC yyyyMMddHHmm}</c>.</summary>
     public static string AutomationIdFor(CalendarOccurrence o) =>

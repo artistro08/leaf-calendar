@@ -647,6 +647,44 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         Editing = null;
     }
 
+    /// <summary>Moves or resizes a dragged event (asking about a repeating one), then selects it where it landed.</summary>
+    public async Task MoveAsync(CalendarOccurrence occurrence, DateTimeOffset start, DateTimeOffset end, bool isAllDay)
+    {
+        IReadOnlyList<EventMove> moves = [new EventMove(occurrence, start, end, isAllDay)];
+        var scope = await ScopeForAsync([.. moves.Select(m => m.Occurrence)], includeFollowing: true);
+        if (scope is null)
+        {
+            // Canceled: redraw the event where it was
+            OccurrencesChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        ReselectAfterRefresh(occurrence, start, isAllDay);
+        try
+        {
+            _services.Editor.Move(moves, scope.Value, sendUpdates: true);
+        }
+        catch (Exception ex) when (IsEditFailure(ex) || ex is ArgumentException)
+        {
+            Fail("calendar.move.failed", ex);
+        }
+    }
+
+    /// <summary>Copies an event to a new time (Alt+drag) and selects the copy.</summary>
+    public void Duplicate(CalendarOccurrence occurrence, DateTimeOffset start, DateTimeOffset end, bool isAllDay)
+    {
+        string? id = null;
+        _reselect = (isAllDay ? DateOnly.FromDateTime(start.UtcDateTime) : LocalDate(start), o => o.EventId == id);
+        try
+        {
+            id = _services.Editor.Duplicate(occurrence, start, end, isAllDay);
+        }
+        catch (Exception ex) when (IsEditFailure(ex) || ex is ArgumentException)
+        {
+            Fail("calendar.duplicate.failed", ex);
+        }
+    }
+
     // Calendars you can add events to; an edited event's own calendar is always there (a guest who may edit an
     // invite on a calendar you can only read), so leaving the picker alone never moves the event
     IReadOnlyList<CalendarChoice> WritableCalendars(CalendarOccurrence? source = null) =>

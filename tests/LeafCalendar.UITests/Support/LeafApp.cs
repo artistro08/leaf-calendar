@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Runtime.InteropServices;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
@@ -108,10 +109,26 @@ public sealed class LeafApp : IDisposable
         return File.Exists(file) ? File.ReadAllLines(file) : [];
     }
 
+    /// <summary>Waits (up to 5 s) until <paramref name="element"/> stops moving on screen, so a navigation's scroll has landed.</summary>
+    public static void WaitUntilStill(AutomationElement element)
+    {
+        var last = element.BoundingRectangle;
+        Retry.WhileFalse(
+            () =>
+            {
+                Thread.Sleep(TimeSpan.FromMilliseconds(200));
+                var now     = element.BoundingRectangle;
+                var settled = now == last && !element.IsOffscreen;
+                last = now;
+                return settled;
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
     /// <summary>Drags with the left button in small steps, so the app sees a real drag (holding Alt when asked).</summary>
     public static void Drag(Point start, Point end, bool alt = false)
     {
-        Mouse.MoveTo(start);
+        MoveMouse(start);
         Thread.Sleep(150);
         if (alt)
         {
@@ -122,7 +139,7 @@ public sealed class LeafApp : IDisposable
         Thread.Sleep(150);
         for (var i = 1; i <= 12; i++)
         {
-            Mouse.MoveTo(new Point(start.X + (end.X - start.X) * i / 12, start.Y + (end.Y - start.Y) * i / 12));
+            MoveMouse(new Point(start.X + (end.X - start.X) * i / 12, start.Y + (end.Y - start.Y) * i / 12));
             Thread.Sleep(30);
         }
 
@@ -133,6 +150,19 @@ public sealed class LeafApp : IDisposable
         }
 
         Thread.Sleep(300);
+    }
+
+    // FlaUI moves the cursor with SetCursorPos, which WinUI doesn't report as pointer moves, so a drag would
+    // jump from press to release; this injects a real mouse move (absolute, across all monitors)
+    static void MoveMouse(Point to)
+    {
+        var left   = NativeMethods.GetSystemMetrics(NativeMethods.VirtualScreenLeft);
+        var top    = NativeMethods.GetSystemMetrics(NativeMethods.VirtualScreenTop);
+        var width  = NativeMethods.GetSystemMetrics(NativeMethods.VirtualScreenWidth);
+        var height = NativeMethods.GetSystemMetrics(NativeMethods.VirtualScreenHeight);
+        var x      = (int)Math.Round((to.X - left) * 65535.0 / (width - 1));
+        var y      = (int)Math.Round((to.Y - top) * 65535.0 / (height - 1));
+        NativeMethods.mouse_event(NativeMethods.MouseEventMove | NativeMethods.MouseEventAbsolute | NativeMethods.MouseEventVirtualDesk, x, y, 0, 0);
     }
 
     /// <summary>Drags an element by (dx, dy) screen pixels, grabbing it <paramref name="fromTop"/> of the way down.</summary>
@@ -174,5 +204,24 @@ public sealed class LeafApp : IDisposable
 
         App.Dispose();
         _automation.Dispose();
+    }
+
+    static class NativeMethods
+    {
+        internal const uint MouseEventMove        = 0x0001;
+        internal const uint MouseEventVirtualDesk = 0x4000;
+        internal const uint MouseEventAbsolute    = 0x8000;
+        internal const int VirtualScreenLeft      = 76;
+        internal const int VirtualScreenTop       = 77;
+        internal const int VirtualScreenWidth     = 78;
+        internal const int VirtualScreenHeight    = 79;
+
+        [DllImport("user32.dll")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        internal static extern int GetSystemMetrics(int index);
+
+        [DllImport("user32.dll")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        internal static extern void mouse_event(uint flags, int dx, int dy, uint data, nuint extraInfo);
     }
 }

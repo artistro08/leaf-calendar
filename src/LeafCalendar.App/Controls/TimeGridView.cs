@@ -1,11 +1,14 @@
 using System.Globalization;
 using LeafCalendar.App.ViewModels;
+using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
+using Microsoft.UI.Xaml.Input;
+using Windows.Foundation;
 
 namespace LeafCalendar.App.Controls;
 
@@ -218,6 +221,12 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _clock.Interval = TimeSpan.FromMinutes(1);
         _clock.Tick += (_, _) => RenderToday();
         _clock.Start();
+
+        // Dragging (a press on an event, a chip, or empty time becomes a drag once the pointer moves a few pixels)
+        AddHandler(PointerMovedEvent, new PointerEventHandler(OnDragMoved), handledEventsToo: true);
+        AddHandler(PointerReleasedEvent, new PointerEventHandler(OnDragReleased), handledEventsToo: true);
+        PointerCaptureLost += (_, _) => CancelDrag();
+        PointerCanceled    += (_, _) => CancelDrag();
 
         BuildStrip(_vm.PeriodStart);
     }
@@ -659,6 +668,243 @@ public sealed partial class TimeGridView : Grid, IDisposable
     }
 
     void OnScrollToTimeRequested(object? sender, DateTimeOffset instant) => ScrollToTime(instant);
+
+    // =========================================================================
+    // DRAGGING
+    // =========================================================================
+
+    // How far the pointer must move before a press becomes a drag (less stays a click)
+    const double DragThreshold = 4;
+
+    enum DragKind { Move, Resize, Create, AllDay }
+
+    sealed class DragSession(DragKind kind, Point origin)
+    {
+        public DragKind Kind { get; } = kind;
+        public Point Origin { get; } = origin;
+        public CalendarOccurrence? Occurrence { get; init; }
+        public DateTimeOffset GrabbedAt { get; init; }
+        public DateOnly GrabbedDay { get; init; }
+        public bool Started { get; set; }
+        public bool Duplicate { get; set; }
+        public (DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? Target { get; set; }
+    }
+
+    DragSession? _drag;
+
+    /// <summary>True between a press on something draggable and its release.</summary>
+    public bool IsDragPending => _drag is not null;
+
+    /// <summary>A timed event was pressed: dragging moves it, or resizes it from the bottom edge. Events you can't change don't drag.</summary>
+    public void BeginEventDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e, bool resize)
+    {
+        if (!_vm.CanEdit(occurrence))
+        {
+            return;
+        }
+
+        var (day, minutes) = BodyPosition(e);
+        _drag = new DragSession(resize ? DragKind.Resize : DragKind.Move, e.GetCurrentPoint(this).Position)
+        {
+            Occurrence = occurrence,
+            GrabbedAt  = DragMath.Instant(day, minutes, _vm.Zone),
+        };
+    }
+
+    /// <summary>Empty time was pressed: dragging creates an event over the range.</summary>
+    public void BeginCreateDrag(PointerRoutedEventArgs e)
+    {
+        var (day, minutes) = BodyPosition(e);
+        _drag = new DragSession(DragKind.Create, e.GetCurrentPoint(this).Position) { GrabbedAt = DragMath.Instant(day, minutes, _vm.Zone) };
+    }
+
+    /// <summary>An all-day chip was pressed: dragging moves it across days, or into the grid to become timed.</summary>
+    public void BeginAllDayDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e)
+    {
+        if (!_vm.CanEdit(occurrence))
+        {
+            return;
+        }
+
+        _drag = new DragSession(DragKind.AllDay, e.GetCurrentPoint(this).Position)
+        {
+            Occurrence = occurrence,
+            GrabbedDay = DayAt(e.GetCurrentPoint(_allDay).Position.X),
+        };
+    }
+
+    /// <summary>Double-click on empty time: a new one-hour event there.</summary>
+    public void CreateAt(DateOnly day, double y)
+    {
+        var start = DragMath.Snap(DragMath.Instant(day, y / HourHeight * 60, _vm.Zone), _vm.Zone);
+        _vm.BeginCreate(start, start + DragMath.DefaultLength, isAllDay: false);
+    }
+
+
+    void OnDragMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_drag is not { } drag)
+        {
+            return;
+        }
+
+        var at = e.GetCurrentPoint(this).Position;
+        if (!drag.Started)
+        {
+            if (Math.Abs(at.X - drag.Origin.X) < DragThreshold && Math.Abs(at.Y - drag.Origin.Y) < DragThreshold)
+            {
+                return;
+            }
+
+            drag.Started = true;
+            CapturePointer(e.Pointer);
+        }
+
+        drag.Duplicate = KeyState.IsDown(Windows.System.VirtualKey.Menu);
+        drag.Target    = TargetFor(drag, e);
+        ShowGhost(drag.Target);
+        e.Handled = true;
+    }
+
+    void OnDragReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (_drag is not { } drag)
+        {
+            return;
+        }
+
+        _drag = null;
+        ReleasePointerCapture(e.Pointer);
+        ClearGhosts();
+        if (!drag.Started || drag.Target is not { } target)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (drag.Kind == DragKind.Create)
+        {
+            _vm.BeginCreate(target.Start, target.End, isAllDay: false);
+            return;
+        }
+
+        // Alt+Drag Duplicates (a resize always resizes). Alt is read as the pointer moves: by the time the release
+        // is handled, the key state can already show Alt up when it's let go right after the button
+        var o = drag.Occurrence!;
+        if (drag.Duplicate && drag.Kind != DragKind.Resize)
+        {
+            _vm.Duplicate(o, target.Start, target.End, target.IsAllDay);
+            return;
+        }
+
+        _vm.Fire(() => _vm.MoveAsync(o, target.Start, target.End, target.IsAllDay), "calendar.move.failed");
+    }
+
+    void CancelDrag()
+    {
+        _drag = null;
+        ClearGhosts();
+    }
+
+    (DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? TargetFor(DragSession drag, PointerRoutedEventArgs e)
+    {
+        var zone           = _vm.Zone;
+        var (day, minutes) = BodyPosition(e);
+        var pointerAt      = DragMath.Instant(day, minutes, zone);
+        var o              = drag.Occurrence;
+
+        switch (drag.Kind)
+        {
+            case DragKind.Move:
+                var (moveStart, moveEnd) = DragMath.MoveTimed(o!, drag.GrabbedAt, pointerAt, zone);
+                return (moveStart, moveEnd, false, false);
+
+            case DragKind.Resize:
+                return (o!.Start, DragMath.ResizeEnd(o, pointerAt, zone), false, false);
+
+            case DragKind.Create:
+                var (createStart, createEnd) = DragMath.CreateRange(drag.GrabbedAt, pointerAt, zone);
+                return (createStart, createEnd, false, false);
+
+            default:
+                // Over The Grid: a one-hour timed event there
+                if (e.GetCurrentPoint(_bodyScroll).Position.Y >= 0)
+                {
+                    var start = DragMath.Snap(pointerAt, zone);
+                    return (start, start + DragMath.DefaultLength, false, false);
+                }
+
+                // Over The All-Day Row: the same event, moved by whole days
+                var days = DayAt(e.GetCurrentPoint(_allDay).Position.X).DayNumber - drag.GrabbedDay.DayNumber;
+                var (shiftStart, shiftEnd) = DragMath.ShiftDays(o!, days, zone);
+                return (shiftStart, shiftEnd, o!.IsAllDay, true);
+        }
+    }
+
+    void ShowGhost((DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? target)
+    {
+        // All-Day Row
+        if (target is { InHeader: true } header)
+        {
+            foreach (var column in _columns)
+            {
+                column.ClearGhost();
+            }
+
+            var first = header.IsAllDay ? DateOnly.FromDateTime(header.Start.UtcDateTime) : LocalDate(header.Start);
+            var last  = header.IsAllDay ? DateOnly.FromDateTime(header.End.UtcDateTime).AddDays(-1) : LocalDate(header.End.AddTicks(-1));
+            _allDay.SetGhost(first, last < first ? first : last);
+            return;
+        }
+
+        // Grid Columns: the part of the range that falls on each day
+        _allDay.ClearGhost();
+        foreach (var column in _columns)
+        {
+            if (target is not { } t)
+            {
+                column.ClearGhost();
+                continue;
+            }
+
+            var dayStart = OccurrenceQuery.LocalMidnight(column.Date, _vm.Zone);
+            var dayEnd   = OccurrenceQuery.LocalMidnight(column.Date.AddDays(1), _vm.Zone);
+            var end      = t.End > t.Start ? t.End : t.Start + TimeSpan.FromMinutes(DragMath.SnapMinutes);
+            if (t.Start >= dayEnd || end <= dayStart)
+            {
+                column.ClearGhost();
+                continue;
+            }
+
+            var top    = t.Start <= dayStart ? 0 : MinutesIntoDay(t.Start);
+            var bottom = end >= dayEnd ? 24 * 60 : MinutesIntoDay(end);
+            column.SetGhost(top, Math.Max(bottom, top + DragMath.SnapMinutes), t.Start >= dayStart ? TimeLabels.Range(t.Start, t.End, _vm.Zone, _vm.Settings.Use24HourTime) : "");
+        }
+    }
+
+    void ClearGhosts()
+    {
+        foreach (var column in _columns)
+        {
+            column.ClearGhost();
+        }
+
+        _allDay.ClearGhost();
+    }
+
+    // Day and minutes past local midnight under the pointer, in the day columns
+    (DateOnly Day, double Minutes) BodyPosition(PointerRoutedEventArgs e)
+    {
+        var point = e.GetCurrentPoint(_bodyRepeater).Position;
+        return (DayAt(point.X), Math.Clamp(point.Y / HourHeight * 60, 0, 24 * 60));
+    }
+
+    // The strip's day at an x position (the repeater and the all-day row both lay the strip out from 0)
+    DateOnly DayAt(double x) => _strip[Math.Clamp((int)Math.Floor(x / ColumnWidth), 0, _strip.Count - 1)];
+
+    double MinutesIntoDay(DateTimeOffset instant) => TimeZoneInfo.ConvertTime(instant, _vm.Zone).TimeOfDay.TotalMinutes;
+
+    DateOnly LocalDate(DateTimeOffset instant) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, _vm.Zone).DateTime);
 
     // =========================================================================
     // RECYCLING
