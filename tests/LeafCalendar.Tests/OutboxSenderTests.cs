@@ -120,6 +120,65 @@ public sealed class OutboxSenderTests : IDisposable
         Assert.Equal("\"E5\"", EventStore.Get(conn, Account, Primary, "evt-allday")!.Etag);
     }
 
+    const string MineOnGoogle = """{"id":"evt-single","etag":"\"G9\"","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""";
+
+    [Fact]
+    public async Task Send_412ButGoogleAlreadyHasTheChange_CountsAsSent()
+    {
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"Mine"}""");
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.PreconditionFailed, "{}");
+        _h.Google.On(HttpMethod.Get, SingleUrl, HttpStatusCode.OK, MineOnGoogle);
+
+        var report = await Send();
+
+        Assert.Equal(0, report.Conflicts);
+        Assert.True(report.Changed);
+        using var conn = _h.Db.Database.Open();
+        Assert.Empty(ConflictStore.GetAll(conn));
+        Assert.Empty(OutboxStore.Pending(conn, Account));
+        Assert.Equal("\"G9\"", EventStore.Get(conn, Account, Primary, "evt-single")!.Etag);
+    }
+
+    [Fact]
+    public async Task Send_412ButGoogleHasTheChange_LaterEditRebasedOnGoogleEtag()
+    {
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"Mine"}""");
+        Queue("evt-single", OutboxOperation.Patch, """{"location":"Later"}""");
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.PreconditionFailed, "{}", once: true);
+        _h.Google.On(HttpMethod.Get, SingleUrl, HttpStatusCode.OK, MineOnGoogle);
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","etag":"\"G10\"","status":"confirmed","summary":"Mine","location":"Later"}""");
+
+        var report = await Send();
+
+        Assert.Equal(0, report.Conflicts);
+        Assert.Equal([BaseEtag, "\"G9\""], _h.Google.Requests.Where(r => r.Method == HttpMethod.Patch).Select(r => r.IfMatch));
+        Assert.Empty(Pending());
+    }
+
+    [Fact]
+    public async Task Send_412ButGoogleCopyHasNoEtag_LaterEditKeepsItsBaseEtag()
+    {
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"Mine"}""");
+        Queue("evt-single", OutboxOperation.Patch, """{"location":"Later"}""");
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.PreconditionFailed, "{}");
+        _h.Google.On(HttpMethod.Get, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","summary":"Mine"}""");
+
+        await Send();
+
+        Assert.All(_h.Google.Requests.Where(r => r.Method == HttpMethod.Patch), r => Assert.NotNull(r.IfMatch));
+        Assert.All(Pending(), e => Assert.NotNull(e.BaseEtag));
+    }
+
+    [Fact]
+    public async Task Send_412WhereGoogleDiffers_StillAConflict()
+    {
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"Mine"}""");
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.PreconditionFailed, "{}");
+        _h.Google.On(HttpMethod.Get, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","etag":"\"G9\"","summary":"Google's"}""");
+
+        Assert.Equal(1, (await Send()).Conflicts);
+    }
+
     [Fact]
     public async Task Send_PatchOnEventGoogleDeleted_ConflictWithoutGoogleVersion()
     {

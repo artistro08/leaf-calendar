@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Sync;
 using Microsoft.Data.Sqlite;
@@ -23,7 +22,6 @@ public sealed class ConflictResolver(LeafDatabase database)
     /// <summary>Every open conflict, oldest first.</summary>
     public IReadOnlyList<ConflictInfo> GetAll()
     {
-        Settle();
         using var conn = database.Open();
         return ConflictStore.GetAll(conn);
     }
@@ -31,7 +29,6 @@ public sealed class ConflictResolver(LeafDatabase database)
     /// <summary>Open conflicts, and edits still waiting to be sent (for the title bar badge and indicator).</summary>
     public (int Conflicts, int Pending) Counts()
     {
-        Settle();
         using var conn = database.Open();
         var conflicts = ConflictStore.Count(conn);
         return (conflicts, OutboxStore.Count(conn) - conflicts);
@@ -40,7 +37,6 @@ public sealed class ConflictResolver(LeafDatabase database)
     /// <summary>Edits of one account Google doesn't have yet (disconnecting would lose them).</summary>
     public int UnsentFor(string accountId)
     {
-        Settle();
         using var conn = database.Open();
         return OutboxStore.CountForAccount(conn, accountId);
     }
@@ -51,6 +47,7 @@ public sealed class ConflictResolver(LeafDatabase database)
         var entry = conflict.Entry;
         ConflictStore.Remove(conn, tx, entry.Seq);
 
+        // A null GoogleJson is treated as deleted on Google
         // Re-Send On Top Of Google's Current Version
         if (conflict.GoogleJson is { } google)
         {
@@ -94,6 +91,7 @@ public sealed class ConflictResolver(LeafDatabase database)
 
         OutboxStore.Remove(conn, tx, entry.Seq);
 
+        // A null GoogleJson is treated as deleted on Google
         // Google Deleted It Too
         if (conflict.GoogleJson is not { } google)
         {
@@ -124,70 +122,5 @@ public sealed class ConflictResolver(LeafDatabase database)
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
-    }
-
-    // Lost Response: Google already applied an edit whose answer never arrived, so the retry got a 412.
-    // When Google's copy already holds every field the patch sets, the edit counts as sent.
-    void Settle()
-    {
-        var done = GetAllRaw().Where(c => c.Entry.Operation == OutboxOperation.Patch && Matches(c.Entry.Payload, c.GoogleJson)).ToList();
-        if (done.Count == 0)
-        {
-            return;
-        }
-
-        using (var conn = database.Open())
-        using (var tx = conn.BeginTransaction())
-        {
-            foreach (var conflict in done)
-            {
-                var entry = conflict.Entry;
-                var etag  = OutboxSender.EtagOf(conflict.GoogleJson!);
-                OutboxStore.Remove(conn, tx, entry.Seq);
-
-                // Later Edits Were Made On Top Of This One: they go out against Google's ETag
-                if (OutboxStore.ForEvent(conn, tx, entry.AccountId, entry.CalendarId, entry.EventId).Count > 0)
-                {
-                    OutboxStore.Rebase(conn, tx, entry.AccountId, entry.CalendarId, entry.EventId, entry.Seq, etag);
-                    EventStore.SetEtag(conn, tx, entry.AccountId, entry.CalendarId, entry.EventId, etag);
-                }
-                else
-                {
-                    EventStore.ApplyJson(conn, tx, entry.AccountId, entry.CalendarId, conflict.GoogleJson!);
-                }
-            }
-
-            tx.Commit();
-        }
-
-        Changed?.Invoke(this, EventArgs.Empty);
-    }
-
-    IReadOnlyList<ConflictInfo> GetAllRaw()
-    {
-        using var conn = database.Open();
-        return ConflictStore.GetAll(conn);
-    }
-
-    static bool Matches(string? payload, string? googleJson)
-    {
-        if (payload is null || googleJson is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            if (JsonNode.Parse(payload) is not JsonObject patch || patch.Count == 0 || JsonNode.Parse(googleJson) is not JsonObject current)
-            {
-                return false;
-            }
-
-            return patch.All(p => JsonNode.DeepEquals(p.Value, current[p.Key]));
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
     }
 }

@@ -125,6 +125,14 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
                         // Google's Copy Can't Be Read: the user still decides, without it
                     }
 
+                    // Lost Response: Google already applied this edit, so it counts as sent
+                    if (failure is PreconditionFailedException && entry.Operation == OutboxOperation.Patch && Matches(entry.Payload, current))
+                    {
+                        await AcceptAsync(entry, current, ct);
+                        changed = true;
+                        continue;
+                    }
+
                     RecordConflict(entry, current);
                     conflicts++;
                 }
@@ -151,6 +159,29 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
         }
 
         return new SendReport(changed, conflicts, rejected);
+    }
+
+    /// <summary>True when Google's event already holds every field the patch sets (an edit whose answer was lost).</summary>
+    internal static bool Matches(string? payload, string? googleJson)
+    {
+        if (payload is null || googleJson is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (JsonNode.Parse(payload) is not JsonObject patch || patch.Count == 0 || JsonNode.Parse(googleJson) is not JsonObject current)
+            {
+                return false;
+            }
+
+            return patch.All(p => JsonNode.DeepEquals(p.Value, current[p.Key]));
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     /// <summary>The <c>etag</c> of Google's event JSON, or null (also when the JSON is invalid).</summary>

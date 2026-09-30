@@ -143,15 +143,4 @@ public sealed class ConflictResolverTests : IDisposable
         Assert.Equal(2, _resolver.UnsentFor(Account));
         Assert.Equal((1, 1), _resolver.Counts());
     }
-
-    [Fact]
-    public void LostResponse_GoogleAlreadyHasTheChange_ResolvesAsSent()
-    {
-        var google = """{"id":"evt-single","etag":"\"G9\"","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""";
-        Conflict(OutboxOperation.Patch, Mine, google);
-
-        Assert.Empty(_resolver.GetAll());
-        Assert.Equal((0, 0), _resolver.Counts());
-        Assert.Equal("\"G9\"", Get("evt-single")!.Etag);
-    }
 }
