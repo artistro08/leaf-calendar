@@ -44,4 +44,21 @@ public class ShortcutMapTests
     {
         Assert.Equal(CalendarCommand.None, ShortcutMap.Resolve(key, ctrl, shift, alt).Command);
     }
+
+    [Theory]
+    [InlineData("C", false, false, CalendarCommand.CreateEvent)]
+    [InlineData("E", false, false, CalendarCommand.EditEvent)]
+    [InlineData("V", false, false, CalendarCommand.OpenMeetingLink)]
+    [InlineData("X", false, false, CalendarCommand.ToggleSelect)]
+    [InlineData("Delete", false, false, CalendarCommand.DeleteSelected)]
+    [InlineData("Delete", true, true, CalendarCommand.CancelEventQuietly)]
+    [InlineData("A", true, false, CalendarCommand.SelectAll)]
+    [InlineData("C", true, false, CalendarCommand.Copy)]
+    [InlineData("X", true, false, CalendarCommand.Cut)]
+    [InlineData("V", true, false, CalendarCommand.Paste)]
+    [InlineData("J", true, false, CalendarCommand.JoinMeeting)]
+    public void Resolve_EventChord_MapsCommand(string key, bool ctrl, bool shift, CalendarCommand command)
+    {
+        Assert.Equal(command, ShortcutMap.Resolve(key, ctrl, shift, alt: false).Command);
+    }
 }

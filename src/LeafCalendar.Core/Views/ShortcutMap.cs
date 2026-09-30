@@ -53,6 +53,57 @@ public enum CalendarCommand
 
     /// <summary>B or Shift+N.</summary>
     PreviousEvent,
+
+    /// <summary>C.</summary>
+    CreateEvent,
+
+    /// <summary>E (runs when the "E then ..." sequence times out).</summary>
+    EditEvent,
+
+    /// <summary>E then U.</summary>
+    EditDuration,
+
+    /// <summary>E then Y.</summary>
+    RsvpYes,
+
+    /// <summary>E then N.</summary>
+    RsvpNo,
+
+    /// <summary>E then M.</summary>
+    RsvpMaybe,
+
+    /// <summary>E then E.</summary>
+    EmailGuests,
+
+    /// <summary>Delete (emails guests).</summary>
+    DeleteSelected,
+
+    /// <summary>Ctrl+Shift+Delete (no emails).</summary>
+    CancelEventQuietly,
+
+    /// <summary>Ctrl+J.</summary>
+    JoinMeeting,
+
+    /// <summary>V.</summary>
+    OpenMeetingLink,
+
+    /// <summary>X.</summary>
+    ToggleSelect,
+
+    /// <summary>Ctrl+A.</summary>
+    SelectAll,
+
+    /// <summary>Ctrl+C.</summary>
+    Copy,
+
+    /// <summary>Ctrl+X.</summary>
+    Cut,
+
+    /// <summary>Ctrl+V.</summary>
+    Paste,
+
+    /// <summary>E was pressed; waiting up to 1.5 s for the second key.</summary>
+    SequenceStarted,
 }
 
 /// <summary>A resolved shortcut. <see cref="Days"/> is set for <see cref="CalendarCommand.Days"/>.</summary>
@@ -74,10 +125,11 @@ public static class ShortcutMap
         {
             return key switch
             {
-                "E" => new(CalendarCommand.ToggleWeekends),
-                "D" => new(CalendarCommand.ToggleDeclined),
-                "L" => new(CalendarCommand.ToggleTheme),
-                _   => default,
+                "E"      => new(CalendarCommand.ToggleWeekends),
+                "D"      => new(CalendarCommand.ToggleDeclined),
+                "L"      => new(CalendarCommand.ToggleTheme),
+                "Delete" => new(CalendarCommand.CancelEventQuietly),
+                _        => default,
             };
         }
 
@@ -89,6 +141,11 @@ public static class ShortcutMap
                 "187" or "Add"             => new(CalendarCommand.ZoomIn),
                 "189" or "Subtract"        => new(CalendarCommand.ZoomOut),
                 "Number0" or "NumberPad0"  => new(CalendarCommand.ZoomReset),
+                "A"                        => new(CalendarCommand.SelectAll),
+                "C"                        => new(CalendarCommand.Copy),
+                "X"                        => new(CalendarCommand.Cut),
+                "V"                        => new(CalendarCommand.Paste),
+                "J"                        => new(CalendarCommand.JoinMeeting),
                 _                          => default,
             };
         }
@@ -121,6 +178,11 @@ public static class ShortcutMap
             "190" or "Decimal"  => new(CalendarCommand.GoToDate),
             "N"                 => new(CalendarCommand.NextEvent),
             "B"                 => new(CalendarCommand.PreviousEvent),
+            "C"                 => new(CalendarCommand.CreateEvent),
+            "E"                 => new(CalendarCommand.EditEvent),
+            "V"                 => new(CalendarCommand.OpenMeetingLink),
+            "X"                 => new(CalendarCommand.ToggleSelect),
+            "Delete"            => new(CalendarCommand.DeleteSelected),
             _                   => default,
         };
     }
