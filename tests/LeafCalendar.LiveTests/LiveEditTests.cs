@@ -20,10 +20,31 @@ public class LiveEditTests
             foreach (var entry in OutboxStore.Pending(conn, live.AccountId))
             {
                 google.RequireOwned(entry.CalendarId);
+                if (entry.Operation == OutboxOperation.Move)
+                {
+                    google.RequireOwned(entry.Payload!);
+                }
             }
         }
 
         return live.Services.Sync.SyncAccountAsync(live.AccountId, ct);
+    }
+
+    // Deletes each calendar on its own so one failure neither skips the others nor hides the test's own error
+    static async Task Cleanup(LiveGoogle google, params string?[] calendarIds)
+    {
+        foreach (var id in calendarIds.OfType<string>())
+        {
+            try
+            {
+                await google.DeleteCalendarAsync(id, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                // Only the ID and error type are logged; delete this calendar by hand if it is still there
+                Console.Error.WriteLine($"Live test calendar {id} was not deleted: {ex.GetType().Name}");
+            }
+        }
     }
 
     static CalendarOccurrence Occurrence(LiveAccount live, string calendarId, string eventId, DateTimeOffset start, DateTimeOffset end, string? recurringEventId = null) =>
@@ -75,7 +96,7 @@ public class LiveEditTests
         }
         finally
         {
-            await google.DeleteCalendarAsync(calendarId, CancellationToken.None);
+            await Cleanup(google, calendarId);
         }
     }
 
@@ -116,7 +137,7 @@ public class LiveEditTests
         }
         finally
         {
-            await google.DeleteCalendarAsync(calendarId, CancellationToken.None);
+            await Cleanup(google, calendarId);
         }
     }
 
@@ -166,7 +187,7 @@ public class LiveEditTests
         }
         finally
         {
-            await google.DeleteCalendarAsync(calendarId, CancellationToken.None);
+            await Cleanup(google, calendarId);
         }
     }
 
@@ -183,9 +204,10 @@ public class LiveEditTests
 
         var google     = new LiveGoogle(live);
         var calendarId = await google.CreateTestCalendarAsync(ct);
-        var otherId    = await google.CreateTestCalendarAsync(ct);
+        string? otherId = null;
         try
         {
+            otherId = await google.CreateTestCalendarAsync(ct);
             var id = await google.InsertInviteAsync(calendarId, "Leaf live reply", ct);
             await Sync(live, google, ct);
             var editor = Editor(live);
@@ -206,8 +228,7 @@ public class LiveEditTests
         }
         finally
         {
-            await google.DeleteCalendarAsync(calendarId, CancellationToken.None);
-            await google.DeleteCalendarAsync(otherId, CancellationToken.None);
+            await Cleanup(google, calendarId, otherId);
         }
     }
 }

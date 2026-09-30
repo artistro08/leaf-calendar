@@ -5,8 +5,8 @@ These tests talk to the real Google Calendar API. They skip on their own until t
 ## What they do
 
 - Sign in with the Google account stored in the Windows Credential Locker profile `live-tests`. This is whichever account you pick in the browser during setup.
-- Only write to temporary calendars they create themselves (named `Leaf live test <guid>`). A write to any other calendar is refused in code.
-- Delete those calendars when each test ends, even if it fails.
+- Only write to temporary calendars they create themselves (named `Leaf live test <guid>`). A write to any other calendar, including the destination of a move, is refused in code.
+- Delete those calendars when each test ends, even if it fails. Each is deleted on its own; if a delete fails, the calendar ID is printed to the error output so you can remove it by hand.
 - Never log event content or tokens.
 
 ## One-time setup
