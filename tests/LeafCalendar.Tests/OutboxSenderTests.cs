@@ -224,6 +224,25 @@ public sealed class OutboxSenderTests : IDisposable
         Assert.Contains("outbox.rejected", File.ReadAllText(_h.LogPath), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(OutboxOperation.Patch)]
+    [InlineData(OutboxOperation.Delete)]
+    public async Task Send_409OnPatchOrDelete_RejectedAndThePassContinues(OutboxOperation operation)
+    {
+        Queue("evt-single", operation, operation == OutboxOperation.Patch ? """{"summary":"Mine"}""" : null);
+        Queue("evt-allday", OutboxOperation.Patch, """{"summary":"Holiday"}""", "\"3181161784712001\"");
+        _h.Google.On(r => r.Uri.AbsoluteUri.StartsWith(SingleUrl + "?", StringComparison.Ordinal) && r.Method != HttpMethod.Get, _ => FakeHttpHandler.Json(HttpStatusCode.Conflict, """{"error":{"code":409,"errors":[{"reason":"conflict"}]}}"""));
+        _h.Google.On(HttpMethod.Get, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","etag":"\"G2\"","status":"confirmed","summary":"Dentist appointment","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""");
+        _h.Google.On(HttpMethod.Patch, SyncHarness.PrimaryEventsUrl + "/evt-allday", HttpStatusCode.OK, """{"id":"evt-allday","etag":"\"E5\"","status":"confirmed","start":{"date":"2026-10-12"},"end":{"date":"2026-10-13"}}""");
+
+        var report = await Send();
+
+        Assert.Equal(1, report.Rejected);
+        Assert.Empty(Pending());
+        Assert.Equal("\"G2\"", Get("evt-single")!.Etag);
+        Assert.Equal("\"E5\"", Get("evt-allday")!.Etag);
+    }
+
     [Fact]
     public async Task Send_HeldDelete_WaitsForUndoWindow()
     {

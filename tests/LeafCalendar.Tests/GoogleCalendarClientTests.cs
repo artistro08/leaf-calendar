@@ -156,6 +156,17 @@ public class GoogleCalendarClientTests : IDisposable
     }
 
     [Fact]
+    public async Task PatchEventAsync_409_ThrowsApiErrorNotDuplicate()
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        _google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.Conflict, """{"error":{"code":409,"errors":[{"reason":"conflict"}]}}""");
+
+        var error = await Assert.ThrowsAsync<GoogleApiException>(
+            () => CreateClient().PatchEventAsync(Account, "leaf.tester@gmail.com", "evt-single", """{"summary":"x"}""", "\"1\"", false, TestContext.Current.CancellationToken));
+        Assert.Equal(HttpStatusCode.Conflict, error.Status);
+    }
+
+    [Fact]
     public async Task InsertEventAsync_NoId_ThrowsAndSendsNothing()
     {
         await Assert.ThrowsAsync<ArgumentException>(

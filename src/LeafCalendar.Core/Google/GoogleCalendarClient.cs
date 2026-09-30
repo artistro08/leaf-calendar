@@ -82,7 +82,7 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
         }
 
         using var response = await SendAsync(accountId, HttpMethod.Post, $"{EventsPath(calendarId)}?sendUpdates={Updates(sendUpdates)}", eventJson, null, ct);
-        return await ReadEventAsync(response, ct);
+        return await ReadEventAsync(response, ct, isInsert: true);
     }
 
     /// <summary>Changes the fields in <paramref name="patchJson"/> and returns Google's JSON.</summary>
@@ -137,8 +137,9 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
 
     static string Updates(bool sendUpdates) => sendUpdates ? "all" : "none";
 
-    // Maps write statuses to Leaf's exceptions; success returns the body ("" for 204)
-    static async Task<string> ReadEventAsync(HttpResponseMessage response, CancellationToken ct)
+    // Maps write statuses to Leaf's exceptions; success returns the body ("" for 204).
+    // A 409 means "that ID exists" only for an insert; elsewhere it stays a GoogleApiException (a permanent refusal)
+    static async Task<string> ReadEventAsync(HttpResponseMessage response, CancellationToken ct, bool isInsert = false)
     {
         switch (response.StatusCode)
         {
@@ -146,7 +147,7 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
                 throw new PreconditionFailedException();
             case HttpStatusCode.NotFound or HttpStatusCode.Gone:
                 throw new EventGoneException();
-            case HttpStatusCode.Conflict:
+            case HttpStatusCode.Conflict when isInsert:
                 throw new DuplicateEventException();
         }
 
