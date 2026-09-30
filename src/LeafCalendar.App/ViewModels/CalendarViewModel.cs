@@ -266,27 +266,31 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>Goes back to the previously shown view and date, if any.</summary>
-    public void GoBack() => Restore(_history.Back());
+    /// <returns>True when a place was restored.</returns>
+    public bool GoBack() => Restore(_history.Back());
 
     /// <summary>Goes forward again after going back, if possible.</summary>
-    public void GoForward() => Restore(_history.Forward());
+    /// <returns>True when a place was restored.</returns>
+    public bool GoForward() => Restore(_history.Forward());
 
-    void Restore(ViewPlace? place)
+    bool Restore(ViewPlace? place)
     {
         if (place is null)
         {
-            return;
+            return false;
         }
 
         _restoring = true;
         try
         {
-            if (Mode != place.Mode || Settings.CustomDayCount != place.CustomDayCount)
+            var days = place.Mode == CalendarViewMode.Days ? place.CustomDayCount : Settings.CustomDayCount;
+            if (Mode != place.Mode || Settings.CustomDayCount != days)
             {
-                Update(s => s with { ViewMode = place.Mode, CustomDayCount = place.CustomDayCount });
+                Update(s => s with { ViewMode = place.Mode, CustomDayCount = days });
             }
 
             NavigateTo(place.PeriodStart);
+            return true;
         }
         finally
         {

@@ -23,6 +23,9 @@ public sealed class NavigationHistory
     /// <summary>Records a place. The same place as the current one is ignored, anything forward of the current place is dropped, and the oldest place is forgotten past <see cref="Capacity"/>.</summary>
     public void Visit(ViewPlace place)
     {
+        // The Day Count Only Matters In Days View
+        place = place.Mode == CalendarViewMode.Days ? place : place with { CustomDayCount = 0 };
+
         if (_index >= 0 && _places[_index] == place)
         {
             return;

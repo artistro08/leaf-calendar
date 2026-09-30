@@ -289,7 +289,9 @@ public sealed partial class CalendarPage : Page
         }
 
         // A Held E Doesn't Repeat Into "E Then E"
-        if (e.KeyStatus.WasKeyDown && (_keys.IsPending || e.Key == VirtualKey.E))
+        // Nor Does A Held Alt+Arrow Walk The Whole History
+        if (e.KeyStatus.WasKeyDown && (_keys.IsPending || e.Key == VirtualKey.E
+            || (e.Key is VirtualKey.Left or VirtualKey.Right && Controls.KeyState.IsDown(VirtualKey.Menu))))
         {
             return true;
         }
@@ -309,6 +311,21 @@ public sealed partial class CalendarPage : Page
 
         Execute(result);
         return true;
+    }
+
+    /// <summary>
+    /// Goes back or forward through the visited places, under the same rules as the keyboard shortcuts: nothing
+    /// happens while an event is being edited or while focus is in a text box, flyout, menu, or dialog.
+    /// </summary>
+    /// <returns>True when the calendar moved.</returns>
+    public bool TryNavigateHistory(bool back)
+    {
+        if (ViewModel.Editing is not null || ShortcutsBlocked())
+        {
+            return false;
+        }
+
+        return back ? ViewModel.GoBack() : ViewModel.GoForward();
     }
 
     // Typing, or focus in a flyout, menu, dialog, or the go-to-date picker
@@ -341,8 +358,8 @@ public sealed partial class CalendarPage : Page
             case CalendarCommand.Today:              vm.GoToToday(); break;
             case CalendarCommand.Previous:           vm.Previous(); break;
             case CalendarCommand.Next:               vm.Next(); break;
-            case CalendarCommand.NavigateBack:       vm.GoBack(); break;
-            case CalendarCommand.NavigateForward:    vm.GoForward(); break;
+            case CalendarCommand.NavigateBack:       TryNavigateHistory(back: true); break;
+            case CalendarCommand.NavigateForward:    TryNavigateHistory(back: false); break;
             case CalendarCommand.DayView:            vm.SetMode(Core.Settings.CalendarViewMode.Day); break;
             case CalendarCommand.WeekView:           vm.SetMode(Core.Settings.CalendarViewMode.Week); break;
             case CalendarCommand.MonthView:          vm.SetMode(Core.Settings.CalendarViewMode.Month); break;

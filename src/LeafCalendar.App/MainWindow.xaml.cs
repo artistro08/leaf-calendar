@@ -96,15 +96,14 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            var point = e.GetCurrentPoint(RootGrid).Properties;
-            if (point.IsXButton1Pressed)
+            // Only The Press That Just Happened Counts, Not A Button Still Held
+            var kind = e.GetCurrentPoint(RootGrid).Properties.PointerUpdateKind;
+            if (kind == Microsoft.UI.Input.PointerUpdateKind.XButton1Pressed && page.TryNavigateHistory(back: true))
             {
-                page.ViewModel.GoBack();
                 e.Handled = true;
             }
-            else if (point.IsXButton2Pressed)
+            else if (kind == Microsoft.UI.Input.PointerUpdateKind.XButton2Pressed && page.TryNavigateHistory(back: false))
             {
-                page.ViewModel.GoForward();
                 e.Handled = true;
             }
         }), handledEventsToo: true);

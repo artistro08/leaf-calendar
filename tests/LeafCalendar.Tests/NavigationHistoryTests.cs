@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 
 public class NavigationHistoryTests
 {
-    static ViewPlace Week(int day) => new(CalendarViewMode.Week, 3, new DateOnly(2026, 10, day));
+    static ViewPlace Week(int day) => new(CalendarViewMode.Week, 0, new DateOnly(2026, 10, day));
 
     [Fact]
     public void Back_ThenForward_WalksTheVisits()
@@ -48,12 +48,15 @@ public class NavigationHistoryTests
     }
 
     [Fact]
-    public void SeededOpeningPlace_LetsTheFirstMoveGoBack()
+    public void Visit_OutsideDaysView_IgnoresTheDayCount()
     {
         var h = new NavigationHistory();
-        h.Visit(Week(1));
-        h.Visit(Week(8));
-        Assert.True(h.CanGoBack);
-        Assert.Equal(Week(1), h.Back());
+        h.Visit(new(CalendarViewMode.Week, 3, new DateOnly(2026, 10, 1)));
+        h.Visit(new(CalendarViewMode.Week, 7, new DateOnly(2026, 10, 1)));
+        Assert.False(h.CanGoBack);
+
+        h.Visit(new(CalendarViewMode.Days, 5, new DateOnly(2026, 10, 1)));
+        h.Visit(new(CalendarViewMode.Days, 6, new DateOnly(2026, 10, 1)));
+        Assert.Equal(new ViewPlace(CalendarViewMode.Days, 5, new DateOnly(2026, 10, 1)), h.Back());
     }
 }
