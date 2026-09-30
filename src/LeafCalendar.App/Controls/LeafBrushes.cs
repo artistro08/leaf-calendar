@@ -48,6 +48,9 @@ public static class LeafBrushes
     /// <summary>Hover fill for rows (the theme's SubtleFillColorSecondary).</summary>
     public static SolidColorBrush Hover(bool dark) => FromHex(dark ? "#0FFFFFFF" : "#09000000");
 
+    /// <summary>Opaque fill for the time grid's drag ghost (the theme's SolidBackgroundFillColorTertiary), so a card under it doesn't show through.</summary>
+    public static SolidColorBrush GhostFill(bool dark) => FromHex(dark ? "#282828" : "#F9F9F9");
+
     /// <summary>Primary text.</summary>
     public static SolidColorBrush PrimaryText(bool dark) => FromHex(dark ? "#FFFFFFFF" : "#E4000000");
 

@@ -153,7 +153,7 @@ public sealed partial class DayColumn : Canvas
         _ghost.Width       = Math.Max(_owner.ColumnWidth - 6, 10);
         _ghost.Height      = Math.Max((endMinute - startMinute) / 60 * hour - 2, 10);
         _ghost.BorderBrush = LeafBrushes.Accent(dark);
-        _ghost.Background  = LeafBrushes.Hover(dark);
+        _ghost.Background  = LeafBrushes.GhostFill(dark);
         _ghostLabel.Text   = label;
         SetLeft(_ghost, 2);
         SetTop(_ghost, startMinute / 60 * hour + 1);

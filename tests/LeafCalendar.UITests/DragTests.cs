@@ -117,6 +117,50 @@ public sealed class DragTests : IDisposable
         Assert.Contains("\"2026-10-13\"", write.Body, StringComparison.Ordinal);
     }
 
+    // The resize ghost starts where the card does; it must hide the card's text under it, or the two labels overlap
+    [Fact]
+    public void ResizeGhost_CoversTheCardsTextUnderIt()
+    {
+        using var leaf = Launch();
+        var dentist = leaf.WaitFor(Dentist);
+        LeafApp.WaitUntilStill(dentist);
+        var box   = dentist.BoundingRectangle;
+        var start = new Point(box.X + box.Width / 2, box.Bottom - 2);
+
+        LeafApp.MoveMouse(start);
+        Thread.Sleep(150);
+        Mouse.Down(MouseButton.Left);
+        try
+        {
+            for (var i = 1; i <= 12; i++)
+            {
+                LeafApp.MoveMouse(new Point(start.X, start.Y + HourPixels(dentist) * i / 12));
+                Thread.Sleep(30);
+            }
+
+            Thread.Sleep(300);
+
+            // The card's second line (its time) sits under the ghost's empty middle: it should read as one flat fill
+            var region = new Rectangle(box.X + box.Width / 20, box.Y + box.Height * 45 / 100, box.Width * 3 / 10, box.Height / 6);
+            using var shot = FlaUI.Core.Capturing.Capture.Rectangle(region);
+            var lightness = new List<float>();
+            for (var x = 0; x < shot.Bitmap.Width; x++)
+            {
+                for (var y = 0; y < shot.Bitmap.Height; y++)
+                {
+                    lightness.Add(shot.Bitmap.GetPixel(x, y).GetBrightness());
+                }
+            }
+
+            Assert.True(lightness.Max() - lightness.Min() < 0.1f, $"Text shows through the ghost (lightness {lightness.Min():0.00} to {lightness.Max():0.00}).");
+        }
+        finally
+        {
+            Keyboard.Press(VirtualKeyShort.ESCAPE);
+            Mouse.Up(MouseButton.Left);
+        }
+    }
+
     [Fact]
     public void WiggleRepeatingEventWithinItsSlot_AsksNothingAndSendsNothing()
     {
