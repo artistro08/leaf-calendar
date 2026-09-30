@@ -16,9 +16,9 @@ public static class DisplayText
             return "";
         }
 
-        // Control Characters Become One Space Per Run; Bidi Overrides/Isolates And Marks Are Dropped (They Can Reorder The Tooltip)
+        // Control Characters Become One Space Per Run; Bidi And Zero-Width Characters Are Dropped (They Can Reorder The Tooltip)
         var builder = new StringBuilder(text.Length);
-        foreach (var c in text.Where(c => !IsBidi(c)))
+        foreach (var c in text.Where(c => !IsInvisible(c)))
         {
             if (char.IsControl(c))
             {
@@ -48,6 +48,6 @@ public static class DisplayText
         return clean[..cut].TrimEnd() + "…";
     }
 
-    // Bidi Marks (LRM, RLM, ALM), Embeddings/Overrides (202A-202E), Isolates (2066-2069)
-    static bool IsBidi(char c) => c is '‎' or '‏' or '؜' || (c >= '‪' && c <= '‮') || (c >= '⁦' && c <= '⁩');
+    // Bidi Marks/Embeddings/Overrides/Isolates, Zero-Width And Format Characters, Line/Paragraph Separators
+    static bool IsInvisible(char c) => c is '\u200E' or '\u200F' or '\u061C' or '\u2028' or '\u2029' or '\u2060' or '\uFEFF' or (>= '\u200B' and <= '\u200D') or (>= '\u202A' and <= '\u202E') or (>= '\u2066' and <= '\u2069');
 }

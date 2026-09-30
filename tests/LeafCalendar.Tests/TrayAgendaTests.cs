@@ -195,8 +195,16 @@ public sealed class TrayAgendaTests : IDisposable
     }
 
     [Fact]
-    public void Clean_BidiOverridesRemoved()
+    public void Clean_BidiAndZeroWidthCharactersRemoved()
     {
-        Assert.Equal("abc", DisplayText.Clean("a‮b⁦c‏", 50));
+        Assert.Equal("abcdefgh", DisplayText.Clean("a\u202Eb\u2066c\u200Fd\u200Be\u2060f\uFEFFg\u2028h\u2029", 50));
+    }
+
+    [Fact]
+    public void Load_TitleOfOnlyInvisibleCharacters_FallsBackToNoTitle()
+    {
+        Store("""{"id":"evt-blank","status":"confirmed","summary":"\u200B\u202E","start":{"dateTime":"2026-10-01T11:00:00-04:00"},"end":{"dateTime":"2026-10-01T11:30:00-04:00"}}""");
+
+        Assert.Contains(Load(Morning)[0].Items, i => i.Title == "(No title)");
     }
 }

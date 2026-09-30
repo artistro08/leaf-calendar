@@ -48,7 +48,7 @@ public static class TrayAgenda
                 .ThenBy(o => o.Start)
                 .Select(o => new AgendaItem(
                     o,
-                    DisplayText.Clean(o.Title, MaxTitle),
+                    Title(o),
                     o.IsAllDay ? "All day" : TimeLabels.Range(o.Start, o.End, zone, use24Hour),
                     o.IsAllDay ? null : Link(conn, links, o)))
                 .ToList();
@@ -86,7 +86,7 @@ public static class TrayAgenda
             return "Leaf Calendar";
         }
 
-        var suffix = " " + (next.Countdown == "Now" ? "now" : next.Countdown);
+        var suffix = " " + char.ToLowerInvariant(next.Countdown[0]) + next.Countdown[1..];
         return DisplayText.Clean(next.Item.Title, MaxTooltip - suffix.Length) + suffix;
     }
 
@@ -101,6 +101,9 @@ public static class TrayAgenda
     /// <summary>"Today", "Tomorrow", or "Saturday, October 3".</summary>
     public static string DayHeader(DateOnly day, DateOnly today) =>
         day == today ? "Today" : day == today.AddDays(1) ? "Tomorrow" : TimeLabels.LongDate(day);
+
+    // One-Line Title, Or "(No title)" When Nothing Visible Is Left
+    static string Title(CalendarOccurrence o) => DisplayText.Clean(o.Title, MaxTitle) is { Length: > 0 } title ? title : EventDetailsParser.NoTitle;
 
     static DateOnly LocalDate(DateTimeOffset instant, TimeZoneInfo zone) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, zone).DateTime);
 
