@@ -54,18 +54,22 @@
                     Visibility="{x:Bind ViewModel.CanCancel, Mode=OneWay}"
                     AutomationProperties.AutomationId="OnboardingCancelButton" />
 
-                <!-- Step Indicator (a stock PipsPager, display only, with each pip drawn as a line) -->
-                <PipsPager
-                    x:Name="StepPips"
+                <!-- Step Indicator (a stock PipsPager, display only, with each pip drawn as a line; the PipsPager's own
+                     automation peer always names itself "Pager", so a named wrapper says "Step 2 of 5" instead) -->
+                <Grid
                     Grid.Column="1"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
-                    IsHitTestVisible="False"
-                    NormalPipStyle="{StaticResource LeafStepPipStyle}"
-                    SelectedPipStyle="{StaticResource LeafSelectedStepPipStyle}"
-                    SelectedPageIndex="{x:Bind ViewModel.PageIndex, Mode=OneWay}"
                     AutomationProperties.Name="{x:Bind ViewModel.StepName, Mode=OneWay}"
-                    AutomationProperties.AutomationId="StepIndicator" />
+                    AutomationProperties.AutomationId="StepIndicator">
+                    <PipsPager
+                        x:Name="StepPips"
+                        IsHitTestVisible="False"
+                        NormalPipStyle="{StaticResource LeafStepPipStyle}"
+                        SelectedPipStyle="{StaticResource LeafSelectedStepPipStyle}"
+                        SelectedPageIndex="{x:Bind ViewModel.PageIndex, Mode=OneWay}"
+                        AutomationProperties.AccessibilityView="Raw" />
+                </Grid>
 
                 <Button
                     Grid.Column="2"
