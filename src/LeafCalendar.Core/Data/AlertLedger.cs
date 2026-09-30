@@ -55,6 +55,10 @@ public static class AlertLedger
     public static void MarkRetracted(SqliteConnection conn, string key) =>
         conn.Execute(null, "UPDATE alert_ledger SET retracted = 1 WHERE key = $key;", ("$key", key));
 
+    /// <summary>Forgets one notification, so it can show again (a withdrawn "Join now" whose meeting comes back).</summary>
+    public static void Remove(SqliteConnection conn, string key) =>
+        conn.Execute(null, "DELETE FROM alert_ledger WHERE key = $key;", ("$key", key));
+
     /// <summary>Forgets notifications for events that ended before <paramref name="endedBefore"/>.</summary>
     public static void Prune(SqliteConnection conn, DateTimeOffset endedBefore) =>
         conn.Execute(null, "DELETE FROM alert_ledger WHERE event_end < $cutoff;", ("$cutoff", endedBefore.ToUnixTimeMilliseconds()));

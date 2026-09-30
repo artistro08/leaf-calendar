@@ -15,7 +15,8 @@ namespace LeafCalendar.Core.Hosting;
 /// secrets are never sent to the fake server.</item>
 /// <item><c>--start-date yyyy-MM-dd</c> opens on that date and treats it as "today". It's honored only with <c>--fake-google</c>.</item>
 /// <item><c>--now &lt;instant&gt;</c> starts Leaf's clock at an ISO 8601 instant with an offset (<c>2026-10-01T13:55:00-04:00</c>). It's honored only with <c>--fake-google</c>.
-/// It moves the services clock (alerts, tray, join shortcut) only; the calendar view's "now"
+/// The accepted forms are <c>yyyy-MM-ddTHH:mm:ss±hh:mm</c> and <c>yyyy-MM-ddTHH:mm±hh:mm</c>; a value without an
+/// offset is ignored, so the test clock never depends on the PC's time zone. It moves the services clock (alerts, tray, join shortcut) only; the calendar view's "now"
 /// (<c>CalendarViewModel.Now</c>) still follows <c>--start-date</c> or the real clock.</item>
 /// </list>
 /// </remarks>

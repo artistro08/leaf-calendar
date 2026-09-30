@@ -277,6 +277,211 @@ public sealed class AlertSchedulerTests : IDisposable
     }
 
     [Fact]
+    public void Check_WokeAfterMeetingEndedOutsideTheLookBack_SkipsIt()
+    {
+        var scheduler = Scheduler();
+        At(17, 40);
+        scheduler.Check();
+
+        // Asleep From 17:40 To 19:30: the reminder and the join are both past the look-back, and the meeting is over
+        At(19, 30);
+        scheduler.Check();
+
+        Assert.Empty(_due);
+    }
+
+    [Fact]
+    public void Check_WokeNinetyMinutesIntoALongMeeting_ShowsJoinNowPastTheLookBack()
+    {
+        // A Two-Hour Meeting (18:00-20:00Z): its join came due 90 minutes before the wake, and it's still running
+        Store(Meeting.Replace("T19:00", "T20:00", StringComparison.Ordinal));
+        var scheduler = Scheduler();
+        At(17, 40);
+        scheduler.Check();
+
+        At(19, 30);
+        scheduler.Check();
+
+        Assert.Equal(AlertKind.JoinNow, Assert.Single(_due).Kind);
+    }
+
+    [Fact]
+    public void Check_MeetingLongerThanADay_KeepsItsJoinNow()
+    {
+        // Sep 30 12:00Z To Oct 2 12:00Z: started more than a day before the pass
+        Store(Meeting.Replace("2026-10-01T18:00:00Z", "2026-09-30T12:00:00Z", StringComparison.Ordinal).Replace("2026-10-01T19:00:00Z", "2026-10-02T12:00:00Z", StringComparison.Ordinal));
+        var scheduler = Scheduler();
+        At(17, 0);
+        scheduler.Check();
+        scheduler.Check();
+
+        Assert.Equal(AlertKind.JoinNow, Assert.Single(_due).Kind);
+        Assert.Empty(_retracted);
+    }
+
+    [Fact]
+    public void Check_MeetingReacceptedAfterRetract_ShowsJoinNowAgain()
+    {
+        var scheduler = Scheduler();
+        At(17, 59);
+        scheduler.Check();
+        At(18, 0, 5);
+        scheduler.Check();
+
+        // Declined, Then Accepted Again
+        Store(Meeting.Replace("\"hangoutLink\"", "\"attendees\":[{\"email\":\"leaf.tester@gmail.com\",\"self\":true,\"responseStatus\":\"declined\"}],\"hangoutLink\"", StringComparison.Ordinal));
+        scheduler.Invalidate();
+        At(18, 5);
+        scheduler.Check();
+        Store(Meeting.Replace("\"hangoutLink\"", "\"attendees\":[{\"email\":\"leaf.tester@gmail.com\",\"self\":true,\"responseStatus\":\"accepted\"}],\"hangoutLink\"", StringComparison.Ordinal));
+        scheduler.Invalidate();
+        At(18, 10);
+        scheduler.Check();
+
+        Assert.Equal(2, _due.Count(a => a.Kind == AlertKind.JoinNow));
+        Assert.Single(_retracted);
+    }
+
+    [Fact]
+    public void Check_MeetingMovedBack_ShowsJoinNowAgain()
+    {
+        var scheduler = Scheduler();
+        At(17, 59);
+        scheduler.Check();
+        At(18, 0, 5);
+        scheduler.Check();
+
+        // Moved To 20:00, Then Back To 18:00
+        Store(Meeting.Replace("T18:00", "T20:00", StringComparison.Ordinal).Replace("T19:00", "T21:00", StringComparison.Ordinal));
+        scheduler.Invalidate();
+        At(18, 5);
+        scheduler.Check();
+        Store(Meeting);
+        scheduler.Invalidate();
+        At(18, 10);
+        scheduler.Check();
+
+        Assert.Equal(2, _due.Count(a => a.Kind == AlertKind.JoinNow));
+        Assert.Single(_retracted);
+    }
+
+    [Fact]
+    public void Check_MeetingCanceledAfterJoinNow_RetractsItsToast()
+    {
+        var scheduler = Scheduler();
+        At(17, 59);
+        scheduler.Check();
+        At(18, 0, 5);
+        scheduler.Check();
+        var join = Assert.Single(_due, a => a.Kind == AlertKind.JoinNow);
+
+        Store(Meeting.Replace("\"confirmed\"", "\"cancelled\"", StringComparison.Ordinal));
+        scheduler.Invalidate();
+        scheduler.Check();
+
+        Assert.Equal([join.Tag], _retracted);
+    }
+
+    [Fact]
+    public void Check_MeetingDeletedAfterJoinNow_RetractsItsToast()
+    {
+        var scheduler = Scheduler();
+        At(17, 59);
+        scheduler.Check();
+        At(18, 0, 5);
+        scheduler.Check();
+        var join = Assert.Single(_due, a => a.Kind == AlertKind.JoinNow);
+
+        using (var conn = _db.Database.Open())
+        {
+            EventStore.Remove(conn, null, Account, Primary, "evt-meet");
+        }
+
+        scheduler.Invalidate();
+        scheduler.Check();
+
+        Assert.Equal([join.Tag], _retracted);
+    }
+
+    [Fact]
+    public void Check_ZoneChanged_RePlansInTheNewZone()
+    {
+        // An All-Day Offsite On Oct 2 With A 60-Minute Popup: 23:00Z Oct 1 in UTC, 03:00Z Oct 2 in New York
+        Store("""
+            {"id":"evt-offsite","status":"confirmed","summary":"Offsite","start":{"date":"2026-10-02"},"end":{"date":"2026-10-03"},
+             "reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":60}]}}
+            """);
+        var tz        = TimeZoneInfo.Utc;
+        var scheduler = new AlertScheduler(_db.Database, _time, () => tz);
+        scheduler.AlertDue += (_, alert) => _due.Add(alert);
+        _schedulers.Add(scheduler);
+        At(22, 0);
+        scheduler.Check();
+
+        // Travelled To New York Overnight
+        tz = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 2, 3, 0, 5, TimeSpan.Zero));
+        scheduler.Check();
+
+        Assert.Equal("evt-offsite", Assert.Single(_due).Occurrence.EventId);
+    }
+
+    [Fact]
+    public void Check_ClockSetBack_RePlansAndAsksForSync()
+    {
+        // A Meeting On Sep 29, Two Days Before The First Pass (FakeTimeProvider can't go back, so a settable clock)
+        Store(Meeting.Replace("evt-meet", "evt-earlier", StringComparison.Ordinal).Replace("2026-10-01", "2026-09-29", StringComparison.Ordinal));
+        var clock     = new SettableClock { Now = new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero) };
+        var scheduler = new AlertScheduler(_db.Database, clock, () => TimeZoneInfo.Utc);
+        scheduler.AlertDue += (_, alert) => _due.Add(alert);
+        scheduler.SyncSoon += (_, _) => _syncSoon++;
+        _schedulers.Add(scheduler);
+        scheduler.Check();
+
+        // Clock Corrected Back To Sep 29
+        clock.Now = new DateTimeOffset(2026, 9, 29, 17, 49, 5, TimeSpan.Zero);
+        scheduler.Check();
+        Assert.Equal(1, _syncSoon);
+
+        clock.Now = new DateTimeOffset(2026, 9, 29, 17, 50, 5, TimeSpan.Zero);
+        scheduler.Check();
+
+        Assert.Equal("evt-earlier", Assert.Single(_due).Occurrence.EventId);
+    }
+
+    [Fact]
+    public void Check_HandlerThrows_TheRestOfThePassStillRaises()
+    {
+        // A Second Meeting At The Same Time, So One Pass Has Two Alerts And Two Retracts
+        Store(Meeting.Replace("evt-meet", "evt-other", StringComparison.Ordinal));
+        var failures  = new List<Exception>();
+        var raised    = new List<string>();
+        var scheduler = new AlertScheduler(_db.Database, _time, () => TimeZoneInfo.Utc);
+        scheduler.Failed += (_, ex) => failures.Add(ex);
+        _schedulers.Add(scheduler);
+        At(17, 59);
+        scheduler.Check();
+        At(18, 0, 5);
+        scheduler.Check();
+
+        // Both Meetings Moved To 17:00, And Toasts Now Fail To Show
+        scheduler.AlertDue += (_, alert) =>
+        {
+            raised.Add(alert.Occurrence.EventId);
+            throw new NotSupportedException("Toast failed");
+        };
+        scheduler.AlertRetracted += (_, tag) => raised.Add(tag);
+        Store(Meeting.Replace("T18:00", "T17:00", StringComparison.Ordinal));
+        Store(Meeting.Replace("evt-meet", "evt-other", StringComparison.Ordinal).Replace("T18:00", "T17:00", StringComparison.Ordinal));
+        scheduler.Invalidate();
+        At(18, 1);
+        scheduler.Check();
+
+        Assert.Equal(2, failures.Count);
+        Assert.Equal(4, raised.Count);
+    }
+
+    [Fact]
     public void Start_TimerTicks_RaiseOnTheirOwn()
     {
         At(17, 49, 50);
@@ -285,5 +490,12 @@ public sealed class AlertSchedulerTests : IDisposable
         _time.Advance(TimeSpan.FromSeconds(30));
 
         Assert.Equal(AlertKind.Reminder, Assert.Single(_due).Kind);
+    }
+
+    sealed class SettableClock : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; }
+
+        public override DateTimeOffset GetUtcNow() => Now;
     }
 }

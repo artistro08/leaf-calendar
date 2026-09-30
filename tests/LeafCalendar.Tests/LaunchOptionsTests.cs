@@ -97,6 +97,20 @@ public class LaunchOptionsTests
         Assert.Null(LaunchOptions.Parse([flag, profile, "--now", "2026-10-01T13:55:00-04:00"]).Now);
     }
 
+    [Fact]
+    public void Parse_NowWithoutSeconds_IsKept()
+    {
+        var options = LaunchOptions.Parse(["--profile", "uitest-a", "--fake-google", "http://127.0.0.1:5000/", "--now", "2026-10-01T13:55-04:00"]);
+
+        Assert.Equal(new DateTimeOffset(2026, 10, 1, 13, 55, 0, TimeSpan.FromHours(-4)), options.Now);
+    }
+
+    [Fact]
+    public void Parse_NowWithFakeGoogleOnRealProfile_IsIgnored()
+    {
+        Assert.Null(LaunchOptions.Parse(["--profile", "default", "--fake-google", "http://127.0.0.1:5000/", "--now", "2026-10-01T13:55:00-04:00"]).Now);
+    }
+
     [Theory]
     [InlineData("2026-10-01T13:55:00")]
     [InlineData("tomorrow")]
