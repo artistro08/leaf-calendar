@@ -134,7 +134,7 @@ public static partial class DescriptionFormatter
             foreach (Match match in LinkSafety.HttpsLink().Matches(text))
             {
                 var url = match.Value.TrimEnd('.', ',', ')', ';', '!', '?');
-                if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !LinkSafety.IsClickableInDescription(uri))
                 {
                     continue;
                 }
@@ -182,7 +182,10 @@ public static partial class DescriptionFormatter
             return true;
         }
 
-        return !string.Equals(shownUri.IdnHost, target.IdnHost, StringComparison.OrdinalIgnoreCase);
+        // A host that can't be normalized is never trusted
+        return !LinkSafety.TryIdnHost(shownUri, out var shownHost)
+            || !LinkSafety.TryIdnHost(target, out var targetHost)
+            || !string.Equals(shownHost, targetHost, StringComparison.OrdinalIgnoreCase);
     }
 
     static Uri? SafeLink(string attributes)
@@ -219,7 +222,8 @@ public static partial class DescriptionFormatter
         var kept  = parts.Length < 2
             ? []
             : parts[1].Split('&', StringSplitOptions.RemoveEmptyEntries)
-                .Where(p => p.Split('=')[0].ToLowerInvariant() is "subject" or "body" or "cc")
+                .Where(p => p.Split('=')[0].ToLowerInvariant() is "subject" or "body" or "cc"
+                    && !p.Contains("%0D", StringComparison.OrdinalIgnoreCase) && !p.Contains("%0A", StringComparison.OrdinalIgnoreCase))
                 .ToList();
         var clean = parts[0] + (kept.Count > 0 ? "?" + string.Join("&", kept) : "");
         return Uri.TryCreate(clean, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeMailto ? uri : null;

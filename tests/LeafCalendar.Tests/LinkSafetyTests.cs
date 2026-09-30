@@ -83,6 +83,21 @@ public class LinkSafetyTests
         Assert.Equal(expected, LinkSafety.FindMeetingLink(text)?.AbsoluteUri);
     }
 
+    [Theory]
+    [InlineData("․")]
+    [InlineData("﷐")]
+    [InlineData("￿")]
+    public void InvalidIdnHosts_NeverThrow_AndAreNotAllowlisted(string bad)
+    {
+        Assert.Null(LinkSafety.FindMeetingLink($"join https://a{bad}.zoom.us/j/1 now"));
+        if (Uri.TryCreate($"https://a{bad}.zoom.us/j/1", UriKind.Absolute, out var uri))
+        {
+            Assert.Null(LinkSafety.ProviderOf(uri));
+            Assert.False(LinkSafety.IsClickableInDescription(uri));
+            Assert.False(LinkSafety.TryIdnHost(uri, out _));
+        }
+    }
+
     [Fact]
     public void FindMeetingLink_HugeInput_StaysFast()
     {

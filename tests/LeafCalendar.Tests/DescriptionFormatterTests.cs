@@ -72,6 +72,26 @@ public class DescriptionFormatterTests
         Assert.All(DescriptionFormatter.Format(html), r => Assert.Null(r.Link));
     }
 
+    [Theory]
+    [InlineData("<a href=\"https://evil.example/\">x&#xFDD0;y.z</a>")]
+    [InlineData("<a href=\"https://evil.example/\">&#x2024;bank.example</a>")]
+    [InlineData("<a href=\"https://evil.example/\">https://a&#xFDD0;.com/</a>")]
+    [InlineData("<a href=\"https://evil.example/\">https://a&#xFFFF;.com/</a>")]
+    [InlineData("<a href=\"https://a&#xFDD0;.com/\">x</a>")]
+    [InlineData("<a href=\"https://a&#xFFFF;.com/\">x</a>")]
+    [InlineData("see https://a﷐.com/x now")]
+    [InlineData("see https://a․.com/x now")]
+    public void Format_InvalidIdnHosts_NeverThrowAndAreNotClickable(string html)
+    {
+        Assert.All(DescriptionFormatter.Format(html), r => Assert.Null(r.Link));
+    }
+
+    [Fact]
+    public void Format_MailtoValuesWithLineBreaks_AreDropped()
+    {
+        Assert.Equal("mailto:sam@example.com?subject=Hi", DescriptionFormatter.Format("<a href=\"mailto:sam@example.com?subject=Hi&body=a%0D%0ABcc:x@y.z&cc=q%0aw\">m</a>").Single().Link?.OriginalString);
+    }
+
     [Fact]
     public void Format_MailtoText_StaysClickable()
     {

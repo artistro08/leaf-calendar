@@ -60,11 +60,12 @@ public static partial class LinkSafety
 
     /// <summary>True for <c>https</c> and the meeting app schemes (<c>zoommtg</c>, <c>zoomus</c>, <c>msteams</c>, <c>webex</c>).</summary>
     public static bool CanLaunch(Uri uri) =>
-        uri.IsAbsoluteUri && LaunchSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase);
+        uri.IsAbsoluteUri && LaunchSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase)
+            && (uri.Scheme != Uri.UriSchemeHttps || TryIdnHost(uri, out _));
 
     /// <summary>True for links a description may make clickable: <c>https</c> and <c>mailto</c>.</summary>
     public static bool IsClickableInDescription(Uri uri) =>
-        uri.IsAbsoluteUri && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeMailto);
+        uri.IsAbsoluteUri && ((uri.Scheme == Uri.UriSchemeHttps && TryIdnHost(uri, out _)) || uri.Scheme == Uri.UriSchemeMailto);
 
     /// <summary>The meeting service an <c>https</c> link belongs to, or null.</summary>
     public static MeetingProvider? ProviderOf(Uri uri)
@@ -74,7 +75,12 @@ public static partial class LinkSafety
             return null;
         }
 
-        var host = uri.IdnHost.TrimEnd('.').ToLowerInvariant();
+        if (!TryIdnHost(uri, out var idnHost))
+        {
+            return null;
+        }
+
+        var host = idnHost.TrimEnd('.').ToLowerInvariant();
         foreach (var (domain, provider) in MeetingHosts)
         {
             if (host == domain || host.EndsWith("." + domain, StringComparison.Ordinal))
@@ -84,6 +90,30 @@ public static partial class LinkSafety
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The link's host in IDN (ASCII) form. <see cref="Uri.IdnHost"/> throws for hosts with characters that are invalid
+    /// in internationalized names (U+2024, U+FDD0, U+FFFF) even though <see cref="Uri"/> accepted the link; this returns
+    /// false instead, and callers treat that as "not allowlisted".
+    /// </summary>
+    public static bool TryIdnHost(Uri uri, out string host)
+    {
+        host = "";
+        if (!uri.IsAbsoluteUri)
+        {
+            return false;
+        }
+
+        try
+        {
+            host = uri.IdnHost;
+            return true;
+        }
+        catch (Exception e) when (e is UriFormatException or ArgumentException)
+        {
+            return false;
+        }
     }
 
     /// <summary>The link to open for Join: Meet gets <c>authuser=&lt;email&gt;</c> so the right Google account joins (spec 8.5); others open as-is.</summary>

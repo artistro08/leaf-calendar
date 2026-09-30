@@ -29,6 +29,15 @@ public class EventDetailsParserTests
         Assert.Equal("https://zoom.us/j/1?a=1&pwd=2", EventDetailsParser.Parse(json).ConferenceUri?.AbsoluteUri);
     }
 
+    [Theory]
+    [InlineData("""{"id":"a","location":"https://a﷐.zoom.us/j/1"}""")]
+    [InlineData("""{"id":"a","location":"https://a․.zoom.us/j/1"}""")]
+    [InlineData("""{"id":"a","description":"<a href=\"https://a￿.zoom.us/j/1\">x</a> &#xFDD0;"}""")]
+    public void Parse_InvalidIdnHost_DoesNotThrowAndIsIgnored(string json)
+    {
+        Assert.Null(EventDetailsParser.Parse(json).ConferenceUri);
+    }
+
     [Fact]
     public void Parse_LookAlikeMeetingHost_Ignored()
     {
