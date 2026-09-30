@@ -68,7 +68,7 @@ public sealed partial class EventEditorView : UserControl
         });
     }
 
-    /// <summary>Lets go of the current editor (the controls let go of its lists too, so the next editor starts clean).</summary>
+    /// <summary>Lets go of the current editor and empties the calendar picker, so the next editor's pick isn't reset.</summary>
     public void Detach()
     {
         _owner = null;

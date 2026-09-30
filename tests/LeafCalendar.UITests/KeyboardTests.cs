@@ -102,4 +102,16 @@ public sealed class KeyboardTests : IDisposable
 
         Assert.False(Retry.WhileFalse(() => leaf.Exists("MonthGrid"), TimeSpan.FromSeconds(2)).Success);
     }
+
+    [Fact]
+    public void TypingM_WithFocusInFlyout_DoesNotSwitchView()
+    {
+        using var leaf = Launch();
+
+        leaf.WaitFor("CalendarColor_family123@group.calendar.google.com").AsButton().Invoke();
+        leaf.WaitForAnywhere("ColorSwatch_16A765").Focus();
+        FlaUI.Core.Input.Keyboard.Type("m");
+
+        Assert.False(Retry.WhileFalse(() => leaf.Exists("MonthGrid"), TimeSpan.FromSeconds(2)).Success);
+    }
 }
