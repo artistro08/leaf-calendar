@@ -15,6 +15,7 @@ namespace LeafCalendar.App.Controls;
 public sealed partial class DayColumn : Canvas
 {
     readonly TimeGridView _owner;
+    readonly Action<CalendarOccurrence> _select;
     readonly Rectangle[] _hourLines = new Rectangle[24];
     readonly Rectangle[] _halfLines = new Rectangle[24];
     readonly Rectangle _divider = new() { Width = 1 };
@@ -27,7 +28,8 @@ public sealed partial class DayColumn : Canvas
     /// <summary>Creates a column owned by <paramref name="owner"/>.</summary>
     public DayColumn(TimeGridView owner)
     {
-        _owner = owner;
+        _owner  = owner;
+        _select = o => KeyState.SelectClicked(_owner.ViewModel, o);
         for (var h = 0; h < 24; h++)
         {
             Children.Add(_hourLines[h] = new Rectangle { Height = 1, IsHitTestVisible = false });
@@ -119,7 +121,7 @@ public sealed partial class DayColumn : Canvas
             SetLeft(card, 2 + b.Column * colW);
             SetTop(card, b.StartMinute / 60 * hour + 1);
             card.HoldsEnd = b.Occurrence.End <= OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
-            card.Bind(b.Occurrence, palette, TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, vm.Select);
+            card.Bind(b.Occurrence, palette, TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, _select);
         }
 
         for (var i = blocks.Count; i < _blocks.Count; i++)

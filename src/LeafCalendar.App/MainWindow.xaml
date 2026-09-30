@@ -127,6 +127,7 @@
                             Orientation="Horizontal"
                             Visibility="Collapsed">
                             <Button
+                                x:Name="EditEventButton"
                                 Style="{StaticResource LeafBareIconButtonStyle}"
                                 Click="OnEditEventClick"
                                 ToolTipService.ToolTip="Edit event (E)"

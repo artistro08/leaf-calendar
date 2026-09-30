@@ -156,9 +156,12 @@ public sealed class LeafApp : IDisposable
         Thread.Sleep(300);
     }
 
-    // FlaUI moves the cursor with SetCursorPos, which WinUI doesn't report as pointer moves, so a drag would
-    // jump from press to release; this injects a real mouse move (absolute, across all monitors)
-    static void MoveMouse(Point to)
+    /// <summary>
+    /// Moves the mouse so the app sees it (hover). FlaUI moves the cursor with SetCursorPos, which WinUI doesn't report
+    /// as pointer moves, so a drag would jump from press to release; this injects a real mouse move (absolute, across
+    /// all monitors).
+    /// </summary>
+    public static void MoveMouse(Point to)
     {
         var left   = NativeMethods.GetSystemMetrics(NativeMethods.VirtualScreenLeft);
         var top    = NativeMethods.GetSystemMetrics(NativeMethods.VirtualScreenTop);

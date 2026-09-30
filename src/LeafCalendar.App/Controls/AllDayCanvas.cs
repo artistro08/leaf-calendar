@@ -119,11 +119,24 @@ public sealed partial class AllDayCanvas : Canvas
         {
             if (_shown.TryGetValue(chip, out var o))
             {
-                _owner.ViewModel.Select(o);
+                KeyState.SelectClicked(_owner.ViewModel, o);
             }
 
             e.Handled = true;
         };
+
+        // Right-Click Menu, And The Event Under The Mouse (X toggles it)
+        chip.RightTapped += (_, e) =>
+        {
+            if (_shown.TryGetValue(chip, out var o))
+            {
+                EventContextMenu.Show(chip, e.GetPosition(chip), _owner.ViewModel, o);
+            }
+
+            e.Handled = true;
+        };
+        chip.PointerEntered += (_, _) => _owner.ViewModel.PointerEvent = _shown.GetValueOrDefault(chip);
+        chip.PointerExited  += (_, _) => _owner.ViewModel.PointerEvent = null;
         chip.DoubleTapped += (_, e) =>
         {
             if (_shown.TryGetValue(chip, out var o))

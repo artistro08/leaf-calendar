@@ -68,13 +68,13 @@ public sealed partial class DetailsPanel : UserControl
 
     void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(CalendarViewModel.SelectedInfo) or nameof(CalendarViewModel.Editing))
+        if (e.PropertyName is nameof(CalendarViewModel.SelectedInfo) or nameof(CalendarViewModel.Editing) or nameof(CalendarViewModel.Selection))
         {
             ShowCurrent();
         }
     }
 
-    // The editor wins while it's open; otherwise the selected event, else the upcoming list
+    // The editor wins while it's open; otherwise the selection summary (several events), the selected event, else the upcoming list
     void ShowCurrent()
     {
         if (_vm?.Editing is { } editing)
@@ -86,9 +86,10 @@ public sealed partial class DetailsPanel : UserControl
             }
 
             var view = EditorView!;
-            UpcomingView.Visibility = Visibility.Collapsed;
-            DetailsView.Visibility  = Visibility.Collapsed;
-            view.Visibility         = Visibility.Visible;
+            UpcomingView.Visibility  = Visibility.Collapsed;
+            DetailsView.Visibility   = Visibility.Collapsed;
+            SelectionView.Visibility = Visibility.Collapsed;
+            view.Visibility          = Visibility.Visible;
 
             // A new editor starts at the top (a refresh behind an open editor keeps the scroll position)
             if (!ReferenceEquals(view.Editor, editing))
@@ -98,6 +99,19 @@ public sealed partial class DetailsPanel : UserControl
                 view.Attach(_vm, editing);
             }
 
+            return;
+        }
+
+        // Several Events Selected
+        var count = _vm?.Selection.Count ?? 0;
+        SelectionView.Visibility = Visible(count > 1);
+        if (count > 1)
+        {
+            EditorView?.Detach();
+            EditorView?.Visibility  = Visibility.Collapsed;
+            UpcomingView.Visibility = Visibility.Collapsed;
+            DetailsView.Visibility  = Visibility.Collapsed;
+            SelectionSummary.Text   = string.Create(CultureInfo.InvariantCulture, $"{count} events selected");
             return;
         }
 
@@ -293,6 +307,8 @@ public sealed partial class DetailsPanel : UserControl
     // =========================================================================
     // ACTIONS
     // =========================================================================
+
+    void OnDeleteClick(object sender, RoutedEventArgs e) => Act(vm => vm.DeleteAsync([.. vm.Selection], sendUpdates: true), "details.delete.failed");
 
     void OnJoinClick(SplitButton sender, SplitButtonClickEventArgs e) => Act(vm => vm.JoinAsync(vm.SelectedInfo?.Occurrence), "details.join.failed");
 

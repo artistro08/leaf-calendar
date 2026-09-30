@@ -195,7 +195,7 @@ public sealed partial class CalendarPage : Page
         _viewIsMonth = wantMonth;
     }
 
-    // Selecting an event opens the panel so the details are visible; the title follows the period
+    // Selecting an event (or several) opens the panel so the details are visible; the title follows the period
     void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(CalendarViewModel.Notice))
@@ -216,7 +216,9 @@ public sealed partial class CalendarPage : Page
             return;
         }
 
-        if (e.PropertyName == nameof(CalendarViewModel.SelectedInfo) && ViewModel.SelectedInfo is not null && !ViewModel.IsRefreshingSelection && !ViewModel.Settings.DetailsPanelOpen)
+        var picked = (e.PropertyName == nameof(CalendarViewModel.SelectedInfo) && ViewModel.SelectedInfo is not null)
+            || (e.PropertyName == nameof(CalendarViewModel.Selection) && ViewModel.Selection.Count > 1);
+        if (picked && !ViewModel.IsRefreshingSelection && !ViewModel.Settings.DetailsPanelOpen)
         {
             SetDetailsOpen(true, animate: true);
         }
@@ -292,6 +294,11 @@ public sealed partial class CalendarPage : Page
             case CalendarCommand.DeleteSelected:     vm.Fire(() => vm.DeleteAsync([.. vm.Selection], sendUpdates: true), "event.delete.failed"); break;
             case CalendarCommand.CreateEvent:        vm.BeginCreateNow(); break;
             case CalendarCommand.CancelEventQuietly: vm.Fire(() => vm.DeleteAsync([.. vm.Selection], sendUpdates: false), "event.delete.failed"); break;
+            case CalendarCommand.SelectAll:          vm.SelectAllVisible(); break;
+            case CalendarCommand.ToggleSelect:       vm.ToggleFocused(); break;
+            case CalendarCommand.Copy:               vm.CopySelection(); break;
+            case CalendarCommand.Cut:                vm.Fire(vm.CutSelectionAsync, "calendar.cut.failed"); break;
+            case CalendarCommand.Paste:              vm.Paste(); break;
         }
     }
 

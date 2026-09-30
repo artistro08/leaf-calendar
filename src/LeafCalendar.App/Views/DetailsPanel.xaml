@@ -168,6 +168,14 @@
                 </StackPanel>
                 <!-- /Event Details -->
 
+                <!-- Several Selected -->
+                <StackPanel x:Name="SelectionView" Spacing="12" Visibility="Collapsed">
+                    <TextBlock x:Name="SelectionSummary" Style="{StaticResource SubtitleTextBlockStyle}" AutomationProperties.AutomationId="SelectionSummary" />
+                    <TextBlock Text="Drag one to move them all. Right-click for color, copy, and delete." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <Button Content="Delete" Click="OnDeleteClick" AutomationProperties.AutomationId="SelectionDeleteButton" />
+                </StackPanel>
+                <!-- /Several Selected -->
+
                 <!-- Editor -->
                 <!-- Loaded the first time an editor opens -->
                 <local:EventEditorView x:Name="EditorView" x:Load="False" />

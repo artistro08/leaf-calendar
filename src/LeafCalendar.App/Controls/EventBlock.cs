@@ -91,6 +91,19 @@ public sealed partial class EventBlock : Grid
 
             e.Handled = true;
         };
+
+        // Right-Click Menu, And The Event Under The Mouse (X toggles it)
+        RightTapped += (_, e) =>
+        {
+            if (_occurrence is { } o && _owner is { } owner)
+            {
+                EventContextMenu.Show(this, e.GetPosition(this), owner.ViewModel, o);
+            }
+
+            e.Handled = true;
+        };
+        PointerEntered += (_, _) => _owner?.ViewModel.PointerEvent = _occurrence;
+        PointerExited  += (_, _) => _owner?.ViewModel.PointerEvent = null;
     }
 
     // The grid decides whether the press becomes a drag (it waits for the pointer to move a few pixels)

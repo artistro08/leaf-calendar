@@ -216,9 +216,18 @@ public sealed partial class WeekRow : Canvas
         };
         chip.Tapped += (_, e) =>
         {
-            vm.Select(o);
+            KeyState.SelectClicked(vm, o);
             e.Handled = true;
         };
+
+        // Right-Click Menu, And The Event Under The Mouse (X toggles it)
+        chip.RightTapped += (_, e) =>
+        {
+            EventContextMenu.Show(chip, e.GetPosition(chip), vm, o);
+            e.Handled = true;
+        };
+        chip.PointerEntered += (_, _) => vm.PointerEvent = o;
+        chip.PointerExited  += (_, _) => vm.PointerEvent = null;
         chip.DoubleTapped += (_, e) =>
         {
             vm.Select(o);

@@ -68,6 +68,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     readonly List<CalendarOccurrence> _selection = [];
     (DateOnly Day, Func<CalendarOccurrence, bool> Match)? _reselect;
     DeleteReceipt? _lastDelete;
+    readonly List<(CalendarOccurrence Occurrence, EventCopy Copy)> _clipboard = [];
+
+    // Marks Leaf's own events on the Windows clipboard, so Ctrl+V pastes them only while nothing else was copied since
+    const string ClipboardFormat = "LeafCalendar.Events";
 
     /// <summary>Loads settings and calendars and starts the minute clock.</summary>
     public CalendarViewModel(LeafServices services, DispatcherQueue dispatcher)
@@ -647,11 +651,15 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         Editing = null;
     }
 
-    /// <summary>Moves or resizes a dragged event (asking about a repeating one), then selects it where it landed.</summary>
+    /// <summary>
+    /// Moves or resizes a dragged event (asking about a repeating one), then selects it where it landed. A dragged event
+    /// that is part of a bigger selection moves the whole selection (events you can't change stay, with a hint).
+    /// </summary>
     public async Task MoveAsync(CalendarOccurrence occurrence, DateTimeOffset start, DateTimeOffset end, bool isAllDay)
     {
-        IReadOnlyList<EventMove> moves = [new EventMove(occurrence, start, end, isAllDay)];
-        var scope = await ScopeForAsync([.. moves.Select(m => m.Occurrence)], includeFollowing: true);
+        var moves   = BulkMoves(occurrence, start, end, isAllDay);
+        var skipped = _selection.Count > 1 && IsSelected(occurrence) ? _selection.Count - moves.Count : 0;
+        var scope   = await ScopeForAsync([.. moves.Select(m => m.Occurrence)], includeFollowing: true);
         if (scope is null)
         {
             // Canceled: redraw the event where it was
@@ -663,6 +671,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         try
         {
             _services.Editor.Move(moves, scope.Value, sendUpdates: true);
+            SaySkipped(skipped);
         }
         catch (Exception ex) when (IsEditFailure(ex) || ex is ArgumentException)
         {
@@ -683,6 +692,191 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         {
             Fail("calendar.duplicate.failed", ex);
         }
+    }
+
+    /// <summary>The event under the mouse (X adds it to or takes it out of the selection), or null.</summary>
+    public CalendarOccurrence? PointerEvent { get; set; }
+
+    /// <summary>Adds an event to the selection, or takes it out (Ctrl+click, Shift+click).</summary>
+    public void ToggleSelect(CalendarOccurrence occurrence)
+    {
+        var index = _selection.FindIndex(s => s.Key == occurrence.Key);
+        if (index >= 0)
+        {
+            _selection.RemoveAt(index);
+        }
+        else
+        {
+            _selection.Add(occurrence);
+        }
+
+        PublishSelection();
+    }
+
+    /// <summary>X: toggles the event under the mouse, else the selected one.</summary>
+    public void ToggleFocused()
+    {
+        if ((PointerEvent ?? SelectedInfo?.Occurrence) is { } target)
+        {
+            ToggleSelect(target);
+        }
+    }
+
+    /// <summary>Selects every event on the days showing (Ctrl+A).</summary>
+    public void SelectAllVisible()
+    {
+        _selection.Clear();
+        _selection.AddRange(VisibleDays().SelectMany(Cache.ForDay).DistinctBy(o => o.Key));
+        PublishSelection();
+    }
+
+    /// <summary>
+    /// Copies the selection (Ctrl+C). The copies keep the events' data, so a cut event can still be pasted. The Windows
+    /// clipboard gets a readable summary (one line per event) plus Leaf's marker; the events themselves stay in Leaf.
+    /// </summary>
+    public void CopySelection()
+    {
+        if (_selection.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var copies = _selection.Select(o => (o, _services.Editor.CopyOf(o))).ToList();
+            _clipboard.Clear();
+            _clipboard.AddRange(copies);
+
+            // Readable Text, And Leaf's Marker For Paste
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText(string.Join(Environment.NewLine, copies.Select(c => $"{c.o.Title} · {WhenText(c.o)}")));
+            package.SetData(ClipboardFormat, "1");
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+
+            Say(copies.Count == 1 ? "Copied" : string.Create(CultureInfo.InvariantCulture, $"Copied {copies.Count} events"), canUndo: false);
+        }
+        catch (Exception ex) when (IsEditFailure(ex) || ex is System.Runtime.InteropServices.COMException)
+        {
+            Fail("calendar.copy.failed", ex);
+        }
+    }
+
+    /// <summary>Copies, then deletes, the selection (Ctrl+X).</summary>
+    public async Task CutSelectionAsync()
+    {
+        CopySelection();
+        await DeleteAsync([.. _selection], sendUpdates: true);
+    }
+
+    /// <summary>
+    /// Pastes the copied events at the picked time (or the next quarter hour), keeping their spacing (Ctrl+V). Only
+    /// Leaf's own copies are pasted, from Leaf's memory; nothing on the clipboard is ever read as an event or run.
+    /// </summary>
+    public void Paste()
+    {
+        if (_clipboard.Count == 0 || !ClipboardIsOurs())
+        {
+            return;
+        }
+
+        var placed = DragMath.PasteAt([.. _clipboard.Select(c => c.Occurrence)], CursorTime ?? DragMath.NextSlot(Now, Zone), Zone);
+        string? id = null;
+        if (placed.Count == 1)
+        {
+            _reselect = (placed[0].Occurrence.IsAllDay ? DateOnly.FromDateTime(placed[0].Start.UtcDateTime) : LocalDate(placed[0].Start), o => o.EventId == id);
+        }
+
+        try
+        {
+            for (var i = 0; i < placed.Count; i++)
+            {
+                id = _services.Editor.Paste(_clipboard[i].Copy, placed[i].Start, placed[i].End, placed[i].Occurrence.IsAllDay);
+            }
+        }
+        catch (Exception ex) when (IsEditFailure(ex))
+        {
+            Fail("calendar.paste.failed", ex);
+        }
+    }
+
+    /// <summary>Sets the color of the selected events you can change (null for the calendar's color); the rest are skipped with a hint.</summary>
+    public async Task RecolorAsync(string? colorId)
+    {
+        var items   = _selection.Where(CanEdit).ToList();
+        var skipped = _selection.Count - items.Count;
+        if (items.Count == 0 || await ScopeForAsync(items, includeFollowing: true) is not { } scope)
+        {
+            SaySkipped(skipped);
+            return;
+        }
+
+        try
+        {
+            _services.Editor.Recolor(items, colorId, scope);
+            SaySkipped(skipped);
+        }
+        catch (Exception ex) when (IsEditFailure(ex))
+        {
+            Fail("calendar.recolor.failed", ex);
+        }
+    }
+
+    // Something else copied since Leaf did (another app, or text in Leaf) wins; an unreadable clipboard doesn't block Leaf's paste
+    static bool ClipboardIsOurs()
+    {
+        try
+        {
+            return Windows.ApplicationModel.DataTransfer.Clipboard.GetContent().Contains(ClipboardFormat);
+        }
+        catch (System.Runtime.InteropServices.COMException)
+        {
+            return true;
+        }
+    }
+
+    // A mixed selection changes what it can and says how many it left alone
+    void SaySkipped(int skipped)
+    {
+        if (skipped > 0)
+        {
+            Say(skipped == 1 ? "1 event couldn't be changed" : string.Create(CultureInfo.InvariantCulture, $"{skipped} events couldn't be changed"), canUndo: false);
+        }
+    }
+
+    // A dragged event that's part of a bigger selection takes the others you can change along (same time shift; all-day by days)
+    IReadOnlyList<EventMove> BulkMoves(CalendarOccurrence dragged, DateTimeOffset start, DateTimeOffset end, bool isAllDay)
+    {
+        if (_selection.Count < 2 || !IsSelected(dragged))
+        {
+            return [new EventMove(dragged, start, end, isAllDay)];
+        }
+
+        var shift = start - dragged.Start;
+        var days  = (isAllDay ? DateOnly.FromDateTime(start.UtcDateTime) : LocalDate(start)).DayNumber - DayOf(dragged).DayNumber;
+        return [.. _selection.Where(CanEdit).Select(o => o.Key == dragged.Key ? new EventMove(o, start, end, isAllDay) : Shifted(o))];
+
+        EventMove Shifted(CalendarOccurrence o)
+        {
+            if (!o.IsAllDay)
+            {
+                return new EventMove(o, o.Start + shift, o.End + shift, false);
+            }
+
+            var (s, e) = DragMath.ShiftDays(o, days, Zone);
+            return new EventMove(o, s, e, true);
+        }
+    }
+
+    // The days on screen (hidden weekends skipped)
+    IEnumerable<DateOnly> VisibleDays()
+    {
+        if (Mode == CalendarViewMode.Month)
+        {
+            var (gridStart, weeks) = ViewNavigator.MonthGrid(PeriodStart, Settings.WeekStart);
+            return Enumerable.Range(0, weeks * 7).Select(gridStart.AddDays).Where(d => Settings.ShowWeekends || !ViewNavigator.IsWeekend(d));
+        }
+
+        return Enumerable.Range(0, 62).Select(PeriodStart.AddDays).Where(d => Settings.ShowWeekends || !ViewNavigator.IsWeekend(d)).Take(VisibleColumns);
     }
 
     // Calendars you can add events to; an edited event's own calendar is always there (a guest who may edit an
