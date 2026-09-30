@@ -75,6 +75,29 @@ public class SetupTests
         }
     }
 
+    // The error sits below the guide and both boxes, past the fold of the fixed window: it scrolls into view
+    [Fact]
+    public void Next_InvalidClientId_ScrollsTheErrorIntoView()
+    {
+        var profile = LeafApp.NewProfile();
+        try
+        {
+            using var leaf = LeafApp.Launch(profile);
+
+            EnterCredentials(leaf, "not-a-client-id", "GOCSPX-uitest");
+
+            // UIA clips an element's box to what shows: a one-line InfoBar is at least 48 DIP tall, 1.5 times the
+            // 32 DIP Back button, when none of it is cut off
+            var error = leaf.WaitInOnboarding("SetupError");
+            var back  = leaf.WaitInOnboarding("OnboardingBackButton").BoundingRectangle.Height;
+            Assert.True(Retry.WhileFalse(() => error.BoundingRectangle.Height >= back * 1.4, TimeSpan.FromSeconds(5)).Success, $"Only {error.BoundingRectangle.Height} px of the error shows (Back is {back} px tall).");
+        }
+        finally
+        {
+            LeafApp.DeleteProfile(profile);
+        }
+    }
+
     [Fact]
     public void Next_ValidCredentials_MovesToSignInAndPersistsAcrossLaunches()
     {

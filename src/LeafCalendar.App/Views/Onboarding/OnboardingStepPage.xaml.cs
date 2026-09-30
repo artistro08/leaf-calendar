@@ -24,6 +24,13 @@ public sealed partial class OnboardingStepPage : Page
     {
         InitializeComponent();
         ScrollIndicator.ShowOnHover(PageScroll);
+
+        // Errors Scroll Into View (each sits under the step's controls, below the fold of the fixed-size window; its
+        // size changes as it opens and its message wraps, so it's brought into view at its final size)
+        foreach (var error in new[] { ClientError, SignInError, SyncError })
+        {
+            error.SizeChanged += (_, _) => BringIntoViewWhenOpen(error);
+        }
     }
 
     /// <summary>The onboarding window's view model.</summary>
@@ -51,6 +58,17 @@ public sealed partial class OnboardingStepPage : Page
         // The page is leaving: stop listening to the shared view model, so it can go away and its hidden boxes don't
         // keep writing back
         Bindings.StopTracking();
+    }
+
+    // Scrolls an open error into view (its own reference, never read back from the tree)
+    static void BringIntoViewWhenOpen(InfoBar error)
+    {
+        if (!error.IsOpen)
+        {
+            return;
+        }
+
+        error.StartBringIntoView();
     }
 
     static Visibility Shown(bool shown) => shown ? Visibility.Visible : Visibility.Collapsed;
