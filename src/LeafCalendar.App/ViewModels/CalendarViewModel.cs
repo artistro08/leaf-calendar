@@ -523,6 +523,134 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     // EDITING
     // =========================================================================
 
+    /// <summary>The event being edited or created in the details panel, or null.</summary>
+    [ObservableProperty]
+    public partial EventEditorViewModel? Editing { get; set; }
+
+    /// <summary>The time a click on empty grid space picked (C and paste go there), or null.</summary>
+    public DateTimeOffset? CursorTime { get; set; }
+
+    /// <summary>True when you may change the event (drags check this before they start).</summary>
+    public bool CanEdit(CalendarOccurrence occurrence) => _services.Editor.Permissions(occurrence).CanEdit;
+
+    /// <summary>Opens the editor on the selected event (E; "E then U" focuses the end time).</summary>
+    public void BeginEdit(bool focusEnd = false)
+    {
+        if (SelectedInfo is not { CanEdit: true } info)
+        {
+            return;
+        }
+
+        Editing = new EventEditorViewModel(info.Draft, info.Occurrence, WritableCalendars(info.Occurrence), Zone, IanaZoneId(Zone), Settings.Use24HourTime, focusEnd);
+    }
+
+    /// <summary>Opens the editor on a new event in your main calendar (primary, else the first you can write to).</summary>
+    public void BeginCreate(DateTimeOffset start, DateTimeOffset end, bool isAllDay)
+    {
+        var home = Calendars
+            .Where(c => c.AccessRole is "owner" or "writer" && AccountEmails.ContainsKey(c.AccountId))
+            .OrderByDescending(c => c.IsPrimary)
+            .ThenByDescending(c => c.IsVisible)
+            .FirstOrDefault();
+        if (home is null)
+        {
+            Notice = new NoticeInfo("Add a Google account with a calendar you can edit first.", CanUndo: false);
+            return;
+        }
+
+        var draft = new EventDraft
+        {
+            AccountId  = home.AccountId,
+            CalendarId = home.Id,
+            Start      = start,
+            End        = end,
+            IsAllDay   = isAllDay,
+            TimeZone   = isAllDay ? null : IanaZoneId(Zone),
+        };
+
+        ClearSelection();
+        Editing = new EventEditorViewModel(draft, null, WritableCalendars(), Zone, IanaZoneId(Zone), Settings.Use24HourTime);
+    }
+
+    /// <summary>A new one-hour event at the picked time, or the next quarter hour (C).</summary>
+    public void BeginCreateNow()
+    {
+        var start = CursorTime ?? DragMath.NextSlot(Now, Zone);
+        BeginCreate(start, start + DragMath.DefaultLength, isAllDay: false);
+    }
+
+    /// <summary>Closes the editor without saving.</summary>
+    public void CancelEdit() => Editing = null;
+
+    /// <summary>
+    /// Saves the editor. A new event gets the birthday rule (spec 7.2). A repeating event asks "this / following / all"
+    /// (a calendar change always moves the whole series: Google can't move one instance).
+    /// </summary>
+    public async Task SaveEditorAsync(bool sendUpdates)
+    {
+        if (Editing is not { } editor)
+        {
+            return;
+        }
+
+        if (editor.Validate() is { } problem)
+        {
+            editor.Error = problem;
+            return;
+        }
+
+        var after = editor.ToDraft();
+        try
+        {
+            if (editor.Occurrence is not { } o)
+            {
+                var draft = EventJson.ApplyBirthdayRule(after, Zone);
+                string? id = null;
+                _reselect = (draft.IsAllDay ? DateOnly.FromDateTime(draft.Start.UtcDateTime) : LocalDate(draft.Start), x => x.EventId == id);
+                id = _services.Editor.Create(draft, sendUpdates);
+            }
+            else
+            {
+                var scope = EditScope.This;
+                if (o.RecurringEventId is not null)
+                {
+                    var moved = after.CalendarId != editor.Before.CalendarId || after.AccountId != editor.Before.AccountId;
+                    if (moved)
+                    {
+                        scope = EditScope.All;
+                    }
+                    else if (await ScopeForAsync([o], includeFollowing: true) is { } asked)
+                    {
+                        scope = asked;
+                    }
+                    else
+                    {
+                        return;
+                    }
+                }
+
+                ReselectAfterRefresh(o, after.Start, after.IsAllDay);
+                _services.Editor.Save(o, editor.Before, after, scope, sendUpdates);
+            }
+        }
+        catch (Exception ex) when (IsEditFailure(ex) || ex is ArgumentException)
+        {
+            _reselect = null;
+            _services.Log.Error("event.save.failed", ex);
+            editor.Error = "Couldn't save that. Try again.";
+            return;
+        }
+
+        Editing = null;
+    }
+
+    // Calendars you can add events to; an edited event's own calendar is always there (a guest who may edit an
+    // invite on a calendar you can only read), so leaving the picker alone never moves the event
+    IReadOnlyList<CalendarChoice> WritableCalendars(CalendarOccurrence? source = null) =>
+        [.. Calendars
+            .Where(c => (c.AccessRole is "owner" or "writer" || (c.AccountId == source?.AccountId && c.Id == source.CalendarId)) && AccountEmails.ContainsKey(c.AccountId))
+            .Select(c => new CalendarChoice(c.AccountId, c.Id, c.Summary, AccountEmails[c.AccountId], c.DisplayColor))];
+
     /// <summary>
     /// Deletes events you can change (asking about repeating ones), then shows "Event deleted · Undo". The delete
     /// waits in the outbox for <see cref="EventEditor.UndoWindow"/>. Invites and read-only calendars are skipped

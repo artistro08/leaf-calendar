@@ -79,6 +79,12 @@
                             Click="OnJoinClick"
                             AutomationProperties.AutomationId="DetailsJoinButton" />
                         <Button
+                            x:Name="EditButton"
+                            Content="Edit"
+                            Click="OnEditClick"
+                            ToolTipService.ToolTip="Edit (E)"
+                            AutomationProperties.AutomationId="DetailsEditButton" />
+                        <Button
                             x:Name="DeleteButton"
                             Click="OnDeleteClick"
                             ToolTipService.ToolTip="Delete (Delete)"
@@ -131,6 +137,9 @@
                     <RichTextBlock x:Name="DescriptionBlock" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsDescription" />
                 </StackPanel>
                 <!-- /Event Details -->
+
+                <!-- Editor -->
+                <local:EventEditorView x:Name="EditorView" Visibility="Collapsed" />
             </Grid>
         </ScrollViewer>
     </Grid>

@@ -1,14 +1,12 @@
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Views;
-using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.System;
-using Windows.UI.Core;
 
 namespace LeafCalendar.App.Views;
 
@@ -205,6 +203,12 @@ public sealed partial class CalendarPage : Page
             return;
         }
 
+        if (e.PropertyName == nameof(CalendarViewModel.Editing) && ViewModel.Editing is not null && !ViewModel.Settings.DetailsPanelOpen)
+        {
+            SetDetailsOpen(true, animate: true);
+            return;
+        }
+
         if (e.PropertyName == nameof(CalendarViewModel.SelectedInfo) && ViewModel.SelectedInfo is not null && !ViewModel.IsRefreshingSelection && !ViewModel.Settings.DetailsPanelOpen)
         {
             SetDetailsOpen(true, animate: true);
@@ -227,13 +231,19 @@ public sealed partial class CalendarPage : Page
     /// <returns>True when the key was a shortcut and has been handled.</returns>
     public bool HandleShortcut(KeyRoutedEventArgs e)
     {
+        // The Editor Handles Its Own Keys
+        if (ViewModel.Editing is not null)
+        {
+            return false;
+        }
+
         if (FocusManager.GetFocusedElement(XamlRoot) is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox or CalendarView
             || VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot).Count > 0)
         {
             return false;
         }
 
-        var result = ShortcutMap.Resolve(e.Key.ToString(), IsDown(VirtualKey.Control), IsDown(VirtualKey.Shift), IsDown(VirtualKey.Menu));
+        var result = ShortcutMap.Resolve(e.Key.ToString(), Controls.KeyState.IsDown(VirtualKey.Control), Controls.KeyState.IsDown(VirtualKey.Shift), Controls.KeyState.IsDown(VirtualKey.Menu));
         if (result.Command == CalendarCommand.None)
         {
             return false;
@@ -265,6 +275,7 @@ public sealed partial class CalendarPage : Page
             case CalendarCommand.NextEvent:          vm.SelectAdjacent(1); break;
             case CalendarCommand.PreviousEvent:      vm.SelectAdjacent(-1); break;
             case CalendarCommand.DeleteSelected:     vm.Fire(() => vm.DeleteAsync([.. vm.Selection], sendUpdates: true), "event.delete.failed"); break;
+            case CalendarCommand.CreateEvent:        vm.BeginCreateNow(); break;
             case CalendarCommand.CancelEventQuietly: vm.Fire(() => vm.DeleteAsync([.. vm.Selection], sendUpdates: false), "event.delete.failed"); break;
         }
     }
@@ -312,8 +323,6 @@ public sealed partial class CalendarPage : Page
             ViewModel.DismissNotice();
         }
     }
-
-    static bool IsDown(VirtualKey key) => InputKeyboardSource.GetKeyStateForCurrentThread(key).HasFlag(CoreVirtualKeyStates.Down);
 
     void OnLayoutChanged(object? sender, EventArgs e) => ApplyView();
 

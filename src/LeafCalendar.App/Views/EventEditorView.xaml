@@ -1,0 +1,166 @@
+<UserControl
+    x:Class="LeafCalendar.App.Views.EventEditorView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:LeafCalendar.App.ViewModels"
+    xmlns:local="using:LeafCalendar.App.Views"
+    AutomationProperties.Name="Event editor"
+    AutomationProperties.AutomationId="EventEditor">
+
+    <!-- Ctrl+Enter saves, Ctrl+Shift+Enter saves without emailing, Esc cancels (see OnPreviewKeyDown) -->
+    <StackPanel Spacing="12" PreviewKeyDown="OnPreviewKeyDown">
+        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{x:Bind Editor.HeaderText, Mode=OneWay}" />
+
+        <!-- Title -->
+        <TextBox
+            x:Name="TitleBox"
+            FontSize="18"
+            PlaceholderText="Add title"
+            Text="{x:Bind Editor.Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+            AutomationProperties.Name="Title"
+            AutomationProperties.AutomationId="EditorTitle" />
+
+        <!-- When -->
+        <CheckBox Content="All day" IsChecked="{x:Bind Editor.IsAllDay, Mode=TwoWay}" AutomationProperties.AutomationId="EditorAllDay" />
+        <StackPanel Spacing="6">
+            <CalendarDatePicker Header="Starts" HorizontalAlignment="Stretch" Date="{x:Bind Editor.StartDate, Mode=TwoWay}" AutomationProperties.AutomationId="EditorStartDate" />
+            <TimePicker
+                HorizontalAlignment="Stretch"
+                MinuteIncrement="5"
+                ClockIdentifier="{x:Bind Editor.Clock, Mode=OneWay}"
+                Time="{x:Bind Editor.StartTime, Mode=TwoWay}"
+                Visibility="{x:Bind Editor.ShowTimes, Mode=OneWay}"
+                AutomationProperties.Name="Start time"
+                AutomationProperties.AutomationId="EditorStartTime" />
+            <CalendarDatePicker Header="Ends" HorizontalAlignment="Stretch" Date="{x:Bind Editor.EndDate, Mode=TwoWay}" AutomationProperties.AutomationId="EditorEndDate" />
+            <TimePicker
+                x:Name="EndTimePicker"
+                HorizontalAlignment="Stretch"
+                MinuteIncrement="5"
+                ClockIdentifier="{x:Bind Editor.Clock, Mode=OneWay}"
+                Time="{x:Bind Editor.EndTime, Mode=TwoWay}"
+                Visibility="{x:Bind Editor.ShowTimes, Mode=OneWay}"
+                AutomationProperties.Name="End time"
+                AutomationProperties.AutomationId="EditorEndTime" />
+        </StackPanel>
+        <!-- /When -->
+
+        <!-- Repeat -->
+        <ComboBox Header="Repeat" HorizontalAlignment="Stretch" SelectedIndex="{x:Bind Editor.RepeatIndex, Mode=TwoWay}" AutomationProperties.AutomationId="EditorRepeat">
+            <ComboBoxItem Content="Doesn't repeat" />
+            <ComboBoxItem Content="Daily" />
+            <ComboBoxItem Content="Weekly" />
+            <ComboBoxItem Content="Monthly" />
+            <ComboBoxItem Content="Yearly" />
+            <ComboBoxItem Content="Custom rule (kept as is)" />
+        </ComboBox>
+        <StackPanel Spacing="8" Visibility="{x:Bind Editor.ShowRepeatOptions, Mode=OneWay}">
+            <NumberBox Header="Every" Minimum="1" Maximum="99" SpinButtonPlacementMode="Compact" Value="{x:Bind Editor.RepeatInterval, Mode=TwoWay}" AutomationProperties.AutomationId="EditorRepeatInterval" />
+            <ItemsControl ItemsSource="{x:Bind Editor.Weekdays, Mode=OneWay}" Visibility="{x:Bind Editor.ShowWeekdays, Mode=OneWay}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="4" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:WeekdayToggle">
+                        <ToggleButton MinWidth="34" Padding="4" Content="{x:Bind Label}" IsChecked="{x:Bind IsOn, Mode=TwoWay}" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <ComboBox Header="Ends" HorizontalAlignment="Stretch" SelectedIndex="{x:Bind Editor.EndsIndex, Mode=TwoWay}" AutomationProperties.AutomationId="EditorEnds">
+                <ComboBoxItem Content="Never" />
+                <ComboBoxItem Content="On a date" />
+                <ComboBoxItem Content="After a number of times" />
+            </ComboBox>
+            <CalendarDatePicker HorizontalAlignment="Stretch" Date="{x:Bind Editor.EndsOn, Mode=TwoWay}" Visibility="{x:Bind Editor.ShowEndsOn, Mode=OneWay}" AutomationProperties.AutomationId="EditorEndsOn" />
+            <NumberBox Minimum="1" Maximum="999" SpinButtonPlacementMode="Compact" Value="{x:Bind Editor.EndsAfter, Mode=TwoWay}" Visibility="{x:Bind Editor.ShowEndsAfter, Mode=OneWay}" AutomationProperties.AutomationId="EditorEndsAfter" />
+        </StackPanel>
+        <!-- /Repeat -->
+
+        <!-- Calendar -->
+        <ComboBox Header="Calendar" HorizontalAlignment="Stretch" ItemsSource="{x:Bind Editor.Calendars, Mode=OneWay}" SelectedIndex="{x:Bind Editor.CalendarIndex, Mode=TwoWay}" AutomationProperties.AutomationId="EditorCalendar">
+            <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:CalendarChoice">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Ellipse Width="10" Height="10" VerticalAlignment="Center" Fill="{x:Bind local:EventEditorView.Brush(Color)}" />
+                        <StackPanel>
+                            <TextBlock Text="{x:Bind Name}" />
+                            <TextBlock Text="{x:Bind AccountEmail}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <!-- Location And Description -->
+        <TextBox Header="Location" Text="{x:Bind Editor.Location, Mode=TwoWay}" AutomationProperties.AutomationId="EditorLocation" />
+        <TextBox Header="Description" MinHeight="80" AcceptsReturn="True" TextWrapping="Wrap" Text="{x:Bind Editor.Description, Mode=TwoWay}" AutomationProperties.AutomationId="EditorDescription" />
+        <TextBlock Text="{x:Bind Editor.ConferenceText, Mode=OneWay}" Visibility="{x:Bind Editor.HasConference, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.AutomationId="EditorConference" />
+
+        <!-- Guests -->
+        <StackPanel Spacing="6">
+            <Grid ColumnSpacing="6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox
+                    Header="Guests"
+                    PlaceholderText="name@example.com"
+                    Text="{x:Bind Editor.GuestInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    KeyDown="OnGuestInputKeyDown"
+                    AutomationProperties.AutomationId="EditorGuestInput" />
+                <Button Grid.Column="1" VerticalAlignment="Bottom" Content="Add" Click="OnAddGuestClick" AutomationProperties.AutomationId="EditorAddGuest" />
+            </Grid>
+            <ItemsControl ItemsSource="{x:Bind Editor.Guests, Mode=OneWay}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:GuestRow">
+                        <Grid ColumnSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center" Text="{x:Bind Email}" TextTrimming="CharacterEllipsis" />
+                            <CheckBox Grid.Column="1" MinWidth="0" Content="Optional" IsChecked="{x:Bind Optional, Mode=TwoWay}" AutomationProperties.AutomationId="{x:Bind OptionalId}" />
+                            <Button Grid.Column="2" Background="Transparent" BorderThickness="0" Command="{x:Bind RemoveCommand}" AutomationProperties.Name="Remove guest" AutomationProperties.AutomationId="{x:Bind RemoveId}">
+                                <FontIcon Glyph="&#xE711;" FontSize="12" />
+                            </Button>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+        <!-- /Guests -->
+
+        <!-- Color (swatches built in code: the calendar's color, then Google's 11 event colors) -->
+        <StackPanel Spacing="4">
+            <TextBlock Text="Color" />
+            <VariableSizedWrapGrid x:Name="ColorPanel" Orientation="Horizontal" ItemWidth="30" ItemHeight="30" />
+        </StackPanel>
+
+        <!-- Reminders -->
+        <CheckBox Content="Calendar's default reminders" IsChecked="{x:Bind Editor.UseDefaultReminders, Mode=TwoWay}" AutomationProperties.AutomationId="EditorDefaultReminders" />
+        <ItemsControl ItemsSource="{x:Bind Editor.Reminders, Mode=OneWay}" Visibility="{x:Bind Editor.ShowReminderChoices, Mode=OneWay}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <VariableSizedWrapGrid Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ReminderToggle">
+                    <ToggleButton Margin="0,0,4,4" Content="{x:Bind Label}" IsChecked="{x:Bind IsOn, Mode=TwoWay}" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Save -->
+        <TextBlock Text="{x:Bind Editor.Error, Mode=OneWay}" Visibility="{x:Bind Editor.HasError, Mode=OneWay}" Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" AutomationProperties.AutomationId="EditorError" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Style="{StaticResource AccentButtonStyle}" Content="Save" Click="OnSaveClick" ToolTipService.ToolTip="Save and email guests (Ctrl+Enter)" AutomationProperties.AutomationId="EditorSaveButton" />
+            <Button Content="Save without emailing" Click="OnSaveQuietClick" Visibility="{x:Bind Editor.HasGuests, Mode=OneWay}" ToolTipService.ToolTip="Ctrl+Shift+Enter" AutomationProperties.AutomationId="EditorSaveQuietButton" />
+            <Button Content="Cancel" Click="OnCancelClick" ToolTipService.ToolTip="Esc" AutomationProperties.AutomationId="EditorCancelButton" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

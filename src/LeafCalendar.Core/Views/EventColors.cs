@@ -34,6 +34,13 @@ public static partial class EventColors
         ["11"] = "#D50000",
     };
 
+    /// <summary>Google's names for the 11 event colors, in colorId order (the editor's swatches and the event menu).</summary>
+    public static IReadOnlyList<(string Id, string Name)> EventColorNames { get; } =
+    [
+        ("1", "Lavender"), ("2", "Sage"), ("3", "Grape"), ("4", "Flamingo"), ("5", "Banana"), ("6", "Tangerine"),
+        ("7", "Peacock"), ("8", "Graphite"), ("9", "Blueberry"), ("10", "Basil"), ("11", "Tomato"),
+    ];
+
     /// <summary>Google Calendar's 24 calendar colors, offered in the sidebar color picker.</summary>
     public static IReadOnlyList<string> CalendarPalette { get; } =
     [

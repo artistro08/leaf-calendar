@@ -44,7 +44,7 @@ public sealed partial class DetailsPanel : UserControl
         vm.Upcoming.CollectionChanged += OnUpcomingChanged;
         vm.PropertyChanged            += OnViewModelPropertyChanged;
         UpdateUpcomingEmpty();
-        Show(vm.SelectedInfo);
+        ShowCurrent();
     }
 
     /// <summary>Disconnects from the view model.</summary>
@@ -57,6 +57,7 @@ public sealed partial class DetailsPanel : UserControl
 
         _vm.Upcoming.CollectionChanged -= OnUpcomingChanged;
         _vm.PropertyChanged            -= OnViewModelPropertyChanged;
+        EditorView.Detach();
         _vm = null;
     }
 
@@ -67,10 +68,35 @@ public sealed partial class DetailsPanel : UserControl
 
     void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(CalendarViewModel.SelectedInfo))
+        if (e.PropertyName is nameof(CalendarViewModel.SelectedInfo) or nameof(CalendarViewModel.Editing))
         {
-            Show(_vm?.SelectedInfo);
+            ShowCurrent();
         }
+    }
+
+    // The editor wins while it's open; otherwise the selected event, else the upcoming list
+    void ShowCurrent()
+    {
+        if (_vm?.Editing is { } editing)
+        {
+            UpcomingView.Visibility = Visibility.Collapsed;
+            DetailsView.Visibility  = Visibility.Collapsed;
+            EditorView.Visibility   = Visibility.Visible;
+
+            // A new editor starts at the top (a refresh behind an open editor keeps the scroll position)
+            if (!ReferenceEquals(EditorView.Editor, editing))
+            {
+                _shownKey = null;
+                ContentScroll.ChangeView(null, 0, null, true);
+                EditorView.Attach(_vm, editing);
+            }
+
+            return;
+        }
+
+        EditorView.Detach();
+        EditorView.Visibility = Visibility.Collapsed;
+        Show(_vm?.SelectedInfo);
     }
 
     void Show(SelectedEventInfo? info)
@@ -101,6 +127,7 @@ public sealed partial class DetailsPanel : UserControl
         // Actions (every link control shows where it really goes)
         var call = d.ConferenceUri is { } uri ? LinkSafety.DisplayForm(uri) ?? "" : "";
         JoinButton.Visibility   = Visible(d.ConferenceUri is not null);
+        EditButton.Visibility   = Visible(info.CanEdit);
         DeleteButton.Visibility = Visible(info.CanEdit);
         ToolTipService.SetToolTip(JoinButton, $"Join (Ctrl+J)\n{call}");
 
@@ -244,6 +271,8 @@ public sealed partial class DetailsPanel : UserControl
     // =========================================================================
 
     void OnJoinClick(object sender, RoutedEventArgs e) => Act(vm => vm.JoinAsync(vm.SelectedInfo?.Occurrence), "details.join.failed");
+
+    void OnEditClick(object sender, RoutedEventArgs e) => _vm?.BeginEdit();
 
     void OnDeleteClick(object sender, RoutedEventArgs e) => Act(vm => vm.DeleteAsync([.. vm.Selection], sendUpdates: true), "details.delete.failed");
 
