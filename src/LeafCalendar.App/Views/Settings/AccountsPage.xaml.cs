@@ -52,8 +52,19 @@ public sealed partial class AccountsPage : Page
             return;
         }
 
-        var unsent  = ViewModel.UnsentFor(accountId);
-        var content = "Leaf will sign out of this Google account and remove its calendars from this PC. Your Google Calendar isn't changed.";
+        // Unsent Changes (async void: a database error here would otherwise terminate the process)
+        int unsent;
+        try
+        {
+            unsent = ViewModel.UnsentFor(accountId);
+        }
+        catch (Exception ex)
+        {
+            ViewModel.ShowError("account.disconnect.failed", ex);
+            return;
+        }
+
+        var content ="Leaf will sign out of this Google account and remove its calendars from this PC. Your Google Calendar isn't changed.";
         if (unsent > 0)
         {
             content += unsent == 1
