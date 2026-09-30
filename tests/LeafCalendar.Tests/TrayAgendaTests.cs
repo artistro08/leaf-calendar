@@ -194,6 +194,31 @@ public sealed class TrayAgendaTests : IDisposable
         Assert.Equal("", DisplayText.Clean(null, 5));
     }
 
+    [Theory]
+    [InlineData("­")]
+    [InlineData("͏")]
+    [InlineData("᠎")]
+    [InlineData("⁡")]
+    [InlineData("⁤")]
+    [InlineData("⁪")]
+    [InlineData("⁯")]
+    [InlineData("￹")]
+    [InlineData("￻")]
+    [InlineData("󠁁")]
+    [InlineData("󠁿")]
+    public void Clean_OtherFormatCharactersRemoved(string invisible)
+    {
+        Assert.Equal("ab", DisplayText.Clean("a" + invisible + "b", 50));
+    }
+
+    [Fact]
+    public void Clean_KeepsZeroWidthJoinerInEmojiSequences()
+    {
+        var woman_technologist = "👩‍💻";
+
+        Assert.Equal(woman_technologist, DisplayText.Clean(woman_technologist, 50));
+    }
+
     [Fact]
     public void Clean_BidiAndZeroWidthCharactersRemoved()
     {

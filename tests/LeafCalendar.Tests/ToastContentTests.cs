@@ -224,4 +224,62 @@ public class ToastContentTests
     {
         Assert.Null(ToastArgs.Parse("action=ReviewConflicts;profile=default;x=" + new string('x', 5000)));
     }
+
+    [Theory]
+    [InlineData("action=Open;profile=..%5C..%5CWindows;account=1;calendar=c;event=e;start=0")]
+    [InlineData("action=ReviewConflicts;profile=a%00b")]
+    [InlineData("action=ReviewConflicts;profile=a%20b")]
+    [InlineData("action=ReviewConflicts;profile=a%E2%80%AEb")]
+    [InlineData("action=ReviewConflicts;profile=")]
+    [InlineData("action=Open;action=Join;profile=default;account=1;calendar=c;event=e;start=0")]
+    [InlineData("action=ReviewConflicts;profile=default;profile=other")]
+    [InlineData("action=Open;profile=default;account=;calendar=;event=;start=0")]
+    [InlineData("action=SignIn;profile=default;account=")]
+    public void Args_UnsafeProfileDuplicateKeysOrEmptyIds_ReadAsNothing(string text)
+    {
+        Assert.Null(ToastArgs.Parse(text));
+    }
+
+    [Fact]
+    public void Conflicts_ZeroOrNegative_Throws()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => ToastContent.Conflicts(0, "default", sound: true));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ToastContent.Conflicts(-2, "default", sound: true));
+    }
+
+    [Fact]
+    public void SignIn_HostileEmail_StaysPlainText()
+    {
+        var hostile = "x</text><action content=\"Pwn\" arguments=\"x\"/><text>‮​@evil.test";
+        var toast   = Parse(ToastContent.SignIn("1", hostile, "default", sound: true));
+        var benign  = Parse(ToastContent.SignIn("1", "a@b.test", "default", sound: true));
+
+        Assert.Equal(Shape(benign), Shape(toast));
+        Assert.DoesNotContain('‮', Texts(toast)[1]);
+        Assert.DoesNotContain('​', Texts(toast)[1]);
+    }
+
+    [Fact]
+    public void Invite_HostileOrganizer_StaysPlainText()
+    {
+        var hostile = "x</text><action content=\"Pwn\" arguments=\"x\"/><text>‮​@evil.test";
+        var toast   = Parse(ToastContent.Invite(Occurrence(), Details(organizer: hostile), false, "tag", "Today", "default", sound: true));
+        var benign  = Parse(ToastContent.Invite(Occurrence(), Details(), false, "tag", "Today", "default", sound: true));
+
+        Assert.Equal(Shape(benign), Shape(toast));
+        Assert.DoesNotContain('‮', Texts(toast)[2]);
+        Assert.DoesNotContain('​', Texts(toast)[2]);
+    }
+
+    [Theory]
+    [InlineData(" ")]
+    [InlineData("​‮")]
+    public void Reminder_BlankTitle_ShowsNoTitleAsHeadline(string title)
+    {
+        var texts = Texts(Parse(ToastContent.Reminder(Reminder(Meet, title), Details(title), "Today", "default", sound: true)));
+
+        Assert.Equal(EventDetailsParser.NoTitle, texts[0]);
+        Assert.Equal("Today", texts[1]);
+        Assert.Equal("Room 4", texts[2]);
+    }
 }

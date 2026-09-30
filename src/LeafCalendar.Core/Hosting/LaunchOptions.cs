@@ -83,6 +83,7 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
             ? instant
             : null;
 
-    static bool IsSafeProfile(string name) =>
+    /// <summary>True for a profile name of 1-64 letters, digits, hyphens, and underscores.</summary>
+    internal static bool IsSafeProfile(string name) =>
         name.Length is > 0 and <= 64 && name.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
 }

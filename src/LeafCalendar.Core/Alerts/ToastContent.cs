@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Xml.Linq;
 using LeafCalendar.Core.Events;
@@ -6,7 +7,10 @@ using LeafCalendar.Core.Views;
 
 namespace LeafCalendar.Core.Alerts;
 
-/// <summary>A notification ready for Windows: its tag and group (for replacing and withdrawing it) and its XML.</summary>
+/// <summary>
+/// A notification ready for Windows: its tag and group (for replacing and withdrawing it) and its XML. Windows limits
+/// both to 64 characters, so the tag must be a hash or ID, never event content.
+/// </summary>
 public sealed record ToastMessage(string Tag, string Group, string Xml);
 
 /// <summary>
@@ -118,6 +122,8 @@ public static class ToastContent
     /// <summary>"1 change needs your review" (spec 5.5); clicking opens the conflict dialog.</summary>
     public static ToastMessage Conflicts(int count, string profile, bool sound)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(count, 1);
+
         var title = count == 1 ? "1 change needs your review" : string.Create(CultureInfo.InvariantCulture, $"{count} changes need your review");
         return Build(
             ConflictTag,
@@ -144,7 +150,7 @@ public static class ToastContent
     public static ToastMessage NoMeeting(bool sound) =>
         Build("no-meeting", NoticeGroup, null, null, ["No meeting to join", "Nothing with a meeting link starts in the next 10 minutes."], [], sound);
 
-    // Every Line Goes Through DisplayText.Clean And Enters As Escaped Element Text
+    // Every Line Goes Through DisplayText.Clean And Enters As Escaped Element Text; The First Line Is The Headline, So It Never Drops Out
     static ToastMessage Build(string tag, string group, ToastArgs? launch, string? scenario, IEnumerable<string?> lines, List<XElement> actions, bool sound)
     {
         var toast = new XElement(
@@ -156,7 +162,9 @@ public static class ToastContent
                 new XElement(
                     "binding",
                     new XAttribute("template", "ToastGeneric"),
-                    lines.Select(l => DisplayText.Clean(l, MaxText)).Where(l => l.Length > 0).Select(l => new XElement("text", l)))));
+                    lines.Select((l, i) => (Text: DisplayText.Clean(l, MaxText), Index: i))
+                        .Where(l => l.Text.Length > 0 || l.Index == 0)
+                        .Select(l => new XElement("text", l.Text.Length > 0 ? l.Text : EventDetailsParser.NoTitle)))));
 
         if (actions.Count > 0)
         {
@@ -167,6 +175,9 @@ public static class ToastContent
         {
             toast.Add(new XElement("audio", new XAttribute("silent", "true")));
         }
+
+        // Tag And Group Are Limited To 64 Characters By Windows
+        Debug.Assert(tag.Length <= 64 && group.Length <= 64, "Toast tag and group must be 64 characters or fewer.");
 
         return new ToastMessage(tag, group, toast.ToString(SaveOptions.DisableFormatting));
     }

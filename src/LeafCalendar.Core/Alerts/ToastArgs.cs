@@ -1,5 +1,6 @@
 using System.Globalization;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.Hosting;
 
 namespace LeafCalendar.Core.Alerts;
 
@@ -83,12 +84,16 @@ public sealed record ToastArgs(ToastAction Action, string Profile, string? Accou
                 return null;
             }
 
-            values[part[..equals]] = Uri.UnescapeDataString(part[(equals + 1)..]);
+            // A Repeated Key Is Ambiguous, So The Whole Text Is Rejected
+            if (!values.TryAdd(part[..equals], Uri.UnescapeDataString(part[(equals + 1)..])))
+            {
+                return null;
+            }
         }
 
         // Action (A Name, Never A Number) And Profile
         if (!values.TryGetValue("action", out var name) || !name.All(char.IsAsciiLetter) || !Enum.TryParse<ToastAction>(name, out var action)
-            || !values.TryGetValue("profile", out var profile) || profile.Length == 0)
+            || !values.TryGetValue("profile", out var profile) || !LaunchOptions.IsSafeProfile(profile))
         {
             return null;
         }
@@ -97,6 +102,11 @@ public sealed record ToastArgs(ToastAction Action, string Profile, string? Accou
         var account  = values.GetValueOrDefault("account");
         var calendar = values.GetValueOrDefault("calendar");
         var eventId  = values.GetValueOrDefault("event");
+        if (account is "" || calendar is "" || eventId is "")
+        {
+            return null;
+        }
+
         DateTimeOffset? start = null;
         if (values.TryGetValue("start", out var ms))
         {

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace LeafCalendar.Core.Tray;
@@ -10,8 +11,10 @@ public static class DisplayText
     /// <paramref name="max"/> is clipped with "&#x2026;", never between the two halves of an emoji.
     /// </summary>
     /// <remarks>
-    /// Bidi, zero-width, and format characters are dropped, and so are characters XML can't carry (a lone surrogate
-    /// half, U+FFFE, U+FFFF), so the result is always safe to put in notification XML.
+    /// Bidi, zero-width, and every Unicode format character (soft hyphen, invisible operators, tag characters, and so
+    /// on) are dropped, plus U+034F and the line/paragraph separators, and so are characters XML can't carry (a lone
+    /// surrogate half, U+FFFE, U+FFFF), so the result is always safe to put in notification XML. The zero-width joiner
+    /// (U+200D) stays, because emoji sequences such as a woman technologist need it.
     /// </remarks>
     public static string Clean(string? text, int max)
     {
@@ -31,7 +34,13 @@ public static class DisplayText
             {
                 if (char.IsHighSurrogate(c) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]))
                 {
-                    builder.Append(c).Append(text[++i]);
+                    // Tag Characters (U+E0000-E007F) And Other Format Characters Outside The BMP Are Dropped
+                    if (Rune.GetUnicodeCategory(new Rune(c, text[i + 1])) != UnicodeCategory.Format)
+                    {
+                        builder.Append(c).Append(text[i + 1]);
+                    }
+
+                    i++;
                 }
 
                 continue;
@@ -70,6 +79,8 @@ public static class DisplayText
         return clean[..cut].TrimEnd() + "\u2026";
     }
 
-    // Bidi Marks/Embeddings/Overrides/Isolates, Zero-Width And Format Characters, Line/Paragraph Separators, XML Noncharacters
-    static bool IsInvisible(char c) => c is '\u200E' or '\u200F' or '\u061C' or '\u2028' or '\u2029' or '\u2060' or '\uFEFF' or '\uFFFE' or '\uFFFF' or (>= '\u200B' and <= '\u200D') or (>= '\u202A' and <= '\u202E') or (>= '\u2066' and <= '\u2069');
+    // Format Characters (Bidi Marks/Embeddings/Isolates, Zero-Width, Soft Hyphen, Invisible Operators, ...) Except The Joiner Emoji Need;
+    // Plus The Combining Grapheme Joiner, Line/Paragraph Separators, And XML Noncharacters
+    static bool IsInvisible(char c) =>
+        c is not '\u200D' && (char.GetUnicodeCategory(c) == UnicodeCategory.Format || c is '\u034F' or '\u2028' or '\u2029' or '\uFFFE' or '\uFFFF');
 }
