@@ -128,11 +128,42 @@ public static partial class LinkSafety
     /// is the link's own; the rest go in a <c>to=</c> field (RFC 6068), because <see cref="Uri"/> reads the part before
     /// the query as one address.
     /// </summary>
-    public static Uri MailtoGuests(IReadOnlyList<string> emails, string subject)
+    /// <remarks>
+    /// Guest data comes from the invite, so it never throws: addresses that aren't a plain single <c>local@domain</c>
+    /// (extra <c>@</c>, whitespace, control characters, or characters that could add mail fields) are dropped, control
+    /// characters are stripped from the subject, and if <see cref="Uri"/> won't accept the tidy form the addresses go
+    /// in a <c>to=</c> field instead. Returns null when no usable address remains (the UI hides the action).
+    /// </remarks>
+    public static Uri? MailtoGuests(IReadOnlyList<string> emails, string subject)
     {
-        var first  = Uri.EscapeDataString(emails[0]).Replace("%40", "@", StringComparison.Ordinal);
-        var others = emails.Count > 1 ? "to=" + string.Join(",", emails.Skip(1).Select(Uri.EscapeDataString)) + "&" : "";
-        return new Uri($"mailto:{first}?{others}subject={Uri.EscapeDataString(subject)}");
+        var safe = emails.Where(IsPlainAddress).ToList();
+        if (safe.Count == 0)
+        {
+            return null;
+        }
+
+        var cleanSubject = Uri.EscapeDataString(new string(subject.Where(c => !char.IsControl(c)).ToArray()));
+        var first        = Uri.EscapeDataString(safe[0]).Replace("%40", "@", StringComparison.Ordinal);
+        var others       = safe.Count > 1 ? "to=" + string.Join(",", safe.Skip(1).Select(Uri.EscapeDataString)) + "&" : "";
+        if (Uri.TryCreate($"mailto:{first}?{others}subject={cleanSubject}", UriKind.Absolute, out var mailto))
+        {
+            return mailto;
+        }
+
+        // Fallback: every address in the to= field
+        return Uri.TryCreate($"mailto:?to={string.Join(",", safe.Select(Uri.EscapeDataString))}&subject={cleanSubject}", UriKind.Absolute, out var fallback)
+            ? fallback
+            : null;
+    }
+
+    // One "@", something on both sides, and nothing that could split, add, or inject mail fields
+    static bool IsPlainAddress(string email)
+    {
+        var at = email.IndexOf('@');
+        return at > 0
+            && at < email.Length - 1
+            && email.IndexOf('@', at + 1) < 0
+            && !email.Any(c => char.IsControl(c) || char.IsWhiteSpace(c) || ",;<>()[]?&%=#\"'\\".Contains(c, StringComparison.Ordinal));
     }
 
     /// <summary>A Google Maps search for a location. The Bing Maps choice (spec 9) arrives with the settings page in Milestone 5.</summary>

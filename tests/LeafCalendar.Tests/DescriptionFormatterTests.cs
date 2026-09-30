@@ -55,6 +55,68 @@ public class DescriptionFormatterTests
         Assert.All(DescriptionFormatter.Format(html), r => Assert.Equal(expected, r.Link?.AbsoluteUri));
     }
 
+    [Theory]
+    [InlineData("<a href=\"https://evil.example/x\">https://bank&#8203;.example/login</a>")]
+    [InlineData("<a href=\"https://evil.example/x\">https://bank.example&zwnj;/login</a>")]
+    [InlineData("<a href=\"https://evil.example/x\">\u202Ehttps://bank.example/login</a>")]
+    [InlineData("<a href=\"https://evil.example/x\">\u2060www.bank.example</a>")]
+    [InlineData("<a href=\"https://evil.example/x\">\uFEFFhttps://bank.example</a>")]
+    [InlineData("<a href=\"https://evil.example/x\">• https://bank.example/login</a>")]
+    [InlineData("<a href=\"https://evil.example/x\">bank.example/login</a>")]
+    [InlineData("<a href=\"https://evil.example/x\">bank.example</a>")]
+    [InlineData("<a href=\"https://bank.example@evil.example/x\">https://bank.example/login</a>")]
+    [InlineData("<a href=\"https://bank.example@evil.example/x\">https://evil.example@bank.example</a>")]
+    [InlineData("<a href=\"mailto:sam@example.com\">https://bank.example/login</a>")]
+    public void Format_DisguiseBypasses_AreNotClickable(string html)
+    {
+        Assert.All(DescriptionFormatter.Format(html), r => Assert.Null(r.Link));
+    }
+
+    [Fact]
+    public void Format_MailtoText_StaysClickable()
+    {
+        Assert.Equal("mailto:sam@example.com", DescriptionFormatter.Format("<a href=\"mailto:sam@example.com\">sam@example.com</a>").Single().Link?.OriginalString);
+    }
+
+    [Theory]
+    [InlineData("mailto:sam@example.com?subject=Hi&attach=C:/secret.txt", "mailto:sam@example.com?subject=Hi")]
+    [InlineData("mailto:sam@example.com?bcc=evil@example.com&body=Yo&cc=a@example.com", "mailto:sam@example.com?body=Yo&cc=a@example.com")]
+    [InlineData("mailto:sam@example.com?ATTACH=x&BCC=y", "mailto:sam@example.com")]
+    public void Format_MailtoLinks_KeepOnlySubjectBodyCc(string href, string expected)
+    {
+        Assert.Equal(expected, DescriptionFormatter.Format($"<a href=\"{href}\">mail</a>").Single().Link?.OriginalString);
+    }
+
+    [Theory]
+    [InlineData("<a data-href=\"https://evil.example\">x</a>")]
+    [InlineData("<a title=\"see href=https://evil.example\">x</a>")]
+    [InlineData("<a title='a' data-x-href='https://evil.example'>x</a>")]
+    public void Format_HrefMustBeAnAttributeName(string html)
+    {
+        Assert.Null(DescriptionFormatter.Format(html).Single().Link);
+    }
+
+    [Fact]
+    public void Format_RealHrefAfterOtherAttributes_IsFound()
+    {
+        Assert.Equal("https://ok.example/", DescriptionFormatter.Format("<a title=\"t\" class=x HREF='https://ok.example/'>x</a>").Single().Link?.AbsoluteUri);
+    }
+
+    [Theory]
+    [InlineData("<a ", "a=b ")]
+    [InlineData("<a x=\"", "href=")]
+    [InlineData("<a ", "-")]
+    [InlineData("<a x=", "'")]
+    public void Format_HostileAttributeInput_StaysFast(string prefix, string filler)
+    {
+        var html      = prefix + string.Concat(Enumerable.Repeat(filler, 200_000 / filler.Length)) + ">x</a>";
+        var stopwatch = Stopwatch.StartNew();
+
+        _ = DescriptionFormatter.Format(html);
+
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), stopwatch.Elapsed.ToString());
+    }
+
     [Fact]
     public void Format_ListsEntitiesAndBlankLines()
     {

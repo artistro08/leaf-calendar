@@ -1,4 +1,5 @@
 using System.Net;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -15,7 +16,7 @@ public sealed record DescriptionRun(string Text, bool Bold = false, bool Italic 
 /// <remarks>
 /// Only <c>https</c> and <c>mailto</c> links become clickable; other links keep their text as plain text. Bare
 /// <c>https://</c> addresses in the text are linked too. A link whose visible text is itself a web address for a
-/// different host than the real target is not clickable, so display text can't disguise the destination. Unknown
+/// different host than the real target is not clickable (a best-effort check; the UI also shows the real URL). Unknown
 /// tags are dropped (their text stays, inert). Runs of more than one blank line collapse to one. The input is
 /// bounded before any regex runs, and the output is capped at 10,000 characters plus an ellipsis.
 /// </remarks>
@@ -150,34 +151,78 @@ public static partial class DescriptionFormatter
     // True when the visible text names a web address whose host differs from where the link really goes
     static bool DisguisesTarget(Uri target, string visible)
     {
-        var shown = visible.Trim();
-        var www   = shown.StartsWith("www.", StringComparison.OrdinalIgnoreCase);
-        if (!www && !shown.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        // Invisible characters (zero-width, bidi controls, BOM) and a leading bullet can't be used to dodge the check
+        var shown = new string(visible.Where(c => char.GetUnicodeCategory(c) is not (UnicodeCategory.Format or UnicodeCategory.Control)).ToArray())
+            .Trim().TrimStart('•', ' ').Trim();
+        var web = shown.StartsWith("http", StringComparison.OrdinalIgnoreCase);
+        if (!web && shown.Any(char.IsWhiteSpace))
         {
             return false;
         }
 
-        // Anything that looks like an address but doesn't parse as http(s) is treated as disguised
-        if (!Uri.TryCreate(www ? "https://" + shown : shown, UriKind.Absolute, out var shownUri)
-            || (shownUri.Scheme != Uri.UriSchemeHttps && shownUri.Scheme != Uri.UriSchemeHttp))
+        // A mailto link only needs guarding against web-address text (plain "sam@example.com" text is fine)
+        if (target.Scheme == Uri.UriSchemeMailto)
+        {
+            return web || shown.StartsWith("www.", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Scheme-less text counts as an address when its host part has an interior dot ("bank.example/login")
+        var host = shown.Split('/', '?', '#')[0];
+        var dot  = host.IndexOf('.');
+        if (!web && (dot < 1 || dot >= host.Length - 1))
+        {
+            return false;
+        }
+
+        // Anything that looks like an address but doesn't parse as http(s), or hides userinfo, is treated as disguised
+        if (!Uri.TryCreate(web ? shown : "https://" + shown, UriKind.Absolute, out var shownUri)
+            || (shownUri.Scheme != Uri.UriSchemeHttps && shownUri.Scheme != Uri.UriSchemeHttp)
+            || shownUri.UserInfo.Length > 0)
         {
             return true;
         }
 
-        return target.Scheme != Uri.UriSchemeHttps
-            || !string.Equals(shownUri.IdnHost, target.IdnHost, StringComparison.OrdinalIgnoreCase);
+        return !string.Equals(shownUri.IdnHost, target.IdnHost, StringComparison.OrdinalIgnoreCase);
     }
 
     static Uri? SafeLink(string attributes)
     {
-        var href = Href().Match(attributes);
-        if (!href.Success)
+        // Attributes are read left to right, so "href=" inside another attribute's quoted value is never a name
+        string? value = null;
+        foreach (Match attribute in Attribute().Matches(attributes))
+        {
+            if (attribute.Groups[1].Value.Equals("href", StringComparison.OrdinalIgnoreCase))
+            {
+                value = attribute.Groups[2].Success ? attribute.Groups[2].Value : attribute.Groups[3].Success ? attribute.Groups[3].Value : attribute.Groups[4].Value;
+                break;
+            }
+        }
+
+        if (value is null)
         {
             return null;
         }
 
-        var value = WebUtility.HtmlDecode(href.Groups[2].Success ? href.Groups[2].Value : href.Groups[3].Success ? href.Groups[3].Value : href.Groups[4].Value).Trim();
-        return Uri.TryCreate(value, UriKind.Absolute, out var uri) && LinkSafety.IsClickableInDescription(uri) ? uri : null;
+        value = WebUtility.HtmlDecode(value).Trim();
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || !LinkSafety.IsClickableInDescription(uri))
+        {
+            return null;
+        }
+
+        return uri.Scheme == Uri.UriSchemeMailto ? TrimMailto(value) : uri;
+    }
+
+    // Keeps only subject, body, and cc from a mailto link's query, so an invite can't add bcc or attachments
+    static Uri? TrimMailto(string value)
+    {
+        var parts = value.Split('?', 2);
+        var kept  = parts.Length < 2
+            ? []
+            : parts[1].Split('&', StringSplitOptions.RemoveEmptyEntries)
+                .Where(p => p.Split('=')[0].ToLowerInvariant() is "subject" or "body" or "cc")
+                .ToList();
+        var clean = parts[0] + (kept.Count > 0 ? "?" + string.Join("&", kept) : "");
+        return Uri.TryCreate(clean, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeMailto ? uri : null;
     }
 
     // Drops leading and trailing line breaks, keeps at most one blank line, drops empty runs, and caps the length
@@ -236,6 +281,7 @@ public static partial class DescriptionFormatter
     [GeneratedRegex(@"<\s*(/?)([a-zA-Z][a-zA-Z0-9]*)\b([^<>]*)>")]
     private static partial Regex Tag();
 
-    [GeneratedRegex(@"href\s*=\s*(""([^""]*)""|'([^']*)'|([^\s>]+))", RegexOptions.IgnoreCase)]
-    private static partial Regex Href();
+    // name=value pairs; the lookbehind starts matches only at the beginning of a name (keeps it linear and skips "data-href")
+    [GeneratedRegex(@"(?<![\w:-])([\w:-]+)\s*=\s*(?:""([^""]*)""|'([^']*)'|([^\s""'>][^\s>]*)|[""'][^<>]*)")]
+    private static partial Regex Attribute();
 }

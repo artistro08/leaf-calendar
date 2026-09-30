@@ -109,7 +109,14 @@ public static partial class EventDetailsParser
 
         return Https(String(root, "hangoutLink"))
             ?? LinkSafety.FindMeetingLink(String(root, "location"))
-            ?? (includeDescription ? LinkSafety.FindMeetingLink(String(root, "description")) : null);
+            ?? (includeDescription ? LinkSafety.FindMeetingLink(DecodedDescription(root)) : null);
+    }
+
+    // Description HTML with entities decoded ("&amp;" back to "&"), bounded first, so pasted links keep all their parameters
+    static string? DecodedDescription(JsonElement root)
+    {
+        var html = String(root, "description");
+        return html is null ? null : WebUtility.HtmlDecode(html.Length > MaxHtmlInputLength ? html[..MaxHtmlInputLength] : html);
     }
 
     static Uri? Https(string? value) =>

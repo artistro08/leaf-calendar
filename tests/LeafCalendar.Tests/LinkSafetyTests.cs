@@ -99,15 +99,67 @@ public class LinkSafetyTests
     {
         var mailto = LinkSafety.MailtoGuests(["boss@example.com", "you+cal@example.com"], "Design review & budget");
 
-        Assert.Equal("mailto:boss@example.com?to=you%2Bcal%40example.com&subject=Design%20review%20%26%20budget", mailto.OriginalString);
+        Assert.Equal("mailto:boss@example.com?to=you%2Bcal%40example.com&subject=Design%20review%20%26%20budget", mailto?.OriginalString);
+    }
+
+    [Theory]
+    [InlineData("a@b@c.com")]
+    [InlineData("a@b.com?bcc=e@x&body=x")]
+    [InlineData("a@b.com\r\nBcc: e@x")]
+    [InlineData("a@[1.2.3.4]")]
+    [InlineData("user@bücher.example")]
+    [InlineData("")]
+    public void MailtoGuests_HostileAddress_NeverThrowsOrInjects(string hostile)
+    {
+        var mailto = LinkSafety.MailtoGuests(["a@example.com", hostile], "Hi");
+
+        Assert.NotNull(mailto);
+        Assert.Equal(1, mailto.OriginalString.Count(c => c == '?'));
+        Assert.DoesNotContain("bcc=", mailto.OriginalString, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("%0D", mailto.OriginalString, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("%0A", mailto.OriginalString, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("a@b@c.com")]
+    [InlineData("a@b.com?bcc=e@x&body=x")]
+    [InlineData("a@b.com\r\nBcc: e@x")]
+    [InlineData("a@[1.2.3.4]")]
+    public void MailtoGuests_HostileFirstAddress_NeverThrows(string hostile)
+    {
+        Assert.Null(LinkSafety.MailtoGuests([hostile], "Hi"));
+        Assert.NotNull(LinkSafety.MailtoGuests([hostile, "ok@example.com"], "Hi"));
     }
 
     [Fact]
-    public void MailtoGuests_HostileAddress_CannotInjectFields()
+    public void MailtoGuests_IdnAddress_DoesNotThrow()
     {
-        var mailto = LinkSafety.MailtoGuests(["a@example.com", "x@example.com?bcc=evil@example.com"], "Hi");
+        Assert.NotNull(LinkSafety.MailtoGuests(["user@bücher.example"], "Hi"));
+    }
 
-        Assert.DoesNotContain("?bcc", mailto.OriginalString, StringComparison.Ordinal);
-        Assert.Equal(1, mailto.OriginalString.Count(c => c == '?'));
+    [Fact]
+    public void MailtoGuests_FirstAddressHostile_StillWorksOrNull()
+    {
+        Assert.Null(LinkSafety.MailtoGuests(["a@b@c.com"], "Hi"));
+        Assert.Null(LinkSafety.MailtoGuests([], "Hi"));
+        Assert.StartsWith("mailto:", LinkSafety.MailtoGuests(["a@b@c.com", "ok@example.com"], "Hi")?.OriginalString, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MailtoGuests_SubjectControlCharacters_AreStripped()
+    {
+        var mailto = LinkSafety.MailtoGuests(["a@example.com"], "Hi\r\nBcc: evil@example.com\tthere\0");
+
+        Assert.Equal("mailto:a@example.com?subject=HiBcc%3A%20evil%40example.comthere", mailto?.OriginalString);
+    }
+
+    [Fact]
+    public void MailtoGuests_HugeInput_StaysFast()
+    {
+        var stopwatch = Stopwatch.StartNew();
+
+        _ = LinkSafety.MailtoGuests(Enumerable.Repeat("a@" + new string('b', 1000) + ".com", 500).ToList(), new string('x', 100_000));
+
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), stopwatch.Elapsed.ToString());
     }
 }

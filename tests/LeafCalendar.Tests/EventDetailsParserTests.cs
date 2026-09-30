@@ -22,6 +22,14 @@ public class EventDetailsParserTests
     }
 
     [Fact]
+    public void Parse_ZoomLinkInDescription_KeepsAllParameters()
+    {
+        const string json = """{"id":"a","description":"Join https://zoom.us/j/1?a=1&amp;pwd=2 now"}""";
+
+        Assert.Equal("https://zoom.us/j/1?a=1&pwd=2", EventDetailsParser.Parse(json).ConferenceUri?.AbsoluteUri);
+    }
+
+    [Fact]
     public void Parse_LookAlikeMeetingHost_Ignored()
     {
         Assert.Null(EventDetailsParser.Parse("""{"id":"a","location":"https://meet.google.com.evil.example/abc"}""").ConferenceUri);
