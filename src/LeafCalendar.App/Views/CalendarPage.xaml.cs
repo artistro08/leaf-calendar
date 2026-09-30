@@ -205,7 +205,7 @@ public sealed partial class CalendarPage : Page
             return;
         }
 
-        if (e.PropertyName == nameof(CalendarViewModel.SelectedInfo) && ViewModel.SelectedInfo is not null && !ViewModel.Settings.DetailsPanelOpen)
+        if (e.PropertyName == nameof(CalendarViewModel.SelectedInfo) && ViewModel.SelectedInfo is not null && !ViewModel.IsRefreshingSelection && !ViewModel.Settings.DetailsPanelOpen)
         {
             SetDetailsOpen(true, animate: true);
         }
@@ -264,8 +264,8 @@ public sealed partial class CalendarPage : Page
             case CalendarCommand.ToggleTheme:        _args.ToggleTheme(); break;
             case CalendarCommand.NextEvent:          vm.SelectAdjacent(1); break;
             case CalendarCommand.PreviousEvent:      vm.SelectAdjacent(-1); break;
-            case CalendarCommand.DeleteSelected:     vm.Fire(() => vm.DeleteAsync([.. vm.Selection], sendUpdates: true)); break;
-            case CalendarCommand.CancelEventQuietly: vm.Fire(() => vm.DeleteAsync([.. vm.Selection], sendUpdates: false)); break;
+            case CalendarCommand.DeleteSelected:     vm.Fire(() => vm.DeleteAsync([.. vm.Selection], sendUpdates: true), "event.delete.failed"); break;
+            case CalendarCommand.CancelEventQuietly: vm.Fire(() => vm.DeleteAsync([.. vm.Selection], sendUpdates: false), "event.delete.failed"); break;
         }
     }
 
@@ -304,7 +304,14 @@ public sealed partial class CalendarPage : Page
 
     void OnUndoClick(object sender, RoutedEventArgs e) => ViewModel.Undo();
 
-    void OnNoticeClosed(InfoBar sender, InfoBarClosedEventArgs args) => ViewModel.DismissNotice();
+    // Only the user's close counts; the bar also closes in code when one notice replaces another
+    void OnNoticeClosed(InfoBar sender, InfoBarClosedEventArgs args)
+    {
+        if (args.Reason == InfoBarCloseReason.CloseButton)
+        {
+            ViewModel.DismissNotice();
+        }
+    }
 
     static bool IsDown(VirtualKey key) => InputKeyboardSource.GetKeyStateForCurrentThread(key).HasFlag(CoreVirtualKeyStates.Down);
 

@@ -149,7 +149,19 @@ public sealed class FakeGoogleServer : IDisposable
                     return;
                 }
 
-                var (status, content, location) = Route(method, target, headers.GetValueOrDefault("if-match"), body);
+                // A bug in the fake answers 500 with the exception type, so a failing test says why
+                int status;
+                string content;
+                string? location;
+                try
+                {
+                    (status, content, location) = Route(method, target, headers.GetValueOrDefault("if-match"), body);
+                }
+                catch (Exception ex)
+                {
+                    (status, content, location) = (500, Error(500, ex.GetType().Name), null);
+                }
+
                 var bytes  = Encoding.UTF8.GetBytes(content);
                 var header = new StringBuilder()
                     .Append(CultureInfo.InvariantCulture, $"HTTP/1.1 {status} {Reason(status)}\r\n")
@@ -457,6 +469,7 @@ public sealed class FakeGoogleServer : IDisposable
         409 => "Conflict",
         410 => "Gone",
         412 => "Precondition Failed",
+        500 => "Internal Server Error",
         _   => "Not Found",
     };
 

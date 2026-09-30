@@ -139,6 +139,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial NoticeInfo? Notice { get; set; }
 
+    /// <summary>True while a reload updates the selection (not the user picking an event), so the details panel isn't opened for it.</summary>
+    internal bool IsRefreshingSelection { get; private set; }
+
     /// <summary>True when <paramref name="occurrence"/> is selected.</summary>
     public bool IsSelected(CalendarOccurrence occurrence) => _selection.Exists(s => s.Key == occurrence.Key);
 
@@ -426,7 +429,16 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
         if (changed)
         {
-            PublishSelection();
+            // A sync or edit refreshed the selection; the page leaves a closed details panel closed
+            IsRefreshingSelection = true;
+            try
+            {
+                PublishSelection();
+            }
+            finally
+            {
+                IsRefreshingSelection = false;
+            }
         }
     }
 
@@ -478,40 +490,52 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Deletes events you can change (asking about repeating ones), then shows "Event deleted · Undo". The delete
-    /// waits in the outbox for <see cref="EventEditor.UndoWindow"/>. Invites you can't change are skipped with a hint.
+    /// waits in the outbox for <see cref="EventEditor.UndoWindow"/>. Invites and read-only calendars are skipped
+    /// with a hint. A failure shows "Couldn't delete" and is logged as <c>event.delete.failed</c>; it never throws.
     /// </summary>
     public async Task DeleteAsync(IReadOnlyList<CalendarOccurrence> items, bool sendUpdates)
     {
-        var deletable = items.Where(o => _services.Editor.Permissions(o).CanEdit).ToList();
-        if (deletable.Count == 0)
-        {
-            if (items.Count > 0)
-            {
-                Notice = new NoticeInfo("You can't delete an event you were invited to. Reply \"Not going\" instead.", CanUndo: false);
-            }
-
-            return;
-        }
-
-        var scope = await ScopeForAsync(deletable, includeFollowing: true);
-        if (scope is null)
-        {
-            return;
-        }
-
         try
         {
-            _lastDelete = _services.Editor.Delete(deletable, scope.Value, sendUpdates);
-        }
-        catch (Exception ex) when (IsEditFailure(ex))
-        {
-            Fail("calendar.delete.failed", ex);
-            return;
-        }
+            // Only Events You Can Change
+            var permissions = items.Select(o => (Occurrence: o, Rights: _services.Editor.Permissions(o))).ToList();
+            var deletable   = permissions.Where(p => p.Rights.CanEdit).Select(p => p.Occurrence).ToList();
+            if (deletable.Count == 0)
+            {
+                if (permissions.Count > 0)
+                {
+                    Say(permissions.Exists(p => p.Rights.CanRespond)
+                        ? "You can't delete an event you were invited to. Reply \"Not going\" instead."
+                        : "You can't change events on this calendar.", canUndo: false);
+                }
 
-        ClearSelection();
-        Notice = new NoticeInfo(deletable.Count == 1 ? "Event deleted" : string.Create(CultureInfo.InvariantCulture, $"{deletable.Count} events deleted"), CanUndo: true);
-        _ = NudgeAfterUndoWindowAsync();
+                return;
+            }
+
+            var scope = await ScopeForAsync(deletable, includeFollowing: true);
+            if (scope is null)
+            {
+                return;
+            }
+
+            var receipt = _services.Editor.Delete(deletable, scope.Value, sendUpdates);
+            if (receipt.Seqs.Count == 0)
+            {
+                return;
+            }
+
+            // Offer Undo Until The Delete Is Sent
+            _lastDelete = receipt;
+            ClearSelection();
+            Say(deletable.Count == 1 ? "Event deleted" : string.Create(CultureInfo.InvariantCulture, $"{deletable.Count} events deleted"), canUndo: true);
+            _ = NudgeAfterUndoWindowAsync();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _reselect = null;
+            _services.Log.Error("event.delete.failed", ex);
+            Say("Couldn't delete. Try again.", canUndo: false);
+        }
     }
 
     /// <summary>Undoes the last delete if it hasn't reached Google yet.</summary>
@@ -525,19 +549,25 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         _lastDelete = null;
         try
         {
-            Notice = _services.Editor.Undo(receipt) ? null : new NoticeInfo("Already sent to Google, so it can't be undone.", CanUndo: false);
+            if (_services.Editor.Undo(receipt))
+            {
+                Notice = null;
+                return;
+            }
+
+            Say("Already sent to Google, so it can't be undone.", canUndo: false);
         }
         catch (Exception ex) when (IsEditFailure(ex))
         {
-            Fail("calendar.undo.failed", ex);
+            Fail("event.undo.failed", ex);
         }
     }
 
     /// <summary>Hides the notice bar.</summary>
     public void DismissNotice() => Notice = null;
 
-    /// <summary>Runs work started from a click or key; failures are logged, never thrown into the dispatcher.</summary>
-    public void Fire(Func<Task> work) => Run(work);
+    /// <summary>Runs work started from a click or key; failures are logged under <paramref name="eventName"/>, never thrown into the dispatcher.</summary>
+    public void Fire(Func<Task> work, string eventName = "calendar.action.failed") => Run(work, eventName);
 
     /// <summary>Logs a failure a view caught (internal IDs only).</summary>
     public void LogError(string eventName, Exception exception) => _services.Log.Error(eventName, exception);
@@ -579,7 +609,14 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         _reselect = null;
         _services.Log.Error(eventName, exception);
-        Notice = new NoticeInfo("Something went wrong saving that change. Try again.", CanUndo: false);
+        Say("Something went wrong saving that change. Try again.", canUndo: false);
+    }
+
+    // Every notice counts as new (a repeat of the same text restarts the bar's timer), so it's cleared first
+    void Say(string text, bool canUndo)
+    {
+        Notice = null;
+        Notice = new NoticeInfo(text, canUndo);
     }
 
     static bool IsEditFailure(Exception ex) =>
@@ -684,7 +721,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     DateOnly LocalDate(DateTimeOffset instant) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, Zone).DateTime);
 
     // Background work started from UI events: failures are logged, never thrown into the dispatcher
-    async void Run(Func<Task> work)
+    async void Run(Func<Task> work, string eventName = "calendar.load.failed")
     {
         try
         {
@@ -696,7 +733,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            _services.Log.Error("calendar.load.failed", ex);
+            _services.Log.Error(eventName, ex);
         }
     }
 }

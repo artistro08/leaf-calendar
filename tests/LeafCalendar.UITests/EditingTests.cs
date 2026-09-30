@@ -28,7 +28,7 @@ public sealed class EditingTests : IDisposable
         leaf.Press(VirtualKeyShort.DELETE);
 
         Assert.True(Retry.WhileTrue(() => leaf.Exists("Event_evt-single_202610011300"), TimeSpan.FromSeconds(5)).Success);
-        Assert.NotNull(leaf.WaitFor("NoticeBar"));
+        Assert.NotNull(leaf.WaitFor("UndoButton"));
         var write = _google.WaitForWrite(w => w.Method == "DELETE" && w.Path.EndsWith("/events/evt-single", StringComparison.Ordinal));
         Assert.Equal("\"3181161784712000\"", write.IfMatch);
         Assert.Contains("sendUpdates=all", write.Query, StringComparison.Ordinal);
