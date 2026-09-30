@@ -80,4 +80,29 @@ public class LaunchOptionsTests
     {
         Assert.Null(LaunchOptions.Parse(["--start-date", "2026-10-01"]).StartDate);
     }
+
+    [Fact]
+    public void Parse_NowWithFakeGoogle_IsKept()
+    {
+        var options = LaunchOptions.Parse(["--profile", "uitest-a", "--fake-google", "http://127.0.0.1:5000/", "--now", "2026-10-01T13:55:00-04:00"]);
+
+        Assert.Equal(new DateTimeOffset(2026, 10, 1, 13, 55, 0, TimeSpan.FromHours(-4)), options.Now);
+    }
+
+    [Theory]
+    [InlineData("--profile", "default")]
+    [InlineData("--profile", "uitest-a")]
+    public void Parse_NowWithoutFakeGoogle_IsIgnored(string flag, string profile)
+    {
+        Assert.Null(LaunchOptions.Parse([flag, profile, "--now", "2026-10-01T13:55:00-04:00"]).Now);
+    }
+
+    [Theory]
+    [InlineData("2026-10-01T13:55:00")]
+    [InlineData("tomorrow")]
+    [InlineData("")]
+    public void Parse_NowWithoutAnOffset_IsIgnored(string value)
+    {
+        Assert.Null(LaunchOptions.Parse(["--profile", "uitest-a", "--fake-google", "http://127.0.0.1:5000/", "--now", value]).Now);
+    }
 }
