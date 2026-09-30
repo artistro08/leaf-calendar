@@ -19,36 +19,49 @@
                     <ItemsControl x:Name="UpcomingList" AutomationProperties.Name="Upcoming events" AutomationProperties.AutomationId="UpcomingList">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:UpcomingItem">
-                                <Button
-                                    Padding="8,6"
-                                    HorizontalAlignment="Stretch"
-                                    HorizontalContentAlignment="Stretch"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Click="OnUpcomingClick"
-                                    Tag="{x:Bind Occurrence}"
-                                    AutomationProperties.Name="{x:Bind Title}">
-                                    <Grid ColumnSpacing="10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{x:Bind local:DetailsPanel.Brush(Color)}" />
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
-                                                <Run Text="{x:Bind When}" /><Run Text=" · " /><Run Text="{x:Bind Relative}" />
-                                            </TextBlock>
-                                        </StackPanel>
-                                    </Grid>
-                                </Button>
+                                <Grid ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button
+                                        Padding="8,6"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Click="{x:Bind Open}"
+                                        AutomationProperties.Name="{x:Bind Title}">
+                                        <Grid ColumnSpacing="10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{x:Bind local:DetailsPanel.Brush(Color)}" />
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                                                    <Run Text="{x:Bind When}" /><Run Text=" · " /><Run Text="{x:Bind Relative}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Button>
+                                    <Button
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        Content="Join"
+                                        Click="{x:Bind Join}"
+                                        Visibility="{x:Bind local:DetailsPanel.Visible(CanJoin)}"
+                                        AutomationProperties.Name="Join"
+                                        AutomationProperties.AutomationId="{x:Bind JoinId}" />
+                                </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
                 <!-- /Upcoming -->
 
-                <!-- Event Details (plain text only: event content comes from anyone who can invite you) -->
+                <!-- Event Details (event content is plain text; only allowlisted links are clickable) -->
                 <StackPanel x:Name="DetailsView" Spacing="14" Visibility="Collapsed">
                     <TextBlock x:Name="TitleText" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsTitle" />
                     <TextBlock x:Name="WhenText" TextWrapping="Wrap" AutomationProperties.AutomationId="DetailsWhen" />
@@ -56,11 +69,66 @@
                         <Ellipse x:Name="CalendarDot" Width="10" Height="10" VerticalAlignment="Center" />
                         <TextBlock x:Name="CalendarText" AutomationProperties.AutomationId="DetailsCalendar" />
                     </StackPanel>
-                    <TextBlock x:Name="LocationText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsLocation" />
+
+                    <!-- Actions -->
+                    <StackPanel x:Name="ActionsRow" Orientation="Horizontal" Spacing="8">
+                        <Button
+                            x:Name="JoinButton"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Content="Join"
+                            Click="OnJoinClick"
+                            AutomationProperties.AutomationId="DetailsJoinButton" />
+                        <Button
+                            x:Name="DeleteButton"
+                            Click="OnDeleteClick"
+                            ToolTipService.ToolTip="Delete (Delete)"
+                            AutomationProperties.Name="Delete event"
+                            AutomationProperties.AutomationId="DetailsDeleteButton">
+                            <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                        </Button>
+                    </StackPanel>
+                    <!-- /Actions -->
+
+                    <!-- Location -->
+                    <StackPanel x:Name="LocationRow" Spacing="2">
+                        <TextBlock x:Name="LocationText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsLocation" />
+                        <HyperlinkButton x:Name="MapsLink" Padding="0" Content="Open in Google Maps" Click="OnMapsClick" AutomationProperties.AutomationId="DetailsMapsLink" />
+                    </StackPanel>
                     <TextBlock x:Name="ConferenceText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsConference" />
-                    <TextBlock x:Name="ResponseText" AutomationProperties.AutomationId="DetailsResponse" />
-                    <TextBlock x:Name="GuestsText" />
-                    <TextBlock x:Name="DescriptionText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsDescription" />
+
+                    <!-- Your Reply -->
+                    <StackPanel x:Name="RsvpRow" Spacing="8">
+                        <TextBlock x:Name="ResponseText" AutomationProperties.AutomationId="DetailsResponse" />
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <ToggleButton x:Name="RsvpYes" Content="Going" Click="OnRsvpYesClick" AutomationProperties.AutomationId="DetailsRsvpYes" />
+                            <ToggleButton x:Name="RsvpMaybe" Content="Maybe" Click="OnRsvpMaybeClick" AutomationProperties.AutomationId="DetailsRsvpMaybe" />
+                            <ToggleButton x:Name="RsvpNo" Content="Not going" Click="OnRsvpNoClick" AutomationProperties.AutomationId="DetailsRsvpNo" />
+                        </StackPanel>
+                        <TextBox x:Name="RsvpNote" PlaceholderText="Add a note (optional)" AutomationProperties.Name="Reply note" AutomationProperties.AutomationId="DetailsRsvpNote" />
+                        <CheckBox x:Name="RsvpEmail" Content="Email the organizer" IsChecked="True" AutomationProperties.AutomationId="DetailsRsvpEmail" />
+                    </StackPanel>
+                    <!-- /Your Reply -->
+
+                    <!-- Guests -->
+                    <StackPanel x:Name="GuestsRow" Spacing="4">
+                        <Grid>
+                            <TextBlock x:Name="GuestsText" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <HyperlinkButton x:Name="EmailGuestsLink" HorizontalAlignment="Right" Padding="0" Content="Email guests" Click="OnEmailGuestsClick" AutomationProperties.AutomationId="DetailsEmailGuests" />
+                        </Grid>
+                        <ItemsControl x:Name="GuestList" AutomationProperties.Name="Guests" AutomationProperties.AutomationId="DetailsGuestList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:GuestItem">
+                                    <StackPanel Padding="0,2">
+                                        <TextBlock Text="{x:Bind Email}" IsTextSelectionEnabled="True" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{x:Bind Detail}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    <!-- /Guests -->
+
+                    <RichTextBlock x:Name="DescriptionBlock" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsDescription" />
                 </StackPanel>
                 <!-- /Event Details -->
             </Grid>

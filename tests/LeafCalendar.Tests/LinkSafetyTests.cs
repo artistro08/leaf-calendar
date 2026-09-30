@@ -63,6 +63,7 @@ public class LinkSafetyTests
         var join = LinkSafety.JoinUri(new Uri("https://meet.google.com/abc-defg-hij?authuser=0&hs=1"), "sam@example.com");
 
         Assert.Equal("https://meet.google.com/abc-defg-hij?hs=1&authuser=sam%40example.com", join.AbsoluteUri);
+        Assert.Equal(join.AbsoluteUri, join.OriginalString);
     }
 
     [Fact]

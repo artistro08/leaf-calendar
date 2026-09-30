@@ -11,11 +11,36 @@ using Microsoft.UI.Dispatching;
 
 namespace LeafCalendar.App.ViewModels;
 
-/// <summary>An upcoming event in the details panel.</summary>
-public sealed record UpcomingItem(CalendarOccurrence Occurrence, string Title, string When, string Relative, string Color);
+/// <summary>
+/// An upcoming event in the details panel; <see cref="CanJoin"/> shows its Join button. The buttons x:Bind their
+/// clicks to <see cref="Open"/> and <see cref="Join"/>, so nothing is read back from a control's Tag.
+/// </summary>
+public sealed record UpcomingItem(CalendarOccurrence Occurrence, string Title, string When, string Relative, string Color, bool CanJoin, Action<CalendarOccurrence> OnOpen, Action<CalendarOccurrence> OnJoin)
+{
+    /// <summary>Automation ID of the Join button.</summary>
+    public string JoinId => $"UpcomingJoin_{Occurrence.EventId}";
 
-/// <summary>The selected event, ready to show.</summary>
-public sealed record SelectedEventInfo(CalendarOccurrence Occurrence, EventDetails Details, string When, string CalendarName, string CalendarColor);
+    /// <summary>Row click: shows the event.</summary>
+    public void Open() => OnOpen(Occurrence);
+
+    /// <summary>Join click: opens the call.</summary>
+    public void Join() => OnJoin(Occurrence);
+}
+
+/// <summary>The selected event, ready to show: details, the editor's fields, styled description, and what you may do.</summary>
+public sealed record SelectedEventInfo(
+    CalendarOccurrence Occurrence,
+    EventDetails Details,
+    string When,
+    string CalendarName,
+    string CalendarColor,
+    EventDraft Draft,
+    IReadOnlyList<DescriptionRun> DescriptionRuns,
+    bool CanEdit,
+    bool CanRespond);
+
+/// <summary>A guest in the details panel: address and a summary such as "Maybe · Optional · “Late”".</summary>
+public sealed record GuestItem(string Email, string Detail);
 
 /// <summary>The bar at the bottom of the calendar ("Event deleted · Undo", or a short message).</summary>
 public sealed record NoticeInfo(string Text, bool CanUndo);
@@ -281,7 +306,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             var stored     = EventStore.Get(conn, occurrence.AccountId, occurrence.CalendarId, occurrence.EventId);
             var details    = stored is null ? null : EventDetailsParser.Parse(stored.RawJson);
             var calendar   = Calendars.FirstOrDefault(c => c.AccountId == occurrence.AccountId && c.Id == occurrence.CalendarId);
-            if (details is null)
+            if (details is null || stored is null)
             {
                 return;
             }
@@ -289,11 +314,21 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             _selection.Clear();
             _selection.Add(occurrence);
 
-            SelectedInfo = new SelectedEventInfo(occurrence, details, WhenText(occurrence), calendar?.Summary ?? "", EventColors.ResolveAccent(occurrence.ColorId, occurrence.CalendarColor));
+            var (canEdit, canRespond) = _services.Editor.Permissions(occurrence);
+            SelectedInfo = new SelectedEventInfo(
+                occurrence,
+                details,
+                WhenText(occurrence),
+                calendar?.Summary ?? "",
+                EventColors.ResolveAccent(occurrence.ColorId, occurrence.CalendarColor),
+                _services.Editor.Load(occurrence),
+                DescriptionFormatter.FormatEvent(stored.RawJson),
+                canEdit,
+                canRespond);
             OnPropertyChanged(nameof(Selection));
             OccurrencesChanged?.Invoke(this, EventArgs.Empty);
         }
-        catch (Exception ex) when (ex is System.Text.Json.JsonException or Microsoft.Data.Sqlite.SqliteException)
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or Microsoft.Data.Sqlite.SqliteException or InvalidOperationException)
         {
             _services.Log.Error("calendar.select.failed", ex);
         }
@@ -538,6 +573,90 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Joins a meeting (Ctrl+J and the Join buttons): <paramref name="occurrence"/> when given, else the selected event
+    /// when it has a link, else the first upcoming one that does. Meet links get the event's account (spec 8.5).
+    /// </summary>
+    public async Task JoinAsync(CalendarOccurrence? occurrence = null)
+    {
+        var target = occurrence
+            ?? (SelectedInfo is { Details.ConferenceUri: not null } selected ? selected.Occurrence : null)
+            ?? Upcoming.FirstOrDefault(u => u.CanJoin)?.Occurrence;
+
+        if (target is null || LoadDetails(target)?.ConferenceUri is not { } link)
+        {
+            Say("No meeting to join.", canUndo: false);
+            return;
+        }
+
+        await _services.LaunchAsync(LinkSafety.JoinUri(link, AccountEmails.GetValueOrDefault(target.AccountId) ?? ""));
+    }
+
+    /// <summary>Opens the selected event's video link exactly as it is (V).</summary>
+    public async Task OpenMeetingLinkAsync()
+    {
+        if (SelectedInfo?.Details.ConferenceUri is { } link)
+        {
+            await _services.LaunchAsync(link);
+        }
+    }
+
+    /// <summary>Opens a description link (checked against the allowlist again).</summary>
+    public Task OpenLinkAsync(Uri link) => _services.LaunchAsync(link);
+
+    /// <summary>Opens the selected event's location in Google Maps.</summary>
+    public async Task OpenLocationAsync()
+    {
+        if (SelectedInfo?.Details.Location is { Length: > 0 } location)
+        {
+            await _services.LaunchAsync(LinkSafety.MapsSearch(location));
+        }
+    }
+
+    /// <summary>Opens an email to every other guest, with the title as the subject (E then E).</summary>
+    public async Task EmailGuestsAsync()
+    {
+        if (SelectedInfo is { } info && GuestsMailto(info) is { } mailto)
+        {
+            await _services.LaunchAsync(mailto);
+        }
+    }
+
+    /// <summary>The "Email guests" address for an event (every guest but you), or null when no usable address remains.</summary>
+    public static Uri? GuestsMailto(SelectedEventInfo info)
+    {
+        ArgumentNullException.ThrowIfNull(info);
+
+        var emails = info.Draft.Guests.Where(g => !g.IsSelf).Select(g => g.Email).ToList();
+        return emails.Count > 0 ? LinkSafety.MailtoGuests(emails, info.Details.Title) : null;
+    }
+
+    /// <summary>Replies to the selected invite, asking "this event or all events" for a repeating one.</summary>
+    public async Task RespondAsync(ResponseStatus response, string? note, bool emailOrganizer)
+    {
+        if (SelectedInfo is not { CanRespond: true } info)
+        {
+            return;
+        }
+
+        var o     = info.Occurrence;
+        var scope = await ScopeForAsync([o], includeFollowing: false);
+        if (scope is null)
+        {
+            return;
+        }
+
+        ReselectAfterRefresh(o, o.Start, o.IsAllDay);
+        try
+        {
+            _services.Editor.Respond(o, response, note, emailOrganizer, scope.Value);
+        }
+        catch (Exception ex) when (IsEditFailure(ex))
+        {
+            Fail("calendar.respond.failed", ex);
+        }
+    }
+
     /// <summary>Undoes the last delete if it hasn't reached Google yet.</summary>
     public void Undo()
     {
@@ -629,6 +748,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         _services.Google?.Loop.TriggerNow();
     }
 
+    EventDetails? LoadDetails(CalendarOccurrence o)
+    {
+        using var conn = _services.Database.Open();
+        return EventStore.Get(conn, o.AccountId, o.CalendarId, o.EventId) is { } stored ? EventDetailsParser.Parse(stored.RawJson) : null;
+    }
+
     void OnEditsChanged(object? sender, EventArgs e) => Run(RefreshAsync);
 
     DateOnly DayOf(CalendarOccurrence o) => o.IsAllDay ? o.AllDayStart : LocalDate(o.Start);
@@ -695,7 +820,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             .Where(o => !o.IsAllDay && o.End > now && o.Start < until)
             .OrderBy(o => o.Start)
             .Take(20)
-            .Select(o => new UpcomingItem(o, o.Title, TimeLabels.Range(o.Start, o.End, Zone, Settings.Use24HourTime), TimeLabels.Relative(o.Start, o.End, now), EventColors.ResolveAccent(o.ColorId, o.CalendarColor)))
+            .Select(o => new UpcomingItem(o, o.Title, TimeLabels.Range(o.Start, o.End, Zone, Settings.Use24HourTime), TimeLabels.Relative(o.Start, o.End, now), EventColors.ResolveAccent(o.ColorId, o.CalendarColor), o.HasConference, Select, occurrence => Fire(() => JoinAsync(occurrence), "calendar.join.failed")))
             .ToList();
 
         Upcoming.Clear();

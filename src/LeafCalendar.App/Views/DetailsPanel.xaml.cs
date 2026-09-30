@@ -3,22 +3,25 @@ using System.ComponentModel;
 using System.Globalization;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
+using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
 
 namespace LeafCalendar.App.Views;
 
 /// <summary>
-/// Right panel, on the window's Mica like the sidebar. With nothing selected it lists upcoming
-/// events (next 8 hours); with an event selected it shows that event's details as plain text.
-/// Esc or a click on empty calendar space clears the selection and brings the list back. Links
-/// aren't clickable until Milestone 3 adds the link allowlist and Join.
+/// Right panel, on the window's Mica like the sidebar. With nothing selected it lists upcoming events (next 8 hours)
+/// with Join buttons. With an event selected it shows the details, actions (Join, Delete), your reply, the guests,
+/// and the description. Event content is plain text; description links are clickable only when the allowlist
+/// allows them, and every click goes through <see cref="LeafServices.LaunchAsync"/>.
 /// </summary>
 public sealed partial class DetailsPanel : UserControl
 {
     CalendarViewModel? _vm;
+    string? _shownKey;
 
     /// <summary>Creates the panel.</summary>
     public DetailsPanel()
@@ -29,6 +32,9 @@ public sealed partial class DetailsPanel : UserControl
 
     /// <summary>x:Bind helper: a brush for a hex color.</summary>
     public static SolidColorBrush Brush(string hex) => LeafBrushes.FromHex(hex);
+
+    /// <summary>x:Bind helper: shown when true.</summary>
+    public static Visibility Visible(bool value) => value ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Connects to the view model.</summary>
     public void Attach(CalendarViewModel vm)
@@ -69,43 +75,224 @@ public sealed partial class DetailsPanel : UserControl
 
     void Show(SelectedEventInfo? info)
     {
-        UpcomingView.Visibility = info is null ? Visibility.Visible : Visibility.Collapsed;
-        DetailsView.Visibility  = info is null ? Visibility.Collapsed : Visibility.Visible;
-        ScrollIndicator.Hide(ContentScroll);
-        ContentScroll.ChangeView(null, 0, null, true);
+        UpcomingView.Visibility = Visible(info is null);
+        DetailsView.Visibility  = Visible(info is not null);
+
+        // Back To The Top For Another Event (a refresh of the same event keeps the scroll position and note)
+        if (info?.Occurrence.Key != _shownKey)
+        {
+            _shownKey = info?.Occurrence.Key;
+            ScrollIndicator.Hide(ContentScroll);
+            ContentScroll.ChangeView(null, 0, null, true);
+            RsvpNote.Text = "";
+        }
+
         if (info is null)
         {
             return;
         }
 
         var d = info.Details;
-        TitleText.Text       = d.Title;
-        WhenText.Text        = info.When;
-        CalendarText.Text    = info.CalendarName;
-        CalendarDot.Fill     = LeafBrushes.FromHex(info.CalendarColor);
-        LocationText.Text    = d.Location is { Length: > 0 } location ? $"Location: {location}" : "";
-        ConferenceText.Text  = d.ConferenceUri is { } uri ? $"Video call: {uri.AbsoluteUri}" : "";
-        ResponseText.Text    = d.SelfResponse switch
-        {
-            ResponseStatus.Declined    => "Your response: Not going",
-            ResponseStatus.Tentative   => "Your response: Maybe",
-            ResponseStatus.NeedsAction => "Your response: Not answered yet",
-            _                          => d.GuestCount > 0 ? "Your response: Going" : "",
-        };
-        GuestsText.Text      = d.GuestCount > 0 ? string.Create(CultureInfo.InvariantCulture, $"{d.GuestCount} guests") : "";
-        DescriptionText.Text = d.Description;
+        TitleText.Text    = d.Title;
+        WhenText.Text     = info.When;
+        CalendarText.Text = info.CalendarName;
+        CalendarDot.Fill  = LeafBrushes.FromHex(info.CalendarColor);
 
-        foreach (var block in new[] { LocationText, ConferenceText, ResponseText, GuestsText, DescriptionText })
-        {
-            block.Visibility = block.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        }
+        // Actions (every link control shows where it really goes)
+        var call = d.ConferenceUri is { } uri ? DisplayUrl(uri) : "";
+        JoinButton.Visibility   = Visible(d.ConferenceUri is not null);
+        DeleteButton.Visibility = Visible(info.CanEdit);
+        ToolTipService.SetToolTip(JoinButton, $"Join (Ctrl+J)\n{call}");
+
+        // Location And Call
+        LocationText.Text         = d.Location ?? "";
+        LocationRow.Visibility    = Visible(d.Location is { Length: > 0 });
+        ConferenceText.Text       = $"Video call: {call}";
+        ConferenceText.Visibility = Visible(d.ConferenceUri is not null);
+        ToolTipService.SetToolTip(MapsLink, d.Location is { Length: > 0 } location ? DisplayUrl(LinkSafety.MapsSearch(location)) : null);
+
+        // Your Reply
+        RsvpRow.Visibility = Visible(info.CanRespond);
+        ShowResponse(d.SelfResponse);
+
+        // Guests
+        var guests = info.Draft.Guests;
+        var mailto = CalendarViewModel.GuestsMailto(info);
+        EmailGuestsLink.Visibility = Visible(mailto is not null);
+        ToolTipService.SetToolTip(EmailGuestsLink, mailto is null ? null : $"Email guests (E then E)\n{DisplayUrl(mailto)}");
+        GuestsRow.Visibility  = Visible(guests.Count > 0);
+        GuestsText.Text       = guests.Count == 1 ? "1 guest" : string.Create(CultureInfo.InvariantCulture, $"{guests.Count} guests");
+        GuestList.ItemsSource = guests.Select(g => new GuestItem(g.Email, GuestDetail(g))).ToList();
+
+        RenderDescription(info.DescriptionRuns);
     }
 
-    void OnUpcomingClick(object sender, RoutedEventArgs e)
+    // Styled runs as native text. Links never get a NavigateUri from event content; a click goes through the allowlist.
+    void RenderDescription(IReadOnlyList<DescriptionRun> runs)
     {
-        if (_vm is not null && sender is Button { Tag: CalendarOccurrence occurrence })
+        DescriptionBlock.Blocks.Clear();
+        DescriptionBlock.Visibility = Visible(runs.Count > 0);
+
+        var paragraph = new Paragraph();
+        foreach (var run in runs)
         {
-            _vm.Select(occurrence);
+            var lines = run.Text.Split('\n');
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (i > 0)
+                {
+                    paragraph.Inlines.Add(new LineBreak());
+                }
+
+                if (lines[i].Length > 0)
+                {
+                    paragraph.Inlines.Add(Styled(run, lines[i]));
+                }
+            }
+        }
+
+        DescriptionBlock.Blocks.Add(paragraph);
+    }
+
+    Inline Styled(DescriptionRun run, string text)
+    {
+        Inline inline = new Run { Text = text };
+
+        // The link text can say anything, so hovering (or a screen reader) shows the real address
+        if (run.Link is { } link)
+        {
+            var hyperlink = new Hyperlink();
+            var target    = DisplayUrl(link);
+            hyperlink.Inlines.Add(inline);
+            hyperlink.Click += (_, _) => Act(vm => vm.OpenLinkAsync(link), "details.link.failed");
+            ToolTipService.SetToolTip(hyperlink, target);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(hyperlink, target);
+            inline = hyperlink;
+        }
+
+        if (run.Underline && run.Link is null)
+        {
+            inline = Wrap(new Underline(), inline);
+        }
+
+        if (run.Italic)
+        {
+            inline = Wrap(new Italic(), inline);
+        }
+
+        if (run.Bold)
+        {
+            inline = Wrap(new Bold(), inline);
+        }
+
+        return inline;
+    }
+
+    static Span Wrap(Span span, Inline inner)
+    {
+        span.Inlines.Add(inner);
+        return span;
+    }
+
+    void ShowResponse(ResponseStatus response)
+    {
+        ResponseText.Text   = ResponseLine(response);
+        RsvpYes.IsChecked   = response == ResponseStatus.Accepted;
+        RsvpMaybe.IsChecked = response == ResponseStatus.Tentative;
+        RsvpNo.IsChecked    = response == ResponseStatus.Declined;
+    }
+
+    /// <summary>
+    /// A link's address as text for display. Bidirectional control characters are removed, so an address
+    /// can't be shown reversed or reordered to look like another site.
+    /// </summary>
+    internal static string DisplayUrl(Uri uri)
+    {
+        string text;
+        try
+        {
+            text = uri.AbsoluteUri;
+        }
+        catch (Exception ex) when (ex is UriFormatException or InvalidOperationException)
+        {
+            text = uri.OriginalString;
+        }
+
+        return new string(text.Where(c => c is not ((>= '\u202A' and <= '\u202E') or (>= '\u2066' and <= '\u2069') or '\u200E' or '\u200F')).ToArray());
+    }
+
+    static string ResponseLine(ResponseStatus response) => response switch
+    {
+        ResponseStatus.Accepted  => "Your response: Going",
+        ResponseStatus.Tentative => "Your response: Maybe",
+        ResponseStatus.Declined  => "Your response: Not going",
+        _                        => "Your response: Not answered yet",
+    };
+
+    static string GuestDetail(Guest guest)
+    {
+        var parts = new List<string>();
+        if (guest.IsOrganizer)
+        {
+            parts.Add("Organizer");
+        }
+
+        parts.Add(guest.Response switch
+        {
+            ResponseStatus.Accepted  => "Going",
+            ResponseStatus.Tentative => "Maybe",
+            ResponseStatus.Declined  => "Not going",
+            _                        => "Not answered",
+        });
+
+        if (guest.Optional)
+        {
+            parts.Add("Optional");
+        }
+
+        if (guest.Comment is { Length: > 0 } comment)
+        {
+            parts.Add($"“{comment}”");
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    // =========================================================================
+    // ACTIONS
+    // =========================================================================
+
+    void OnJoinClick(object sender, RoutedEventArgs e) => Act(vm => vm.JoinAsync(vm.SelectedInfo?.Occurrence), "details.join.failed");
+
+    void OnDeleteClick(object sender, RoutedEventArgs e) => Act(vm => vm.DeleteAsync([.. vm.Selection], sendUpdates: true), "details.delete.failed");
+
+    void OnMapsClick(object sender, RoutedEventArgs e) => Act(vm => vm.OpenLocationAsync(), "details.maps.failed");
+
+    void OnEmailGuestsClick(object sender, RoutedEventArgs e) => Act(vm => vm.EmailGuestsAsync(), "details.email.failed");
+
+    void OnRsvpYesClick(object sender, RoutedEventArgs e) => Reply(ResponseStatus.Accepted);
+
+    void OnRsvpMaybeClick(object sender, RoutedEventArgs e) => Reply(ResponseStatus.Tentative);
+
+    void OnRsvpNoClick(object sender, RoutedEventArgs e) => Reply(ResponseStatus.Declined);
+
+    // A toggle flips itself on click; show the stored reply until the new one is saved and the event reloads
+    void Reply(ResponseStatus response)
+    {
+        if (_vm?.SelectedInfo is { } info)
+        {
+            ShowResponse(info.Details.SelfResponse);
+        }
+
+        Act(vm => vm.RespondAsync(response, RsvpNote.Text, RsvpEmail.IsChecked == true), "details.respond.failed");
+    }
+
+    // The view model runs the work and logs a failure under the given name, so nothing escapes into the dispatcher
+    void Act(Func<CalendarViewModel, Task> work, string eventName)
+    {
+        if (_vm is { } vm)
+        {
+            vm.Fire(() => work(vm), eventName);
         }
     }
 }

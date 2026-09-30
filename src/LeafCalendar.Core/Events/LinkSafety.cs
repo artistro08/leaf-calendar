@@ -124,8 +124,9 @@ public static partial class LinkSafety
             return conference;
         }
 
-        var builder = new UriBuilder(conference);
-        var query   = builder.Query.TrimStart('?')
+        // Port -1 keeps UriBuilder from writing ":443" into the address it hands to the browser
+        var builder = new UriBuilder(conference) { Port = conference.IsDefaultPort ? -1 : conference.Port };
+        var query  = builder.Query.TrimStart('?')
             .Split('&', StringSplitOptions.RemoveEmptyEntries)
             .Where(p => !p.StartsWith("authuser=", StringComparison.OrdinalIgnoreCase))
             .Append("authuser=" + Uri.EscapeDataString(accountEmail));
