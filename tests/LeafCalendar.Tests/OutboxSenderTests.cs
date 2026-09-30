@@ -230,6 +230,25 @@ public sealed class OutboxSenderTests : IDisposable
     }
 
     [Fact]
+    public async Task Send_412AndGoogleCopyForbidden_ConflictWithoutGoogleVersionAndQueueContinues()
+    {
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"Mine"}""");
+        Queue("evt-allday", OutboxOperation.Patch, """{"summary":"Holiday"}""", "\"3181161784712001\"");
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.PreconditionFailed, "{}");
+        _h.Google.On(HttpMethod.Get, SingleUrl, HttpStatusCode.Forbidden, Fixture.Read("error-forbidden.json"));
+        _h.Google.On(HttpMethod.Patch, SyncHarness.PrimaryEventsUrl + "/evt-allday", HttpStatusCode.OK, """{"id":"evt-allday","etag":"\"E5\"","status":"confirmed","start":{"date":"2026-10-12"},"end":{"date":"2026-10-13"}}""");
+
+        var report = await Send();
+
+        Assert.Equal(1, report.Conflicts);
+        using var conn = _h.Db.Database.Open();
+        var conflict = Assert.Single(ConflictStore.GetAll(conn));
+        Assert.Equal("evt-single", conflict.Entry.EventId);
+        Assert.Null(conflict.GoogleJson);
+        Assert.Empty(OutboxStore.Pending(conn, Account));
+    }
+
+    [Fact]
     public async Task Send_RejectedAndGoogleCopyUnreadable_RestoresSnapshot()
     {
         Queue("evt-single", OutboxOperation.Patch, """{"summary":"Mine"}""");

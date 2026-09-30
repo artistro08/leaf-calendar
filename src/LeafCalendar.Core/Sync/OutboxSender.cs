@@ -115,7 +115,16 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
             {
                 if (failure is PreconditionFailedException or EventGoneException)
                 {
-                    var current = failure is EventGoneException ? null : await google.GetEventAsync(entry.AccountId, entry.CalendarId, entry.EventId, ct);
+                    string? current = null;
+                    try
+                    {
+                        current = failure is EventGoneException ? null : await google.GetEventAsync(entry.AccountId, entry.CalendarId, entry.EventId, ct);
+                    }
+                    catch (GoogleApiException ex) when (IsPermanent(ex))
+                    {
+                        // Google's Copy Can't Be Read: the user still decides, without it
+                    }
+
                     RecordConflict(entry, current);
                     conflicts++;
                 }
