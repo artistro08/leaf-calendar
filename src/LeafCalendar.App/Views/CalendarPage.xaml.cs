@@ -228,7 +228,7 @@ public sealed partial class CalendarPage : Page
     void OnEscapeInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
         // Esc During A Drag Only Cancels The Drag
-        if (_view is Controls.TimeGridView grid && grid.CancelDrag())
+        if ((_view is Controls.TimeGridView grid && grid.CancelDrag()) || (_view is Controls.MonthGridView month && month.CancelDrag()))
         {
             args.Handled = true;
             return;

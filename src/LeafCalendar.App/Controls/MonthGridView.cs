@@ -1,8 +1,12 @@
 using LeafCalendar.App.ViewModels;
+using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Windows.Foundation;
+using Windows.System;
 
 namespace LeafCalendar.App.Controls;
 
@@ -55,6 +59,11 @@ public sealed partial class MonthGridView : Grid, IDisposable
     // An animated scroll is running; jumps wait for it (see TimeGridView: a jump doesn't cancel it)
     bool _animating;
 
+    // Drag ghost over the week rows (never takes hits)
+    readonly Canvas _dragLayer = new() { IsHitTestVisible = false };
+    readonly Border _ghost = new() { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2), Visibility = Visibility.Collapsed };
+    readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 2, 4, 0), Text = "+ Copy" };
+
     /// <summary>Builds the view for <paramref name="vm"/>.</summary>
     public MonthGridView(CalendarViewModel vm)
     {
@@ -105,6 +114,16 @@ public sealed partial class MonthGridView : Grid, IDisposable
         FocusMonth = ViewNavigator.MonthStartOf(_vm.PeriodStart);
         BuildWeeks(_vm.PeriodStart);
         _firstIndex = WeekIndexOf(FocusMonth);
+
+        // Dragging Chips Between Days
+        _ghost.Child = _ghostLabel;
+        _dragLayer.Children.Add(_ghost);
+        SetRow(_dragLayer, 1);
+        Children.Add(_dragLayer);
+        AddHandler(PointerMovedEvent, new PointerEventHandler(OnDragMoved), handledEventsToo: true);
+        AddHandler(PointerReleasedEvent, new PointerEventHandler(OnDragReleased), handledEventsToo: true);
+        PointerCaptureLost += (_, _) => CancelDrag();
+        PointerCanceled    += (_, _) => CancelDrag();
     }
 
     /// <summary>The view model.</summary>
@@ -367,6 +386,8 @@ public sealed partial class MonthGridView : Grid, IDisposable
             return;
         }
 
+        // The weeks are rebuilt, so a running drag's cells no longer line up
+        CancelDrag();
         BuildWeeks(FocusMonth);
         _firstIndex = WeekIndexOf(FocusMonth);
         BuildWeekdayHeader();
@@ -382,6 +403,161 @@ public sealed partial class MonthGridView : Grid, IDisposable
         }
 
         ScrollToDate(date, animate: true);
+    }
+
+    // =========================================================================
+    // DRAGGING
+    // =========================================================================
+
+    // How far the pointer must move before a press becomes a drag (less stays a click)
+    const double DragThreshold = 4;
+
+    sealed class ChipDrag(CalendarOccurrence occurrence, Point origin, DateOnly grabbedDay)
+    {
+        public CalendarOccurrence Occurrence { get; } = occurrence;
+        public Point Origin { get; } = origin;
+        public DateOnly GrabbedDay { get; } = grabbedDay;
+        public bool Started { get; set; }
+        public bool Duplicate { get; set; }
+        public (int Row, int Column)? Cell { get; set; }
+        public DateOnly? Target { get; set; }
+    }
+
+    ChipDrag? _drag;
+
+    /// <summary>True between a press on a chip and its release.</summary>
+    public bool IsDragPending => _drag is not null;
+
+    /// <summary>A chip was pressed: dragging moves the event to another day (keeping its time). Events you can't change don't drag.</summary>
+    public void BeginChipDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e)
+    {
+        if (!_vm.CanEdit(occurrence))
+        {
+            return;
+        }
+
+        _drag = new ChipDrag(occurrence, e.GetCurrentPoint(this).Position, DateAt(e.GetCurrentPoint(_repeater).Position));
+    }
+
+    /// <summary>The day under a point in the week rows' coordinates (a real date, so hidden weekends still count as days).</summary>
+    public DateOnly DateAt(Point pointInRepeater)
+    {
+        var (row, column) = CellAt(pointInRepeater);
+        var days          = ColumnDates(_weeks[row].WeekStart);
+        return days[Math.Min(column, days.Count - 1)];
+    }
+
+    /// <summary>Drops a pending or running drag without changing anything (Esc). Returns true when there was one.</summary>
+    public bool CancelDrag()
+    {
+        if (_drag is null)
+        {
+            return false;
+        }
+
+        _drag             = null;
+        _ghost.Visibility = Visibility.Collapsed;
+        ReleasePointerCaptures();
+        return true;
+    }
+
+    // Week index and visible column under a point in the week rows' coordinates
+    (int Row, int Column) CellAt(Point pointInRepeater)
+    {
+        var columns = ViewNavigator.VisibleColumnCount(Core.Settings.CalendarViewMode.Month, 0, _vm.Settings.ShowWeekends);
+        var row     = Math.Clamp((int)Math.Floor(pointInRepeater.Y / RowHeight), 0, _weeks.Count - 1);
+        var column  = Math.Clamp((int)Math.Floor(pointInRepeater.X / ColumnWidth), 0, columns - 1);
+        return (row, column);
+    }
+
+    void OnDragMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_drag is not { } drag)
+        {
+            return;
+        }
+
+        // Button Already Up: the release went somewhere else (off the grid, Alt+Tab), so the press is over
+        var point = e.GetCurrentPoint(this);
+        if (!point.Properties.IsLeftButtonPressed)
+        {
+            CancelDrag();
+            return;
+        }
+
+        var at = point.Position;
+        if (!drag.Started)
+        {
+            if (Math.Abs(at.X - drag.Origin.X) < DragThreshold && Math.Abs(at.Y - drag.Origin.Y) < DragThreshold)
+            {
+                return;
+            }
+
+            if (!CapturePointer(e.Pointer))
+            {
+                CancelDrag();
+                return;
+            }
+
+            drag.Started = true;
+        }
+
+        // Redraw The Ghost Only When The Cell Or Copy Mode Changes (the pointer is kept to the visible rows)
+        var inRepeater = e.GetCurrentPoint(_repeater).Position;
+        var top        = _scroll.VerticalOffset;
+        var cell       = CellAt(new Point(inRepeater.X, Math.Clamp(inRepeater.Y, top, top + Math.Max(0, _scroll.ViewportHeight - 1))));
+        var duplicate  = KeyState.IsDown(VirtualKey.Menu);
+        e.Handled = true;
+        if (cell == drag.Cell && duplicate == drag.Duplicate)
+        {
+            return;
+        }
+
+        var days = ColumnDates(_weeks[cell.Row].WeekStart);
+        drag.Cell      = cell;
+        drag.Duplicate = duplicate;
+        drag.Target    = days[Math.Min(cell.Column, days.Count - 1)];
+
+        // Ghost Over The Target Cell
+        _ghost.Width           = ColumnWidth - 2;
+        _ghost.Height          = RowHeight - 2;
+        _ghost.BorderBrush     = LeafBrushes.Accent(IsDark);
+        _ghost.Background      = LeafBrushes.Hover(IsDark);
+        _ghostLabel.Visibility = duplicate ? Visibility.Visible : Visibility.Collapsed;
+        Canvas.SetLeft(_ghost, cell.Column * ColumnWidth + 1);
+        Canvas.SetTop(_ghost, cell.Row * RowHeight - top + 1);
+        _ghost.Visibility      = Visibility.Visible;
+    }
+
+    void OnDragReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (_drag is not { } drag)
+        {
+            return;
+        }
+
+        _drag = null;
+        ReleasePointerCapture(e.Pointer);
+        _ghost.Visibility = Visibility.Collapsed;
+
+        // Dropped On The Day It Started: nothing to do (no scope question, no copy on top of the original)
+        if (!drag.Started || drag.Target is not { } target || target == drag.GrabbedDay)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        var o            = drag.Occurrence;
+        var (start, end) = DragMath.ShiftDays(o, target.DayNumber - drag.GrabbedDay.DayNumber, _vm.Zone);
+
+        // Alt+Drag Duplicates (Alt is also read as the pointer moves: it can already be up when the release is handled)
+        if (drag.Duplicate || KeyState.IsDown(VirtualKey.Menu))
+        {
+            _vm.Duplicate(o, start, end, o.IsAllDay);
+            return;
+        }
+
+        _vm.Fire(() => _vm.MoveAsync(o, start, end, o.IsAllDay), "calendar.move.failed");
     }
 
     // =========================================================================

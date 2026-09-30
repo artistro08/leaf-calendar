@@ -2,6 +2,7 @@ using System.Globalization;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Views;
+using Microsoft.UI.Input;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -25,7 +26,26 @@ public sealed partial class WeekRow : Canvas
     readonly List<(Button Button, DateOnly Date)> _dayNumbers = [];
 
     /// <summary>Creates a row owned by <paramref name="owner"/>.</summary>
-    public WeekRow(MonthGridView owner) => _owner = owner;
+    public WeekRow(MonthGridView owner)
+    {
+        _owner = owner;
+
+        // Double-Click An Empty Cell: a new all-day event that day (chips mark their own taps handled; the day number strip is skipped)
+        DoubleTapped += (_, e) =>
+        {
+            var at = e.GetPosition(this);
+            if (at.Y < MonthGridView.DayNumberHeight)
+            {
+                return;
+            }
+
+            var dates = _owner.ColumnDates(WeekStart);
+            var date  = dates[Math.Clamp((int)Math.Floor(at.X / _owner.ColumnWidth), 0, dates.Count - 1)];
+            var start = new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            _owner.ViewModel.BeginCreate(start, start.AddDays(1), isAllDay: true);
+            e.Handled = true;
+        };
+    }
 
     /// <summary>First day of the week shown.</summary>
     public DateOnly WeekStart { get; private set; }
@@ -198,6 +218,19 @@ public sealed partial class WeekRow : Canvas
         {
             vm.Select(o);
             e.Handled = true;
+        };
+        chip.DoubleTapped += (_, e) =>
+        {
+            vm.Select(o);
+            vm.BeginEdit();
+            e.Handled = true;
+        };
+        chip.PointerPressed += (_, e) =>
+        {
+            if (e.GetCurrentPoint(chip).Properties.IsLeftButtonPressed && e.Pointer.PointerDeviceType != PointerDeviceType.Touch)
+            {
+                _owner.BeginChipDrag(o, e);
+            }
         };
         AutomationProperties.SetAutomationId(chip, string.Create(CultureInfo.InvariantCulture, $"Chip_{o.EventId}_{first:yyyyMMdd}"));
         AutomationProperties.SetName(chip, o.Title);
