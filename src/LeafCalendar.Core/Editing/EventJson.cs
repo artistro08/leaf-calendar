@@ -114,8 +114,8 @@ public static class EventJson
         {
             ["id"]      = id,
             ["summary"] = draft.Title,
-            ["start"]   = Time(draft.Start, draft.IsAllDay, draft.TimeZone, clearOther: false),
-            ["end"]     = Time(draft.End, draft.IsAllDay, draft.TimeZone, clearOther: false),
+            ["start"]   = Time(draft.Start, draft.IsAllDay, ZoneFor(draft), clearOther: false),
+            ["end"]     = Time(draft.End, draft.IsAllDay, ZoneFor(draft), clearOther: false),
         };
 
         if (draft.Location.Length > 0)
@@ -148,8 +148,12 @@ public static class EventJson
         return body;
     }
 
-    /// <summary>The body for <c>events.patch</c>: only the fields that differ. Switching between all-day and timed clears the other form.</summary>
-    public static JsonObject BuildPatch(EventDraft before, EventDraft after)
+    /// <summary>
+    /// The body for <c>events.patch</c>: only the fields that differ. Switching between all-day and timed clears the other form.
+    /// Pass <paramref name="rawJson"/> (the event as stored) so unchanged guests keep the details the editor doesn't know about.
+    /// </summary>
+    /// <exception cref="JsonException"><paramref name="rawJson"/> is invalid.</exception>
+    public static JsonObject BuildPatch(EventDraft before, EventDraft after, string? rawJson = null)
     {
         var patch = new JsonObject();
 
@@ -162,8 +166,8 @@ public static class EventJson
         if (before.Start != after.Start || before.End != after.End || before.IsAllDay != after.IsAllDay || before.TimeZone != after.TimeZone)
         {
             var switched = before.IsAllDay != after.IsAllDay;
-            patch["start"] = Time(after.Start, after.IsAllDay, after.TimeZone, switched);
-            patch["end"]   = Time(after.End, after.IsAllDay, after.TimeZone, switched);
+            patch["start"] = Time(after.Start, after.IsAllDay, ZoneFor(after), switched);
+            patch["end"]   = Time(after.End, after.IsAllDay, ZoneFor(after), switched);
         }
 
         if (before.Location != after.Location)
@@ -171,7 +175,8 @@ public static class EventJson
             patch["location"] = after.Location;
         }
 
-        if (before.Description != after.Description)
+        // Line endings differ between parsed text and WinUI text boxes, so compare as HTML
+        if (TextToHtml(before.Description) != TextToHtml(after.Description))
         {
             patch["description"] = TextToHtml(after.Description);
         }
@@ -183,10 +188,12 @@ public static class EventJson
 
         if (!before.Guests.SequenceEqual(after.Guests))
         {
-            patch["attendees"] = Attendees(after.Guests);
+            patch["attendees"] = rawJson is null ? Attendees(after.Guests) : MergeAttendees(rawJson, before.Guests, after.Guests);
         }
 
-        if (before.UseDefaultReminders != after.UseDefaultReminders || !before.ReminderMinutes.SequenceEqual(after.ReminderMinutes))
+        // Custom minutes only matter when custom reminders are on, and their order doesn't
+        if (before.UseDefaultReminders != after.UseDefaultReminders
+            || (!after.UseDefaultReminders && !before.ReminderMinutes.Order().SequenceEqual(after.ReminderMinutes.Order())))
         {
             patch["reminders"] = Reminders(after);
         }
@@ -390,6 +397,87 @@ public static class EventJson
         }
 
         return time;
+    }
+
+    // Google rejects an offset-only dateTime on a repeating timed event, so fall back to this PC's zone
+    static string? ZoneFor(EventDraft draft)
+    {
+        if (draft.TimeZone is not null || draft.IsAllDay || draft.Recurrence.Count == 0)
+        {
+            return draft.TimeZone;
+        }
+
+        var local = TimeZoneInfo.Local;
+        if (local.HasIanaId)
+        {
+            return local.Id;
+        }
+
+        return TimeZoneInfo.TryConvertWindowsIdToIanaId(local.Id, out var iana) ? iana : null;
+    }
+
+    // The stored attendees with the editor's changes applied: unchanged guests keep every Google field, guests without an email are left alone
+    static JsonArray MergeAttendees(string rawJson, IReadOnlyList<Guest> before, IReadOnlyList<Guest> after)
+    {
+        var result = new JsonArray();
+        var kept   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (Parse(rawJson)["attendees"] is JsonArray existing)
+        {
+            foreach (var raw in existing.OfType<JsonObject>())
+            {
+                var email = (raw["email"] as JsonValue)?.TryGetValue<string>(out var e) == true ? e : null;
+                if (string.IsNullOrEmpty(email))
+                {
+                    result.Add((JsonNode)raw.DeepClone());
+                    continue;
+                }
+
+                var guest = after.FirstOrDefault(g => string.Equals(g.Email, email, StringComparison.OrdinalIgnoreCase));
+                if (guest is null)
+                {
+                    continue;
+                }
+
+                var attendee = (JsonObject)raw.DeepClone();
+                var was      = before.FirstOrDefault(g => string.Equals(g.Email, email, StringComparison.OrdinalIgnoreCase));
+                if (guest != was)
+                {
+                    attendee["responseStatus"] = ResponseText(guest.Response);
+                    SetOrRemove(attendee, "optional", guest.Optional ? true : null);
+                    SetOrRemove(attendee, "comment", guest.Comment is { Length: > 0 } ? guest.Comment : null);
+                }
+
+                kept.Add(email);
+                result.Add((JsonNode)attendee);
+            }
+        }
+
+        // New guests
+        foreach (var guest in after.Where(g => !kept.Contains(g.Email)))
+        {
+            var added = new JsonObject { ["email"] = guest.Email };
+            if (guest.Optional)
+            {
+                added["optional"] = true;
+            }
+
+            result.Add((JsonNode)added);
+        }
+
+        return result;
+    }
+
+    static void SetOrRemove(JsonObject target, string name, JsonNode? value)
+    {
+        if (value is null)
+        {
+            target.Remove(name);
+        }
+        else
+        {
+            target[name] = value;
+        }
     }
 
     static JsonArray Attendees(IReadOnlyList<Guest> guests)

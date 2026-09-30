@@ -222,4 +222,71 @@ public class EventJsonTests
 
         Assert.Same(draft, EventJson.ApplyBirthdayRule(draft, NewYork));
     }
+
+    [Theory]
+    [InlineData("Agenda\r\nBudget")]
+    [InlineData("Agenda\rBudget")]
+    [InlineData("Agenda\nBudget")]
+    public void BuildPatch_UntouchedDescriptionWithAnyLineEnding_IsNotSent(string text)
+    {
+        var draft = Read();
+
+        Assert.False(EventJson.BuildPatch(draft, draft with { Description = text }).ContainsKey("description"));
+    }
+
+    [Fact]
+    public void BuildPatch_RemindersReordered_IsNotSent()
+    {
+        var draft  = Read() with { ReminderMinutes = [10, 30] };
+        var edited = draft with { ReminderMinutes = [30, 10] };
+
+        Assert.False(EventJson.BuildPatch(draft, edited).ContainsKey("reminders"));
+    }
+
+    [Fact]
+    public void BuildPatch_DefaultRemindersOn_IgnoresMinutes()
+    {
+        var draft  = Read() with { UseDefaultReminders = true, ReminderMinutes = [10] };
+        var edited = draft with { ReminderMinutes = [45] };
+
+        Assert.False(EventJson.BuildPatch(draft, edited).ContainsKey("reminders"));
+    }
+
+    [Fact]
+    public void BuildPatch_GuestAddedWithRaw_KeepsExistingGuestDetails()
+    {
+        const string raw = """{"id":"a","attendees":[{"email":"Old@example.com","displayName":"Old Guy","additionalGuests":2,"responseStatus":"accepted"},{"displayName":"Room 4","resource":true}]}""";
+        var before = EventJson.ReadDraft("acct", "cal", raw, Start, Start.AddHours(1), false);
+
+        var patch = EventJson.BuildPatch(before, before with { Guests = [.. before.Guests, new Guest("new@example.com")] }, raw);
+
+        var attendees = patch["attendees"]!.AsArray();
+        Assert.Equal(3, attendees.Count);
+        Assert.Equal("Old Guy", (string?)attendees[0]!["displayName"]);
+        Assert.Equal(2, (int?)attendees[0]!["additionalGuests"]);
+        Assert.Equal(true, (bool?)attendees[1]!["resource"]);
+        Assert.Equal("""{"email":"new@example.com"}""", attendees[2]!.ToJsonString());
+    }
+
+    [Fact]
+    public void BuildPatch_GuestRemovedWithRaw_DropsOnlyThatGuest()
+    {
+        const string raw = """{"id":"a","attendees":[{"email":"a@example.com","displayName":"A"},{"email":"b@example.com"}]}""";
+        var before = EventJson.ReadDraft("acct", "cal", raw, Start, Start.AddHours(1), false);
+
+        var patch = EventJson.BuildPatch(before, before with { Guests = [before.Guests[0]] }, raw);
+
+        Assert.Equal("""[{"email":"a@example.com","displayName":"A"}]""", patch["attendees"]!.ToJsonString());
+    }
+
+    [Fact]
+    public void BuildCreate_RepeatingTimedEventWithoutZone_GetsAZone()
+    {
+        var draft = new EventDraft { AccountId = "acct", CalendarId = "cal", Start = Start, End = Start.AddHours(1), Recurrence = ["RRULE:FREQ=DAILY"] };
+
+        var body = EventJson.BuildCreate("abcde12345", draft);
+
+        Assert.False(string.IsNullOrEmpty((string?)body["start"]!["timeZone"]));
+        Assert.Equal((string?)body["start"]!["timeZone"], (string?)body["end"]!["timeZone"]);
+    }
 }
