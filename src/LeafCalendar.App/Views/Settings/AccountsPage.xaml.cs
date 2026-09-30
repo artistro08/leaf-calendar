@@ -78,6 +78,7 @@ public sealed partial class AccountsPage : Page
             _refs.Add(new CalendarRef(c.AccountId, c.Id));
         }
 
+        // A stored default that is gone or read-only shows as the main calendar, matching DefaultCalendar.Pick
         var index = _refs.FindIndex(r => r is not null && r == chosen);
         DefaultCalendarBox.SelectedIndex = Math.Max(index, 0);
         _loading = false;

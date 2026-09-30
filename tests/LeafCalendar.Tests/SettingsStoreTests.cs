@@ -35,6 +35,16 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(calendar, SettingsStore.Load(conn).DefaultCalendar);
     }
 
+    [Theory]
+    [InlineData("", "cal")]
+    [InlineData("acct", " ")]
+    public void Normalize_BlankDefaultCalendar_BecomesNull(string account, string calendar)
+    {
+        var settings = new LeafSettings { DefaultCalendar = new CalendarRef(account, calendar) }.Normalize();
+
+        Assert.Null(settings.DefaultCalendar);
+    }
+
     [Fact]
     public void Save_ThenLoad_RoundTrips()
     {

@@ -21,6 +21,16 @@ public sealed class DefaultCalendarTests
     }
 
     [Fact]
+    public void Pick_PreferredHidden_StillWins()
+    {
+        var calendars = new[] { Cal("a1", "main", "owner", primary: true), Cal("a1", "family", "writer", hidden: true) };
+
+        var pick = DefaultCalendar.Pick(calendars, Connected, new CalendarRef("a1", "family"));
+
+        Assert.Equal("family", pick?.Id);
+    }
+
+    [Fact]
     public void Pick_PreferredNowReadOnly_FallsBackToPrimary()
     {
         var calendars = new[] { Cal("a1", "main", "owner", primary: true), Cal("a1", "family", "reader") };

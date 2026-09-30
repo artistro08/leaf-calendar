@@ -116,6 +116,7 @@ public sealed class SettingsTests : IDisposable
         Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("DefaultCalendarComboBox").AsComboBox().SelectedItem?.Name == "Family", TimeSpan.FromSeconds(5)).Success);
         settings.Close();
 
+        leaf.MainWindow.Focus();
         leaf.Press(VirtualKeyShort.KEY_C);
         leaf.WaitFor("EditorTitle").AsTextBox().Text = "Picnic";
         leaf.WaitFor("EditorSaveButton").AsButton().Invoke();

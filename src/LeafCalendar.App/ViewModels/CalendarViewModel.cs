@@ -606,7 +606,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         Editing = new EventEditorViewModel(info.Draft, info.Occurrence, WritableCalendars(info.Occurrence), Zone, IanaZoneId(Zone), Settings.Use24HourTime, focusEnd);
     }
 
-    /// <summary>Opens the editor on a new event in your main calendar (primary, else the first you can write to).</summary>
+    /// <summary>Opens the editor on a new event in your default calendar (your chosen one, else primary, else the first you can write to).</summary>
     public void BeginCreate(DateTimeOffset start, DateTimeOffset end, bool isAllDay)
     {
         if (HomeCalendar() is not { } home)
