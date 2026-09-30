@@ -139,14 +139,18 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         return new DeleteReceipt(seqs);
     }
 
-    /// <summary>Puts deleted events back if none of the delete's entries has been sent yet.</summary>
+    /// <summary>
+    /// Puts deleted events back if none of the delete's entries can have been sent yet. Once an entry's hold
+    /// has ended the sender may already be sending it (it stays pending until Google answers), so it's refused.
+    /// </summary>
     public bool Undo(DeleteReceipt receipt)
     {
         var undone = false;
+        var now    = time.GetUtcNow();
         InTransaction((conn, tx) =>
         {
             var entries = receipt.Seqs.Select(seq => OutboxStore.Get(conn, tx, seq)).ToList();
-            if (entries.Count == 0 || entries.Any(e => e is not { State: OutboxState.Pending }))
+            if (entries.Count == 0 || entries.Any(e => e is not { State: OutboxState.Pending, NotBefore: { } notBefore } || notBefore <= now))
             {
                 return;
             }

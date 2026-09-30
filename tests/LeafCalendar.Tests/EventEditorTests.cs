@@ -225,6 +225,29 @@ public sealed class EventEditorTests : IDisposable
     }
 
     [Fact]
+    public void Undo_AfterHoldEnds_ReturnsFalseAndKeepsTheDelete()
+    {
+        var receipt = _editor.Delete([Occurrence("evt-single", Oct1)], EditScope.This, sendUpdates: true);
+
+        // The Sender May Already Be Sending It
+        _time.Advance(EventEditor.UndoWindow);
+
+        Assert.False(_editor.Undo(receipt));
+        Assert.Single(Outbox());
+        Assert.DoesNotContain(Day(Oct1), x => x.EventId == "evt-single");
+    }
+
+    [Fact]
+    public void Undo_JustBeforeHoldEnds_StillWorks()
+    {
+        var receipt = _editor.Delete([Occurrence("evt-single", Oct1)], EditScope.This, sendUpdates: true);
+        _time.Advance(EventEditor.UndoWindow - TimeSpan.FromMilliseconds(1));
+
+        Assert.True(_editor.Undo(receipt));
+        Assert.Empty(Outbox());
+    }
+
+    [Fact]
     public void Respond_SetsSelfLocallyAndQueuesReply()
     {
         Seed(Invite);
