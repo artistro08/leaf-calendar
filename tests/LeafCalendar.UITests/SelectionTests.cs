@@ -121,6 +121,41 @@ public sealed class SelectionTests : IDisposable
         Assert.Equal("""{"colorId":"11"}""", write.Body);
     }
 
+    // Design standard (Menus): stock MenuFlyout with a 16 DIP Segoe Fluent icon on each item; colors show a swatch
+    [Fact]
+    public void ContextMenu_ItemsHaveIcons()
+    {
+        using var leaf = Launch();
+
+        leaf.WaitFor(Dentist).RightClick();
+
+        foreach (var id in new[] { "MenuCopy", "MenuCut", "MenuColor", "MenuDelete" })
+        {
+            Assert.True(HasIcon(leaf.WaitForAnywhere(id)), $"{id} has no icon.");
+        }
+
+        leaf.WaitForAnywhere("MenuColor").Click();
+        Assert.True(HasIcon(leaf.WaitForAnywhere("MenuColor_11")), "Tomato has no swatch.");
+    }
+
+    // A menu item's icon shows up in the raw tree as a second text part (its glyph) next to the item's label
+    static bool HasIcon(AutomationElement item)
+    {
+        var walker = item.Automation.TreeWalkerFactory.GetRawViewWalker();
+        return Retry.WhileFalse(
+            () =>
+            {
+                var parts = 0;
+                for (var child = walker.GetFirstChild(item); child is not null; child = walker.GetNextSibling(child))
+                {
+                    parts += child.Properties.ClassName.ValueOrDefault == "TextBlock" ? 1 : 0;
+                }
+
+                return parts >= 2;
+            },
+            TimeSpan.FromSeconds(3)).Success;
+    }
+
     [Fact]
     public void CtrlA_SelectsEverythingVisible()
     {
