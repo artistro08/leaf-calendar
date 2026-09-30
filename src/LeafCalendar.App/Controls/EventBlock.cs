@@ -127,8 +127,8 @@ public sealed partial class EventBlock : Grid
     public static string AutomationIdFor(CalendarOccurrence o) =>
         string.Create(CultureInfo.InvariantCulture, $"Event_{o.EventId}_{o.Start.UtcDateTime:yyyyMMddHHmm}");
 
-    /// <summary>Shows <paramref name="occurrence"/>.</summary>
-    public void Bind(CalendarOccurrence occurrence, EventPalette palette, string timeText, bool selected, bool compact, Action<CalendarOccurrence> select)
+    /// <summary>Shows <paramref name="occurrence"/>, faded when <paramref name="past"/>.</summary>
+    public void Bind(CalendarOccurrence occurrence, EventPalette palette, string timeText, bool selected, bool compact, Action<CalendarOccurrence> select, bool past)
     {
         _occurrence = occurrence;
         _select     = select;
@@ -171,6 +171,10 @@ public sealed partial class EventBlock : Grid
             _                     => ("", Visibility.Collapsed),
         };
         _icon.Foreground = textBrush ?? accent;
+
+        // Past Events Fade (still readable)
+        _card.Opacity = past ? 0.55 : 1;
+        AutomationProperties.SetItemStatus(this, past ? "Past" : "");
 
         AutomationProperties.SetName(this, $"{occurrence.Title}, {timeText}");
         AutomationProperties.SetAutomationId(this, AutomationIdFor(occurrence));

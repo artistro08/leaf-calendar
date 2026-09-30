@@ -1,4 +1,6 @@
+using System.Drawing;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.WindowsAPI;
 using FlaUI.Core.Tools;
@@ -84,5 +86,32 @@ public sealed class CalendarShellTests : IDisposable
         Mouse.Click(MouseButton.XButton1);
 
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ViewModeButton").Name.Contains("Week", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success);
+    }
+
+    // The owner thought the title bar icons sat off the caption buttons' line. Text buttons (Today, the view menu)
+    // are left out: their ink is letters with descenders, not a glyph
+    [Fact]
+    public void TitleBarGlyphs_ShareTheCaptionButtonsInkCenter()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300");
+        var titleBar = leaf.WaitFor("AppTitleBar");
+        var scale    = leaf.WaitFor("DetailsToggleButton").BoundingRectangle.Width / 32.0;
+
+        // The Close Caption Button: the title bar's top-right 46 x 48
+        var bar     = titleBar.BoundingRectangle;
+        var close   = new Rectangle(bar.Right - (int)Math.Round(46 * scale), bar.Top, (int)Math.Round(46 * scale), (int)Math.Round(48 * scale));
+        var caption = LeafApp.InkCenterY(close);
+        Assert.False(double.IsNaN(caption), "No ink in the Close caption button.");
+
+        var glyphs = titleBar.FindAllDescendants(cf => cf.ByControlType(ControlType.Button))
+            .Where(b => !b.IsOffscreen && b.AutomationId is not ("TodayButton" or "ViewModeButton"))
+            .ToList();
+        Assert.NotEmpty(glyphs);
+        Assert.All(glyphs, b =>
+        {
+            var center = LeafApp.InkCenterY(b.BoundingRectangle);
+            Assert.True(Math.Abs(center - caption) <= 1, $"{b.AutomationId} ink center {center}, the caption buttons' {caption}.");
+        });
     }
 }

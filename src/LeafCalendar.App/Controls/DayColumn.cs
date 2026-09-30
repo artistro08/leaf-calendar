@@ -121,7 +121,7 @@ public sealed partial class DayColumn : Canvas
             SetLeft(card, 2 + b.Column * colW);
             SetTop(card, b.StartMinute / 60 * hour + 1);
             card.HoldsEnd = b.Occurrence.End <= OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
-            card.Bind(b.Occurrence, palette, TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, _select);
+            card.Bind(b.Occurrence, palette, TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, _select, vm.IsPast(b.Occurrence));
         }
 
         for (var i = blocks.Count; i < _blocks.Count; i++)

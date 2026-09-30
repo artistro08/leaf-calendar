@@ -244,6 +244,11 @@ public sealed partial class WeekRow : Canvas
         AutomationProperties.SetAutomationId(chip, string.Create(CultureInfo.InvariantCulture, $"Chip_{o.EventId}_{first:yyyyMMdd}"));
         AutomationProperties.SetName(chip, o.Title);
 
+        // Past Events Fade (still readable)
+        var past = vm.IsPast(o);
+        chip.Opacity = past ? 0.55 : 1;
+        AutomationProperties.SetItemStatus(chip, past ? "Past" : "");
+
         SetLeft(chip, b.FirstColumn * colW + 3);
         SetTop(chip, MonthGridView.DayNumberHeight + b.Lane * MonthGridView.ChipHeight);
         return chip;

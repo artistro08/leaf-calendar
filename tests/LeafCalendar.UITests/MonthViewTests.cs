@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.Json.Nodes;
 using FlaUI.Core.AutomationElements;
 using LeafCalendar.UITests.Support;
 
@@ -64,5 +66,23 @@ public sealed class MonthViewTests : IDisposable
         leaf.WaitFor("NextButton").AsButton().Invoke();
 
         Assert.True(FlaUI.Core.Tools.Retry.WhileFalse(() => leaf.WaitFor("PeriodTitle").Name == "November 2026", TimeSpan.FromSeconds(10)).Success);
+    }
+
+    [Fact]
+    public void PastChips_AreFaded()
+    {
+        // Oct 1 6:00-7:00 on the PC's clock, before the test clock's 8:00
+        var start = TimeZoneInfo.ConvertTimeToUtc(new DateTime(2026, 10, 1, 6, 0, 0), TimeZoneInfo.Local);
+        _google.AddEvent("leaf.tester@gmail.com", new JsonObject
+        {
+            ["id"]      = "evt-past",
+            ["summary"] = "Early",
+            ["start"]   = new JsonObject { ["dateTime"] = start.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture) },
+            ["end"]     = new JsonObject { ["dateTime"] = start.AddHours(1).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture) },
+        });
+        using var leaf = LaunchInMonth();
+
+        Assert.Equal("Past", leaf.WaitFor("Chip_evt-past_20261001").Properties.ItemStatus.ValueOrDefault);
+        Assert.Equal("", leaf.WaitFor("Chip_evt-single_20261001").Properties.ItemStatus.ValueOrDefault ?? "");
     }
 }

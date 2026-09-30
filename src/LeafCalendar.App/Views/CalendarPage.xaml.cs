@@ -188,6 +188,11 @@ public sealed partial class CalendarPage : Page
     void OnDetailsSplitSizeChanged(object sender, SizeChangedEventArgs e) =>
         DetailsSplit.Clip = new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
 
+    // Nothing in the island (the grid keeps neighbor days realized and slides its header by composition) may draw
+    // under the see-through panes
+    void OnIslandSizeChanged(object sender, SizeChangedEventArgs e) =>
+        Island.Clip = new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
+
     /// <summary>Puts the view for the current mode into <see cref="ViewHost"/>, keeping one view per mode family.</summary>
     public void ApplyView()
     {

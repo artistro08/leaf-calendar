@@ -200,6 +200,21 @@ public sealed class LeafApp : IDisposable
         Mouse.Scroll(clicks);
     }
 
+    /// <summary>
+    /// The screen y of the vertical center of the ink in <paramref name="region"/>: halfway between the top and bottom
+    /// rows holding a pixel whose lightness differs from the region's top-left pixel by more than 0.2 (NaN when there's none).
+    /// </summary>
+    public static double InkCenterY(Rectangle region)
+    {
+        using var shot       = FlaUI.Core.Capturing.Capture.Rectangle(region);
+        var background       = shot.Bitmap.GetPixel(0, 0).GetBrightness();
+        var rows             = Enumerable.Range(0, shot.Bitmap.Height)
+            .Where(y => Enumerable.Range(0, shot.Bitmap.Width).Any(x => Math.Abs(shot.Bitmap.GetPixel(x, y).GetBrightness() - background) > 0.2f))
+            .ToList();
+
+        return rows.Count == 0 ? double.NaN : region.Y + (rows[0] + rows[^1] + 1) / 2.0;
+    }
+
     /// <summary>Links Leaf opened, oldest first (fake-Google mode records them instead of opening a browser).</summary>
     public static IReadOnlyList<string> LaunchedLinks(string profile)
     {

@@ -84,6 +84,11 @@ public sealed partial class AllDayCanvas : Canvas
             SetTop(chip, b.Lane * TimeGridView.AllDayLaneHeight + 2);
             AutomationProperties.SetAutomationId(chip, string.Create(CultureInfo.InvariantCulture, $"AllDay_{b.Occurrence.EventId}_{start:yyyyMMdd}"));
             AutomationProperties.SetName(chip, b.Occurrence.Title);
+
+            // Past Events Fade (still readable)
+            var past = vm.IsPast(b.Occurrence);
+            chip.Opacity = past ? 0.55 : 1;
+            AutomationProperties.SetItemStatus(chip, past ? "Past" : "");
         }
     }
 

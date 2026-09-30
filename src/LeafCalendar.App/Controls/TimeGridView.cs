@@ -191,6 +191,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _bodyRepeater.SizeChanged += (_, _) => RetryPendingScroll();
         _headerRepeater.SizeChanged += (_, _) => SyncSides();
 
+        // Ctrl+Wheel Over The Body Zooms The Hours (on the content, so it runs before the ScrollViewer scrolls)
+        _bodyRepeater.PointerWheelChanged += OnBodyWheel;
+
         // Wheel Over The Gutter And Header Scrolls The Body
         _gutterScroll.AddHandler(PointerWheelChangedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler(OnSideWheel), handledEventsToo: true);
         _headerScroll.AddHandler(PointerWheelChangedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler(OnSideWheel), handledEventsToo: true);
@@ -534,6 +537,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // Shift+wheel horizontally), building on a scroll that's still animating so fast notches add up
     void OnSideWheel(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
+        if (TryZoom(e))
+        {
+            return;
+        }
+
         var point      = e.GetCurrentPoint(this).Properties;
         var horizontal = point.IsHorizontalMouseWheel || (e.KeyModifiers & Windows.System.VirtualKeyModifiers.Shift) != 0;
         var delta      = point.MouseWheelDelta * WheelStep;
@@ -548,6 +556,22 @@ public sealed partial class TimeGridView : Grid, IDisposable
         var from = double.IsNaN(_wheelTarget) ? _bodyScroll.VerticalOffset : _wheelTarget;
         _wheelTarget = Math.Clamp(from - delta, 0, _bodyScroll.ScrollableHeight);
         _bodyScroll.ChangeView(null, _wheelTarget, null, false);
+    }
+
+    // Ctrl+Wheel Zooms The Hours (the ScrollViewer never sees it, so the grid doesn't scroll)
+    void OnBodyWheel(object sender, PointerRoutedEventArgs e) => TryZoom(e);
+
+    // One notch is one Ctrl+= / Ctrl+- step; the settings keep the height inside its limits
+    bool TryZoom(PointerRoutedEventArgs e)
+    {
+        if ((e.KeyModifiers & Windows.System.VirtualKeyModifiers.Control) == 0)
+        {
+            return false;
+        }
+
+        _vm.ZoomBy(e.GetCurrentPoint(this).Properties.MouseWheelDelta > 0 ? 8 : -8);
+        e.Handled = true;
+        return true;
     }
 
     // Everything that depends on the column width: the columns, the headers, and the all-day row
@@ -577,6 +601,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _allDay.Width  = _strip.Count * ColumnWidth;
         _allDayExpand.Visibility = _allDay.LaneCount > MaxCollapsedLanes ? Visibility.Visible : Visibility.Collapsed;
         Corner.Height = DayHeaderHeight + _allDay.Height;
+
+        // Zone Labels Sit At The Bottom Of The Day-Header Band (the all-day row's corner keeps the expand chevron)
+        _zoneLabels.Margin = new Thickness(0, 0, 0, _allDay.Height + 4);
     }
 
     void RenderCorner()

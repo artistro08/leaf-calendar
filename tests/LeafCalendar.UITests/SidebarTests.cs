@@ -133,4 +133,15 @@ public sealed class SidebarTests : IDisposable
         Assert.False(leaf.Exists("AccountsButton"));
         Assert.False(leaf.Exists($"CalendarColor_{FamilyId}"));
     }
+
+    [Fact]
+    public void SettingsButton_SitsAsFarFromTheBottomAsFromTheLeft()
+    {
+        using var leaf = Launch();
+        var sidebar = leaf.WaitFor("Sidebar").BoundingRectangle;
+        var glyph   = leaf.WaitFor("SettingsButton").BoundingRectangle;
+        var fromLeft   = glyph.X + glyph.Width / 2.0 - sidebar.X;
+        var fromBottom = sidebar.Bottom - (glyph.Y + glyph.Height / 2.0);
+        Assert.True(Math.Abs(fromLeft - fromBottom) <= 1.5, $"{fromLeft} from the left, {fromBottom} from the bottom.");
+    }
 }

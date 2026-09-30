@@ -149,6 +149,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         ? OccurrenceQuery.LocalMidnight(d, Zone).AddHours(8)
         : _services.Time.GetUtcNow();
 
+    /// <summary>True once <paramref name="o"/> is over (drawn faded).</summary>
+    public bool IsPast(CalendarOccurrence o) => o.HasEndedBy(Now, Zone);
+
     /// <summary>The zone the grid is drawn in: the PC's, followed while Leaf runs (see <see cref="CheckTimeZone"/>).</summary>
     public TimeZoneInfo Zone => _zones.Zone;
 

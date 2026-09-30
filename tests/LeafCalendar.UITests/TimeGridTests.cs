@@ -1,8 +1,10 @@
 using System.Drawing;
+using System.Text.Json.Nodes;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Capturing;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
+using FlaUI.Core.WindowsAPI;
 using LeafCalendar.UITests.Support;
 
 namespace LeafCalendar.UITests;
@@ -175,5 +177,129 @@ public sealed class TimeGridTests : IDisposable
 
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ViewModeButton").Name.Contains("Day", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success);
         Assert.NotNull(leaf.WaitFor("DayHeader_2026-10-01"));
+    }
+
+    // A timed event at a local time on the PC's zone, as the JSON Google stores
+    static JsonObject Seed(string id, DateTime localStart, DateTime localEnd) => new()
+    {
+        ["id"]      = id,
+        ["summary"] = id,
+        ["start"]   = new JsonObject { ["dateTime"] = Utc(localStart) },
+        ["end"]     = new JsonObject { ["dateTime"] = Utc(localEnd) },
+    };
+
+    static string Utc(DateTime local) => TimeZoneInfo.ConvertTimeToUtc(local, TimeZoneInfo.Local).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture);
+
+    static string EventId(string id, DateTime localStart) =>
+        $"Event_{id}_{TimeZoneInfo.ConvertTimeToUtc(localStart, TimeZoneInfo.Local).ToString("yyyyMMddHHmm", System.Globalization.CultureInfo.InvariantCulture)}";
+
+    static void SwitchToDayView(LeafApp leaf)
+    {
+        leaf.WaitFor("ViewModeButton").AsButton().Invoke();
+        leaf.WaitForAnywhere("ViewDay").AsMenuItem().Invoke();
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ViewModeButton").Name.Contains("Day", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success);
+    }
+
+    // The owner saw the next day through the see-through details pane in Day view
+    [Fact]
+    public void DayView_DetailsPanel_DoesNotShowTheNextDay()
+    {
+        _google.AddEvent("leaf.tester@gmail.com", new JsonObject
+        {
+            ["id"]      = "evt-tomorrow",
+            ["summary"] = "Tomorrow",
+            ["colorId"] = "11",
+            ["start"]   = new JsonObject { ["dateTime"] = "2026-10-02T13:00:00Z" },
+            ["end"]     = new JsonObject { ["dateTime"] = "2026-10-02T14:00:00Z" },
+        });
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300");
+        SwitchToDayView(leaf);
+        leaf.WaitFor("UpcomingHeader");
+
+        // Sample The Event's Fill On Its Own Day
+        leaf.WaitFor("NextButton").AsButton().Invoke();
+        Assert.True(Retry.WhileFalse(() => Rest(leaf).First == "2026-10-02", TimeSpan.FromSeconds(10)).Success);
+        var card = leaf.WaitFor("Event_evt-tomorrow_202610021300");
+        LeafApp.WaitUntilStill(card);
+        var box = card.BoundingRectangle;
+        Color fill;
+        using (var shot = Capture.Rectangle(new Rectangle(box.X + box.Width / 2, box.Y + box.Height / 2, 1, 1)))
+        {
+            fill = shot.Bitmap.GetPixel(0, 0);
+        }
+
+        // Back To Oct 1: nothing of it may show in the details pane at the same height
+        leaf.WaitFor("PreviousButton").AsButton().Invoke();
+        Assert.True(Retry.WhileFalse(() => Rest(leaf).First == "2026-10-01", TimeSpan.FromSeconds(10)).Success);
+        Thread.Sleep(300);
+        var pane   = leaf.WaitFor("DetailsPanel").BoundingRectangle;
+        var region = new Rectangle(pane.X, box.Y, pane.Width, box.Height);
+        using var capture = Capture.Rectangle(region);
+        var bleeding = 0;
+        for (var x = 0; x < capture.Bitmap.Width; x++)
+        {
+            for (var y = 0; y < capture.Bitmap.Height; y++)
+            {
+                var c = capture.Bitmap.GetPixel(x, y);
+                if (Math.Abs(c.R - fill.R) <= 12 && Math.Abs(c.G - fill.G) <= 12 && Math.Abs(c.B - fill.B) <= 12)
+                {
+                    bleeding++;
+                }
+            }
+        }
+
+        Assert.True(bleeding == 0, $"{bleeding} pixels of the next day's event ({fill}) show in the details pane {region}.");
+    }
+
+    [Fact]
+    public void AllDayChevron_DoesNotOverlapTheZoneLabel()
+    {
+        for (var i = 1; i <= 4; i++)
+        {
+            _google.AddEvent("leaf.tester@gmail.com", new JsonObject
+            {
+                ["id"]      = $"evt-allday-{i}",
+                ["summary"] = $"All day {i}",
+                ["start"]   = new JsonObject { ["date"] = "2026-10-01" },
+                ["end"]     = new JsonObject { ["date"] = "2026-10-02" },
+            });
+        }
+
+        using var leaf = Launch();
+        var chevron = leaf.WaitFor("AllDayExpand").BoundingRectangle;
+        var labels  = leaf.WaitFor("TimeGrid")
+            .FindAllDescendants()
+            .Where(e => (e.Properties.AutomationId.ValueOrDefault ?? "").StartsWith("ZoneLabel_", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.NotEmpty(labels);
+        Assert.All(labels, label => Assert.False(label.BoundingRectangle.IntersectsWith(chevron), $"The all-day chevron {chevron} overlaps {label.AutomationId} {label.BoundingRectangle}."));
+    }
+
+    [Fact]
+    public void CtrlWheel_OverTheGrid_ZoomsAndDoesNotScroll()
+    {
+        using var leaf = Launch();
+        var card   = leaf.WaitFor("Event_evt-single_202610011300");
+        var before = card.BoundingRectangle.Height;
+
+        Keyboard.Press(VirtualKeyShort.CONTROL);
+        try { LeafApp.WheelOver(leaf.WaitFor("TimeGrid"), 2); }
+        finally { Keyboard.Release(VirtualKeyShort.CONTROL); }
+
+        Assert.True(Retry.WhileFalse(() => card.BoundingRectangle.Height > before + 8, TimeSpan.FromSeconds(3)).Success, "Ctrl+wheel didn't zoom in.");
+    }
+
+    [Fact]
+    public void PastEvents_AreFaded_FutureOnesAreNot()
+    {
+        // The test clock is 8:00 local on Oct 1
+        var start = new DateTime(2026, 10, 1, 6, 0, 0);
+        _google.AddEvent("leaf.tester@gmail.com", Seed("evt-past", start, start.AddHours(1)));
+        using var leaf = Launch();
+
+        Assert.Equal("Past", leaf.WaitFor(EventId("evt-past", start)).Properties.ItemStatus.ValueOrDefault);
+        Assert.Equal("", leaf.WaitFor("Event_evt-single_202610011300").Properties.ItemStatus.ValueOrDefault ?? "");
     }
 }

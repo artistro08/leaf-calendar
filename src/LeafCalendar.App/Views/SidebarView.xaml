@@ -11,8 +11,9 @@
          checkboxes share one left edge 14 px in, under the title bar's sidebar toggle icon; hover fills, the
          visible-days band, and today's circle reach out into that 9 px. The mini month mirrors that on the
          right (5 px padding); the calendar list keeps its own right margin. Only the calendar list scrolls;
-         the mini month and the settings button stay put. -->
-    <Grid Padding="5,48,5,12">
+         the mini month and the settings button stay put. The 6 px bottom padding is optical: it puts the settings
+         glyph's center 22 px from the bottom (6 + 16, half its 32 px button), the same as from the left (5 + 1 + 16). -->
+    <Grid Padding="5,48,5,6">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -131,7 +132,8 @@
         </ScrollViewer>
         <!-- /Calendars -->
 
-        <!-- Settings (bottom-left; the glyph starts 8 in on its 32-wide button, so a 1 px margin puts it on the shared 9 px edge) -->
+        <!-- Settings (bottom-left corner; the glyph starts 8 in on its 32-wide button, so a 1 px margin puts it on the shared 9 px edge,
+             and its center sits 22 px from both the left and the bottom edges) -->
         <Button
             Grid.Row="2"
             Margin="1,8,0,0"

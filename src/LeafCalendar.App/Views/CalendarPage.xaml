@@ -62,7 +62,10 @@
 
                 <Grid>
                     <!-- Island (flat, top to bottom; its fill against the Mica is the only edge) -->
-                    <Grid x:Name="Island" Background="{ThemeResource LayerFillColorDefaultBrush}">
+                    <Grid
+                        x:Name="Island"
+                        Background="{ThemeResource LayerFillColorDefaultBrush}"
+                        SizeChanged="OnIslandSizeChanged">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="49" />
                             <RowDefinition Height="*" />
