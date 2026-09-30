@@ -1,6 +1,9 @@
+using System.Globalization;
 using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Diagnostics;
+using LeafCalendar.Core.Editing;
+using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.Hosting;
 using Microsoft.Windows.System.Power;
@@ -28,6 +31,13 @@ public sealed class LeafServices : IAsyncDisposable
         Log      = new AppLog(Paths.LogDirectory, Time);
         Database = new LeafDatabase(Paths.DatabasePath);
         Database.Migrate();
+
+        // Local Edits (work offline; every edit and conflict answer nudges the sync loop to send it)
+        Editor    = new EventEditor(Database, Time);
+        Conflicts = new ConflictResolver(Database);
+        Editor.Changed    += (_, _) => Google?.Loop.TriggerNow();
+        Conflicts.Changed += (_, _) => Google?.Loop.TriggerNow();
+
         Tokens = new CredentialLockerTokenStore(options.Profile);
         _http  = new HttpClient(new GoogleRetryHandler(Time) { InnerHandler = new SocketsHttpHandler() });
 
@@ -59,6 +69,12 @@ public sealed class LeafServices : IAsyncDisposable
 
     /// <summary>Secrets.</summary>
     public ITokenStore Tokens { get; }
+
+    /// <summary>Every change to events (local first, then the outbox).</summary>
+    public EventEditor Editor { get; }
+
+    /// <summary>Conflict answers and outbox counts.</summary>
+    public ConflictResolver Conflicts { get; }
 
     /// <summary>Google services, or null before the OAuth client is set up.</summary>
     public GoogleServices? Google { get; private set; }
@@ -126,6 +142,38 @@ public sealed class LeafServices : IAsyncDisposable
         if (!await Launcher.LaunchUriAsync(uri))
         {
             throw new SignInException("Couldn't open your browser. Try again.");
+        }
+    }
+
+    /// <summary>
+    /// Opens a link from an event, a Join button, or "Email guests". Only <c>https</c>, the meeting app schemes, and
+    /// <c>mailto</c> pass (spec 4.5); anything else is logged by scheme and dropped. In fake-Google mode nothing opens:
+    /// the address is appended to <c>launched.txt</c> in the profile folder, where UI tests read it. A launch that
+    /// fails is logged (scheme and error only) and reported as false, never thrown.
+    /// </summary>
+    public async Task<bool> LaunchAsync(Uri uri)
+    {
+        if (!uri.IsAbsoluteUri || (!LinkSafety.CanLaunch(uri) && uri.Scheme != Uri.UriSchemeMailto))
+        {
+            Log.Info("link.blocked", $"scheme={(uri.IsAbsoluteUri ? uri.Scheme : "relative")}");
+            return false;
+        }
+
+        try
+        {
+            if (Options.FakeGoogle is not null)
+            {
+                await File.AppendAllTextAsync(Path.Combine(Paths.ProfileDirectory, "launched.txt"), uri.OriginalString + Environment.NewLine);
+                return true;
+            }
+
+            return await Launcher.LaunchUriAsync(uri);
+        }
+        catch (Exception ex)
+        {
+            // The address and message may hold event content, so only the scheme and the error type are logged
+            Log.Info("link.launch.failed", string.Create(CultureInfo.InvariantCulture, $"scheme={uri.Scheme} error={ex.GetType().Name} hresult=0x{ex.HResult:X8}"));
+            return false;
         }
     }
 

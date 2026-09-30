@@ -1,4 +1,5 @@
 using LeafCalendar.App.ViewModels;
+using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
@@ -51,12 +52,22 @@ public sealed partial class CalendarPage : Page
     // Room for the title bar's pane toggle, which sits over the island's corner while the sidebar is closed
     const double PaneToggleClearance = 44;
 
+    readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _noticeTimer;
     CalendarPageArgs _args = null!;
     IDisposable? _view;
     bool _viewIsMonth;
 
     /// <summary>Creates the page.</summary>
-    public CalendarPage() => InitializeComponent();
+    public CalendarPage()
+    {
+        InitializeComponent();
+
+        // Notices Hide Themselves (before the delete's 6 s undo window ends)
+        _noticeTimer = DispatcherQueue.CreateTimer();
+        _noticeTimer.Interval    = TimeSpan.FromSeconds(5);
+        _noticeTimer.IsRepeating = false;
+        _noticeTimer.Tick       += (_, _) => ViewModel.DismissNotice();
+    }
 
     /// <summary>The page's view model.</summary>
     public CalendarViewModel ViewModel => _args.ViewModel;
@@ -81,6 +92,9 @@ public sealed partial class CalendarPage : Page
         ViewModel.LayoutChanged    += OnLayoutChanged;
         ViewModel.CalendarsChanged += OnCalendarsChanged;
 
+        // Repeating Events Ask Which Events A Change Applies To
+        ViewModel.AskScope = includeFollowing => ScopeDialog.AskAsync(XamlRoot, includeFollowing);
+
         PeriodTitle.Text = ViewModel.PeriodTitle;
         SetSidebarOpen(ViewModel.Settings.SidebarOpen, animate: false);
         SetDetailsOpen(ViewModel.Settings.DetailsPanelOpen, animate: false);
@@ -101,6 +115,8 @@ public sealed partial class CalendarPage : Page
     {
         ViewModel.LayoutChanged    -= OnLayoutChanged;
         ViewModel.CalendarsChanged -= OnCalendarsChanged;
+        ViewModel.AskScope = null;
+        _noticeTimer.Stop();
         Sidebar.Detach();
         Details.Detach();
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
@@ -177,6 +193,12 @@ public sealed partial class CalendarPage : Page
     // Selecting an event opens the panel so the details are visible; the title follows the period
     void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(CalendarViewModel.Notice))
+        {
+            ShowNotice();
+            return;
+        }
+
         if (e.PropertyName == nameof(CalendarViewModel.PeriodTitle))
         {
             PeriodTitle.Text = ViewModel.PeriodTitle;
@@ -226,22 +248,24 @@ public sealed partial class CalendarPage : Page
         var vm = ViewModel;
         switch (result.Command)
         {
-            case CalendarCommand.Today:          vm.GoToToday(); break;
-            case CalendarCommand.Previous:       vm.Previous(); break;
-            case CalendarCommand.Next:           vm.Next(); break;
-            case CalendarCommand.DayView:        vm.SetMode(Core.Settings.CalendarViewMode.Day); break;
-            case CalendarCommand.WeekView:       vm.SetMode(Core.Settings.CalendarViewMode.Week); break;
-            case CalendarCommand.MonthView:      vm.SetMode(Core.Settings.CalendarViewMode.Month); break;
-            case CalendarCommand.Days:           vm.SetMode(Core.Settings.CalendarViewMode.Days, result.Days); break;
-            case CalendarCommand.GoToDate:       ShowGoToDate(); break;
-            case CalendarCommand.ToggleWeekends: vm.ToggleWeekends(); break;
-            case CalendarCommand.ToggleDeclined: vm.ToggleDeclined(); break;
-            case CalendarCommand.ZoomIn:         vm.ZoomBy(8); break;
-            case CalendarCommand.ZoomOut:        vm.ZoomBy(-8); break;
-            case CalendarCommand.ZoomReset:      vm.ZoomReset(); break;
-            case CalendarCommand.ToggleTheme:    _args.ToggleTheme(); break;
-            case CalendarCommand.NextEvent:      vm.SelectAdjacent(1); break;
-            case CalendarCommand.PreviousEvent:  vm.SelectAdjacent(-1); break;
+            case CalendarCommand.Today:              vm.GoToToday(); break;
+            case CalendarCommand.Previous:           vm.Previous(); break;
+            case CalendarCommand.Next:               vm.Next(); break;
+            case CalendarCommand.DayView:            vm.SetMode(Core.Settings.CalendarViewMode.Day); break;
+            case CalendarCommand.WeekView:           vm.SetMode(Core.Settings.CalendarViewMode.Week); break;
+            case CalendarCommand.MonthView:          vm.SetMode(Core.Settings.CalendarViewMode.Month); break;
+            case CalendarCommand.Days:               vm.SetMode(Core.Settings.CalendarViewMode.Days, result.Days); break;
+            case CalendarCommand.GoToDate:           ShowGoToDate(); break;
+            case CalendarCommand.ToggleWeekends:     vm.ToggleWeekends(); break;
+            case CalendarCommand.ToggleDeclined:     vm.ToggleDeclined(); break;
+            case CalendarCommand.ZoomIn:             vm.ZoomBy(8); break;
+            case CalendarCommand.ZoomOut:            vm.ZoomBy(-8); break;
+            case CalendarCommand.ZoomReset:          vm.ZoomReset(); break;
+            case CalendarCommand.ToggleTheme:        _args.ToggleTheme(); break;
+            case CalendarCommand.NextEvent:          vm.SelectAdjacent(1); break;
+            case CalendarCommand.PreviousEvent:      vm.SelectAdjacent(-1); break;
+            case CalendarCommand.DeleteSelected:     vm.Fire(() => vm.DeleteAsync([.. vm.Selection], sendUpdates: true)); break;
+            case CalendarCommand.CancelEventQuietly: vm.Fire(() => vm.DeleteAsync([.. vm.Selection], sendUpdates: false)); break;
         }
     }
 
@@ -262,6 +286,25 @@ public sealed partial class CalendarPage : Page
         };
         flyout.ShowAt(ViewHost);
     }
+
+    void ShowNotice()
+    {
+        _noticeTimer.Stop();
+        if (ViewModel.Notice is not { } notice)
+        {
+            NoticeBar.IsOpen = false;
+            return;
+        }
+
+        NoticeBar.Message     = notice.Text;
+        UndoButton.Visibility = notice.CanUndo ? Visibility.Visible : Visibility.Collapsed;
+        NoticeBar.IsOpen      = true;
+        _noticeTimer.Start();
+    }
+
+    void OnUndoClick(object sender, RoutedEventArgs e) => ViewModel.Undo();
+
+    void OnNoticeClosed(InfoBar sender, InfoBarClosedEventArgs args) => ViewModel.DismissNotice();
 
     static bool IsDown(VirtualKey key) => InputKeyboardSource.GetKeyStateForCurrentThread(key).HasFlag(CoreVirtualKeyStates.Down);
 

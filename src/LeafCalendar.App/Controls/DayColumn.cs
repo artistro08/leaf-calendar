@@ -71,8 +71,7 @@ public sealed partial class DayColumn : Canvas
         _divider.Fill   = LeafBrushes.GridLine(dark);
 
         // Events (drawn at the same minimum length DayLayout uses for overlap, so short events never collide)
-        var blocks   = DayLayout.Layout(Date, vm.Cache.ForDay(Date), vm.Zone);
-        var selected = vm.SelectedInfo?.Occurrence.Key;
+        var blocks = DayLayout.Layout(Date, vm.Cache.ForDay(Date), vm.Zone);
         EnsureBlocks(blocks.Count);
 
         for (var i = 0; i < blocks.Count; i++)
@@ -89,7 +88,7 @@ public sealed partial class DayColumn : Canvas
             card.Visibility = Visibility.Visible;
             SetLeft(card, 2 + b.Column * colW);
             SetTop(card, b.StartMinute / 60 * hour + 1);
-            card.Bind(b.Occurrence, palette, TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), b.Occurrence.Key == selected, compact: height < 36, vm.Select);
+            card.Bind(b.Occurrence, palette, TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, vm.Select);
         }
 
         for (var i = blocks.Count; i < _blocks.Count; i++)

@@ -78,7 +78,7 @@ public sealed partial class AllDayCanvas : Canvas
             chip.Height          = TimeGridView.AllDayLaneHeight - 3;
             chip.Background      = LeafBrushes.FromHex(palette.Fill);
             chip.BorderBrush     = LeafBrushes.FromHex(palette.Accent);
-            chip.BorderThickness = new Thickness(b.Occurrence.Key == vm.SelectedInfo?.Occurrence.Key ? 2 : 0);
+            chip.BorderThickness = new Thickness(vm.IsSelected(b.Occurrence) ? 2 : 0);
             text.Text            = (b.ContinuesBefore ? "‹ " : "") + b.Occurrence.Title + (b.ContinuesAfter ? " ›" : "");
             text.Foreground      = LeafBrushes.FromHex(palette.Text);
 

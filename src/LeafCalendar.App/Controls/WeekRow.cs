@@ -161,7 +161,7 @@ public sealed partial class WeekRow : Canvas
         var o        = b.Occurrence;
         var palette  = EventColors.Palette(EventColors.ResolveAccent(o.ColorId, o.CalendarColor), dark);
         var spanning = SpanLayout.IsSpanning(o);
-        var selected = o.Key == vm.SelectedInfo?.Occurrence.Key;
+        var selected = vm.IsSelected(o);
         var first    = SpanLayout.CoveredDates(o, vm.Zone).First;
 
         var text = new TextBlock

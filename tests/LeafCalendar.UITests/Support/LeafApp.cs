@@ -1,5 +1,7 @@
+using System.Drawing;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
@@ -98,6 +100,54 @@ public sealed class LeafApp : IDisposable
         Thread.Sleep(100);
         Mouse.Scroll(clicks);
     }
+
+    /// <summary>Links Leaf opened, oldest first (fake-Google mode records them instead of opening a browser).</summary>
+    public static IReadOnlyList<string> LaunchedLinks(string profile)
+    {
+        var file = Path.Combine(ProfileFolder(profile), "launched.txt");
+        return File.Exists(file) ? File.ReadAllLines(file) : [];
+    }
+
+    /// <summary>Drags with the left button in small steps, so the app sees a real drag (holding Alt when asked).</summary>
+    public static void Drag(Point start, Point end, bool alt = false)
+    {
+        Mouse.MoveTo(start);
+        Thread.Sleep(150);
+        if (alt)
+        {
+            Keyboard.Press(VirtualKeyShort.ALT);
+        }
+
+        Mouse.Down(MouseButton.Left);
+        Thread.Sleep(150);
+        for (var i = 1; i <= 12; i++)
+        {
+            Mouse.MoveTo(new Point(start.X + (end.X - start.X) * i / 12, start.Y + (end.Y - start.Y) * i / 12));
+            Thread.Sleep(30);
+        }
+
+        Mouse.Up(MouseButton.Left);
+        if (alt)
+        {
+            Keyboard.Release(VirtualKeyShort.ALT);
+        }
+
+        Thread.Sleep(300);
+    }
+
+    /// <summary>Drags an element by (dx, dy) screen pixels, grabbing it <paramref name="fromTop"/> of the way down.</summary>
+    public static void DragBy(AutomationElement element, int dx, int dy, double fromTop = 0.3, bool alt = false)
+    {
+        var box   = element.BoundingRectangle;
+        var start = new Point(box.X + box.Width / 2, box.Y + (int)(box.Height * fromTop));
+        Drag(start, new Point(start.X + dx, start.Y + dy), alt);
+    }
+
+    /// <summary>True when any text in the app's windows contains <paramref name="text"/> (dialog bodies have no automation ID).</summary>
+    public bool AnyTextContains(string text) =>
+        App.GetAllTopLevelWindows(_automation)
+            .SelectMany(w => w.FindAllDescendants(cf => cf.ByControlType(ControlType.Text)))
+            .Any(e => e.Name.Contains(text, StringComparison.Ordinal));
 
     /// <summary>Sizes the main window (in screen pixels), so panes overflow and scroll.</summary>
     public void Resize(int width, int height)

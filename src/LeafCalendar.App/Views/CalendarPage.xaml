@@ -69,6 +69,26 @@
                             AutomationProperties.Name="Calendar view"
                             AutomationProperties.LandmarkType="Main"
                             AutomationProperties.AutomationId="ViewHost" />
+
+                        <!-- Notice ("Event deleted · Undo") -->
+                        <InfoBar
+                            x:Name="NoticeBar"
+                            Grid.Row="1"
+                            Margin="0,0,0,16"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Bottom"
+                            IsClosable="True"
+                            Closed="OnNoticeClosed"
+                            AutomationProperties.AutomationId="NoticeBar">
+                            <InfoBar.ActionButton>
+                                <Button
+                                    x:Name="UndoButton"
+                                    Content="Undo"
+                                    Click="OnUndoClick"
+                                    AutomationProperties.AutomationId="UndoButton" />
+                            </InfoBar.ActionButton>
+                        </InfoBar>
+                        <!-- /Notice -->
                     </Grid>
                     <!-- /Island -->
 

@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Sync;
@@ -14,6 +16,9 @@ public sealed record UpcomingItem(CalendarOccurrence Occurrence, string Title, s
 
 /// <summary>The selected event, ready to show.</summary>
 public sealed record SelectedEventInfo(CalendarOccurrence Occurrence, EventDetails Details, string When, string CalendarName, string CalendarColor);
+
+/// <summary>The bar at the bottom of the calendar ("Event deleted · Undo", or a short message).</summary>
+public sealed record NoticeInfo(string Text, bool CanUndo);
 
 /// <summary>
 /// State and commands for the calendar views. It owns the sliding event cache, the user's view
@@ -35,6 +40,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     readonly LocalZoneWatcher _zones = new();
     (DateOnly First, DateOnly Last) _ensuredMonths;
     SyncEngine? _attachedSync;
+    readonly List<CalendarOccurrence> _selection = [];
+    (DateOnly Day, Func<CalendarOccurrence, bool> Match)? _reselect;
+    DeleteReceipt? _lastDelete;
 
     /// <summary>Loads settings and calendars and starts the minute clock.</summary>
     public CalendarViewModel(LeafServices services, DispatcherQueue dispatcher)
@@ -62,6 +70,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
         services.GoogleChanged += OnGoogleChanged;
         AttachSync();
+
+        // Local Edits Reload The Views
+        services.Editor.LocalZoneId = IanaZoneId(Zone);
+        services.Editor.Changed    += OnEditsChanged;
 
         _minuteTimer = dispatcher.CreateTimer();
         _minuteTimer.Interval = TimeSpan.FromMinutes(1);
@@ -116,6 +128,19 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     /// <summary>True when an event is selected.</summary>
     public bool HasSelection => SelectedInfo is not null;
+
+    /// <summary>Every selected event (one or more; the details panel shows the first when it's the only one).</summary>
+    public IReadOnlyList<CalendarOccurrence> Selection => _selection;
+
+    /// <summary>Asks which events of a series an edit applies to; the flag offers "This and following". Set by the page.</summary>
+    public Func<bool, Task<EditScope?>>? AskScope { get; set; }
+
+    /// <summary>The bar at the bottom of the calendar, or null.</summary>
+    [ObservableProperty]
+    public partial NoticeInfo? Notice { get; set; }
+
+    /// <summary>True when <paramref name="occurrence"/> is selected.</summary>
+    public bool IsSelected(CalendarOccurrence occurrence) => _selection.Exists(s => s.Key == occurrence.Key);
 
     /// <summary>The cached events changed (redraw).</summary>
     public event EventHandler? OccurrencesChanged;
@@ -258,7 +283,11 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
                 return;
             }
 
+            _selection.Clear();
+            _selection.Add(occurrence);
+
             SelectedInfo = new SelectedEventInfo(occurrence, details, WhenText(occurrence), calendar?.Summary ?? "", EventColors.ResolveAccent(occurrence.ColorId, occurrence.CalendarColor));
+            OnPropertyChanged(nameof(Selection));
             OccurrencesChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex) when (ex is System.Text.Json.JsonException or Microsoft.Data.Sqlite.SqliteException)
@@ -270,12 +299,14 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Clears the selection.</summary>
     public void ClearSelection()
     {
-        if (SelectedInfo is null)
+        if (SelectedInfo is null && _selection.Count == 0)
         {
             return;
         }
 
+        _selection.Clear();
         SelectedInfo = null;
+        OnPropertyChanged(nameof(Selection));
         OccurrencesChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -351,21 +382,51 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         Run(RefreshAsync);
     }
 
-    /// <summary>Reloads the cached events from the database, then drops the selection if its event is gone.</summary>
+    /// <summary>
+    /// Reloads the cached events from the database. An edit that asked for it gets its event selected again (a moved
+    /// event has a new key); otherwise deleted events leave the selection and edited ones are picked up.
+    /// </summary>
     public async Task RefreshAsync()
     {
         await Cache.RefreshAsync(_life.Token);
 
-        // Clear a Selection Whose Event Was Deleted
-        if (SelectedInfo?.Occurrence is not { } selected)
+        // An Edit Asked To Select Its Event Once It's Reloaded
+        if (_reselect is { } reselect)
         {
-            return;
+            _reselect = null;
+            if (Cache.ForDay(reselect.Day).FirstOrDefault(reselect.Match) is { } edited)
+            {
+                Select(edited);
+                return;
+            }
         }
 
-        var day = selected.IsAllDay ? selected.AllDayStart : LocalDate(selected.Start);
-        if (Cache.LoadedMonths.Contains(ViewNavigator.MonthStartOf(day)) && !Cache.ForDay(day).Any(o => o.Key == selected.Key))
+        // Keep The Selection In Step With The Data
+        var changed = false;
+        for (var i = _selection.Count - 1; i >= 0; i--)
         {
-            ClearSelection();
+            var day = DayOf(_selection[i]);
+            if (!Cache.LoadedMonths.Contains(ViewNavigator.MonthStartOf(day)))
+            {
+                continue;
+            }
+
+            var fresh = Cache.ForDay(day).FirstOrDefault(o => o.Key == _selection[i].Key);
+            if (fresh is null)
+            {
+                _selection.RemoveAt(i);
+                changed = true;
+            }
+            else if (fresh != _selection[i])
+            {
+                _selection[i] = fresh;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            PublishSelection();
         }
     }
 
@@ -384,6 +445,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
         _services.Log.Info("calendar.timezone.changed", $"{before.Id} -> {Zone.Id}");
         Cache.Zone = Zone;
+        _services.Editor.LocalZoneId = IanaZoneId(Zone);
         Today      = _services.Options.StartDate ?? DateOnly.FromDateTime(DateTime.Now);
         if (SelectedInfo is { } selected)
         {
@@ -399,6 +461,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         _minuteTimer.Stop();
         _services.GoogleChanged -= OnGoogleChanged;
+        _services.Editor.Changed -= OnEditsChanged;
         if (_attachedSync is not null)
         {
             _attachedSync.DataChanged -= OnSyncDataChanged;
@@ -408,6 +471,134 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         _life.Dispose();
         Cache.Dispose();
     }
+
+    // =========================================================================
+    // EDITING
+    // =========================================================================
+
+    /// <summary>
+    /// Deletes events you can change (asking about repeating ones), then shows "Event deleted · Undo". The delete
+    /// waits in the outbox for <see cref="EventEditor.UndoWindow"/>. Invites you can't change are skipped with a hint.
+    /// </summary>
+    public async Task DeleteAsync(IReadOnlyList<CalendarOccurrence> items, bool sendUpdates)
+    {
+        var deletable = items.Where(o => _services.Editor.Permissions(o).CanEdit).ToList();
+        if (deletable.Count == 0)
+        {
+            if (items.Count > 0)
+            {
+                Notice = new NoticeInfo("You can't delete an event you were invited to. Reply \"Not going\" instead.", CanUndo: false);
+            }
+
+            return;
+        }
+
+        var scope = await ScopeForAsync(deletable, includeFollowing: true);
+        if (scope is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _lastDelete = _services.Editor.Delete(deletable, scope.Value, sendUpdates);
+        }
+        catch (Exception ex) when (IsEditFailure(ex))
+        {
+            Fail("calendar.delete.failed", ex);
+            return;
+        }
+
+        ClearSelection();
+        Notice = new NoticeInfo(deletable.Count == 1 ? "Event deleted" : string.Create(CultureInfo.InvariantCulture, $"{deletable.Count} events deleted"), CanUndo: true);
+        _ = NudgeAfterUndoWindowAsync();
+    }
+
+    /// <summary>Undoes the last delete if it hasn't reached Google yet.</summary>
+    public void Undo()
+    {
+        if (_lastDelete is not { } receipt)
+        {
+            return;
+        }
+
+        _lastDelete = null;
+        try
+        {
+            Notice = _services.Editor.Undo(receipt) ? null : new NoticeInfo("Already sent to Google, so it can't be undone.", CanUndo: false);
+        }
+        catch (Exception ex) when (IsEditFailure(ex))
+        {
+            Fail("calendar.undo.failed", ex);
+        }
+    }
+
+    /// <summary>Hides the notice bar.</summary>
+    public void DismissNotice() => Notice = null;
+
+    /// <summary>Runs work started from a click or key; failures are logged, never thrown into the dispatcher.</summary>
+    public void Fire(Func<Task> work) => Run(work);
+
+    /// <summary>Logs a failure a view caught (internal IDs only).</summary>
+    public void LogError(string eventName, Exception exception) => _services.Log.Error(eventName, exception);
+
+    // "This event" for single events; otherwise the page's dialog (null means the user canceled)
+    async Task<EditScope?> ScopeForAsync(IReadOnlyList<CalendarOccurrence> items, bool includeFollowing)
+    {
+        if (!items.Any(o => o.RecurringEventId is not null))
+        {
+            return EditScope.This;
+        }
+
+        return AskScope is { } ask ? await ask(includeFollowing) : EditScope.This;
+    }
+
+    // After an edit the event may have a new key (moved) or a new ID (one instance of a series): find it by its start
+    void ReselectAfterRefresh(CalendarOccurrence occurrence, DateTimeOffset start, bool isAllDay)
+    {
+        var day    = isAllDay ? DateOnly.FromDateTime(start.UtcDateTime) : LocalDate(start);
+        var series = occurrence.RecurringEventId ?? occurrence.EventId;
+        _reselect  = (day, o => o.AccountId == occurrence.AccountId && o.Start == start && (o.EventId == occurrence.EventId || o.RecurringEventId == series));
+    }
+
+    // One selected event shows its details; zero or several show the list or the selection summary
+    void PublishSelection()
+    {
+        if (_selection.Count == 1)
+        {
+            Select(_selection[0]);
+            return;
+        }
+
+        SelectedInfo = null;
+        OnPropertyChanged(nameof(Selection));
+        OccurrencesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    void Fail(string eventName, Exception exception)
+    {
+        _reselect = null;
+        _services.Log.Error(eventName, exception);
+        Notice = new NoticeInfo("Something went wrong saving that change. Try again.", CanUndo: false);
+    }
+
+    static bool IsEditFailure(Exception ex) =>
+        ex is Microsoft.Data.Sqlite.SqliteException or System.Text.Json.JsonException or InvalidOperationException;
+
+    // Deletes wait out the undo window; nudge the sync loop once it has passed so they go out right away
+    async Task NudgeAfterUndoWindowAsync()
+    {
+        await Task.Delay(EventEditor.UndoWindow + TimeSpan.FromSeconds(0.5));
+        _services.Google?.Loop.TriggerNow();
+    }
+
+    void OnEditsChanged(object? sender, EventArgs e) => Run(RefreshAsync);
+
+    DateOnly DayOf(CalendarOccurrence o) => o.IsAllDay ? o.AllDayStart : LocalDate(o.Start);
+
+    // Google wants IANA zone IDs; Windows reports its own
+    static string IanaZoneId(TimeZoneInfo zone) =>
+        TimeZoneInfo.TryConvertWindowsIdToIanaId(zone.Id, out var iana) ? iana : zone.Id;
 
     // =========================================================================
     // INTERNALS

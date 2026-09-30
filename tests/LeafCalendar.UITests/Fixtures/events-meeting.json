@@ -1,0 +1,24 @@
+{
+  "kind": "calendar#events",
+  "items": [
+    {
+      "id": "evt-meeting",
+      "status": "confirmed",
+      "etag": "\"3181161784712200\"",
+      "iCalUID": "evt-meeting@google.com",
+      "summary": "Design review",
+      "location": "Room 4",
+      "description": "Agenda: <a href=\"https://example.com/agenda\">agenda</a> and <a href=\"javascript:alert(1)\">run</a>",
+      "start": { "dateTime": "2026-10-01T14:00:00-04:00", "timeZone": "America/New_York" },
+      "end": { "dateTime": "2026-10-01T15:00:00-04:00", "timeZone": "America/New_York" },
+      "organizer": { "email": "boss@example.com" },
+      "attendees": [
+        { "email": "boss@example.com", "organizer": true, "responseStatus": "accepted" },
+        { "email": "leaf.tester@gmail.com", "self": true, "responseStatus": "needsAction" },
+        { "email": "sam@example.com", "optional": true, "responseStatus": "tentative", "comment": "Might be late" }
+      ],
+      "hangoutLink": "https://meet.google.com/abc-defg-hij",
+      "updated": "2026-09-20T12:00:00.000Z"
+    }
+  ]
+}
