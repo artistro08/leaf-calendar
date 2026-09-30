@@ -17,6 +17,9 @@ public sealed class LiveGoogle(LiveAccount live)
 
     readonly HashSet<string> _owned = [];
 
+    /// <summary>The calendars this instance created.</summary>
+    public IReadOnlyCollection<string> Owned => _owned;
+
     /// <summary>Refuses to go on unless <paramref name="calendarId"/> was created by this instance.</summary>
     public void RequireOwned(string calendarId)
     {
@@ -43,7 +46,7 @@ public sealed class LiveGoogle(LiveAccount live)
     /// <summary>Creates a one-hour event tomorrow and returns its ID.</summary>
     public async Task<string> InsertEventAsync(string calendarId, string summary, CancellationToken ct)
     {
-        var start = DateTimeOffset.UtcNow.Date.AddDays(1).AddHours(15);
+        var start = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(1).AddHours(15), TimeSpan.Zero);
         var body = new JsonObject
         {
             ["summary"] = summary,
@@ -102,19 +105,28 @@ public sealed class LiveGoogle(LiveAccount live)
         return JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
     }
 
-    /// <summary>Creates a one-hour event tomorrow with the calendar itself as a guest (so its reply is its own) and returns its ID.</summary>
-    public async Task<string> InsertInviteAsync(string calendarId, string summary, CancellationToken ct)
+    /// <summary>
+    /// Creates a one-hour event tomorrow on <paramref name="organizerCalendarId"/> that invites <paramref name="guestCalendarId"/>,
+    /// so the guest calendar gets its own copy it can reply to, and returns its ID.
+    /// </summary>
+    /// <remarks>
+    /// Inviting the organizer's own calendar doesn't work: Google marks that guest as the organizer, and organizers don't reply.
+    /// </remarks>
+    public async Task<string> InsertInviteAsync(string organizerCalendarId, string guestCalendarId, string summary, CancellationToken ct)
     {
-        var start = DateTimeOffset.UtcNow.Date.AddDays(1).AddHours(16);
+        // Guard: The Guest Calendar Gets A Copy, So It Must Be One This Run Created Too
+        RequireOwned(guestCalendarId);
+
+        var start = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(1).AddHours(16), TimeSpan.Zero);
         var body = new JsonObject
         {
             ["summary"]   = summary,
             ["start"]     = new JsonObject { ["dateTime"] = start.ToString("O") },
             ["end"]       = new JsonObject { ["dateTime"] = start.AddHours(1).ToString("O") },
-            ["attendees"] = new JsonArray(new JsonObject { ["email"] = calendarId }),
+            ["attendees"] = new JsonArray(new JsonObject { ["email"] = guestCalendarId }),
         };
 
-        var created = await SendAsync(HttpMethod.Post, $"calendars/{Uri.EscapeDataString(calendarId)}/events", body, ct);
+        var created = await SendAsync(HttpMethod.Post, $"calendars/{Uri.EscapeDataString(organizerCalendarId)}/events", body, ct);
         return created!["id"]!.GetValue<string>();
     }
 

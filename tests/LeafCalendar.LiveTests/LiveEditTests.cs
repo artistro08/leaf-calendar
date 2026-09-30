@@ -13,7 +13,7 @@ public class LiveEditTests
     static EventEditor Editor(LiveAccount live) => new(live.Database, TimeProvider.System) { LocalZoneId = "America/New_York" };
 
     // Guard: Nothing Is Sent Unless Every Queued Change Targets A Calendar This Run Created
-    static Task Sync(LiveAccount live, LiveGoogle google, CancellationToken ct)
+    static async Task Sync(LiveAccount live, LiveGoogle google, CancellationToken ct)
     {
         using (var conn = live.Database.Open())
         {
@@ -27,7 +27,25 @@ public class LiveEditTests
             }
         }
 
-        return live.Services.Sync.SyncAccountAsync(live.AccountId, ct);
+        // Sync Until Every Test Calendar Is Stored
+        // A failed account sync is only logged, and would otherwise surface later as a foreign key error on the first edit
+        for (var attempt = 1; ; attempt++)
+        {
+            await live.Services.Sync.SyncAccountAsync(live.AccountId, ct);
+
+            using var conn = live.Database.Open();
+            var stored = CalendarStore.GetForAccount(conn, live.AccountId).Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
+            if (google.Owned.All(stored.Contains))
+            {
+                return;
+            }
+
+            if (attempt == 3)
+            {
+                var failure = File.Exists(live.Log.FilePath) ? File.ReadLines(live.Log.FilePath).LastOrDefault(l => l.Contains("failed", StringComparison.Ordinal)) : null;
+                throw new InvalidOperationException($"Sync didn't store the test calendars after {attempt} tries. Last logged failure: {failure ?? "none"}");
+            }
+        }
     }
 
     // Deletes each calendar on its own so one failure neither skips the others nor hides the test's own error
@@ -204,23 +222,25 @@ public class LiveEditTests
 
         var google     = new LiveGoogle(live);
         var calendarId = await google.CreateTestCalendarAsync(ct);
+        string? guestId = null;
         string? otherId = null;
         try
         {
+            guestId = await google.CreateTestCalendarAsync(ct);
             otherId = await google.CreateTestCalendarAsync(ct);
-            var id = await google.InsertInviteAsync(calendarId, "Leaf live reply", ct);
+            var id = await google.InsertInviteAsync(calendarId, guestId, "Leaf live reply", ct);
             await Sync(live, google, ct);
             var editor = Editor(live);
-            var o      = Stored(live, calendarId, id);
 
-            // Reply With A Note (sent against Google's latest copy)
-            editor.Respond(o, ResponseStatus.Tentative, "Live note", sendUpdates: false, EditScope.This);
+            // Reply With A Note From The Guest's Copy (sent against Google's latest copy)
+            editor.Respond(Stored(live, guestId, id), ResponseStatus.Tentative, "Live note", sendUpdates: false, EditScope.This);
             await Sync(live, google, ct);
-            var self = (await google.GetEventAsync(calendarId, id, ct))!["attendees"]!.AsArray().Single(a => (bool?)a!["self"] == true)!;
+            var self = (await google.GetEventAsync(guestId, id, ct))!["attendees"]!.AsArray().Single(a => (bool?)a!["self"] == true)!;
             Assert.Equal("tentative", (string?)self["responseStatus"]);
             Assert.Equal("Live note", (string?)self["comment"]);
 
-            // Move To The Other Calendar (events.move)
+            // Move The Organizer's Copy To The Other Calendar (events.move)
+            var o      = Stored(live, calendarId, id);
             var before = editor.Load(o);
             editor.Save(o, before, before with { CalendarId = otherId }, EditScope.This, sendUpdates: false);
             await Sync(live, google, ct);
@@ -228,7 +248,7 @@ public class LiveEditTests
         }
         finally
         {
-            await Cleanup(google, calendarId, otherId);
+            await Cleanup(google, calendarId, guestId, otherId);
         }
     }
 }
