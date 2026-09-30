@@ -37,7 +37,7 @@ public static class EventContextMenu
             menu.Items.Add(new MenuFlyoutSeparator());
         }
 
-        menu.Items.Add(Item("Copy", "MenuCopy", vm.CopySelection));
+        menu.Items.Add(Item("Copy", "MenuCopy", () => vm.CopySelection()));
 
         // Changes (several events: each one you can't change is skipped)
         if (single is null || single.CanEdit)

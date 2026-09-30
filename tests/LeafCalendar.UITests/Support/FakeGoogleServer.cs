@@ -72,6 +72,9 @@ public sealed class FakeGoogleServer : IDisposable
     /// <summary>Serve ten calendars instead of two, so the sidebar overflows and scrolls (set before launching).</summary>
     public bool ManyCalendars { get; set; }
 
+    /// <summary>A calendar served as read-only (<c>accessRole: reader</c>), or null (set before launching).</summary>
+    public string? ReadOnlyCalendarId { get; set; }
+
     /// <summary>When true, every connection is dropped without an answer (Leaf sees a network failure).</summary>
     public bool Offline { get; set; }
 
@@ -214,7 +217,13 @@ public sealed class FakeGoogleServer : IDisposable
         // Calendar List
         if (method == "GET" && path == "/calendar/v3/users/me/calendarList")
         {
-            return (200, Read(ManyCalendars ? "calendar-list-many.json" : "calendar-list.json"), null);
+            var list = JsonNode.Parse(Read(ManyCalendars ? "calendar-list-many.json" : "calendar-list.json"))!;
+            foreach (var item in list["items"]!.AsArray().OfType<JsonObject>().Where(c => (string?)c["id"] == ReadOnlyCalendarId))
+            {
+                item["accessRole"] = "reader";
+            }
+
+            return (200, list.ToJsonString(), null);
         }
 
         // Events

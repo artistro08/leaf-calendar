@@ -209,6 +209,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public void NavigateTo(DateOnly date)
     {
         PeriodStart = ViewNavigator.PeriodStart(Mode, date, Settings.WeekStart);
+        CursorTime  = null;
         NavigateRequested?.Invoke(this, PeriodStart);
     }
 
@@ -230,6 +231,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// </summary>
     public void OnViewScrolled(DateOnly first, DateOnly lastExclusive, DateOnly? focus = null)
     {
+        // A picked time scrolled out of view isn't where paste or C should go any more
+        if (CursorTime is { } picked && (LocalDate(picked) < first || LocalDate(picked) >= lastExclusive))
+        {
+            CursorTime = null;
+        }
+
         PeriodStart = Mode == CalendarViewMode.Month ? ViewNavigator.MonthStartOf(focus ?? first) : first;
         PeriodTitle = ViewNavigator.MonthTitle(Mode == CalendarViewMode.Month ? focus ?? first : first);
 
@@ -435,6 +442,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         await Cache.RefreshAsync(_life.Token);
 
+        // The views redraw, so the hovered event is found again when the mouse next enters one
+        PointerEvent = null;
+
         // An Edit Asked To Select Its Event Once It's Reloaded
         if (_reselect is { } reselect)
         {
@@ -554,12 +564,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Opens the editor on a new event in your main calendar (primary, else the first you can write to).</summary>
     public void BeginCreate(DateTimeOffset start, DateTimeOffset end, bool isAllDay)
     {
-        var home = Calendars
-            .Where(c => c.AccessRole is "owner" or "writer" && AccountEmails.ContainsKey(c.AccountId))
-            .OrderByDescending(c => c.IsPrimary)
-            .ThenByDescending(c => c.IsVisible)
-            .FirstOrDefault();
-        if (home is null)
+        if (HomeCalendar() is not { } home)
         {
             Notice = new NoticeInfo("Add a Google account with a calendar you can edit first.", CanUndo: false);
             return;
@@ -679,14 +684,21 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Copies an event to a new time (Alt+drag) and selects the copy.</summary>
+    /// <summary>Copies an event to a new time (Alt+drag) and selects the copy (in a calendar you can write to, like paste).</summary>
     public void Duplicate(CalendarOccurrence occurrence, DateTimeOffset start, DateTimeOffset end, bool isAllDay)
     {
         string? id = null;
         _reselect = (isAllDay ? DateOnly.FromDateTime(start.UtcDateTime) : LocalDate(start), o => o.EventId == id);
         try
         {
-            id = _services.Editor.Duplicate(occurrence, start, end, isAllDay);
+            if (Writable(_services.Editor.CopyOf(occurrence)) is not { } copy)
+            {
+                _reselect = null;
+                SaySkipped(1);
+                return;
+            }
+
+            id = _services.Editor.Paste(copy, start, end, isAllDay);
         }
         catch (Exception ex) when (IsEditFailure(ex) || ex is ArgumentException)
         {
@@ -716,9 +728,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>X: toggles the event under the mouse, else the selected one.</summary>
     public void ToggleFocused()
     {
-        if ((PointerEvent ?? SelectedInfo?.Occurrence) is { } target)
+        // The event must still be on screen (a sync or edit may have moved or removed it since the mouse got there)
+        if ((PointerEvent ?? SelectedInfo?.Occurrence) is { } target && Cache.ForDay(DayOf(target)).FirstOrDefault(o => o.Key == target.Key) is { } current)
         {
-            ToggleSelect(target);
+            ToggleSelect(current);
         }
     }
 
@@ -733,19 +746,19 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Copies the selection (Ctrl+C). The copies keep the events' data, so a cut event can still be pasted. The Windows
     /// clipboard gets a readable summary (one line per event) plus Leaf's marker; the events themselves stay in Leaf.
+    /// Leaf's copies change only once the clipboard took the new content.
     /// </summary>
-    public void CopySelection()
+    /// <returns>True when the selection was copied.</returns>
+    public bool CopySelection()
     {
         if (_selection.Count == 0)
         {
-            return;
+            return false;
         }
 
         try
         {
             var copies = _selection.Select(o => (o, _services.Editor.CopyOf(o))).ToList();
-            _clipboard.Clear();
-            _clipboard.AddRange(copies);
 
             // Readable Text, And Leaf's Marker For Paste
             var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
@@ -753,24 +766,34 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             package.SetData(ClipboardFormat, "1");
             Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
 
+            _clipboard.Clear();
+            _clipboard.AddRange(copies);
             Say(copies.Count == 1 ? "Copied" : string.Create(CultureInfo.InvariantCulture, $"Copied {copies.Count} events"), canUndo: false);
+            return true;
         }
         catch (Exception ex) when (IsEditFailure(ex) || ex is System.Runtime.InteropServices.COMException)
         {
             Fail("calendar.copy.failed", ex);
+            return false;
         }
     }
 
-    /// <summary>Copies, then deletes, the selection (Ctrl+X).</summary>
+    /// <summary>Copies, then deletes, the selection (Ctrl+X). Nothing is deleted when the copy failed.</summary>
     public async Task CutSelectionAsync()
     {
-        CopySelection();
+        if (!CopySelection())
+        {
+            return;
+        }
+
         await DeleteAsync([.. _selection], sendUpdates: true);
     }
 
     /// <summary>
     /// Pastes the copied events at the picked time (or the next quarter hour), keeping their spacing (Ctrl+V). Only
-    /// Leaf's own copies are pasted, from Leaf's memory; nothing on the clipboard is ever read as an event or run.
+    /// Leaf's own copies are pasted, from Leaf's memory; nothing on the clipboard is ever read as an event or run. A copy
+    /// from a calendar you can't write to goes to your main calendar in that account (else your main calendar); with
+    /// none, it's skipped with a hint.
     /// </summary>
     public void Paste()
     {
@@ -788,9 +811,22 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
         try
         {
+            var skipped = 0;
             for (var i = 0; i < placed.Count; i++)
             {
-                id = _services.Editor.Paste(_clipboard[i].Copy, placed[i].Start, placed[i].End, placed[i].Occurrence.IsAllDay);
+                if (Writable(_clipboard[i].Copy) is not { } copy)
+                {
+                    skipped++;
+                    continue;
+                }
+
+                id = _services.Editor.Paste(copy, placed[i].Start, placed[i].End, placed[i].Occurrence.IsAllDay);
+            }
+
+            if (skipped > 0)
+            {
+                _reselect = id is null ? null : _reselect;
+                SaySkipped(skipped);
             }
         }
         catch (Exception ex) when (IsEditFailure(ex))
@@ -804,9 +840,15 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         var items   = _selection.Where(CanEdit).ToList();
         var skipped = _selection.Count - items.Count;
-        if (items.Count == 0 || await ScopeForAsync(items, includeFollowing: true) is not { } scope)
+        if (items.Count == 0)
         {
             SaySkipped(skipped);
+            return;
+        }
+
+        // Canceled: nothing changed, so nothing to report
+        if (await ScopeForAsync(items, includeFollowing: true) is not { } scope)
+        {
             return;
         }
 
@@ -843,7 +885,26 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
-    // A dragged event that's part of a bigger selection takes the others you can change along (same time shift; all-day by days)
+    // Your main calendar you can write to: in one account when given (primary first, then shown ones), or null
+    CalendarInfo? HomeCalendar(string? accountId = null) => Calendars
+        .Where(c => c.AccessRole is "owner" or "writer" && AccountEmails.ContainsKey(c.AccountId) && (accountId is null || c.AccountId == accountId))
+        .OrderByDescending(c => c.IsPrimary)
+        .ThenByDescending(c => c.IsVisible)
+        .FirstOrDefault();
+
+    // Where a copy is created: its own calendar when you can write to it, else the account's main one, else your main one
+    EventCopy? Writable(EventCopy copy)
+    {
+        if (Calendars.Any(c => c.AccountId == copy.AccountId && c.Id == copy.CalendarId && c.AccessRole is "owner" or "writer"))
+        {
+            return copy;
+        }
+
+        return (HomeCalendar(copy.AccountId) ?? HomeCalendar()) is { } home ? copy with { AccountId = home.AccountId, CalendarId = home.Id } : null;
+    }
+
+    // A dragged event that's part of a bigger selection takes the others you can change along (same time shift; all-day by
+    // days; when the dragged one switches between timed and all-day, the others move by whole days only)
     IReadOnlyList<EventMove> BulkMoves(CalendarOccurrence dragged, DateTimeOffset start, DateTimeOffset end, bool isAllDay)
     {
         if (_selection.Count < 2 || !IsSelected(dragged))
@@ -851,19 +912,20 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             return [new EventMove(dragged, start, end, isAllDay)];
         }
 
-        var shift = start - dragged.Start;
-        var days  = (isAllDay ? DateOnly.FromDateTime(start.UtcDateTime) : LocalDate(start)).DayNumber - DayOf(dragged).DayNumber;
+        var shift    = start - dragged.Start;
+        var switched = isAllDay != dragged.IsAllDay;
+        var days     = (isAllDay ? DateOnly.FromDateTime(start.UtcDateTime) : LocalDate(start)).DayNumber - DayOf(dragged).DayNumber;
         return [.. _selection.Where(CanEdit).Select(o => o.Key == dragged.Key ? new EventMove(o, start, end, isAllDay) : Shifted(o))];
 
         EventMove Shifted(CalendarOccurrence o)
         {
-            if (!o.IsAllDay)
+            if (!o.IsAllDay && !switched)
             {
                 return new EventMove(o, o.Start + shift, o.End + shift, false);
             }
 
             var (s, e) = DragMath.ShiftDays(o, days, Zone);
-            return new EventMove(o, s, e, true);
+            return new EventMove(o, s, e, o.IsAllDay);
         }
     }
 
@@ -889,7 +951,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Deletes events you can change (asking about repeating ones), then shows "Event deleted · Undo". The delete
     /// waits in the outbox for <see cref="EventEditor.UndoWindow"/>. Invites and read-only calendars are skipped
-    /// with a hint. A failure shows "Couldn't delete" and is logged as <c>event.delete.failed</c>; it never throws.
+    /// with a hint (in a mixed selection, the undo notice counts them: "2 events deleted · 1 couldn't be changed"). A failure shows "Couldn't delete" and is logged as <c>event.delete.failed</c>; it never throws.
     /// </summary>
     public async Task DeleteAsync(IReadOnlyList<CalendarOccurrence> items, bool sendUpdates)
     {
@@ -925,7 +987,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             // Offer Undo Until The Delete Is Sent
             _lastDelete = receipt;
             ClearSelection();
-            Say(deletable.Count == 1 ? "Event deleted" : string.Create(CultureInfo.InvariantCulture, $"{deletable.Count} events deleted"), canUndo: true);
+            var deleted = deletable.Count == 1 ? "Event deleted" : string.Create(CultureInfo.InvariantCulture, $"{deletable.Count} events deleted");
+            var skipped = permissions.Count - deletable.Count;
+            Say(skipped > 0 ? string.Create(CultureInfo.InvariantCulture, $"{deleted} · {skipped} couldn't be changed") : deleted, canUndo: true);
             _ = NudgeAfterUndoWindowAsync();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
