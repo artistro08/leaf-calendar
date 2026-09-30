@@ -140,10 +140,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public void GoToToday() => NavigateTo(Today);
 
     /// <summary>Previous period.</summary>
-    public void Previous() => NavigateTo(ViewNavigator.Step(Mode, PeriodStart, -1, Settings.CustomDayCount));
+    public void Previous() => NavigateTo(ViewNavigator.Step(Mode, PeriodStart, -1, Settings.CustomDayCount, Settings.ShowWeekends));
 
     /// <summary>Next period.</summary>
-    public void Next() => NavigateTo(ViewNavigator.Step(Mode, PeriodStart, 1, Settings.CustomDayCount));
+    public void Next() => NavigateTo(ViewNavigator.Step(Mode, PeriodStart, 1, Settings.CustomDayCount, Settings.ShowWeekends));
 
     /// <summary>Shows the period containing <paramref name="date"/>.</summary>
     public void NavigateTo(DateOnly date)

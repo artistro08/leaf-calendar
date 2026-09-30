@@ -37,6 +37,23 @@ public class ViewNavigatorTests
         Assert.Equal(D(2026, 10, 5), ViewNavigator.Step(CalendarViewMode.Days, D(2026, 10, 1), 1, 4));
     }
 
+    [Fact]
+    public void Step_WeekendsHidden_SkipsWeekendDays()
+    {
+        // Oct 5 2026 is a Monday, Oct 2 a Friday, Oct 1 a Thursday
+        Assert.Equal(D(2026, 10, 2), ViewNavigator.Step(CalendarViewMode.Day, D(2026, 10, 5), -1, 3, showWeekends: false));
+        Assert.Equal(D(2026, 10, 5), ViewNavigator.Step(CalendarViewMode.Day, D(2026, 10, 2), 1, 3, showWeekends: false));
+        Assert.Equal(D(2026, 10, 6), ViewNavigator.Step(CalendarViewMode.Days, D(2026, 10, 1), 1, 3, showWeekends: false));
+        Assert.Equal(D(2026, 10, 1), ViewNavigator.Step(CalendarViewMode.Days, D(2026, 10, 6), -1, 3, showWeekends: false));
+    }
+
+    [Fact]
+    public void Step_WeekendsShown_StepsCalendarDays()
+    {
+        Assert.Equal(D(2026, 10, 4), ViewNavigator.Step(CalendarViewMode.Day, D(2026, 10, 5), -1, 3, showWeekends: true));
+        Assert.Equal(D(2026, 10, 4), ViewNavigator.Step(CalendarViewMode.Days, D(2026, 10, 1), 1, 3, showWeekends: true));
+    }
+
     [Theory]
     [InlineData(2026, 10, 4, 2026, 10, 10, "October 2026")]
     [InlineData(2026, 9, 27, 2026, 10, 3, "Sep – Oct 2026")]

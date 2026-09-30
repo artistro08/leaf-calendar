@@ -45,14 +45,38 @@ public static class ViewNavigator
         _                      => anchor,
     };
 
-    /// <summary>The start of the next (<c>+1</c>) or previous (<c>-1</c>) period.</summary>
-    public static DateOnly Step(CalendarViewMode mode, DateOnly periodStart, int direction, int customDays) => mode switch
+    /// <summary>
+    /// The start of the next (<c>+1</c>) or previous (<c>-1</c>) period. With weekends hidden, Day and
+    /// Days views step by shown days, so paging back from Monday lands on Friday.
+    /// </summary>
+    public static DateOnly Step(CalendarViewMode mode, DateOnly periodStart, int direction, int customDays, bool showWeekends = true) => mode switch
     {
-        CalendarViewMode.Day   => periodStart.AddDays(direction),
+        CalendarViewMode.Day   => StepDays(periodStart, 1, direction, showWeekends),
         CalendarViewMode.Week  => periodStart.AddDays(7 * direction),
         CalendarViewMode.Month => MonthStartOf(periodStart).AddMonths(direction),
-        _                      => periodStart.AddDays(Math.Clamp(customDays, 1, 31) * direction),
+        _                      => StepDays(periodStart, Math.Clamp(customDays, 1, 31), direction, showWeekends),
     };
+
+    // Moves count shown days, skipping Saturday and Sunday when weekends are hidden
+    static DateOnly StepDays(DateOnly start, int count, int direction, bool showWeekends)
+    {
+        if (showWeekends)
+        {
+            return start.AddDays(count * direction);
+        }
+
+        var day = start;
+        for (var moved = 0; moved < count;)
+        {
+            day = day.AddDays(direction);
+            if (!IsWeekend(day))
+            {
+                moved++;
+            }
+        }
+
+        return day;
+    }
 
     /// <summary>Title for a visible range: "October 2026", "Sep – Oct 2026", or "Dec 2026 – Jan 2027".</summary>
     public static string PeriodTitle(DateOnly first, DateOnly lastInclusive)
