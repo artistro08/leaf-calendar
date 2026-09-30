@@ -184,9 +184,12 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
             EventStore.DeleteAllForCalendar(conn, tx, calendar.AccountId, calendar.Id);
         }
 
+        bool IsQueued(JsonElement item, string property) =>
+            item.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String && pending.Contains(value.GetString()!);
+
         foreach (var item in items)
         {
-            if (item.ValueKind == JsonValueKind.Object && item.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String && pending.Contains(id.GetString()!))
+            if (item.ValueKind == JsonValueKind.Object && (IsQueued(item, "id") || IsQueued(item, "recurringEventId")))
             {
                 continue;
             }

@@ -41,10 +41,11 @@ public static class EventStore
         {
             conn.Execute(
                 tx,
-                """
+                $"""
                 DELETE FROM events
                 WHERE account_id = $account AND calendar_id = $calendar AND (id = $id OR recurring_event_id = $id)
-                  AND id NOT IN (SELECT event_id FROM outbox WHERE account_id = $account AND calendar_id = $calendar);
+                  AND id NOT IN ({OutboxStore.ProtectedIdsSql})
+                  AND (recurring_event_id IS NULL OR recurring_event_id NOT IN ({OutboxStore.ProtectedIdsSql}));
                 """,
                 ("$account", accountId),
                 ("$calendar", calendarId),
@@ -176,10 +177,11 @@ public static class EventStore
     public static void DeleteAllForCalendar(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId) =>
         conn.Execute(
             tx,
-            """
+            $"""
             DELETE FROM events
             WHERE account_id = $account AND calendar_id = $calendar
-              AND id NOT IN (SELECT event_id FROM outbox WHERE account_id = $account AND calendar_id = $calendar);
+              AND id NOT IN ({OutboxStore.ProtectedIdsSql})
+              AND (recurring_event_id IS NULL OR recurring_event_id NOT IN ({OutboxStore.ProtectedIdsSql}));
             """,
             ("$account", accountId),
             ("$calendar", calendarId));

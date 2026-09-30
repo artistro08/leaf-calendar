@@ -276,4 +276,42 @@ public sealed class SyncEngineTests : IDisposable
         Assert.NotNull(Get("leafnew0001"));
         Assert.Equal("sync-token-1", Calendar(Primary).SyncToken);
     }
+
+    [Fact]
+    public async Task SyncAccountAsync_FullResync_KeepsLocallyDeletedSeriesGone()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _h.RouteEvents(SyncHarness.PrimaryEventsUrl, "sync-token-1", null, "error-410.json", HttpStatusCode.Gone);
+        _h.RouteStandardGoogle();
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        using (var conn = _h.Db.Database.Open())
+        {
+            EventStore.Remove(conn, null, Account, Primary, "evt-weekly");
+            OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Primary, "evt-weekly", OutboxOperation.Delete, null, null, false, "[]", _h.Time.GetUtcNow().AddDays(1)));
+        }
+
+        await _h.Engine.SyncAccountAsync(Account, ct);
+
+        Assert.Null(Get("evt-weekly"));
+        Assert.Null(Get("evt-weekly_20261007T133000Z"));
+    }
+
+    [Fact]
+    public async Task SyncAccountAsync_FullResyncOfDestination_KeepsQueuedMovedEvent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _h.RouteEvents(SyncHarness.FamilyEventsUrl, "sync-token-empty", null, "error-410.json", HttpStatusCode.Gone);
+        _h.RouteStandardGoogle();
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        using (var conn = _h.Db.Database.Open())
+        {
+            EventStore.MoveCalendar(conn, null, Account, Primary, Family, "evt-single");
+            OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Primary, "evt-single", OutboxOperation.Move, Family, null, false, "[]", _h.Time.GetUtcNow().AddDays(1)));
+        }
+
+        await _h.Engine.SyncAccountAsync(Account, ct);
+
+        using var check = _h.Db.Database.Open();
+        Assert.NotNull(EventStore.Get(check, Account, Family, "evt-single"));
+    }
 }

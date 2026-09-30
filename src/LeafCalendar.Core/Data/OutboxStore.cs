@@ -151,11 +151,20 @@ public static class OutboxStore
             ("$event", eventId),
             ("$after", afterSeq));
 
-    /// <summary>IDs of a calendar's events that have entries (pending or conflicted); pulls leave these alone.</summary>
+    /// <summary>
+    /// SQL for the event IDs a pull must leave alone in <c>$calendar</c>: entries queued under it, plus moves
+    /// headed into it (a move is stored under its source calendar with the destination in <c>payload</c>).
+    /// </summary>
+    internal const string ProtectedIdsSql = """
+        SELECT event_id FROM outbox
+        WHERE account_id = $account AND (calendar_id = $calendar OR (operation = 'move' AND payload = $calendar))
+        """;
+
+    /// <summary>IDs of a calendar's events that have entries (pending or conflicted); pulls leave these and their series exceptions alone.</summary>
     public static IReadOnlySet<string> EventIdsFor(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId) =>
         conn.Query(
             tx,
-            "SELECT DISTINCT event_id FROM outbox WHERE account_id = $account AND calendar_id = $calendar;",
+            ProtectedIdsSql.Replace("SELECT event_id", "SELECT DISTINCT event_id") + ";",
             r => r.GetString(0),
             ("$account", accountId),
             ("$calendar", calendarId)).ToHashSet(StringComparer.Ordinal);
