@@ -12,7 +12,8 @@ namespace LeafCalendar.Core.Editing;
 /// <remarks>
 /// When Google deleted the event, "Keep mine" brings it back as a new event (Google never reuses a deleted
 /// ID), and a local delete is simply done. "Keep Google's" also drops every later local edit of that event,
-/// since they were made on top of the rejected one.
+/// since they were made on top of the rejected one. Either answer makes the next sync reload the event's
+/// calendar in full, since pulls skipped Google's changes to it while the conflict was open.
 /// </remarks>
 public sealed class ConflictResolver(LeafDatabase database, TimeProvider time)
 {
@@ -49,6 +50,7 @@ public sealed class ConflictResolver(LeafDatabase database, TimeProvider time)
     {
         var entry = conflict.Entry;
         ConflictStore.Remove(conn, tx, entry.Seq);
+        ReloadCalendars(conn, tx, entry);
 
         // A null GoogleJson is treated as deleted on Google
         // Re-Send On Top Of Google's Current Version
@@ -86,6 +88,7 @@ public sealed class ConflictResolver(LeafDatabase database, TimeProvider time)
     {
         var entry      = conflict.Entry;
         var calendarId = OutboxSender.LocalCalendarOf(entry);
+        ReloadCalendars(conn, tx, entry);
 
         foreach (var edit in OutboxStore.ForEvent(conn, tx, entry.AccountId, calendarId, entry.EventId).Where(e => e.Seq > entry.Seq))
         {
@@ -114,6 +117,14 @@ public sealed class ConflictResolver(LeafDatabase database, TimeProvider time)
 
         EventStore.ApplyJson(conn, tx, entry.AccountId, entry.CalendarId, google);
     });
+
+    // Pulls skipped this event (and a series' exceptions) while the conflict was open but still advanced the
+    // sync token; forgetting the token makes the next sync reload the calendar, so nothing skipped is lost
+    static void ReloadCalendars(SqliteConnection conn, SqliteTransaction tx, OutboxEntry entry)
+    {
+        CalendarStore.SetSyncToken(conn, tx, entry.AccountId, entry.CalendarId, null);
+        CalendarStore.SetSyncToken(conn, tx, entry.AccountId, OutboxSender.LocalCalendarOf(entry), null);
+    }
 
     void InTransaction(Action<SqliteConnection, SqliteTransaction> work)
     {

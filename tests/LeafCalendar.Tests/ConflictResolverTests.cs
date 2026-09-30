@@ -133,6 +133,34 @@ public sealed class ConflictResolverTests : IDisposable
         Assert.Empty(Pending());
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Resolve_ClearsThatCalendarsSyncToken_SoSkippedChangesReload(bool keepMine)
+    {
+        const string Family = "family123@group.calendar.google.com";
+        using (var conn = _db.Database.Open())
+        {
+            CalendarStore.SetSyncToken(conn, null, Account, Calendar, "token-primary");
+            CalendarStore.SetSyncToken(conn, null, Account, Family, "token-family");
+        }
+
+        var conflict = Conflict(OutboxOperation.Patch, Mine, Googles);
+        if (keepMine)
+        {
+            _resolver.KeepMine(conflict);
+        }
+        else
+        {
+            _resolver.KeepGoogles(conflict);
+        }
+
+        using var check = _db.Database.Open();
+        var calendars = CalendarStore.GetForAccount(check, Account);
+        Assert.Null(calendars.Single(c => c.Id == Calendar).SyncToken);
+        Assert.Equal("token-family", calendars.Single(c => c.Id == Family).SyncToken);
+    }
+
     [Fact]
     public void UnsentFor_CountsPendingAndConflicted()
     {
