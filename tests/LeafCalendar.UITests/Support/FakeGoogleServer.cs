@@ -313,7 +313,11 @@ public sealed class FakeGoogleServer : IDisposable
         ev["id"]      = id;
         ev["status"] ??= "confirmed";
         ev["iCalUID"] = id + "@google.com";
-        ApplyConference(ev, ev["conferenceData"], ev.ContainsKey("conferenceData"), conference);
+        if (ev.ContainsKey("conferenceData"))
+        {
+            ApplyConference(ev, ev["conferenceData"], conference);
+        }
+
         Store(calendarId)[id] = ev;
         Touch(calendarId, ev);
         return (200, ev.ToJsonString(), null);
@@ -337,7 +341,11 @@ public sealed class FakeGoogleServer : IDisposable
         var confValue  = patch["conferenceData"];
         patch.Remove("conferenceData");
         Merge(ev, patch);
-        ApplyConference(ev, confValue, hasConfRaw, conference);
+        if (hasConfRaw)
+        {
+            ApplyConference(ev, confValue, conference);
+        }
+
         Touch(calendarId, ev);
         return (200, ev.ToJsonString(), null);
     }
@@ -346,11 +354,11 @@ public sealed class FakeGoogleServer : IDisposable
     static bool ConferenceEnabled(string rawQuery) =>
         rawQuery.TrimStart('?').Split('&').Contains("conferenceDataVersion=1", StringComparer.Ordinal);
 
-    // A createRequest becomes a Meet link, null removes it, and without version 1 the field is ignored
-    static void ApplyConference(JsonObject ev, JsonNode? value, bool present, bool enabled)
+    // A createRequest becomes a Meet link, null removes it, stored conferenceData stays as given, and without version 1 the field is ignored
+    static void ApplyConference(JsonObject ev, JsonNode? value, bool enabled)
     {
         ev.Remove("conferenceData", out _);
-        if (!present || !enabled)
+        if (!enabled)
         {
             return;
         }
@@ -369,6 +377,10 @@ public sealed class FakeGoogleServer : IDisposable
                 ["conferenceId"] = "fake-" + code,
                 ["entryPoints"]  = new JsonArray(new JsonObject { ["entryPointType"] = "video", ["uri"] = link }),
             };
+        }
+        else
+        {
+            ev["conferenceData"] = value.DeepClone();
         }
     }
 
@@ -479,7 +491,10 @@ public sealed class FakeGoogleServer : IDisposable
     {
         lock (_gate)
         {
-            Insert(calendarId, body.ToJsonString(), conference: true);
+            if (Insert(calendarId, body.ToJsonString(), conference: true).Item1 != 200)
+            {
+                throw new InvalidOperationException("The fake Google refused the seeded event (is its ID already used?).");
+            }
         }
     }
 

@@ -713,4 +713,75 @@ public sealed class EventEditorTests : IDisposable
         Assert.Contains("UNTIL=20261009T132959Z", entry.Payload!, StringComparison.Ordinal);
         Assert.DoesNotContain(Day(Oct9), x => x.RecurringEventId == "evt-weekly");
     }
+
+    // =========================================================================
+    // GOOGLE MEET ACROSS SERIES EDITS AND COPIES
+    // =========================================================================
+
+    const string MeetSeries = """{"id":"evt-meet","status":"confirmed","etag":"\"7\"","summary":"Meet sync","start":{"dateTime":"2026-10-05T10:00:00-04:00","timeZone":"America/New_York"},"end":{"dateTime":"2026-10-05T11:00:00-04:00","timeZone":"America/New_York"},"recurrence":["RRULE:FREQ=WEEKLY"],"hangoutLink":"https://meet.google.com/abc","conferenceData":{"conferenceId":"abc","entryPoints":[{"entryPointType":"video","uri":"https://meet.google.com/abc"}]}}""";
+    const string PlainSeries = """{"id":"evt-plain","status":"confirmed","etag":"\"8\"","summary":"Plain sync","start":{"dateTime":"2026-10-05T10:00:00-04:00","timeZone":"America/New_York"},"end":{"dateTime":"2026-10-05T11:00:00-04:00","timeZone":"America/New_York"},"recurrence":["RRULE:FREQ=WEEKLY"]}""";
+
+    [Fact]
+    public void Save_AllEvents_AddMeet_PatchesTheSeriesWithAMeetRequest()
+    {
+        Seed(PlainSeries);
+        var o      = Occurrence("evt-plain", Oct12);
+        var before = _editor.Load(o);
+
+        _editor.Save(o, before, before with { HasConference = true }, EditScope.All, sendUpdates: false);
+
+        var entry = Assert.Single(Outbox());
+        Assert.Equal("evt-plain", entry.EventId);
+        Assert.Equal("hangoutsMeet", (string?)JsonNode.Parse(entry.Payload!)!["conferenceData"]!["createRequest"]!["conferenceSolutionKey"]!["type"]);
+    }
+
+    [Fact]
+    public void Save_AllEvents_RemoveMeet_ClearsTheSeriesConference()
+    {
+        Seed(MeetSeries);
+        var o      = Occurrence("evt-meet", Oct12);
+        var before = _editor.Load(o);
+        Assert.True(before.HasConference);
+
+        _editor.Save(o, before, before with { HasConference = false }, EditScope.All, sendUpdates: false);
+
+        var payload = JsonNode.Parse(Assert.Single(Outbox()).Payload!)!.AsObject();
+        Assert.True(payload.ContainsKey("conferenceData"));
+        Assert.Null(payload["conferenceData"]);
+    }
+
+    [Fact]
+    public void Save_ThisAndFollowing_ExistingMeet_NewSeriesAsksForAFreshMeet()
+    {
+        Seed(MeetSeries);
+        var o      = Occurrence("evt-meet", Oct12);
+        var before = _editor.Load(o);
+
+        _editor.Save(o, before, before with { Title = "Meet sync v2" }, EditScope.Following, sendUpdates: false);
+
+        var create = Outbox().Single(e => e.Operation == OutboxOperation.Create);
+        var request = JsonNode.Parse(create.Payload!)!["conferenceData"]!["createRequest"]!;
+        Assert.Equal("hangoutsMeet", (string?)request["conferenceSolutionKey"]!["type"]);
+        Assert.False(string.IsNullOrEmpty((string?)request["requestId"]));
+    }
+
+    [Fact]
+    public void Save_OtherAccount_WithMeet_TheCopyAsksForAMeet()
+    {
+        using (var conn = _db.Database.Open())
+        {
+            AccountStore.Upsert(conn, TestDatabase.SampleAccount with { Id = "other-account" });
+            CalendarStore.ReplaceForAccount(conn, "other-account", JsonSerializer.Deserialize(Fixture.Read("calendar-list.json"), GoogleJsonContext.Default.CalendarListPage)!.Items);
+        }
+
+        Seed(MeetSeries);
+        var o      = Occurrence("evt-meet", Oct12);
+        var before = _editor.Load(o);
+
+        _editor.Save(o, before, before with { AccountId = "other-account", CalendarId = Calendar }, EditScope.All, sendUpdates: false);
+
+        using var check = _db.Database.Open();
+        var create = OutboxStore.Pending(check, "other-account").Single(e => e.Operation == OutboxOperation.Create);
+        Assert.NotNull(JsonNode.Parse(create.Payload!)!["conferenceData"]!["createRequest"]);
+    }
 }

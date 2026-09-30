@@ -139,9 +139,19 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
 
     static string EventPath(string calendarId, string eventId) => $"{EventsPath(calendarId)}/{Uri.EscapeDataString(eventId)}";
 
-    // Google only reads conferenceData (create, copy, or remove a video call) when asked to
-    static string ConferenceQuery(string body) =>
-        JsonNode.Parse(body) is JsonObject o && o.ContainsKey("conferenceData") ? "&conferenceDataVersion=1" : "";
+    // Google only reads conferenceData (create, copy, or remove a video call) when asked to.
+    // A body that isn't JSON counts as having none; Google then refuses it with its own error.
+    static string ConferenceQuery(string body)
+    {
+        try
+        {
+            return JsonNode.Parse(body) is JsonObject o && o.ContainsKey("conferenceData") ? "&conferenceDataVersion=1" : "";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return "";
+        }
+    }
 
     static string Updates(bool sendUpdates) => sendUpdates ? "all" : "none";
 

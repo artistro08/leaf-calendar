@@ -330,7 +330,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         if (after.AccountId != accountId)
         {
             var newId = EventIds.NewId();
-            var copy  = EventJson.ApplyPatch(EventJson.CloneForCreate(stored.RawJson, newId), EventJson.BuildPatch(before, after, stored.RawJson));
+            var copy  = EventJson.WithMeetIfWanted(EventJson.ApplyPatch(EventJson.CloneForCreate(stored.RawJson, newId), EventJson.BuildPatch(before, after, stored.RawJson)), after.HasConference, newId);
             AddCreate(conn, tx, after.AccountId, after.CalendarId, newId, copy, sendUpdates);
             AddDelete(conn, tx, accountId, calendarId, eventId, stored, sendUpdates, notBefore: null);
             return;
@@ -398,6 +398,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         Guests              = before.Guests.SequenceEqual(after.Guests) ? target.Guests : after.Guests,
         UseDefaultReminders = before.UseDefaultReminders == after.UseDefaultReminders ? target.UseDefaultReminders : after.UseDefaultReminders,
         ReminderMinutes     = before.ReminderMinutes.SequenceEqual(after.ReminderMinutes) ? target.ReminderMinutes : after.ReminderMinutes,
+        HasConference       = before.HasConference == after.HasConference ? target.HasConference : after.HasConference,
     };
 
     static void SplitSeries(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, StoredEvent master, EventDraft masterDraft, DateTimeOffset originalStart, EventDraft before, EventDraft after, bool sendUpdates)
@@ -432,7 +433,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
             Recurrence = recurrence,
         };
         var newId = EventIds.NewId();
-        var body  = EventJson.ApplyPatch(EventJson.CloneForCreate(master.RawJson, newId), EventJson.BuildPatch(masterDraft, next, master.RawJson));
+        var body  = EventJson.WithMeetIfWanted(EventJson.ApplyPatch(EventJson.CloneForCreate(master.RawJson, newId), EventJson.BuildPatch(masterDraft, next, master.RawJson)), next.HasConference, newId);
         // Sent Only After The Old Series' End Reaches Google, So The Meetings Are Never Doubled
         AddCreate(conn, tx, o.AccountId, o.CalendarId, newId, body, sendUpdates, dependsOn: endSeq);
     }

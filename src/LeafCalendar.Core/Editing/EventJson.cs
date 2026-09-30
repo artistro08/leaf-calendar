@@ -40,6 +40,10 @@ public static class EventJson
     /// come from the on-screen instance (a series master's own times are its first instance).
     /// <paramref name="seriesRecurrence"/> is the master's lines when <paramref name="rawJson"/> is an exception.
     /// </summary>
+    /// <remarks>
+    /// <see cref="EventDraft.HasConference"/> is true for any <c>conferenceData</c>, including non-Meet add-ons,
+    /// and turning it off removes all of it.
+    /// </remarks>
     /// <exception cref="JsonException">The JSON is invalid.</exception>
     public static EventDraft ReadDraft(string accountId, string calendarId, string rawJson, DateTimeOffset start, DateTimeOffset end, bool isAllDay, IReadOnlyList<string>? seriesRecurrence = null)
     {
@@ -307,6 +311,23 @@ public static class EventJson
 
         clone["id"] = newId;
         return clone.ToJsonString();
+    }
+
+    /// <summary>
+    /// A copy made with <see cref="CloneForCreate"/> drops the old video call, so when the event should still have one
+    /// this asks Google for a new Meet link (keyed by <paramref name="newId"/>). A copy that already asks for one is left alone.
+    /// </summary>
+    /// <exception cref="JsonException">The JSON is invalid or not an object.</exception>
+    public static string WithMeetIfWanted(string copyJson, bool wantsMeet, string newId)
+    {
+        var copy = Parse(copyJson);
+        if (!wantsMeet || copy["conferenceData"] is not null)
+        {
+            return copyJson;
+        }
+
+        copy["conferenceData"] = MeetRequest(newId);
+        return copy.ToJsonString();
     }
 
     /// <summary>

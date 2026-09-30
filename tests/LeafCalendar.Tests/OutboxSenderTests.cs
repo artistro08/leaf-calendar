@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Editing;
+using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.Sync;
 using LeafCalendar.Tests.Support;
@@ -165,10 +166,15 @@ public sealed class OutboxSenderTests : IDisposable
     [Fact]
     public async Task Send_ConferenceCreateRetried_SameRequestId()
     {
-        // The patch is built once, when the edit is queued
-        var none   = new EventDraft { AccountId = Account, CalendarId = Primary, HasConference = false };
-        var patch  = EventJson.BuildPatch(none, none with { HasConference = true }).ToJsonString();
-        Queue("evt-single", OutboxOperation.Patch, patch);
+        // The Edit That Adds Meet Is Queued Once, Through The Editor
+        var editor = new EventEditor(_h.Db.Database, _h.Time) { LocalZoneId = "America/New_York" };
+        using (var conn = _h.Db.Database.Open())
+        {
+            var o      = OccurrenceQuery.Load(conn, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 2), TimeZoneInfo.FindSystemTimeZoneById("America/New_York"), includeDeclined: true).Single(x => x.EventId == "evt-single");
+            var before = editor.Load(o);
+            editor.Save(o, before, before with { HasConference = true }, EditScope.This, sendUpdates: false);
+        }
+
         _h.Google.On(r => r.Method == HttpMethod.Patch && r.Uri.AbsoluteUri.StartsWith(SingleUrl + "?", StringComparison.Ordinal), _ => throw new HttpRequestException("Connection dropped."), once: true);
         _h.Google.On(r => r.Method == HttpMethod.Patch && r.Uri.AbsoluteUri.StartsWith(SingleUrl + "?", StringComparison.Ordinal), _ => FakeHttpHandler.Json(HttpStatusCode.OK, MineOnGoogle));
 
