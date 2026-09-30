@@ -127,4 +127,66 @@ public sealed class EventStoreTests : IDisposable
 
         Assert.Equal(0, EventStore.Count(conn, Account, Calendar));
     }
+
+    [Fact]
+    public void SnapshotRestore_SeriesWithException_RoundTrips()
+    {
+        ApplyAll("events-page2.json");
+        using var conn = _db.Database.Open();
+        var snapshot = EventStore.Snapshot(conn, null, Account, Calendar, "evt-weekly");
+
+        EventStore.Remove(conn, null, Account, Calendar, "evt-weekly");
+        Assert.Null(EventStore.Get(conn, Account, Calendar, "evt-weekly_20261007T133000Z"));
+
+        EventStore.Restore(conn, null, Account, Calendar, "evt-weekly", snapshot);
+
+        Assert.NotNull(EventStore.Get(conn, Account, Calendar, "evt-weekly"));
+        Assert.Equal("cancelled", EventStore.Get(conn, Account, Calendar, "evt-weekly_20261007T133000Z")!.Status);
+    }
+
+    [Fact]
+    public void Snapshot_MissingEvent_IsEmptyArray()
+    {
+        using var conn = _db.Database.Open();
+
+        Assert.Equal("[]", EventStore.Snapshot(conn, null, Account, Calendar, "nope"));
+    }
+
+    [Fact]
+    public void MoveCalendar_MovesSeriesAndExceptions()
+    {
+        ApplyAll("events-page2.json");
+        using var conn = _db.Database.Open();
+
+        EventStore.MoveCalendar(conn, null, Account, Calendar, "family123@group.calendar.google.com", "evt-weekly");
+
+        Assert.Null(EventStore.Get(conn, Account, Calendar, "evt-weekly"));
+        Assert.NotNull(EventStore.Get(conn, Account, "family123@group.calendar.google.com", "evt-weekly"));
+        Assert.NotNull(EventStore.Get(conn, Account, "family123@group.calendar.google.com", "evt-weekly_20261007T133000Z"));
+    }
+
+    [Fact]
+    public void RemoveExceptionsFrom_KeepsEarlierExceptions()
+    {
+        ApplyAll("events-page2.json");
+        using var conn = _db.Database.Open();
+
+        EventStore.RemoveExceptionsFrom(conn, null, Account, Calendar, "evt-weekly", new DateTimeOffset(2026, 10, 8, 0, 0, 0, TimeSpan.Zero));
+        Assert.NotNull(EventStore.Get(conn, Account, Calendar, "evt-weekly_20261007T133000Z"));
+
+        EventStore.RemoveExceptionsFrom(conn, null, Account, Calendar, "evt-weekly", new DateTimeOffset(2026, 10, 7, 0, 0, 0, TimeSpan.Zero));
+        Assert.Null(EventStore.Get(conn, Account, Calendar, "evt-weekly_20261007T133000Z"));
+    }
+
+    [Fact]
+    public void Apply_CancelledSeriesWithPendingEdit_KeepsLocalRow()
+    {
+        ApplyAll("events-page1.json");
+        using var conn = _db.Database.Open();
+        OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Calendar, "evt-single", OutboxOperation.Patch, "{}", null, false, "[]", null));
+
+        EventStore.ApplyJson(conn, null, Account, Calendar, """{"id":"evt-single","status":"cancelled"}""");
+
+        Assert.NotNull(EventStore.Get(conn, Account, Calendar, "evt-single"));
+    }
 }

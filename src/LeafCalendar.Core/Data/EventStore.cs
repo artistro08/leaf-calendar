@@ -36,12 +36,16 @@ public static class EventStore
         var ev = JsonSerializer.Deserialize(item, GoogleJsonContext.Default.GoogleEvent)
             ?? throw new InvalidDataException("Google returned an empty event.");
 
-        // Deleted Event Or Series
+        // Deleted Event Or Series (an event with local edits waiting in the outbox stays until they're sent)
         if (ev.Status == "cancelled" && ev.RecurringEventId is null)
         {
             conn.Execute(
                 tx,
-                "DELETE FROM events WHERE account_id = $account AND calendar_id = $calendar AND (id = $id OR recurring_event_id = $id);",
+                """
+                DELETE FROM events
+                WHERE account_id = $account AND calendar_id = $calendar AND (id = $id OR recurring_event_id = $id)
+                  AND id NOT IN (SELECT event_id FROM outbox WHERE account_id = $account AND calendar_id = $calendar);
+                """,
                 ("$account", accountId),
                 ("$calendar", calendarId),
                 ("$id", ev.Id));
@@ -87,14 +91,107 @@ public static class EventStore
             ("$raw", item.GetRawText()));
     }
 
-    /// <summary>Removes every event of a calendar (before a full resync).</summary>
+    /// <summary>Applies an event given as JSON text (local edits use this; same rules as <see cref="Apply"/>).</summary>
+    /// <exception cref="JsonException">The JSON is invalid.</exception>
+    public static void ApplyJson(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId, string rawJson)
+    {
+        using var doc = JsonDocument.Parse(rawJson);
+        Apply(conn, tx, accountId, calendarId, doc.RootElement);
+    }
+
+    /// <summary>Removes an event and, for a series, its exceptions (a local delete).</summary>
+    public static void Remove(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId, string id) =>
+        conn.Execute(
+            tx,
+            "DELETE FROM events WHERE account_id = $account AND calendar_id = $calendar AND (id = $id OR recurring_event_id = $id);",
+            ("$account", accountId),
+            ("$calendar", calendarId),
+            ("$id", id));
+
+    /// <summary>Removes a series' exceptions whose original start is at or after <paramref name="originalStartFrom"/> (a split series).</summary>
+    public static void RemoveExceptionsFrom(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId, string masterId, DateTimeOffset originalStartFrom) =>
+        conn.Execute(
+            tx,
+            """
+            DELETE FROM events
+            WHERE account_id = $account AND calendar_id = $calendar AND recurring_event_id = $master AND original_start_utc >= $from;
+            """,
+            ("$account", accountId),
+            ("$calendar", calendarId),
+            ("$master", masterId),
+            ("$from", originalStartFrom.ToUnixTimeMilliseconds()));
+
+    /// <summary>Moves an event (and a series' exceptions) to another calendar of the same account.</summary>
+    public static void MoveCalendar(SqliteConnection conn, SqliteTransaction? tx, string accountId, string fromCalendarId, string toCalendarId, string id) =>
+        conn.Execute(
+            tx,
+            "UPDATE events SET calendar_id = $to WHERE account_id = $account AND calendar_id = $from AND (id = $id OR recurring_event_id = $id);",
+            ("$to", toCalendarId),
+            ("$account", accountId),
+            ("$from", fromCalendarId),
+            ("$id", id));
+
+    /// <summary>Stores the ETag Google returned while the local JSON keeps later, unsent edits.</summary>
+    public static void SetEtag(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId, string id, string? etag) =>
+        conn.Execute(
+            tx,
+            "UPDATE events SET etag = $etag WHERE account_id = $account AND calendar_id = $calendar AND id = $id;",
+            ("$etag", etag),
+            ("$account", accountId),
+            ("$calendar", calendarId),
+            ("$id", id));
+
+    /// <summary>The event's row and (for a series) its exception rows, as a JSON array (<c>[]</c> when missing).</summary>
+    public static string Snapshot(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId, string id)
+    {
+        var rows = conn.Query(
+            tx,
+            """
+            SELECT raw_json FROM events
+            WHERE account_id = $account AND calendar_id = $calendar AND (id = $id OR recurring_event_id = $id)
+            ORDER BY recurring_event_id IS NOT NULL;
+            """,
+            r => r.GetString(0),
+            ("$account", accountId),
+            ("$calendar", calendarId),
+            ("$id", id));
+
+        return "[" + string.Join(",", rows) + "]";
+    }
+
+    /// <summary>Puts back the rows of a <see cref="Snapshot"/> (undo), replacing whatever is stored for the event now.</summary>
+    /// <exception cref="JsonException">The snapshot is invalid.</exception>
+    public static void Restore(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId, string id, string snapshot)
+    {
+        Remove(conn, tx, accountId, calendarId, id);
+
+        using var doc = JsonDocument.Parse(snapshot);
+        foreach (var row in doc.RootElement.EnumerateArray())
+        {
+            Apply(conn, tx, accountId, calendarId, row);
+        }
+    }
+
+    /// <summary>Removes every event of a calendar before a full resync, except events with local edits waiting in the outbox.</summary>
     public static void DeleteAllForCalendar(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId) =>
-        conn.Execute(tx, "DELETE FROM events WHERE account_id = $account AND calendar_id = $calendar;", ("$account", accountId), ("$calendar", calendarId));
+        conn.Execute(
+            tx,
+            """
+            DELETE FROM events
+            WHERE account_id = $account AND calendar_id = $calendar
+              AND id NOT IN (SELECT event_id FROM outbox WHERE account_id = $account AND calendar_id = $calendar);
+            """,
+            ("$account", accountId),
+            ("$calendar", calendarId));
 
     /// <summary>Returns one event, or null.</summary>
     public static StoredEvent? Get(SqliteConnection conn, string accountId, string calendarId, string id) =>
+        Get(conn, null, accountId, calendarId, id);
+
+    /// <summary>Returns one event, or null (inside <paramref name="tx"/> when one is open).</summary>
+    public static StoredEvent? Get(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId, string id) =>
         conn.Query(
-            null,
+            tx,
             """
             SELECT id, status, start_utc, end_utc, is_all_day, recurring_event_id, original_start_utc, etag, raw_json
             FROM events WHERE account_id = $account AND calendar_id = $calendar AND id = $id;

@@ -174,9 +174,10 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
         }
         while (pageToken is not null);
 
-        // Apply Atomically
+        // Apply Atomically (events with edits waiting in the outbox keep the local version until they're sent)
         using var conn = database.Open();
         using var tx   = conn.BeginTransaction();
+        var pending    = OutboxStore.EventIdsFor(conn, tx, calendar.AccountId, calendar.Id);
 
         if (syncToken is null)
         {
@@ -185,6 +186,11 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
 
         foreach (var item in items)
         {
+            if (item.ValueKind == JsonValueKind.Object && item.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String && pending.Contains(id.GetString()!))
+            {
+                continue;
+            }
+
             // One Bad Event Must Not Block The Calendar
             try
             {

@@ -3,7 +3,7 @@ namespace LeafCalendar.Core.Data;
 /// <summary>SQL schema migrations, applied in order by <see cref="LeafDatabase.Migrate"/>.</summary>
 internal static class Schema
 {
-    /// <summary>Version 1: accounts, calendars, and events. Outbox and conflicts arrive in Milestone 3.</summary>
+    /// <summary>Version 1: accounts, calendars, and events. Outbox and conflicts arrive in version 3.</summary>
     public const string V1 = """
         CREATE TABLE accounts (
             id           TEXT PRIMARY KEY,
@@ -67,5 +67,39 @@ internal static class Schema
 
         ALTER TABLE calendars ADD COLUMN leaf_hidden INTEGER;
         ALTER TABLE calendars ADD COLUMN leaf_color  TEXT;
+        """;
+
+    /// <summary>
+    /// Version 3: the outbox (edits waiting for Google, in order) and the conflicts Google reported.
+    /// <c>send_updates</c> is 1 to email guests. <c>before_json</c> is an <see cref="EventStore.Snapshot"/>
+    /// of the rows before the edit (for undo). <c>not_before</c> holds a delete back for the undo window.
+    /// <c>last_error</c> keeps an HTTP status or Google reason only, never event content.
+    /// </summary>
+    public const string V3 = """
+        CREATE TABLE outbox (
+            seq          INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id   TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            calendar_id  TEXT NOT NULL,
+            event_id     TEXT NOT NULL,
+            operation    TEXT NOT NULL,
+            payload      TEXT,
+            base_etag    TEXT,
+            send_updates INTEGER NOT NULL DEFAULT 0,
+            before_json  TEXT,
+            not_before   INTEGER,
+            state        TEXT NOT NULL DEFAULT 'pending',
+            attempts     INTEGER NOT NULL DEFAULT 0,
+            last_error   TEXT
+        );
+
+        CREATE INDEX ix_outbox_account ON outbox (account_id, state, seq);
+        CREATE INDEX ix_outbox_event   ON outbox (account_id, calendar_id, event_id);
+
+        CREATE TABLE conflicts (
+            outbox_seq   INTEGER PRIMARY KEY REFERENCES outbox(seq) ON DELETE CASCADE,
+            local_json   TEXT,
+            google_json  TEXT,
+            detected_utc INTEGER NOT NULL
+        );
         """;
 }

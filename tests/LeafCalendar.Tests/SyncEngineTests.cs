@@ -236,4 +236,44 @@ public sealed class SyncEngineTests : IDisposable
         Assert.Equal("sync-token-1", Calendar(Primary).SyncToken);
         Assert.Contains("sync.account.failed", File.ReadAllText(_h.LogPath), StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task SyncAccountAsync_PendingLocalEdit_IsNotOverwritten()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _h.RouteStandardGoogle();
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        using (var conn = _h.Db.Database.Open())
+        {
+            // Held a day, so the outbox sender (Task 6) leaves it alone and only the pull is tested
+            EventStore.ApplyJson(conn, null, Account, Primary, """{"id":"evt-single","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""");
+            OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Primary, "evt-single", OutboxOperation.Patch, """{"summary":"Mine"}""", "\"3181161784712000\"", false, "[]", _h.Time.GetUtcNow().AddDays(1)));
+        }
+
+        // The incremental page moves evt-single on Google; the local edit must win until it's sent
+        await _h.Engine.SyncAccountAsync(Account, ct);
+
+        Assert.Contains("\"Mine\"", Get("evt-single")!.RawJson, StringComparison.Ordinal);
+        Assert.NotNull(Get("evt-new"));
+        Assert.Equal("sync-token-2", Calendar(Primary).SyncToken);
+    }
+
+    [Fact]
+    public async Task SyncAccountAsync_FullResync_KeepsPendingEvent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _h.RouteEvents(SyncHarness.PrimaryEventsUrl, "sync-token-1", null, "error-410.json", HttpStatusCode.Gone);
+        _h.RouteStandardGoogle();
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        using (var conn = _h.Db.Database.Open())
+        {
+            EventStore.ApplyJson(conn, null, Account, Primary, """{"id":"leafnew0001","status":"confirmed","summary":"Offline","start":{"dateTime":"2026-10-02T13:00:00Z"},"end":{"dateTime":"2026-10-02T14:00:00Z"}}""");
+            OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Primary, "leafnew0001", OutboxOperation.Create, "{}", null, false, "[]", _h.Time.GetUtcNow().AddDays(1)));
+        }
+
+        await _h.Engine.SyncAccountAsync(Account, ct);
+
+        Assert.NotNull(Get("leafnew0001"));
+        Assert.Equal("sync-token-1", Calendar(Primary).SyncToken);
+    }
 }
