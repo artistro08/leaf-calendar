@@ -14,7 +14,7 @@ namespace LeafCalendar.Core.Editing;
 /// ID), and a local delete is simply done. "Keep Google's" also drops every later local edit of that event,
 /// since they were made on top of the rejected one.
 /// </remarks>
-public sealed class ConflictResolver(LeafDatabase database)
+public sealed class ConflictResolver(LeafDatabase database, TimeProvider time)
 {
     /// <summary>Raised after a resolution (views reload; the app nudges the sync loop).</summary>
     public event EventHandler? Changed;
@@ -26,12 +26,15 @@ public sealed class ConflictResolver(LeafDatabase database)
         return ConflictStore.GetAll(conn);
     }
 
-    /// <summary>Open conflicts, and edits still waiting to be sent (for the title bar badge and indicator).</summary>
+    /// <summary>
+    /// Open conflicts, and edits the next sync would send (for the title bar badge and indicator). Deletes still
+    /// in their undo window and edits waiting behind a conflict aren't counted, so the count doesn't flash after
+    /// every delete.
+    /// </summary>
     public (int Conflicts, int Pending) Counts()
     {
         using var conn = database.Open();
-        var conflicts = ConflictStore.Count(conn);
-        return (conflicts, OutboxStore.Count(conn) - conflicts);
+        return (ConflictStore.Count(conn), OutboxStore.CountSendable(conn, time.GetUtcNow()));
     }
 
     /// <summary>Edits of one account Google doesn't have yet (disconnecting would lose them).</summary>

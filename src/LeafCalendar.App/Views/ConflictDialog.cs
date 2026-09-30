@@ -14,7 +14,8 @@ namespace LeafCalendar.App.Views;
 /// </summary>
 /// <remarks>
 /// Event text is untrusted, so every value is a plain <see cref="TextBlock"/>. When Google's copy isn't available
-/// (deleted there, or unreadable), the wording stays neutral and the second button discards the local change.
+/// (deleted there, or unreadable), the wording stays neutral: keeping yours saves it on Google as a new event, and
+/// the second button discards it.
 /// </remarks>
 public static class ConflictDialog
 {
@@ -23,8 +24,14 @@ public static class ConflictDialog
     {
         ArgumentNullException.ThrowIfNull(vm);
 
-        foreach (var conflict in vm.Conflicts())
+        foreach (var seq in vm.Conflicts().Select(c => c.Entry.Seq).ToList())
         {
+            // Re-Read Each One (a sync or an earlier answer may have changed or settled it)
+            if (vm.Conflicts().FirstOrDefault(c => c.Entry.Seq == seq) is not { } conflict)
+            {
+                continue;
+            }
+
             var result = await Build(root, vm, conflict, dark).ShowAsync();
             if (result == ContentDialogResult.Primary)
             {
@@ -49,13 +56,13 @@ public static class ConflictDialog
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         // Header
-        AddRow(grid, [Cell("", secondary: true), Cell("Yours", bold: true), Cell("Google's", bold: true)]);
+        AddRow(grid, [Cell("", dark, secondary: true), Cell("Yours", dark, bold: true), Cell("Google's", dark, bold: true)]);
 
         // Fields (rows empty on both sides are skipped; differing rows get a bold label and a highlight, so it's never color alone)
         foreach (var field in vm.Compare(conflict).Where(f => f.Mine.Length > 0 || f.Google.Length > 0))
         {
-            var mine   = Cell(field.Mine);
-            var google = Cell(field.Google);
+            var mine   = Cell(field.Mine, dark);
+            var google = Cell(field.Google, dark);
             AutomationProperties.SetAutomationId(mine, $"ConflictMine_{field.Field}");
             AutomationProperties.SetAutomationId(google, $"ConflictGoogle_{field.Field}");
             if (field.Differs)
@@ -64,14 +71,16 @@ public static class ConflictDialog
                 AutomationProperties.SetItemStatus(google, "differs");
             }
 
-            AddRow(grid, [Cell(field.Field, bold: field.Differs, secondary: !field.Differs), Highlight(mine, field.Differs, dark), Highlight(google, field.Differs, dark)]);
+            AddRow(grid, [Cell(field.Field, dark, bold: field.Differs, secondary: !field.Differs), Highlight(mine, field.Differs, dark), Highlight(google, field.Differs, dark)]);
         }
 
         // Google's Copy Isn't Available (deleted there, or it couldn't be read)
         var hasGoogle = conflict.GoogleJson is not null;
         var question  = hasGoogle
             ? "This event changed on Google after you edited it here. Which version do you want to keep?"
-            : "Google's copy of this event isn't available, so your change couldn't be sent. Do you want to keep yours?";
+            : conflict.Entry.Operation == OutboxOperation.Delete
+                ? "Google's copy of this event isn't available, so your delete couldn't be checked. Either way, the event leaves Leaf."
+                : "Google's copy of this event isn't available, so your change couldn't be sent. Keep yours to save it on Google as a new event, or discard it.";
 
         var body = new StackPanel { Spacing = 16 };
         body.Children.Add(new TextBlock { Text = question, TextWrapping = TextWrapping.Wrap });
@@ -105,14 +114,24 @@ public static class ConflictDialog
     }
 
     // Event content, shown as plain text only
-    static TextBlock Cell(string text, bool bold = false, bool secondary = false) => new()
+    static TextBlock Cell(string text, bool dark, bool bold = false, bool secondary = false)
     {
-        Text                   = text,
-        TextWrapping           = TextWrapping.Wrap,
-        IsTextSelectionEnabled = !bold && !secondary,
-        FontWeight             = bold ? FontWeights.SemiBold : FontWeights.Normal,
-        Opacity                = secondary ? 0.7 : 1,
-    };
+        var cell = new TextBlock
+        {
+            Text                   = text,
+            TextWrapping           = TextWrapping.Wrap,
+            IsTextSelectionEnabled = !bold && !secondary,
+            FontWeight             = bold ? FontWeights.SemiBold : FontWeights.Normal,
+        };
+
+        // Secondary labels use the theme's TextFillColorSecondary (code-built, so picked per theme)
+        if (secondary)
+        {
+            cell.Foreground = LeafBrushes.SecondaryText(dark);
+        }
+
+        return cell;
+    }
 
     static FrameworkElement Highlight(TextBlock cell, bool differs, bool dark) =>
         differs ? new Border { Child = cell, Padding = new Thickness(4, 2, 4, 2), CornerRadius = new CornerRadius(4), Background = LeafBrushes.CautionBackground(dark) } : cell;

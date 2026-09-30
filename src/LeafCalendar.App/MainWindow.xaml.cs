@@ -38,11 +38,10 @@ public sealed partial class MainWindow : Window
 
     // Smallest window, in DIPs: both panes open (264 + 320) around an island that still fits the
     // widest title ("September 2026": 17 in, 170 wide), a 16 gap, and the widest toolbar (about 257,
-    // with "31 days" on the view button, plus the sync state when it all shows: "Offline" about 62, a
-    // two-digit waiting count about 40, and the conflicts button 36) 6 in from the island's right edge, which also leaves the
+    // with "31 days" on the view button, plus 36 for the sync status slot and its gap) 6 in from the island's right edge, which also leaves the
     // week grid its 56 gutter and seven 48-wide days. The height keeps the sidebar's mini month, an account with three calendars, and
     // its footer, and shows about eight hours of the grid at the default hour height.
-    const double MinimumWidth  = CalendarPage.SidebarWidth + CalendarPage.TitleInset + 170 + 16 + 257 + 62 + 40 + 36 + CalendarPage.ToolbarInset + CalendarPage.DetailsWidth;
+    const double MinimumWidth  = CalendarPage.SidebarWidth + CalendarPage.TitleInset + 170 + 16 + 257 + 36 + CalendarPage.ToolbarInset + CalendarPage.DetailsWidth;
     const double MinimumHeight = 540;
 
     // The event actions' right end, in from the details panel's left edge: the edit glyph (8 in on its 32-wide
@@ -54,6 +53,11 @@ public sealed partial class MainWindow : Window
     readonly TranslateTransform _toolbarShift = new();
     readonly OverlappedPresenter _presenter = OverlappedPresenter.Create();
     CalendarViewModel? _calendar;
+
+    // Changes waiting (online) show only once they've waited this long
+    static readonly TimeSpan WaitingDelay = TimeSpan.FromSeconds(2);
+    readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _waitingTimer;
+    bool _waitingDue;
     Storyboard? _toolbarSlide;
     (double Right, bool Sidebar, bool Calendar)? _titleBarLayout;
 
@@ -63,6 +67,16 @@ public sealed partial class MainWindow : Window
         _services = services;
         InitializeComponent();
         _appIcon = AppTitleBar.IconSource;
+
+        // Sync Status Waiting Delay
+        _waitingTimer             = DispatcherQueue.CreateTimer();
+        _waitingTimer.Interval    = WaitingDelay;
+        _waitingTimer.IsRepeating = false;
+        _waitingTimer.Tick       += (_, _) =>
+        {
+            _waitingDue = true;
+            ShowSyncState();
+        };
         ToolbarSlide.RenderTransform = _toolbarShift;
 
         // Shortcuts are handled at the root so they work wherever focus is
@@ -153,13 +167,6 @@ public sealed partial class MainWindow : Window
             {
                 SyncMenu();
                 ApplyTheme(_calendar.Settings.Theme);
-            };
-            _calendar.PropertyChanged += (_, e) =>
-            {
-                if (e.PropertyName is nameof(CalendarViewModel.SelectedInfo) or nameof(CalendarViewModel.Editing) or nameof(CalendarViewModel.Selection))
-                {
-                    UpdateEventActions();
-                }
             };
             _calendar.PropertyChanged += OnCalendarPropertyChanged;
             ApplyTheme(_calendar.Settings.Theme);
@@ -428,13 +435,19 @@ public sealed partial class MainWindow : Window
 
     void OnCalendarPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(CalendarViewModel.ConflictCount) or nameof(CalendarViewModel.PendingCount) or nameof(CalendarViewModel.IsOffline))
+        if (e.PropertyName is nameof(CalendarViewModel.SelectedInfo) or nameof(CalendarViewModel.Editing) or nameof(CalendarViewModel.Selection))
+        {
+            UpdateEventActions();
+        }
+        else if (e.PropertyName is nameof(CalendarViewModel.ConflictCount) or nameof(CalendarViewModel.PendingCount) or nameof(CalendarViewModel.IsOffline))
         {
             ShowSyncState();
         }
     }
 
-    // Offline, the waiting count, and the conflicts badge sit in the title bar; the count's accessible name says what it counts
+    // One icon slot left of the view button, by priority: conflicts, offline, changes waiting. Online, waiting shows only
+    // once changes have waited a moment (an edit normally goes out within a second, so the icon doesn't flash).
+    // Words live in the tooltips and accessible names.
     void ShowSyncState()
     {
         if (_calendar is not { } vm)
@@ -442,15 +455,57 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        PendingText.Text = vm.PendingCount.ToString(CultureInfo.InvariantCulture);
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(PendingText, vm.PendingCount == 1 ? "1 change waiting to sync" : string.Create(CultureInfo.InvariantCulture, $"{vm.PendingCount} changes waiting to sync"));
-        OfflineIndicator.Visibility = vm.IsOffline ? Visibility.Visible : Visibility.Collapsed;
-        PendingIndicator.Visibility = vm.PendingCount > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ConflictsBadge.Value        = vm.ConflictCount;
-        ConflictsButton.Visibility  = vm.ConflictCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+        // Waiting (Online): only after it has lasted WaitingDelay
+        if (vm.PendingCount == 0)
+        {
+            _waitingTimer.Stop();
+            _waitingDue = false;
+        }
+        else if (!vm.IsOffline && !_waitingDue && !_waitingTimer.IsRunning)
+        {
+            _waitingTimer.Start();
+        }
+
+        var conflicts = vm.ConflictCount > 0;
+        var offline   = !conflicts && vm.IsOffline;
+        var waiting   = !conflicts && vm.PendingCount > 0 && (vm.IsOffline || _waitingDue);
+        var count     = vm.PendingCount == 1 ? "1 change waiting to sync" : string.Create(CultureInfo.InvariantCulture, $"{vm.PendingCount} changes waiting to sync");
+        var review    = vm.ConflictCount == 1 ? "1 change needs your review" : string.Create(CultureInfo.InvariantCulture, $"{vm.ConflictCount} changes need your review");
+        var away      = vm.PendingCount == 0
+            ? "Can't reach Google. Changes you make are sent when you're back online."
+            : $"Can't reach Google. {count}. They're sent when you're back online.";
+
+        // Conflicts
+        ConflictsBadge.Value       = vm.ConflictCount;
+        ConflictsButton.Visibility = conflicts ? Visibility.Visible : Visibility.Collapsed;
+        SetWords(ConflictsButton, review, review);
+
+        // Offline (under the waiting button when both show; the waiting one then takes the offline glyph and is the tab stop)
+        OfflineButton.Visibility = offline ? Visibility.Visible : Visibility.Collapsed;
+        OfflineButton.IsTabStop  = !waiting;
+        SetWords(OfflineButton, away, away);
+
+        // Waiting
+        WaitingBadge.Value       = vm.PendingCount;
+        WaitingGlyph.Glyph       = vm.IsOffline ? "" : "";
+        WaitingButton.Visibility = waiting ? Visibility.Visible : Visibility.Collapsed;
+        SetWords(WaitingButton, count, vm.IsOffline ? away : $"{count}. Select to try now.");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(WaitingButton, vm.IsOffline ? away : "");
+
+        // Show The Slot And Re-Punch The Title Bar's Click-Through Holes
+        SyncStatus.Visibility = conflicts || offline || waiting ? Visibility.Visible : Visibility.Collapsed;
         CalendarToolbar.UpdateLayout();
         AppTitleBar.RecomputeDragRegions();
     }
+
+    static void SetWords(Button button, string name, string tooltip)
+    {
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, name);
+        ToolTipService.SetToolTip(button, tooltip);
+    }
+
+    // Offline or waiting: try sending now
+    void OnSyncStatusClick(object sender, RoutedEventArgs e) => _services.Google?.Loop.TriggerNow();
 
     async void OnConflictsClick(object sender, RoutedEventArgs e)
     {

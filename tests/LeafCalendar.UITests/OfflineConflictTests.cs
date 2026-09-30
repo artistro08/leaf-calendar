@@ -52,6 +52,10 @@ public sealed class OfflineConflictTests : IDisposable
 
         Assert.True(Retry.WhileFalse(() => leaf.Exists("PendingChangesIndicator") && leaf.WaitFor("PendingChangesIndicator").Name == "1 change waiting to sync", TimeSpan.FromSeconds(10)).Success);
         Assert.True(Retry.WhileFalse(() => leaf.Exists("OfflineIndicator"), TimeSpan.FromSeconds(20)).Success);
+
+        // One slot: offline with one waiting, said in words by the waiting button's help text and the offline button's name
+        Assert.StartsWith("Can't reach Google. 1 change waiting to sync.", leaf.WaitFor("OfflineIndicator").Name, StringComparison.Ordinal);
+        Assert.StartsWith("Can't reach Google.", leaf.WaitFor("PendingChangesIndicator").Properties.HelpText.ValueOrDefault, StringComparison.Ordinal);
         Assert.Equal("Offline rename", leaf.WaitFor("DetailsTitle").Name);
         Thread.Sleep(TimeSpan.FromSeconds(3));
         Assert.DoesNotContain(_google.Writes, w => w.Method == "PATCH");
@@ -69,6 +73,10 @@ public sealed class OfflineConflictTests : IDisposable
     {
         using var leaf = Launch();
         var googleEtag = MakeConflict(leaf);
+
+        // Conflicts take the slot's first place
+        Assert.Equal("1 change needs your review", leaf.WaitFor("ConflictsButton").Name);
+        Assert.False(leaf.Exists("OfflineIndicator"));
 
         leaf.WaitFor("ConflictsButton").AsButton().Invoke();
         Assert.Equal("Mine", leaf.WaitForAnywhere("ConflictMine_Title").Name);
@@ -125,5 +133,18 @@ public sealed class OfflineConflictTests : IDisposable
 
         Assert.True(Retry.WhileFalse(() => leaf.AnyTextContains("1 change you made here hasn't reached Google yet, and it will be lost."), TimeSpan.FromSeconds(10)).Success);
         leaf.WaitForAnywhere("CloseButton").AsButton().Invoke();
+    }
+
+    // Deletes wait out their undo window before they count as waiting, so the slot stays empty right after one
+    [Fact]
+    public void Delete_Online_DoesNotShowWaiting()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Dentist).Click();
+
+        leaf.Press(VirtualKeyShort.DELETE);
+
+        Assert.False(Retry.WhileFalse(() => leaf.Exists("PendingChangesIndicator"), TimeSpan.FromSeconds(4)).Success);
+        _google.WaitForWrite(w => w.Method == "DELETE" && w.Path.EndsWith("/events/evt-single", StringComparison.Ordinal));
     }
 }

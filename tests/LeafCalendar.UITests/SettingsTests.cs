@@ -194,7 +194,7 @@ public sealed class SettingsTests : IDisposable
         var database = new LeafDatabase(Path.Combine(LeafApp.ProfileFolder(_profile), "leaf.db"));
         try
         {
-            return new ConflictResolver(database).UnsentFor(SeededProfile.AccountId);
+            return new ConflictResolver(database, TimeProvider.System).UnsentFor(SeededProfile.AccountId);
         }
         finally
         {

@@ -67,7 +67,7 @@ Each rule names where it comes from. **Conflict** marks a rule where the referen
 
 | Window | Size (DIP) | Resizable | Source |
 | --- | --- | --- | --- |
-| Main window | Minimum 1050 × 540 (computed from the panes, see `MainWindow.MinimumWidth`). Default when nothing is remembered: 1280 × 820. | Yes | Leaf `MainWindow.xaml.cs`; default from MA `MainWindow.RestorePlacement` |
+| Main window | Minimum 1086 × 540 (computed from the panes and the title bar toolbar, including its 32 DIP sync status slot, see `MainWindow.MinimumWidth`). Default when nothing is remembered: 1280 × 820. | Yes | Leaf `MainWindow.xaml.cs`; default from MA `MainWindow.RestorePlacement` |
 | Settings | Opens at 1000 × 720 | Yes (see conflict) | Sony `SettingsWindow.xaml.cs` |
 | Onboarding | About 520 × 640 client, centered | No, Close only | Leaf brief item 5 |
 | Tray flyout | Fixed 360 wide, height fixed to the tallest page, capped to the work area; 12 DIP from the taskbar and screen edge | No | Sony spec "Frame" and "Placement" |

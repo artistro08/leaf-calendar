@@ -1277,10 +1277,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     static bool IsEditFailure(Exception ex) =>
         ex is Microsoft.Data.Sqlite.SqliteException or System.Text.Json.JsonException or InvalidOperationException;
 
-    // Deletes wait out the undo window; nudge the sync loop once it has passed so they go out right away
+    // Deletes wait out the undo window; nudge the sync loop once it has passed so they go out right away, and count
+    // them as waiting from then on (offline, no sync event would say so)
     async Task NudgeAfterUndoWindowAsync()
     {
         await Task.Delay(EventEditor.UndoWindow + TimeSpan.FromSeconds(0.5));
+        _dispatcher.TryEnqueue(RefreshSyncState);
         _services.Google?.Loop.TriggerNow();
     }
 

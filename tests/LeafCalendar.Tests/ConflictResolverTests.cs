@@ -3,6 +3,7 @@ using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Tests.Support;
+using Microsoft.Extensions.Time.Testing;
 
 namespace LeafCalendar.Tests;
 
@@ -16,11 +17,12 @@ public sealed class ConflictResolverTests : IDisposable
     static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
     readonly TestDatabase _db = new();
+    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
     readonly ConflictResolver _resolver;
 
     public ConflictResolverTests()
     {
-        _resolver = new ConflictResolver(_db.Database);
+        _resolver = new ConflictResolver(_db.Database, _time);
 
         using var conn = _db.Database.Open();
         AccountStore.Upsert(conn, TestDatabase.SampleAccount);
@@ -142,5 +144,34 @@ public sealed class ConflictResolverTests : IDisposable
 
         Assert.Equal(2, _resolver.UnsentFor(Account));
         Assert.Equal((1, 1), _resolver.Counts());
+    }
+
+    [Fact]
+    public void Counts_HeldDelete_WaitsOutTheUndoWindow()
+    {
+        using (var conn = _db.Database.Open())
+        {
+            OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Calendar, "evt-other", OutboxOperation.Delete, null, null, false, "[]", _time.GetUtcNow().AddSeconds(6)));
+        }
+
+        Assert.Equal((0, 0), _resolver.Counts());
+        Assert.Equal(1, _resolver.UnsentFor(Account));
+
+        _time.Advance(TimeSpan.FromSeconds(6));
+
+        Assert.Equal((0, 1), _resolver.Counts());
+    }
+
+    [Fact]
+    public void Counts_EditBehindAConflict_IsNotWaiting()
+    {
+        Conflict(OutboxOperation.Patch, Mine, Googles);
+        using (var conn = _db.Database.Open())
+        {
+            OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Calendar, "evt-single", OutboxOperation.Patch, """{"location":"Mine too"}""", "\"1\"", false, "[]", null));
+        }
+
+        Assert.Equal((1, 0), _resolver.Counts());
+        Assert.Equal(2, _resolver.UnsentFor(Account));
     }
 }

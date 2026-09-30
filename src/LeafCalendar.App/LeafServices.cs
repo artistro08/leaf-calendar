@@ -34,7 +34,7 @@ public sealed class LeafServices : IAsyncDisposable
 
         // Local Edits (work offline; every edit and conflict answer nudges the sync loop to send it)
         Editor    = new EventEditor(Database, Time);
-        Conflicts = new ConflictResolver(Database);
+        Conflicts = new ConflictResolver(Database, Time);
         Editor.Changed    += (_, _) => Google?.Loop.TriggerNow();
         Conflicts.Changed += (_, _) => Google?.Loop.TriggerNow();
 

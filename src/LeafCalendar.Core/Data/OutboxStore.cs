@@ -173,6 +173,24 @@ public static class OutboxStore
     public static int Count(SqliteConnection conn) =>
         conn.Query(null, "SELECT COUNT(*) FROM outbox;", r => r.GetInt32(0)).Single();
 
+    /// <summary>
+    /// Pending entries a sync would send at <paramref name="now"/>: past their undo window, and not behind a
+    /// conflicted entry for the same event.
+    /// </summary>
+    public static int CountSendable(SqliteConnection conn, DateTimeOffset now) =>
+        conn.Query(
+            null,
+            """
+            SELECT COUNT(*) FROM outbox o
+            WHERE o.state = 'pending'
+              AND (o.not_before IS NULL OR o.not_before <= $now)
+              AND NOT EXISTS (
+                  SELECT 1 FROM outbox c
+                  WHERE c.state = 'conflict' AND c.account_id = o.account_id AND c.event_id = o.event_id AND c.seq < o.seq);
+            """,
+            r => r.GetInt32(0),
+            ("$now", now.ToUnixTimeMilliseconds())).Single();
+
     /// <summary>One account's entries not yet accepted by Google.</summary>
     public static int CountForAccount(SqliteConnection conn, string accountId) =>
         conn.Query(null, "SELECT COUNT(*) FROM outbox WHERE account_id = $account;", r => r.GetInt32(0), ("$account", accountId)).Single();
