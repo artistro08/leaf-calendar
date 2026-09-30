@@ -104,9 +104,9 @@ public static partial class CalendarStore
         tx.Commit();
     }
 
-    /// <summary>An account's calendars in Leaf's order.</summary>
-    public static IReadOnlyList<CalendarInfo> GetForAccount(SqliteConnection conn, string accountId) =>
-        conn.Query(null, SelectColumns + " WHERE c.account_id = $account ORDER BY c.sort_order;", Map, ("$account", accountId));
+    /// <summary>An account's calendars in Leaf's order (inside <paramref name="tx"/> when one is open).</summary>
+    public static IReadOnlyList<CalendarInfo> GetForAccount(SqliteConnection conn, string accountId, SqliteTransaction? tx = null) =>
+        conn.Query(tx, SelectColumns + " WHERE c.account_id = $account ORDER BY c.sort_order;", Map, ("$account", accountId));
 
     /// <summary>Every calendar, grouped by account email, in Leaf's order.</summary>
     public static IReadOnlyList<CalendarInfo> GetAll(SqliteConnection conn) =>

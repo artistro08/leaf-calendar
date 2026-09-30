@@ -304,4 +304,100 @@ public sealed class EventEditorTests : IDisposable
         Assert.Equal("America/New_York", (string?)patch["start"]!["timeZone"]);
         Assert.False(Occurrence("evt-allday", Oct12).IsAllDay);
     }
+
+    // Makes the Oct 9 standup its own exception (own title, a guest, and 30 minutes longer) and returns it
+    CalendarOccurrence ChangedInstance()
+    {
+        var o      = Occurrence("evt-weekly", Oct9);
+        var before = _editor.Load(o);
+        _editor.Save(o, before, before with { Title = "Own title", Guests = [new Guest("guest@example.com")], End = o.End.AddMinutes(30) }, EditScope.This, sendUpdates: false);
+
+        var changed = Assert.Single(Day(Oct9), x => x.RecurringEventId == "evt-weekly");
+        Assert.NotEqual("evt-weekly", changed.EventId);
+        return changed;
+    }
+
+    [Fact]
+    public void Save_AllFromChangedInstance_PatchesOnlyTheEditedField()
+    {
+        var o      = ChangedInstance();
+        var before = _editor.Load(o);
+
+        _editor.Save(o, before, before with { Location = "Room 4" }, EditScope.All, sendUpdates: false);
+
+        var entry = Outbox()[^1];
+        Assert.Equal("evt-weekly", entry.EventId);
+        Assert.Equal("""{"location":"Room 4"}""", entry.Payload);
+        Assert.Equal("Team standup", Occurrence("evt-weekly", Oct12).Title);
+    }
+
+    [Fact]
+    public void Move_AllFromChangedInstance_OnlyShiftsSeriesTimes()
+    {
+        var o = ChangedInstance();
+
+        _editor.Move([new EventMove(o, o.Start.AddHours(1), o.End.AddHours(1), IsAllDay: false)], EditScope.All, sendUpdates: false);
+
+        var patch = JsonNode.Parse(Outbox()[^1].Payload!)!.AsObject();
+        Assert.Equal(["end", "start"], patch.Select(p => p.Key).Order());
+        Assert.Equal("2026-10-05T10:30:00-04:00", (string?)patch["start"]!["dateTime"]);
+        Assert.Equal("2026-10-05T11:00:00-04:00", (string?)patch["end"]!["dateTime"]);
+    }
+
+    [Fact]
+    public void Move_TwoInstancesWithAll_ShiftsTheSeriesOnce()
+    {
+        var fri = Occurrence("evt-weekly", Oct9);
+        var mon = Occurrence("evt-weekly", Oct12);
+
+        _editor.Move([new EventMove(fri, fri.Start.AddHours(1), fri.End.AddHours(1), false), new EventMove(mon, mon.Start.AddHours(1), mon.End.AddHours(1), false)], EditScope.All, sendUpdates: false);
+
+        Assert.Single(Outbox());
+        Assert.Equal(Utc(10, 12, 14, 30), Occurrence("evt-weekly", Oct12).Start);
+    }
+
+    [Fact]
+    public void Delete_TwoInstancesWithFollowing_EndsBeforeTheEarliest()
+    {
+        var fri = Occurrence("evt-weekly", Oct9);
+        var mon = Occurrence("evt-weekly", Oct12);
+
+        _editor.Delete([mon, fri], EditScope.Following, sendUpdates: false);
+
+        var entry = Assert.Single(Outbox());
+        Assert.Contains("UNTIL=20261009T132959Z", entry.Payload!, StringComparison.Ordinal);
+        Assert.DoesNotContain(Day(Oct9), x => x.RecurringEventId == "evt-weekly");
+        Assert.DoesNotContain(Day(Oct12), x => x.RecurringEventId == "evt-weekly");
+        Assert.Contains(Day(Oct5), x => x.RecurringEventId == "evt-weekly");
+    }
+
+    [Fact]
+    public void Edits_WithoutPermission_ThrowAndChangeNothing()
+    {
+        Seed(Invite);
+        var invite = Occurrence("evt-invite", Oct3);
+        var before = _editor.Load(invite);
+        var own    = Occurrence("evt-single", Oct1);
+
+        Assert.Throws<InvalidOperationException>(() => _editor.Save(invite, before, before with { Title = "Mine now" }, EditScope.This, sendUpdates: false));
+        Assert.Throws<InvalidOperationException>(() => _editor.Move([new EventMove(invite, invite.Start.AddHours(1), invite.End.AddHours(1), false)], EditScope.This, sendUpdates: false));
+        Assert.Throws<InvalidOperationException>(() => _editor.Recolor([invite], "11", EditScope.This));
+        Assert.Throws<InvalidOperationException>(() => _editor.Delete([invite], EditScope.This, sendUpdates: false));
+        Assert.Throws<InvalidOperationException>(() => _editor.Respond(own, ResponseStatus.Accepted, null, sendUpdates: false, EditScope.This));
+
+        Assert.Empty(Outbox());
+        Assert.Equal("Planning", Occurrence("evt-invite", Oct3).Title);
+    }
+
+    [Theory]
+    [InlineData(EditScope.This)]
+    [InlineData(EditScope.Following)]
+    public void Save_InstanceToOtherCalendar_ThrowsForThisAndFollowing(EditScope scope)
+    {
+        var o      = Occurrence("evt-weekly", Oct9);
+        var before = _editor.Load(o);
+
+        Assert.Throws<ArgumentException>(() => _editor.Save(o, before, before with { CalendarId = Family }, scope, sendUpdates: false));
+        Assert.Empty(Outbox());
+    }
 }

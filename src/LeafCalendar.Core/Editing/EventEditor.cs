@@ -70,13 +70,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     public (bool CanEdit, bool CanRespond) Permissions(CalendarOccurrence occurrence)
     {
         using var conn = database.Open();
-        if (EventStore.Get(conn, null, occurrence.AccountId, occurrence.CalendarId, occurrence.EventId) is not { } stored)
-        {
-            return (false, false);
-        }
-
-        var role = CalendarStore.GetForAccount(conn, occurrence.AccountId).FirstOrDefault(c => c.Id == occurrence.CalendarId)?.AccessRole ?? "reader";
-        return (EventJson.CanEdit(stored.RawJson, role), EventJson.CanRespond(stored.RawJson));
+        return PermissionsCore(conn, null, occurrence);
     }
 
     // =========================================================================
@@ -100,7 +94,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     public void Move(IReadOnlyList<EventMove> moves, EditScope scope, bool sendUpdates) =>
         InTransaction((conn, tx) =>
         {
-            foreach (var move in moves)
+            foreach (var move in OncePerSeries(conn, tx, moves, m => m.Occurrence, scope))
             {
                 var before = LoadCore(conn, tx, move.Occurrence);
                 var after  = before with
@@ -118,7 +112,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     public void Recolor(IReadOnlyList<CalendarOccurrence> items, string? colorId, EditScope scope) =>
         InTransaction((conn, tx) =>
         {
-            foreach (var occurrence in items)
+            foreach (var occurrence in OncePerSeries(conn, tx, items, o => o, scope))
             {
                 var before = LoadCore(conn, tx, occurrence);
                 SaveCore(conn, tx, occurrence, before, before with { ColorId = colorId }, scope, sendUpdates: false);
@@ -133,7 +127,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
 
         InTransaction((conn, tx) =>
         {
-            foreach (var occurrence in items)
+            foreach (var occurrence in OncePerSeries(conn, tx, items, o => o, scope))
             {
                 if (DeleteCore(conn, tx, occurrence, scope, sendUpdates, notBefore) is { } seq)
                 {
@@ -174,6 +168,11 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     public void Respond(CalendarOccurrence occurrence, ResponseStatus response, string? note, bool sendUpdates, EditScope scope) =>
         InTransaction((conn, tx) =>
         {
+            if (!PermissionsCore(conn, tx, occurrence).CanRespond)
+            {
+                throw new InvalidOperationException("You can't reply to this event.");
+            }
+
             var (eventId, current) = ReplyTarget(conn, tx, occurrence, scope);
             var payload = new JsonObject
             {
@@ -213,6 +212,8 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
 
     void SaveCore(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, EventDraft before, EventDraft after, EditScope scope, bool sendUpdates)
     {
+        RequireEdit(conn, tx, o);
+
         // Single Event (or an instance whose series isn't stored here)
         if (o.RecurringEventId is not { } masterId || EventStore.Get(conn, tx, o.AccountId, o.CalendarId, masterId) is not { } master)
         {
@@ -227,6 +228,12 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         if (scope == EditScope.Following && originalStart <= masterDraft.Start)
         {
             scope = EditScope.All;
+        }
+
+        // Only A Whole Series Can Change Calendar Or Account
+        if (scope != EditScope.All && (after.AccountId != before.AccountId || after.CalendarId != before.CalendarId))
+        {
+            throw new ArgumentException("Only \"All events\" can move a repeating event to another calendar.", nameof(after));
         }
 
         switch (scope)
@@ -280,7 +287,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     {
         var instanceId = InstanceIdOf(o, master, originalStart);
         var current    = EventStore.Get(conn, tx, o.AccountId, o.CalendarId, instanceId) ?? Materialize(o, master, instanceId, originalStart);
-        var patch      = EventJson.BuildPatch(before, after with { Recurrence = before.Recurrence, AccountId = before.AccountId, CalendarId = before.CalendarId }, current.RawJson);
+        var patch      = EventJson.BuildPatch(before, after with { Recurrence = before.Recurrence }, current.RawJson);
         if (patch.Count == 0)
         {
             return;
@@ -289,17 +296,37 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         AddPatch(conn, tx, o.AccountId, o.CalendarId, instanceId, current, patch, sendUpdates, notBefore: null);
     }
 
-    // The instance's change applied to the series: its start moves by as much as the instance moved
+    // The instance's changes applied to the series: only the edited fields, and its start and end move as much as the instance's did
     EventDraft ToSeries(EventDraft master, EventDraft before, EventDraft after)
     {
-        var start      = master.Start + (after.Start - before.Start);
         var days       = LocalDay(after).DayNumber - LocalDay(before).DayNumber;
         var recurrence = after.Recurrence.SequenceEqual(before.Recurrence)
             ? RecurrenceEdits.ShiftWeekdays(master.Recurrence, days)
             : after.Recurrence;
 
-        return after with { Start = start, End = start + (after.End - after.Start), Recurrence = recurrence };
+        return WithChanges(master, before, after) with
+        {
+            Start      = master.Start + (after.Start - before.Start),
+            End        = master.End + (after.End - before.End),
+            Recurrence = recurrence,
+        };
     }
+
+    // The target with only the fields that differ between before and after (times and repeat are the caller's)
+    static EventDraft WithChanges(EventDraft target, EventDraft before, EventDraft after) => target with
+    {
+        AccountId           = after.AccountId,
+        CalendarId          = after.CalendarId,
+        Title               = before.Title == after.Title ? target.Title : after.Title,
+        IsAllDay            = before.IsAllDay == after.IsAllDay ? target.IsAllDay : after.IsAllDay,
+        TimeZone            = before.TimeZone == after.TimeZone ? target.TimeZone : after.TimeZone,
+        Location            = before.Location == after.Location ? target.Location : after.Location,
+        Description         = EventJson.TextToHtml(before.Description) == EventJson.TextToHtml(after.Description) ? target.Description : after.Description,
+        ColorId             = before.ColorId == after.ColorId ? target.ColorId : after.ColorId,
+        Guests              = before.Guests.SequenceEqual(after.Guests) ? target.Guests : after.Guests,
+        UseDefaultReminders = before.UseDefaultReminders == after.UseDefaultReminders ? target.UseDefaultReminders : after.UseDefaultReminders,
+        ReminderMinutes     = before.ReminderMinutes.SequenceEqual(after.ReminderMinutes) ? target.ReminderMinutes : after.ReminderMinutes,
+    };
 
     static void SplitSeries(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, StoredEvent master, EventDraft masterDraft, DateTimeOffset originalStart, EventDraft before, EventDraft after, bool sendUpdates)
     {
@@ -317,10 +344,15 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
             return;
         }
 
+        // The New Series Keeps The Old One's Fields And Time Slot, Plus What Was Edited
+        var next = WithChanges(masterDraft, before, after) with
+        {
+            Start      = originalStart + (after.Start - before.Start),
+            End        = originalStart + (masterDraft.End - masterDraft.Start) + (after.End - before.End),
+            Recurrence = recurrence,
+        };
         var newId = EventIds.NewId();
-        var body  = EventJson.ApplyPatch(
-            EventJson.CloneForCreate(master.RawJson, newId),
-            EventJson.BuildPatch(masterDraft, after with { Recurrence = recurrence, AccountId = masterDraft.AccountId, CalendarId = masterDraft.CalendarId }, master.RawJson));
+        var body  = EventJson.ApplyPatch(EventJson.CloneForCreate(master.RawJson, newId), EventJson.BuildPatch(masterDraft, next, master.RawJson));
         AddCreate(conn, tx, o.AccountId, o.CalendarId, newId, body, sendUpdates);
     }
 
@@ -330,12 +362,18 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
 
     static long? DeleteCore(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, EditScope scope, bool sendUpdates, DateTimeOffset notBefore)
     {
-        // Single Event (or already gone, e.g. two instances of one series deleted with "All events")
+        // Already Gone
+        if (EventStore.Get(conn, tx, o.AccountId, o.CalendarId, o.EventId) is not { } stored)
+        {
+            return null;
+        }
+
+        RequireEdit(conn, tx, o);
+
+        // Single Event (or an instance whose series isn't stored here)
         if (o.RecurringEventId is not { } masterId || EventStore.Get(conn, tx, o.AccountId, o.CalendarId, masterId) is not { } master)
         {
-            return EventStore.Get(conn, tx, o.AccountId, o.CalendarId, o.EventId) is { } stored
-                ? AddDelete(conn, tx, o.AccountId, o.CalendarId, o.EventId, stored, sendUpdates, notBefore)
-                : null;
+            return AddDelete(conn, tx, o.AccountId, o.CalendarId, o.EventId, stored, sendUpdates, notBefore);
         }
 
         var masterDraft   = LoadMaster(master, o);
@@ -420,6 +458,45 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    static (bool CanEdit, bool CanRespond) PermissionsCore(SqliteConnection conn, SqliteTransaction? tx, CalendarOccurrence o)
+    {
+        if (EventStore.Get(conn, tx, o.AccountId, o.CalendarId, o.EventId) is not { } stored)
+        {
+            return (false, false);
+        }
+
+        var role = CalendarStore.GetForAccount(conn, o.AccountId, tx).FirstOrDefault(c => c.Id == o.CalendarId)?.AccessRole ?? "reader";
+        return (EventJson.CanEdit(stored.RawJson, role), EventJson.CanRespond(stored.RawJson));
+    }
+
+    // Defense in depth behind the UI: a guest-only invite or a read-only calendar is never changed
+    static void RequireEdit(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o)
+    {
+        if (!PermissionsCore(conn, tx, o).CanEdit)
+        {
+            throw new InvalidOperationException("You can't change this event.");
+        }
+    }
+
+    // "All" and "Following" touch a series once (from its earliest chosen instance), so it's never shifted or split twice
+    static List<T> OncePerSeries<T>(SqliteConnection conn, SqliteTransaction tx, IReadOnlyList<T> items, Func<T, CalendarOccurrence> occurrenceOf, EditScope scope)
+    {
+        if (scope == EditScope.This)
+        {
+            return [.. items];
+        }
+
+        return [.. items
+            .GroupBy(item =>
+            {
+                var o = occurrenceOf(item);
+                return o.RecurringEventId is { } masterId && EventStore.Get(conn, tx, o.AccountId, o.CalendarId, masterId) is not null
+                    ? (o.AccountId, o.CalendarId, masterId, true)
+                    : (o.AccountId, o.CalendarId, o.EventId, false);
+            })
+            .Select(series => series.MinBy(item => OriginalStart(conn, tx, occurrenceOf(item)))!)];
     }
 
     static EventDraft LoadCore(SqliteConnection conn, SqliteTransaction? tx, CalendarOccurrence o)
