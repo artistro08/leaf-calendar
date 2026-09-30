@@ -51,7 +51,7 @@ public sealed class LeafApp : IDisposable
 
     /// <summary>True when an element with this ID is in the onboarding window right now (false once the window is gone).</summary>
     public bool InOnboarding(string automationId) =>
-        App.GetAllTopLevelWindows(_automation).FirstOrDefault(w => w.Title == "Set up Leaf Calendar")?.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) is not null;
+        App.GetAllTopLevelWindows(_automation).FirstOrDefault(w => NameOf(w) == "Set up Leaf Calendar")?.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) is not null;
 
     /// <summary>Waits (up to 15 s) for onboarding's primary button to be enabled, then presses it.</summary>
     public void OnboardingPrimary()
@@ -72,7 +72,7 @@ public sealed class LeafApp : IDisposable
     public static bool IsForeground(Window window) => NativeMethods.GetForegroundWindow() == window.Properties.NativeWindowHandle.Value;
 
     /// <summary>How many of the app's windows have this title.</summary>
-    public int WindowCount(string title) => App.GetAllTopLevelWindows(_automation).Count(w => w.Title == title);
+    public int WindowCount(string title) => App.GetAllTopLevelWindows(_automation).Count(w => NameOf(w) == title);
 
     /// <summary>Opens Settings from the sidebar's settings button and shows a page (<c>General</c>, <c>Calendars</c>, <c>TimeZones</c>, <c>Accounts</c>, <c>About</c>).</summary>
     public Window OpenSettings(string page = "General")
@@ -91,7 +91,7 @@ public sealed class LeafApp : IDisposable
         ?? throw new InvalidOperationException($"Element '{automationId}' didn't appear in Settings.");
 
     Window? TopLevelWindow(string title, TimeSpan timeout) =>
-        Retry.WhileNull(() => App.GetAllTopLevelWindows(_automation).FirstOrDefault(w => w.Title == title), timeout).Result;
+        Retry.WhileNull(() => App.GetAllTopLevelWindows(_automation).FirstOrDefault(w => NameOf(w) == title), timeout).Result;
 
     /// <summary>The registered package.</summary>
     public static Windows.ApplicationModel.Package Package =>
@@ -278,7 +278,7 @@ public sealed class LeafApp : IDisposable
     public bool AnyTextContains(string text) =>
         App.GetAllTopLevelWindows(_automation)
             .SelectMany(w => w.FindAllDescendants(cf => cf.ByControlType(ControlType.Text)))
-            .Any(e => e.Name.Contains(text, StringComparison.Ordinal));
+            .Any(e => NameOf(e).Contains(text, StringComparison.Ordinal));
 
     /// <summary>True when the main window is the foreground window and isn't minimized.</summary>
     public bool IsInFront =>
@@ -310,6 +310,20 @@ public sealed class LeafApp : IDisposable
 
         App.Dispose();
         _automation.Dispose();
+    }
+
+    // An element's name (a window's title), or empty when it's going away while being read (a closing window or
+    // dialog answers with a COM error or "not supported")
+    static string NameOf(AutomationElement element)
+    {
+        try
+        {
+            return element.Properties.Name.ValueOrDefault ?? "";
+        }
+        catch (Exception ex) when (ex is COMException or FlaUI.Core.Exceptions.PropertyNotSupportedException or FlaUI.Core.Exceptions.ElementNotAvailableException)
+        {
+            return "";
+        }
     }
 
     // The process's command line (ProcessCommandLineInformation), or empty when it can't be read
