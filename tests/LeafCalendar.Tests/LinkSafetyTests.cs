@@ -178,4 +178,29 @@ public class LinkSafetyTests
 
         Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), stopwatch.Elapsed.ToString());
     }
+
+    [Theory]
+    [InlineData("https://example.com/agenda?a=1#top", "https://example.com/agenda?a=1#top")]
+    [InlineData("https://аpple.com/login", "https://xn--pple-43d.com/login")]
+    [InlineData("https://exämple.com:8443/x", "https://xn--exmple-cua.com:8443/x")]
+    [InlineData("mailto:sam@exämple.com?subject=Hi", "mailto:sam@xn--exmple-cua.com?subject=Hi")]
+    [InlineData("https://meet.google.com/abc?authuser=leaf%40gmail.com", "https://meet.google.com/abc?authuser=leaf%40gmail.com")]
+    public void DisplayForm_ShowsAsciiHosts(string link, string expected) =>
+        Assert.Equal(expected, LinkSafety.DisplayForm(new Uri(link)));
+
+    [Fact]
+    public void DisplayForm_StripsInvisibleAndDirectionCharacters()
+    {
+        var hidden = "‪‮⁦⁩‎‏؜​‌‍⁠﻿";
+        var link   = new Uri("https://example.com/a", UriKind.Absolute);
+
+        var shown = LinkSafety.DisplayForm(new Uri(link.OriginalString + hidden, UriKind.Absolute)) ?? "";
+
+        Assert.DoesNotContain(shown, c => hidden.Contains(c, StringComparison.Ordinal));
+        Assert.StartsWith("https://example.com/a", shown, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DisplayForm_HostWithoutAnAsciiForm_IsNull() =>
+        Assert.Null(LinkSafety.DisplayForm(new Uri("https://a․b.com/")));
 }

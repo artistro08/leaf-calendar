@@ -99,7 +99,7 @@ public sealed partial class DetailsPanel : UserControl
         CalendarDot.Fill  = LeafBrushes.FromHex(info.CalendarColor);
 
         // Actions (every link control shows where it really goes)
-        var call = d.ConferenceUri is { } uri ? DisplayUrl(uri) : "";
+        var call = d.ConferenceUri is { } uri ? LinkSafety.DisplayForm(uri) ?? "" : "";
         JoinButton.Visibility   = Visible(d.ConferenceUri is not null);
         DeleteButton.Visibility = Visible(info.CanEdit);
         ToolTipService.SetToolTip(JoinButton, $"Join (Ctrl+J)\n{call}");
@@ -109,7 +109,7 @@ public sealed partial class DetailsPanel : UserControl
         LocationRow.Visibility    = Visible(d.Location is { Length: > 0 });
         ConferenceText.Text       = $"Video call: {call}";
         ConferenceText.Visibility = Visible(d.ConferenceUri is not null);
-        ToolTipService.SetToolTip(MapsLink, d.Location is { Length: > 0 } location ? DisplayUrl(LinkSafety.MapsSearch(location)) : null);
+        ToolTipService.SetToolTip(MapsLink, d.Location is { Length: > 0 } location ? LinkSafety.DisplayForm(LinkSafety.MapsSearch(location)) : null);
 
         // Your Reply
         RsvpRow.Visibility = Visible(info.CanRespond);
@@ -119,7 +119,7 @@ public sealed partial class DetailsPanel : UserControl
         var guests = info.Draft.Guests;
         var mailto = CalendarViewModel.GuestsMailto(info);
         EmailGuestsLink.Visibility = Visible(mailto is not null);
-        ToolTipService.SetToolTip(EmailGuestsLink, mailto is null ? null : $"Email guests (E then E)\n{DisplayUrl(mailto)}");
+        ToolTipService.SetToolTip(EmailGuestsLink, mailto is null ? null : $"Email guests (E then E)\n{LinkSafety.DisplayForm(mailto)}");
         GuestsRow.Visibility  = Visible(guests.Count > 0);
         GuestsText.Text       = guests.Count == 1 ? "1 guest" : string.Create(CultureInfo.InvariantCulture, $"{guests.Count} guests");
         GuestList.ItemsSource = guests.Select(g => new GuestItem(g.Email, GuestDetail(g))).ToList();
@@ -158,11 +158,11 @@ public sealed partial class DetailsPanel : UserControl
     {
         Inline inline = new Run { Text = text };
 
-        // The link text can say anything, so hovering (or a screen reader) shows the real address
-        if (run.Link is { } link)
+        // The link text can say anything, so hovering (or a screen reader) shows the real address; no ASCII form, no link
+        var target = run.Link is { } shown ? LinkSafety.DisplayForm(shown) : null;
+        if (run.Link is { } link && target is not null)
         {
             var hyperlink = new Hyperlink();
-            var target    = DisplayUrl(link);
             hyperlink.Inlines.Add(inline);
             hyperlink.Click += (_, _) => Act(vm => vm.OpenLinkAsync(link), "details.link.failed");
             ToolTipService.SetToolTip(hyperlink, target);
@@ -170,7 +170,7 @@ public sealed partial class DetailsPanel : UserControl
             inline = hyperlink;
         }
 
-        if (run.Underline && run.Link is null)
+        if (run.Underline && target is null)
         {
             inline = Wrap(new Underline(), inline);
         }
@@ -200,25 +200,6 @@ public sealed partial class DetailsPanel : UserControl
         RsvpYes.IsChecked   = response == ResponseStatus.Accepted;
         RsvpMaybe.IsChecked = response == ResponseStatus.Tentative;
         RsvpNo.IsChecked    = response == ResponseStatus.Declined;
-    }
-
-    /// <summary>
-    /// A link's address as text for display. Bidirectional control characters are removed, so an address
-    /// can't be shown reversed or reordered to look like another site.
-    /// </summary>
-    internal static string DisplayUrl(Uri uri)
-    {
-        string text;
-        try
-        {
-            text = uri.AbsoluteUri;
-        }
-        catch (Exception ex) when (ex is UriFormatException or InvalidOperationException)
-        {
-            text = uri.OriginalString;
-        }
-
-        return new string(text.Where(c => c is not ((>= '\u202A' and <= '\u202E') or (>= '\u2066' and <= '\u2069') or '\u200E' or '\u200F')).ToArray());
     }
 
     static string ResponseLine(ResponseStatus response) => response switch
@@ -284,7 +265,16 @@ public sealed partial class DetailsPanel : UserControl
             ShowResponse(info.Details.SelfResponse);
         }
 
-        Act(vm => vm.RespondAsync(response, RsvpNote.Text, RsvpEmail.IsChecked == true), "details.respond.failed");
+        Act(
+            async vm =>
+            {
+                // The note went out with the reply, so the box is cleared for the next one
+                if (await vm.RespondAsync(response, RsvpNote.Text, RsvpEmail.IsChecked == true))
+                {
+                    RsvpNote.Text = "";
+                }
+            },
+            "details.respond.failed");
     }
 
     // The view model runs the work and logs a failure under the given name, so nothing escapes into the dispatcher

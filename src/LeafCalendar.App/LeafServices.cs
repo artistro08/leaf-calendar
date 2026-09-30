@@ -167,7 +167,8 @@ public sealed class LeafServices : IAsyncDisposable
                 return true;
             }
 
-            return await Launcher.LaunchUriAsync(uri);
+            // Open the canonical address (what the details panel shows), not the event's own spelling of it
+            return await Launcher.LaunchUriAsync(new Uri(uri.AbsoluteUri));
         }
         catch (Exception ex)
         {

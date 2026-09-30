@@ -631,29 +631,37 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         return emails.Count > 0 ? LinkSafety.MailtoGuests(emails, info.Details.Title) : null;
     }
 
-    /// <summary>Replies to the selected invite, asking "this event or all events" for a repeating one.</summary>
-    public async Task RespondAsync(ResponseStatus response, string? note, bool emailOrganizer)
+    /// <summary>
+    /// Replies to the selected invite, asking "this event or all events" for a repeating one. Returns true once the reply
+    /// is saved (it waits in the outbox for Google). A failure shows "Couldn't save your reply" and is logged as
+    /// <c>event.rsvp.failed</c>; it never throws.
+    /// </summary>
+    public async Task<bool> RespondAsync(ResponseStatus response, string? note, bool emailOrganizer)
     {
-        if (SelectedInfo is not { CanRespond: true } info)
-        {
-            return;
-        }
-
-        var o     = info.Occurrence;
-        var scope = await ScopeForAsync([o], includeFollowing: false);
-        if (scope is null)
-        {
-            return;
-        }
-
-        ReselectAfterRefresh(o, o.Start, o.IsAllDay);
         try
         {
+            if (SelectedInfo is not { CanRespond: true } info)
+            {
+                return false;
+            }
+
+            var o     = info.Occurrence;
+            var scope = await ScopeForAsync([o], includeFollowing: false);
+            if (scope is null)
+            {
+                return false;
+            }
+
+            ReselectAfterRefresh(o, o.Start, o.IsAllDay);
             _services.Editor.Respond(o, response, note, emailOrganizer, scope.Value);
+            return true;
         }
-        catch (Exception ex) when (IsEditFailure(ex))
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            Fail("calendar.respond.failed", ex);
+            _reselect = null;
+            _services.Log.Error("event.rsvp.failed", ex);
+            Say("Couldn't save your reply. Try again.", canUndo: false);
+            return false;
         }
     }
 

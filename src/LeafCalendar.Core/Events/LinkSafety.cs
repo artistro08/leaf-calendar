@@ -116,6 +116,46 @@ public static partial class LinkSafety
         }
     }
 
+    /// <summary>
+    /// A link's address as Leaf shows it (tooltips, "Video call:"), matching what <c>LaunchAsync</c> opens. A non-ASCII
+    /// host is shown in its ASCII (punycode) form, so a look-alike such as Cyrillic "аpple.com" can't pass for the real
+    /// site, and invisible or direction-changing characters are removed. Null when the host has no ASCII form (such a
+    /// link is never allowlisted, so it shouldn't be shown as clickable).
+    /// </summary>
+    public static string? DisplayForm(Uri uri)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
+
+        if (!TryIdnHost(uri, out var asciiHost))
+        {
+            return null;
+        }
+
+        string text;
+        try
+        {
+            text = uri.AbsoluteUri;
+        }
+        catch (Exception e) when (e is UriFormatException or InvalidOperationException)
+        {
+            return null;
+        }
+
+        // Swap A Unicode Host For Its ASCII Form (the host comes before anything else that could match)
+        var host = uri.Host;
+        var at   = host.Length > 0 && host != asciiHost ? text.IndexOf(host, StringComparison.Ordinal) : -1;
+        if (at >= 0)
+        {
+            text = string.Concat(text.AsSpan(0, at), asciiHost, text.AsSpan(at + host.Length));
+        }
+
+        return new string(text.Where(c => !IsHiddenCharacter(c)).ToArray());
+    }
+
+    // Direction controls (U+202A-202E, U+2066-2069, U+200E/F, U+061C) and zero-width characters (U+200B-200D, U+2060, U+FEFF)
+    static bool IsHiddenCharacter(char c) =>
+        c is (>= '‪' and <= '‮') or (>= '⁦' and <= '⁩') or (>= '​' and <= '‏') or '؜' or '⁠' or '﻿';
+
     /// <summary>The link to open for Join: Meet gets <c>authuser=&lt;email&gt;</c> so the right Google account joins (spec 8.5); others open as-is.</summary>
     public static Uri JoinUri(Uri conference, string accountEmail)
     {
