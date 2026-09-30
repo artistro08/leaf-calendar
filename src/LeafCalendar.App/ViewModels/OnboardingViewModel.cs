@@ -32,6 +32,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     CancellationTokenSource? _signIn;
     Account? _account;
     bool _closed;
+    bool _progressFailed;
 
     /// <summary>Starts on Welcome. The client step's form prefills a saved client ID. The dispatcher runs the sync progress timer.</summary>
     public OnboardingViewModel(LeafServices services, DispatcherQueue dispatcher)
@@ -341,16 +342,21 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
             return;
         }
 
-        // A Busy Or Failed Read Skips This Tick (the next one tries again)
+        // A Busy Or Failed Read Skips This Tick (the next one tries again; a failure streak is logged once)
         try
         {
             var (calendars, events, _) = Counts(account.Id);
-            SyncSummary = OnboardingFlow.Summary(calendars, events);
+            SyncSummary     = OnboardingFlow.Summary(calendars, events);
+            _progressFailed = false;
             Changed();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _services.Log.Error("onboarding.progress.failed", ex);
+            if (!_progressFailed)
+            {
+                _progressFailed = true;
+                _services.Log.Error("onboarding.progress.failed", ex);
+            }
         }
     }
 

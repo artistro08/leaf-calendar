@@ -1,4 +1,6 @@
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.App.Views;
 using LeafCalendar.App.Views.Settings;
@@ -36,10 +38,11 @@ public sealed partial class MainWindow : Window
 
     // Smallest window, in DIPs: both panes open (264 + 320) around an island that still fits the
     // widest title ("September 2026": 17 in, 170 wide), a 16 gap, and the widest toolbar (about 257,
-    // with "31 days" on the view button) 6 in from the island's right edge, which also leaves the
+    // with "31 days" on the view button, plus the sync state when it all shows: "Offline" about 62, a
+    // two-digit waiting count about 40, and the conflicts button 36) 6 in from the island's right edge, which also leaves the
     // week grid its 56 gutter and seven 48-wide days. The height keeps the sidebar's mini month, an account with three calendars, and
     // its footer, and shows about eight hours of the grid at the default hour height.
-    const double MinimumWidth  = CalendarPage.SidebarWidth + CalendarPage.TitleInset + 170 + 16 + 257 + CalendarPage.ToolbarInset + CalendarPage.DetailsWidth;
+    const double MinimumWidth  = CalendarPage.SidebarWidth + CalendarPage.TitleInset + 170 + 16 + 257 + 62 + 40 + 36 + CalendarPage.ToolbarInset + CalendarPage.DetailsWidth;
     const double MinimumHeight = 540;
 
     // The event actions' right end, in from the details panel's left edge: the edit glyph (8 in on its 32-wide
@@ -158,8 +161,11 @@ public sealed partial class MainWindow : Window
                     UpdateEventActions();
                 }
             };
+            _calendar.PropertyChanged += OnCalendarPropertyChanged;
             ApplyTheme(_calendar.Settings.Theme);
         }
+
+        ShowSyncState();
 
         ContentFrame.Navigate(typeof(CalendarPage), new CalendarPageArgs(_calendar, ToggleTheme));
         ContentFrame.BackStack.Clear();
@@ -414,5 +420,53 @@ public sealed partial class MainWindow : Window
             _                      => "Week",
         };
         DetailsToggle.IsChecked = s.DetailsPanelOpen;
+    }
+
+    // =========================================================================
+    // SYNC STATE
+    // =========================================================================
+
+    void OnCalendarPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(CalendarViewModel.ConflictCount) or nameof(CalendarViewModel.PendingCount) or nameof(CalendarViewModel.IsOffline))
+        {
+            ShowSyncState();
+        }
+    }
+
+    // Offline, the waiting count, and the conflicts badge sit in the title bar; the count's accessible name says what it counts
+    void ShowSyncState()
+    {
+        if (_calendar is not { } vm)
+        {
+            return;
+        }
+
+        PendingText.Text = vm.PendingCount.ToString(CultureInfo.InvariantCulture);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(PendingText, vm.PendingCount == 1 ? "1 change waiting to sync" : string.Create(CultureInfo.InvariantCulture, $"{vm.PendingCount} changes waiting to sync"));
+        OfflineIndicator.Visibility = vm.IsOffline ? Visibility.Visible : Visibility.Collapsed;
+        PendingIndicator.Visibility = vm.PendingCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ConflictsBadge.Value        = vm.ConflictCount;
+        ConflictsButton.Visibility  = vm.ConflictCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+        CalendarToolbar.UpdateLayout();
+        AppTitleBar.RecomputeDragRegions();
+    }
+
+    async void OnConflictsClick(object sender, RoutedEventArgs e)
+    {
+        if (_calendar is not { } vm)
+        {
+            return;
+        }
+
+        // async void: anything that escapes here would end the process
+        try
+        {
+            await ConflictDialog.ReviewAsync(RootGrid.XamlRoot, vm, RootGrid.ActualTheme == ElementTheme.Dark);
+        }
+        catch (Exception ex)
+        {
+            vm.LogError("conflict.review.failed", ex);
+        }
     }
 }

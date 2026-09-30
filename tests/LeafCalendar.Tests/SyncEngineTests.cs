@@ -375,4 +375,40 @@ public sealed class SyncEngineTests : IDisposable
 
         Assert.Equal(1, rejected);
     }
+
+    [Fact]
+    public async Task SyncAllAsync_GoogleUnreachable_GoesOfflineThenBackOnline()
+    {
+        var ct      = TestContext.Current.CancellationToken;
+        var offline = false;
+        var flips   = new List<bool>();
+
+        // Routes are first-match, so the dropped connection goes in before the standard routes
+        _h.Google.On(_ => offline, _ => throw new HttpRequestException("No connection"));
+        _h.RouteStandardGoogle();
+        _h.Engine.OfflineChanged += (_, _) => flips.Add(_h.Engine.IsOffline);
+
+        await _h.Engine.SyncAllAsync(ct);
+        Assert.False(_h.Engine.IsOffline);
+
+        offline = true;
+        await _h.Engine.SyncAllAsync(ct);
+        Assert.True(_h.Engine.IsOffline);
+
+        offline = false;
+        await _h.Engine.SyncAllAsync(ct);
+        Assert.False(_h.Engine.IsOffline);
+        Assert.Equal([true, false], flips);
+    }
+
+    [Fact]
+    public async Task SyncAllAsync_GoogleError_IsNotOffline()
+    {
+        _h.Google.On(HttpMethod.Get, SyncHarness.ListUrl, HttpStatusCode.InternalServerError, "{}");
+        _h.RouteStandardGoogle();
+
+        await _h.Engine.SyncAllAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(_h.Engine.IsOffline);
+    }
 }

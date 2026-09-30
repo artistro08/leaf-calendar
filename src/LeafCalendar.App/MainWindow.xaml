@@ -46,6 +46,66 @@
                             Orientation="Horizontal"
                             Spacing="4"
                             Visibility="Collapsed">
+                            <!-- Sync State (Google can't be reached, changes waiting to reach Google, and conflicts to review) -->
+                            <StackPanel
+                                x:Name="OfflineIndicator"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal"
+                                Spacing="4"
+                                Visibility="Collapsed"
+                                ToolTipService.ToolTip="Can't reach Google. Your changes are saved on this PC and sent when you're back online.">
+                                <FontIcon
+                                    Glyph="&#xF384;"
+                                    FontSize="12"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    AutomationProperties.AccessibilityView="Raw" />
+                                <TextBlock
+                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="Offline"
+                                    AutomationProperties.HelpText="Can't reach Google. Your changes are saved on this PC and sent when you're back online."
+                                    AutomationProperties.AutomationId="OfflineIndicator" />
+                            </StackPanel>
+                            <StackPanel
+                                x:Name="PendingIndicator"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal"
+                                Spacing="4"
+                                Visibility="Collapsed"
+                                ToolTipService.ToolTip="Changes waiting to reach Google">
+                                <FontIcon
+                                    Glyph="&#xE895;"
+                                    FontSize="12"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    AutomationProperties.AccessibilityView="Raw" />
+                                <TextBlock
+                                    x:Name="PendingText"
+                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    AutomationProperties.AutomationId="PendingChangesIndicator" />
+                            </StackPanel>
+                            <Button
+                                x:Name="ConflictsButton"
+                                Style="{StaticResource LeafBareIconButtonStyle}"
+                                Visibility="Collapsed"
+                                Click="OnConflictsClick"
+                                ToolTipService.ToolTip="Changes need your review"
+                                AutomationProperties.Name="Review changes"
+                                AutomationProperties.AutomationId="ConflictsButton">
+                                <Grid>
+                                    <FontIcon Glyph="&#xE7BA;" FontSize="16" />
+                                    <InfoBadge
+                                        x:Name="ConflictsBadge"
+                                        Margin="0,-6,-8,0"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        AutomationProperties.AccessibilityView="Raw" />
+                                </Grid>
+                            </Button>
+                            <!-- /Sync State -->
+
                             <DropDownButton x:Name="ViewModeButton" Height="32" Content="Week" AutomationProperties.AutomationId="ViewModeButton">
                                 <DropDownButton.Flyout>
                                     <MenuFlyout Placement="BottomEdgeAlignedRight">

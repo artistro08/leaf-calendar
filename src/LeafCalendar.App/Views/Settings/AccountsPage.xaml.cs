@@ -56,7 +56,9 @@ public sealed partial class AccountsPage : Page
         var content = "Leaf will sign out of this Google account and remove its calendars from this PC. Your Google Calendar isn't changed.";
         if (unsent > 0)
         {
-            content += string.Create(CultureInfo.GetCultureInfo("en-US"), $"\n\n{unsent} {(unsent == 1 ? "change you made hasn't" : "changes you made haven't")} reached Google yet and will be lost.");
+            content += unsent == 1
+                ? "\n\n1 change you made here hasn't reached Google yet, and it will be lost."
+                : string.Create(CultureInfo.GetCultureInfo("en-US"), $"\n\n{unsent} changes you made here haven't reached Google yet, and they will be lost.");
         }
 
         var dialog = new ContentDialog

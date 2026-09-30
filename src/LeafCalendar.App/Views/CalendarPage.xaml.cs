@@ -72,14 +72,15 @@ public sealed partial class CalendarPage : Page
         _noticeTimer.IsRepeating = false;
         _noticeTimer.Tick       += (_, _) => ViewModel.DismissNotice();
 
-        // A Lone E Edits Once The Sequence Times Out (unless an editor opened meanwhile)
+        // A Lone E Edits Once The Sequence Times Out (not while E is still held, and not if an editor opened or
+        // focus moved into a text box or popup meanwhile)
         _sequenceTimer = DispatcherQueue.CreateTimer();
         _sequenceTimer.Interval    = KeySequence.Timeout;
         _sequenceTimer.IsRepeating = false;
         _sequenceTimer.Tick       += (_, _) =>
         {
             var expired = _keys.Expire();
-            if (ViewModel.Editing is null)
+            if (ViewModel.Editing is null && !Controls.KeyState.IsDown(VirtualKey.E) && !ShortcutsBlocked())
             {
                 Execute(expired);
             }
@@ -265,7 +266,7 @@ public sealed partial class CalendarPage : Page
     /// Ignored while typing, or while focus is in a flyout, menu, dialog, or the go-to-date picker (a hover tooltip
     /// never takes focus, so it doesn't block shortcuts). Event shortcuts act on the selection; E starts a 1.5 s
     /// sequence (spec 8.7). With several events selected, Delete and Ctrl+Shift+Delete act on all of them, while the
-    /// one-event shortcuts (E, E then Y / N / M / E / U, V) do nothing and Ctrl+J joins the next meeting.
+    /// one-event shortcuts (E, E then Y / N / M / E / U, V) show "Select one event" and Ctrl+J joins the next meeting.
     /// </summary>
     /// <returns>True when the key was a shortcut and has been handled.</returns>
     public bool HandleShortcut(KeyRoutedEventArgs e)
@@ -276,8 +277,7 @@ public sealed partial class CalendarPage : Page
             return false;
         }
 
-        var focused = FocusManager.GetFocusedElement(XamlRoot);
-        if (focused is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox or CalendarView || IsInOpenPopup(focused))
+        if (ShortcutsBlocked())
         {
             return false;
         }
@@ -311,6 +311,13 @@ public sealed partial class CalendarPage : Page
         return true;
     }
 
+    // Typing, or focus in a flyout, menu, dialog, or the go-to-date picker
+    bool ShortcutsBlocked()
+    {
+        var focused = FocusManager.GetFocusedElement(XamlRoot);
+        return focused is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox or CalendarView || IsInOpenPopup(focused);
+    }
+
     static bool IsModifier(VirtualKey key) => key is VirtualKey.Control or VirtualKey.LeftControl or VirtualKey.RightControl
         or VirtualKey.Shift or VirtualKey.LeftShift or VirtualKey.RightShift
         or VirtualKey.Menu or VirtualKey.LeftMenu or VirtualKey.RightMenu
@@ -319,6 +326,16 @@ public sealed partial class CalendarPage : Page
     void Execute(ShortcutResult result)
     {
         var vm = ViewModel;
+
+        // One-Event Shortcuts With Several Selected: say why nothing happens
+        if (vm.Selection.Count > 1 && result.Command is CalendarCommand.EditEvent or CalendarCommand.EditDuration
+            or CalendarCommand.RsvpYes or CalendarCommand.RsvpNo or CalendarCommand.RsvpMaybe
+            or CalendarCommand.EmailGuests or CalendarCommand.OpenMeetingLink)
+        {
+            vm.ShowMessage("Select one event");
+            return;
+        }
+
         switch (result.Command)
         {
             case CalendarCommand.Today:              vm.GoToToday(); break;

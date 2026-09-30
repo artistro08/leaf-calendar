@@ -1,3 +1,4 @@
+using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
 using LeafCalendar.UITests.Support;
@@ -93,5 +94,21 @@ public sealed class EventShortcutTests : IDisposable
         leaf.Press(VirtualKeyShort.KEY_E);
 
         Assert.True(Launched("mailto:boss@example.com?to=sam%40example.com&subject=Design%20review"));
+    }
+
+    [Fact]
+    public void V_WithTwoSelected_AsksForOneEvent()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Dentist).Click();
+        Keyboard.Press(VirtualKeyShort.CONTROL);
+        leaf.WaitFor(Meeting).Click();
+        Keyboard.Release(VirtualKeyShort.CONTROL);
+
+        leaf.Press(VirtualKeyShort.KEY_V);
+
+        var notice = leaf.WaitFor("NoticeBar");
+        Assert.True(Retry.WhileFalse(() => notice.FindAllDescendants().Prepend(notice).Any(e => e.Properties.Name.ValueOrDefault == "Select one event"), TimeSpan.FromSeconds(5)).Success);
+        Assert.Empty(LeafApp.LaunchedLinks(_profile));
     }
 }

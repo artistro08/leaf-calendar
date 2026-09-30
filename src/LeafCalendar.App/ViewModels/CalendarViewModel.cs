@@ -122,6 +122,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         // Local Edits Reload The Views
         services.Editor.LocalZoneId = IanaZoneId(Zone);
         services.Editor.Changed    += OnEditsChanged;
+        services.Conflicts.Changed += OnEditsChanged;
+        RefreshSyncState();
 
         _minuteTimer = dispatcher.CreateTimer();
         _minuteTimer.Interval = TimeSpan.FromMinutes(1);
@@ -192,6 +194,18 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>The bar at the bottom of the calendar, or null.</summary>
     [ObservableProperty]
     public partial NoticeInfo? Notice { get; set; }
+
+    /// <summary>Changes Google had a different version of (the title bar badge).</summary>
+    [ObservableProperty]
+    public partial int ConflictCount { get; set; }
+
+    /// <summary>Changes waiting to reach Google (offline, or held for undo).</summary>
+    [ObservableProperty]
+    public partial int PendingCount { get; set; }
+
+    /// <summary>True when the last sync couldn't reach Google (no connection); edits wait until it can.</summary>
+    [ObservableProperty]
+    public partial bool IsOffline { get; set; }
 
     /// <summary>True while a reload updates the selection (not the user picking an event), so the details panel isn't opened for it.</summary>
     internal bool IsRefreshingSelection { get; private set; }
@@ -553,10 +567,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         _minuteTimer.Stop();
         _services.GoogleChanged -= OnGoogleChanged;
-        _services.Editor.Changed -= OnEditsChanged;
+        _services.Editor.Changed    -= OnEditsChanged;
+        _services.Conflicts.Changed -= OnEditsChanged;
         if (_attachedSync is not null)
         {
-            _attachedSync.DataChanged -= OnSyncDataChanged;
+            _attachedSync.DataChanged     -= OnSyncDataChanged;
+            _attachedSync.ChangesRejected -= OnChangesRejected;
+            _attachedSync.OfflineChanged  -= OnOfflineChanged;
         }
 
         _life.Cancel();
@@ -1165,6 +1182,45 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Hides the notice bar.</summary>
     public void DismissNotice() => Notice = null;
 
+    /// <summary>Shows a short message in the notice bar (no Undo).</summary>
+    public void ShowMessage(string text) => Say(text, canUndo: false);
+
+    /// <summary>Open conflicts, oldest first.</summary>
+    public IReadOnlyList<ConflictInfo> Conflicts() => _services.Conflicts.GetAll();
+
+    /// <summary>The side-by-side rows for a conflict, in this calendar's zone and clock.</summary>
+    public IReadOnlyList<FieldComparison> Compare(ConflictInfo conflict)
+    {
+        ArgumentNullException.ThrowIfNull(conflict);
+        return ConflictDiff.Compare(conflict.LocalJson, conflict.GoogleJson, Zone, Settings.Use24HourTime);
+    }
+
+    /// <summary>"Keep mine": re-sends the local change on top of Google's version.</summary>
+    public void KeepMine(ConflictInfo conflict)
+    {
+        try
+        {
+            _services.Conflicts.KeepMine(conflict);
+        }
+        catch (Exception ex) when (IsEditFailure(ex))
+        {
+            Fail("conflict.keep-mine.failed", ex);
+        }
+    }
+
+    /// <summary>"Keep Google's": drops the local change.</summary>
+    public void KeepGoogles(ConflictInfo conflict)
+    {
+        try
+        {
+            _services.Conflicts.KeepGoogles(conflict);
+        }
+        catch (Exception ex) when (IsEditFailure(ex))
+        {
+            Fail("conflict.keep-googles.failed", ex);
+        }
+    }
+
     /// <summary>Runs work started from a click or key; failures are logged under <paramref name="eventName"/>, never thrown into the dispatcher.</summary>
     public void Fire(Func<Task> work, string eventName = "calendar.action.failed") => Run(work, eventName);
 
@@ -1234,7 +1290,29 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         return EventStore.Get(conn, o.AccountId, o.CalendarId, o.EventId) is { } stored ? EventDetailsParser.Parse(stored.RawJson) : null;
     }
 
-    void OnEditsChanged(object? sender, EventArgs e) => Run(RefreshAsync);
+    // Local edits and conflict answers arrive on the UI thread
+    void OnEditsChanged(object? sender, EventArgs e)
+    {
+        RefreshSyncState();
+        Run(RefreshAsync);
+    }
+
+    void RefreshSyncState()
+    {
+        try
+        {
+            var (conflicts, pending) = _services.Conflicts.Counts();
+            ConflictCount = conflicts;
+            PendingCount  = pending;
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex)
+        {
+            // A busy database skips this refresh; the next edit or sync tries again
+            _services.Log.Error("calendar.sync-state.failed", ex);
+        }
+
+        IsOffline = _attachedSync?.IsOffline ?? false;
+    }
 
     DateOnly DayOf(CalendarOccurrence o) => o.IsAllDay ? o.AllDayStart : LocalDate(o.Start);
 
@@ -1262,20 +1340,40 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         if (_attachedSync is not null)
         {
-            _attachedSync.DataChanged -= OnSyncDataChanged;
+            _attachedSync.DataChanged     -= OnSyncDataChanged;
+            _attachedSync.ChangesRejected -= OnChangesRejected;
+            _attachedSync.OfflineChanged  -= OnOfflineChanged;
         }
 
         _attachedSync = _services.Google?.Sync;
         if (_attachedSync is not null)
         {
-            _attachedSync.DataChanged += OnSyncDataChanged;
+            _attachedSync.DataChanged     += OnSyncDataChanged;
+            _attachedSync.ChangesRejected += OnChangesRejected;
+            _attachedSync.OfflineChanged  += OnOfflineChanged;
         }
+
+        IsOffline = _attachedSync?.IsOffline ?? false;
     }
 
     void OnGoogleChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(AttachSync);
 
     // Sync runs on a background thread; hop to the UI thread before touching the cache
-    void OnSyncDataChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(ReloadCalendars);
+    void OnSyncDataChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(() =>
+    {
+        RefreshSyncState();
+        ReloadCalendars();
+    });
+
+    // Google refused edits for good (no permission): they were undone, so say so
+    void OnChangesRejected(object? sender, int count) => _dispatcher.TryEnqueue(() =>
+    {
+        Say(count == 1 ? "Google didn't accept a change, so it was undone." : string.Create(CultureInfo.InvariantCulture, $"Google didn't accept {count} changes, so they were undone."), canUndo: false);
+        RefreshSyncState();
+    });
+
+    // Reaching Google again (or losing it) also changes what's waiting to be sent
+    void OnOfflineChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(RefreshSyncState);
 
     void OnMinute()
     {

@@ -51,6 +51,9 @@ public static class LeafBrushes
     /// <summary>Primary text.</summary>
     public static SolidColorBrush PrimaryText(bool dark) => FromHex(dark ? "#FFFFFFFF" : "#E4000000");
 
+    /// <summary>Differing fields in the conflict dialog (the theme's SystemFillColorCautionBackground).</summary>
+    public static SolidColorBrush CautionBackground(bool dark) => FromHex(dark ? "#433519" : "#FFF4CE");
+
     /// <summary>Days outside the focused month.</summary>
     public static SolidColorBrush DimText(bool dark) => FromHex(dark ? "#5DFFFFFF" : "#5C000000");
 
