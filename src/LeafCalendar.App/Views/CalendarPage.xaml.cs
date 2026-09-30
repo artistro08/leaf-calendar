@@ -2,7 +2,9 @@ using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
@@ -232,7 +234,8 @@ public sealed partial class CalendarPage : Page
 
     /// <summary>
     /// Runs the calendar shortcut for a key press, called by the window so shortcuts work wherever focus is.
-    /// Ignored while typing, or while a flyout, menu, dialog, or the go-to-date picker is open.
+    /// Ignored while typing, or while a flyout, menu, dialog, or the go-to-date picker is open (a hover tooltip
+    /// doesn't count: it opens on its own wherever the mouse rests).
     /// </summary>
     /// <returns>True when the key was a shortcut and has been handled.</returns>
     public bool HandleShortcut(KeyRoutedEventArgs e)
@@ -244,7 +247,7 @@ public sealed partial class CalendarPage : Page
         }
 
         if (FocusManager.GetFocusedElement(XamlRoot) is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox or CalendarView
-            || VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot).Count > 0)
+            || VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot).Any(p => !IsToolTip(p)))
         {
             return false;
         }
@@ -328,6 +331,13 @@ public sealed partial class CalendarPage : Page
         {
             ViewModel.DismissNotice();
         }
+    }
+
+    // Asks the popup's automation peer: under Native AOT the child reads back as a ContentControl, so `is ToolTip` is false
+    static bool IsToolTip(Popup popup)
+    {
+        var peer = popup.Child is { } child ? FrameworkElementAutomationPeer.FromElement(child) : null;
+        return peer?.GetAutomationControlType() == AutomationControlType.ToolTip;
     }
 
     void OnLayoutChanged(object? sender, EventArgs e) => ApplyView();
