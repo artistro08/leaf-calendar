@@ -16,7 +16,7 @@ public sealed class AccountFlowTests : IDisposable
         SetupTests.EnterCredentials(leaf, "123-uitest.apps.googleusercontent.com", "GOCSPX-uitest");
         leaf.WaitFor("AccountsButton").AsButton().Invoke();
         leaf.WaitFor("AddAccountButton").AsButton().Invoke();
-        leaf.WaitForName("2 calendars · 5 events");
+        leaf.WaitForName("2 calendars · 6 events");
         return leaf;
     }
 

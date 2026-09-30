@@ -1,2 +1,7 @@
 GetCurrentProcess
 SetProcessWorkingSetSize
+AllowSetForegroundWindow
+CoWaitForMultipleObjects
+CWMO_FLAGS
+INFINITE
+SetForegroundWindow

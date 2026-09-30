@@ -3,12 +3,15 @@ using LeafCalendar.App.ViewModels;
 using LeafCalendar.App.Views;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Sync;
+using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Navigation;
+using Windows.Win32;
+using Windows.Win32.Foundation;
 
 namespace LeafCalendar.App;
 
@@ -100,6 +103,18 @@ public sealed partial class MainWindow : Window
         {
             ShowCalendar();
         }
+    }
+
+    /// <summary>Restores the window if it's minimized and brings it to the front (another launch was redirected here).</summary>
+    public void BringToFront()
+    {
+        if (_presenter.State == OverlappedPresenterState.Minimized)
+        {
+            _presenter.Restore();
+        }
+
+        Activate();
+        PInvoke.SetForegroundWindow(new HWND(Win32Interop.GetWindowFromWindowId(AppWindow.Id)));
     }
 
     /// <summary>Applies the app theme to the content and caption buttons.</summary>

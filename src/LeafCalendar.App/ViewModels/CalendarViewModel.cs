@@ -442,9 +442,6 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         await Cache.RefreshAsync(_life.Token);
 
-        // The views redraw, so the hovered event is found again when the mouse next enters one
-        PointerEvent = null;
-
         // An Edit Asked To Select Its Event Once It's Reloaded
         if (_reselect is { } reselect)
         {

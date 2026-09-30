@@ -4,6 +4,7 @@ using LeafCalendar.Core.Hosting;
 using LeafCalendar.Core.Sync;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.Windows.AppLifecycle;
 using Windows.Storage;
 
 namespace LeafCalendar.App;
@@ -12,6 +13,7 @@ namespace LeafCalendar.App;
 public partial class App : Application
 {
     MainWindow? _window;
+    LeafServices? _services;
     DispatcherQueueTimer? _probeTimer;
     AppLog? _log;
 
@@ -45,10 +47,15 @@ public partial class App : Application
             throw;
         }
 
-        _log = services.Log;
+        _log      = services.Log;
+        _services = services;
 
         _window = new MainWindow(services);
         _window.Activate();
+
+        // Another Launch Of This Profile Was Redirected Here (see Program), so come to the front
+        var dispatcher = DispatcherQueue.GetForCurrentThread();
+        AppInstance.GetCurrent().Activated += (_, _) => dispatcher.TryEnqueue(BringToFront);
 
         // Services Lifetime: the tray probe keeps them alive after the window closes
         if (options.TrayProbe)
@@ -59,6 +66,23 @@ public partial class App : Application
         {
             _window.Closed += async (_, _) => await DisposeServicesAsync(services);
         }
+    }
+
+    // Shows the window again when the tray probe closed it, then restores and foregrounds it
+    void BringToFront()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        if (_window is null)
+        {
+            _window         = new MainWindow(_services);
+            _window.Closed += (_, _) => _window = null;
+        }
+
+        _window.BringToFront();
     }
 
     // Window close must not crash the process on a disposal failure, so log and carry on

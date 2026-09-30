@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using FlaUI.Core;
@@ -58,9 +60,44 @@ public sealed class LeafApp : IDisposable
         "profiles",
         profile);
 
-    /// <summary>Deletes a profile's secrets and local files.</summary>
+    /// <summary>IDs of the Leaf processes running with <paramref name="profile"/> (found by command line).</summary>
+    public static IReadOnlyList<int> ProcessIds(string profile)
+    {
+        var ids = new List<int>();
+        foreach (var process in Process.GetProcessesByName("LeafCalendar"))
+        {
+            using (process)
+            {
+                if ((CommandLine(process) + " ").Contains($"--profile {profile} ", StringComparison.Ordinal))
+                {
+                    ids.Add(process.Id);
+                }
+            }
+        }
+
+        return ids;
+    }
+
+    /// <summary>
+    /// Ends any Leaf still running with the profile (e.g. one a helper launched before it threw, so no one disposed it),
+    /// waits for it to exit so leaf.db is closed, then deletes the profile's secrets and local files.
+    /// </summary>
     public static void DeleteProfile(string profile)
     {
+        foreach (var id in ProcessIds(profile))
+        {
+            try
+            {
+                using var process = Process.GetProcessById(id);
+                process.Kill();
+                process.WaitForExit(TimeSpan.FromSeconds(10));
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or Win32Exception)
+            {
+                // Already gone
+            }
+        }
+
         new CredentialLockerTokenStore(profile).DeleteAll();
 
         var folder = ProfileFolder(profile);
@@ -186,6 +223,11 @@ public sealed class LeafApp : IDisposable
             .SelectMany(w => w.FindAllDescendants(cf => cf.ByControlType(ControlType.Text)))
             .Any(e => e.Name.Contains(text, StringComparison.Ordinal));
 
+    /// <summary>True when the main window is the foreground window and isn't minimized.</summary>
+    public bool IsInFront =>
+        NativeMethods.GetForegroundWindow() == MainWindow.Properties.NativeWindowHandle.Value
+        && MainWindow.Patterns.Window.Pattern.WindowVisualState.Value != WindowVisualState.Minimized;
+
     /// <summary>Sizes the main window (in screen pixels), so panes overflow and scroll.</summary>
     public void Resize(int width, int height)
     {
@@ -213,6 +255,41 @@ public sealed class LeafApp : IDisposable
         _automation.Dispose();
     }
 
+    // The process's command line (ProcessCommandLineInformation), or empty when it can't be read
+    static string CommandLine(Process process)
+    {
+        const int ProcessCommandLineInformation = 60;
+        try
+        {
+            _ = NativeMethods.NtQueryInformationProcess(process.Handle, ProcessCommandLineInformation, 0, 0, out var size);
+            if (size <= 0)
+            {
+                return "";
+            }
+
+            var buffer = Marshal.AllocHGlobal(size);
+            try
+            {
+                if (NativeMethods.NtQueryInformationProcess(process.Handle, ProcessCommandLineInformation, buffer, size, out _) != 0)
+                {
+                    return "";
+                }
+
+                // UNICODE_STRING: Length (bytes), MaximumLength, then the Buffer pointer
+                var length = (ushort)Marshal.ReadInt16(buffer);
+                return Marshal.PtrToStringUni(Marshal.ReadIntPtr(buffer, IntPtr.Size), length / 2);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
+        {
+            return "";
+        }
+    }
+
     static class NativeMethods
     {
         internal const uint MouseEventMove        = 0x0001;
@@ -230,5 +307,13 @@ public sealed class LeafApp : IDisposable
         [DllImport("user32.dll")]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         internal static extern void mouse_event(uint flags, int dx, int dy, uint data, nuint extraInfo);
+
+        [DllImport("user32.dll")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        internal static extern nint GetForegroundWindow();
+
+        [DllImport("ntdll.dll")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        internal static extern int NtQueryInformationProcess(nint process, int informationClass, nint information, int length, out int returnLength);
     }
 }
