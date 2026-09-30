@@ -54,6 +54,11 @@ public sealed partial class OnboardingWindow : Window
         SetTitleBar(AppTitleBar);
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
 
+        // Window Title (Alt+Tab, taskbar, UI tests): the stock TitleBar copies its own "Leaf Calendar" onto the
+        // window when it loads, so put the window's title back once it has
+        var title = Title;
+        AppTitleBar.Loaded += (_, _) => AppWindow.Title = title;
+
         // Theme (the saved setting, when there is one)
         using (var conn = services.Database.Open())
         {
