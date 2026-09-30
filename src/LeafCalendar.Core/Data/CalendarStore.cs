@@ -164,6 +164,42 @@ public static partial class CalendarStore
         tx.Commit();
     }
 
+    /// <summary>
+    /// Each calendar's default popup reminders in minutes (Google's <c>defaultReminders</c>, <c>popup</c> only, within
+    /// Google's 0–40,320 range, no repeats). Email reminders are Google's own, so they're left out.
+    /// </summary>
+    public static IReadOnlyDictionary<(string AccountId, string CalendarId), IReadOnlyList<int>> PopupDefaults(SqliteConnection conn)
+    {
+        var result = new Dictionary<(string, string), IReadOnlyList<int>>();
+        foreach (var (account, id, json) in conn.Query(null, "SELECT account_id, id, default_reminders FROM calendars;", r => (r.GetString(0), r.GetString(1), r.GetStringOrNull(2))))
+        {
+            result[(account, id)] = PopupMinutes(json);
+        }
+
+        return result;
+    }
+
+    static List<int> PopupMinutes(string? json)
+    {
+        if (string.IsNullOrEmpty(json))
+        {
+            return [];
+        }
+
+        try
+        {
+            return (JsonSerializer.Deserialize(json, GoogleJsonContext.Default.ListReminderOverride) ?? [])
+                .Where(r => r is not null && r.Method == "popup" && r.Minutes is >= 0 and <= 40320)
+                .Select(r => r.Minutes)
+                .Distinct()
+                .ToList();
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
     static CalendarInfo Map(SqliteDataReader r) => new(
         r.GetString(0),
         r.GetString(1),

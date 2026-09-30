@@ -111,4 +111,23 @@ internal static class Schema
     public const string V4 = """
         ALTER TABLE outbox ADD COLUMN depends_on INTEGER;
         """;
+
+    /// <summary>
+    /// Version 5: every notification Leaf has shown, so a restart or a full resync never shows one twice. <c>key</c>
+    /// names the alert (kind, event instance, reminder minutes; or kind, event, and Google's <c>sequence</c> for
+    /// invites), <c>tag</c> is the short hash Windows knows the notification by, <c>event_end</c> says when the row may
+    /// go, and <c>retracted</c> marks a "Join now" that was withdrawn.
+    /// </summary>
+    public const string V5 = """
+        CREATE TABLE alert_ledger (
+            key           TEXT PRIMARY KEY,
+            kind          TEXT NOT NULL,
+            tag           TEXT NOT NULL,
+            event_end     INTEGER NOT NULL,
+            delivered_utc INTEGER NOT NULL,
+            retracted     INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE INDEX ix_alert_ledger_open ON alert_ledger (kind, retracted);
+        """;
 }
