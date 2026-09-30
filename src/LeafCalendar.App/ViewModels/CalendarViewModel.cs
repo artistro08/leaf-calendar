@@ -732,6 +732,23 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Copies the selected event's video link to the clipboard (the Join button's menu) and says so. It's the address
+    /// the Join tooltip shows, <see cref="LinkSafety.DisplayForm"/>; a link with no safe form isn't copied.
+    /// </summary>
+    public void CopyMeetingLink()
+    {
+        if (SelectedInfo?.Details.ConferenceUri is not { } link || LinkSafety.DisplayForm(link) is not { } text)
+        {
+            return;
+        }
+
+        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(text);
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        Say("Link copied", canUndo: false);
+    }
+
     /// <summary>Opens a description link (checked against the allowlist again).</summary>
     public Task OpenLinkAsync(Uri link) => _services.LaunchAsync(link);
 

@@ -167,6 +167,46 @@ public sealed class EditingTests : IDisposable
         Assert.Empty(_google.Writes);
     }
 
+    [Fact]
+    public void EditIcon_InDetailsTitleBar_ClicksThroughAndHidesWhileEditing()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+
+        // In the title bar row, its glyph (8 in on a 32-wide button) over the details content's left edge
+        var edit  = leaf.WaitFor("DetailsEditButton");
+        var box   = edit.BoundingRectangle;
+        var scale = box.Width / 32.0;
+        var top   = leaf.WaitFor("CalendarRoot").BoundingRectangle.Top;
+        var text  = leaf.WaitFor("DetailsTitle").BoundingRectangle.Left;
+        Assert.True(box.Bottom <= top + 48 * scale + 1, $"The edit button ends at {box.Bottom}, below the title bar row ({top + 48 * scale}).");
+        Assert.True(Math.Abs(box.Left + 8 * scale - text) <= 1.5, $"The edit glyph starts at {box.Left + 8 * scale}, the details text at {text}.");
+        Assert.Equal("Edit event", edit.Name);
+
+        // Delete touches it on the right, in the same row
+        var delete = leaf.WaitFor("DeleteEventButton").BoundingRectangle;
+        Assert.True(Math.Abs(delete.Left - box.Right) <= 1 && delete.Top == box.Top, $"Delete is at {delete}, the edit button at {box}.");
+
+        // A real click (not an automation invoke) reaches it through the title bar
+        ClickWhenSettled(edit);
+
+        Assert.NotNull(leaf.WaitFor("EditorTitle"));
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("DetailsEditButton") || leaf.Exists("DeleteEventButton"), TimeSpan.FromSeconds(5)).Success);
+    }
+
+    [Fact]
+    public void DeleteIcon_InDetailsTitleBar_DeletesWithUndo()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+
+        // A real click through the title bar
+        ClickWhenSettled(leaf.WaitFor("DeleteEventButton"));
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("Event_evt-single_202610011300"), TimeSpan.FromSeconds(5)).Success);
+        Assert.NotNull(leaf.WaitFor("UndoButton"));
+    }
+
     // Regression guard: may already pass before the editor exists (no Edit button at all)
     [Fact]
     public void InviteYouCantEdit_HasNoEditButton()

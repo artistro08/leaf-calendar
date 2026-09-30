@@ -35,6 +35,25 @@ public sealed class DetailsActionsTests : IDisposable
     }
 
     [Fact]
+    public void Join_NamesTheServiceAndCopiesTheLink()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Meeting).Click();
+
+        var join = leaf.WaitFor("DetailsJoinButton");
+        Assert.True(Retry.WhileFalse(() => join.Name == "Join Google Meet", TimeSpan.FromSeconds(5)).Success, $"The Join button says \"{join.Name}\".");
+
+        // The arrow opens the menu; Copy link puts the address the tooltip shows on the clipboard
+        Clipboard.Clear();
+        join.Patterns.ExpandCollapse.Pattern.Expand();
+        leaf.WaitForAnywhere("CopyMeetingLinkItem").AsMenuItem().Invoke();
+
+        Assert.True(Retry.WhileFalse(() => Clipboard.Text() == "https://meet.google.com/abc-defg-hij", TimeSpan.FromSeconds(5)).Success, $"The clipboard holds \"{Clipboard.Text()}\".");
+        var notice = leaf.WaitFor("NoticeBar");
+        Assert.True(Retry.WhileFalse(() => notice.FindAllDescendants().Prepend(notice).Any(e => e.Properties.Name.ValueOrDefault == "Link copied"), TimeSpan.FromSeconds(5)).Success);
+    }
+
+    [Fact]
     public void UpcomingJoin_OpensMeet()
     {
         using var leaf = Launch();
@@ -63,7 +82,7 @@ public sealed class DetailsActionsTests : IDisposable
     {
         using var leaf = Launch();
         leaf.WaitFor(Meeting).Click();
-        Assert.False(leaf.Exists("DetailsDeleteButton"));
+        Assert.False(leaf.Exists("DeleteEventButton"));
 
         leaf.WaitFor("DetailsRsvpNote").AsTextBox().Text = "Running late";
         leaf.WaitFor("DetailsRsvpMaybe").Click();

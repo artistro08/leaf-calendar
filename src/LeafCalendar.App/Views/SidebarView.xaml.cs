@@ -18,8 +18,7 @@ namespace LeafCalendar.App.Views;
 /// </summary>
 public sealed partial class SidebarView : UserControl
 {
-    // Mini Month Cells (whole-DIP sizes, so 7 columns fit the 243 px content width)
-    const double MiniCellWidth    = 32;
+    // Mini Month Rows (the seven columns share the sidebar's width evenly)
     const double MiniCellHeight   = 30;
     const double MiniHeaderHeight = 24;
 
@@ -107,12 +106,12 @@ public sealed partial class SidebarView : UserControl
     // MINI MONTH
     // =========================================================================
 
-    // Seven fixed columns: a weekday row, then six weeks of day buttons
+    // Seven even columns: a weekday row, then six weeks of day buttons
     void BuildMiniMonth()
     {
         for (var c = 0; c < 7; c++)
         {
-            MiniMonthDays.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(MiniCellWidth) });
+            MiniMonthDays.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         }
 
         MiniMonthDays.RowDefinitions.Add(new RowDefinition { Height = new GridLength(MiniHeaderHeight) });

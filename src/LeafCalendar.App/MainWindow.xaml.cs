@@ -36,6 +36,10 @@ public sealed partial class MainWindow : Window
     const double MinimumWidth  = CalendarPage.SidebarWidth + CalendarPage.TitleInset + 170 + 16 + 257 + CalendarPage.ToolbarInset + CalendarPage.DetailsWidth;
     const double MinimumHeight = 540;
 
+    // The event actions' right end, in from the details panel's left edge: the edit glyph (8 in on its 32-wide
+    // button) starts at the panel's 16 px content inset, and the delete button touches it
+    const double EventActionsSpan = 16 - 8 + 32 + 32;
+
     readonly LeafServices _services;
     readonly IconSource? _appIcon;
     readonly TranslateTransform _toolbarShift = new();
@@ -51,7 +55,7 @@ public sealed partial class MainWindow : Window
         _services = services;
         InitializeComponent();
         _appIcon = AppTitleBar.IconSource;
-        CalendarToolbar.RenderTransform = _toolbarShift;
+        ToolbarSlide.RenderTransform = _toolbarShift;
 
         // Shortcuts are handled at the root so they work wherever focus is
         RootGrid.PreviewKeyDown += (_, e) =>
@@ -129,6 +133,13 @@ public sealed partial class MainWindow : Window
         {
             _calendar = new CalendarViewModel(_services, DispatcherQueue);
             _calendar.LayoutChanged   += (_, _) => SyncMenu();
+            _calendar.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName is nameof(CalendarViewModel.SelectedInfo) or nameof(CalendarViewModel.Editing))
+                {
+                    UpdateEventActions();
+                }
+            };
             ApplyTheme(_calendar.Settings.Theme);
         }
 
@@ -162,12 +173,14 @@ public sealed partial class MainWindow : Window
             page.PanesChanged += (_, e) =>
             {
                 UpdateTitleBarLayout(e.Animate);
+                UpdateEventActions();
                 DetailsToggle.IsChecked = page.IsDetailsOpen;
             };
             SyncMenu();
         }
 
         UpdateTitleBarLayout(animate: false);
+        UpdateEventActions();
     }
 
     // Line the toolbar up with the calendar island's right edge (next to the caption buttons when
@@ -202,6 +215,7 @@ public sealed partial class MainWindow : Window
         _titleBarLayout = layout;
 
         CalendarToolbar.Margin = new Thickness(0, 0, layout.Right, 0);
+        EventActions.Margin    = new Thickness(0, 0, layout.Right - CalendarPage.ToolbarInset - EventActionsSpan, 0);
         AppTitleBar.Title      = layout.Sidebar ? "Leaf Calendar" : "";
         AppTitleBar.IconSource = layout.Sidebar ? _appIcon : null;
 
@@ -227,6 +241,23 @@ public sealed partial class MainWindow : Window
             _toolbarSlide.Begin();
         }
 
+        AppTitleBar.RecomputeDragRegions();
+    }
+
+    // Edit And Delete: shown in the details panel's title bar row while the open panel shows an event you can change
+    // (not while editing; the Delete key follows the same rule). The title bar only lets clicks through where its
+    // buttons are when it computes its regions, so they're recomputed once the buttons have their new layout.
+    void UpdateEventActions()
+    {
+        var show       = ContentFrame.Content is CalendarPage { IsDetailsOpen: true } && _calendar is { Editing: null, SelectedInfo.CanEdit: true };
+        var visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (EventActions.Visibility == visibility)
+        {
+            return;
+        }
+
+        EventActions.Visibility = visibility;
+        EventActions.UpdateLayout();
         AppTitleBar.RecomputeDragRegions();
     }
 
@@ -326,6 +357,16 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             _services.Log.Error("calendar.custom-days.failed", ex);
+        }
+    }
+
+    void OnEditEventClick(object sender, RoutedEventArgs e) => _calendar?.BeginEdit();
+
+    void OnDeleteEventClick(object sender, RoutedEventArgs e)
+    {
+        if (_calendar is { } vm)
+        {
+            vm.Fire(() => vm.DeleteAsync([.. vm.Selection], sendUpdates: true), "details.delete.failed");
         }
     }
 

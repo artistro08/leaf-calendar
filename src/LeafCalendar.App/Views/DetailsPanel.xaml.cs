@@ -14,7 +14,7 @@ namespace LeafCalendar.App.Views;
 
 /// <summary>
 /// Right panel, on the window's Mica like the sidebar. With nothing selected it lists upcoming events (next 8 hours)
-/// with Join buttons. With an event selected it shows the details, actions (Join, Delete), your reply, the guests,
+/// with Join buttons. With an event selected it shows the details, the Join button, your reply, the guests,
 /// and the description. Event content is plain text; description links are clickable only when the allowlist
 /// allows them, and every click goes through <see cref="LeafServices.LaunchAsync"/>.
 /// </summary>
@@ -135,11 +135,10 @@ public sealed partial class DetailsPanel : UserControl
         CalendarText.Text = info.CalendarName;
         CalendarDot.Fill  = LeafBrushes.FromHex(info.CalendarColor);
 
-        // Actions (every link control shows where it really goes)
+        // Join (it shows where it really goes)
         var call = d.ConferenceUri is { } uri ? LinkSafety.DisplayForm(uri) ?? "" : "";
         JoinButton.Visibility   = Visible(d.ConferenceUri is not null);
-        EditButton.Visibility   = Visible(info.CanEdit);
-        DeleteButton.Visibility = Visible(info.CanEdit);
+        JoinButton.Content      = JoinLabel(d.ConferenceUri);
         ToolTipService.SetToolTip(JoinButton, $"Join (Ctrl+J)\n{call}");
 
         // Location And Call
@@ -164,6 +163,20 @@ public sealed partial class DetailsPanel : UserControl
 
         RenderDescription(info.DescriptionRuns);
     }
+
+    // What the Join button joins, from the link's host (Core's provider detection)
+    static string JoinLabel(Uri? link) => (link is null ? null : LinkSafety.ProviderOf(link)) switch
+    {
+        MeetingProvider.GoogleMeet => "Join Google Meet",
+        MeetingProvider.Zoom       => "Join Zoom meeting",
+        MeetingProvider.Teams      => "Join Microsoft Teams meeting",
+        MeetingProvider.Webex      => "Join Webex meeting",
+        MeetingProvider.Around     => "Join Around meeting",
+        MeetingProvider.Whereby    => "Join Whereby meeting",
+        MeetingProvider.BlueJeans  => "Join BlueJeans meeting",
+        MeetingProvider.DoxyMe     => "Join doxy.me call",
+        _                          => "Join meeting",
+    };
 
     // Styled runs as native text. Links never get a NavigateUri from event content; a click goes through the allowlist.
     void RenderDescription(IReadOnlyList<DescriptionRun> runs)
@@ -281,11 +294,9 @@ public sealed partial class DetailsPanel : UserControl
     // ACTIONS
     // =========================================================================
 
-    void OnJoinClick(object sender, RoutedEventArgs e) => Act(vm => vm.JoinAsync(vm.SelectedInfo?.Occurrence), "details.join.failed");
+    void OnJoinClick(SplitButton sender, SplitButtonClickEventArgs e) => Act(vm => vm.JoinAsync(vm.SelectedInfo?.Occurrence), "details.join.failed");
 
-    void OnEditClick(object sender, RoutedEventArgs e) => _vm?.BeginEdit();
-
-    void OnDeleteClick(object sender, RoutedEventArgs e) => Act(vm => vm.DeleteAsync([.. vm.Selection], sendUpdates: true), "details.delete.failed");
+    void OnCopyMeetingLinkClick(object sender, RoutedEventArgs e) => _vm?.CopyMeetingLink();
 
     void OnMapsClick(object sender, RoutedEventArgs e) => Act(vm => vm.OpenLocationAsync(), "details.maps.failed");
 

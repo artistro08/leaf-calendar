@@ -65,20 +65,43 @@ public sealed class SidebarTests : IDisposable
     }
 
     [Fact]
-    public void Wheel_AnywhereOverSidebar_ScrollsIt()
+    public void MiniMonth_SpansTheSidebarWithMirroredInsets()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor($"CalendarToggle_{FamilyId}");
+
+        // The sidebar pane is the page's left 264 DIPs (a mini-month day button is 28 DIPs wide)
+        var scale = leaf.WaitFor("MiniDay_2026-10-01").BoundingRectangle.Width / 28.0;
+        var pane  = leaf.WaitFor("CalendarRoot").BoundingRectangle.Left;
+        var month = leaf.WaitFor("MiniMonth").BoundingRectangle;
+        var next  = leaf.WaitFor("MiniMonthNext").BoundingRectangle;
+        var left  = month.Left - pane;
+        var right = pane + 264 * scale - month.Right;
+
+        Assert.True(Math.Abs(left - right) <= 1.5, $"The mini month is {left} in from the left and {right} in from the right.");
+        Assert.True(Math.Abs(next.Right - month.Right) <= 1.5, $"The next-month arrow ends at {next.Right}, the mini month at {month.Right}.");
+    }
+
+    [Fact]
+    public void Wheel_AnywhereOverCalendarList_ScrollsOnlyTheList()
     {
         _google.ManyCalendars = true;
         using var leaf = Launch();
         leaf.WaitFor($"CalendarToggle_{FamilyId}");
         leaf.WaitFor("CalendarToggle_church@group.calendar.google.com");
         leaf.Resize(1300, 200);
-        var sidebar = leaf.WaitFor("SidebarScroll");
-        var scroll  = sidebar.Patterns.Scroll.Pattern;
+        var list   = leaf.WaitFor("SidebarScroll");
+        var scroll = list.Patterns.Scroll.Pattern;
         Assert.True(Retry.WhileFalse(() => scroll.VerticallyScrollable.ValueOrDefault, TimeSpan.FromSeconds(5)).Success);
 
-        // Near the top (mini month), the middle, and the bottom (account header and calendar rows)
-        var box = sidebar.BoundingRectangle;
-        foreach (var y in new[] { box.Top + 20, box.Top + box.Height / 2, box.Bottom - 20 })
+        // The mini month sits above the list and the footer below it, outside the scrolling part
+        var box    = list.BoundingRectangle;
+        var month  = leaf.WaitFor("MiniMonth").BoundingRectangle;
+        var footer = leaf.WaitFor("AccountsButton").BoundingRectangle;
+        Assert.True(month.Bottom <= box.Top && footer.Top >= box.Bottom, $"The list ({box}) overlaps the mini month ({month}) or the footer ({footer}).");
+
+        // Near the top (account header), the middle, and the bottom (calendar rows)
+        foreach (var y in new[] { box.Top + 12, box.Top + box.Height / 2, box.Bottom - 12 })
         {
             // Back to the top (again until it sticks: the last wheel scroll may still be gliding)
             Assert.True(Retry.WhileFalse(() =>
@@ -92,8 +115,12 @@ public sealed class SidebarTests : IDisposable
             Thread.Sleep(100);
             Mouse.Scroll(-2);
 
-            Assert.True(Retry.WhileFalse(() => scroll.VerticalScrollPercent.ValueOrDefault > 0, TimeSpan.FromSeconds(5)).Success, $"The wheel at y={y} didn't scroll the sidebar.");
+            Assert.True(Retry.WhileFalse(() => scroll.VerticalScrollPercent.ValueOrDefault > 0, TimeSpan.FromSeconds(5)).Success, $"The wheel at y={y} didn't scroll the calendar list.");
         }
+
+        // Scrolled, the mini month and the footer haven't moved
+        Assert.Equal(month, leaf.WaitFor("MiniMonth").BoundingRectangle);
+        Assert.Equal(footer, leaf.WaitFor("AccountsButton").BoundingRectangle);
     }
 
     [Fact]
