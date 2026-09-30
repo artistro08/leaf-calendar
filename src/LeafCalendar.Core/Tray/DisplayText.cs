@@ -7,8 +7,12 @@ public static class DisplayText
 {
     /// <summary>
     /// Control characters (line breaks, tabs) become spaces, the ends are trimmed, and text longer than
-    /// <paramref name="max"/> is clipped with "…", never between the two halves of an emoji.
+    /// <paramref name="max"/> is clipped with "&#x2026;", never between the two halves of an emoji.
     /// </summary>
+    /// <remarks>
+    /// Bidi, zero-width, and format characters are dropped, and so are characters XML can't carry (a lone surrogate
+    /// half, U+FFFE, U+FFFF), so the result is always safe to put in notification XML.
+    /// </remarks>
     public static string Clean(string? text, int max)
     {
         if (string.IsNullOrEmpty(text) || max <= 0)
@@ -18,8 +22,26 @@ public static class DisplayText
 
         // Control Characters Become One Space Per Run; Bidi And Zero-Width Characters Are Dropped (They Can Reorder The Tooltip)
         var builder = new StringBuilder(text.Length);
-        foreach (var c in text.Where(c => !IsInvisible(c)))
+        for (var i = 0; i < text.Length; i++)
         {
+            var c = text[i];
+
+            // Surrogate Pairs Stay Together; A Lone Half Is Dropped
+            if (char.IsSurrogate(c))
+            {
+                if (char.IsHighSurrogate(c) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]))
+                {
+                    builder.Append(c).Append(text[++i]);
+                }
+
+                continue;
+            }
+
+            if (IsInvisible(c))
+            {
+                continue;
+            }
+
             if (char.IsControl(c))
             {
                 if (builder.Length > 0 && builder[^1] != ' ')
@@ -45,9 +67,9 @@ public static class DisplayText
             cut--;
         }
 
-        return clean[..cut].TrimEnd() + "…";
+        return clean[..cut].TrimEnd() + "\u2026";
     }
 
-    // Bidi Marks/Embeddings/Overrides/Isolates, Zero-Width And Format Characters, Line/Paragraph Separators
-    static bool IsInvisible(char c) => c is '\u200E' or '\u200F' or '\u061C' or '\u2028' or '\u2029' or '\u2060' or '\uFEFF' or (>= '\u200B' and <= '\u200D') or (>= '\u202A' and <= '\u202E') or (>= '\u2066' and <= '\u2069');
+    // Bidi Marks/Embeddings/Overrides/Isolates, Zero-Width And Format Characters, Line/Paragraph Separators, XML Noncharacters
+    static bool IsInvisible(char c) => c is '\u200E' or '\u200F' or '\u061C' or '\u2028' or '\u2029' or '\u2060' or '\uFEFF' or '\uFFFE' or '\uFFFF' or (>= '\u200B' and <= '\u200D') or (>= '\u202A' and <= '\u202E') or (>= '\u2066' and <= '\u2069');
 }
