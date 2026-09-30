@@ -30,7 +30,6 @@ public sealed class TimeZoneTests : IDisposable
             Keyboard.Press(VirtualKeyShort.RETURN);
 
             Assert.NotNull(leaf.WaitFor("ZoneLabel_Asia/Tokyo"));
-            Keyboard.Press(VirtualKeyShort.ESCAPE);
         }
 
         using var relaunched = Launch();
@@ -69,7 +68,6 @@ public sealed class TimeZoneTests : IDisposable
             leaf.WaitForAnywhere("TimeZoneSearch").Focus();
 
             Assert.True(FlaUI.Core.Tools.Retry.WhileFalse(() => leaf.WaitFor("ZoneLabel_Asia/Tokyo").Name == "HQ", TimeSpan.FromSeconds(5)).Success);
-            Keyboard.Press(VirtualKeyShort.ESCAPE);
         }
 
         using var relaunched = Launch();
@@ -91,8 +89,6 @@ public sealed class TimeZoneTests : IDisposable
             Keyboard.Press(VirtualKeyShort.RETURN);
             leaf.WaitFor($"ZoneLabel_{id}");
         }
-
-        Keyboard.Press(VirtualKeyShort.ESCAPE);
 
         // Left To Right: Tokyo (added first), London (added last), then the PC's zone next to the days
         var tokyo  = leaf.WaitFor("ZoneLabel_Asia/Tokyo").BoundingRectangle;

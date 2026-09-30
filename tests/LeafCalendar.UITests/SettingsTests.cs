@@ -129,4 +129,54 @@ public sealed class SettingsTests : IDisposable
 
         Assert.True(Retry.WhileFalse(() => leaf.App.HasExited, TimeSpan.FromSeconds(15)).Success);
     }
+
+    [Fact]
+    public void ChangeOAuthClient_Cancel_ReturnsToAccounts()
+    {
+        using var leaf = Launch();
+        leaf.OpenSettings("Accounts");
+
+        leaf.WaitInSettings("ChangeClientButton").AsButton().Invoke();
+        Assert.Equal("123-uitest.apps.googleusercontent.com", leaf.WaitInSettings("SettingsClientIdBox").AsTextBox().Text);
+        leaf.WaitInSettings("ClientCancelButton").AsButton().Invoke();
+        Assert.NotNull(leaf.WaitInSettings("AddAccountButton"));
+
+        // Accounts in the pane (still selected) also comes back from the form
+        leaf.WaitInSettings("ChangeClientButton").AsButton().Invoke();
+        leaf.WaitInSettings("SettingsClientIdBox");
+        leaf.WaitInSettings("SettingsNav_Accounts").Click();
+        Assert.NotNull(leaf.WaitInSettings("AddAccountButton"));
+    }
+
+    [Fact]
+    public void Disconnect_WithUnsentChanges_WarnsTheyWillBeLost()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300");
+
+        // Offline: the delete stays in the outbox
+        _google.Offline = true;
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        leaf.WaitFor("DeleteEventButton").AsButton().Invoke();
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("Event_evt-single_202610011300"), TimeSpan.FromSeconds(5)).Success);
+        Thread.Sleep(7000);
+
+        var settings = leaf.OpenSettings("Accounts");
+        Retry.WhileNull(() => settings.FindFirstDescendant(cf => cf.ByName("Disconnect")), TimeSpan.FromSeconds(15)).Result!.AsButton().Invoke();
+
+        Assert.True(Retry.WhileFalse(() => leaf.AnyTextContains("reached Google yet and will be lost"), TimeSpan.FromSeconds(10)).Success);
+        leaf.WaitForAnywhere("CloseButton").AsButton().Invoke();
+        Assert.Equal(0, _google.RevokeCount);
+    }
+
+    [Fact]
+    public void About_GitHubLink_OpensTheRepository()
+    {
+        using var leaf = Launch();
+        leaf.OpenSettings("About");
+
+        leaf.WaitInSettings("GitHubLink").AsButton().Invoke();
+
+        Assert.True(Retry.WhileFalse(() => LeafApp.LaunchedLinks(_profile).Contains("https://github.com/artistro08/leaf-calendar"), TimeSpan.FromSeconds(5)).Success);
+    }
 }

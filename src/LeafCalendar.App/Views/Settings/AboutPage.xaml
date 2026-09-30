@@ -43,7 +43,7 @@
             <controls:SettingRow Glyph="&#xE943;" Header="Source code" Description="Leaf Calendar is open source. See the code, report a problem, or get the latest release.">
                 <HyperlinkButton
                     Content="View on GitHub"
-                    NavigateUri="https://github.com/artistro08/leaf-calendar"
+                    Click="OnGitHubClick"
                     AutomationProperties.AutomationId="GitHubLink" />
             </controls:SettingRow>
         </StackPanel>

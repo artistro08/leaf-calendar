@@ -43,6 +43,7 @@
             PaneDisplayMode="Auto"
             ExpandedModeThresholdWidth="800"
             SelectionChanged="OnSelectionChanged"
+            ItemInvoked="OnItemInvoked"
             AutomationProperties.AutomationId="SettingsNavigation">
             <Frame x:Name="ContentFrame" Padding="36,24" />
         </NavigationView>

@@ -196,6 +196,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>True while a reload updates the selection (not the user picking an event), so the details panel isn't opened for it.</summary>
     internal bool IsRefreshingSelection { get; private set; }
 
+    /// <summary>True when at least one selected event is one you can change (and so delete).</summary>
+    public bool CanDeleteSelection => _selection.Exists(o => _services.Editor.Permissions(o).CanEdit);
+
     /// <summary>True when <paramref name="occurrence"/> is selected.</summary>
     public bool IsSelected(CalendarOccurrence occurrence) => _selection.Exists(s => s.Key == occurrence.Key);
 
@@ -1341,10 +1344,15 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 }
 
 /// <summary>One calendar in the sidebar.</summary>
-public sealed partial class CalendarRow(CalendarInfo info) : ObservableObject
+public sealed partial class CalendarRow : ObservableObject
 {
-    /// <summary>The stored calendar.</summary>
-    public CalendarInfo Info { get; } = info;
+    /// <summary>Creates a row for <paramref name="info"/>.</summary>
+    public CalendarRow(CalendarInfo info) => Info = info;
+
+    /// <summary>The stored calendar (replaced in place when its color or visibility changes, so the row keeps its place and focus).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Name), nameof(IsVisible), nameof(Color))]
+    public partial CalendarInfo Info { get; set; }
 
     /// <summary>Display name.</summary>
     public string Name => Info.Summary;

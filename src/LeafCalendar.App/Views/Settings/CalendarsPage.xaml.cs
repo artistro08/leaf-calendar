@@ -17,6 +17,8 @@ namespace LeafCalendar.App.Views.Settings;
 public sealed partial class CalendarsPage : Page
 {
     SettingsContext _context = null!;
+    List<AccountGroup> _groups = [];
+    Flyout? _colorFlyout;
 
     /// <summary>Creates the page.</summary>
     public CalendarsPage()
@@ -53,12 +55,31 @@ public sealed partial class CalendarsPage : Page
 
     void OnCalendarsChanged(object? sender, EventArgs e) => Rebuild();
 
+    // Same accounts and calendars in the same order: update the rows in place, so focus and an open flyout stay put.
+    // Otherwise (a sync added or removed one, or they were reordered) build the list again.
     void Rebuild()
     {
         var groups = _context.Calendar.CalendarGroups();
+        EmptyText.Visibility = groups.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (SameLayout(_groups, groups))
+        {
+            foreach (var (row, fresh) in _groups.SelectMany(g => g.Calendars).Zip(groups.SelectMany(g => g.Calendars)))
+            {
+                row.Info = fresh.Info;
+            }
+
+            return;
+        }
+
+        _colorFlyout?.Hide();
+        _groups               = groups;
         GroupList.ItemsSource = groups;
-        EmptyText.Visibility  = groups.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    static bool SameLayout(List<AccountGroup> shown, List<AccountGroup> fresh) =>
+        shown.Count == fresh.Count
+        && shown.Zip(fresh).All(p => p.First.Email == p.Second.Email
+            && p.First.Calendars.Select(c => (c.Info.AccountId, c.Info.Id)).SequenceEqual(p.Second.Calendars.Select(c => (c.Info.AccountId, c.Info.Id))));
 
     // Only a real change counts: the switch also raises Toggled when the list is rebuilt
     void OnVisibleToggled(object sender, RoutedEventArgs e)
@@ -80,6 +101,7 @@ public sealed partial class CalendarsPage : Page
         var calendar = _context.Calendar;
         var grid     = new VariableSizedWrapGrid { Orientation = Orientation.Horizontal, MaximumRowsOrColumns = 6, ItemWidth = 32, ItemHeight = 32 };
         var flyout   = new Flyout();
+        _colorFlyout = flyout;
         foreach (var hex in EventColors.CalendarPalette)
         {
             var swatch = new Button

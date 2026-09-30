@@ -39,6 +39,7 @@ public sealed partial class SettingsWindow : Window
     readonly OverlappedPresenter _presenter = OverlappedPresenter.Create();
     readonly List<(SettingsSection Section, NavigationViewItem Item, Type Page)> _pages;
     readonly SettingsContext _context;
+    AccountsViewModel? _accounts;
     SettingsSection? _shown;
 
     SettingsWindow(LeafServices services, CalendarViewModel calendar)
@@ -124,18 +125,17 @@ public sealed partial class SettingsWindow : Window
         Navigation.SelectedItem = page.Item;
     }
 
-    /// <summary>Shows the OAuth client form in place of the Accounts page; saving it reloads Google and comes back.</summary>
+    /// <summary>
+    /// The Accounts page's view model, one for the window's lifetime, so a sign-in or sync that's running keeps its busy
+    /// state (and its buttons stay off) when you leave the page and come back.
+    /// </summary>
+    public AccountsViewModel Accounts => _accounts ??= new AccountsViewModel(_context.Services, _context.Calendar.ReloadCalendars);
+
+    /// <summary>Shows the OAuth client form (a sub-page of Accounts, which stays selected; Save and Cancel come back).</summary>
     public void ShowClientSetup()
     {
-        var services = _context.Services;
         _shown = null;
-        ContentFrame.Navigate(typeof(SetupPage), new SetupViewModel(services.Tokens, OnClientSavedAsync, services.Log), new DrillInNavigationTransitionInfo());
-
-        async Task OnClientSavedAsync()
-        {
-            await services.ReloadGoogleAsync();
-            Show(SettingsSection.Accounts);
-        }
+        ContentFrame.Navigate(typeof(ClientPage), _context, new DrillInNavigationTransitionInfo());
     }
 
     /// <summary>Applies the app theme to the content and caption buttons.</summary>
@@ -201,6 +201,20 @@ public sealed partial class SettingsWindow : Window
         foreach (var page in _pages)
         {
             if (ReferenceEquals(page.Item, selected))
+            {
+                Show(page.Section);
+                return;
+            }
+        }
+    }
+
+    // Also raised for the item that's already selected, so Accounts brings you back from the OAuth client form
+    void OnItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
+    {
+        var invoked = args.InvokedItemContainer;
+        foreach (var page in _pages)
+        {
+            if (ReferenceEquals(page.Item, invoked))
             {
                 Show(page.Section);
                 return;

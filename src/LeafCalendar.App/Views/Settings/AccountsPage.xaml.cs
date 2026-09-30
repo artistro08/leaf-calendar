@@ -19,14 +19,22 @@ public sealed partial class AccountsPage : Page
         ScrollIndicator.ShowOnHover(PageScroll);
     }
 
-    /// <summary>Page view model.</summary>
+    /// <summary>x:Bind helper: failures show as errors, progress as information.</summary>
+    public static InfoBarSeverity SeverityFor(bool isError) => isError ? InfoBarSeverity.Error : InfoBarSeverity.Informational;
+
+    /// <summary>Page view model (the window's, see <see cref="SettingsWindow.Accounts"/>).</summary>
     public AccountsViewModel ViewModel { get; private set; } = null!;
 
     /// <inheritdoc />
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         _context  = (SettingsContext)e.Parameter;
-        ViewModel = new AccountsViewModel(_context.Services, _context.Calendar.ReloadCalendars);
+        ViewModel = _context.Window.Accounts;
+        if (!ViewModel.IsBusy)
+        {
+            ViewModel.Refresh();
+        }
+
         Bindings.Update();
     }
 

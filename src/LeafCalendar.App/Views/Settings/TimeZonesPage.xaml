@@ -14,7 +14,7 @@
             <controls:SettingRow
                 Glyph="&#xE774;"
                 Header="Add a time zone"
-                Description="Columns show left to right in this order, next to your PC's time zone. You can show up to 4.">
+                Description="Columns show left to right in this order, next to your PC's time zone. Drag to reorder.">
                 <AutoSuggestBox
                     x:Name="Search"
                     Width="280"

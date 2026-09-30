@@ -32,7 +32,7 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:CalendarRow">
                                         <!-- Calendar Row (color picker, then the show/hide switch) -->
-                                        <controls:SettingRow Header="{x:Bind Name}" Description="{x:Bind local:CalendarsPage.ColorSource(Info)}">
+                                        <controls:SettingRow Header="{x:Bind Name, Mode=OneWay}" Description="{x:Bind local:CalendarsPage.ColorSource(Info), Mode=OneWay}">
                                             <StackPanel Orientation="Horizontal" Spacing="16">
                                                 <DropDownButton
                                                     Click="OnColorClick"
@@ -40,11 +40,11 @@
                                                     ToolTipService.ToolTip="Change color"
                                                     AutomationProperties.Name="{x:Bind local:CalendarsPage.ColorName(Name)}"
                                                     AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.ColorId(Info)}">
-                                                    <Ellipse Width="16" Height="16" Fill="{x:Bind local:CalendarsPage.BrushFor(Color)}" />
+                                                    <Ellipse Width="16" Height="16" Fill="{x:Bind local:CalendarsPage.BrushFor(Color), Mode=OneWay}" />
                                                 </DropDownButton>
                                                 <ToggleSwitch
                                                     Style="{StaticResource LeafCardToggleSwitchStyle}"
-                                                    IsOn="{x:Bind IsVisible}"
+                                                    IsOn="{x:Bind IsVisible, Mode=OneWay}"
                                                     Toggled="OnVisibleToggled"
                                                     Tag="{x:Bind}"
                                                     ToolTipService.ToolTip="Show in Leaf"

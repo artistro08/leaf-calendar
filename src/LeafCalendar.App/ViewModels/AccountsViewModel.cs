@@ -35,6 +35,7 @@ public sealed partial class AccountsViewModel : ObservableObject
     /// <summary>True while signing in or syncing.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNotBusy))]
+    [NotifyCanExecuteChangedFor(nameof(AddAccountCommand), nameof(SyncNowCommand))]
     public partial bool IsBusy { get; set; }
 
     /// <summary>True when no sign-in or sync is running.</summary>
@@ -47,6 +48,10 @@ public sealed partial class AccountsViewModel : ObservableObject
 
     /// <summary>True when <see cref="Message"/> is set.</summary>
     public bool HasMessage => Message is not null;
+
+    /// <summary>True when <see cref="Message"/> reports a failure (shown as an error), false for progress.</summary>
+    [ObservableProperty]
+    public partial bool IsError { get; set; }
 
     /// <summary>Reloads rows from the database.</summary>
     public void Refresh()
@@ -66,6 +71,7 @@ public sealed partial class AccountsViewModel : ObservableObject
         }
 
         HasNoAccounts = Accounts.Count == 0;
+        OnPropertyChanged(nameof(ClientId));
     }
 
     /// <summary>True when no account is connected.</summary>
@@ -113,10 +119,17 @@ public sealed partial class AccountsViewModel : ObservableObject
     public void ShowError(string eventName, Exception exception, string message = GenericFailure)
     {
         _services.Log.Error(eventName, exception);
+        ShowFailure(message);
+    }
+
+    // A failure the user can act on, shown as an error
+    void ShowFailure(string message)
+    {
+        IsError = true;
         Message = message;
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(IsNotBusy))]
     async Task AddAccountAsync()
     {
         if (_services.Google is not { } google)
@@ -125,6 +138,7 @@ public sealed partial class AccountsViewModel : ObservableObject
         }
 
         IsBusy  = true;
+        IsError = false;
         Message = "Finish signing in with Google in your browser.";
         try
         {
@@ -145,11 +159,11 @@ public sealed partial class AccountsViewModel : ObservableObject
         }
         catch (SignInException ex)
         {
-            Message = ex.Message;
+            ShowFailure(ex.Message);
         }
         catch (HttpRequestException)
         {
-            Message = "Couldn't reach Google. Check your connection and try again.";
+            ShowFailure("Couldn't reach Google. Check your connection and try again.");
         }
         catch (Exception ex)
         {
@@ -157,7 +171,7 @@ public sealed partial class AccountsViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(IsNotBusy))]
     async Task SyncNowAsync()
     {
         if (_services.Google is not { } google)
@@ -165,7 +179,9 @@ public sealed partial class AccountsViewModel : ObservableObject
             return;
         }
 
-        IsBusy = true;
+        IsBusy  = true;
+        IsError = false;
+        Message = null;
         try
         {
             try

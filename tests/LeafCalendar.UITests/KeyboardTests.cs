@@ -96,8 +96,9 @@ public sealed class KeyboardTests : IDisposable
     {
         using var leaf = Launch();
 
-        leaf.WaitFor("AddTimeZoneButton").AsButton().Invoke();
-        leaf.WaitForAnywhere("TimeZoneSearch").Focus();
+        // The RSVP note box in the details panel (the main window, where the shortcuts live)
+        leaf.WaitFor("Event_evt-meeting_202610011800").Click();
+        leaf.WaitFor("DetailsRsvpNote").Focus();
         FlaUI.Core.Input.Keyboard.Type("m");
 
         Assert.False(Retry.WhileFalse(() => leaf.Exists("MonthGrid"), TimeSpan.FromSeconds(2)).Success);
