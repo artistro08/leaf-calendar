@@ -102,6 +102,12 @@ public enum CalendarCommand
     /// <summary>Ctrl+V.</summary>
     Paste,
 
+    /// <summary>Alt+Left (or the mouse back button).</summary>
+    NavigateBack,
+
+    /// <summary>Alt+Right (or the mouse forward button).</summary>
+    NavigateForward,
+
     /// <summary>E was pressed; waiting up to 1.5 s for the second key.</summary>
     SequenceStarted,
 }
@@ -112,12 +118,18 @@ public readonly record struct ShortcutResult(CalendarCommand Command, int Days =
 /// <summary>Maps a key chord to a calendar command. Keys are <c>VirtualKey.ToString()</c> values.</summary>
 public static class ShortcutMap
 {
-    /// <summary>Resolves a chord; Alt chords are never calendar shortcuts.</summary>
+    /// <summary>Resolves a chord; the only Alt chords are Alt+Left and Alt+Right (back and forward).</summary>
     public static ShortcutResult Resolve(string key, bool ctrl, bool shift, bool alt)
     {
+        // Alt: Only Back And Forward (Windows' own history keys)
         if (alt)
         {
-            return default;
+            return ctrl || shift ? default : key switch
+            {
+                "Left"  => new(CalendarCommand.NavigateBack),
+                "Right" => new(CalendarCommand.NavigateForward),
+                _       => default,
+            };
         }
 
         // Ctrl+Shift

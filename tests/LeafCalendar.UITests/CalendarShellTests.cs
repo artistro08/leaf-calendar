@@ -1,4 +1,6 @@
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Input;
+using FlaUI.Core.WindowsAPI;
 using FlaUI.Core.Tools;
 using LeafCalendar.UITests.Support;
 
@@ -52,5 +54,35 @@ public sealed class CalendarShellTests : IDisposable
 
         Assert.NotNull(leaf.WaitFor("MonthGrid"));
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ViewModeButton").Name == "Month", TimeSpan.FromSeconds(5)).Success);
+    }
+
+    [Fact]
+    public void AltLeftAndAltRight_WalkBackAndForward()
+    {
+        using var leaf = Launch();
+        var title = leaf.WaitFor("PeriodTitle");
+        var first = title.Name;
+        leaf.WaitFor("NextButton").Click();
+        Assert.True(Retry.WhileFalse(() => title.Name != first, TimeSpan.FromSeconds(5)).Success);
+        var second = title.Name;
+
+        Keyboard.TypeSimultaneously(VirtualKeyShort.ALT, VirtualKeyShort.LEFT);
+        Assert.True(Retry.WhileFalse(() => title.Name == first, TimeSpan.FromSeconds(5)).Success);
+        Keyboard.TypeSimultaneously(VirtualKeyShort.ALT, VirtualKeyShort.RIGHT);
+        Assert.True(Retry.WhileFalse(() => title.Name == second, TimeSpan.FromSeconds(5)).Success);
+    }
+
+    [Fact]
+    public void MouseBackButton_ReturnsToTheViewBeforeASwitch()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("ViewModeButton").Click();
+        leaf.WaitForAnywhere("ViewDay").AsMenuItem().Invoke();
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ViewModeButton").Name.Contains("Day", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success);
+
+        Mouse.MoveTo(leaf.WaitFor("ViewHost").GetClickablePoint());
+        Mouse.Click(MouseButton.XButton1);
+
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ViewModeButton").Name.Contains("Week", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success);
     }
 }

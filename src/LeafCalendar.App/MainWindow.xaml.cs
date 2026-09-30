@@ -88,6 +88,27 @@ public sealed partial class MainWindow : Window
             }
         };
 
+        // Mouse Back And Forward Buttons (even over controls that handle the press)
+        RootGrid.AddHandler(UIElement.PointerPressedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler((_, e) =>
+        {
+            if (ContentFrame.Content is not CalendarPage page)
+            {
+                return;
+            }
+
+            var point = e.GetCurrentPoint(RootGrid).Properties;
+            if (point.IsXButton1Pressed)
+            {
+                page.ViewModel.GoBack();
+                e.Handled = true;
+            }
+            else if (point.IsXButton2Pressed)
+            {
+                page.ViewModel.GoForward();
+                e.Handled = true;
+            }
+        }), handledEventsToo: true);
+
         // Window Presenter (ours, kept, so its minimum size can be set without casting AppWindow.Presenter)
         AppWindow.SetPresenter(_presenter);
 

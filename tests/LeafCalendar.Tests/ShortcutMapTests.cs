@@ -61,4 +61,18 @@ public class ShortcutMapTests
     {
         Assert.Equal(command, ShortcutMap.Resolve(key, ctrl, shift, alt: false).Command);
     }
+
+    [Fact]
+    public void AltLeft_IsBack_AltRight_IsForward()
+    {
+        Assert.Equal(CalendarCommand.NavigateBack, ShortcutMap.Resolve("Left", false, false, alt: true).Command);
+        Assert.Equal(CalendarCommand.NavigateForward, ShortcutMap.Resolve("Right", false, false, alt: true).Command);
+    }
+
+    [Fact]
+    public void OtherAltChords_StayUnmapped()
+    {
+        Assert.Equal(CalendarCommand.None, ShortcutMap.Resolve("T", false, false, alt: true).Command);
+        Assert.Equal(CalendarCommand.None, ShortcutMap.Resolve("Left", true, false, alt: true).Command);
+    }
 }

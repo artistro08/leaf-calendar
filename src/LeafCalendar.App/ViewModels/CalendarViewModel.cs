@@ -92,6 +92,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     // Marks Leaf's own events on the Windows clipboard, so Ctrl+V pastes them only while nothing else was copied since
     const string ClipboardFormat = "LeafCalendar.Events";
 
+    // Places visited, for back and forward; _restoring keeps a back or forward step from being recorded again
+    readonly NavigationHistory _history = new();
+    bool _restoring;
+
     /// <summary>Loads settings and calendars and starts the minute clock.</summary>
     public CalendarViewModel(LeafServices services, DispatcherQueue dispatcher)
     {
@@ -115,6 +119,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
         PeriodStart = ViewNavigator.PeriodStart(Settings.ViewMode, Today, Settings.WeekStart);
         PeriodTitle = ViewNavigator.MonthTitle(PeriodStart);
+
+        // Seed History With The Opening Place
+        _history.Visit(new ViewPlace(Mode, Settings.CustomDayCount, PeriodStart));
 
         services.GoogleChanged += OnGoogleChanged;
         AttachSync();
@@ -250,6 +257,41 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         PeriodStart = ViewNavigator.PeriodStart(Mode, date, Settings.WeekStart);
         CursorTime  = null;
         NavigateRequested?.Invoke(this, PeriodStart);
+
+        // Record The Place
+        if (!_restoring)
+        {
+            _history.Visit(new ViewPlace(Mode, Settings.CustomDayCount, PeriodStart));
+        }
+    }
+
+    /// <summary>Goes back to the previously shown view and date, if any.</summary>
+    public void GoBack() => Restore(_history.Back());
+
+    /// <summary>Goes forward again after going back, if possible.</summary>
+    public void GoForward() => Restore(_history.Forward());
+
+    void Restore(ViewPlace? place)
+    {
+        if (place is null)
+        {
+            return;
+        }
+
+        _restoring = true;
+        try
+        {
+            if (Mode != place.Mode || Settings.CustomDayCount != place.CustomDayCount)
+            {
+                Update(s => s with { ViewMode = place.Mode, CustomDayCount = place.CustomDayCount });
+            }
+
+            NavigateTo(place.PeriodStart);
+        }
+        finally
+        {
+            _restoring = false;
+        }
     }
 
     /// <summary>Switches view (and day count for <see cref="CalendarViewMode.Days"/>), keeping the selected event's day, else today when it's showing, else the period start.</summary>

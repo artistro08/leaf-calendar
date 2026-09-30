@@ -341,6 +341,8 @@ public sealed partial class CalendarPage : Page
             case CalendarCommand.Today:              vm.GoToToday(); break;
             case CalendarCommand.Previous:           vm.Previous(); break;
             case CalendarCommand.Next:               vm.Next(); break;
+            case CalendarCommand.NavigateBack:       vm.GoBack(); break;
+            case CalendarCommand.NavigateForward:    vm.GoForward(); break;
             case CalendarCommand.DayView:            vm.SetMode(Core.Settings.CalendarViewMode.Day); break;
             case CalendarCommand.WeekView:           vm.SetMode(Core.Settings.CalendarViewMode.Week); break;
             case CalendarCommand.MonthView:          vm.SetMode(Core.Settings.CalendarViewMode.Month); break;
