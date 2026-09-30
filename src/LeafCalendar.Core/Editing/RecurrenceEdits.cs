@@ -19,15 +19,45 @@ public static class RecurrenceEdits
     /// <summary>
     /// Stops the series just before <paramref name="splitStart"/>: UNTIL one second before (timed, in UTC) or the day before (all-day, a date), and no COUNT.
     /// All-day starts are the calendar date at midnight; the offset is ignored.
+    /// Never extends a series: a rule whose UNTIL is already earlier, or (given <paramref name="seriesStart"/>) whose COUNT runs out before the split, is kept as it is.
     /// </summary>
-    public static IReadOnlyList<string> EndBefore(IReadOnlyList<string> recurrence, DateTimeOffset splitStart, bool isAllDay)
+    public static IReadOnlyList<string> EndBefore(IReadOnlyList<string> recurrence, DateTimeOffset splitStart, bool isAllDay, DateTimeOffset? seriesStart = null, string? timeZoneId = null)
     {
         // Use The Date As Written For All-Day, Not Its UTC Date
         var until = isAllDay
             ? DateOnly.FromDateTime(splitStart.DateTime).AddDays(-1).ToString("yyyyMMdd", CultureInfo.InvariantCulture)
             : splitStart.UtcDateTime.AddSeconds(-1).ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
 
-        return [.. recurrence.Select(line => IsRule(line) ? WithParts(line, "UNTIL", until) : line)];
+        return [.. recurrence.Select(line => !IsRule(line) || EndsBy(line, until, splitStart, isAllDay, seriesStart, timeZoneId) ? line : WithParts(line, "UNTIL", until))];
+    }
+
+    // True when the rule already ends at or before the new end (so ending it again would extend it)
+    static bool EndsBy(string line, string until, DateTimeOffset splitStart, bool isAllDay, DateTimeOffset? seriesStart, string? timeZoneId)
+    {
+        if (Part(line, "UNTIL") is { } existing)
+        {
+            return UntilEnd(existing) is { } existingEnd && UntilEnd(until) is { } newEnd && existingEnd <= newEnd;
+        }
+
+        return seriesStart is { } start
+            && Part(line, "COUNT") is { } countText
+            && int.TryParse(countText, CultureInfo.InvariantCulture, out var count)
+            && CountBefore(line, start, timeZoneId, splitStart, isAllDay) >= count;
+    }
+
+    // An UNTIL value as the last moment it allows (a date counts through its end)
+    static DateTime? UntilEnd(string value) =>
+        DateTime.TryParseExact(value.TrimEnd('Z'), "yyyyMMdd'T'HHmmss", CultureInfo.InvariantCulture, DateTimeStyles.None, out var instant) ? instant
+        : DateTime.TryParseExact(value, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date.AddDays(1).AddSeconds(-1)
+        : null;
+
+    // Occurrences of one rule before the split (COUNT counts before EXDATE removes any)
+    static int CountBefore(string line, DateTimeOffset seriesStart, string? timeZoneId, DateTimeOffset splitStart, bool isAllDay)
+    {
+        var seriesDate = DateOnly.FromDateTime(seriesStart.DateTime);
+        return isAllDay
+            ? RecurrenceExpander.ExpandAllDay([line], seriesDate, seriesDate, DateOnly.FromDateTime(splitStart.DateTime)).Count
+            : RecurrenceExpander.ExpandTimed([line], seriesStart, timeZoneId, seriesStart, splitStart).Count;
     }
 
     /// <summary>
@@ -53,11 +83,7 @@ public static class RecurrenceEdits
                 continue;
             }
 
-            // Count Occurrences Of The Rule Alone (COUNT Counts Before EXDATE Removes Any)
-            var seriesDate = DateOnly.FromDateTime(seriesStart.DateTime);
-            var before     = isAllDay
-                ? RecurrenceExpander.ExpandAllDay([line], seriesDate, seriesDate, DateOnly.FromDateTime(splitStart.DateTime)).Count
-                : RecurrenceExpander.ExpandTimed([line], seriesStart, timeZoneId, seriesStart, splitStart).Count;
+            var before = CountBefore(line, seriesStart, timeZoneId, splitStart, isAllDay);
 
             // Nothing Left After The Split
             if (count - before < 1)

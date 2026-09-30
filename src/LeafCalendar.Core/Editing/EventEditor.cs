@@ -331,8 +331,13 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     static void SplitSeries(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, StoredEvent master, EventDraft masterDraft, DateTimeOffset originalStart, EventDraft before, EventDraft after, bool sendUpdates)
     {
         // End The Old Series Just Before This Instance (its later exceptions go with it)
-        var ended = masterDraft with { Recurrence = RecurrenceEdits.EndBefore(masterDraft.Recurrence, originalStart, masterDraft.IsAllDay) };
-        AddPatch(conn, tx, o.AccountId, o.CalendarId, master.Id, master, EventJson.BuildPatch(masterDraft, ended, master.RawJson), sendUpdates, notBefore: null);
+        var ended = masterDraft with { Recurrence = RecurrenceEdits.EndBefore(masterDraft.Recurrence, originalStart, masterDraft.IsAllDay, masterDraft.Start, masterDraft.TimeZone) };
+        var endPatch = EventJson.BuildPatch(masterDraft, ended, master.RawJson);
+        if (endPatch.Count > 0)
+        {
+            AddPatch(conn, tx, o.AccountId, o.CalendarId, master.Id, master, endPatch, sendUpdates, notBefore: null);
+        }
+
         EventStore.RemoveExceptionsFrom(conn, tx, o.AccountId, o.CalendarId, master.Id, originalStart);
 
         // Start A New Series Here, With The Changes (none when a COUNT rule has nothing left at the split)
@@ -390,8 +395,11 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
 
             case EditScope.Following:
                 // ponytail: the old series' later exceptions stay on screen until the next sync (Google cancels them); snapshot them too if that flash matters
-                var ended = masterDraft with { Recurrence = RecurrenceEdits.EndBefore(masterDraft.Recurrence, originalStart, masterDraft.IsAllDay) };
-                return AddPatch(conn, tx, o.AccountId, o.CalendarId, master.Id, master, EventJson.BuildPatch(masterDraft, ended, master.RawJson), sendUpdates, notBefore);
+                var ended = masterDraft with { Recurrence = RecurrenceEdits.EndBefore(masterDraft.Recurrence, originalStart, masterDraft.IsAllDay, masterDraft.Start, masterDraft.TimeZone) };
+                var endPatch = EventJson.BuildPatch(masterDraft, ended, master.RawJson);
+
+                // Already Ended Before This Instance (a stale occurrence): nothing to do
+                return endPatch.Count == 0 ? null : AddPatch(conn, tx, o.AccountId, o.CalendarId, master.Id, master, endPatch, sendUpdates, notBefore);
 
             default:
                 var instanceId = InstanceIdOf(o, master, originalStart);

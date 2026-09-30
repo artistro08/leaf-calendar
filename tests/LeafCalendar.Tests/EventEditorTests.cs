@@ -400,4 +400,19 @@ public sealed class EventEditorTests : IDisposable
         Assert.Throws<ArgumentException>(() => _editor.Save(o, before, before with { CalendarId = Family }, scope, sendUpdates: false));
         Assert.Empty(Outbox());
     }
+
+    [Fact]
+    public void Delete_FollowingWithStaleLaterOccurrence_NeverExtendsTheSeries()
+    {
+        var fri = Occurrence("evt-weekly", Oct9);
+        var mon = Occurrence("evt-weekly", Oct12);
+        _editor.Delete([fri], EditScope.Following, sendUpdates: false);
+
+        // A Separate Call With An Occurrence Captured Before The First Delete
+        _editor.Delete([mon], EditScope.Following, sendUpdates: false);
+
+        var entry = Assert.Single(Outbox());
+        Assert.Contains("UNTIL=20261009T132959Z", entry.Payload!, StringComparison.Ordinal);
+        Assert.DoesNotContain(Day(Oct9), x => x.RecurringEventId == "evt-weekly");
+    }
 }

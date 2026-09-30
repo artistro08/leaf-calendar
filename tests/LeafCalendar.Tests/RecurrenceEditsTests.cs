@@ -100,4 +100,26 @@ public class RecurrenceEditsTests
     {
         Assert.Equal(["RRULE:FREQ=WEEKLY;BYDAY=TU,"], RecurrenceEdits.ShiftWeekdays(["RRULE:FREQ=WEEKLY;BYDAY=MO,"], 1));
     }
+
+    [Fact]
+    public void EndBefore_UntilAlreadyEarlier_KeepsTheRule()
+    {
+        // Already ended just before Wed Oct 7; ending it before Fri Oct 9 must not bring Wed back
+        string[] recurrence = ["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;UNTIL=20261007T132959Z"];
+
+        var ended = RecurrenceEdits.EndBefore(recurrence, new DateTimeOffset(2026, 10, 9, 9, 30, 0, TimeSpan.FromHours(-4)), isAllDay: false);
+
+        Assert.Equal(recurrence, ended);
+    }
+
+    [Fact]
+    public void EndBefore_CountRunsOutEarlier_KeepsTheRule()
+    {
+        // COUNT=2 ends after Wed Oct 7, before the Oct 12 split
+        string[] recurrence = ["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=2"];
+
+        var ended = RecurrenceEdits.EndBefore(recurrence, Split, isAllDay: false, SeriesStart, "America/New_York");
+
+        Assert.Equal(recurrence, ended);
+    }
 }
