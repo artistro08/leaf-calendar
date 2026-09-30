@@ -71,6 +71,10 @@ Leaf Calendar is a fast, low-memory, native Windows 11 desktop calendar with fea
 | Share availability | Google free/busy based, copied as text. Plus a button that opens Google's appointment schedule page. |
 | Search | No search box. Search goes through the command menu. |
 | Tray menu | XAML menu, placement follows taskbar position. |
+| Settings | Its own window modeled on the Windows 11 Settings app (Milestone 3 owner redesign). See Section 6.7. |
+| First run | Its own small onboarding window with a line-style `PipsPager` step indicator (Milestone 3 owner redesign). See Section 4.1. |
+| Instances | One Leaf per profile. A second launch brings the running one to the front (Milestone 3 owner request). See Section 6.1. |
+| Design standard | Every screen follows `docs/design-standard.md`, drawn from the owner's other Windows apps (Milestone 3). |
 
 ---
 
@@ -139,6 +143,13 @@ Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manag
 3. Leaf receives the authorization code on a loopback listener and exchanges it for tokens.
 4. More accounts are added the same way. No account limit.
 
+Built in Milestone 3 (owner redesign) as its own onboarding window, shown instead of the main window until there's an OAuth client and an account:
+- A small fixed-size window (520 × 640 DIP), centered on the monitor under the cursor, Mica, custom title bar, only the Close button.
+- Steps: Welcome, OAuth client (guide with the fixed Google Cloud Console link, client ID and secret saved to Credential Locker), Sign in with Google, Syncing (calendars and events found so far), Done ("Open Leaf Calendar" closes onboarding and opens the main window).
+- Steps slide in from the right going forward and from the left going back. A stock `PipsPager`, restyled so each pip is a short line, shows the step at the bottom.
+- Closing before the end asks "Leave setup?" first. Leaving without an account exits Leaf.
+- Changing the OAuth client later happens in Settings › Accounts.
+
 ### 4.2 OAuth Flow
 
 - Authorization Code flow with **PKCE** (`S256`), a random `state` value, and a loopback redirect `http://127.0.0.1:<random port>/`.
@@ -167,7 +178,7 @@ Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manag
 
 Anyone can send an invite, so event content is treated as hostile.
 
-- **Launching links:** only `https` URLs and an allowlist of meeting app schemes (`zoommtg`, `zoomus`, `msteams`, `webex`) can be launched. Anything else (`file`, `ms-msdt`, `javascript`, custom schemes) is blocked.
+- **Launching links:** only `https` URLs and an allowlist of meeting app schemes (`zoommtg`, `zoomus`, `msteams`, `webex`) can be launched. Anything else (`file`, `ms-msdt`, `javascript`, custom schemes) is blocked. `mailto` links (description links and "Email guests") open the mail app. Every launch goes through one checked path.
 - **Descriptions:** Google's HTML subset is parsed into native text runs (bold, italic, underline, lists, line breaks, links). No scripts, no remote images, no embedded browser. Only `https` and `mailto` links are clickable.
 - **Meeting link detection:** URL parsing through `Uri`, host matched against a known list (Meet, Zoom, Teams, Webex, Around, Whereby, BlueJeans, Doxy.me), never by substring.
 
@@ -206,7 +217,7 @@ Anyone can send an invite, so event content is treated as hostile.
 | `accounts` | Account ID, email, display name, avatar URL, status (ok / needs sign-in), settings timezone. |
 | `calendars` | Calendar ID, account ID, summary, summary override, color, access role, hidden, order, default reminders, sync token. |
 | `events` | Event ID, calendar ID, iCalUID, etag, status, start/end (UTC plus original zone), all-day flag, recurrence rules, recurring event ID, original start, updated time, raw JSON. Indexed by calendar and time range. |
-| `outbox` | Sequence, account ID, operation (create / patch / delete / move / RSVP), target event, payload JSON, base etag, send-updates choice, attempt count, last error. |
+| `outbox` | Sequence, account ID, operation (create / patch / delete / move / RSVP), target event, payload JSON, base etag, send-updates choice, attempt count, last error. Also the rows before the edit (for undo and rejected edits), a hold-until time (the 6-second undo window for deletes), and a state (pending or conflict). |
 | `conflicts` | Outbox entry, local version JSON, Google version JSON, detected time. |
 | `settings` | Key/value app settings. |
 
@@ -256,13 +267,17 @@ Anyone can send an invite, so event content is treated as hostile.
 
 - Mica backdrop. Theme follows the system, or is forced Light or Dark.
 - XAML `TitleBar` control with `AppWindow.TitleBar.PreferredHeightOption = Tall`, so the caption buttons match the 48 px title bar height.
+- Minimum size 1086 × 540 DIP, computed from the panes and the title bar toolbar (including the sync status slot), so nothing overlaps (Milestone 3).
+- One Leaf per profile (Milestone 3, owner request). A second launch with the same profile hands its activation to the running Leaf, which comes to the front, and exits; its other arguments are ignored. Throwaway `uitest-` profiles still run side by side.
+- Every screen follows `docs/design-standard.md`.
 
 ### 6.2 Title Bar (Left to Right)
 
 1. Navigation icon (toggles the sidebar), top-left corner.
-2. Back button, visible only when there is somewhere to go back to (Settings pages, an opened command menu result).
+2. Back button, visible only when there is somewhere to go back to (an opened command menu result). Settings no longer needs it (Section 6.7).
 3. Leaf icon and "Leaf Calendar".
-4. Right side: Today button, previous/next pagers, view picker (Day / Week / Month / X days), search icon (opens the command menu), then the caption buttons.
+4. Right side: Today button, previous/next pagers, sync status icon (Milestone 3: pending changes and conflicts, details in its tooltip), view picker (Day / Week / Month / X days), then the caption buttons.
+5. Search icon (opens the command menu): at the top of the left sidebar, in its title-bar row, styled like the details panel's edit and delete icons (owner request, Milestone 3; built with the command menu in Milestone 5).
 
 ### 6.3 Sidebar (Collapsible)
 
@@ -273,6 +288,7 @@ Anyone can send an invite, so event content is treated as hostile.
   - Drag to reorder
   - Right-click: rename (Google summary override), change color, show upcoming events for this calendar
 - Buttons: "Share availability" and "Manage Google booking pages" (opens Google Calendar's appointment schedule page in the browser).
+- Milestone 3 owner redesign: calendar rows only show or hide their calendar (the checkbox keeps the calendar's color); colors moved to Settings › Calendars. The "Google booking pages" link was removed from the sidebar. An icon-only Settings button sits at the bottom-left of the sidebar and replaces the Accounts row.
 - Subscribed calendars appear automatically from the Google calendar list.
 
 ### 6.4 Calendar Area
@@ -308,7 +324,12 @@ Anyone can send an invite, so event content is treated as hostile.
 
 ### 6.7 Settings
 
-A full page inside the main window, with the Back button. See Section 9 for every option.
+Its own window (Milestone 3 owner redesign), modeled on the Windows 11 Settings app. See Section 9 for every option.
+
+- One Settings window at a time; opening it again brings it forward.
+- Mica, custom title bar, a left `NavigationView` that collapses when narrow, and pages of Windows-Settings-style setting rows.
+- Opens at 1000 × 720 DIP, resizable, minimum 640 × 500 DIP.
+- Pages in Milestone 3: General, Calendars (color and visibility per calendar, grouped by account), Time zones, Accounts (add, sync now, disconnect with an unsent-changes warning, change OAuth client), About (version and a fixed GitHub link). The remaining Section 9 options arrive in Milestone 5.
 
 ---
 
@@ -343,6 +364,7 @@ A full page inside the main window, with the Back button. See Section 9 for ever
 - Multi-select with `Ctrl`+click or `Shift`+drag box, then bulk move, delete, or recolor.
 - `Ctrl+C`, `Ctrl+X`, `Ctrl+V` copy, cut, and paste events. `Delete` removes them.
 - Repeating events ask: this event, this and following, or all events.
+- Guests are emailed about drags and deletes (Delete); Ctrl+Shift+Delete deletes without emailing.
 
 ### 7.4 Guests and RSVP
 
@@ -618,6 +640,8 @@ Each milestone gets its own implementation plan. Tests are built within each mil
    - Tray icon, flyout, and XAML menu
    - Notifications, persistent join toast
    - Global shortcuts and join picker
+   - Deferred from Milestone 3:
+     - The "Conflict needs review" Windows notification (the in-app badge and dialog shipped in Milestone 3)
 5. **Power features:**
    - Command menu, people overlay, Meet with
    - Share availability
@@ -628,10 +652,20 @@ Each milestone gets its own implementation plan. Tests are built within each mil
      - Calendar rename (Google summary override; needs the Milestone 3 write path)
      - "Show upcoming events for this calendar"
      - Time travel (Z)
-     - Title-bar search icon (opens the command menu)
+     - Title-bar search icon (opens the command menu), placed at the top of the left sidebar in its title-bar row, styled like the details panel's edit and delete icons (owner request, Milestone 3)
+   - Deferred from Milestone 3:
+     - Guest autocomplete (contacts, other contacts, Workspace directory) and meeting rooms/resources
+     - Creating Google Meet links, including offline `conferenceData.createRequest` (spec 5.4 item 6), and the per-account default conferencing setting
+     - Event type (Focus time, Out of office), Busy/Free, and Public/Private in the editor
+     - The event's own time zone in the editor, and E then Z
+     - E then F (participant overlay, with the people overlay)
+     - Map provider choice (Google Maps is used until the settings page; Bing Maps arrives with it)
 6. **Polish and Store prep:**
    - Visual pass and accessibility pass
    - Store listing requirements
+   - Deferred from Milestone 3:
+     - Rich description editing (bold, italic, underline, lists); descriptions are edited as plain text
+     - Shift+drag box select (Ctrl+click, Shift+click, X, and Ctrl+A select today)
 
 ---
 
