@@ -32,4 +32,12 @@ public class EventIdsTests
 
         Assert.Equal("holiday_20261012", EventIds.InstanceId("holiday", start, isAllDay: true));
     }
+
+    [Fact]
+    public void InstanceId_AllDay_UsesLocalDateForPositiveOffset()
+    {
+        var start = new DateTimeOffset(2026, 10, 12, 0, 0, 0, TimeSpan.FromHours(10));
+
+        Assert.Equal("holiday_20261012", EventIds.InstanceId("holiday", start, isAllDay: true));
+    }
 }

@@ -9,7 +9,9 @@ namespace LeafCalendar.Core.Google;
 /// <remarks>
 /// Retries 429, any 5xx, and 403 when Google's reason is <c>rateLimitExceeded</c> or
 /// <c>userRateLimitExceeded</c>. Honors <c>Retry-After</c> up to 60 seconds. Other failures
-/// return right away with their body still readable.
+/// return right away with their body still readable. Only GET and HEAD are retried: a write may have
+/// been saved before the error, so replaying it could duplicate it or report a false conflict. Writes
+/// fail fast and the outbox tries them again on the next sync.
 /// </remarks>
 /// <seealso href="https://developers.google.com/workspace/calendar/api/guides/errors"/>
 public sealed class GoogleRetryHandler(TimeProvider time) : DelegatingHandler
@@ -22,6 +24,12 @@ public sealed class GoogleRetryHandler(TimeProvider time) : DelegatingHandler
     /// <inheritdoc />
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
+        // Writes Are Never Replayed
+        if (request.Method != HttpMethod.Get && request.Method != HttpMethod.Head)
+        {
+            return await base.SendAsync(request, cancellationToken);
+        }
+
         for (var attempt = 1; ; attempt++)
         {
             var response = await base.SendAsync(request, cancellationToken);

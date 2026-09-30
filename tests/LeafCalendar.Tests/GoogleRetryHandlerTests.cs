@@ -45,6 +45,21 @@ public class GoogleRetryHandlerTests : IDisposable
         Assert.Equal(3, _google.Requests.Count);
     }
 
+    [Theory]
+    [InlineData("POST")]
+    [InlineData("PATCH")]
+    [InlineData("DELETE")]
+    public async Task SendAsync_WriteGets503_IsNotRetried(string method)
+    {
+        _google.On(new HttpMethod(method), Url, HttpStatusCode.ServiceUnavailable, "{}");
+
+        using var request = new HttpRequestMessage(new HttpMethod(method), Url);
+        using var response = await CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Single(_google.Requests);
+    }
+
     [Fact]
     public async Task SendAsync_RateLimit403_Retries()
     {

@@ -35,9 +35,9 @@ public static class EventIds
         return new string(chars);
     }
 
-    /// <summary>Google's ID for one instance of a series: <c>{master}_{yyyyMMddTHHmmssZ}</c>, or <c>{master}_{yyyyMMdd}</c> when all-day.</summary>
+    /// <summary>Google's ID for one instance of a series: <c>{master}_{yyyyMMddTHHmmssZ}</c>, or <c>{master}_{yyyyMMdd}</c> (the local calendar date) when all-day.</summary>
     public static string InstanceId(string masterId, DateTimeOffset originalStart, bool isAllDay) =>
         isAllDay
-            ? string.Create(CultureInfo.InvariantCulture, $"{masterId}_{originalStart.UtcDateTime:yyyyMMdd}")
+            ? string.Create(CultureInfo.InvariantCulture, $"{masterId}_{originalStart.DateTime:yyyyMMdd}")
             : string.Create(CultureInfo.InvariantCulture, $"{masterId}_{originalStart.UtcDateTime:yyyyMMdd'T'HHmmss'Z'}");
 }

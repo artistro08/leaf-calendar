@@ -71,9 +71,16 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
     // =========================================================================
 
     /// <summary>Creates an event with Leaf's own ID and returns Google's JSON for it.</summary>
+    /// <exception cref="ArgumentException"><paramref name="eventJson"/> has no <c>id</c>; Leaf always makes its own so a retry can't duplicate.</exception>
     /// <exception cref="DuplicateEventException">The ID exists already (an earlier try got through).</exception>
     public async Task<string> InsertEventAsync(string accountId, string calendarId, string eventJson, bool sendUpdates, CancellationToken ct)
     {
+        // Client-Generated IDs Are Required
+        if (GoogleJson.TryParse(eventJson, GoogleJsonContext.Default.GoogleEvent)?.Id is not { Length: > 0 })
+        {
+            throw new ArgumentException("The event JSON must carry a non-empty id.", nameof(eventJson));
+        }
+
         using var response = await SendAsync(accountId, HttpMethod.Post, $"{EventsPath(calendarId)}?sendUpdates={Updates(sendUpdates)}", eventJson, null, ct);
         return await ReadEventAsync(response, ct);
     }

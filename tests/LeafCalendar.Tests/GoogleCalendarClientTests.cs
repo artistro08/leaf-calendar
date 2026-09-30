@@ -99,7 +99,7 @@ public class GoogleCalendarClientTests : IDisposable
     public async Task PatchEventAsync_SendsIfMatchBodyAndSendUpdates()
     {
         _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
-        _google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","etag":"2","summary":"New"}""");
+        _google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","etag":"\"2\"","summary":"New"}""");
 
         var json = await CreateClient().PatchEventAsync(Account, "leaf.tester@gmail.com", "evt-single", """{"summary":"New"}""", "\"1\"", sendUpdates: true, TestContext.Current.CancellationToken);
 
@@ -107,7 +107,7 @@ public class GoogleCalendarClientTests : IDisposable
         Assert.Equal("\"1\"", request.IfMatch);
         Assert.Equal("""{"summary":"New"}""", request.Body);
         Assert.Equal("all", request.Query("sendUpdates"));
-        Assert.Contains("\"etag\":\"2\"", json, StringComparison.Ordinal);
+        Assert.Contains("\\\"2\\\"", json, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -153,6 +153,14 @@ public class GoogleCalendarClientTests : IDisposable
 
         await Assert.ThrowsAsync<DuplicateEventException>(
             () => CreateClient().InsertEventAsync(Account, "leaf.tester@gmail.com", """{"id":"abcde12345"}""", false, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task InsertEventAsync_NoId_ThrowsAndSendsNothing()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => CreateClient().InsertEventAsync(Account, "leaf.tester@gmail.com", """{"summary":"x"}""", false, TestContext.Current.CancellationToken));
+        Assert.Empty(_google.Requests);
     }
 
     [Fact]
