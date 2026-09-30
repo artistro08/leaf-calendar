@@ -30,8 +30,11 @@ public sealed partial class AccountsPage : Page
     {
         _context  = (SettingsContext)e.Parameter;
         ViewModel = _context.Window.Accounts;
+        // Nothing Running: a finished action's message is stale by now
         if (!ViewModel.IsBusy)
         {
+            ViewModel.Message = null;
+            ViewModel.IsError = false;
             ViewModel.Refresh();
         }
 

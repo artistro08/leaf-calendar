@@ -43,6 +43,16 @@ public sealed partial class ClientPage : Page
 
     void OnCancelClick(object sender, RoutedEventArgs e) => _context.Window.Show(SettingsSection.Accounts);
 
+    // Enter in the client ID moves on to the secret
+    void OnClientIdKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Enter)
+        {
+            e.Handled = true;
+            SecretBox.Focus(FocusState.Keyboard);
+        }
+    }
+
     // Enter saves (the form's primary action)
     void OnSecretKeyDown(object sender, KeyRoutedEventArgs e)
     {

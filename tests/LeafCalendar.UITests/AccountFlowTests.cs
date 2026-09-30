@@ -12,13 +12,12 @@ public sealed class AccountFlowTests : IDisposable
 
     public void Dispose() => _google.Dispose();
 
-    // Setup, then Settings › Accounts › Add Google account
+    // Onboarding signs the account in (and syncs it), then Settings › Accounts shows it
     LeafApp LaunchAndAddAccount(string profile)
     {
         var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri}");
-        SetupTests.EnterCredentials(leaf, "123-uitest.apps.googleusercontent.com", "GOCSPX-uitest");
+        OnboardingTests.CompleteOnboarding(leaf);
         leaf.OpenSettings("Accounts");
-        leaf.WaitInSettings("AddAccountButton").AsButton().Invoke();
         WaitForNameInSettings(leaf, "2 calendars · 6 events");
         return leaf;
     }
@@ -44,9 +43,16 @@ public sealed class AccountFlowTests : IDisposable
         {
             using var leaf = LaunchAndAddAccount(profile);
 
-            Assert.NotNull(WaitForNameInSettings(leaf, Email));
+            // Add Google account in Settings signs in again (the fake has one user, so the same account comes back)
+            var tokenRequests = _google.Requests.Count(r => r.StartsWith("POST /token", StringComparison.Ordinal));
+            leaf.WaitInSettings("AddAccountButton").AsButton().Invoke();
+            Assert.True(Retry.WhileFalse(() => _google.Requests.Count(r => r.StartsWith("POST /token", StringComparison.Ordinal)) > tokenRequests, TimeSpan.FromSeconds(15)).Success);
+            Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("AddAccountButton").IsEnabled, TimeSpan.FromSeconds(15)).Success);
 
-            // The main window's sidebar lists the new account's calendars without a restart
+            Assert.NotNull(WaitForNameInSettings(leaf, Email));
+            Assert.NotNull(WaitForNameInSettings(leaf, "2 calendars · 6 events"));
+
+            // The main window's sidebar lists the account's calendars
             Assert.NotNull(leaf.WaitForName(Email));
         }
         finally

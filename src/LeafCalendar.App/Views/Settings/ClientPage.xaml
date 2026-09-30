@@ -15,11 +15,13 @@
                     Width="320"
                     PlaceholderText="123-abc.apps.googleusercontent.com"
                     Text="{x:Bind ViewModel.ClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    KeyDown="OnClientIdKeyDown"
                     AutomationProperties.Name="Client ID"
                     AutomationProperties.AutomationId="SettingsClientIdBox" />
             </controls:SettingRow>
             <controls:SettingRow Glyph="&#xE72E;" Header="Client secret" Description="Leaf keeps it in Windows Credential Locker.">
                 <PasswordBox
+                    x:Name="SecretBox"
                     Width="320"
                     Password="{x:Bind ViewModel.ClientSecret, Mode=TwoWay}"
                     KeyDown="OnSecretKeyDown"

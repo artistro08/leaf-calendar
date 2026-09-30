@@ -1,8 +1,12 @@
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
+using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
+using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Editing;
 using LeafCalendar.UITests.Support;
+using Microsoft.Data.Sqlite;
 
 namespace LeafCalendar.UITests;
 
@@ -159,7 +163,9 @@ public sealed class SettingsTests : IDisposable
         leaf.WaitFor("Event_evt-single_202610011300").Click();
         leaf.WaitFor("DeleteEventButton").AsButton().Invoke();
         Assert.True(Retry.WhileTrue(() => leaf.Exists("Event_evt-single_202610011300"), TimeSpan.FromSeconds(5)).Success);
-        Thread.Sleep(7000);
+
+        // Wait for the outbox entry (it may only be written once the 6 s undo window ends)
+        Assert.True(Retry.WhileFalse(() => UnsentChanges() > 0, TimeSpan.FromSeconds(15)).Success);
 
         var settings = leaf.OpenSettings("Accounts");
         Retry.WhileNull(() => settings.FindFirstDescendant(cf => cf.ByName("Disconnect")), TimeSpan.FromSeconds(15)).Result!.AsButton().Invoke();
@@ -167,6 +173,34 @@ public sealed class SettingsTests : IDisposable
         Assert.True(Retry.WhileFalse(() => leaf.AnyTextContains("reached Google yet and will be lost"), TimeSpan.FromSeconds(10)).Success);
         leaf.WaitForAnywhere("CloseButton").AsButton().Invoke();
         Assert.Equal(0, _google.RevokeCount);
+    }
+
+    [Fact]
+    public void ChangeOAuthClient_EnterInClientId_MovesToTheSecret()
+    {
+        using var leaf = Launch();
+        leaf.OpenSettings("Accounts");
+        leaf.WaitInSettings("ChangeClientButton").AsButton().Invoke();
+
+        leaf.WaitInSettings("SettingsClientIdBox").Focus();
+        Keyboard.Type(VirtualKeyShort.ENTER);
+
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("SettingsClientSecretBox").Properties.HasKeyboardFocus.Value, TimeSpan.FromSeconds(5)).Success);
+    }
+
+    // Edits of the seeded account waiting in the outbox, read straight from the profile's database
+    int UnsentChanges()
+    {
+        var database = new LeafDatabase(Path.Combine(LeafApp.ProfileFolder(_profile), "leaf.db"));
+        try
+        {
+            return new ConflictResolver(database).UnsentFor(SeededProfile.AccountId);
+        }
+        finally
+        {
+            // Pooled connections would keep leaf.db open and block deleting the profile
+            SqliteConnection.ClearAllPools();
+        }
     }
 
     [Fact]

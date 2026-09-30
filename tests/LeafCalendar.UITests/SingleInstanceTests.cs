@@ -34,6 +34,29 @@ public sealed class SingleInstanceTests : IDisposable
     }
 
     [Fact]
+    public void Launch_SameProfileDuringOnboarding_BringsOnboardingForward()
+    {
+        var profile = LeafApp.NewProfile();
+        try
+        {
+            using var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri}");
+            leaf.WaitInOnboarding("OnboardingWelcome");
+
+            using var second = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri}");
+            Assert.True(Retry.WhileFalse(() => second.App.HasExited, TimeSpan.FromSeconds(15)).Success);
+
+            Assert.Equal([leaf.App.ProcessId], LeafApp.ProcessIds(profile));
+            Assert.Equal(1, leaf.WindowCount("Set up Leaf Calendar"));
+            Assert.Equal(0, leaf.WindowCount("Leaf Calendar"));
+            Assert.True(Retry.WhileFalse(() => LeafApp.IsForeground(leaf.OnboardingWindow), TimeSpan.FromSeconds(10)).Success);
+        }
+        finally
+        {
+            LeafApp.DeleteProfile(profile);
+        }
+    }
+
+    [Fact]
     public void Launch_OtherProfile_StartsItsOwnLeaf()
     {
         var first  = SeededProfile.Create();

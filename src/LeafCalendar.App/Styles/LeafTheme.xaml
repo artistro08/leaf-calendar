@@ -249,4 +249,36 @@
         </Setter>
     </Style>
     <!-- /Setting Row -->
+
+    <!--
+        Step Pips: the onboarding PipsPager's pips drawn as 24 x 3 rounded lines, 8 apart (each sits in a 32 x 16 box).
+        Display only (the pager takes no input), so no focus, hover, or press states. The selected pip is the accent;
+        the change fades over 167 ms.
+    -->
+    <Style x:Key="LeafStepPipStyle" TargetType="Button">
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Background" Value="{ThemeResource ControlStrongFillColorDefaultBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid Width="32" Height="16" Background="Transparent">
+                        <Border
+                            Width="24"
+                            Height="3"
+                            VerticalAlignment="Center"
+                            CornerRadius="1.5"
+                            Background="{TemplateBinding Background}">
+                            <Border.BackgroundTransition>
+                                <BrushTransition Duration="0:0:0.167" />
+                            </Border.BackgroundTransition>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="LeafSelectedStepPipStyle" TargetType="Button" BasedOn="{StaticResource LeafStepPipStyle}">
+        <Setter Property="Background" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+    </Style>
+    <!-- /Step Pips -->
 </ResourceDictionary>

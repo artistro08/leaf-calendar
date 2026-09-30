@@ -1,0 +1,138 @@
+<Page
+    x:Class="LeafCalendar.App.Views.Onboarding.OnboardingStepPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- One Step (the navigation picks which panel shows; layout per the design standard: hero glyph, title, description, then controls) -->
+    <ScrollViewer x:Name="PageScroll">
+        <Grid Padding="32">
+
+            <!-- Welcome -->
+            <StackPanel x:Name="WelcomeStep" Spacing="16" Visibility="Collapsed" AutomationProperties.AutomationId="OnboardingWelcome">
+                <FontIcon HorizontalAlignment="Left" FontSize="48" Glyph="&#xE787;" AutomationProperties.AccessibilityView="Raw" />
+                <StackPanel Spacing="4">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Welcome to Leaf Calendar" />
+                    <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" TextWrapping="Wrap" Text="Your Google Calendar in a fast, native Windows app." />
+                </StackPanel>
+                <TextBlock TextWrapping="Wrap" Text="Setup takes a few minutes. You'll connect your own Google Cloud OAuth client, sign in with Google, and Leaf will sync your calendars." />
+            </StackPanel>
+            <!-- /Welcome -->
+
+            <!-- Google Cloud OAuth Client -->
+            <StackPanel x:Name="ClientStep" Spacing="16" Visibility="Collapsed" AutomationProperties.AutomationId="OnboardingClient">
+                <FontIcon HorizontalAlignment="Left" FontSize="48" Glyph="&#xE8D7;" AutomationProperties.AccessibilityView="Raw" />
+                <StackPanel Spacing="4">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Connect your Google Cloud client" />
+                    <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" TextWrapping="Wrap" Text="Leaf signs in with your own Google OAuth client. You only need to do this once." />
+                </StackPanel>
+
+                <!-- Setup Guide (the existing guide text, verbatim; the link opens a fixed address) -->
+                <RichTextBlock AutomationProperties.AutomationId="SetupGuideText">
+                    <Paragraph>
+                        1. Open
+                        <Hyperlink Click="OnConsoleLinkClick" AutomationProperties.AutomationId="ConsoleLink">
+                            Google Cloud Console
+                        </Hyperlink>
+                        and create a project.
+                    </Paragraph>
+                    <Paragraph Margin="0,8,0,0">
+                        2. In APIs &amp; Services, open Library and enable the Google Calendar API and the People API.
+                    </Paragraph>
+                    <Paragraph Margin="0,8,0,0">
+                        3. In OAuth consent screen, choose External and add your Google accounts as test users. Then set the publishing status to In production. While it's in Testing, Google signs you out every 7 days.
+                    </Paragraph>
+                    <Paragraph Margin="0,8,0,0">
+                        4. In Credentials, create an OAuth client ID of type Desktop app. Paste its Client ID and Client secret below.
+                    </Paragraph>
+                </RichTextBlock>
+                <!-- /Setup Guide -->
+
+                <!-- Credentials (Enter in the ID moves to the secret; Enter in the secret runs Next) -->
+                <TextBox
+                    x:Name="ClientIdBox"
+                    Header="Client ID"
+                    PlaceholderText="123-abc.apps.googleusercontent.com"
+                    Text="{x:Bind ViewModel.Client.ClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    KeyDown="OnClientIdKeyDown"
+                    AutomationProperties.AutomationId="ClientIdBox" />
+                <PasswordBox
+                    x:Name="ClientSecretBox"
+                    Header="Client secret"
+                    Password="{x:Bind ViewModel.Client.ClientSecret, Mode=TwoWay}"
+                    KeyDown="OnClientSecretKeyDown"
+                    AutomationProperties.AutomationId="ClientSecretBox" />
+                <InfoBar
+                    Severity="Error"
+                    IsClosable="False"
+                    IsOpen="{x:Bind ViewModel.Client.HasError, Mode=OneWay}"
+                    Message="{x:Bind ViewModel.Client.Error, Mode=OneWay}"
+                    AutomationProperties.AutomationId="SetupError" />
+            </StackPanel>
+            <!-- /Google Cloud OAuth Client -->
+
+            <!-- Sign In -->
+            <StackPanel x:Name="SignInStep" Spacing="16" Visibility="Collapsed" AutomationProperties.AutomationId="OnboardingSignIn">
+                <FontIcon HorizontalAlignment="Left" FontSize="48" Glyph="&#xE77B;" AutomationProperties.AccessibilityView="Raw" />
+                <StackPanel Spacing="4">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Sign in with Google" />
+                    <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" TextWrapping="Wrap" Text="Leaf opens your browser so you can sign in and let Leaf use your calendars." />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind ViewModel.HasStatus, Mode=OneWay}">
+                    <ProgressRing Width="20" Height="20" IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        Style="{StaticResource LeafSecondaryTextStyle}"
+                        TextWrapping="Wrap"
+                        Text="{x:Bind ViewModel.Status, Mode=OneWay}"
+                        AutomationProperties.AutomationId="OnboardingSignInStatus" />
+                </StackPanel>
+                <InfoBar
+                    Severity="Error"
+                    IsClosable="False"
+                    IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
+                    Message="{x:Bind ViewModel.Error, Mode=OneWay}"
+                    AutomationProperties.AutomationId="OnboardingSignInError" />
+            </StackPanel>
+            <!-- /Sign In -->
+
+            <!-- Syncing -->
+            <StackPanel x:Name="SyncingStep" Spacing="16" Visibility="Collapsed" AutomationProperties.AutomationId="OnboardingSyncing">
+                <FontIcon HorizontalAlignment="Left" FontSize="48" Glyph="&#xE72C;" AutomationProperties.AccessibilityView="Raw" />
+                <StackPanel Spacing="4">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Syncing your calendars" />
+                    <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" TextWrapping="Wrap" Text="Leaf is downloading your calendars and events. This can take a minute." />
+                </StackPanel>
+                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay}">
+                    <ProgressBar IsIndeterminate="True" AutomationProperties.AutomationId="OnboardingSyncProgress" />
+                    <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" TextWrapping="Wrap" Text="{x:Bind ViewModel.Status, Mode=OneWay}" />
+                </StackPanel>
+                <InfoBar
+                    Severity="Error"
+                    IsClosable="False"
+                    IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
+                    Message="{x:Bind ViewModel.Error, Mode=OneWay}"
+                    AutomationProperties.AutomationId="OnboardingSyncError" />
+            </StackPanel>
+            <!-- /Syncing -->
+
+            <!-- Done -->
+            <StackPanel x:Name="DoneStep" Spacing="16" Visibility="Collapsed" AutomationProperties.AutomationId="OnboardingDone">
+                <FontIcon HorizontalAlignment="Left" FontSize="48" Glyph="&#xE73E;" AutomationProperties.AccessibilityView="Raw" />
+                <StackPanel Spacing="4">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="You're all set" />
+                    <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" TextWrapping="Wrap" Text="Leaf synced your Google Calendar. You can add more accounts in Settings › Accounts." />
+                </StackPanel>
+                <StackPanel Spacing="0">
+                    <TextBlock Text="{x:Bind ViewModel.Email, Mode=OneWay}" TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="OnboardingEmail" />
+                    <TextBlock
+                        Style="{StaticResource LeafSecondaryTextStyle}"
+                        Text="{x:Bind ViewModel.SyncSummary, Mode=OneWay}"
+                        AutomationProperties.AutomationId="OnboardingSyncSummary" />
+                </StackPanel>
+            </StackPanel>
+            <!-- /Done -->
+
+        </Grid>
+    </ScrollViewer>
+    <!-- /One Step -->
+</Page>

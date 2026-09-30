@@ -40,6 +40,37 @@ public sealed class LeafApp : IDisposable
     public Window SettingsWindow => TopLevelWindow("Settings", TimeSpan.FromSeconds(15))
         ?? throw new InvalidOperationException("Leaf's Settings window didn't appear.");
 
+    /// <summary>The first-run onboarding window (waits up to 20 s). Its window title differs from the main window's, so neither is mistaken for the other.</summary>
+    public Window OnboardingWindow => TopLevelWindow("Set up Leaf Calendar", TimeSpan.FromSeconds(20))
+        ?? throw new InvalidOperationException("Leaf's onboarding window didn't appear.");
+
+    /// <summary>Waits up to 15 s for an element in the onboarding window by automation ID.</summary>
+    public AutomationElement WaitInOnboarding(string automationId) =>
+        Retry.WhileNull(() => OnboardingWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)), TimeSpan.FromSeconds(15)).Result
+        ?? throw new InvalidOperationException($"Element '{automationId}' didn't appear in onboarding.");
+
+    /// <summary>True when an element with this ID is in the onboarding window right now (false once the window is gone).</summary>
+    public bool InOnboarding(string automationId) =>
+        App.GetAllTopLevelWindows(_automation).FirstOrDefault(w => w.Title == "Set up Leaf Calendar")?.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) is not null;
+
+    /// <summary>Waits (up to 15 s) for onboarding's primary button to be enabled, then presses it.</summary>
+    public void OnboardingPrimary()
+    {
+        var button = WaitInOnboarding("OnboardingPrimaryButton").AsButton();
+        if (!Retry.WhileFalse(() => button.IsEnabled, TimeSpan.FromSeconds(15)).Success)
+        {
+            throw new InvalidOperationException("Onboarding's primary button stayed disabled.");
+        }
+
+        button.Invoke();
+    }
+
+    /// <summary>The step indicator's accessible name ("Step 2 of 5").</summary>
+    public string OnboardingStepName => WaitInOnboarding("StepIndicator").Name;
+
+    /// <summary>True when <paramref name="window"/> is the foreground window.</summary>
+    public static bool IsForeground(Window window) => NativeMethods.GetForegroundWindow() == window.Properties.NativeWindowHandle.Value;
+
     /// <summary>How many of the app's windows have this title.</summary>
     public int WindowCount(string title) => App.GetAllTopLevelWindows(_automation).Count(w => w.Title == title);
 

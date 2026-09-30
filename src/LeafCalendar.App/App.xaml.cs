@@ -1,4 +1,6 @@
 using LeafCalendar.App.Interop;
+using LeafCalendar.App.Views.Onboarding;
+using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Hosting;
 using LeafCalendar.Core.Sync;
@@ -12,6 +14,7 @@ namespace LeafCalendar.App;
 public partial class App : Application
 {
     MainWindow? _window;
+    OnboardingWindow? _onboarding;
     LeafServices? _services;
     DispatcherQueueTimer? _probeTimer;
     AppLog? _log;
@@ -49,33 +52,72 @@ public partial class App : Application
         _log      = services.Log;
         _services = services;
 
-        _window = new MainWindow(services);
-        _window.Activate();
+        // First Run: onboarding shows instead of the main window until there's an OAuth client and an account
+        if (OnboardingFlow.IsNeeded(services.Tokens.GetClientCredentials() is not null, HasAccount(services)))
+        {
+            _onboarding = new OnboardingWindow(services, () => ShowMainWindow(services));
+            _onboarding.Closed += async (_, _) =>
+            {
+                _onboarding = null;
+
+                // Left Setup Without An Account: the app is exiting, so the services go with it
+                if (_window is null)
+                {
+                    _services = null;
+                    await DisposeServicesAsync(services);
+                }
+            };
+            _onboarding.Activate();
+        }
+        else
+        {
+            ShowMainWindow(services);
+        }
 
         // Another Launch Of This Profile Was Redirected Here (see Program), so come to the front
         var dispatcher = DispatcherQueue.GetForCurrentThread();
         Program.HandleActivations(() => dispatcher.TryEnqueue(BringToFront));
-
-        // Services Lifetime: the tray probe keeps them alive after the window closes
-        if (options.TrayProbe)
-        {
-            StartTrayProbe(services);
-        }
-        else
-        {
-            _window.Closed += async (_, _) =>
-            {
-                // Nothing to bring back: the services are going away with the window
-                _window   = null;
-                _services = null;
-                await DisposeServicesAsync(services);
-            };
-        }
     }
 
-    // Shows the window again when the tray probe closed it, then restores and foregrounds it
+    /// <summary>True when the profile has a Google account saved.</summary>
+    internal static bool HasAccount(LeafServices services)
+    {
+        using var conn = services.Database.Open();
+        return AccountStore.GetAll(conn).Count > 0;
+    }
+
+    // Opens the main window (at launch, or when onboarding finishes). The services live as long as it does, unless the
+    // tray probe keeps them.
+    void ShowMainWindow(LeafServices services)
+    {
+        _window = new MainWindow(services);
+        _window.Activate();
+
+        if (services.Options.TrayProbe)
+        {
+            StartTrayProbe(services);
+            return;
+        }
+
+        _window.Closed += async (_, _) =>
+        {
+            // Nothing to bring back: the services are going away with the window
+            _window   = null;
+            _services = null;
+            await DisposeServicesAsync(services);
+        };
+    }
+
+    // Brings onboarding forward while it's open; otherwise shows the main window again when the tray probe closed it,
+    // then restores and foregrounds it
     void BringToFront()
     {
+        if (_onboarding is not null)
+        {
+            _onboarding.BringToFront();
+            return;
+        }
+
         if (_services is null)
         {
             return;

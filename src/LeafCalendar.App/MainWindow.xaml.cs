@@ -18,7 +18,8 @@ namespace LeafCalendar.App;
 
 /// <summary>
 /// Main window: a tall XAML title bar (caption buttons match its 48 px height) holding the calendar
-/// toolbar, a Mica backdrop, and a page frame (setup, then the calendar). On the calendar page the
+/// toolbar, a Mica backdrop, and a page frame holding the calendar (first-run setup is its own window,
+/// <see cref="Views.Onboarding.OnboardingWindow"/>, shown before this one). On the calendar page the
 /// frame runs under the title bar, so the sidebars and the calendar island reach the top edge; the
 /// title bar stays transparent and only its buttons take clicks. The pane toggle shows only on the
 /// calendar. Settings and accounts live in their own window (<see cref="SettingsWindow"/>), which
@@ -99,14 +100,7 @@ public sealed partial class MainWindow : Window
             _calendar?.Dispose();
         };
 
-        if (_services.Google is null)
-        {
-            ShowSetup();
-        }
-        else
-        {
-            ShowCalendar();
-        }
+        ShowCalendar();
     }
 
     /// <summary>Restores the window if it's minimized and brings it to the front (another launch was redirected here).</summary>
@@ -146,9 +140,6 @@ public sealed partial class MainWindow : Window
     // NAVIGATION
     // =========================================================================
 
-    void ShowSetup() =>
-        ContentFrame.Navigate(typeof(SetupPage), new SetupViewModel(_services.Tokens, OnCredentialsSavedAsync, _services.Log));
-
     void ShowCalendar()
     {
         if (_calendar is null)
@@ -172,12 +163,6 @@ public sealed partial class MainWindow : Window
 
         ContentFrame.Navigate(typeof(CalendarPage), new CalendarPageArgs(_calendar, ToggleTheme));
         ContentFrame.BackStack.Clear();
-    }
-
-    async Task OnCredentialsSavedAsync()
-    {
-        await _services.ReloadGoogleAsync();
-        ShowCalendar();
     }
 
     void OnNavigated(object sender, NavigationEventArgs e)

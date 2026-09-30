@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using LeafCalendar.App.Interop;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Settings;
 using Microsoft.UI;
@@ -7,7 +8,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Animation;
-using Windows.Graphics;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 
@@ -41,6 +41,7 @@ public sealed partial class SettingsWindow : Window
     readonly SettingsContext _context;
     AccountsViewModel? _accounts;
     SettingsSection? _shown;
+    bool _inClientForm;
 
     SettingsWindow(LeafServices services, CalendarViewModel calendar)
     {
@@ -110,7 +111,7 @@ public sealed partial class SettingsWindow : Window
         window.Activate();
     }
 
-    /// <summary>Shows a page (without a transition the first time, then with the stock drill-in).</summary>
+    /// <summary>Shows a page (without a transition the first time, then with the stock drill-in; back from the OAuth client form it slides back).</summary>
     public void Show(SettingsSection section)
     {
         if (_shown == section)
@@ -118,9 +119,13 @@ public sealed partial class SettingsWindow : Window
             return;
         }
 
+        // First Page: No Transition; Back From The OAuth Client Form: Slide Back; Otherwise: Drill In
         var page       = _pages.Find(p => p.Section == section);
-        var transition = _shown is null ? (NavigationTransitionInfo)new SuppressNavigationTransitionInfo() : new DrillInNavigationTransitionInfo();
-        _shown = section;
+        var transition = _inClientForm
+            ? new SlideNavigationTransitionInfo { Effect = SlideNavigationTransitionEffect.FromLeft }
+            : _shown is null ? (NavigationTransitionInfo)new SuppressNavigationTransitionInfo() : new DrillInNavigationTransitionInfo();
+        _shown        = section;
+        _inClientForm = false;
         ContentFrame.Navigate(page.Page, _context, transition);
         Navigation.SelectedItem = page.Item;
     }
@@ -131,11 +136,12 @@ public sealed partial class SettingsWindow : Window
     /// </summary>
     public AccountsViewModel Accounts => _accounts ??= new AccountsViewModel(_context.Services, _context.Calendar.ReloadCalendars);
 
-    /// <summary>Shows the OAuth client form (a sub-page of Accounts, which stays selected; Save and Cancel come back).</summary>
+    /// <summary>Shows the OAuth client form (a sub-page of Accounts, which stays selected; it slides in, and Save and Cancel slide back).</summary>
     public void ShowClientSetup()
     {
-        _shown = null;
-        ContentFrame.Navigate(typeof(ClientPage), _context, new DrillInNavigationTransitionInfo());
+        _shown        = null;
+        _inClientForm = true;
+        ContentFrame.Navigate(typeof(ClientPage), _context, new SlideNavigationTransitionInfo { Effect = SlideNavigationTransitionEffect.FromRight });
     }
 
     /// <summary>Applies the app theme to the content and caption buttons.</summary>
@@ -153,27 +159,8 @@ public sealed partial class SettingsWindow : Window
         PInvoke.SetForegroundWindow(new HWND(Win32Interop.GetWindowFromWindowId(AppWindow.Id)));
     }
 
-    // Moved onto the monitor under the cursor first, so Windows rescales it for that monitor, then sized from that
-    // monitor's DPI (sizing first would get scaled twice) and centered on its work area
-    void Place()
-    {
-        PInvoke.GetCursorPos(out var cursor);
-        var work = DisplayArea.GetFromPoint(new PointInt32(cursor.X, cursor.Y), DisplayAreaFallback.Nearest).WorkArea;
-        AppWindow.Move(Centered(work, AppWindow.Size));
-
-        var scale  = PInvoke.GetDpiForWindow(new HWND(Win32Interop.GetWindowFromWindowId(AppWindow.Id))) / 96.0;
-        var frameW = AppWindow.Size.Width - AppWindow.ClientSize.Width;
-        var frameH = AppWindow.Size.Height - AppWindow.ClientSize.Height;
-        var width  = Math.Min((int)Math.Ceiling(OpenWidth * scale) + frameW, work.Width);
-        var height = Math.Min((int)Math.Ceiling(OpenHeight * scale) + frameH, work.Height);
-        AppWindow.Resize(new SizeInt32(width, height));
-        AppWindow.Move(Centered(work, AppWindow.Size));
-        SetMinimumSize(scale);
-    }
-
-    // Centered on the work area, with the title bar never above its top
-    static PointInt32 Centered(RectInt32 work, SizeInt32 size) =>
-        new(work.X + (work.Width - size.Width) / 2, Math.Max(work.Y, work.Y + (work.Height - size.Height) / 2));
+    // Centered on the monitor under the cursor at the opening size, with the minimum from that monitor's scale
+    void Place() => SetMinimumSize(WindowPlacement.CenterOnCursorMonitor(AppWindow, OpenWidth, OpenHeight));
 
     void ApplyMinimumSize() => SetMinimumSize(RootGrid.XamlRoot?.RasterizationScale ?? 1);
 

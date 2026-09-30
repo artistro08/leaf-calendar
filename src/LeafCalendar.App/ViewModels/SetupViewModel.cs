@@ -5,7 +5,7 @@ using LeafCalendar.Core.Diagnostics;
 
 namespace LeafCalendar.App.ViewModels;
 
-/// <summary>Setup page: collects and saves the user's Google OAuth client.</summary>
+/// <summary>The OAuth client form (onboarding's client step and Settings › Accounts › Change OAuth client): collects and saves the user's Google OAuth client.</summary>
 public sealed partial class SetupViewModel : ObservableObject
 {
     readonly ITokenStore _tokens;
