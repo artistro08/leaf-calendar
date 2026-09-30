@@ -39,7 +39,26 @@ public sealed class ContactSearchTests : IDisposable
         _logs.Dispose();
     }
 
-    ContactSearch CreateSearch() => new(new HttpClient(_google), _tokens, _log);
+    ContactSearch CreateSearch(HttpMessageHandler? handler = null) => new(new HttpClient(handler ?? _google, disposeHandler: false), _tokens, _log);
+
+    // Holds matching requests until the release task completes (or the request is canceled)
+    sealed class GateHandler(Func<HttpRequestMessage, bool> hold, Task release) : DelegatingHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (hold(request))
+            {
+                await release.WaitAsync(cancellationToken);
+            }
+
+            return await base.SendAsync(request, cancellationToken);
+        }
+    }
+
+    static bool IsSearch(HttpRequestMessage r, string url) =>
+        r.RequestUri!.AbsoluteUri.StartsWith(url + "?query=a", StringComparison.Ordinal);
+
+    static string Person(string email) => $$$"""{"person":{"emailAddresses":[{"value":"{{{email}}}"}]}}""";
 
     void RouteToken(string scope) =>
         _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, $$"""{"access_token":"ya29.people","expires_in":3599,"scope":"{{scope}}","token_type":"Bearer"}""");
@@ -104,10 +123,10 @@ public sealed class ContactSearchTests : IDisposable
         Assert.Equal(ContactSearch.MaxResults, results.Contacts.Count);
         Assert.Equal(
             [
-                "https://people.googleapis.com/v1/people:searchContacts?query=al%20b%26c&readMask=names,emailAddresses&pageSize=10",
                 "https://people.googleapis.com/v1/otherContacts:search?query=al%20b%26c&readMask=names,emailAddresses&pageSize=10",
+                "https://people.googleapis.com/v1/people:searchContacts?query=al%20b%26c&readMask=names,emailAddresses&pageSize=10",
             ],
-            Searches().Select(r => r.Uri.AbsoluteUri));
+            Searches().Select(r => r.Uri.AbsoluteUri).Order(StringComparer.Ordinal));
         Assert.All(Searches(), r => Assert.Equal("ya29.people", r.BearerToken));
     }
 
@@ -211,5 +230,171 @@ public sealed class ContactSearchTests : IDisposable
         Assert.Empty(huge.Contacts);
         Assert.Equal(ContactAccess.Allowed, blank.Access);
         Assert.Empty(_google.Requests);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Search_OneSourceFails_KeepsTheOther(bool contactsFail)
+    {
+        RouteToken(AllScopes);
+        _google.On(HttpMethod.Get, contactsFail ? ContactsUrl : OthersUrl, HttpStatusCode.InternalServerError, "{}");
+        _google.On(HttpMethod.Get, contactsFail ? OthersUrl : ContactsUrl, HttpStatusCode.OK, $$"""{"results":[{{Person("kept@example.com")}}]}""");
+
+        var results = await CreateSearch().SearchAsync(Account, "a", TestContext.Current.CancellationToken);
+
+        Assert.Equal(ContactAccess.Allowed, results.Access);
+        Assert.Equal([new Contact("", "kept@example.com")], results.Contacts);
+        Assert.Contains("status=500", File.ReadAllText(_log.FilePath), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Search_LoneSurrogateInResponse_ReturnsOtherSourceAndLogsStatusOnly()
+    {
+        RouteToken(AllScopes);
+        var lone = @"\" + "uD800";
+        _google.On(HttpMethod.Get, ContactsUrl, HttpStatusCode.OK, $$$"""{"results":[{"person":{"names":[{"displayName":"x{{{lone}}}"}],"emailAddresses":[{"value":"lone@example.com"}]}}]}""");
+        _google.On(HttpMethod.Get, OthersUrl, HttpStatusCode.OK, $$"""{"results":[{{Person("ok@example.com")}}]}""");
+
+        var results = await CreateSearch().SearchAsync(Account, "a", TestContext.Current.CancellationToken);
+
+        Assert.Equal([new Contact("", "ok@example.com")], results.Contacts);
+        var log = File.ReadAllText(_log.FilePath);
+        Assert.Contains($"contacts.search.failed account={Account} status=200", log, StringComparison.Ordinal);
+        Assert.DoesNotContain("lone", log, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Search_BogusCharset_ReturnsEmptyAndLogsStatus()
+    {
+        RouteToken(AllScopes);
+        _google.On(r => r.Method == HttpMethod.Get, _ =>
+        {
+            var response = FakeHttpHandler.Json(HttpStatusCode.OK, $$"""{"results":[{{Person("x@example.com")}}]}""");
+            response.Content.Headers.ContentType!.CharSet = "bogus";
+            return response;
+        });
+
+        var results = await CreateSearch().SearchAsync(Account, "a", TestContext.Current.CancellationToken);
+
+        Assert.Equal(ContactAccess.Allowed, results.Access);
+        Assert.Empty(results.Contacts);
+        Assert.Contains("status=200", File.ReadAllText(_log.FilePath), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Search_CanceledFirstSearch_StillWarmsUpBothSources()
+    {
+        using var typing = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        RouteToken(AllScopes);
+        _google.On(r => r.Method == HttpMethod.Get, _ => FakeHttpHandler.Json(HttpStatusCode.OK, "{}"));
+
+        // The contacts warmup is still in flight when the user types the next letter
+        var typed = Task.Delay(Timeout.Infinite, typing.Token).ContinueWith(_ => { }, TaskScheduler.Default);
+        using var gate = new GateHandler(r => r.RequestUri!.AbsoluteUri.StartsWith(ContactsUrl + "?query=&", StringComparison.Ordinal), typed) { InnerHandler = _google };
+        var search = CreateSearch(gate);
+
+        var first = search.SearchAsync(Account, "a", typing.Token);
+        typing.CancelAfter(50);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        await search.SearchAsync(Account, "ab", TestContext.Current.CancellationToken);
+
+        var warmups = _google.Requests.Where(r => r.Method == HttpMethod.Get && r.Query("query") == "").Select(r => r.Uri.AbsolutePath);
+        Assert.Equal(["/v1/otherContacts:search", "/v1/people:searchContacts"], warmups.Order(StringComparer.Ordinal));
+        Assert.Contains(Searches(), r => r.Query("query") == "ab");
+    }
+
+    [Fact]
+    public async Task Search_CallerCancels_ThrowsOperationCanceled()
+    {
+        using var typing = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        RouteToken(AllScopes);
+        _google.On(r => r.Method == HttpMethod.Get, _ => FakeHttpHandler.Json(HttpStatusCode.OK, "{}"));
+        using var gate = new GateHandler(r => IsSearch(r, ContactsUrl), Task.Delay(Timeout.Infinite, TestContext.Current.CancellationToken)) { InnerHandler = _google };
+
+        var pending = CreateSearch(gate).SearchAsync(Account, "a", typing.Token);
+        typing.CancelAfter(50);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+        Assert.False(File.Exists(_log.FilePath));
+    }
+
+    [Fact]
+    public async Task Search_SlowSource_TimesOutAndKeepsTheOther()
+    {
+        RouteToken(AllScopes);
+        _google.On(HttpMethod.Get, ContactsUrl, HttpStatusCode.OK, $$"""{"results":[{{Person("fast@example.com")}}]}""");
+        _google.On(HttpMethod.Get, OthersUrl, HttpStatusCode.OK, "{}");
+        using var gate = new GateHandler(r => IsSearch(r, OthersUrl), Task.Delay(Timeout.Infinite, TestContext.Current.CancellationToken)) { InnerHandler = _google };
+
+        var results = await new ContactSearch(new HttpClient(gate, disposeHandler: false), _tokens, _log) { Timeout = TimeSpan.FromMilliseconds(200) }
+            .SearchAsync(Account, "a", TestContext.Current.CancellationToken);
+
+        Assert.Equal([new Contact("", "fast@example.com")], results.Contacts);
+        Assert.Contains($"account={Account} status=0", File.ReadAllText(_log.FilePath), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Search_QueriesBothSourcesAtOnce()
+    {
+        var othersSeen = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        RouteToken(AllScopes);
+        _google.On(HttpMethod.Get, ContactsUrl, HttpStatusCode.OK, $$"""{"results":[{{Person("c@example.com")}}]}""");
+        _google.On(r => r.Uri.AbsoluteUri.StartsWith(OthersUrl, StringComparison.Ordinal), r =>
+        {
+            if (r.Query("query") == "a")
+            {
+                othersSeen.TrySetResult();
+            }
+
+            return FakeHttpHandler.Json(HttpStatusCode.OK, $$"""{"results":[{{Person("o@example.com")}}]}""");
+        });
+
+        // Contacts waits for the other-contacts request, so a one-after-the-other search times out on contacts
+        using var gate = new GateHandler(r => IsSearch(r, ContactsUrl), othersSeen.Task) { InnerHandler = _google };
+        var results = await new ContactSearch(new HttpClient(gate, disposeHandler: false), _tokens, _log) { Timeout = TimeSpan.FromSeconds(2) }
+            .SearchAsync(Account, "a", TestContext.Current.CancellationToken);
+
+        Assert.Equal([new Contact("", "c@example.com"), new Contact("", "o@example.com")], results.Contacts);
+    }
+
+    [Fact]
+    public async Task Search_EmailsWithHiddenOrSeparatorCharactersOrTooLong_Dropped()
+    {
+        RouteToken(AllScopes);
+        var lineSeparator = char.ConvertFromUtf32(0x2028);
+        var noBreakSpace  = char.ConvertFromUtf32(0x00A0);
+        var tooLong       = new string('a', 250) + "@example.com";
+        _google.On(HttpMethod.Get, ContactsUrl, HttpStatusCode.OK, $$"""
+            {"results":[
+              {{Person("ls" + lineSeparator + "x@example.com")}},
+              {{Person("nb" + noBreakSpace + "x@example.com")}},
+              {{Person("tab\\tx@example.com")}},
+              {{Person(tooLong)}},
+              {{Person("good@example.com")}}
+            ]}
+            """);
+        _google.On(HttpMethod.Get, OthersUrl, HttpStatusCode.OK, "{}");
+
+        var results = await CreateSearch().SearchAsync(Account, "a", TestContext.Current.CancellationToken);
+
+        Assert.Equal([new Contact("", "good@example.com")], results.Contacts);
+    }
+
+    [Fact]
+    public async Task Search_PersonWithManyAddresses_CappedPerPerson()
+    {
+        RouteToken(AllScopes);
+        var addresses = string.Join(',', Enumerable.Range(1, 30).Select(i => $$"""{"value":"m{{i}}@example.com"}"""));
+        _google.On(HttpMethod.Get, ContactsUrl, HttpStatusCode.OK, $$$"""
+            {"results":[{"person":{"emailAddresses":[{{{addresses}}}]}},{{{Person("second@example.com")}}}]}
+            """);
+        _google.On(HttpMethod.Get, OthersUrl, HttpStatusCode.OK, "{}");
+
+        var results = await CreateSearch().SearchAsync(Account, "a", TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            ["m1@example.com", "m2@example.com", "m3@example.com", "m4@example.com", "m5@example.com", "second@example.com"],
+            results.Contacts.Select(c => c.Email));
     }
 }

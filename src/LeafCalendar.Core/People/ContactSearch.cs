@@ -4,7 +4,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Mail;
-using System.Text.Json;
 using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Google;
@@ -34,10 +33,17 @@ public sealed record ContactResults(IReadOnlyList<Contact> Contacts, ContactAcce
 /// Guest autocomplete from the People API: your contacts, then "other contacts" (people you've emailed), read-only.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Results are untrusted text: control and format characters are removed, names are capped, and only addresses that
 /// parse exactly are kept. Nothing is stored; logs carry the account ID and HTTP status only.
-/// Google's search cache needs an empty-query "warmup" request before it returns results, so the first search for
-/// each account in a session sends one quietly (its answer and any failure are ignored).
+/// </para>
+/// <para>
+/// Both sources are searched at once, each limited to <see cref="Timeout"/>. A source that fails is left out and the
+/// other still counts. Google's search cache needs an empty-query "warmup" request before it returns results, so
+/// the first search of each source for each account sends one. The warmup runs on its own (the caller canceling
+/// doesn't stop it), its answer and any failure are ignored, and nothing about it is logged. It is kept per source,
+/// so a source added by a later re-sign-in is warmed the first time it's searched.
+/// </para>
 /// </remarks>
 /// <seealso href="https://developers.google.com/people/api/rest/v1/people/searchContacts"/>
 /// <seealso href="https://developers.google.com/people/api/rest/v1/otherContacts/search"/>
@@ -46,10 +52,12 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
     /// <summary>Most suggestions returned.</summary>
     public const int MaxResults = 8;
 
-    const int MaxQuery   = 100;
-    const int MaxName    = 100;
-    const int MaxEmail   = 254;
-    const int MaxPerPage = 50;
+    const int MaxQuery     = 100;
+    const int MaxName      = 100;
+    const int MaxEmail     = 254;
+    const int MaxPeople    = 50;
+    const int MaxPerPerson = 5;
+    const int MaxPerSource = 25;
 
     // Relative paths start with "./" so the colon isn't read as a URI scheme
     const string ContactsPath = "./people:searchContacts";
@@ -57,9 +65,17 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
 
     readonly Uri _root = (endpoints ?? GoogleEndpoints.Default).PeopleApi;
 
-    readonly ConcurrentDictionary<string, byte> _warmed = new(StringComparer.Ordinal);
+    // "account source" -> the warmup request (completed after the first search)
+    readonly ConcurrentDictionary<string, Task> _warmups = new(StringComparer.Ordinal);
 
-    /// <summary>Searches both sources; never throws for Google, network, or sign-in errors (returns empty).</summary>
+    /// <summary>How long one source may take before it counts as failed, so a slow Google can't stall typing.</summary>
+    public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Searches both sources. Google, network, timeout, malformed-answer, and sign-in problems never throw: a failed
+    /// source is left out, and the access state says when the user can fix something.
+    /// </summary>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was canceled (the user kept typing).</exception>
     public async Task<ContactResults> SearchAsync(string accountId, string query, CancellationToken ct)
     {
         // Nothing To Search
@@ -88,28 +104,20 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
 
         string[] paths = [.. new[] { contacts ? ContactsPath : null, others ? OthersPath : null }.OfType<string>()];
 
-        // Warm Up Google's Search Cache Once Per Account
-        if (_warmed.TryAdd(accountId, 0))
+        // Warm Up Google's Search Cache Once Per Source
+        await Task.WhenAll(paths.Select(path => _warmups.GetOrAdd($"{accountId} {path}", _ => WarmUpAsync(accountId, path)))).WaitAsync(ct);
+
+        // Search Both Sources At Once
+        var pages = await Task.WhenAll(paths.Select(path => GetAsync(accountId, Url(path, query), ct)));
+
+        // A Problem The User Can Fix Wins
+        if (pages.Select(p => p.Access).FirstOrDefault(a => a != ContactAccess.Allowed) is var access and not ContactAccess.Allowed)
         {
-            foreach (var path in paths)
-            {
-                await WarmUpAsync(accountId, path, ct);
-            }
+            return new([], access);
         }
 
-        // Search Each Source
-        var found = new List<Contact>();
-        foreach (var path in paths)
-        {
-            var (page, access) = await GetAsync(accountId, Url(path, query), ct);
-            if (access != ContactAccess.Allowed || page is null)
-            {
-                return new([], access);
-            }
-
-            found.AddRange(Clean(page));
-        }
-
+        // Merge, Contacts First
+        var found = pages.Where(p => p.Page is not null).SelectMany(p => Clean(p.Page!).Take(MaxPerSource));
         return new([.. found.DistinctBy(c => c.Email, StringComparer.OrdinalIgnoreCase).Take(MaxResults)], ContactAccess.Allowed);
     }
 
@@ -121,36 +129,43 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
     Uri Url(string path, string query) =>
         new(_root, $"{path}?query={Uri.EscapeDataString(query)}&readMask=names,emailAddresses&pageSize=10");
 
-    // Empty-query request; the answer and any failure are ignored, and nothing is logged
-    async Task WarmUpAsync(string accountId, string path, CancellationToken ct)
+    // Empty-query request with its own timeout; never faults, and nothing is logged
+    async Task WarmUpAsync(string accountId, string path)
     {
         try
         {
-            using var response = await SendAsync(accountId, Url(path, ""), ct);
+            using var timeout  = new CancellationTokenSource(Timeout);
+            using var response = await SendAsync(accountId, Url(path, ""), timeout.Token);
         }
-        catch (Exception ex) when (ex is HttpRequestException or AccountNeedsSignInException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // A failed warmup only means the next search may come back short; the real search reports errors.
         }
     }
 
-    // One search; a null page with Allowed means it failed (logged by status only)
+    // One search, limited to Timeout. A null page with Allowed means it failed (logged by status only).
+    // Anything but the caller's own cancellation is a failure of this source, never an exception.
     async Task<(PeopleSearchResponse? Page, ContactAccess Access)> GetAsync(string accountId, Uri uri, CancellationToken ct)
     {
+        var status = 0;
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(Timeout);
+
         try
         {
-            using var response = await SendAsync(accountId, uri, ct);
+            using var response = await SendAsync(accountId, uri, limit.Token);
+            status = (int)response.StatusCode;
 
             // Success
             if (response.IsSuccessStatusCode)
             {
-                return (await response.Content.ReadFromJsonAsync(GoogleJsonContext.Default.PeopleSearchResponse, ct) ?? new(), ContactAccess.Allowed);
+                return (await response.Content.ReadFromJsonAsync(GoogleJsonContext.Default.PeopleSearchResponse, limit.Token) ?? new(), ContactAccess.Allowed);
             }
 
             // Refusals The User Can Fix
             if (response.StatusCode == HttpStatusCode.Forbidden)
             {
-                var error   = GoogleJson.TryParse(await response.Content.ReadAsStringAsync(ct), GoogleJsonContext.Default.ApiErrorEnvelope)?.Error;
+                var error   = GoogleJson.TryParse(await response.Content.ReadAsStringAsync(limit.Token), GoogleJsonContext.Default.ApiErrorEnvelope)?.Error;
                 var reasons = (error?.Errors ?? []).Concat(error?.Details ?? []).Select(e => e.Reason).ToList();
 
                 if (reasons.Any(r => r is "accessNotConfigured" or "SERVICE_DISABLED"))
@@ -163,29 +178,18 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
                     return (null, ContactAccess.NeedsConsent);
                 }
             }
-
-            Failed(accountId, (int)response.StatusCode);
-            return (null, ContactAccess.Allowed);
         }
         catch (AccountNeedsSignInException)
         {
             return (null, ContactAccess.NeedsConsent);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (!ct.IsCancellationRequested && ex is not OutOfMemoryException)
         {
-            Failed(accountId, (int?)ex.StatusCode ?? 0);
-            return (null, ContactAccess.Allowed);
+            status = ex is HttpRequestException { StatusCode: { } code } ? (int)code : status;
         }
-        catch (JsonException)
-        {
-            Failed(accountId, 200);
-            return (null, ContactAccess.Allowed);
-        }
-        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
-        {
-            Failed(accountId, 0);
-            return (null, ContactAccess.Allowed);
-        }
+
+        Failed(accountId, status);
+        return (null, ContactAccess.Allowed);
     }
 
     // Account ID and status only: never the query, names, or addresses
@@ -218,25 +222,26 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
     // CLEANING
     // =========================================================================
 
-    // One contact per valid address, with the person's first name; people without a valid address are dropped
+    // Up to five valid addresses per person, each with the person's first name; people without one are dropped
     static IEnumerable<Contact> Clean(PeopleSearchResponse page)
     {
-        foreach (var person in (page.Results ?? []).Take(MaxPerPage).Select(r => r.Person).OfType<PeoplePerson>())
+        foreach (var person in (page.Results ?? []).Take(MaxPeople).Select(r => r.Person).OfType<PeoplePerson>())
         {
             var name = Plain(person.Names?.FirstOrDefault()?.DisplayName, MaxName);
 
-            foreach (var email in (person.EmailAddresses ?? []).Select(e => ValidEmail(e.Value)).OfType<string>())
+            foreach (var email in (person.EmailAddresses ?? []).Select(e => ValidEmail(e.Value)).OfType<string>().Take(MaxPerPerson))
             {
                 yield return new Contact(name, email);
             }
         }
     }
 
-    // Kept only when it parses back to exactly the same text (the guest field's rule), unaltered
+    // Kept only when it has no hidden or separator characters and parses back to exactly the same text
+    // (the guest field's rule); never altered
     static string? ValidEmail(string? value)
     {
         var email = value?.Trim();
-        if (string.IsNullOrEmpty(email) || email.Length > MaxEmail || email.Any(IsHidden))
+        if (string.IsNullOrEmpty(email) || email.Length > MaxEmail || email.Any(c => IsHidden(c) || char.IsSeparator(c)))
         {
             return null;
         }
