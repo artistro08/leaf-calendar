@@ -170,7 +170,7 @@ public sealed class SettingsTests : IDisposable
         var settings = leaf.OpenSettings("Accounts");
         Retry.WhileNull(() => settings.FindFirstDescendant(cf => cf.ByName("Disconnect")), TimeSpan.FromSeconds(15)).Result!.AsButton().Invoke();
 
-        Assert.True(Retry.WhileFalse(() => leaf.AnyTextContains("reached Google yet and will be lost"), TimeSpan.FromSeconds(10)).Success);
+        Assert.True(Retry.WhileFalse(() => leaf.AnyTextContains("hasn't reached Google yet, and it will be lost."), TimeSpan.FromSeconds(10)).Success);
         leaf.WaitForAnywhere("CloseButton").AsButton().Invoke();
         Assert.Equal(0, _google.RevokeCount);
     }
