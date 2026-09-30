@@ -204,6 +204,35 @@ public class EventJsonTests
     }
 
     [Fact]
+    public void QuietCopy_ResetsOtherGuestsRepliesKeepsSelfAndAsksForANewMeet()
+    {
+        var raw   = """{"id":"a","etag":"\"1\"","summary":"S","attendees":[{"email":"me@x.com","self":true,"responseStatus":"accepted"},{"email":"b@x.com","responseStatus":"declined","comment":"no"}],"hangoutLink":"https://meet.google.com/q","conferenceData":{"conferenceId":"q","conferenceSolution":{"key":{"type":"hangoutsMeet"}},"createRequest":{"requestId":"r"}}}""";
+        var copy  = JsonNode.Parse(EventJson.QuietCopy(raw, "newid"))!.AsObject();
+        var again = JsonNode.Parse(EventJson.QuietCopy(raw, "newid2"))!.AsObject();
+
+        Assert.Equal("newid", (string?)copy["id"]);
+        Assert.Null(copy["etag"]);
+        Assert.Null(copy["hangoutLink"]);
+        Assert.Equal("accepted", (string?)copy["attendees"]![0]!["responseStatus"]);
+        Assert.Equal("needsAction", (string?)copy["attendees"]![1]!["responseStatus"]);
+        Assert.Null(copy["attendees"]![1]!["comment"]);
+        Assert.Null(copy["conferenceData"]!["conferenceId"]);
+        Assert.Equal("hangoutsMeet", (string?)copy["conferenceData"]!["createRequest"]!["conferenceSolutionKey"]!["type"]);
+        Assert.NotEqual("r", (string?)copy["conferenceData"]!["createRequest"]!["requestId"]);
+        Assert.NotEqual((string?)copy["conferenceData"]!["createRequest"]!["requestId"], (string?)again["conferenceData"]!["createRequest"]!["requestId"]);
+    }
+
+    [Fact]
+    public void QuietCopy_OtherConferenceIsDropped()
+    {
+        var raw  = """{"id":"a","summary":"S","conferenceData":{"conferenceId":"z1","conferenceSolution":{"key":{"type":"addOn"}}}}""";
+        var copy = JsonNode.Parse(EventJson.QuietCopy(raw, "newid"))!.AsObject();
+
+        Assert.Equal("S", (string?)copy["summary"]);
+        Assert.False(copy.ContainsKey("conferenceData"));
+    }
+
+    [Fact]
     public void WithResponse_ChangesOnlySelf()
     {
         var json = JsonNode.Parse(EventJson.WithResponse(Meeting, ResponseStatus.Tentative, "Running late"))!;

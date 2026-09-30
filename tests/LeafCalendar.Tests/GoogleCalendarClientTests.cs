@@ -166,6 +166,21 @@ public class GoogleCalendarClientTests : IDisposable
         Assert.Equal(HttpStatusCode.Conflict, error.Status);
     }
 
+    [Theory]
+    [InlineData("""{"id":"abcde12345","conferenceData":{"createRequest":{"requestId":"r1","conferenceSolutionKey":{"type":"hangoutsMeet"}}}}""", "1")]
+    [InlineData("""{"id":"abcde12345","summary":"x"}""", null)]
+    public async Task InsertEventAsync_SendsConferenceVersionOnlyWithConferenceData(string body, string? expected)
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        _google.On(HttpMethod.Post, EventsUrl, HttpStatusCode.OK, """{"id":"abcde12345","status":"confirmed"}""");
+
+        await CreateClient().InsertEventAsync(Account, "leaf.tester@gmail.com", body, false, TestContext.Current.CancellationToken);
+
+        var request = _google.Requests.Single(r => r.Method == HttpMethod.Post && r.Uri.AbsoluteUri.StartsWith(EventsUrl, StringComparison.Ordinal));
+        Assert.Equal(expected, request.Query("conferenceDataVersion"));
+        Assert.Equal("none", request.Query("sendUpdates"));
+    }
+
     [Fact]
     public async Task InsertEventAsync_NoId_ThrowsAndSendsNothing()
     {

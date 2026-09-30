@@ -296,6 +296,63 @@ public static class EventJson
         return copy.ToJsonString();
     }
 
+    /// <summary>
+    /// A copy to re-create a deleted event quietly (late undo): <see cref="CloneForCreate"/> keeping the repeat and
+    /// the guests (their replies reset, since the copy is a new event to them). The old video call is never copied:
+    /// a Google Meet event asks Google for a new Meet link (<c>conferenceData.createRequest</c>, which needs
+    /// <c>conferenceDataVersion=1</c> on the insert), and any other conference is dropped.
+    /// </summary>
+    /// <exception cref="JsonException">The JSON is invalid or not an object.</exception>
+    public static string QuietCopy(string rawJson, string newId)
+    {
+        var source = Parse(rawJson);
+        var copy   = Parse(CloneForCreate(rawJson, newId));
+
+        // Guests Answer Again
+        if (copy["attendees"] is JsonArray attendees)
+        {
+            foreach (var attendee in attendees.OfType<JsonObject>().Where(a => !IsSelf(a)))
+            {
+                attendee["responseStatus"] = "needsAction";
+                attendee.Remove("comment");
+            }
+        }
+
+        // A New Meet Link (the old one went with the delete, and Google may refuse a copied conference ID)
+        var solution = (string?)(source["conferenceData"]?["conferenceSolution"]?["key"]?["type"] as JsonValue);
+        if (solution == "hangoutsMeet" || source["hangoutLink"] is not null)
+        {
+            copy["conferenceData"] = new JsonObject
+            {
+                ["createRequest"] = new JsonObject
+                {
+                    ["requestId"]             = Guid.NewGuid().ToString("N"),
+                    ["conferenceSolutionKey"] = new JsonObject { ["type"] = "hangoutsMeet" },
+                },
+            };
+        }
+
+        return copy.ToJsonString();
+    }
+
+    /// <summary>Where a series instance was scheduled (its <c>originalStartTime</c>), and whether that is a date.</summary>
+    /// <exception cref="FormatException">The row has no readable <c>originalStartTime</c>.</exception>
+    public static (DateTimeOffset Start, bool IsAllDay) OriginalStartOf(JsonObject row)
+    {
+        var original = row["originalStartTime"];
+        if ((string?)(original?["dateTime"] as JsonValue) is { } dateTime)
+        {
+            return (DateTimeOffset.Parse(dateTime, CultureInfo.InvariantCulture), false);
+        }
+
+        if ((string?)(original?["date"] as JsonValue) is { } date)
+        {
+            return (new DateTimeOffset(DateOnly.ParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero), true);
+        }
+
+        throw new FormatException("The row has no originalStartTime.");
+    }
+
     /// <summary>The event with new start and end (replacing both objects).</summary>
     /// <exception cref="JsonException">The JSON is invalid or not an object.</exception>
     public static string WithTimes(string rawJson, DateTimeOffset start, DateTimeOffset end, bool isAllDay, string? timeZone)

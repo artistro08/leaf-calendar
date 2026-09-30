@@ -21,8 +21,41 @@ public enum EditScope
 /// <summary>One dragged event and where it landed.</summary>
 public sealed record EventMove(CalendarOccurrence Occurrence, DateTimeOffset Start, DateTimeOffset End, bool IsAllDay);
 
+/// <summary>What a delete removed, which decides how a late <see cref="EventEditor.Undo"/> brings it back.</summary>
+public enum DeleteKind
+{
+    /// <summary>A single event or a whole series (a delete of that ID); a late undo creates a quiet copy.</summary>
+    Event,
+
+    /// <summary>One instance of a repeating event (a delete of its instance ID); a late undo restores it.</summary>
+    Instance,
+
+    /// <summary>"This and following" (a patch ending the series' repeat); a late undo restores the repeat.</summary>
+    Following,
+}
+
+/// <summary>One outbox entry a delete made (as queued, with its snapshot) and what kind of delete it was.</summary>
+public sealed record DeletedItem(OutboxEntry Entry, DeleteKind Kind);
+
 /// <summary>The outbox entries a delete made; pass it to <see cref="EventEditor.Undo"/>.</summary>
-public sealed record DeleteReceipt(IReadOnlyList<long> Seqs);
+public sealed record DeleteReceipt(IReadOnlyList<long> Seqs)
+{
+    /// <summary>Each entry as queued, in the same order as <see cref="Seqs"/> (a late undo works from these).</summary>
+    public IReadOnlyList<DeletedItem> Items { get; init; } = [];
+}
+
+/// <summary>What <see cref="EventEditor.Undo"/> did.</summary>
+public enum UndoResult
+{
+    /// <summary>Nothing (an empty receipt, or one already used).</summary>
+    Nothing,
+
+    /// <summary>The delete was still held: the rows were put back and nothing is sent.</summary>
+    Restored,
+
+    /// <summary>The delete may have reached Google: each item comes back through quiet writes (no emails).</summary>
+    Recreated,
+}
 
 /// <summary>A copied event: its account, calendar, stored JSON, and time zone (see <see cref="EventEditor.CopyOf"/>).</summary>
 public sealed record EventCopy(string AccountId, string CalendarId, string RawJson, string? TimeZone);
@@ -43,6 +76,13 @@ public sealed record EventCopy(string AccountId, string CalendarId, string RawJs
 /// Deletes are held in the outbox for <see cref="UndoWindow"/>, so <see cref="Undo"/> can put the rows back
 /// from their snapshots before anything reaches Google. Works fully offline.
 /// </para>
+/// <para>
+/// After the hold, Undo still works (this replaces the old rule that refused it): the delete is left alone, since
+/// it may be at Google already, and each item comes back quietly (<c>sendUpdates=none</c>). A single event or a
+/// whole series is re-created as a copy with a new ID (<see cref="EventJson.QuietCopy"/>, a series' canceled days
+/// kept as <c>EXDATE</c> lines); one instance or "this and following" is restored and patched back. When the delete
+/// is still queued, the new write waits behind it (<see cref="OutboxEntry.DependsOn"/>).
+/// </para>
 /// </remarks>
 public sealed class EventEditor(LeafDatabase database, TimeProvider time)
 {
@@ -54,6 +94,9 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
 
     /// <summary>The PC's IANA zone, given to events that become timed and have no zone of their own.</summary>
     public string LocalZoneId { get; set; } = "UTC";
+
+    // Receipts already undone (each works once)
+    readonly HashSet<long> _undone = [];
 
     // =========================================================================
     // READING
@@ -125,48 +168,70 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     {
         var notBefore = time.GetUtcNow() + UndoWindow;
         var seqs      = new List<long>();
+        var deleted   = new List<DeletedItem>();
 
         InTransaction((conn, tx) =>
         {
             foreach (var occurrence in OncePerSeries(conn, tx, items, o => o, scope))
             {
-                if (DeleteCore(conn, tx, occurrence, scope, sendUpdates, notBefore) is { } seq)
+                if (DeleteCore(conn, tx, occurrence, scope, sendUpdates, notBefore) is { } done)
                 {
-                    seqs.Add(seq);
+                    seqs.Add(done.Seq);
+                    deleted.Add(new DeletedItem(OutboxStore.Get(conn, tx, done.Seq)!, done.Kind));
                 }
             }
         });
 
-        return new DeleteReceipt(seqs);
+        return new DeleteReceipt(seqs) { Items = deleted };
     }
 
     /// <summary>
-    /// Puts deleted events back if none of the delete's entries can have been sent yet. Once an entry's hold
-    /// has ended the sender may already be sending it (it stays pending until Google answers), so it's refused.
+    /// Brings a delete back. While every entry is still held (<see cref="UndoWindow"/>), the snapshots are put back
+    /// and nothing is sent (<see cref="UndoResult.Restored"/>). After that the delete may be at Google already, so it is
+    /// left alone and each item comes back quietly (<see cref="UndoResult.Recreated"/>, no emails): a copy with a new
+    /// ID for an event or a whole series, a restore for one instance or "this and following". Each receipt works once.
     /// </summary>
-    public bool Undo(DeleteReceipt receipt)
+    public UndoResult Undo(DeleteReceipt receipt)
     {
-        var undone = false;
+        var result = UndoResult.Nothing;
         var now    = time.GetUtcNow();
         InTransaction((conn, tx) =>
         {
-            var entries = receipt.Seqs.Select(seq => OutboxStore.Get(conn, tx, seq)).ToList();
-            if (entries.Count == 0 || entries.Any(e => e is not { State: OutboxState.Pending, NotBefore: { } notBefore } || notBefore <= now))
+            // Each Receipt Works Once
+            if (receipt.Seqs.Count == 0 || receipt.Seqs.Any(_undone.Contains))
             {
                 return;
             }
 
-            // Newest First, So Each Snapshot Lands On The State It Was Taken From
-            foreach (var entry in Enumerable.Reverse(entries))
+            var entries = receipt.Seqs.Select(seq => OutboxStore.Get(conn, tx, seq)).ToList();
+
+            // Still Held: Put The Rows Back (newest first, so each snapshot lands on the state it was taken from)
+            if (entries.All(e => e is { State: OutboxState.Pending, NotBefore: { } notBefore } && notBefore > now))
             {
-                EventStore.Restore(conn, tx, entry!.AccountId, entry.CalendarId, entry.EventId, entry.BeforeJson ?? "[]");
-                OutboxStore.Remove(conn, tx, entry.Seq);
+                foreach (var entry in Enumerable.Reverse(entries))
+                {
+                    EventStore.Restore(conn, tx, entry!.AccountId, entry.CalendarId, entry.EventId, entry.BeforeJson ?? "[]");
+                    OutboxStore.Remove(conn, tx, entry.Seq);
+                }
+
+                result = UndoResult.Restored;
+            }
+            else
+            {
+                // Late: Bring Each One Back Quietly
+                foreach (var item in receipt.Items)
+                {
+                    var queued = OutboxStore.Get(conn, tx, item.Entry.Seq) is { State: OutboxState.Pending } ? item.Entry.Seq : (long?)null;
+                    BringBack(conn, tx, item, queued);
+                }
+
+                result = UndoResult.Recreated;
             }
 
-            undone = true;
+            _undone.UnionWith(receipt.Seqs);
         });
 
-        return undone;
+        return result;
     }
 
     /// <summary>Sets your reply (and an optional note). Google gets it on its latest copy, so replies never conflict.</summary>
@@ -374,7 +439,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     // DELETING AND REPLYING
     // =========================================================================
 
-    static long? DeleteCore(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, EditScope scope, bool sendUpdates, DateTimeOffset notBefore)
+    static (long Seq, DeleteKind Kind)? DeleteCore(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, EditScope scope, bool sendUpdates, DateTimeOffset notBefore)
     {
         // Already Gone
         if (EventStore.Get(conn, tx, o.AccountId, o.CalendarId, o.EventId) is not { } stored)
@@ -387,7 +452,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         // Single Event (or an instance whose series isn't stored here)
         if (o.RecurringEventId is not { } masterId || EventStore.Get(conn, tx, o.AccountId, o.CalendarId, masterId) is not { } master)
         {
-            return AddDelete(conn, tx, o.AccountId, o.CalendarId, o.EventId, stored, sendUpdates, notBefore);
+            return (AddDelete(conn, tx, o.AccountId, o.CalendarId, o.EventId, stored, sendUpdates, notBefore), DeleteKind.Event);
         }
 
         var masterDraft   = LoadMaster(master, o);
@@ -400,7 +465,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         switch (scope)
         {
             case EditScope.All:
-                return AddDelete(conn, tx, o.AccountId, o.CalendarId, master.Id, master, sendUpdates, notBefore);
+                return (AddDelete(conn, tx, o.AccountId, o.CalendarId, master.Id, master, sendUpdates, notBefore), DeleteKind.Event);
 
             case EditScope.Following:
                 // ponytail: the old series' later exceptions stay on screen until the next sync (Google cancels them); snapshot them too if that flash matters
@@ -408,14 +473,14 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
                 var endPatch = EventJson.BuildPatch(masterDraft, ended, master.RawJson);
 
                 // Already Ended Before This Instance (a stale occurrence): nothing to do
-                return endPatch.Count == 0 ? null : AddPatch(conn, tx, o.AccountId, o.CalendarId, master.Id, master, endPatch, sendUpdates, notBefore);
+                return endPatch.Count == 0 ? null : (AddPatch(conn, tx, o.AccountId, o.CalendarId, master.Id, master, endPatch, sendUpdates, notBefore), DeleteKind.Following);
 
             default:
                 var instanceId = InstanceIdOf(o, master, originalStart);
                 var existing   = EventStore.Get(conn, tx, o.AccountId, o.CalendarId, instanceId);
                 var seq        = OutboxStore.Add(conn, tx, new OutboxEntry(0, o.AccountId, o.CalendarId, instanceId, OutboxOperation.Delete, null, existing?.Etag, sendUpdates, EventStore.Snapshot(conn, tx, o.AccountId, o.CalendarId, instanceId), notBefore));
                 EventStore.ApplyJson(conn, tx, o.AccountId, o.CalendarId, EventJson.CancelledInstance(master.Id, instanceId, originalStart, o.IsAllDay, masterDraft.TimeZone));
-                return seq;
+                return (seq, DeleteKind.Instance);
         }
     }
 
@@ -459,6 +524,53 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         var seq = OutboxStore.Add(conn, tx, new OutboxEntry(0, accountId, calendarId, eventId, OutboxOperation.Delete, null, stored.Etag, sendUpdates, EventStore.Snapshot(conn, tx, accountId, calendarId, eventId), notBefore));
         EventStore.Remove(conn, tx, accountId, calendarId, eventId);
         return seq;
+    }
+
+    // Late undo for one deleted item, sent quietly; waits behind the delete when it's still queued
+    static void BringBack(SqliteConnection conn, SqliteTransaction tx, DeletedItem item, long? dependsOn)
+    {
+        var e    = item.Entry;
+        var rows = JsonNode.Parse(e.BeforeJson ?? "[]")!.AsArray().OfType<JsonObject>().ToList();
+
+        // An instance Google never stored has an empty snapshot; restoring it still drops the local canceled row
+        if (rows.Count == 0 && item.Kind != DeleteKind.Instance)
+        {
+            return;
+        }
+
+        switch (item.Kind)
+        {
+            case DeleteKind.Instance:
+                EventStore.Restore(conn, tx, e.AccountId, e.CalendarId, e.EventId, e.BeforeJson ?? "[]");
+                OutboxStore.Add(conn, tx, new OutboxEntry(0, e.AccountId, e.CalendarId, e.EventId, OutboxOperation.Patch, """{"status":"confirmed"}""", null, false, "[]", null, DependsOn: dependsOn));
+                break;
+
+            case DeleteKind.Following:
+                // Keep The Etag The Row Has Now, Not The Snapshot's
+                var etag = EventStore.Get(conn, tx, e.AccountId, e.CalendarId, e.EventId)?.Etag;
+                EventStore.Restore(conn, tx, e.AccountId, e.CalendarId, e.EventId, e.BeforeJson!);
+                EventStore.SetEtag(conn, tx, e.AccountId, e.CalendarId, e.EventId, etag);
+                var patch = new JsonObject { ["recurrence"] = rows[0]["recurrence"]?.DeepClone() };
+                OutboxStore.Add(conn, tx, new OutboxEntry(0, e.AccountId, e.CalendarId, e.EventId, OutboxOperation.Patch, patch.ToJsonString(), etag, false, EventStore.Snapshot(conn, tx, e.AccountId, e.CalendarId, e.EventId), null, DependsOn: dependsOn));
+                break;
+
+            default:
+                // ponytail: a series' changed instances (moved or retitled days) aren't re-created, only canceled days (as EXDATEs); copy them as exceptions if that's missed
+                var master = rows[0];
+                var id     = EventIds.NewId();
+                var copy   = JsonNode.Parse(EventJson.QuietCopy(master.ToJsonString(), id))!.AsObject();
+                if (copy["recurrence"] is JsonArray lines)
+                {
+                    foreach (var canceled in rows.Skip(1).Where(r => (string?)r["status"] == "cancelled"))
+                    {
+                        var (start, isAllDay) = EventJson.OriginalStartOf(canceled);
+                        lines.Add((JsonNode?)JsonValue.Create(RecurrenceEdits.ExDateLine(start, isAllDay)));
+                    }
+                }
+
+                AddCreate(conn, tx, e.AccountId, e.CalendarId, id, copy.ToJsonString(), sendUpdates: false, dependsOn);
+                break;
+        }
     }
 
     // =========================================================================

@@ -224,35 +224,10 @@ public sealed class EventEditorTests : IDisposable
         var receipt = _editor.Delete([Occurrence("evt-single", Oct1)], EditScope.This, sendUpdates: true);
         Assert.DoesNotContain(Day(Oct1), x => x.EventId == "evt-single");
 
-        Assert.True(_editor.Undo(receipt));
+        Assert.Equal(UndoResult.Restored, _editor.Undo(receipt));
 
         Assert.Empty(Outbox());
         Assert.Equal("Dentist appointment", Occurrence("evt-single", Oct1).Title);
-    }
-
-    [Fact]
-    public void Undo_AfterSend_ReturnsFalse()
-    {
-        var receipt = _editor.Delete([Occurrence("evt-single", Oct1)], EditScope.This, sendUpdates: true);
-        using (var conn = _db.Database.Open())
-        {
-            OutboxStore.Remove(conn, null, receipt.Seqs[0]);
-        }
-
-        Assert.False(_editor.Undo(receipt));
-    }
-
-    [Fact]
-    public void Undo_AfterHoldEnds_ReturnsFalseAndKeepsTheDelete()
-    {
-        var receipt = _editor.Delete([Occurrence("evt-single", Oct1)], EditScope.This, sendUpdates: true);
-
-        // The Sender May Already Be Sending It
-        _time.Advance(EventEditor.UndoWindow);
-
-        Assert.False(_editor.Undo(receipt));
-        Assert.Single(Outbox());
-        Assert.DoesNotContain(Day(Oct1), x => x.EventId == "evt-single");
     }
 
     [Fact]
@@ -261,8 +236,143 @@ public sealed class EventEditorTests : IDisposable
         var receipt = _editor.Delete([Occurrence("evt-single", Oct1)], EditScope.This, sendUpdates: true);
         _time.Advance(EventEditor.UndoWindow - TimeSpan.FromMilliseconds(1));
 
-        Assert.True(_editor.Undo(receipt));
+        Assert.Equal(UndoResult.Restored, _editor.Undo(receipt));
         Assert.Empty(Outbox());
+    }
+
+    // Late Undo (after the hold window): a quiet copy with a new ID, or a restore for repeating events
+
+    [Fact]
+    public void Undo_AfterSend_QueuesQuietCopyWithNewId()
+    {
+        var receipt = _editor.Delete([Occurrence("evt-single", Oct1)], EditScope.This, sendUpdates: true);
+        SendAll();
+
+        Assert.Equal(UndoResult.Recreated, _editor.Undo(receipt));
+
+        var create = Assert.Single(Outbox());
+        Assert.Equal(OutboxOperation.Create, create.Operation);
+        Assert.False(create.SendUpdates);
+        Assert.NotEqual("evt-single", create.EventId);
+        Assert.Null(create.DependsOn);
+        Assert.Equal("Dentist appointment", Day(Oct1).Single(o => o.EventId == create.EventId).Title);
+    }
+
+    [Fact]
+    public void Undo_AfterHoldEnds_KeepsTheDeleteAndQueuesTheCopyBehindIt()
+    {
+        var receipt = _editor.Delete([Occurrence("evt-single", Oct1)], EditScope.This, sendUpdates: true);
+        _time.Advance(EventEditor.UndoWindow);
+
+        Assert.Equal(UndoResult.Recreated, _editor.Undo(receipt));
+
+        var entries = Outbox();
+        Assert.Equal(2, entries.Count);
+        Assert.Equal(OutboxOperation.Delete, entries[0].Operation);
+        Assert.Equal(OutboxOperation.Create, entries[1].Operation);
+        Assert.Equal(entries[0].Seq, entries[1].DependsOn);
+    }
+
+    [Fact]
+    public void Undo_AfterSend_CopyKeepsGuestsAsksForNewMeetAndResetsReplies()
+    {
+        Seed("""{"id":"evt-guests","status":"confirmed","etag":"\"7\"","summary":"Sync","start":{"dateTime":"2026-10-01T15:00:00Z"},"end":{"dateTime":"2026-10-01T16:00:00Z"},"organizer":{"email":"leaf.tester@gmail.com","self":true},"attendees":[{"email":"leaf.tester@gmail.com","self":true,"organizer":true,"responseStatus":"accepted"},{"email":"sam@example.com","responseStatus":"accepted","comment":"See you"}],"hangoutLink":"https://meet.google.com/abc-defg-hij","conferenceData":{"conferenceId":"abc-defg-hij","conferenceSolution":{"key":{"type":"hangoutsMeet"}},"entryPoints":[{"entryPointType":"video","uri":"https://meet.google.com/abc-defg-hij"}]}}""");
+        var receipt = _editor.Delete([Occurrence("evt-guests", Oct1)], EditScope.This, sendUpdates: true);
+        SendAll();
+
+        _editor.Undo(receipt);
+
+        var body = JsonNode.Parse(Assert.Single(Outbox()).Payload!)!.AsObject();
+        var sam  = body["attendees"]!.AsArray().Single(a => (string?)a!["email"] == "sam@example.com")!;
+        Assert.Equal("needsAction", (string?)sam["responseStatus"]);
+        Assert.Null(sam["comment"]);
+        Assert.Null(body["hangoutLink"]);
+        Assert.Null(body["conferenceData"]!["conferenceId"]);
+        Assert.Null(body["conferenceData"]!["entryPoints"]);
+        Assert.Equal("hangoutsMeet", (string?)body["conferenceData"]!["createRequest"]!["conferenceSolutionKey"]!["type"]);
+        Assert.False(string.IsNullOrEmpty((string?)body["conferenceData"]!["createRequest"]!["requestId"]));
+    }
+
+    [Fact]
+    public void Undo_AfterSend_RepeatingInstance_RestoresInsteadOfCopying()
+    {
+        var receipt = _editor.Delete([Occurrence("evt-weekly", Oct9)], EditScope.This, sendUpdates: true);
+        SendAll();
+
+        Assert.Equal(UndoResult.Recreated, _editor.Undo(receipt));
+
+        var patch = Assert.Single(Outbox());
+        Assert.Equal(OutboxOperation.Patch, patch.Operation);
+        Assert.Equal("evt-weekly_20261009T133000Z", patch.EventId);
+        Assert.Equal("""{"status":"confirmed"}""", patch.Payload);
+        Assert.Null(patch.BaseEtag);
+        Assert.False(patch.SendUpdates);
+        Assert.Contains(Day(Oct9), x => x.RecurringEventId == "evt-weekly");
+    }
+
+    [Fact]
+    public void Undo_AfterSend_WholeSeries_RecreatesTheSeriesWithCanceledDaysAsExDates()
+    {
+        _editor.Delete([Occurrence("evt-weekly", Oct12)], EditScope.This, sendUpdates: true);
+        SendAll();
+        var receipt = _editor.Delete([Occurrence("evt-weekly", Oct5)], EditScope.All, sendUpdates: true);
+        SendAll();
+
+        _editor.Undo(receipt);
+
+        var create = Assert.Single(Outbox());
+        var lines  = JsonNode.Parse(create.Payload!)!["recurrence"]!.AsArray().Select(l => (string)l!).ToList();
+        Assert.False(create.SendUpdates);
+        Assert.Contains(lines, l => l.StartsWith("RRULE:", StringComparison.Ordinal));
+        Assert.Contains("EXDATE:20261012T133000Z", lines);
+        Assert.DoesNotContain(Day(Oct12), x => x.RecurringEventId == create.EventId);
+        Assert.Contains(Day(Oct9), x => x.RecurringEventId == create.EventId);
+    }
+
+    [Fact]
+    public void Undo_AfterSend_ThisAndFollowing_RestoresTheRepeat()
+    {
+        var before  = EventJson.RecurrenceOf(Stored("evt-weekly").RawJson);
+        var etag    = Stored("evt-weekly").Etag;
+        var receipt = _editor.Delete([Occurrence("evt-weekly", Oct9)], EditScope.Following, sendUpdates: true);
+        SendAll();
+
+        _editor.Undo(receipt);
+
+        var patch = Assert.Single(Outbox());
+        Assert.Equal("evt-weekly", patch.EventId);
+        Assert.Equal(etag, patch.BaseEtag);
+        Assert.False(patch.SendUpdates);
+        Assert.Equal(before, JsonNode.Parse(patch.Payload!)!["recurrence"]!.AsArray().Select(l => (string)l!).ToList());
+        Assert.Contains(Day(Oct12), x => x.RecurringEventId == "evt-weekly");
+    }
+
+    [Fact]
+    public void Undo_SameReceiptTwice_SecondDoesNothing()
+    {
+        var receipt = _editor.Delete([Occurrence("evt-single", Oct1)], EditScope.This, sendUpdates: true);
+        SendAll();
+
+        _editor.Undo(receipt);
+
+        Assert.Equal(UndoResult.Nothing, _editor.Undo(receipt));
+        Assert.Single(Outbox());
+    }
+
+    // What the sender does on success: the entries leave the outbox
+    void SendAll()
+    {
+        using var conn = _db.Database.Open();
+        foreach (var entry in OutboxStore.Pending(conn, Account))
+        {
+            OutboxStore.Remove(conn, null, entry.Seq);
+        }
+    }
+
+    StoredEvent Stored(string id)
+    {
+        using var conn = _db.Database.Open();
+        return EventStore.Get(conn, null, Account, Calendar, id)!;
     }
 
     [Fact]

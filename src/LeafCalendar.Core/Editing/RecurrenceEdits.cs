@@ -31,6 +31,14 @@ public static class RecurrenceEdits
         return [.. recurrence.Select(line => !IsRule(line) || EndsBy(line, until, splitStart, isAllDay, seriesStart, timeZoneId) ? line : WithParts(line, "UNTIL", until))];
     }
 
+    /// <summary>
+    /// An <c>EXDATE</c> line that removes one instance: a UTC time for timed series, a date for all-day ones
+    /// (the date as written, like <see cref="EndBefore"/>).
+    /// </summary>
+    public static string ExDateLine(DateTimeOffset originalStart, bool isAllDay) => isAllDay
+        ? string.Create(CultureInfo.InvariantCulture, $"EXDATE;VALUE=DATE:{originalStart.DateTime:yyyyMMdd}")
+        : string.Create(CultureInfo.InvariantCulture, $"EXDATE:{originalStart.UtcDateTime:yyyyMMdd'T'HHmmss'Z'}");
+
     // True when the rule already ends at or before the new end (so ending it again would extend it)
     static bool EndsBy(string line, string until, DateTimeOffset splitStart, bool isAllDay, DateTimeOffset? seriesStart, string? timeZoneId)
     {

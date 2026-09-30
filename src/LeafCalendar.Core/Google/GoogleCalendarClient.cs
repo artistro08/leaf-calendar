@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
 using LeafCalendar.Core.Auth;
 
@@ -70,7 +71,10 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
     // WRITES (outbox)
     // =========================================================================
 
-    /// <summary>Creates an event with Leaf's own ID and returns Google's JSON for it.</summary>
+    /// <summary>
+    /// Creates an event with Leaf's own ID and returns Google's JSON for it. A body carrying <c>conferenceData</c>
+    /// is sent with <c>conferenceDataVersion=1</c>, so its create request makes a new Meet link.
+    /// </summary>
     /// <exception cref="ArgumentException"><paramref name="eventJson"/> has no <c>id</c>; Leaf always makes its own so a retry can't duplicate.</exception>
     /// <exception cref="DuplicateEventException">The ID exists already (an earlier try got through).</exception>
     public async Task<string> InsertEventAsync(string accountId, string calendarId, string eventJson, bool sendUpdates, CancellationToken ct)
@@ -81,7 +85,10 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
             throw new ArgumentException("The event JSON must carry a non-empty id.", nameof(eventJson));
         }
 
-        using var response = await SendAsync(accountId, HttpMethod.Post, $"{EventsPath(calendarId)}?sendUpdates={Updates(sendUpdates)}", eventJson, null, ct);
+        // A Body With conferenceData (a Meet create request) Needs Version 1, Or Google Ignores It
+        var conference = JsonNode.Parse(eventJson) is JsonObject body && body.ContainsKey("conferenceData") ? "&conferenceDataVersion=1" : "";
+
+        using var response = await SendAsync(accountId, HttpMethod.Post, $"{EventsPath(calendarId)}?sendUpdates={Updates(sendUpdates)}{conference}", eventJson, null, ct);
         return await ReadEventAsync(response, ct, isInsert: true);
     }
 

@@ -1165,7 +1165,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         _lastDelete = null;
         try
         {
-            if (_services.Editor.Undo(receipt))
+            if (_services.Editor.Undo(receipt) is not UndoResult.Nothing)
             {
                 Notice = null;
                 return;

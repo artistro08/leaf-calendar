@@ -1,3 +1,4 @@
+using System.Globalization;
 using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Recurrence;
 
@@ -8,6 +9,12 @@ public class RecurrenceEditsTests
     // Mon/Wed/Fri 9:30 New York from Mon Oct 5, 2026
     static readonly DateTimeOffset SeriesStart = new(2026, 10, 5, 9, 30, 0, TimeSpan.FromHours(-4));
     static readonly DateTimeOffset Split       = new(2026, 10, 12, 9, 30, 0, TimeSpan.FromHours(-4));
+
+    [Theory]
+    [InlineData("2026-10-12T13:30:00Z", false, "EXDATE:20261012T133000Z")]
+    [InlineData("2026-10-12T00:00:00Z", true, "EXDATE;VALUE=DATE:20261012")]
+    public void ExDateLine_TimedIsUtcAndAllDayIsADate(string start, bool isAllDay, string expected) =>
+        Assert.Equal(expected, RecurrenceEdits.ExDateLine(DateTimeOffset.Parse(start, CultureInfo.InvariantCulture), isAllDay));
 
     [Fact]
     public void EndBefore_Timed_SetsUntilOneSecondBeforeAndDropsCount()
