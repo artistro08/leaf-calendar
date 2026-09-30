@@ -44,7 +44,12 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
 
         Activated += OnActivated;
-        Closed    += (_, _) => _calendar?.Dispose();
+        Closed    += (_, _) =>
+        {
+            // Closing doesn't navigate, so release the page's views here
+            (ContentFrame.Content as CalendarPage)?.Detach();
+            _calendar?.Dispose();
+        };
 
         if (_services.Google is null)
         {

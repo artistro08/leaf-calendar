@@ -45,7 +45,14 @@ public sealed partial class CalendarPage : Page
     }
 
     /// <inheritdoc />
-    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    protected override void OnNavigatedFrom(NavigationEventArgs e) => Detach();
+
+    /// <summary>
+    /// Disconnects from the view model and disposes the current view. Called on navigation away
+    /// and when the window closes (which doesn't navigate), so the time grid's minute clock stops
+    /// instead of repainting a closed window in tray mode.
+    /// </summary>
+    public void Detach()
     {
         ViewModel.LayoutChanged    -= OnLayoutChanged;
         ViewModel.CalendarsChanged -= OnCalendarsChanged;

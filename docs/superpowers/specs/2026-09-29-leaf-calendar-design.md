@@ -126,7 +126,7 @@ Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manag
 4. Event data kept in a bounded sliding window (Section 6.4). Event visuals recycled.
 5. No WebView2. Event descriptions render with native text controls.
 6. Avatars and images decoded at display size (`DecodePixelWidth`).
-7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64. Measured 2026-09-29 at 78-79 MB private bytes and 11 MB working set (three runs), measured with sync running against the fake Google.
+7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64. Measured 2026-09-29 at 78-79 MB private bytes and 11 MB working set (three runs), measured with sync running against the fake Google. Raised 2026-09-29 at the close of Milestone 2 to private bytes ≤ 120 MB (working set unchanged at ≤ 25 MB). Measured at 105-106 MB private bytes and 18 MB working set (three runs). The growth is expected: it's native WinUI memory for the new sidebar (mini month) and the time grid, committed while the window is open and kept after it closes. The managed heap stays at about 2 MB, and clearing the whole window tree on close freed nothing measurable.
 
 ---
 
@@ -281,7 +281,7 @@ Anyone can send an invite, so event content is treated as hostile.
 - **Time zones:** multiple zone columns on the left edge. Add, rename, and drag to reorder. Search zones by city or abbreviation (NYC, SF, LON).
 - **All-day row:** collapsible. Multi-day events keep their titles visible.
 - **Toggles:** weekends, declined events, week numbers. The week can start on any day.
-- **Current-time line.** Working hours shaded from Google's working hours where available.
+- **Current-time line.** Working hours shaded from Google's working hours where available (not exposed by the Calendar API; see Milestone 5).
 - **Zoom:** grid density (hour height) and whole-app interface scale.
 - **Event styles:** focus time, out of office, and birthday events each have a distinct look.
 - **Navigation:** smooth horizontal scrolling (trackpad, `Shift`+wheel, drag). Pagers jump a full period with a slide animation, with the next period preloaded so nothing flashes blank.
@@ -622,6 +622,13 @@ Each milestone gets its own implementation plan. Tests are built within each mil
    - Command menu, people overlay, Meet with
    - Share availability
    - Full settings page and in-app shortcut set
+   - Deferred from Milestone 2:
+     - Interface scale (whole-app zoom; Ctrl+= / Ctrl+- currently change grid density)
+     - Working-hours shading (Google's Calendar API doesn't expose working hours)
+     - Calendar rename (Google summary override; needs the Milestone 3 write path)
+     - "Show upcoming events for this calendar"
+     - Time travel (Z)
+     - Title-bar search icon (opens the command menu)
 6. **Polish and Store prep:**
    - Visual pass and accessibility pass
    - Store listing requirements

@@ -25,7 +25,14 @@ public sealed class TestDatabase : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        SqliteConnection.ClearAllPools();
+        // Clear Only This Database's Pool: ClearAllPools would dispose connections that test
+        // classes running in parallel are using ("Cannot access a disposed object: sqlite3")
+        using (var conn = Database.Open())
+        {
+            conn.Close();
+            SqliteConnection.ClearPool(conn);
+        }
+
         _folder.Dispose();
     }
 }
