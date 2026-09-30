@@ -4,7 +4,7 @@ namespace LeafCalendar.Core.Data;
 
 /// <summary>
 /// An outbox entry Google didn't accept because its copy changed. <see cref="GoogleJson"/> is null when
-/// Google deleted the event; <see cref="LocalJson"/> is null when the local edit was a delete.
+/// Google deleted the event or its copy couldn't be read; <see cref="LocalJson"/> is null when the local edit was a delete.
 /// </summary>
 public sealed record ConflictInfo(OutboxEntry Entry, string? LocalJson, string? GoogleJson, DateTimeOffset DetectedAt);
 
