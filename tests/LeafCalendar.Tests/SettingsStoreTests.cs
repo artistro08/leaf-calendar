@@ -25,6 +25,17 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void DefaultCalendar_RoundTrips()
+    {
+        using var conn = _db.Database.Open();
+        var calendar = new CalendarRef("109876543210", "family123@group.calendar.google.com");
+
+        SettingsStore.Save(conn, new LeafSettings { DefaultCalendar = calendar });
+
+        Assert.Equal(calendar, SettingsStore.Load(conn).DefaultCalendar);
+    }
+
+    [Fact]
     public void Save_ThenLoad_RoundTrips()
     {
         using var conn = _db.Database.Open();

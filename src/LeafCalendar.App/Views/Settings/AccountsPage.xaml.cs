@@ -1,16 +1,23 @@
 using System.Globalization;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
+using LeafCalendar.Core.Settings;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace LeafCalendar.App.Views.Settings;
 
-/// <summary>Settings › Accounts: the Google accounts (add, disconnect), Sync now, and the OAuth client.</summary>
+/// <summary>Settings › Accounts: the Google accounts (add, disconnect), the default calendar, Sync now, and the OAuth client.</summary>
 public sealed partial class AccountsPage : Page
 {
     SettingsContext _context = null!;
+
+    // The Default Calendar Choices, Parallel To The Combo Box Items (index 0 is "your main Google calendar" = null)
+    readonly List<CalendarRef?> _refs = [];
+
+    // True while the combo box is being filled (its change event is ignored)
+    bool _loading;
 
     /// <summary>Creates the page.</summary>
     public AccountsPage()
@@ -40,6 +47,49 @@ public sealed partial class AccountsPage : Page
         }
 
         Bindings.Update();
+        _context.Window.CalendarsChanged += OnCalendarsChanged;
+        LoadDefaultCalendar();
+    }
+
+    /// <inheritdoc />
+    protected override void OnNavigatedFrom(NavigationEventArgs e) => _context.Window.CalendarsChanged -= OnCalendarsChanged;
+
+    void OnCalendarsChanged(object? sender, EventArgs e) => LoadDefaultCalendar();
+
+    // Fill The Default Calendar Choices: your main Google calendar, then every calendar you can write to
+    void LoadDefaultCalendar()
+    {
+        var calendar = _context.Calendar;
+        var several  = calendar.AccountEmails.Count > 1;
+        var chosen   = calendar.Settings.DefaultCalendar;
+        var writable = calendar.Calendars
+            .Where(c => c.AccessRole is "owner" or "writer" && calendar.AccountEmails.ContainsKey(c.AccountId))
+            .ToList();
+
+        _loading = true;
+        _refs.Clear();
+        DefaultCalendarBox.Items.Clear();
+
+        DefaultCalendarBox.Items.Add("Your main Google calendar");
+        _refs.Add(null);
+        foreach (var c in writable)
+        {
+            DefaultCalendarBox.Items.Add(several ? $"{c.Summary} ({calendar.AccountEmails[c.AccountId]})" : c.Summary);
+            _refs.Add(new CalendarRef(c.AccountId, c.Id));
+        }
+
+        var index = _refs.FindIndex(r => r is not null && r == chosen);
+        DefaultCalendarBox.SelectedIndex = Math.Max(index, 0);
+        _loading = false;
+    }
+
+    void OnDefaultCalendarChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_loading && DefaultCalendarBox.SelectedIndex >= 0)
+        {
+            var picked = _refs[DefaultCalendarBox.SelectedIndex];
+            _context.Calendar.Update(s => s with { DefaultCalendar = picked });
+        }
     }
 
     void OnChangeClientClick(object sender, RoutedEventArgs e) => _context.Window.ShowClientSetup();

@@ -25,19 +25,6 @@
 
             <!-- Calendar View -->
             <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Calendar view" />
-            <controls:SettingRow Glyph="&#xE8A9;" Header="Default view" Description="The layout Leaf shows when it opens. The view menu in the title bar changes it too.">
-                <ComboBox
-                    x:Name="ViewBox"
-                    MinWidth="180"
-                    SelectionChanged="OnViewChanged"
-                    AutomationProperties.Name="Default view"
-                    AutomationProperties.AutomationId="DefaultViewComboBox">
-                    <ComboBoxItem Content="Day" />
-                    <ComboBoxItem Content="Week" />
-                    <ComboBoxItem Content="Month" />
-                    <ComboBoxItem Content="Custom days" />
-                </ComboBox>
-            </controls:SettingRow>
             <controls:SettingRow Glyph="&#xE8BF;" Header="Days in the custom view" Description="From 1 to 31 days.">
                 <NumberBox
                     x:Name="DaysBox"

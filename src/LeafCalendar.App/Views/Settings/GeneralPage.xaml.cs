@@ -16,9 +16,8 @@ namespace LeafCalendar.App.Views.Settings;
 public sealed partial class GeneralPage : Page
 {
     // Combo Box Order (matches the items in the XAML)
-    static readonly AppTheme[] Themes         = [AppTheme.System, AppTheme.Light, AppTheme.Dark];
-    static readonly CalendarViewMode[] Views  = [CalendarViewMode.Day, CalendarViewMode.Week, CalendarViewMode.Month, CalendarViewMode.Days];
-    static readonly DayOfWeek[] WeekStarts    = [DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Saturday];
+    static readonly AppTheme[] Themes      = [AppTheme.System, AppTheme.Light, AppTheme.Dark];
+    static readonly DayOfWeek[] WeekStarts = [DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Saturday];
 
     SettingsContext _context = null!;
 
@@ -56,7 +55,6 @@ public sealed partial class GeneralPage : Page
         _loading = true;
 
         ThemeBox.SelectedIndex     = Array.IndexOf(Themes, s.Theme);
-        ViewBox.SelectedIndex      = Array.IndexOf(Views, s.ViewMode);
         DaysBox.Value              = s.CustomDayCount;
         HourHeightSlider.Value     = s.HourHeight;
         WeekendsSwitch.IsOn        = s.ShowWeekends;
@@ -74,14 +72,6 @@ public sealed partial class GeneralPage : Page
         {
             var theme = Themes[ThemeBox.SelectedIndex];
             Calendar.Update(s => s with { Theme = theme });
-        }
-    }
-
-    void OnViewChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (!_loading && ViewBox.SelectedIndex >= 0)
-        {
-            Calendar.SetMode(Views[ViewBox.SelectedIndex]);
         }
     }
 

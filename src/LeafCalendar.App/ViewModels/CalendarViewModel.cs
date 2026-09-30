@@ -930,12 +930,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
-    // Your main calendar you can write to: in one account when given (primary first, then shown ones), or null
-    CalendarInfo? HomeCalendar(string? accountId = null) => Calendars
-        .Where(c => c.AccessRole is "owner" or "writer" && AccountEmails.ContainsKey(c.AccountId) && (accountId is null || c.AccountId == accountId))
-        .OrderByDescending(c => c.IsPrimary)
-        .ThenByDescending(c => c.IsVisible)
-        .FirstOrDefault();
+    // Where new events go: your chosen default calendar, else your main one you can write to (in one account when given), or null
+    CalendarInfo? HomeCalendar(string? accountId = null) => DefaultCalendar.Pick(Calendars, AccountEmails.Keys.ToHashSet(), Settings.DefaultCalendar, accountId);
 
     // Where a copy is created: its own calendar when you can write to it, else the account's main one, else your main one
     EventCopy? Writable(EventCopy copy)

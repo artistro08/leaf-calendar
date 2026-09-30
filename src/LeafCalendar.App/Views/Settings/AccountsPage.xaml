@@ -50,6 +50,17 @@
                 </StackPanel>
             </controls:SettingRow>
 
+            <!-- New Events -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="New events" />
+            <controls:SettingRow Glyph="&#xE787;" Header="Default calendar" Description="Where new events go. Leaf uses this instead of Google's default.">
+                <ComboBox
+                    x:Name="DefaultCalendarBox"
+                    MinWidth="180"
+                    SelectionChanged="OnDefaultCalendarChanged"
+                    AutomationProperties.Name="Default calendar"
+                    AutomationProperties.AutomationId="DefaultCalendarComboBox" />
+            </controls:SettingRow>
+
             <!-- Sync -->
             <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Sync" />
             <controls:SettingRow Glyph="&#xE72C;" Header="Sync now" Description="Leaf syncs on its own. Sync now to get the latest changes from Google right away.">

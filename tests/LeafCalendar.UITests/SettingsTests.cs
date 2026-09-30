@@ -97,6 +97,34 @@ public sealed class SettingsTests : IDisposable
     }
 
     [Fact]
+    public void GeneralPage_HasNoDefaultView()
+    {
+        using var leaf = Launch();
+        var settings = leaf.OpenSettings("General");
+
+        // The page is loaded (a neighboring row is there), and the removed row never shows up
+        leaf.WaitInSettings("CustomDaysNumberBox");
+        Assert.False(Retry.WhileFalse(() => settings.FindFirstDescendant(cf => cf.ByAutomationId("DefaultViewComboBox")) is not null, TimeSpan.FromSeconds(2)).Success);
+    }
+
+    [Fact]
+    public void AccountsPage_DefaultCalendar_NewEventsGoThere()
+    {
+        using var leaf = Launch();
+        var settings = leaf.OpenSettings("Accounts");
+        leaf.WaitInSettings("DefaultCalendarComboBox").AsComboBox().Select("Family");
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("DefaultCalendarComboBox").AsComboBox().SelectedItem?.Name == "Family", TimeSpan.FromSeconds(5)).Success);
+        settings.Close();
+
+        leaf.Press(VirtualKeyShort.KEY_C);
+        leaf.WaitFor("EditorTitle").AsTextBox().Text = "Picnic";
+        leaf.WaitFor("EditorSaveButton").AsButton().Invoke();
+
+        var write = _google.WaitForWrite(w => w.Method == "POST");
+        Assert.Contains(Uri.EscapeDataString(FamilyId), write.Path, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CalendarsPage_HideCalendar_UnchecksTheSidebar()
     {
         using var leaf = Launch();
