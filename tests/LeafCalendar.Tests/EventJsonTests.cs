@@ -175,6 +175,35 @@ public class EventJsonTests
     }
 
     [Fact]
+    public void PrivateCopy_DropsGuestsAndWhatInvitesThem()
+    {
+        var source = JsonNode.Parse(Meeting)!.AsObject();
+        source["creator"]                 = new JsonObject { ["email"] = "boss@example.com" };
+        source["conferenceData"]          = new JsonObject { ["conferenceId"] = "abc-defg-hij" };
+        source["attendeesOmitted"]        = true;
+        source["guestsCanModify"]         = true;
+        source["guestsCanInviteOthers"]   = true;
+        source["guestsCanSeeOtherGuests"] = true;
+        source["anyoneCanAddSelf"]        = true;
+        source["recurrence"]              = new JsonArray("RRULE:FREQ=WEEKLY");
+
+        var copy = JsonNode.Parse(EventJson.PrivateCopy(source.ToJsonString(), "newid12345"))!.AsObject();
+
+        Assert.Equal("newid12345", (string?)copy["id"]);
+        foreach (var name in new[] { "attendees", "organizer", "creator", "conferenceData", "hangoutLink", "attendeesOmitted", "guestsCanModify", "guestsCanInviteOthers", "guestsCanSeeOtherGuests", "anyoneCanAddSelf", "recurrence", "etag" })
+        {
+            Assert.False(copy.ContainsKey(name), name);
+        }
+
+        Assert.Equal("Design review", (string?)copy["summary"]);
+        Assert.Equal("Room 4", (string?)copy["location"]);
+        Assert.Equal("<b>Agenda</b><br>Budget", (string?)copy["description"]);
+        Assert.Equal("5", (string?)copy["colorId"]);
+        Assert.Equal(10, (int?)copy["reminders"]!["overrides"]![1]!["minutes"]);
+        Assert.Equal("2026-10-01T14:00:00-04:00", (string?)copy["start"]!["dateTime"]);
+    }
+
+    [Fact]
     public void WithResponse_ChangesOnlySelf()
     {
         var json = JsonNode.Parse(EventJson.WithResponse(Meeting, ResponseStatus.Tentative, "Running late"))!;

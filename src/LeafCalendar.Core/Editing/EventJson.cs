@@ -25,6 +25,12 @@ public static class EventJson
         "creator", "organizer", "hangoutLink", "conferenceData", "kind", "status", "attendeesOmitted", "privateCopy", "locked",
     ];
 
+    // Fields that share an event with other people; a private copy never carries them
+    static readonly string[] GuestFields =
+    [
+        "attendees", "guestsCanModify", "guestsCanInviteOthers", "guestsCanSeeOtherGuests", "anyoneCanAddSelf",
+    ];
+
     // =========================================================================
     // READING
     // =========================================================================
@@ -271,6 +277,23 @@ public static class EventJson
 
         clone["id"] = newId;
         return clone.ToJsonString();
+    }
+
+    /// <summary>
+    /// A private copy for paste and Alt+drag: <see cref="CloneForCreate"/> without the repeat, and without the
+    /// guests or anything that would invite people (inserting an event with attendees puts it on their calendars
+    /// even when no email is sent). Title, times, location, description, color, and reminders are kept.
+    /// </summary>
+    /// <exception cref="JsonException">The JSON is invalid or not an object.</exception>
+    public static string PrivateCopy(string rawJson, string newId)
+    {
+        var copy = Parse(CloneForCreate(rawJson, newId, keepRecurrence: false));
+        foreach (var name in GuestFields)
+        {
+            copy.Remove(name);
+        }
+
+        return copy.ToJsonString();
     }
 
     /// <summary>The event with new start and end (replacing both objects).</summary>

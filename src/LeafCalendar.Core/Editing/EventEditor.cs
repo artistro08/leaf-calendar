@@ -197,11 +197,11 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         return new EventCopy(occurrence.AccountId, occurrence.CalendarId, source.RawJson, LoadCore(conn, null, occurrence).TimeZone);
     }
 
-    /// <summary>Creates a copy (without its repeat) at a new time and returns the new ID. Guests aren't emailed.</summary>
+    /// <summary>Creates a private copy (without its repeat or guests, see <see cref="EventJson.PrivateCopy"/>) at a new time and returns the new ID.</summary>
     public string Paste(EventCopy copy, DateTimeOffset start, DateTimeOffset end, bool isAllDay)
     {
         var id   = EventIds.NewId();
-        var body = EventJson.WithTimes(EventJson.CloneForCreate(copy.RawJson, id, keepRecurrence: false), start, end, isAllDay, copy.TimeZone ?? LocalZoneId);
+        var body = EventJson.WithTimes(EventJson.PrivateCopy(copy.RawJson, id), start, end, isAllDay, copy.TimeZone ?? LocalZoneId);
         InTransaction((conn, tx) => AddCreate(conn, tx, copy.AccountId, copy.CalendarId, id, body, sendUpdates: false));
         return id;
     }

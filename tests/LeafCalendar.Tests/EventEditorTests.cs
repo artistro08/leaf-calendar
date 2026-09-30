@@ -306,6 +306,21 @@ public sealed class EventEditorTests : IDisposable
     }
 
     [Fact]
+    public void Paste_OfAMeeting_IsAPrivateCopyWithoutGuests()
+    {
+        Seed(Invite);
+        var copy = _editor.CopyOf(Occurrence("evt-invite", Oct3));
+
+        var id = _editor.Paste(copy, Utc(10, 5, 17), Utc(10, 5, 18), isAllDay: false);
+
+        var body = JsonNode.Parse(Assert.Single(Outbox()).Payload!)!.AsObject();
+        Assert.False(body.ContainsKey("attendees"));
+        Assert.False(body.ContainsKey("organizer"));
+        Assert.Equal("Planning", (string?)body["summary"]);
+        Assert.Empty(_editor.Load(Occurrence(id, Oct5)).Guests);
+    }
+
+    [Fact]
     public void Recolor_TwoEvents_PatchesEach()
     {
         _editor.Recolor([Occurrence("evt-single", Oct1), Occurrence("evt-allday", Oct12)], "11", EditScope.This);
