@@ -341,9 +341,17 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var (calendars, events, _) = Counts(account.Id);
-        SyncSummary = OnboardingFlow.Summary(calendars, events);
-        Changed();
+        // A Busy Or Failed Read Skips This Tick (the next one tries again)
+        try
+        {
+            var (calendars, events, _) = Counts(account.Id);
+            SyncSummary = OnboardingFlow.Summary(calendars, events);
+            Changed();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _services.Log.Error("onboarding.progress.failed", ex);
+        }
     }
 
     // The account's calendars, events, and sign-in status, as saved so far

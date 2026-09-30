@@ -1,5 +1,6 @@
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Editing;
+using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -52,6 +53,10 @@ public sealed partial class CalendarPage : Page
     const double PaneToggleClearance = 44;
 
     readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _noticeTimer;
+
+    // "E then ..." sequences; a lone E edits when the 1.5 s timer runs out
+    readonly KeySequence _keys = new(TimeProvider.System);
+    readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _sequenceTimer;
     CalendarPageArgs _args = null!;
     IDisposable? _view;
     bool _viewIsMonth;
@@ -66,6 +71,19 @@ public sealed partial class CalendarPage : Page
         _noticeTimer.Interval    = TimeSpan.FromSeconds(5);
         _noticeTimer.IsRepeating = false;
         _noticeTimer.Tick       += (_, _) => ViewModel.DismissNotice();
+
+        // A Lone E Edits Once The Sequence Times Out (unless an editor opened meanwhile)
+        _sequenceTimer = DispatcherQueue.CreateTimer();
+        _sequenceTimer.Interval    = KeySequence.Timeout;
+        _sequenceTimer.IsRepeating = false;
+        _sequenceTimer.Tick       += (_, _) =>
+        {
+            var expired = _keys.Expire();
+            if (ViewModel.Editing is null)
+            {
+                Execute(expired);
+            }
+        };
     }
 
     /// <summary>The page's view model.</summary>
@@ -116,6 +134,8 @@ public sealed partial class CalendarPage : Page
         ViewModel.CalendarsChanged -= OnCalendarsChanged;
         ViewModel.AskScope = null;
         _noticeTimer.Stop();
+        _sequenceTimer.Stop();
+        _keys.Expire();
         Sidebar.Detach();
         Details.Detach();
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
@@ -243,7 +263,9 @@ public sealed partial class CalendarPage : Page
     /// <summary>
     /// Runs the calendar shortcut for a key press, called by the window so shortcuts work wherever focus is.
     /// Ignored while typing, or while focus is in a flyout, menu, dialog, or the go-to-date picker (a hover tooltip
-    /// never takes focus, so it doesn't block shortcuts).
+    /// never takes focus, so it doesn't block shortcuts). Event shortcuts act on the selection; E starts a 1.5 s
+    /// sequence (spec 8.7). With several events selected, Delete and Ctrl+Shift+Delete act on all of them, while the
+    /// one-event shortcuts (E, E then Y / N / M / E / U, V) do nothing and Ctrl+J joins the next meeting.
     /// </summary>
     /// <returns>True when the key was a shortcut and has been handled.</returns>
     public bool HandleShortcut(KeyRoutedEventArgs e)
@@ -260,7 +282,26 @@ public sealed partial class CalendarPage : Page
             return false;
         }
 
-        var result = ShortcutMap.Resolve(e.Key.ToString(), Controls.KeyState.IsDown(VirtualKey.Control), Controls.KeyState.IsDown(VirtualKey.Shift), Controls.KeyState.IsDown(VirtualKey.Menu));
+        // Modifiers Alone Never End A Sequence
+        if (IsModifier(e.Key))
+        {
+            return false;
+        }
+
+        // A Held E Doesn't Repeat Into "E Then E"
+        if (e.KeyStatus.WasKeyDown && (_keys.IsPending || e.Key == VirtualKey.E))
+        {
+            return true;
+        }
+
+        var result = _keys.Resolve(e.Key.ToString(), Controls.KeyState.IsDown(VirtualKey.Control), Controls.KeyState.IsDown(VirtualKey.Shift), Controls.KeyState.IsDown(VirtualKey.Menu));
+        _sequenceTimer.Stop();
+        if (result.Command == CalendarCommand.SequenceStarted)
+        {
+            _sequenceTimer.Start();
+            return true;
+        }
+
         if (result.Command == CalendarCommand.None)
         {
             return false;
@@ -269,6 +310,11 @@ public sealed partial class CalendarPage : Page
         Execute(result);
         return true;
     }
+
+    static bool IsModifier(VirtualKey key) => key is VirtualKey.Control or VirtualKey.LeftControl or VirtualKey.RightControl
+        or VirtualKey.Shift or VirtualKey.LeftShift or VirtualKey.RightShift
+        or VirtualKey.Menu or VirtualKey.LeftMenu or VirtualKey.RightMenu
+        or VirtualKey.LeftWindows or VirtualKey.RightWindows;
 
     void Execute(ShortcutResult result)
     {
@@ -299,6 +345,14 @@ public sealed partial class CalendarPage : Page
             case CalendarCommand.Copy:               vm.CopySelection(); break;
             case CalendarCommand.Cut:                vm.Fire(vm.CutSelectionAsync, "calendar.cut.failed"); break;
             case CalendarCommand.Paste:              vm.Paste(); break;
+            case CalendarCommand.EditEvent:          vm.BeginEdit(); break;
+            case CalendarCommand.EditDuration:       vm.BeginEdit(focusEnd: true); break;
+            case CalendarCommand.RsvpYes:            vm.Fire(() => vm.RespondAsync(ResponseStatus.Accepted, null, emailOrganizer: true)); break;
+            case CalendarCommand.RsvpNo:             vm.Fire(() => vm.RespondAsync(ResponseStatus.Declined, null, emailOrganizer: true)); break;
+            case CalendarCommand.RsvpMaybe:          vm.Fire(() => vm.RespondAsync(ResponseStatus.Tentative, null, emailOrganizer: true)); break;
+            case CalendarCommand.EmailGuests:        vm.Fire(vm.EmailGuestsAsync); break;
+            case CalendarCommand.JoinMeeting:        vm.Fire(() => vm.JoinAsync()); break;
+            case CalendarCommand.OpenMeetingLink:    vm.Fire(vm.OpenMeetingLinkAsync); break;
         }
     }
 
