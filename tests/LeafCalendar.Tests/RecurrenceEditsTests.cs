@@ -36,7 +36,7 @@ public class RecurrenceEditsTests
         // Oct 5, 7, 9 stay in the old series; the new one has the other 7
         Assert.Equal(["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=7"], following);
         var before = RecurrenceExpander.ExpandTimed(ended, SeriesStart, "America/New_York", DateTimeOffset.MinValue, DateTimeOffset.MaxValue).Count;
-        var after  = RecurrenceExpander.ExpandTimed(following, Split, "America/New_York", DateTimeOffset.MinValue, DateTimeOffset.MaxValue).Count;
+        var after  = RecurrenceExpander.ExpandTimed(following!, Split, "America/New_York", DateTimeOffset.MinValue, DateTimeOffset.MaxValue).Count;
         Assert.Equal(3, before);
         Assert.Equal(7, after);
         Assert.Equal(10, before + after);
@@ -55,7 +55,7 @@ public class RecurrenceEditsTests
         Assert.Equal(["RRULE:FREQ=DAILY;COUNT=7"], following);
         Assert.Equal(["RRULE:FREQ=DAILY;UNTIL=20261007"], ended);
         var before = RecurrenceExpander.ExpandAllDay(ended, new DateOnly(2026, 10, 5), DateOnly.MinValue, DateOnly.MaxValue).Count;
-        var after  = RecurrenceExpander.ExpandAllDay(following, new DateOnly(2026, 10, 8), DateOnly.MinValue, DateOnly.MaxValue).Count;
+        var after  = RecurrenceExpander.ExpandAllDay(following!, new DateOnly(2026, 10, 8), DateOnly.MinValue, DateOnly.MaxValue).Count;
         Assert.Equal(10, before + after);
     }
 
@@ -86,5 +86,18 @@ public class RecurrenceEditsTests
         string[] lines = ["RRULE:FREQ=WEEKLY;BYDAY=MO"];
 
         Assert.Same(lines, RecurrenceEdits.ShiftWeekdays(lines, 0));
+    }
+
+    [Fact]
+    public void FollowingFrom_SplitAtOrAfterLastCountInstance_ReturnsNull()
+    {
+        // COUNT=3 is Oct 5, 7, 9; splitting at Oct 12 leaves nothing
+        Assert.Null(RecurrenceEdits.FollowingFrom(["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=3"], SeriesStart, "America/New_York", Split, isAllDay: false));
+    }
+
+    [Fact]
+    public void ShiftWeekdays_EmptyByDayEntry_DoesNotThrow()
+    {
+        Assert.Equal(["RRULE:FREQ=WEEKLY;BYDAY=TU,"], RecurrenceEdits.ShiftWeekdays(["RRULE:FREQ=WEEKLY;BYDAY=MO,"], 1));
     }
 }

@@ -24,7 +24,7 @@ public enum RepeatFrequency
 /// as null, and the editor keeps such a rule untouched.
 /// </summary>
 /// <seealso href="https://datatracker.ietf.org/doc/html/rfc5545#section-3.3.10"/>
-public sealed record RepeatRule(RepeatFrequency Frequency, int Interval = 1, IReadOnlyList<DayOfWeek>? Weekdays = null, DateOnly? Until = null, int? Count = null)
+public sealed record RepeatRule(RepeatFrequency Frequency, int Interval = 1, IReadOnlyList<DayOfWeek>? Weekdays = null, DateOnly? Until = null, int? Count = null, DayOfWeek? Wkst = null)
 {
     static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
     static readonly string[] DayCodes = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
@@ -42,6 +42,7 @@ public sealed record RepeatRule(RepeatFrequency Frequency, int Interval = 1, IRe
         var weekdays = new List<DayOfWeek>();
         DateOnly? until = null;
         int? count = null;
+        DayOfWeek? wkst = null;
 
         foreach (var part in line["RRULE:".Length..].Split(';', StringSplitOptions.RemoveEmptyEntries))
         {
@@ -101,6 +102,13 @@ public sealed record RepeatRule(RepeatFrequency Frequency, int Interval = 1, IRe
                     count = c;
                     break;
                 case "WKST":
+                    var wkstIndex = Array.IndexOf(DayCodes, value);
+                    if (wkstIndex < 0)
+                    {
+                        return null;
+                    }
+
+                    wkst = (DayOfWeek)wkstIndex;
                     break;
                 default:
                     return null;
@@ -113,7 +121,7 @@ public sealed record RepeatRule(RepeatFrequency Frequency, int Interval = 1, IRe
             return null;
         }
 
-        return new RepeatRule(f, interval, weekdays.Count > 0 ? weekdays : null, until, count);
+        return new RepeatRule(f, interval, weekdays.Count > 0 ? weekdays : null, until, count, wkst);
     }
 
     /// <summary>The <c>RRULE:</c> line. A timed rule's UNTIL is the end of that local date, in UTC (Google's form).</summary>
@@ -138,6 +146,12 @@ public sealed record RepeatRule(RepeatFrequency Frequency, int Interval = 1, IRe
         if (Frequency == RepeatFrequency.Weekly && Weekdays is { Count: > 0 } days)
         {
             parts.Add("BYDAY=" + string.Join(",", days.Select(d => DayCodes[(int)d])));
+        }
+
+        // Week Start Changes Which Dates Multi-Weekday Rules Pick, So It Must Survive A Round Trip
+        if (Wkst is { } wkst)
+        {
+            parts.Add("WKST=" + DayCodes[(int)wkst]);
         }
 
         if (Count is { } count)

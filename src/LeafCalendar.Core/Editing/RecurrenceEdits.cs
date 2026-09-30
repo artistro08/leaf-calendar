@@ -16,10 +16,13 @@ public static class RecurrenceEdits
 {
     static readonly string[] DayCodes = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 
-    /// <summary>Stops the series just before <paramref name="splitStart"/>: UNTIL one second before (timed, in UTC) or the day before (all-day, a date), and no COUNT.</summary>
+    /// <summary>
+    /// Stops the series just before <paramref name="splitStart"/>: UNTIL one second before (timed, in UTC) or the day before (all-day, a date), and no COUNT.
+    /// All-day starts are the calendar date at midnight; the offset is ignored.
+    /// </summary>
     public static IReadOnlyList<string> EndBefore(IReadOnlyList<string> recurrence, DateTimeOffset splitStart, bool isAllDay)
     {
-        // All-day starts are calendar dates, so use the date as written, not its UTC date
+        // Use The Date As Written For All-Day, Not Its UTC Date
         var until = isAllDay
             ? DateOnly.FromDateTime(splitStart.DateTime).AddDays(-1).ToString("yyyyMMdd", CultureInfo.InvariantCulture)
             : splitStart.UtcDateTime.AddSeconds(-1).ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
@@ -30,8 +33,10 @@ public static class RecurrenceEdits
     /// <summary>
     /// The lines for a new series starting at <paramref name="splitStart"/>. A COUNT becomes what's left after
     /// the instances before the split. EXDATE lines stay (dates before the new start never match).
+    /// Returns null when a COUNT rule has no instances left at or after the split (nothing to split off).
+    /// All-day starts are the calendar date at midnight; the offset is ignored.
     /// </summary>
-    public static IReadOnlyList<string> FollowingFrom(IReadOnlyList<string> recurrence, DateTimeOffset seriesStart, string? timeZoneId, DateTimeOffset splitStart, bool isAllDay)
+    public static IReadOnlyList<string>? FollowingFrom(IReadOnlyList<string> recurrence, DateTimeOffset seriesStart, string? timeZoneId, DateTimeOffset splitStart, bool isAllDay)
     {
         var result = new List<string>();
         foreach (var line in recurrence)
@@ -48,13 +53,19 @@ public static class RecurrenceEdits
                 continue;
             }
 
-            // Occurrences of the rule alone (COUNT counts before EXDATE removes any)
+            // Count Occurrences Of The Rule Alone (COUNT Counts Before EXDATE Removes Any)
             var seriesDate = DateOnly.FromDateTime(seriesStart.DateTime);
             var before     = isAllDay
                 ? RecurrenceExpander.ExpandAllDay([line], seriesDate, seriesDate, DateOnly.FromDateTime(splitStart.DateTime)).Count
                 : RecurrenceExpander.ExpandTimed([line], seriesStart, timeZoneId, seriesStart, splitStart).Count;
 
-            result.Add(WithParts(line, "COUNT", Math.Max(1, count - before).ToString(CultureInfo.InvariantCulture)));
+            // Nothing Left After The Split
+            if (count - before < 1)
+            {
+                return null;
+            }
+
+            result.Add(WithParts(line, "COUNT", (count - before).ToString(CultureInfo.InvariantCulture)));
         }
 
         return result;
@@ -76,7 +87,7 @@ public static class RecurrenceEdits
     static string? Part(string line, string name) =>
         line["RRULE:".Length..].Split(';').Select(p => p.Split('=', 2)).FirstOrDefault(p => p[0] == name && p.Length == 2)?[1];
 
-    // Sets one part and drops UNTIL/COUNT when setting the other (a rule has at most one of them)
+    // Set One Part And Drop UNTIL/COUNT When Setting The Other (A Rule Has At Most One Of Them)
     static string WithParts(string line, string name, string value)
     {
         var ends  = name is "UNTIL" or "COUNT";
@@ -93,6 +104,12 @@ public static class RecurrenceEdits
 
     static string Shift(string code, int days)
     {
+        // Skip Empty Or Short Entries (Rules Come From Anyone)
+        if (code.Length < 2)
+        {
+            return code;
+        }
+
         var day   = code[^2..];
         var index = Array.IndexOf(DayCodes, day);
         return index < 0 ? code : code[..^2] + DayCodes[((index + days) % 7 + 7) % 7];

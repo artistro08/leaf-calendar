@@ -1,4 +1,5 @@
 using LeafCalendar.Core.Editing;
+using LeafCalendar.Core.Recurrence;
 
 namespace LeafCalendar.Tests;
 
@@ -57,5 +58,23 @@ public class RepeatRuleTests
     public void Describe_ReadsLikeGoogle(string line, string expected)
     {
         Assert.Equal(expected, RepeatRule.Parse(line, NewYork)!.Describe());
+    }
+
+    [Fact]
+    public void RoundTrip_KeepsWkst_AndSameDates()
+    {
+        const string line = "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=SU,MO;WKST=SU";
+        var rule = RepeatRule.Parse(line, NewYork)!;
+
+        Assert.Equal(DayOfWeek.Sunday, rule.Wkst);
+
+        var written = rule.ToRRule(isAllDay: false, NewYork);
+        Assert.Contains("WKST=SU", written);
+
+        // Sunday Oct 4, 2026 start
+        var start    = new DateTimeOffset(2026, 10, 4, 9, 0, 0, TimeSpan.FromHours(-4));
+        var original = RecurrenceExpander.ExpandTimed([line], start, "America/New_York", start, start.AddDays(60));
+        var again    = RecurrenceExpander.ExpandTimed([written], start, "America/New_York", start, start.AddDays(60));
+        Assert.Equal(original, again);
     }
 }
