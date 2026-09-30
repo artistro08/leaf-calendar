@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
@@ -5,18 +6,34 @@ using System.Text.Json.Nodes;
 namespace LeafCalendar.LiveTests.Support;
 
 /// <summary>
-/// Raw Google calls that live tests use to arrange data. The app doesn't need these yet.
+/// Raw Google calls that live tests use to arrange and check data.
 /// </summary>
+/// <remarks>
+/// Safety: the account is a real one, so every write is refused unless it targets a calendar this instance created.
+/// </remarks>
 public sealed class LiveGoogle(LiveAccount live)
 {
     static readonly Uri BaseUri = new("https://www.googleapis.com/calendar/v3/");
 
-    /// <summary>Creates a "Leaf Test &lt;timestamp&gt;" calendar and returns its ID.</summary>
+    readonly HashSet<string> _owned = [];
+
+    /// <summary>Refuses to go on unless <paramref name="calendarId"/> was created by this instance.</summary>
+    public void RequireOwned(string calendarId)
+    {
+        if (!_owned.Contains(calendarId))
+        {
+            throw new InvalidOperationException("Live tests may only write to a calendar they created in this run.");
+        }
+    }
+
+    /// <summary>Creates a "Leaf live test &lt;guid&gt;" calendar and returns its ID.</summary>
     public async Task<string> CreateTestCalendarAsync(CancellationToken ct)
     {
-        var body = new JsonObject { ["summary"] = $"Leaf Test {DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}" };
+        var body = new JsonObject { ["summary"] = $"Leaf live test {Guid.NewGuid():N}" };
         var created = await SendAsync(HttpMethod.Post, "calendars", body, ct);
-        return created!["id"]!.GetValue<string>();
+        var id      = created!["id"]!.GetValue<string>();
+        _owned.Add(id);
+        return id;
     }
 
     /// <summary>Deletes a calendar.</summary>
@@ -69,8 +86,46 @@ public sealed class LiveGoogle(LiveAccount live)
         return [.. page!["items"]!.AsArray().Select(i => DateTimeOffset.Parse(i!["start"]!["dateTime"]!.GetValue<string>(), System.Globalization.CultureInfo.InvariantCulture).ToUniversalTime())];
     }
 
+    /// <summary>Google's current copy of an event, or null when it's gone.</summary>
+    public async Task<JsonNode?> GetEventAsync(string calendarId, string eventId, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(BaseUri, $"calendars/{Uri.EscapeDataString(calendarId)}/events/{Uri.EscapeDataString(eventId)}"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await live.Services.AccessTokens.GetAccessTokenAsync(live.AccountId, ct));
+
+        using var response = await LiveAccount.Http.SendAsync(request, ct);
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
+    }
+
+    /// <summary>Creates a one-hour event tomorrow with the calendar itself as a guest (so its reply is its own) and returns its ID.</summary>
+    public async Task<string> InsertInviteAsync(string calendarId, string summary, CancellationToken ct)
+    {
+        var start = DateTimeOffset.UtcNow.Date.AddDays(1).AddHours(16);
+        var body = new JsonObject
+        {
+            ["summary"]   = summary,
+            ["start"]     = new JsonObject { ["dateTime"] = start.ToString("O") },
+            ["end"]       = new JsonObject { ["dateTime"] = start.AddHours(1).ToString("O") },
+            ["attendees"] = new JsonArray(new JsonObject { ["email"] = calendarId }),
+        };
+
+        var created = await SendAsync(HttpMethod.Post, $"calendars/{Uri.EscapeDataString(calendarId)}/events", body, ct);
+        return created!["id"]!.GetValue<string>();
+    }
+
     async Task<JsonNode?> SendAsync(HttpMethod method, string path, JsonObject? body, CancellationToken ct)
     {
+        // Guard: Writes Only Go To Calendars This Run Created
+        if (method != HttpMethod.Get && path != "calendars")
+        {
+            RequireOwned(Uri.UnescapeDataString(path.Split('/')[1]));
+        }
+
         using var request = new HttpRequestMessage(method, new Uri(BaseUri, path));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await live.Services.AccessTokens.GetAccessTokenAsync(live.AccountId, ct));
         if (body is not null)
