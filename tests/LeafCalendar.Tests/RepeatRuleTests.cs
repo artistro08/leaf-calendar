@@ -1,0 +1,61 @@
+using LeafCalendar.Core.Editing;
+
+namespace LeafCalendar.Tests;
+
+public class RepeatRuleTests
+{
+    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+
+    [Fact]
+    public void Parse_WeeklyWithDaysAndUntil_ReadsFields()
+    {
+        var rule = RepeatRule.Parse("RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20270101T045959Z", NewYork)!;
+
+        Assert.Equal(RepeatFrequency.Weekly, rule.Frequency);
+        Assert.Equal(2, rule.Interval);
+        Assert.Equal([DayOfWeek.Monday, DayOfWeek.Wednesday], rule.Weekdays);
+        Assert.Equal(new DateOnly(2026, 12, 31), rule.Until);
+        Assert.Null(rule.Count);
+    }
+
+    [Theory]
+    [InlineData("RRULE:FREQ=MONTHLY;BYDAY=2TU")]
+    [InlineData("RRULE:FREQ=WEEKLY;BYSETPOS=1;BYDAY=MO")]
+    [InlineData("RRULE:FREQ=HOURLY")]
+    [InlineData("EXDATE:20261007T133000Z")]
+    [InlineData("RRULE:FREQ=WEEKLY;INTERVAL=0")]
+    public void Parse_RuleTheEditorCantShow_ReturnsNull(string line)
+    {
+        Assert.Null(RepeatRule.Parse(line, NewYork));
+    }
+
+    [Fact]
+    public void ToRRule_TimedUntil_IsEndOfThatLocalDayInUtc()
+    {
+        var rule = new RepeatRule(RepeatFrequency.Weekly, 2, [DayOfWeek.Monday, DayOfWeek.Wednesday], Until: new DateOnly(2026, 12, 31));
+
+        Assert.Equal("RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20270101T045959Z", rule.ToRRule(isAllDay: false, NewYork));
+    }
+
+    [Fact]
+    public void ToRRule_AllDayCount_UsesCount()
+    {
+        Assert.Equal("RRULE:FREQ=YEARLY;COUNT=5", new RepeatRule(RepeatFrequency.Yearly, Count: 5).ToRRule(isAllDay: true, NewYork));
+    }
+
+    [Fact]
+    public void ToRRule_AllDayUntil_UsesDate()
+    {
+        Assert.Equal("RRULE:FREQ=DAILY;UNTIL=20261031", new RepeatRule(RepeatFrequency.Daily, Until: new DateOnly(2026, 10, 31)).ToRRule(isAllDay: true, NewYork));
+    }
+
+    [Theory]
+    [InlineData("RRULE:FREQ=DAILY", "Every day")]
+    [InlineData("RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE", "Every 2 weeks on Mon, Wed")]
+    [InlineData("RRULE:FREQ=MONTHLY;COUNT=3", "Monthly, 3 times")]
+    [InlineData("RRULE:FREQ=YEARLY;UNTIL=20271231", "Yearly, until Dec 31, 2027")]
+    public void Describe_ReadsLikeGoogle(string line, string expected)
+    {
+        Assert.Equal(expected, RepeatRule.Parse(line, NewYork)!.Describe());
+    }
+}
