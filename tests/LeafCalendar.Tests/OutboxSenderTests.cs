@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.Sync;
 using LeafCalendar.Tests.Support;
@@ -158,6 +160,25 @@ public sealed class OutboxSenderTests : IDisposable
         Assert.Equal(2, _h.Google.Requests.Count(r => r.Method == HttpMethod.Post && r.Uri.AbsoluteUri.StartsWith(SyncHarness.PrimaryEventsUrl + "?", StringComparison.Ordinal)));
         Assert.Empty(Pending());
         Assert.Equal("\"G1\"", Get("leafnew0001")!.Etag);
+    }
+
+    [Fact]
+    public async Task Send_ConferenceCreateRetried_SameRequestId()
+    {
+        // The patch is built once, when the edit is queued
+        var none   = new EventDraft { AccountId = Account, CalendarId = Primary, HasConference = false };
+        var patch  = EventJson.BuildPatch(none, none with { HasConference = true }).ToJsonString();
+        Queue("evt-single", OutboxOperation.Patch, patch);
+        _h.Google.On(r => r.Method == HttpMethod.Patch && r.Uri.AbsoluteUri.StartsWith(SingleUrl + "?", StringComparison.Ordinal), _ => throw new HttpRequestException("Connection dropped."), once: true);
+        _h.Google.On(r => r.Method == HttpMethod.Patch && r.Uri.AbsoluteUri.StartsWith(SingleUrl + "?", StringComparison.Ordinal), _ => FakeHttpHandler.Json(HttpStatusCode.OK, MineOnGoogle));
+
+        await Send();
+        await Send();
+
+        var ids = _h.Google.Requests.Where(r => r.Method == HttpMethod.Patch).Select(r => (string?)JsonNode.Parse(r.Body!)!["conferenceData"]!["createRequest"]!["requestId"]).ToList();
+        Assert.Equal(2, ids.Count);
+        Assert.Equal(ids[0], ids[1]);
+        Assert.False(string.IsNullOrEmpty(ids[0]));
     }
 
     [Fact]

@@ -85,10 +85,7 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
             throw new ArgumentException("The event JSON must carry a non-empty id.", nameof(eventJson));
         }
 
-        // A Body With conferenceData (a Meet create request) Needs Version 1, Or Google Ignores It
-        var conference = JsonNode.Parse(eventJson) is JsonObject body && body.ContainsKey("conferenceData") ? "&conferenceDataVersion=1" : "";
-
-        using var response = await SendAsync(accountId, HttpMethod.Post, $"{EventsPath(calendarId)}?sendUpdates={Updates(sendUpdates)}{conference}", eventJson, null, ct);
+        using var response = await SendAsync(accountId, HttpMethod.Post, $"{EventsPath(calendarId)}?sendUpdates={Updates(sendUpdates)}{ConferenceQuery(eventJson)}", eventJson, null, ct);
         return await ReadEventAsync(response, ct, isInsert: true);
     }
 
@@ -98,7 +95,7 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
     /// <exception cref="EventGoneException">The event was deleted on Google.</exception>
     public async Task<string> PatchEventAsync(string accountId, string calendarId, string eventId, string patchJson, string? ifMatch, bool sendUpdates, CancellationToken ct)
     {
-        using var response = await SendAsync(accountId, HttpMethod.Patch, $"{EventPath(calendarId, eventId)}?sendUpdates={Updates(sendUpdates)}", patchJson, ifMatch, ct);
+        using var response = await SendAsync(accountId, HttpMethod.Patch, $"{EventPath(calendarId, eventId)}?sendUpdates={Updates(sendUpdates)}{ConferenceQuery(patchJson)}", patchJson, ifMatch, ct);
         return await ReadEventAsync(response, ct);
     }
 
@@ -141,6 +138,10 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
     static string EventsPath(string calendarId) => $"calendars/{Uri.EscapeDataString(calendarId)}/events";
 
     static string EventPath(string calendarId, string eventId) => $"{EventsPath(calendarId)}/{Uri.EscapeDataString(eventId)}";
+
+    // Google only reads conferenceData (create, copy, or remove a video call) when asked to
+    static string ConferenceQuery(string body) =>
+        JsonNode.Parse(body) is JsonObject o && o.ContainsKey("conferenceData") ? "&conferenceDataVersion=1" : "";
 
     static string Updates(bool sendUpdates) => sendUpdates ? "all" : "none";
 

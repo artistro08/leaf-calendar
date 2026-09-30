@@ -256,7 +256,7 @@ public sealed class FakeGoogleServer : IDisposable
                 return method switch
                 {
                     "GET"  => List(calendarId, query),
-                    "POST" => Insert(calendarId, body),
+                    "POST" => Insert(calendarId, body, ConferenceEnabled(rawQuery)),
                     _      => NotFound(),
                 };
             }
@@ -270,7 +270,7 @@ public sealed class FakeGoogleServer : IDisposable
             return method switch
             {
                 "GET"    => Get(calendarId, id),
-                "PATCH"  => Patch(calendarId, id, ifMatch, body),
+                "PATCH"  => Patch(calendarId, id, ifMatch, body, ConferenceEnabled(rawQuery)),
                 "DELETE" => Delete(calendarId, id, ifMatch),
                 _        => NotFound(),
             };
@@ -301,7 +301,7 @@ public sealed class FakeGoogleServer : IDisposable
         return (200, page.ToJsonString(), null);
     }
 
-    (int, string, string?) Insert(string calendarId, string body)
+    (int, string, string?) Insert(string calendarId, string body, bool conference)
     {
         var ev = JsonNode.Parse(body)!.AsObject();
         var id = (string?)ev["id"] ?? Guid.NewGuid().ToString("N");
@@ -313,12 +313,13 @@ public sealed class FakeGoogleServer : IDisposable
         ev["id"]      = id;
         ev["status"] ??= "confirmed";
         ev["iCalUID"] = id + "@google.com";
+        ApplyConference(ev, ev["conferenceData"], ev.ContainsKey("conferenceData"), conference);
         Store(calendarId)[id] = ev;
         Touch(calendarId, ev);
         return (200, ev.ToJsonString(), null);
     }
 
-    (int, string, string?) Patch(string calendarId, string id, string? ifMatch, string body)
+    (int, string, string?) Patch(string calendarId, string id, string? ifMatch, string body, bool conference)
     {
         if (Existing(calendarId, id) is not { } ev)
         {
@@ -330,9 +331,45 @@ public sealed class FakeGoogleServer : IDisposable
             return (412, Error(412, "conditionNotMet"), null);
         }
 
-        Merge(ev, JsonNode.Parse(body)!.AsObject());
+        // Video Call Changes Are Handled Apart From The Merge
+        var patch      = JsonNode.Parse(body)!.AsObject();
+        var hasConfRaw = patch.ContainsKey("conferenceData");
+        var confValue  = patch["conferenceData"];
+        patch.Remove("conferenceData");
+        Merge(ev, patch);
+        ApplyConference(ev, confValue, hasConfRaw, conference);
         Touch(calendarId, ev);
         return (200, ev.ToJsonString(), null);
+    }
+
+    // Google reads conferenceData only with conferenceDataVersion=1
+    static bool ConferenceEnabled(string rawQuery) =>
+        rawQuery.TrimStart('?').Split('&').Contains("conferenceDataVersion=1", StringComparer.Ordinal);
+
+    // A createRequest becomes a Meet link, null removes it, and without version 1 the field is ignored
+    static void ApplyConference(JsonObject ev, JsonNode? value, bool present, bool enabled)
+    {
+        ev.Remove("conferenceData", out _);
+        if (!present || !enabled)
+        {
+            return;
+        }
+
+        if (value is null)
+        {
+            ev.Remove("hangoutLink");
+        }
+        else if ((string?)value["createRequest"]?["requestId"] is { } requestId)
+        {
+            var code = requestId.Length > 4 ? requestId[..4] : requestId;
+            var link = "https://meet.google.com/fake-" + code;
+            ev["hangoutLink"]    = link;
+            ev["conferenceData"] = new JsonObject
+            {
+                ["conferenceId"] = "fake-" + code,
+                ["entryPoints"]  = new JsonArray(new JsonObject { ["entryPointType"] = "video", ["uri"] = link }),
+            };
+        }
     }
 
     (int, string, string?) Delete(string calendarId, string id, string? ifMatch)
@@ -435,6 +472,15 @@ public sealed class FakeGoogleServer : IDisposable
         }
 
         return events;
+    }
+
+    /// <summary>Puts an event on the fake Google (tests seed extra events with it before launching Leaf).</summary>
+    public void AddEvent(string calendarId, JsonObject body)
+    {
+        lock (_gate)
+        {
+            Insert(calendarId, body.ToJsonString(), conference: true);
+        }
     }
 
     void Seed(string calendarId, string fixture)

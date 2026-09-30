@@ -119,6 +119,37 @@ public class LiveEditTests
     }
 
     [Fact]
+    public async Task Create_WithMeet_GetsAMeetLink()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var live = LiveAccount.TryLoad();
+        if (live is null)
+        {
+            Assert.Skip(SkipReason);
+            return;
+        }
+
+        var google     = new LiveGoogle(live);
+        var calendarId = await google.CreateTestCalendarAsync(ct);
+        try
+        {
+            await Sync(live, google, ct);
+            var start = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(2).AddHours(15), TimeSpan.Zero);
+
+            // Create With Meet (conferenceData.createRequest goes out with conferenceDataVersion=1)
+            var id = Editor(live).Create(new EventDraft { AccountId = live.AccountId, CalendarId = calendarId, Title = "Leaf live meet", Start = start, End = start.AddHours(1), TimeZone = "America/New_York", HasConference = true }, sendUpdates: false);
+            await Sync(live, google, ct);
+
+            var link = (string?)(await google.GetEventAsync(calendarId, id, ct))!["hangoutLink"];
+            Assert.StartsWith("https://meet.google.com/", link, StringComparison.Ordinal);
+        }
+        finally
+        {
+            await Cleanup(google, calendarId);
+        }
+    }
+
+    [Fact]
     public async Task StaleEtag_BecomesConflict_KeepMineWins()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -64,6 +64,7 @@ public static class EventJson
             ReminderMinutes     = PopupMinutes(root),
             Recurrence          = seriesRecurrence ?? Lines(root),
             ConferenceUri       = details.ConferenceUri,
+            HasConference       = Get(root, "conferenceData") is { ValueKind: JsonValueKind.Object },
         };
     }
 
@@ -151,8 +152,24 @@ public static class EventJson
             body["recurrence"] = Strings(draft.Recurrence);
         }
 
+        // Google Meet (made by Google when the create arrives)
+        if (draft.HasConference)
+        {
+            body["conferenceData"] = MeetRequest(id);
+        }
+
         return body;
     }
+
+    /// <summary>A <c>conferenceData</c> asking Google for a new Meet link; the request ID makes a retry safe.</summary>
+    static JsonObject MeetRequest(string requestId) => new()
+    {
+        ["createRequest"] = new JsonObject
+        {
+            ["requestId"]             = requestId,
+            ["conferenceSolutionKey"] = new JsonObject { ["type"] = "hangoutsMeet" },
+        },
+    };
 
     /// <summary>
     /// The body for <c>events.patch</c>: only the fields that differ. Switching between all-day and timed clears the other form.
@@ -209,6 +226,12 @@ public static class EventJson
             patch["recurrence"] = Strings(after.Recurrence);
         }
 
+        // Add Or Remove The Video Call (the request ID is fixed here, so a retried send can't make two links)
+        if (before.HasConference != after.HasConference)
+        {
+            patch["conferenceData"] = after.HasConference ? MeetRequest(Guid.NewGuid().ToString("N")) : null;
+        }
+
         return patch;
     }
 
@@ -218,6 +241,13 @@ public static class EventJson
     {
         var target = Parse(rawJson);
         Merge(target, patch);
+
+        // Removing The Video Call Drops Its Link Too
+        if (patch.ContainsKey("conferenceData") && patch["conferenceData"] is null)
+        {
+            target.Remove("hangoutLink");
+        }
+
         return target.ToJsonString();
     }
 
@@ -322,14 +352,7 @@ public static class EventJson
         var solution = (string?)(source["conferenceData"]?["conferenceSolution"]?["key"]?["type"] as JsonValue);
         if (solution == "hangoutsMeet" || source["hangoutLink"] is not null)
         {
-            copy["conferenceData"] = new JsonObject
-            {
-                ["createRequest"] = new JsonObject
-                {
-                    ["requestId"]             = Guid.NewGuid().ToString("N"),
-                    ["conferenceSolutionKey"] = new JsonObject { ["type"] = "hangoutsMeet" },
-                },
-            };
+            copy["conferenceData"] = MeetRequest(Guid.NewGuid().ToString("N"));
         }
 
         return copy.ToJsonString();

@@ -347,4 +347,58 @@ public class EventJsonTests
         Assert.False(string.IsNullOrEmpty((string?)body["start"]!["timeZone"]));
         Assert.Equal((string?)body["start"]!["timeZone"], (string?)body["end"]!["timeZone"]);
     }
+
+    // =========================================================================
+    // GOOGLE MEET
+    // =========================================================================
+
+    static EventDraft MeetDraft(bool meet) => new()
+    {
+        AccountId = "a", CalendarId = "c", Title = "T", TimeZone = "America/New_York", HasConference = meet,
+        Start = new DateTimeOffset(2026, 10, 2, 14, 0, 0, TimeSpan.Zero), End = new DateTimeOffset(2026, 10, 2, 15, 0, 0, TimeSpan.Zero),
+    };
+
+    [Fact]
+    public void BuildCreate_Default_HasNoConference() =>
+        Assert.Null(EventJson.BuildCreate("id1", MeetDraft(false))["conferenceData"]);
+
+    [Fact]
+    public void BuildCreate_WithConference_AsksForAMeetLinkKeyedByTheEventId()
+    {
+        var request = EventJson.BuildCreate("id1", MeetDraft(true))["conferenceData"]!["createRequest"]!;
+        Assert.Equal("id1", (string?)request["requestId"]);
+        Assert.Equal("hangoutsMeet", (string?)request["conferenceSolutionKey"]!["type"]);
+    }
+
+    [Fact]
+    public void BuildPatch_AddConference_AddsCreateRequest() =>
+        Assert.Equal("hangoutsMeet", (string?)EventJson.BuildPatch(MeetDraft(false), MeetDraft(true))["conferenceData"]!["createRequest"]!["conferenceSolutionKey"]!["type"]);
+
+    [Fact]
+    public void BuildPatch_RemoveConference_SetsConferenceDataNull()
+    {
+        var patch = EventJson.BuildPatch(MeetDraft(true), MeetDraft(false));
+        Assert.True(patch.ContainsKey("conferenceData"));
+        Assert.Null(patch["conferenceData"]);
+    }
+
+    [Fact]
+    public void BuildPatch_ConferenceUnchanged_LeavesItOut() =>
+        Assert.False(EventJson.BuildPatch(MeetDraft(true), MeetDraft(true)).ContainsKey("conferenceData"));
+
+    [Fact]
+    public void ApplyPatch_RemoveConference_DropsTheHangoutLinkToo()
+    {
+        var local = EventJson.ApplyPatch("""{"id":"x","hangoutLink":"https://meet.google.com/q","conferenceData":{"conferenceId":"q"}}""", new JsonObject { ["conferenceData"] = null });
+        Assert.DoesNotContain("hangoutLink", local, StringComparison.Ordinal);
+        Assert.DoesNotContain("conferenceData", local, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReadDraft_WithConferenceData_HasConference()
+    {
+        var draft = EventJson.ReadDraft("a", "c", """{"id":"x","summary":"S","start":{"dateTime":"2026-10-02T14:00:00Z"},"end":{"dateTime":"2026-10-02T15:00:00Z"},"conferenceData":{"conferenceId":"q"}}""",
+            new DateTimeOffset(2026, 10, 2, 14, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 2, 15, 0, 0, TimeSpan.Zero), false);
+        Assert.True(draft.HasConference);
+    }
 }

@@ -182,6 +182,34 @@ public class GoogleCalendarClientTests : IDisposable
     }
 
     [Fact]
+    public async Task Insert_BodyWithConferenceData_SendsConferenceDataVersion1()
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        _google.On(HttpMethod.Post, EventsUrl, HttpStatusCode.OK, """{"id":"abc","status":"confirmed"}""");
+
+        await CreateClient().InsertEventAsync(Account, "leaf.tester@gmail.com", """{"id":"abc","conferenceData":{"createRequest":{"requestId":"abc"}}}""", false, TestContext.Current.CancellationToken);
+
+        var request = _google.Requests.Single(r => r.Method == HttpMethod.Post && r.Uri.AbsoluteUri.StartsWith(EventsUrl, StringComparison.Ordinal));
+        Assert.Equal("1", request.Query("conferenceDataVersion"));
+        Assert.Equal("none", request.Query("sendUpdates"));
+    }
+
+    [Theory]
+    [InlineData("""{"conferenceData":{"createRequest":{"requestId":"r1"}}}""", "1")]
+    [InlineData("""{"conferenceData":null}""", "1")]
+    [InlineData("""{"summary":"x"}""", null)]
+    public async Task Patch_SendsConferenceVersionOnlyWithConferenceData(string body, string? expected)
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        _google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single"}""");
+
+        await CreateClient().PatchEventAsync(Account, "leaf.tester@gmail.com", "evt-single", body, "\"1\"", false, TestContext.Current.CancellationToken);
+
+        var request = _google.Requests.Single(r => r.Method == HttpMethod.Patch);
+        Assert.Equal(expected, request.Query("conferenceDataVersion"));
+    }
+
+    [Fact]
     public async Task InsertEventAsync_NoId_ThrowsAndSendsNothing()
     {
         await Assert.ThrowsAsync<ArgumentException>(

@@ -65,4 +65,7 @@ public sealed record EventDraft
 
     /// <summary>The video call link (shown, never edited).</summary>
     public Uri? ConferenceUri { get; init; }
+
+    /// <summary>The event has a video call from Google (or one is being added); off for new events.</summary>
+    public bool HasConference { get; init; }
 }
