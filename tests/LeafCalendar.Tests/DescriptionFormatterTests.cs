@@ -92,6 +92,19 @@ public class DescriptionFormatterTests
         Assert.Equal("mailto:sam@example.com?subject=Hi", DescriptionFormatter.Format("<a href=\"mailto:sam@example.com?subject=Hi&body=a%0D%0ABcc:x@y.z&cc=q%0aw\">m</a>").Single().Link?.OriginalString);
     }
 
+    [Theory]
+    [InlineData("<a href=\"mailto:a@b.com?subject=Hi&body=a&#13;&#10;Bcc:x@y.z\">m</a>")]
+    [InlineData("<a href=\"mailto:a@b.com?subject=Hi&body=a\r\nBcc:x@y.z\">m</a>")]
+    [InlineData("<a href=\"mailto:a@b.com?subject=Hi&body=a\nBcc:x@y.z\">m</a>")]
+    [InlineData("<a href=\"mailto:a@b.com?subject=Hi&body=a&#x0A;Bcc:x@y.z\">m</a>")]
+    public void Format_MailtoRawLineBreaks_AreDropped(string html)
+    {
+        var link = DescriptionFormatter.Format(html).Single().Link;
+
+        Assert.Equal("mailto:a@b.com?subject=Hi", link?.OriginalString);
+        Assert.DoesNotContain("%0", link!.AbsoluteUri, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void Format_MailtoText_StaysClickable()
     {

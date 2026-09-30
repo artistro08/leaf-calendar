@@ -223,10 +223,18 @@ public static partial class DescriptionFormatter
             ? []
             : parts[1].Split('&', StringSplitOptions.RemoveEmptyEntries)
                 .Where(p => p.Split('=')[0].ToLowerInvariant() is "subject" or "body" or "cc"
-                    && !p.Contains("%0D", StringComparison.OrdinalIgnoreCase) && !p.Contains("%0A", StringComparison.OrdinalIgnoreCase))
+                    && !p.Any(char.IsControl) && !p.Contains("%0D", StringComparison.OrdinalIgnoreCase) && !p.Contains("%0A", StringComparison.OrdinalIgnoreCase))
                 .ToList();
         var clean = parts[0] + (kept.Count > 0 ? "?" + string.Join("&", kept) : "");
-        return Uri.TryCreate(clean, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeMailto ? uri : null;
+        if (!Uri.TryCreate(clean, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeMailto)
+        {
+            return null;
+        }
+
+        // Backstop: no encoded line break may survive in the final link
+        return uri.AbsoluteUri.Contains("%0D", StringComparison.OrdinalIgnoreCase) || uri.AbsoluteUri.Contains("%0A", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : uri;
     }
 
     // Drops leading and trailing line breaks, keeps at most one blank line, drops empty runs, and caps the length
