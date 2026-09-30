@@ -86,7 +86,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     SyncEngine? _attachedSync;
     readonly List<CalendarOccurrence> _selection = [];
     (DateOnly Day, Func<CalendarOccurrence, bool> Match)? _reselect;
-    DeleteReceipt? _lastDelete;
+    readonly List<DeleteReceipt> _deletes = [];
+
+    // ponytail: session-only and capped, since older deletes are rarely wanted
+    const int UndoDepth = 50;
     readonly List<(CalendarOccurrence Occurrence, EventCopy Copy)> _clipboard = [];
 
     // Marks Leaf's own events on the Windows clipboard, so Ctrl+V pastes them only while nothing else was copied since
@@ -1072,7 +1075,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             }
 
             // Offer Undo Until The Delete Is Sent
-            _lastDelete = receipt;
+            _deletes.Add(receipt);
+        if (_deletes.Count > UndoDepth)
+        {
+            _deletes.RemoveAt(0);
+        }
+
             ClearSelection();
             var deleted = deletable.Count == 1 ? "Event deleted" : string.Create(CultureInfo.InvariantCulture, $"{deletable.Count} events deleted");
             var skipped = permissions.Count - deletable.Count;
@@ -1196,24 +1204,39 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Undoes the last delete if it hasn't reached Google yet.</summary>
+    /// <summary>
+    /// Undoes the newest delete not yet undone this session (Ctrl+Z or the notice's Undo). Inside the hold window the
+    /// delete never leaves; after it, the event comes back as a quiet copy, or a repeating day is restored (no emails).
+    /// </summary>
     public void Undo()
     {
-        if (_lastDelete is not { } receipt)
+        if (_deletes.Count == 0)
         {
             return;
         }
 
-        _lastDelete = null;
+        var receipt = _deletes[^1];
+        _deletes.RemoveAt(_deletes.Count - 1);
         try
         {
-            if (_services.Editor.Undo(receipt) is not UndoResult.Nothing)
+            switch (_services.Editor.Undo(receipt))
             {
-                Notice = null;
-                return;
+                case UndoResult.Restored:
+                    Notice = null;
+                    break;
+                case UndoResult.Recreated:
+                    Say(receipt.Items.Count == 1 ? "Event restored" : string.Create(CultureInfo.InvariantCulture, $"{receipt.Items.Count} events restored"), canUndo: false);
+                    break;
+                default:
+                    Say("Nothing to undo", canUndo: false);
+                    break;
             }
-
-            Say("Already sent to Google, so it can't be undone.", canUndo: false);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // The calendar became read-only: Core's message says so
+            _services.Log.Error("event.undo.failed", ex);
+            Say(ex.Message, canUndo: false);
         }
         catch (Exception ex) when (IsEditFailure(ex))
         {

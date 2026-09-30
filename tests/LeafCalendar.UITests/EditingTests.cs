@@ -1,3 +1,4 @@
+using System.Drawing;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
@@ -53,6 +54,101 @@ public sealed class EditingTests : IDisposable
         Assert.NotNull(leaf.WaitFor("Event_evt-single_202610011300"));
         Thread.Sleep(TimeSpan.FromSeconds(9));
         Assert.DoesNotContain(_google.Writes, w => w.Method == "DELETE");
+    }
+
+    // Whether any element on screen carries this text in its name
+    static bool ShowsText(LeafApp leaf, string text) =>
+        Retry.WhileFalse(() => leaf.MainWindow.FindAllDescendants().Any(e => e.Name.Contains(text, StringComparison.Ordinal)), TimeSpan.FromSeconds(10)).Success;
+
+    [Fact]
+    public void Delete_AfterTheNoticeIsGone_CtrlZ_RecreatesItQuietly()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        leaf.Press(VirtualKeyShort.DELETE);
+        _google.WaitForWrite(w => w.Method == "DELETE");
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("NoticeBar"), TimeSpan.FromSeconds(10)).Success, "The notice never hid itself.");
+
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_Z);
+
+        var create = _google.WaitForWrite(w => w.Method == "POST");
+        Assert.Contains("sendUpdates=none", create.Query, StringComparison.Ordinal);
+        Assert.Contains("\"Dentist appointment\"", create.Body, StringComparison.Ordinal);
+        Assert.True(ShowsText(leaf, "Dentist appointment"));
+    }
+
+    [Fact]
+    public void Delete_RepeatingInstanceSent_CtrlZ_RestoresThatDay()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300");
+        leaf.WaitFor("NextButton").AsButton().Invoke();
+        ClickWhenSettled(leaf.WaitFor("Event_evt-weekly_202610051330"));
+        leaf.Press(VirtualKeyShort.DELETE);
+        leaf.WaitForAnywhere("ScopeThis").Click();
+        leaf.WaitForAnywhere("PrimaryButton").AsButton().Invoke();
+        _google.WaitForWrite(w => w.Method == "DELETE" && w.Path.EndsWith("/events/evt-weekly_20261005T133000Z", StringComparison.Ordinal));
+
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_Z);
+
+        var restore = _google.WaitForWrite(w => w.Method == "PATCH" && w.Path.EndsWith("/events/evt-weekly_20261005T133000Z", StringComparison.Ordinal));
+        Assert.Contains("sendUpdates=none", restore.Query, StringComparison.Ordinal);
+        Assert.Contains("\"status\":\"confirmed\"", restore.Body.Replace(" ", string.Empty, StringComparison.Ordinal), StringComparison.Ordinal);
+        Assert.NotNull(leaf.WaitFor("Event_evt-weekly_202610051330"));
+    }
+
+    [Fact]
+    public void CtrlZ_Twice_UndoesTwoDeletesNewestFirst()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        leaf.Press(VirtualKeyShort.DELETE);
+        _google.WaitForWrite(w => w.Method == "DELETE" && w.Path.EndsWith("/events/evt-single", StringComparison.Ordinal));
+        leaf.WaitFor("Event_evt-meeting_202610011800").Click();
+        leaf.Press(VirtualKeyShort.DELETE);
+        _google.WaitForWrite(w => w.Method == "DELETE" && w.Path.EndsWith("/events/evt-meeting", StringComparison.Ordinal));
+
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_Z);
+        var first = _google.WaitForWrite(w => w.Method == "POST");
+        Assert.Contains("\"Design review\"", first.Body, StringComparison.Ordinal);
+
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_Z);
+        var second = _google.WaitForWrite(w => w.Method == "POST" && w.Body.Contains("\"Dentist appointment\"", StringComparison.Ordinal));
+        Assert.NotNull(second);
+        Assert.Equal(2, _google.Writes.Count(w => w.Method == "POST"));
+    }
+
+    [Fact]
+    public void CtrlZ_WhileTypingInTheEditor_UndoesTextNotADelete()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        leaf.Press(VirtualKeyShort.DELETE);
+        _google.WaitForWrite(w => w.Method == "DELETE");
+        leaf.WaitFor("Event_evt-meeting_202610011800").Click();
+        leaf.Press(VirtualKeyShort.KEY_E);
+        var title = leaf.WaitFor("EditorTitle").AsTextBox();
+        title.Focus();
+        Keyboard.Type("abc");
+
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_Z);
+
+        Assert.False(Retry.WhileNull(() => _google.Writes.FirstOrDefault(w => w.Method == "POST"), TimeSpan.FromSeconds(3)).Success, "Ctrl+Z in the editor must not bring back a delete.");
+    }
+
+    [Fact]
+    public void NoticeBar_IsSolidOverTheGrid()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        leaf.Press(VirtualKeyShort.DELETE);
+        var box = leaf.WaitFor("NoticeBar").BoundingRectangle;
+
+        // A strip left of the icon: hour lines behind a see-through bar would vary its lightness
+        var strip = new Rectangle(box.X + 3, box.Y + 3, 8, box.Height - 6);
+        using var shot = FlaUI.Core.Capturing.Capture.Rectangle(strip);
+        var lightness = Enumerable.Range(0, shot.Bitmap.Width).SelectMany(x => Enumerable.Range(0, shot.Bitmap.Height).Select(y => shot.Bitmap.GetPixel(x, y).GetBrightness())).ToList();
+        Assert.True(lightness.Max() - lightness.Min() < 0.03f, $"The grid shows through the notice ({lightness.Min():0.00} to {lightness.Max():0.00}).");
     }
 
     [Fact]

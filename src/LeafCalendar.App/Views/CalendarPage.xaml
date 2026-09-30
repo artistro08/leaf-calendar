@@ -5,6 +5,20 @@
     xmlns:local="using:LeafCalendar.App.Views"
     KeyboardAcceleratorPlacementMode="Hidden">
 
+    <!-- The InfoBar's severity states paint their own see-through fill over Background; the notice is always Informational, so its fill is made solid here (Fluent's solid tertiary background) -->
+    <Page.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="InfoBarInformationalSeverityBackgroundBrush" Color="#F9F9F9" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="InfoBarInformationalSeverityBackgroundBrush" Color="#282828" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Page.Resources>
+
     <Page.KeyboardAccelerators>
         <KeyboardAccelerator Key="Escape" Invoked="OnEscapeInvoked" />
     </Page.KeyboardAccelerators>
@@ -70,13 +84,15 @@
                             AutomationProperties.LandmarkType="Main"
                             AutomationProperties.AutomationId="ViewHost" />
 
-                        <!-- Notice ("Event deleted · Undo") -->
+                        <!-- Notice ("Event deleted · Undo"; solid so the grid never shows through) -->
                         <InfoBar
                             x:Name="NoticeBar"
                             Grid.Row="1"
                             Margin="0,0,0,16"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Bottom"
+                            Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                             IsClosable="True"
                             Closed="OnNoticeClosed"
                             AutomationProperties.AutomationId="NoticeBar">

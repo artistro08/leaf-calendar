@@ -56,6 +56,7 @@ public class ShortcutMapTests
     [InlineData("C", true, false, CalendarCommand.Copy)]
     [InlineData("X", true, false, CalendarCommand.Cut)]
     [InlineData("V", true, false, CalendarCommand.Paste)]
+    [InlineData("Z", true, false, CalendarCommand.Undo)]
     [InlineData("J", true, false, CalendarCommand.JoinMeeting)]
     public void Resolve_EventChord_MapsCommand(string key, bool ctrl, bool shift, CalendarCommand command)
     {

@@ -381,6 +381,7 @@ public sealed partial class CalendarPage : Page
             case CalendarCommand.Copy:               vm.CopySelection(); break;
             case CalendarCommand.Cut:                vm.Fire(vm.CutSelectionAsync, "calendar.cut.failed"); break;
             case CalendarCommand.Paste:              vm.Paste(); break;
+            case CalendarCommand.Undo:               vm.Undo(); break;
             case CalendarCommand.EditEvent:          vm.BeginEdit(); break;
             case CalendarCommand.EditDuration:       vm.BeginEdit(focusEnd: true); break;
             case CalendarCommand.RsvpYes:            vm.Fire(() => vm.RespondAsync(ResponseStatus.Accepted, null, emailOrganizer: true)); break;

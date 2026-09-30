@@ -102,6 +102,9 @@ public enum CalendarCommand
     /// <summary>Ctrl+V.</summary>
     Paste,
 
+    /// <summary>Ctrl+Z: undo the newest delete (this session).</summary>
+    Undo,
+
     /// <summary>Alt+Left (or the mouse back button).</summary>
     NavigateBack,
 
@@ -157,6 +160,7 @@ public static class ShortcutMap
                 "C"                        => new(CalendarCommand.Copy),
                 "X"                        => new(CalendarCommand.Cut),
                 "V"                        => new(CalendarCommand.Paste),
+                "Z"                        => new(CalendarCommand.Undo),
                 "J"                        => new(CalendarCommand.JoinMeeting),
                 _                          => default,
             };
