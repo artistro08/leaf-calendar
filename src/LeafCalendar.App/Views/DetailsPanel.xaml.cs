@@ -57,7 +57,7 @@ public sealed partial class DetailsPanel : UserControl
 
         _vm.Upcoming.CollectionChanged -= OnUpcomingChanged;
         _vm.PropertyChanged            -= OnViewModelPropertyChanged;
-        EditorView.Detach();
+        EditorView?.Detach();
         _vm = null;
     }
 
@@ -79,23 +79,34 @@ public sealed partial class DetailsPanel : UserControl
     {
         if (_vm?.Editing is { } editing)
         {
+            // The editor is created the first time it's needed (FindName fills the EditorView field)
+            if (EditorView is null)
+            {
+                FindName(nameof(EditorView));
+            }
+
+            var view = EditorView!;
             UpcomingView.Visibility = Visibility.Collapsed;
             DetailsView.Visibility  = Visibility.Collapsed;
-            EditorView.Visibility   = Visibility.Visible;
+            view.Visibility         = Visibility.Visible;
 
             // A new editor starts at the top (a refresh behind an open editor keeps the scroll position)
-            if (!ReferenceEquals(EditorView.Editor, editing))
+            if (!ReferenceEquals(view.Editor, editing))
             {
                 _shownKey = null;
                 ContentScroll.ChangeView(null, 0, null, true);
-                EditorView.Attach(_vm, editing);
+                view.Attach(_vm, editing);
             }
 
             return;
         }
 
-        EditorView.Detach();
-        EditorView.Visibility = Visibility.Collapsed;
+        if (EditorView is not null)
+        {
+            EditorView.Detach();
+            EditorView.Visibility = Visibility.Collapsed;
+        }
+
         Show(_vm?.SelectedInfo);
     }
 

@@ -157,8 +157,11 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Every selected event (one or more; the details panel shows the first when it's the only one).</summary>
     public IReadOnlyList<CalendarOccurrence> Selection => _selection;
 
-    /// <summary>Asks which events of a series an edit applies to; the flag offers "This and following". Set by the page.</summary>
-    public Func<bool, Task<EditScope?>>? AskScope { get; set; }
+    /// <summary>
+    /// Asks which events of a series an edit applies to. The flags offer "This and following" and "This event" (a repeat
+    /// change can't apply to one event). Set by the page.
+    /// </summary>
+    public Func<bool, bool, Task<EditScope?>>? AskScope { get; set; }
 
     /// <summary>The bar at the bottom of the calendar, or null.</summary>
     [ObservableProperty]
@@ -619,7 +622,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
                     {
                         scope = EditScope.All;
                     }
-                    else if (await ScopeForAsync([o], includeFollowing: true) is { } asked)
+                    else if (await ScopeForAsync([o], includeFollowing: true, includeThis: after.Recurrence.SequenceEqual(editor.Before.Recurrence)) is { } asked)
                     {
                         scope = asked;
                     }
@@ -828,14 +831,14 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public void LogError(string eventName, Exception exception) => _services.Log.Error(eventName, exception);
 
     // "This event" for single events; otherwise the page's dialog (null means the user canceled)
-    async Task<EditScope?> ScopeForAsync(IReadOnlyList<CalendarOccurrence> items, bool includeFollowing)
+    async Task<EditScope?> ScopeForAsync(IReadOnlyList<CalendarOccurrence> items, bool includeFollowing, bool includeThis = true)
     {
         if (!items.Any(o => o.RecurringEventId is not null))
         {
             return EditScope.This;
         }
 
-        return AskScope is { } ask ? await ask(includeFollowing) : EditScope.This;
+        return AskScope is { } ask ? await ask(includeFollowing, includeThis) : includeThis ? EditScope.This : EditScope.All;
     }
 
     // After an edit the event may have a new key (moved) or a new ID (one instance of a series): find it by its start

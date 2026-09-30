@@ -139,7 +139,8 @@
                 <!-- /Event Details -->
 
                 <!-- Editor -->
-                <local:EventEditorView x:Name="EditorView" Visibility="Collapsed" />
+                <!-- Loaded the first time an editor opens -->
+                <local:EventEditorView x:Name="EditorView" x:Load="False" />
             </Grid>
         </ScrollViewer>
     </Grid>

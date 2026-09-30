@@ -10,7 +10,11 @@ using LeafCalendar.Core.Views;
 namespace LeafCalendar.App.ViewModels;
 
 /// <summary>A calendar in the editor's picker (an App type, so WinRT can hold the list).</summary>
-public sealed record CalendarChoice(string AccountId, string CalendarId, string Name, string AccountEmail, string Color);
+public sealed record CalendarChoice(string AccountId, string CalendarId, string Name, string AccountEmail, string Color)
+{
+    /// <summary>The name (what a screen reader says for the picker's item).</summary>
+    public override string ToString() => Name;
+}
 
 /// <summary>A guest in the editor, with its optional toggle and remove button.</summary>
 public sealed partial class GuestRow(Guest guest, Action<GuestRow> remove) : ObservableObject
@@ -94,6 +98,8 @@ public sealed partial class EventEditorViewModel : ObservableObject
     readonly bool _use24Hour;
     readonly DayOfWeek? _wkst;
     readonly string? _loadedLine;
+    readonly (DateOnly? StartDay, TimeSpan StartTime, DateOnly? EndDay, TimeSpan EndTime) _loadedWhen;
+    bool _ready;
 
     /// <summary>Loads the fields from <paramref name="draft"/>.</summary>
     public EventEditorViewModel(EventDraft draft, CalendarOccurrence? occurrence, IReadOnlyList<CalendarChoice> calendars, TimeZoneInfo zone, string localZoneId, bool use24Hour, bool focusEnd = false)
@@ -107,7 +113,7 @@ public sealed partial class EventEditorViewModel : ObservableObject
 
         // Fields
         Calendars           = new ObservableCollection<CalendarChoice>(calendars);
-        CalendarIndex       = Math.Max(0, calendars.ToList().FindIndex(c => c.AccountId == draft.AccountId && c.CalendarId == draft.CalendarId));
+        CalendarIndex       = calendars.ToList().FindIndex(c => c.AccountId == draft.AccountId && c.CalendarId == draft.CalendarId);
         Title               = draft.Title;
         Location            = draft.Location;
         Description         = draft.Description;
@@ -124,11 +130,13 @@ public sealed partial class EventEditorViewModel : ObservableObject
         StartTime = start.TimeOfDay;
         EndDate   = Picker(end);
         EndTime   = end.TimeOfDay;
+        _loadedWhen = (Day(StartDate), StartTime, Day(EndDate), EndTime);
 
         // Repeat
         var line  = draft.Recurrence.FirstOrDefault(l => l.StartsWith("RRULE:", StringComparison.Ordinal));
         var rule  = line is null ? null : RepeatRule.Parse(line, zone);
         RepeatIndex    = line is null ? 0 : rule is null ? 5 : (int)rule.Frequency + 1;
+        HasCustomRule  = RepeatIndex == 5;
         RepeatInterval = rule?.Interval ?? 1;
         EndsIndex      = rule?.Count is not null ? 2 : rule?.Until is not null ? 1 : 0;
         EndsOn         = rule?.Until is { } until ? Picker(until.ToDateTime(TimeOnly.MinValue)) : Picker(start.AddMonths(3));
@@ -141,6 +149,7 @@ public sealed partial class EventEditorViewModel : ObservableObject
         _loadedLine = rule is null ? null : RepeatLine();
 
         Guests.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasGuests));
+        _ready = true;
     }
 
     /// <summary>The event as loaded (new events: the starting values).</summary>
@@ -157,6 +166,9 @@ public sealed partial class EventEditorViewModel : ObservableObject
 
     /// <summary>"New event" or "Edit event".</summary>
     public string HeaderText => IsNew ? "New event" : "Edit event";
+
+    /// <summary>The event loaded with a repeat rule the editor can't show ("Custom rule (kept as is)" is offered only then).</summary>
+    public bool HasCustomRule { get; }
 
     /// <summary>The time pickers' clock.</summary>
     public string Clock => _use24Hour ? "24HourClock" : "12HourClock";
@@ -308,6 +320,17 @@ public sealed partial class EventEditorViewModel : ObservableObject
             return "Pick the day the repeat ends.";
         }
 
+        // A cleared number box holds NaN
+        if (ShowRepeatOptions && double.IsNaN(RepeatInterval))
+        {
+            return "Enter how often the event repeats.";
+        }
+
+        if (ShowEndsAfter && double.IsNaN(EndsAfter))
+        {
+            return "Enter how many times the event repeats.";
+        }
+
         var draft = ToDraft();
         return draft.End < draft.Start ? "The event can't end before it starts." : null;
     }
@@ -320,9 +343,14 @@ public sealed partial class EventEditorViewModel : ObservableObject
         var startDay = Day(StartDate) ?? DateOnly.FromDateTime(Before.Start.UtcDateTime);
         var endDay   = Day(EndDate) ?? startDay;
 
-        var (start, end) = IsAllDay
-            ? (Midnight(startDay), Midnight(endDay.AddDays(1)))
-            : (DragMath.ToInstant(startDay.ToDateTime(TimeOnly.FromTimeSpan(StartTime)), _zone), DragMath.ToInstant(endDay.ToDateTime(TimeOnly.FromTimeSpan(EndTime)), _zone));
+        // Untouched times keep the loaded instants and zone exactly (no round trip through the pickers)
+        var untouched = IsAllDay == Before.IsAllDay && (Day(StartDate), StartTime, Day(EndDate), EndTime) == _loadedWhen;
+        var (start, end) = untouched
+            ? (Before.Start, Before.End)
+            : IsAllDay
+                ? (Midnight(startDay), Midnight(endDay.AddDays(1)))
+                : (DragMath.ToInstant(startDay.ToDateTime(TimeOnly.FromTimeSpan(StartTime)), _zone), DragMath.ToInstant(endDay.ToDateTime(TimeOnly.FromTimeSpan(EndTime)), _zone));
+        var reminders = Reminders.Where(r => r.IsOn).Select(r => r.Minutes).ToList();
 
         return Before with
         {
@@ -332,13 +360,13 @@ public sealed partial class EventEditorViewModel : ObservableObject
             Start               = start,
             End                 = end,
             IsAllDay            = IsAllDay,
-            TimeZone            = IsAllDay ? Before.TimeZone : Before.TimeZone ?? _localZoneId,
+            TimeZone            = untouched || IsAllDay ? Before.TimeZone : Before.TimeZone ?? _localZoneId,
             Location            = Location,
             Description         = Description.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n'),
             ColorId             = ColorId,
             Guests              = [.. Guests.Select(g => g.Guest with { Optional = g.Optional })],
             UseDefaultReminders = UseDefaultReminders,
-            ReminderMinutes     = UseDefaultReminders ? Before.ReminderMinutes : [.. Reminders.Where(r => r.IsOn).Select(r => r.Minutes)],
+            ReminderMinutes     = UseDefaultReminders || reminders.Order().SequenceEqual(Before.ReminderMinutes.Order()) ? Before.ReminderMinutes : reminders,
             Recurrence          = Recurrence(),
         };
     }
@@ -376,6 +404,43 @@ public sealed partial class EventEditorViewModel : ObservableObject
         _wkst).ToRRule(IsAllDay, _zone);
 
     void RemoveGuest(GuestRow row) => Guests.Remove(row);
+
+    // =========================================================================
+    // END FOLLOWS START
+    // =========================================================================
+
+    // Moving the start moves the end with it, keeping the event's length (like Google)
+    partial void OnStartDateChanged(DateTimeOffset? oldValue, DateTimeOffset? newValue)
+    {
+        if (_ready && Day(oldValue) is { } from && Day(newValue) is { } to && Day(EndDate) is { } endDay)
+        {
+            EndDate = Picker(endDay.AddDays(to.DayNumber - from.DayNumber).ToDateTime(TimeOnly.MinValue));
+        }
+    }
+
+    partial void OnStartTimeChanged(TimeSpan oldValue, TimeSpan newValue)
+    {
+        if (_ready && Day(EndDate) is { } endDay)
+        {
+            var end = endDay.ToDateTime(TimeOnly.FromTimeSpan(EndTime)) + (newValue - oldValue);
+            EndDate = Picker(end);
+            EndTime = end.TimeOfDay;
+        }
+    }
+
+    // An all-day event turned timed would run midnight to midnight; give it 9 to 10 instead
+    partial void OnIsAllDayChanged(bool value)
+    {
+        if (!_ready || value || StartTime != TimeSpan.Zero || EndTime != TimeSpan.Zero)
+        {
+            return;
+        }
+
+        _ready = false;
+        StartTime = TimeSpan.FromHours(9);
+        EndTime   = TimeSpan.FromHours(10);
+        _ready    = true;
+    }
 
     // Date pickers hold a local wall-clock date; only its date part is read back
     static DateTimeOffset Picker(DateTime value) => new(DateTime.SpecifyKind(value.Date, DateTimeKind.Unspecified));

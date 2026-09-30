@@ -19,6 +19,23 @@ public sealed class EditingTests : IDisposable
 
     LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
+    // After Next the week slides in; an event found mid-slide would be clicked where it no longer is
+    static void ClickWhenSettled(AutomationElement element)
+    {
+        var last = element.BoundingRectangle;
+        Retry.WhileFalse(
+            () =>
+            {
+                Thread.Sleep(TimeSpan.FromMilliseconds(200));
+                var now = element.BoundingRectangle;
+                var settled = now == last && !element.IsOffscreen;
+                last = now;
+                return settled;
+            },
+            TimeSpan.FromSeconds(5));
+        element.Click();
+    }
+
     [Fact]
     public void Delete_SelectedEvent_RemovesItAndSendsDeleteWithEtag()
     {
@@ -54,7 +71,7 @@ public sealed class EditingTests : IDisposable
         using var leaf = Launch();
         leaf.WaitFor("Event_evt-single_202610011300");
         leaf.WaitFor("NextButton").AsButton().Invoke();
-        leaf.WaitFor("Event_evt-weekly_202610051330").Click();
+        ClickWhenSettled(leaf.WaitFor("Event_evt-weekly_202610051330"));
 
         leaf.Press(VirtualKeyShort.DELETE);
         leaf.WaitForAnywhere("ScopeThis").Click();
@@ -104,7 +121,7 @@ public sealed class EditingTests : IDisposable
         using var leaf = Launch();
         leaf.WaitFor("Event_evt-single_202610011300");
         leaf.WaitFor("NextButton").AsButton().Invoke();
-        leaf.WaitFor("Event_evt-weekly_202610051330").Click();
+        ClickWhenSettled(leaf.WaitFor("Event_evt-weekly_202610051330"));
         leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
 
         leaf.WaitFor("EditorTitle").AsTextBox().Text = "Standup in room 2";
@@ -159,5 +176,19 @@ public sealed class EditingTests : IDisposable
 
         leaf.WaitFor("DetailsTitle");
         Assert.False(leaf.Exists("DetailsEditButton"));
+    }
+
+    [Fact]
+    public void EditTwice_CalendarPickerKeepsTheEventsCalendar()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
+        Assert.NotNull(leaf.WaitFor("EditorCalendar").AsComboBox().SelectedItem);
+        leaf.WaitFor("EditorCancelButton").AsButton().Invoke();
+
+        leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
+
+        Assert.NotNull(leaf.WaitFor("EditorCalendar").AsComboBox().SelectedItem);
     }
 }

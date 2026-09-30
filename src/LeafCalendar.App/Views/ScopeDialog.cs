@@ -8,12 +8,15 @@ namespace LeafCalendar.App.Views;
 /// <summary>Asks which events of a repeating series a change applies to (spec 7.3), like Google Calendar.</summary>
 public static class ScopeDialog
 {
-    /// <summary>Shows the question; null when canceled. <paramref name="includeFollowing"/> offers "This and following events" (replies don't).</summary>
-    public static async Task<EditScope?> AskAsync(XamlRoot root, bool includeFollowing, string title = "Change repeating event")
+    /// <summary>
+    /// Shows the question; null when canceled. <paramref name="includeFollowing"/> offers "This and following events"
+    /// (replies don't), and <paramref name="includeThis"/> offers "This event" (a repeat change doesn't).
+    /// </summary>
+    public static async Task<EditScope?> AskAsync(XamlRoot root, bool includeFollowing, bool includeThis = true, string title = "Change repeating event")
     {
-        var thisOne   = new RadioButton { Content = "This event", GroupName = "Scope", IsChecked = true };
-        var following = new RadioButton { Content = "This and following events", GroupName = "Scope", Visibility = includeFollowing ? Visibility.Visible : Visibility.Collapsed };
-        var all       = new RadioButton { Content = "All events", GroupName = "Scope" };
+        var thisOne   = new RadioButton { Content = "This event", GroupName = "Scope", IsChecked = includeThis, Visibility = includeThis ? Visibility.Visible : Visibility.Collapsed };
+        var following = new RadioButton { Content = "This and following events", GroupName = "Scope", IsChecked = !includeThis && includeFollowing, Visibility = includeFollowing ? Visibility.Visible : Visibility.Collapsed };
+        var all       = new RadioButton { Content = "All events", GroupName = "Scope", IsChecked = !includeThis && !includeFollowing };
         AutomationProperties.SetAutomationId(thisOne, "ScopeThis");
         AutomationProperties.SetAutomationId(following, "ScopeFollowing");
         AutomationProperties.SetAutomationId(all, "ScopeAll");

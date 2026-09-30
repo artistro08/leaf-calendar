@@ -91,7 +91,7 @@ public sealed partial class CalendarPage : Page
         ViewModel.CalendarsChanged += OnCalendarsChanged;
 
         // Repeating Events Ask Which Events A Change Applies To
-        ViewModel.AskScope = includeFollowing => ScopeDialog.AskAsync(XamlRoot, includeFollowing);
+        ViewModel.AskScope = (includeFollowing, includeThis) => ScopeDialog.AskAsync(XamlRoot, includeFollowing, includeThis);
 
         PeriodTitle.Text = ViewModel.PeriodTitle;
         SetSidebarOpen(ViewModel.Settings.SidebarOpen, animate: false);
@@ -137,6 +137,12 @@ public sealed partial class CalendarPage : Page
     /// <summary>Shows or hides the details panel (sliding when <paramref name="animate"/>) and remembers the choice.</summary>
     public void SetDetailsOpen(bool open, bool animate)
     {
+        // Closing the panel closes an open editor too (nothing to see, and shortcuts would stay off)
+        if (!open)
+        {
+            ViewModel.CancelEdit();
+        }
+
         SetPaneOpen(DetailsSplit, open, animate);
 
         if (ViewModel.Settings.DetailsPanelOpen != open)

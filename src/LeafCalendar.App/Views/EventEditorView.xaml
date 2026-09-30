@@ -46,13 +46,13 @@
         <!-- /When -->
 
         <!-- Repeat -->
-        <ComboBox Header="Repeat" HorizontalAlignment="Stretch" SelectedIndex="{x:Bind Editor.RepeatIndex, Mode=TwoWay}" AutomationProperties.AutomationId="EditorRepeat">
+        <ComboBox x:Name="RepeatBox" Header="Repeat" HorizontalAlignment="Stretch" SelectedIndex="{x:Bind Editor.RepeatIndex, Mode=TwoWay}" AutomationProperties.AutomationId="EditorRepeat">
             <ComboBoxItem Content="Doesn't repeat" />
             <ComboBoxItem Content="Daily" />
             <ComboBoxItem Content="Weekly" />
             <ComboBoxItem Content="Monthly" />
             <ComboBoxItem Content="Yearly" />
-            <ComboBoxItem Content="Custom rule (kept as is)" />
+            <ComboBoxItem Content="Custom rule (kept as is)" Visibility="{x:Bind Editor.HasCustomRule, Mode=OneWay}" />
         </ComboBox>
         <StackPanel Spacing="8" Visibility="{x:Bind Editor.ShowRepeatOptions, Mode=OneWay}">
             <NumberBox Header="Every" Minimum="1" Maximum="99" SpinButtonPlacementMode="Compact" Value="{x:Bind Editor.RepeatInterval, Mode=TwoWay}" AutomationProperties.AutomationId="EditorRepeatInterval" />
@@ -68,7 +68,7 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <ComboBox Header="Ends" HorizontalAlignment="Stretch" SelectedIndex="{x:Bind Editor.EndsIndex, Mode=TwoWay}" AutomationProperties.AutomationId="EditorEnds">
+            <ComboBox x:Name="EndsBox" Header="Ends" HorizontalAlignment="Stretch" SelectedIndex="{x:Bind Editor.EndsIndex, Mode=TwoWay}" AutomationProperties.AutomationId="EditorEnds">
                 <ComboBoxItem Content="Never" />
                 <ComboBoxItem Content="On a date" />
                 <ComboBoxItem Content="After a number of times" />
@@ -79,7 +79,7 @@
         <!-- /Repeat -->
 
         <!-- Calendar -->
-        <ComboBox Header="Calendar" HorizontalAlignment="Stretch" ItemsSource="{x:Bind Editor.Calendars, Mode=OneWay}" SelectedIndex="{x:Bind Editor.CalendarIndex, Mode=TwoWay}" AutomationProperties.AutomationId="EditorCalendar">
+        <ComboBox x:Name="CalendarBox" Header="Calendar" HorizontalAlignment="Stretch" ItemsSource="{x:Bind Editor.Calendars, Mode=OneWay}" SelectedIndex="{x:Bind Editor.CalendarIndex, Mode=TwoWay}" AutomationProperties.AutomationId="EditorCalendar">
             <ComboBox.ItemTemplate>
                 <DataTemplate x:DataType="vm:CalendarChoice">
                     <StackPanel Orientation="Horizontal" Spacing="8">

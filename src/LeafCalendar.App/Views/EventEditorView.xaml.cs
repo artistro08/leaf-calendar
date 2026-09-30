@@ -45,8 +45,14 @@ public sealed partial class EventEditorView : UserControl
         Detach();
         _owner = owner;
         Editor = editor;
-        editor.PropertyChanged += OnEditorPropertyChanged;
+
+        // Filling the calendar list can write "nothing picked" back through the TwoWay binding; put the pick back
+        var calendarIndex = editor.CalendarIndex;
         Bindings.Update();
+        editor.CalendarIndex = calendarIndex;
+        CalendarBox.SelectedIndex = calendarIndex;
+
+        editor.PropertyChanged += OnEditorPropertyChanged;
         BuildColors();
 
         DispatcherQueue.TryEnqueue(() =>
@@ -71,9 +77,10 @@ public sealed partial class EventEditorView : UserControl
             return;
         }
 
+        // x:Bind skips a null Editor, so the calendar list is let go by hand (with Editor null nothing is written back)
         editor.PropertyChanged -= OnEditorPropertyChanged;
         Editor = null;
-        Bindings.Update();
+        CalendarBox.ItemsSource = null;
     }
 
     void OnEditorPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -136,7 +143,8 @@ public sealed partial class EventEditorView : UserControl
             return;
         }
 
-        if (e.Key == VirtualKey.Escape)
+        // Esc in an open dropdown only closes the dropdown
+        if (e.Key == VirtualKey.Escape && !RepeatBox.IsDropDownOpen && !EndsBox.IsDropDownOpen && !CalendarBox.IsDropDownOpen)
         {
             e.Handled = true;
             _owner?.CancelEdit();
