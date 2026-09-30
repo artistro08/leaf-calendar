@@ -118,6 +118,25 @@ public sealed class DragTests : IDisposable
     }
 
     [Fact]
+    public void WiggleRepeatingEventWithinItsSlot_AsksNothingAndSendsNothing()
+    {
+        using var leaf = Launch();
+        var dentist = leaf.WaitFor(Dentist);
+        var hour    = HourPixels(dentist);
+        leaf.WaitFor("NextButton").AsButton().Invoke();
+        var weekly = leaf.WaitFor("Event_evt-weekly_202610051330");
+        LeafApp.WaitUntilStill(weekly);
+
+        // Past the drag threshold, but less than half a snap step, so it lands where it started
+        LeafApp.DragBy(weekly, 0, Math.Max(5, hour / 12));
+
+        Thread.Sleep(2000);
+        Assert.False(leaf.ExistsAnywhere("ScopeThis"));
+        Assert.Empty(_google.Writes);
+        Assert.NotNull(leaf.WaitFor("Event_evt-weekly_202610051330"));
+    }
+
+    [Fact]
     public void DoubleClickEmptyTime_OpensEditor_EscapeSendsNothing()
     {
         using var leaf = Launch();

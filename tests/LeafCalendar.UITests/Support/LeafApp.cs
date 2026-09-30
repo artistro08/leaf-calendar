@@ -90,6 +90,10 @@ public sealed class LeafApp : IDisposable
             TimeSpan.FromSeconds(15)).Result
         ?? throw new InvalidOperationException($"Element '{automationId}' didn't appear in any window.");
 
+    /// <summary>True when an element with this ID is currently in any of the app's windows (dialogs can be separate).</summary>
+    public bool ExistsAnywhere(string automationId) =>
+        App.GetAllTopLevelWindows(_automation).Any(w => w.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) is not null);
+
     /// <summary>True when an element with this ID is currently in the main window.</summary>
     public bool Exists(string automationId) => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) is not null;
 

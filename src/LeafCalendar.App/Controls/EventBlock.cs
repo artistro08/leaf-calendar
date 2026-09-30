@@ -28,6 +28,7 @@ public sealed partial class EventBlock : Grid
     const double ResizeZone = 6;
     static InputCursor? _resizeCursor;
     readonly TimeGridView? _owner;
+    bool _inResizeZone;
 
     readonly Border _card = new() { CornerRadius = new CornerRadius(4) };
     readonly Rectangle _accent = new() { Width = 3, RadiusX = 1.5, RadiusY = 1.5, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(2) };
@@ -68,9 +69,18 @@ public sealed partial class EventBlock : Grid
 
         // Drag To Move, Bottom Edge To Resize, Double-Click To Edit
         PointerPressed += OnPointerPressed;
-        PointerMoved   += (_, e) => ProtectedCursor = IsResizeZone(e.GetCurrentPoint(this).Position.Y)
-            ? _resizeCursor ??= InputSystemCursor.Create(InputSystemCursorShape.SizeNorthSouth)
-            : null;
+        PointerMoved   += (_, e) =>
+        {
+            // Swap The Cursor Only When The Pointer Crosses Into Or Out Of The Resize Strip
+            var inZone = IsResizeZone(e.GetCurrentPoint(this).Position.Y);
+            if (inZone == _inResizeZone)
+            {
+                return;
+            }
+
+            _inResizeZone   = inZone;
+            ProtectedCursor = inZone ? _resizeCursor ??= InputSystemCursor.Create(InputSystemCursorShape.SizeNorthSouth) : null;
+        };
         DoubleTapped   += (_, e) =>
         {
             if (_occurrence is { } o && _owner is { } owner)
@@ -95,7 +105,10 @@ public sealed partial class EventBlock : Grid
         _owner.BeginEventDrag(o, e, resize: IsResizeZone(point.Position.Y));
     }
 
-    bool IsResizeZone(double y) => ActualHeight >= ResizeZone * 3 && y >= ActualHeight - ResizeZone;
+    bool IsResizeZone(double y) => HoldsEnd && ActualHeight >= ResizeZone * 3 && y >= ActualHeight - ResizeZone;
+
+    /// <summary>True when this card shows the event's real end (an overnight event only resizes from its last day).</summary>
+    public bool HoldsEnd { get; set; } = true;
 
     /// <summary>The automation ID tests use: <c>Event_{id}_{UTC yyyyMMddHHmm}</c>.</summary>
     public static string AutomationIdFor(CalendarOccurrence o) =>

@@ -20,6 +20,7 @@ public sealed partial class AllDayCanvas : Canvas
     readonly List<(Border Chip, TextBlock Text)> _chips = [];
     readonly Dictionary<Border, CalendarOccurrence> _shown = [];
     readonly Border _ghost = new() { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2), Height = TimeGridView.AllDayLaneHeight - 3, IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+    readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Text = "+ Copy" };
     DayStrip? _strip;
 
     /// <summary>Creates the row owned by <paramref name="owner"/>. Its background is hit-testable, so a click on empty all-day space reaches the page and clears the selection.</summary>
@@ -27,6 +28,7 @@ public sealed partial class AllDayCanvas : Canvas
     {
         _owner     = owner;
         Background = LeafBrushes.Transparent;
+        _ghost.Child = _ghostLabel;
         Children.Add(_ghost);
         SetZIndex(_ghost, 20);
     }
@@ -85,8 +87,8 @@ public sealed partial class AllDayCanvas : Canvas
         }
     }
 
-    /// <summary>Shows where a dragged all-day event would land.</summary>
-    public void SetGhost(DateOnly first, DateOnly last)
+    /// <summary>Shows where a dragged all-day event would land (marked "+ Copy" when <paramref name="copy"/>, for Alt+drag).</summary>
+    public void SetGhost(DateOnly first, DateOnly last, bool copy = false)
     {
         if (_strip is not { } strip)
         {
@@ -99,6 +101,7 @@ public sealed partial class AllDayCanvas : Canvas
         _ghost.Width       = Math.Max((to - from + 1) * width - 4, 8);
         _ghost.BorderBrush = LeafBrushes.Accent(_owner.IsDark);
         _ghost.Background  = LeafBrushes.Hover(_owner.IsDark);
+        _ghostLabel.Visibility = copy ? Visibility.Visible : Visibility.Collapsed;
         SetLeft(_ghost, from * width + 2);
         SetTop(_ghost, 2);
         _ghost.Visibility  = Visibility.Visible;

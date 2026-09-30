@@ -740,6 +740,19 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _vm.BeginCreate(start, start + DragMath.DefaultLength, isAllDay: false);
     }
 
+    /// <summary>Drops a pending or running drag without changing anything (Esc). Returns true when there was one.</summary>
+    public bool CancelDrag()
+    {
+        if (_drag is null)
+        {
+            return false;
+        }
+
+        _drag = null;
+        ClearGhosts();
+        ReleasePointerCaptures();
+        return true;
+    }
 
     void OnDragMoved(object sender, PointerRoutedEventArgs e)
     {
@@ -748,7 +761,15 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
-        var at = e.GetCurrentPoint(this).Position;
+        // Button Already Up: the release went somewhere else (off the grid, Alt+Tab), so the press is over
+        var point = e.GetCurrentPoint(this);
+        if (!point.Properties.IsLeftButtonPressed)
+        {
+            CancelDrag();
+            return;
+        }
+
+        var at = point.Position;
         if (!drag.Started)
         {
             if (Math.Abs(at.X - drag.Origin.X) < DragThreshold && Math.Abs(at.Y - drag.Origin.Y) < DragThreshold)
@@ -756,14 +777,27 @@ public sealed partial class TimeGridView : Grid, IDisposable
                 return;
             }
 
+            if (!CapturePointer(e.Pointer))
+            {
+                CancelDrag();
+                return;
+            }
+
             drag.Started = true;
-            CapturePointer(e.Pointer);
         }
 
-        drag.Duplicate = KeyState.IsDown(Windows.System.VirtualKey.Menu);
-        drag.Target    = TargetFor(drag, e);
-        ShowGhost(drag.Target);
+        // Redraw The Ghost Only When The Snapped Target Or Copy Mode Changes
+        var target    = TargetFor(drag, e);
+        var duplicate = drag.Kind is DragKind.Move or DragKind.AllDay && KeyState.IsDown(Windows.System.VirtualKey.Menu);
         e.Handled = true;
+        if (target.Equals(drag.Target) && duplicate == drag.Duplicate)
+        {
+            return;
+        }
+
+        drag.Target    = target;
+        drag.Duplicate = duplicate;
+        ShowGhost(target, duplicate);
     }
 
     void OnDragReleased(object sender, PointerRoutedEventArgs e)
@@ -788,22 +822,22 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
-        // Alt+Drag Duplicates (a resize always resizes). Alt is read as the pointer moves: by the time the release
-        // is handled, the key state can already show Alt up when it's let go right after the button
+        // Dropped Where It Started: nothing to do (no scope question, no copy on top of the original)
         var o = drag.Occurrence!;
-        if (drag.Duplicate && drag.Kind != DragKind.Resize)
+        if (target.Start == o.Start && target.End == o.End && target.IsAllDay == o.IsAllDay)
+        {
+            return;
+        }
+
+        // Alt+Drag Duplicates (a resize always resizes). Alt is also read as the pointer moves: by the time the
+        // release is handled, the key state can already show Alt up when it's let go right after the button
+        if ((drag.Duplicate || KeyState.IsDown(Windows.System.VirtualKey.Menu)) && drag.Kind != DragKind.Resize)
         {
             _vm.Duplicate(o, target.Start, target.End, target.IsAllDay);
             return;
         }
 
         _vm.Fire(() => _vm.MoveAsync(o, target.Start, target.End, target.IsAllDay), "calendar.move.failed");
-    }
-
-    void CancelDrag()
-    {
-        _drag = null;
-        ClearGhosts();
     }
 
     (DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? TargetFor(DragSession drag, PointerRoutedEventArgs e)
@@ -841,8 +875,10 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
     }
 
-    void ShowGhost((DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? target)
+    void ShowGhost((DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? target, bool duplicate)
     {
+        var copy = duplicate ? "+ Copy  " : "";
+
         // All-Day Row
         if (target is { InHeader: true } header)
         {
@@ -853,7 +889,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
             var first = header.IsAllDay ? DateOnly.FromDateTime(header.Start.UtcDateTime) : LocalDate(header.Start);
             var last  = header.IsAllDay ? DateOnly.FromDateTime(header.End.UtcDateTime).AddDays(-1) : LocalDate(header.End.AddTicks(-1));
-            _allDay.SetGhost(first, last < first ? first : last);
+            _allDay.SetGhost(first, last < first ? first : last, duplicate);
             return;
         }
 
@@ -878,7 +914,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
             var top    = t.Start <= dayStart ? 0 : MinutesIntoDay(t.Start);
             var bottom = end >= dayEnd ? 24 * 60 : MinutesIntoDay(end);
-            column.SetGhost(top, Math.Max(bottom, top + DragMath.SnapMinutes), t.Start >= dayStart ? TimeLabels.Range(t.Start, t.End, _vm.Zone, _vm.Settings.Use24HourTime) : "");
+            column.SetGhost(top, Math.Max(bottom, top + DragMath.SnapMinutes), copy + (t.Start >= dayStart ? TimeLabels.Range(t.Start, t.End, _vm.Zone, _vm.Settings.Use24HourTime) : ""));
         }
     }
 

@@ -1,3 +1,4 @@
+using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
@@ -46,11 +47,11 @@ public sealed partial class DayColumn : Canvas
         SetZIndex(_ghost, 20);
 
         // Empty Time: drag to create, double-click for a one-hour event, click to pick the paste time (a press on a
-        // card you can't change isn't empty time, so it doesn't create)
+        // card isn't empty time, so it never creates)
         PointerPressed += (_, e) =>
         {
             var point = e.GetCurrentPoint(this);
-            if (!_owner.IsDragPending && ReferenceEquals(e.OriginalSource, this) && point.Properties.IsLeftButtonPressed && e.Pointer.PointerDeviceType != PointerDeviceType.Touch)
+            if (ReferenceEquals(e.OriginalSource, this) && point.Properties.IsLeftButtonPressed && e.Pointer.PointerDeviceType != PointerDeviceType.Touch)
             {
                 _owner.BeginCreateDrag(e);
             }
@@ -70,6 +71,7 @@ public sealed partial class DayColumn : Canvas
     public void Bind(DateOnly date)
     {
         Date = date;
+        ClearGhost();
         Render();
     }
 
@@ -116,6 +118,7 @@ public sealed partial class DayColumn : Canvas
             card.Visibility = Visibility.Visible;
             SetLeft(card, 2 + b.Column * colW);
             SetTop(card, b.StartMinute / 60 * hour + 1);
+            card.HoldsEnd = b.Occurrence.End <= OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
             card.Bind(b.Occurrence, palette, TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, vm.Select);
         }
 
