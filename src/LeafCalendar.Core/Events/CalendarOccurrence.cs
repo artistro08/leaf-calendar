@@ -33,10 +33,15 @@ public sealed record CalendarOccurrence(
     /// <summary>All-day end date (exclusive).</summary>
     public DateOnly AllDayEnd => DateOnly.FromDateTime(End.UtcDateTime);
 
+    /// <summary>When the instance starts on the clock in <paramref name="zone"/>: <see cref="Start"/>, or local midnight of the first all-day date.</summary>
+    public DateTimeOffset StartIn(TimeZoneInfo zone) => IsAllDay ? OccurrenceQuery.LocalMidnight(AllDayStart, zone) : Start;
+
+    /// <summary>When the instance ends on the clock in <paramref name="zone"/>: <see cref="End"/>, or local midnight of the all-day end date.</summary>
+    public DateTimeOffset EndIn(TimeZoneInfo zone) => IsAllDay ? OccurrenceQuery.LocalMidnight(AllDayEnd, zone) : End;
+
     /// <summary>True once the event is over at <paramref name="now"/>.</summary>
     /// <remarks>An all-day event ends at local midnight after its last date in <paramref name="zone"/>, not at UTC midnight.</remarks>
-    public bool HasEndedBy(DateTimeOffset now, TimeZoneInfo zone) =>
-        (IsAllDay ? OccurrenceQuery.LocalMidnight(AllDayEnd, zone) : End) <= now;
+    public bool HasEndedBy(DateTimeOffset now, TimeZoneInfo zone) => EndIn(zone) <= now;
 
     /// <summary>Unique per instance (a series' instances differ by start).</summary>
     public string Key => string.Create(CultureInfo.InvariantCulture, $"{AccountId}|{CalendarId}|{EventId}|{Start.UtcTicks}");

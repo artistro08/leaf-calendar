@@ -130,6 +130,38 @@ public sealed class LiveGoogle(LiveAccount live)
         return created!["id"]!.GetValue<string>();
     }
 
+    /// <summary>Sets a calendar's default popup reminder (in the account's calendar list) to <paramref name="minutes"/>.</summary>
+    public async Task SetDefaultRemindersAsync(string calendarId, int minutes, CancellationToken ct)
+    {
+        // Guard: Only A Calendar This Run Created (the path starts with users/me, so the generic guard can't see it)
+        RequireOwned(calendarId);
+
+        using var request = new HttpRequestMessage(HttpMethod.Patch, new Uri(BaseUri, $"users/me/calendarList/{Uri.EscapeDataString(calendarId)}"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await live.Services.AccessTokens.GetAccessTokenAsync(live.AccountId, ct));
+        request.Content = JsonContent.Create(new JsonObject
+        {
+            ["defaultReminders"] = new JsonArray(new JsonObject { ["method"] = "popup", ["minutes"] = minutes }),
+        });
+
+        using var response = await LiveAccount.Http.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Creates a one-hour event at <paramref name="start"/> with the given <c>reminders</c> object and returns its ID.</summary>
+    public async Task<string> InsertEventWithRemindersAsync(string calendarId, DateTimeOffset start, JsonObject reminders, CancellationToken ct)
+    {
+        var body = new JsonObject
+        {
+            ["summary"]   = "Leaf live reminders",
+            ["start"]     = new JsonObject { ["dateTime"] = start.ToString("O", System.Globalization.CultureInfo.InvariantCulture) },
+            ["end"]       = new JsonObject { ["dateTime"] = start.AddHours(1).ToString("O", System.Globalization.CultureInfo.InvariantCulture) },
+            ["reminders"] = reminders,
+        };
+
+        var created = await SendAsync(HttpMethod.Post, $"calendars/{Uri.EscapeDataString(calendarId)}/events", body, ct);
+        return created!["id"]!.GetValue<string>();
+    }
+
     async Task<JsonNode?> SendAsync(HttpMethod method, string path, JsonObject? body, CancellationToken ct)
     {
         // Guard: Writes Only Go To Calendars This Run Created
