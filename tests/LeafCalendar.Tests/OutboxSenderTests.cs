@@ -211,6 +211,102 @@ public sealed class OutboxSenderTests : IDisposable
     }
 
     [Fact]
+    public async Task Send_ConflictReadFailsAfterRejection_KeepsReportAndDefers()
+    {
+        Queue("evt-allday", OutboxOperation.Patch, """{"summary":"A"}""", "\"3181161784712001\"");
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"B"}""");
+        _h.Google.On(HttpMethod.Patch, SyncHarness.PrimaryEventsUrl + "/evt-allday", HttpStatusCode.Forbidden, Fixture.Read("error-forbidden.json"));
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.PreconditionFailed, "{}");
+        _h.Google.On(r => r.Method == HttpMethod.Get && r.Uri.AbsoluteUri == SingleUrl, _ => throw new HttpRequestException("No network."));
+
+        var report = await Send();
+
+        Assert.Equal(new SendReport(true, 0, 1), report);
+        var entry = Assert.Single(Pending());
+        Assert.Equal("evt-single", entry.EventId);
+        Assert.Equal("network", entry.LastError);
+        using var conn = _h.Db.Database.Open();
+        Assert.Empty(ConflictStore.GetAll(conn));
+    }
+
+    [Fact]
+    public async Task Send_RejectedAndGoogleCopyUnreadable_RestoresSnapshot()
+    {
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"Mine"}""");
+        var before = Get("evt-single")!.RawJson;
+        using (var conn = _h.Db.Database.Open())
+        {
+            EventStore.ApplyJson(conn, null, Account, Primary, """{"id":"evt-single","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""");
+        }
+
+        _h.Google.On(r => r.Uri.AbsoluteUri.StartsWith(SingleUrl, StringComparison.Ordinal), _ => FakeHttpHandler.Json(HttpStatusCode.Forbidden, Fixture.Read("error-forbidden.json")));
+
+        var report = await Send();
+
+        Assert.Equal(1, report.Rejected);
+        Assert.Empty(Pending());
+        Assert.Equal(before, Get("evt-single")!.RawJson);
+        Assert.Single(_h.Google.Requests, r => r.Method == HttpMethod.Get);
+    }
+
+    [Theory]
+    [InlineData("quotaExceeded")]
+    [InlineData("dailyLimitExceeded")]
+    public async Task Send_UsageLimit403_StaysPending(string reason)
+    {
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"A"}""");
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.Forbidden, $$$"""{"error":{"code":403,"errors":[{"reason":"{{{reason}}}"}]}}""");
+
+        var report = await Send();
+
+        Assert.Equal(0, report.Rejected);
+        Assert.Equal("status 403", Assert.Single(Pending()).LastError);
+    }
+
+    [Fact]
+    public async Task Send_CorruptRsvpPayload_RejectedWithoutPatch()
+    {
+        Queue("evt-single", OutboxOperation.Rsvp, "{not json");
+
+        var report = await Send();
+
+        Assert.Equal(1, report.Rejected);
+        Assert.Empty(Pending());
+        Assert.DoesNotContain(_h.Google.Requests, r => r.Method == HttpMethod.Patch);
+        Assert.NotNull(Get("evt-single"));
+    }
+
+    [Fact]
+    public async Task Send_AnswerWithoutEtag_ReadsItBackForTheNextEdit()
+    {
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"A"}""");
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"B"}""");
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","status":"confirmed"}""", once: true);
+        _h.Google.On(HttpMethod.Get, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","etag":"\"R1\"","status":"confirmed"}""");
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","etag":"\"E2\"","status":"confirmed","summary":"B","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""");
+
+        await Send();
+
+        Assert.Equal([BaseEtag, "\"R1\""], _h.Google.Requests.Where(r => r.Method == HttpMethod.Patch).Select(p => p.IfMatch));
+    }
+
+    [Fact]
+    public async Task Send_AnswerWithoutEtagAndReadFails_NextEditKeepsOldEtag()
+    {
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"A"}""");
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"B"}""");
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","status":"confirmed"}""", once: true);
+        _h.Google.On(r => r.Method == HttpMethod.Get && r.Uri.AbsoluteUri == SingleUrl, _ => throw new HttpRequestException("No network."));
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.PreconditionFailed, "{}");
+
+        await Send();
+
+        var patches = _h.Google.Requests.Where(r => r.Method == HttpMethod.Patch).ToList();
+        Assert.Equal(2, patches.Count);
+        Assert.All(patches, p => Assert.Equal(BaseEtag, p.IfMatch));
+    }
+
+    [Fact]
     public async Task Send_Rsvp_PatchesAttendeesOnGooglesLatestCopy()
     {
         Queue("evt-single", OutboxOperation.Rsvp, """{"responseStatus":"declined","comment":null}""");
