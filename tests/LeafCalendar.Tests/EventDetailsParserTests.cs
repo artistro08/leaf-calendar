@@ -5,6 +5,29 @@ namespace LeafCalendar.Tests;
 public class EventDetailsParserTests
 {
     [Fact]
+    public void Parse_ZoomLinkPastedInLocation_IsTheConference()
+    {
+        var details = EventDetailsParser.Parse("""{"id":"a","location":"Zoom: https://us02web.zoom.us/j/555?pwd=abc"}""");
+
+        Assert.Equal(new Uri("https://us02web.zoom.us/j/555?pwd=abc"), details.ConferenceUri);
+    }
+
+    [Fact]
+    public void Parse_TeamsLinkInDescription_OnlyWhenDescriptionIsRead()
+    {
+        const string json = """{"id":"a","description":"Join: <a href=\"https://teams.microsoft.com/l/meetup-join/xyz\">Teams</a>"}""";
+
+        Assert.Equal(new Uri("https://teams.microsoft.com/l/meetup-join/xyz"), EventDetailsParser.Parse(json).ConferenceUri);
+        Assert.Null(EventDetailsParser.Parse(json, includeDescription: false).ConferenceUri);
+    }
+
+    [Fact]
+    public void Parse_LookAlikeMeetingHost_Ignored()
+    {
+        Assert.Null(EventDetailsParser.Parse("""{"id":"a","location":"https://meet.google.com.evil.example/abc"}""").ConferenceUri);
+    }
+
+    [Fact]
     public void Parse_MinimalEvent_UsesDefaults()
     {
         var details = EventDetailsParser.Parse("""{"id":"a","status":"confirmed"}""");

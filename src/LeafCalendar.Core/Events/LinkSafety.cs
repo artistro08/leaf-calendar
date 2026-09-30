@@ -1,0 +1,144 @@
+using System.Text.RegularExpressions;
+
+namespace LeafCalendar.Core.Events;
+
+/// <summary>Video meeting services Leaf recognizes by host.</summary>
+public enum MeetingProvider
+{
+    /// <summary>meet.google.com.</summary>
+    GoogleMeet,
+
+    /// <summary>zoom.us, zoomgov.com.</summary>
+    Zoom,
+
+    /// <summary>teams.microsoft.com, teams.live.com.</summary>
+    Teams,
+
+    /// <summary>webex.com.</summary>
+    Webex,
+
+    /// <summary>around.co.</summary>
+    Around,
+
+    /// <summary>whereby.com.</summary>
+    Whereby,
+
+    /// <summary>bluejeans.com.</summary>
+    BlueJeans,
+
+    /// <summary>doxy.me.</summary>
+    DoxyMe,
+}
+
+/// <summary>
+/// Which links from events may be opened (spec 4.5 and 4.8). Anyone can send an invite, so every link is hostile
+/// until checked.
+/// </summary>
+/// <remarks>
+/// Launching allows only <c>https</c> and the meeting app schemes. Descriptions allow only <c>https</c> and
+/// <c>mailto</c>. Meeting hosts are matched on the parsed <see cref="Uri.IdnHost"/>, exactly or as a subdomain
+/// of a registered domain, never by substring, so <c>meet.google.com.evil.example</c> and
+/// <c>https://meet.google.com@evil.example</c> are not Meet.
+/// </remarks>
+public static partial class LinkSafety
+{
+    static readonly string[] LaunchSchemes = ["https", "zoommtg", "zoomus", "msteams", "webex"];
+
+    static readonly (string Domain, MeetingProvider Provider)[] MeetingHosts =
+    [
+        ("meet.google.com", MeetingProvider.GoogleMeet),
+        ("zoom.us", MeetingProvider.Zoom),
+        ("zoomgov.com", MeetingProvider.Zoom),
+        ("teams.microsoft.com", MeetingProvider.Teams),
+        ("teams.live.com", MeetingProvider.Teams),
+        ("webex.com", MeetingProvider.Webex),
+        ("around.co", MeetingProvider.Around),
+        ("whereby.com", MeetingProvider.Whereby),
+        ("bluejeans.com", MeetingProvider.BlueJeans),
+        ("doxy.me", MeetingProvider.DoxyMe),
+    ];
+
+    /// <summary>True for <c>https</c> and the meeting app schemes (<c>zoommtg</c>, <c>zoomus</c>, <c>msteams</c>, <c>webex</c>).</summary>
+    public static bool CanLaunch(Uri uri) =>
+        uri.IsAbsoluteUri && LaunchSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>True for links a description may make clickable: <c>https</c> and <c>mailto</c>.</summary>
+    public static bool IsClickableInDescription(Uri uri) =>
+        uri.IsAbsoluteUri && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeMailto);
+
+    /// <summary>The meeting service an <c>https</c> link belongs to, or null.</summary>
+    public static MeetingProvider? ProviderOf(Uri uri)
+    {
+        if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps)
+        {
+            return null;
+        }
+
+        var host = uri.IdnHost.TrimEnd('.').ToLowerInvariant();
+        foreach (var (domain, provider) in MeetingHosts)
+        {
+            if (host == domain || host.EndsWith("." + domain, StringComparison.Ordinal))
+            {
+                return provider;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The link to open for Join: Meet gets <c>authuser=&lt;email&gt;</c> so the right Google account joins (spec 8.5); others open as-is.</summary>
+    public static Uri JoinUri(Uri conference, string accountEmail)
+    {
+        if (ProviderOf(conference) != MeetingProvider.GoogleMeet || accountEmail.Length == 0)
+        {
+            return conference;
+        }
+
+        var builder = new UriBuilder(conference);
+        var query   = builder.Query.TrimStart('?')
+            .Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Where(p => !p.StartsWith("authuser=", StringComparison.OrdinalIgnoreCase))
+            .Append("authuser=" + Uri.EscapeDataString(accountEmail));
+        builder.Query = string.Join("&", query);
+        return builder.Uri;
+    }
+
+    /// <summary>The first link in <paramref name="text"/> on a known meeting host (pasted Zoom, Teams, Webex, ... links).</summary>
+    public static Uri? FindMeetingLink(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        // Bounded input, so a huge invite can't stall the UI thread
+        foreach (Match match in HttpsLink().Matches(text.Length > 40_000 ? text[..40_000] : text))
+        {
+            if (Uri.TryCreate(match.Value.TrimEnd('.', ',', ')', ';', '!', '?'), UriKind.Absolute, out var uri) && ProviderOf(uri) is not null)
+            {
+                return uri;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// A <c>mailto:</c> link to all the addresses with the event title as the subject ("Email guests"). The first address
+    /// is the link's own; the rest go in a <c>to=</c> field (RFC 6068), because <see cref="Uri"/> reads the part before
+    /// the query as one address.
+    /// </summary>
+    public static Uri MailtoGuests(IReadOnlyList<string> emails, string subject)
+    {
+        var first  = Uri.EscapeDataString(emails[0]).Replace("%40", "@", StringComparison.Ordinal);
+        var others = emails.Count > 1 ? "to=" + string.Join(",", emails.Skip(1).Select(Uri.EscapeDataString)) + "&" : "";
+        return new Uri($"mailto:{first}?{others}subject={Uri.EscapeDataString(subject)}");
+    }
+
+    /// <summary>A Google Maps search for a location. The Bing Maps choice (spec 9) arrives with the settings page in Milestone 5.</summary>
+    public static Uri MapsSearch(string location) =>
+        new("https://www.google.com/maps/search/?api=1&query=" + Uri.EscapeDataString(location));
+
+    [GeneratedRegex(@"https://[^\s<>""']+", RegexOptions.IgnoreCase)]
+    internal static partial Regex HttpsLink();
+}

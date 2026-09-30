@@ -32,7 +32,7 @@ public static partial class EventDetailsParser
             KindOf(String(root, "eventType")),
             SelfResponse(root),
             String(root, "colorId"),
-            ConferenceUri(root),
+            ConferenceUri(root, includeDescription),
             String(root, "transparency") == "transparent",
             Get(root, "attendees") is { ValueKind: JsonValueKind.Array } guests ? guests.GetArrayLength() : 0,
             Get(root, "organizer") is { } organizer ? String(organizer, "email") : null);
@@ -92,8 +92,9 @@ public static partial class EventDetailsParser
         return ResponseStatus.Accepted;
     }
 
-    // Only https links count; anything else from an invite is ignored
-    static Uri? ConferenceUri(JsonElement root)
+    // Only https links count; Google's conference data first, then a meeting link pasted in the location, then
+    // (when the description is being read anyway) one in the description. Occurrence loads skip the description.
+    static Uri? ConferenceUri(JsonElement root, bool includeDescription)
     {
         if (Get(Get(root, "conferenceData"), "entryPoints") is { ValueKind: JsonValueKind.Array } entryPoints)
         {
@@ -106,7 +107,9 @@ public static partial class EventDetailsParser
             }
         }
 
-        return Https(String(root, "hangoutLink"));
+        return Https(String(root, "hangoutLink"))
+            ?? LinkSafety.FindMeetingLink(String(root, "location"))
+            ?? (includeDescription ? LinkSafety.FindMeetingLink(String(root, "description")) : null);
     }
 
     static Uri? Https(string? value) =>
