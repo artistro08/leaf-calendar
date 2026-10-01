@@ -31,6 +31,9 @@ public class XamlLintTests
         "Views/SidebarView.xaml|spacing|9,0,4,0 (Grid in CalendarList)",
         "Views/SidebarView.xaml|spacing|0,0,11,0 (ItemsControl in CalendarList)",
 
+        // Tray flyout page padding is 20, copied from Sony's flyout (design standard, "Flyout page padding")
+        "Tray/TrayHost.xaml|spacing|20,20,20,16 (StackPanel in AgendaPanel)",
+
         // A 3 px tall pill and a 28 px circle: half the size is a circle end, which is not a corner radius
         "Styles/LeafTheme.xaml|radius|1.5",
         "Styles/LeafTheme.xaml|radius|14",

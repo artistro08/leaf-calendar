@@ -22,6 +22,7 @@
                 x:Name="JoinShortcutWarning"
                 Severity="Warning"
                 IsClosable="False"
+                AutomationProperties.LiveSetting="Polite"
                 AutomationProperties.AutomationId="JoinShortcutWarning" />
             <controls:SettingRow Glyph="&#xE8A7;" Header="Show or hide the tray flyout" Description="Works anywhere in Windows.">
                 <Button
@@ -35,6 +36,7 @@
                 x:Name="FlyoutShortcutWarning"
                 Severity="Warning"
                 IsClosable="False"
+                AutomationProperties.LiveSetting="Polite"
                 AutomationProperties.AutomationId="FlyoutShortcutWarning" />
         </StackPanel>
     </ScrollViewer>
