@@ -77,6 +77,12 @@ Leaf Calendar is a fast, low-memory, native Windows 11 desktop calendar with fea
 | First run | Its own small onboarding window with a line-style `PipsPager` step indicator (Milestone 3 owner redesign). See Section 4.1. |
 | Instances | One Leaf per profile. A second launch brings the running one to the front (Milestone 3 owner request). See Section 6.1. |
 | Design standard | Every screen follows `docs/design-standard.md`, drawn from the owner's other Windows apps (Milestone 3). |
+| Working hours | Leaf's own setting, since Google's API doesn't expose them (Milestone 5). |
+| Interface scale | Dropped by the owner (Milestone 5): Leaf has no whole-app scale; Ctrl+= / Ctrl+- stay grid density. |
+| Rooms | Rooms you've booked before (Milestone 5). |
+| Workspace detection | The `hd` claim (Milestone 5). |
+| Command menu | A stock `Flyout` at the top center, styled after PowerToys Command Palette, with the window dimmed behind it (Milestone 5, owner request). |
+| Event type | Chosen only when creating (Milestone 5). |
 
 ---
 
@@ -132,7 +138,7 @@ Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manag
 4. Event data kept in a bounded sliding window (Section 6.4). Event visuals recycled.
 5. No WebView2. Event descriptions render with native text controls.
 6. Avatars and images decoded at display size (`DecodePixelWidth`).
-7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64. Measured 2026-09-29 at 78-79 MB private bytes and 11 MB working set (three runs), measured with sync running against the fake Google. Raised 2026-09-29 at the close of Milestone 2 to private bytes ≤ 120 MB (working set unchanged at ≤ 25 MB). Measured at 105-106 MB private bytes and 18 MB working set (three runs). The growth is expected: it's native WinUI memory for the new sidebar (mini month) and the time grid, committed while the window is open and kept after it closes. The managed heap stays at about 2 MB, and clearing the whole window tree on close freed nothing measurable. Measured 2026-09-30 at the close of Milestone 3 (Settings and onboarding windows, event editor, drag, conflict dialog) at 100 MB private bytes and 17 MB working set (three runs), inside the unchanged budget. Measured 2026-09-30 at the close of the second Milestone 3 polish round (contact autocomplete, Meet, undo stack, navigation history) at 98-99 MB private bytes and 17 MB working set (three runs, final build; 100-101 MB and 15-17 MB earlier the same day), inside the unchanged budget. Measured 2026-10-01 at the close of Milestone 4 (tray icon, tray host window, notifications, alert scheduler resident) at 100-101 MB private bytes and 17-20 MB working set (three runs), inside the unchanged budget.
+7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64. Measured 2026-09-29 at 78-79 MB private bytes and 11 MB working set (three runs), measured with sync running against the fake Google. Raised 2026-09-29 at the close of Milestone 2 to private bytes ≤ 120 MB (working set unchanged at ≤ 25 MB). Measured at 105-106 MB private bytes and 18 MB working set (three runs). The growth is expected: it's native WinUI memory for the new sidebar (mini month) and the time grid, committed while the window is open and kept after it closes. The managed heap stays at about 2 MB, and clearing the whole window tree on close freed nothing measurable. Measured 2026-09-30 at the close of Milestone 3 (Settings and onboarding windows, event editor, drag, conflict dialog) at 100 MB private bytes and 17 MB working set (three runs), inside the unchanged budget. Measured 2026-09-30 at the close of the second Milestone 3 polish round (contact autocomplete, Meet, undo stack, navigation history) at 98-99 MB private bytes and 17 MB working set (three runs, final build; 100-101 MB and 15-17 MB earlier the same day), inside the unchanged budget. Measured 2026-10-01 at the close of Milestone 4 (tray icon, tray host window, notifications, alert scheduler resident) at 100-101 MB private bytes and 17-20 MB working set (three runs), inside the unchanged budget. Measured 2026-10-01 at the close of Milestone 5 (command menu, people overlay, share availability, settings pages) at 100-101 MB private bytes and 21-22 MB working set (three runs), inside the unchanged budget.
 
 ---
 
@@ -276,10 +282,10 @@ Anyone can send an invite, so event content is treated as hostile.
 ### 6.2 Title Bar (Left to Right)
 
 1. Navigation icon (toggles the sidebar), top-left corner.
-2. Back button, visible only when there is somewhere to go back to (an opened command menu result). Settings no longer needs it (Section 6.7).
+2. Back button, visible only when there is somewhere to go back to (an opened command menu result). Settings no longer needs it (Section 6.7). The stock title bar back button (Milestone 5).
 3. Leaf icon and "Leaf Calendar".
 4. Right side: Today button, previous/next pagers, sync status icon (Milestone 3: pending changes and conflicts, details in its tooltip), view picker (Day / Week / Month / X days), then the caption buttons.
-5. Search icon (opens the command menu): at the top of the left sidebar, in its title-bar row, styled like the details panel's edit and delete icons (owner request, Milestone 3; built with the command menu in Milestone 5).
+5. Search icon (opens the command menu): at the top of the left sidebar, in its title-bar row, styled like the details panel's edit and delete icons (owner request, Milestone 3; built in Milestone 5: centered over the mini month's Next month button, or after the app title when the sidebar is closed).
 
 ### 6.3 Sidebar (Collapsible)
 
@@ -292,6 +298,7 @@ Anyone can send an invite, so event content is treated as hostile.
 - Buttons: "Share availability" and "Manage Google booking pages" (opens Google Calendar's appointment schedule page in the browser).
 - Milestone 3 owner redesign: calendar rows only show or hide their calendar (the checkbox keeps the calendar's color); colors moved to Settings › Calendars. The "Google booking pages" link was removed from the sidebar. An icon-only Settings button sits at the bottom-left of the sidebar and replaces the Accounts row.
 - Subscribed calendars appear automatically from the Google calendar list.
+- Milestone 5: right-click a calendar for Rename… (Google summary override, needs a connection), Show upcoming events (next 30 days, in the details panel), and Change color… (opens Settings › Calendars). A share-availability icon sits beside the Settings icon.
 
 ### 6.4 Calendar Area
 
@@ -299,8 +306,8 @@ Anyone can send an invite, so event content is treated as hostile.
 - **Time zones:** multiple zone columns on the left edge. Add, rename, and drag to reorder. Search zones by city or abbreviation (NYC, SF, LON).
 - **All-day row:** collapsible. Multi-day events keep their titles visible.
 - **Toggles:** weekends, declined events, week numbers. The week can start on any day.
-- **Current-time line.** Working hours shaded from Google's working hours where available (not exposed by the Calendar API; see Milestone 5).
-- **Zoom:** grid density (hour height) and whole-app interface scale.
+- **Current-time line.** Working hours shaded from Google's working hours where available (Google's API doesn't expose them, so Leaf keeps its own, 9 AM–5 PM Monday–Friday by default, in Settings › General).
+- **Zoom:** grid density (hour height). The whole-app interface scale was dropped by the owner in Milestone 5.
 - **Event styles:** focus time, out of office, and birthday events each have a distinct look.
 - **Navigation:** smooth horizontal scrolling (trackpad, `Shift`+wheel, drag). Pagers jump a full period with a slide animation, with the next period preloaded so nothing flashes blank.
 
@@ -323,6 +330,7 @@ Anyone can send an invite, so event content is treated as hostile.
   - Toggle settings, open settings
   - Show shortcuts
 - Selecting an event result opens its details. `Alt`+Enter jumps the calendar to it.
+- A typed date ("oct 12", "next fri", "in 2 weeks") offers to go there. A repeating event's result is its next instance.
 
 ### 6.7 Settings
 
@@ -331,7 +339,7 @@ Its own window (Milestone 3 owner redesign), modeled on the Windows 11 Settings 
 - One Settings window at a time; opening it again brings it forward.
 - Mica, custom title bar, a left `NavigationView` that collapses when narrow, and pages of Windows-Settings-style setting rows.
 - Opens at 1000 × 720 DIP, resizable, minimum 640 × 500 DIP.
-- Pages in Milestone 3: General, Calendars (color and visibility per calendar, grouped by account), Time zones, Accounts (add, sync now, disconnect with an unsent-changes warning, change OAuth client), About (version and a fixed GitHub link). Milestone 4 added Notifications, Tray, and Shortcuts pages (between Time zones and Accounts). The remaining Section 9 options arrive in Milestone 5.
+- Pages in Milestone 3: General, Calendars (color and visibility per calendar, grouped by account), Time zones, Accounts (add, sync now, disconnect with an unsent-changes warning, change OAuth client), About (version and a fixed GitHub link). Milestone 4 added Notifications, Tray, and Shortcuts pages (between Time zones and Accounts). The remaining Section 9 options arrive in Milestone 5. Milestone 5 completed the Section 9 options; Appearance options live in General's Appearance group.
 
 ---
 
@@ -350,14 +358,14 @@ Its own window (Milestone 3 owner redesign), modeled on the Windows 11 Settings 
 - Repeat: daily, weekly, monthly, yearly, or custom, ending on a date, after a count, or never.
 - Calendar picker, which also moves the event between calendars or accounts. A move within one account uses `events.move`; a move across accounts is a create plus a delete.
 - Guests:
-  - Autocomplete from contacts, other contacts, the Workspace directory, and people you meet often or recently. Built in the Milestone 3 polish: contacts and other contacts (People API). The Workspace directory and people you meet often are still deferred.
+  - Autocomplete from contacts, other contacts, the Workspace directory, and people you meet often or recently. Built in the Milestone 3 polish: contacts and other contacts (People API). The Workspace directory and people you meet often are still deferred. Milestone 5 added the Workspace directory, people you meet often (from your events in the last 180 days), and rooms you've booked before (Workspace accounts).
   - Optional-guest toggle.
   - Meeting rooms and resources (Workspace accounts).
 - Location, opened in Google Maps or Bing Maps (setting).
 - Description with bold, italic, underline, links, and lists.
-- Conferencing: auto Google Meet (default per account, or none). Pasted Zoom, Teams, Webex, and other links are detected. Built in the Milestone 3 polish: Add Google Meet / Remove in the editor, off for new events.
+- Conferencing: auto Google Meet (default per account, or none). Pasted Zoom, Teams, Webex, and other links are detected. Built in the Milestone 3 polish: Add Google Meet / Remove in the editor, off for new events. Per-account default in Settings › Accounts (Milestone 5).
 - Reminders: calendar defaults or custom.
-- Event type: Event, Focus time, Out of office. The last two need Workspace accounts and are hidden otherwise.
+- Event type: Event, Focus time, Out of office. The last two need Workspace accounts and are hidden otherwise. Chosen only when creating (Google can't change it later), on a Workspace account's primary calendar.
 - Busy/Free, Public/Private visibility, and per-event color.
 
 ### 7.3 Editing
@@ -388,6 +396,7 @@ Its own window (Milestone 3 owner redesign), modeled on the Windows 11 Settings 
 - Leaf checks free/busy across the calendars you choose and removes busy time.
 - It copies text such as "Tue Sep 30: 10–11 AM, 2–4 PM ET" to the clipboard, in a selectable time zone.
 - "Manage Google booking pages" opens Google's appointment schedule page, since Google has no API for booking pages.
+- Needs a connection (Google free/busy). Zone choices: the zone on screen, Windows' zone, and the extra zone columns.
 
 ---
 
@@ -456,7 +465,7 @@ Registered with `RegisterHotKey`. If a combination is already taken by another a
 
 ### 8.7 In-App Shortcuts
 
-`?` opens a searchable cheat sheet. Key sequences like `E` then `Y` time out after 1.5 seconds.
+`?` opens a searchable cheat sheet. Key sequences like `E` then `Y` time out after 1.5 seconds. The cheat sheet leaves out Shift+drag until box select is built (Milestone 6).
 
 **Navigation**
 
@@ -542,6 +551,8 @@ Ctrl+wheel over the time grid zooms like Ctrl+= / Ctrl+-.
 - Prompt to switch time zone when the Windows time zone changes
 - Map provider (Google Maps or Bing Maps)
 - Launch at startup
+- Working hours (start, end, days)
+- All-day default (Appearance group)
 
 **Accounts**
 - Google OAuth client ID and secret, with the setup guide
@@ -571,12 +582,11 @@ Ctrl+wheel over the time grid zooms like Ctrl+= / Ctrl+-.
 - Link to the in-app cheat sheet
 
 **Time Zones**
-- Primary zone
+- Primary zone (Windows' by default), with the prompt to switch when Windows' changes
 - Additional zone columns with labels
 
 **Appearance**
 - Theme (System, Light, Dark)
-- Interface scale
 - Grid density
 - All-day section expanded or collapsed by default
 
@@ -655,12 +665,12 @@ Each milestone gets its own implementation plan. Tests are built within each mil
    - Global shortcuts and join picker
    - Deferred from Milestone 3:
      - The "Conflict needs review" Windows notification (the in-app badge and dialog shipped in Milestone 3)
-5. **Power features:**
+5. **Power features (built in Milestone 5):**
    - Command menu, people overlay, Meet with
    - Share availability
    - Full settings page and in-app shortcut set
    - Deferred from Milestone 2:
-     - Interface scale (whole-app zoom; Ctrl+= / Ctrl+- currently change grid density)
+     - Interface scale (whole-app zoom): dropped by the owner; Ctrl+= / Ctrl+- stay grid density
      - Working-hours shading (Google's Calendar API doesn't expose working hours)
      - Calendar rename (Google summary override; needs the Milestone 3 write path)
      - "Show upcoming events for this calendar"

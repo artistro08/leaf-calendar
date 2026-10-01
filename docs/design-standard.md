@@ -156,9 +156,11 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 | Hover fill on subtle things | `SubtleFillColorSecondaryBrush`; pressed `SubtleFillColorTertiaryBrush` |
 | Divider | 1 DIP `Rectangle`/`Border` with `DividerStrokeColorDefaultBrush` |
 | Flyout border | `SurfaceStrokeColorDefaultBrush`, 1 px, `ThemeShadow` with `Translation="0,0,32"` |
-| Flyout footer strip | Theme dictionary brush: Light `#0F000000`, Dark `#33000000`, HighContrast `SystemColorWindowColor` |
+| Flyout footer strip | `LeafFlyoutFooterBrush` in `LeafTheme.xaml` (tray flyout and command menu): Light `#0F000000`, Dark `#33000000`, HighContrast `SystemColorWindowColor` |
 | Status dots | `SystemFillColorSuccessBrush` / `CautionBrush` / `CriticalBrush` |
 | Inactive/disabled text | `TextFillColorDisabledBrush`, or 0.4 opacity on custom templates |
+| Overlay person (people overlay, Meet with) | `LeafBrushes.Person(index, dark)` for the edge and title, `LeafBrushes.PersonFill(index, dark)` for the block (purple, magenta, teal, orange; values in `ChromeColors`); HighContrast uses `Highlight` |
+| Off-hours tint (working-hours shading) | `LeafBrushes.OffHours(dark)`: Light `#0A000000`, Dark `#29000000`; transparent in HighContrast |
 
   Sources: MA `SettingsPage.xaml`; Leaf `CalendarPage.xaml`, `LeafTheme.xaml`; Layers `GeneralPage.xaml`, `TrayMenuHost.xaml` spec; Sony `AppStyles.xaml`, `FlyoutWindow.xaml`.
 - Calendar colors are Google's. Leaf's current-time line is `#E5484D`. (Leaf `LeafBrushes.cs`.)
@@ -230,6 +232,15 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 - Tray menu items set `Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}"`, or the first open is touch-sized. Placement follows the taskbar edge. (Layers spec TrayMenu; Leaf spec 8.3.)
 - Separators group actions; Quit is last, alone. (Layers; Leaf spec 8.3.)
 
+### Command Menu
+
+- A stock `Flyout` at the window's top center, 640 wide, styled after PowerToys Command Palette: a search row (16 search glyph, then a borderless, fill-less `TextBox` at 16 with no focus underline), a divider, a `ListView` of results, and a footer strip. (Leaf `Views/CommandMenu.xaml`.)
+- Rows are 44 tall in an 8 inset list: a 20 glyph (actions, secondary text color) or a 16 color square with radius 4 (events) in a 28 column, then the title and its secondary detail side by side on one line, then the shortcut as a key chip (`ControlFillColorSecondaryBrush`, 1 px divider stroke, radius 4, Caption). The selection is the stock rounded fill without the accent pill.
+- Results group under Caption section headers ("Go to", "Events", "Actions"), 28 tall; the arrow keys skip them and they can't be clicked.
+- The footer (`LeafFlyoutFooterBrush`, 1 px top divider) says what the selected row is and shows "Open Enter", plus "Go to event Alt Enter" on events. Nothing found shows a 24 search glyph over "No events or actions match."
+- While the menu is open the window dims behind it (`SmokeFillColorDefaultBrush`, 167 ms fade, title bar row included); a click outside, Esc, or a pick closes both.
+- Up/Down move the selection while focus stays in the box. Enter runs the selected row; Alt+Enter jumps the calendar to an event.
+
 ### Cards and Setting Rows
 
 The Windows 11 Settings row, the one pattern for every setting:
@@ -297,6 +308,7 @@ From the brief (item 5), with the reference apps filling in how it looks:
 - `DefaultButton`: **Close** for destructive actions, **Primary** for harmless ones. (Leaf `AccountsPage.xaml.cs` vs `MainWindow.xaml.cs`; MA "Remove from library" vs "New playlist".)
 - Non-blocking messages use an `InfoBar`, not a dialog: inline for page errors, bottom-center of the island for undo notices ("Event deleted · Undo"). Transient command failures auto-dismiss after 5 s. (Leaf `CalendarPage.xaml`; Sony spec "States".)
 - Real notifications are Windows toasts, never in-app popups. (Leaf spec 2.)
+- Mode bars (time travel, people overlay, share availability) are cards or informational `InfoBar`s stacked at the top of the calendar island (`IslandBars`), 16 DIPs from its sides. (Leaf `CalendarPage.xaml`.)
 
 > **Conflict:** Leaf's `ScopeDialog` uses "OK"; MA and Leaf's other dialogs use verbs. **Use verbs** in new dialogs. Existing `ScopeDialog` stays as it is.
 
@@ -383,6 +395,7 @@ Don't change existing work to close these. They're notes for new screens.
 - Sentence-case copy, verb buttons, destructive dialog defaults to Close. (`AccountsPage.xaml(.cs)`)
 - AutomationIds everywhere, landmarks, min window size computed from content.
 - Tray flyout: always-active acrylic, 360 × 560, 12 DIPs from the taskbar, slide from the taskbar edge with the Fluent 250/167 ms curves; stock tray menu with narrow padding and 16 DIP icons. (`Tray/TrayHost.xaml`)
+- Command menu, cheat sheet, island bars.
 
 **Known gaps (new work should do better, existing screens stay)**
 
