@@ -4,8 +4,6 @@ using System.Globalization;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml.Automation;
-using Microsoft.UI.Xaml.Automation.Peers;
-using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -220,11 +218,11 @@ public sealed partial class CalendarPage
     // ?
     void ShowShortcutSheet() => ShowDialog(() => ShortcutSheet.ShowAsync(this, ViewModel.Settings), "shortcuts.sheet.failed");
 
-    // One dialog at a time: a second ContentDialog while one is open throws in WinUI, so nothing opens while ours or
-    // any other (a scope question, the conflict dialog) is up
+    // One dialog at a time: our own flag covers Leaf's sheet and time travel; any other dialog already open (a scope
+    // question, the conflict dialog) makes WinUI refuse a second one, which is noted by type and otherwise ignored
     void ShowDialog(Func<Task> show, string eventName)
     {
-        if (_dialogOpen || IsDialogOpen())
+        if (_dialogOpen)
         {
             return;
         }
@@ -236,21 +234,16 @@ public sealed partial class CalendarPage
             {
                 await show();
             }
+            catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException)
+            {
+                ViewModel.LogInfo(eventName, $"error={ex.GetType().Name}");
+            }
             finally
             {
                 _dialogOpen = false;
             }
         }, eventName);
     }
-
-    // An open ContentDialog among this window's popups, told by its automation peer's class name (a type test on popup
-    // content fails under Native AOT)
-    bool IsDialogOpen() =>
-        XamlRoot is not null
-        && VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot)
-            .Select(p => p.Child)
-            .Where(child => child is not null)
-            .Any(child => FrameworkElementAutomationPeer.CreatePeerForElement(child)?.GetClassName() == "ContentDialog");
 
     // =========================================================================
     // TIME TRAVEL

@@ -68,6 +68,9 @@ public sealed partial class CalendarViewModel
         return true;
     }
 
+    /// <summary>Writes an Info line to Leaf's log (IDs, counts, and types only; never content).</summary>
+    public void LogInfo(string eventName, string details) => _services.Log.Info(eventName, details);
+
     /// <summary>The title bar's Back after a jump.</summary>
     public void BackFromJump()
     {
