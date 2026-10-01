@@ -71,6 +71,23 @@ public static class LeafBrushes
     /// <summary>Text on <see cref="Accent"/> (TextOnAccentFillColorPrimary: black in dark, white in light).</summary>
     public static SolidColorBrush OnAccent(bool dark) => FromHex(ChromeColors.OnAccent(dark));
 
+    /// <summary>An overlaid person's color (block edge, chip dot); the highlight color in a contrast theme.</summary>
+    public static SolidColorBrush Person(int index, bool dark) => IsHighContrast ? Highlight : FromHex(ChromeColors.Person(index, dark));
+
+    /// <summary>An overlaid person's busy-block fill (their color at 20%); none in a contrast theme, where the edge carries it.</summary>
+    public static SolidColorBrush PersonFill(int index, bool dark) => IsHighContrast ? Transparent : FromHex(ChromeColors.PersonFill(index, dark));
+
+    /// <summary>The tint outside your working hours; none in a contrast theme, where a tint would cut contrast.</summary>
+    public static SolidColorBrush OffHours(bool dark) => IsHighContrast ? Transparent : FromHex(ChromeColors.OffHours(dark));
+
+    // Contrast Themes Use The System's Own Colors Instead Of Tints
+    static readonly Windows.UI.ViewManagement.AccessibilitySettings Accessibility = new();
+
+    static bool IsHighContrast => Accessibility.HighContrast;
+
+    // ponytail: read once, like the accent below
+    static readonly SolidColorBrush Highlight = new(new Windows.UI.ViewManagement.UISettings().UIElementColor(Windows.UI.ViewManagement.UIElementType.Highlight));
+
     // ponytail: read once; an accent color change while Leaf runs shows after a restart
     static readonly Lazy<SolidColorBrush> AccentDark  = new(() => new SolidColorBrush(new Windows.UI.ViewManagement.UISettings().GetColorValue(Windows.UI.ViewManagement.UIColorType.AccentLight2)));
     static readonly Lazy<SolidColorBrush> AccentLight = new(() => new SolidColorBrush(new Windows.UI.ViewManagement.UISettings().GetColorValue(Windows.UI.ViewManagement.UIColorType.AccentDark1)));

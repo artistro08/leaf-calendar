@@ -1,7 +1,9 @@
+using System.Globalization;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Shapes;
 
@@ -14,6 +16,11 @@ namespace LeafCalendar.App.Controls;
 /// </summary>
 public sealed partial class DayColumn : Canvas
 {
+    static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
+
+    // The app's icon button look, read once (as SidebarView reads its day styles)
+    static readonly Lazy<Style> IconButtonStyle = new(() => (Style)Application.Current.Resources["LeafIconButtonStyle"]);
+
     readonly TimeGridView _owner;
     readonly Action<CalendarOccurrence> _select;
     readonly Rectangle[] _hourLines = new Rectangle[24];
@@ -24,17 +31,38 @@ public sealed partial class DayColumn : Canvas
     readonly List<EventBlock> _blocks = [];
     readonly Border _ghost = new() { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
     readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 2, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+    readonly Canvas _offHours = new() { IsHitTestVisible = false };
+    readonly List<Border> _offHourBlocks = [];
+    readonly Canvas _overlay = new() { IsHitTestVisible = false };
+    readonly List<(Border Block, TextBlock Title)> _overlayBlocks = [];
+    readonly Canvas _slots = new() { IsHitTestVisible = false };
+    readonly List<(Grid Slot, Rectangle Fill, Rectangle Edge)> _slotItems = [];
+    readonly Canvas _slotButtons = new();
+    readonly List<Button> _slotRemoves = [];
+    readonly List<int> _slotRemoveIndexes = [];
 
     /// <summary>Creates a column owned by <paramref name="owner"/>.</summary>
     public DayColumn(TimeGridView owner)
     {
         _owner  = owner;
         _select = o => KeyState.SelectClicked(_owner.ViewModel, o);
+
+        // Off-Hours Shading (behind everything, even the hour lines)
+        Children.Add(_offHours);
+
         for (var h = 0; h < 24; h++)
         {
             Children.Add(_hourLines[h] = new Rectangle { Height = 1, IsHitTestVisible = false });
             Children.Add(_halfLines[h] = new Rectangle { Height = 1, IsHitTestVisible = false });
         }
+
+        // People Overlay, Then Shared-Availability Slots (under the events; clicks and drags go through to the grid)
+        Children.Add(_overlay);
+        Children.Add(_slots);
+
+        // Slot Remove Buttons (above the events, so they can be clicked)
+        Children.Add(_slotButtons);
+        SetZIndex(_slotButtons, 15);
 
         _divider.IsHitTestVisible = false;
         _nowLine.IsHitTestVisible = false;
@@ -80,7 +108,6 @@ public sealed partial class DayColumn : Canvas
     /// <summary>Repaints for the current size, theme, data, and selection.</summary>
     public void Render()
     {
-        var vm     = _owner.ViewModel;
         var dark   = _owner.IsDark;
         var width  = _owner.ColumnWidth;
         var hour   = _owner.HourHeight;
@@ -101,6 +128,23 @@ public sealed partial class DayColumn : Canvas
 
         _divider.Height = Height;
         _divider.Fill   = LeafBrushes.GridLine(dark);
+
+        RenderOffHours();
+        RenderOverlay();
+        RenderSlots();
+        RenderEventsAndNow();
+    }
+
+    /// <summary>
+    /// Repaints the events (past ones fade) and the now line: what the time grid's minute clock redraws. The shading,
+    /// overlay, and slot layers only change with their own data, so the clock leaves them alone.
+    /// </summary>
+    public void RenderEventsAndNow()
+    {
+        var vm    = _owner.ViewModel;
+        var dark  = _owner.IsDark;
+        var width = _owner.ColumnWidth;
+        var hour  = _owner.HourHeight;
 
         // Events (drawn at the same minimum length DayLayout uses for overlap, so short events never collide)
         var blocks = DayLayout.Layout(Date, vm.Cache.ForDay(Date), vm.Zone);
@@ -162,6 +206,188 @@ public sealed partial class DayColumn : Canvas
 
     /// <summary>Hides the ghost.</summary>
     public void ClearGhost() => _ghost.Visibility = Visibility.Collapsed;
+
+    // Shades the time outside your working hours. The minutes are the wall clock of the zone on screen (ViewModel.Zone),
+    // as the hour lines are, so 9 AM is the 9:00 line whatever zone you're looking in
+    void RenderOffHours()
+    {
+        var vm    = _owner.ViewModel;
+        var hour  = _owner.HourHeight;
+        var fill  = LeafBrushes.OffHours(_owner.IsDark);
+        var spans = WorkingHoursMath.OffHours(vm.Settings.WorkingHours, Date.DayOfWeek);
+
+        for (var i = 0; i < spans.Count; i++)
+        {
+            if (i == _offHourBlocks.Count)
+            {
+                var block = new Border();
+                _offHourBlocks.Add(block);
+                _offHours.Children.Add(block);
+            }
+
+            var (start, end) = spans[i];
+            var shade        = _offHourBlocks[i];
+            shade.Visibility = Visibility.Visible;
+            shade.Background = fill;
+            shade.Width      = _owner.ColumnWidth;
+            shade.Height     = (end - start) / 60.0 * hour;
+            SetTop(shade, start / 60.0 * hour);
+            AutomationProperties.SetAutomationId(shade, string.Create(CultureInfo.InvariantCulture, $"OffHours_{Date:yyyy-MM-dd}_{i}"));
+        }
+
+        for (var i = spans.Count; i < _offHourBlocks.Count; i++)
+        {
+            _offHourBlocks[i].Visibility = Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>
+    /// Draws the overlaid people's busy stretches that fall on this day, under the events. Each block's number counts
+    /// that person's loaded blocks in time order, so it's the same in every column and after a redraw.
+    /// </summary>
+    public void RenderOverlay()
+    {
+        var vm       = _owner.ViewModel;
+        var dark     = _owner.IsDark;
+        var dayStart = OccurrenceQuery.LocalMidnight(Date, vm.Zone);
+        var dayEnd   = OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
+        var counts   = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var shown    = 0;
+
+        foreach (var b in vm.OverlayBlocks(DateTimeOffset.MinValue, DateTimeOffset.MaxValue))
+        {
+            var n = counts[b.Email] = counts.GetValueOrDefault(b.Email) + 1;
+            if (b.Start >= dayEnd || b.End <= dayStart)
+            {
+                continue;
+            }
+
+            // Reuse A Pooled Block
+            if (shown == _overlayBlocks.Count)
+            {
+                var title = new TextBlock { FontSize = 12, Margin = new Thickness(6, 2, 6, 2), TextTrimming = TextTrimming.CharacterEllipsis };
+                var block = new Border { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(3, 0, 0, 0), Child = title };
+                _overlayBlocks.Add((block, title));
+                _overlay.Children.Add(block);
+            }
+
+            var (border, text) = _overlayBlocks[shown++];
+            var top    = b.Start <= dayStart ? 0 : _owner.MinutesIntoDay(b.Start);
+            var bottom = b.End >= dayEnd ? 24 * 60 : _owner.MinutesIntoDay(b.End);
+
+            border.Visibility  = Visibility.Visible;
+            border.Background  = LeafBrushes.PersonFill(b.ColorIndex, dark);
+            border.BorderBrush = LeafBrushes.Person(b.ColorIndex, dark);
+            border.Width       = Math.Max(_owner.ColumnWidth - 2, 4);
+            border.Height      = Math.Max((bottom - top) / 60 * _owner.HourHeight, 2);
+            text.Text          = b.Title ?? "";
+            text.Foreground    = LeafBrushes.PrimaryText(dark);
+            SetTop(border, top / 60 * _owner.HourHeight);
+
+            var when = $"{TimeZoneInfo.ConvertTime(b.Start, vm.Zone).ToString("h:mm tt", English)}–{TimeZoneInfo.ConvertTime(b.End, vm.Zone).ToString("h:mm tt", English)}";
+            AutomationProperties.SetAutomationId(border, $"OverlayBlock_{b.Email}_{n - 1}");
+            AutomationProperties.SetName(border, $"{b.Email} busy {when}" + (b.Title is { } t ? $": {t}" : ""));
+        }
+
+        for (var i = shown; i < _overlayBlocks.Count; i++)
+        {
+            _overlayBlocks[i].Block.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>
+    /// Draws the times picked for sharing that fall on this day (accent fill, dashed edge), each with a remove button
+    /// at its top right on the day it starts. A slot's number is its place in the view model's list.
+    /// </summary>
+    public void RenderSlots()
+    {
+        var vm       = _owner.ViewModel;
+        var dark     = _owner.IsDark;
+        var accent   = LeafBrushes.Accent(dark);
+        var dayStart = OccurrenceQuery.LocalMidnight(Date, vm.Zone);
+        var dayEnd   = OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
+        var width    = Math.Max(_owner.ColumnWidth - 6, 10);
+        var shown    = 0;
+        var buttons  = 0;
+
+        for (var n = 0; n < vm.ShareSlots.Count; n++)
+        {
+            var s = vm.ShareSlots[n];
+            if (s.Start >= dayEnd || s.End <= dayStart)
+            {
+                continue;
+            }
+
+            // Reuse A Pooled Slot
+            if (shown == _slotItems.Count)
+            {
+                var fill = new Rectangle { RadiusX = 4, RadiusY = 4, Opacity = 0.15 };
+                var edge = new Rectangle { RadiusX = 4, RadiusY = 4, StrokeThickness = 1.5, StrokeDashArray = [4, 2] };
+                var slot = new Grid();
+                slot.Children.Add(fill);
+                slot.Children.Add(edge);
+                _slotItems.Add((slot, fill, edge));
+                _slots.Children.Add(slot);
+            }
+
+            var (box, inside, border) = _slotItems[shown++];
+            var top    = s.Start <= dayStart ? 0 : _owner.MinutesIntoDay(s.Start);
+            var bottom = s.End >= dayEnd ? 24 * 60 : _owner.MinutesIntoDay(s.End);
+            var y      = top / 60 * _owner.HourHeight;
+
+            box.Visibility = Visibility.Visible;
+            box.Width      = width;
+            box.Height     = Math.Max((bottom - top) / 60 * _owner.HourHeight - 2, 4);
+            inside.Fill    = accent;
+            border.Stroke  = accent;
+            SetLeft(box, 2);
+            SetTop(box, y + 1);
+            AutomationProperties.SetAutomationId(box, $"ShareSlot_{n}");
+            AutomationProperties.SetName(box, $"Time to share {TimeLabels.Range(s.Start, s.End, vm.Zone, vm.Settings.Use24HourTime)}");
+
+            // Remove Button, On The Day The Slot Starts
+            if (s.Start < dayStart)
+            {
+                continue;
+            }
+
+            if (buttons == _slotRemoves.Count)
+            {
+                var index  = _slotRemoves.Count;
+                var remove = new Button
+                {
+                    Content = new FontIcon { Glyph = "", FontSize = 10 },
+                    Width   = 20,
+                    Height  = 20,
+                    Padding = new Thickness(0),
+                    Style   = IconButtonStyle.Value,
+                };
+                AutomationProperties.SetName(remove, "Remove this time");
+                ToolTipService.SetToolTip(remove, "Remove this time");
+                remove.Click += (_, _) => _owner.ViewModel.RemoveShareSlot(_slotRemoveIndexes[index]);
+                _slotRemoves.Add(remove);
+                _slotRemoveIndexes.Add(n);
+                _slotButtons.Children.Add(remove);
+            }
+
+            var button = _slotRemoves[buttons];
+            _slotRemoveIndexes[buttons++] = n;
+            button.Visibility = Visibility.Visible;
+            AutomationProperties.SetAutomationId(button, $"ShareSlot_{n}_Remove");
+            SetLeft(button, 2 + width - 22);
+            SetTop(button, y + 3);
+        }
+
+        for (var i = shown; i < _slotItems.Count; i++)
+        {
+            _slotItems[i].Slot.Visibility = Visibility.Collapsed;
+        }
+
+        for (var i = buttons; i < _slotRemoves.Count; i++)
+        {
+            _slotRemoves[i].Visibility = Visibility.Collapsed;
+        }
+    }
 
     void EnsureBlocks(int count)
     {
