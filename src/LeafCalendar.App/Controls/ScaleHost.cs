@@ -49,13 +49,24 @@ public sealed partial class ScaleHost : Panel
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// A child that wants more room than it gets is arranged at what it wants, and the host clips at its own edge. Arranged
+    /// smaller, XAML would clip the child to its unscaled slot, so a scaled-up child showed only its first 1/scale.
+    /// </remarks>
     protected override Size ArrangeOverride(Size finalSize)
     {
-        if (Children.Count > 0)
+        if (Children.Count == 0)
         {
-            Children[0].Arrange(new Rect(0, 0, finalSize.Width / _scale, finalSize.Height / _scale));
+            return finalSize;
         }
 
+        var child    = Children[0];
+        var width    = finalSize.Width / _scale;
+        var height   = finalSize.Height / _scale;
+        var overflow = child.DesiredSize.Width > width || child.DesiredSize.Height > height;
+
+        child.Arrange(new Rect(0, 0, Math.Max(width, child.DesiredSize.Width), Math.Max(height, child.DesiredSize.Height)));
+        Clip = overflow ? new RectangleGeometry { Rect = new Rect(0, 0, finalSize.Width, finalSize.Height) } : null;
         return finalSize;
     }
 }

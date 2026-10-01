@@ -41,11 +41,12 @@ public sealed partial class MainWindow : Window
     // still fits the widest title ("September 2026": 17 in, 170 wide), a 16 gap, and the widest toolbar (about 257,
     // with "31 days" on the view button, plus 36 for the sync status slot and its gap) 6 in from the island's right edge, which also leaves the
     // week grid its 56 gutter and seven 48-wide days. The title bar toolbar and insets don't scale. The height keeps the sidebar's mini
-    // month, an account with three calendars, and its footer, and shows about eight hours of the grid at the default hour height.
+    // month, an account with three calendars, and its footer, and shows about eight hours of the grid at the default hour height;
+    // below the 48 DIP title bar row it grows with the interface scale, as the sidebar does.
     static double MinimumWidthAt(double scale) =>
         (CalendarPage.SidebarWidth + CalendarPage.DetailsWidth) * scale + CalendarPage.TitleInset + 170 + 16 + 257 + 36 + CalendarPage.ToolbarInset;
 
-    const double MinimumHeight = 540;
+    static double MinimumHeightAt(double scale) => 48 + (540 - 48) * scale;
 
     // The event actions' right end, in from the details panel's left edge: the edit glyph (8 in on its 32-wide
     // button) starts at the panel's 16 px content inset (which grows with the interface scale), and the delete button touches it
@@ -414,7 +415,7 @@ public sealed partial class MainWindow : Window
         var inner  = AppWindow.ClientSize;
         var work   = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
         var width  = Math.Min((int)Math.Ceiling(MinimumWidthAt(_calendar.Settings.InterfaceScale) * scale) + Math.Max(0, frame.Width - inner.Width), work.Width);
-        var height = Math.Min((int)Math.Ceiling(MinimumHeight * scale) + Math.Max(0, frame.Height - inner.Height), work.Height);
+        var height = Math.Min((int)Math.Ceiling(MinimumHeightAt(_calendar.Settings.InterfaceScale) * scale) + Math.Max(0, frame.Height - inner.Height), work.Height);
         _presenter.PreferredMinimumWidth  = width;
         _presenter.PreferredMinimumHeight = height;
 

@@ -151,13 +151,16 @@ public sealed class ZoneAndScaleTests : IDisposable
     public void Scale125_SeededSetting_PanesAndCalendarGrow()
     {
         using var leaf = Launch(new LeafSettings { InterfaceScale = 1.25 });
-        var sidebar = leaf.WaitFor("Sidebar");
-        LeafApp.WaitUntilStill(sidebar);
+        LeafApp.WaitUntilStill(leaf.WaitFor("ViewHost"));
 
-        Assert.True(Math.Abs(sidebar.BoundingRectangle.Width - 264 * 1.25 * leaf.Scale) <= 1 + leaf.Scale,
-            $"The sidebar is {sidebar.BoundingRectangle.Width} px wide at display scale {leaf.Scale}.");
+        Assert.True(Math.Abs(SidebarPaneWidth(leaf) - 264 * 1.25 * leaf.Scale) <= 1 + leaf.Scale,
+            $"The sidebar pane is {SidebarPaneWidth(leaf)} px wide at display scale {leaf.Scale}.");
         Assert.True(Math.Abs(leaf.WaitFor("MiniDay_2026-10-01").BoundingRectangle.Width - 28 * 1.25 * leaf.Scale) <= 1 + leaf.Scale);
     }
+
+    // The sidebar pane's width: from the page's left edge to the calendar view's (the view spans the island). The
+    // Sidebar element's own box is only the union of what it shows, without its title bar row or padding.
+    static int SidebarPaneWidth(LeafApp leaf) => leaf.WaitFor("ViewHost").BoundingRectangle.Left - leaf.WaitFor("CalendarRoot").BoundingRectangle.Left;
 
     [Fact]
     public void Scale150_AtMinimumWindow_NothingOverlaps()
@@ -205,9 +208,8 @@ public sealed class ZoneAndScaleTests : IDisposable
         Keyboard.Type(VirtualKeyShort.RETURN);
 
         // The Sidebar Grows, And Settings Shows The Choice
-        var sidebar = leaf.WaitFor("Sidebar");
-        Assert.True(Retry.WhileFalse(() => Math.Abs(sidebar.BoundingRectangle.Width - 264 * 1.1 * leaf.Scale) <= 1 + leaf.Scale, Wait).Success,
-            $"The sidebar is {sidebar.BoundingRectangle.Width} px wide.");
+        Assert.True(Retry.WhileFalse(() => Math.Abs(SidebarPaneWidth(leaf) - 264 * 1.1 * leaf.Scale) <= 1 + leaf.Scale, Wait).Success,
+            $"The sidebar pane is {SidebarPaneWidth(leaf)} px wide.");
 
         leaf.OpenSettings("General");
         var box = leaf.WaitInSettings("InterfaceScaleBox");
