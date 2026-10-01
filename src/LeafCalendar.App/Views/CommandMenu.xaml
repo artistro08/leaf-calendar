@@ -135,22 +135,14 @@
                                     Visibility="{x:Bind ActionVisibility}"
                                     AutomationProperties.AccessibilityView="Raw" />
 
-                                <!-- Title And Detail, Side By Side -->
-                                <Grid Grid.Column="1" VerticalAlignment="Center" ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{x:Bind Title}" MaxLines="1" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock
-                                        Grid.Column="1"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                        Text="{x:Bind Detail}"
-                                        MaxLines="1"
-                                        TextTrimming="CharacterEllipsis"
-                                        Visibility="{x:Bind DetailVisibility}" />
-                                </Grid>
-
+                                <!-- Title And Detail, Side By Side (one line, trimmed to the row: a title's own column outgrew the menu) -->
+                                <TextBlock
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    MaxLines="1"
+                                    TextTrimming="CharacterEllipsis">
+                                    <Run Text="{x:Bind Title}" /><Run Text="{x:Bind DetailGap}" /><Run Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Detail}" />
+                                </TextBlock>
                                 <!-- Shortcut -->
                                 <Border Grid.Column="2" Style="{StaticResource CommandKeyChipStyle}" Visibility="{x:Bind KeysVisibility}">
                                     <TextBlock Style="{StaticResource CommandKeyTextStyle}" Text="{x:Bind Keys}" />

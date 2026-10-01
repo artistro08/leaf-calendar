@@ -47,6 +47,37 @@ public sealed class ShortcutSheetTests : IDisposable
             $"Expected one RSVP row; found {string.Join(", ", Rows(sheet).Select(r => r.Name))}.");
     }
 
+    // A panel at the right of the calendar view, over it (not a centered dialog), like PowerToys' shortcut guide; Esc
+    // closes it even with focus in its filter box, and so does ? (typed into the filter, it's not a search)
+    [Fact]
+    public void Sheet_IsAPanelAtTheViewsRight_EscAndQuestionMarkClose()
+    {
+        using var leaf = Launch();
+
+        foreach (var key in new[] { VirtualKeyShort.ESCAPE, VirtualKeyShort.OEM_2 })
+        {
+            leaf.Press(VirtualKeyShort.SHIFT, VirtualKeyShort.OEM_2);
+            var sheet = leaf.WaitFor("ShortcutSheet");
+            var view  = leaf.WaitFor("ViewHost").BoundingRectangle;
+            var box   = sheet.BoundingRectangle;
+            Assert.True(box.Right <= view.Right && view.Right - box.Right <= 24 * leaf.Scale, $"The sheet ({box}) isn't at the view's ({view}) right edge.");
+            Assert.True(box.Top >= view.Top && box.Left > view.Left, $"The sheet ({box}) isn't a panel over the view ({view}).");
+            var filter = leaf.WaitFor("ShortcutFilterBox");
+            Assert.True(Retry.WhileFalse(() => filter.Properties.HasKeyboardFocus.ValueOrDefault, Wait).Success, "The filter box didn't get focus.");
+
+            if (key == VirtualKeyShort.ESCAPE)
+            {
+                Keyboard.Press(key);
+            }
+            else
+            {
+                Keyboard.TypeSimultaneously(VirtualKeyShort.SHIFT, key);
+            }
+
+            Assert.True(Retry.WhileTrue(() => leaf.Exists("ShortcutSheet"), Wait).Success, $"{key} didn't close the sheet.");
+        }
+    }
+
     [Fact]
     public void Sheet_ShowsTheGlobalShortcutsAsSet()
     {

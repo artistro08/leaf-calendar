@@ -158,6 +158,15 @@
         </Setter>
     </Style>
 
+    <!-- Floating Card (the shortcut sheet and the share availability card over the calendar view: solid like the notice
+         toast, the flyout border, and the overlay radius; CalendarPage gives it its ThemeShadow) -->
+    <Style x:Key="LeafFloatingCardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource SurfaceStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
+    </Style>
+
     <!-- Mini Month Day (the text color is set per day in code, so hover and press only fade the layer behind it) -->
     <Style x:Key="LeafMiniDayButtonStyle" TargetType="Button" BasedOn="{StaticResource LeafIconButtonStyle}">
         <Setter Property="Width" Value="28" />

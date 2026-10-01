@@ -268,6 +268,14 @@ public sealed partial class CalendarPage : Page
 
     void OnEscapeInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        // Esc With The Cheat Sheet Open Only Closes It
+        if (_sheet is not null)
+        {
+            CloseShortcutSheet();
+            args.Handled = true;
+            return;
+        }
+
         // Esc During A Drag Only Cancels The Drag
         if ((_view is Controls.TimeGridView grid && grid.CancelDrag()) || (_view is Controls.MonthGridView month && month.CancelDrag()))
         {
