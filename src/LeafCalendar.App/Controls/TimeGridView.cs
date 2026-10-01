@@ -237,6 +237,13 @@ public sealed partial class TimeGridView : Grid, IDisposable
         PointerCaptureLost += (_, _) => CancelDrag();
         PointerCanceled    += (_, _) => CancelDrag();
 
+        // Selection Box (over the whole view, so its canvas shares this view's coordinates; clicks go through)
+        AutomationProperties.SetAutomationId(_box, "SelectionBox");
+        _boxLayer.Children.Add(_box);
+        SetRowSpan(_boxLayer, 2);
+        SetColumnSpan(_boxLayer, 2);
+        Children.Add(_boxLayer);
+
         BuildStrip(_vm.PeriodStart);
     }
 
@@ -753,7 +760,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // How far the pointer must move before a press becomes a drag (less stays a click)
     const double DragThreshold = 4;
 
-    enum DragKind { Move, Resize, Create, AllDay }
+    enum DragKind { Move, Resize, Create, AllDay, Box }
 
     sealed class DragSession(DragKind kind, Point origin)
     {
@@ -762,12 +769,18 @@ public sealed partial class TimeGridView : Grid, IDisposable
         public CalendarOccurrence? Occurrence { get; init; }
         public DateTimeOffset GrabbedAt { get; init; }
         public DateOnly GrabbedDay { get; init; }
+        public DateOnly BoxDay { get; init; }
+        public double BoxMinutes { get; init; }
         public bool Started { get; set; }
         public bool Duplicate { get; set; }
         public (DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? Target { get; set; }
     }
 
     DragSession? _drag;
+
+    // Shift+Drag Box (spec 7.3), drawn on its own layer above the grid
+    readonly Canvas _boxLayer = new() { IsHitTestVisible = false };
+    readonly Border _box      = new() { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
 
     /// <summary>True between a press on something draggable and its release.</summary>
     public bool IsDragPending => _drag is not null;
@@ -799,6 +812,14 @@ public sealed partial class TimeGridView : Grid, IDisposable
     public void BeginCreateDrag(PointerRoutedEventArgs e)
     {
         var (day, minutes) = BodyPosition(e);
+
+        // Shift: Box Select Instead Of Create (spec 7.3; not while picking times to share or editing)
+        if (KeyState.IsDown(Windows.System.VirtualKey.Shift) && !_vm.IsSharing && _vm.Editing is null)
+        {
+            _drag = new DragSession(DragKind.Box, e.GetCurrentPoint(this).Position) { BoxDay = day, BoxMinutes = minutes };
+            return;
+        }
+
         _drag = new DragSession(DragKind.Create, e.GetCurrentPoint(this).Position) { GrabbedAt = DragMath.Instant(day, minutes, _vm.Zone) };
     }
 
@@ -837,7 +858,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return false;
         }
 
-        _drag = null;
+        _drag           = null;
+        _box.Visibility = Visibility.Collapsed;
         ClearGhosts();
         ReleasePointerCaptures();
         return true;
@@ -875,10 +897,17 @@ public sealed partial class TimeGridView : Grid, IDisposable
             drag.Started = true;
         }
 
+        // Box: drawn from the press to the pointer (ponytail: selection applies on release, not live; live highlighting re-renders every move)
+        e.Handled = true;
+        if (drag.Kind == DragKind.Box)
+        {
+            ShowBox(_box, drag.Origin, at, IsDark);
+            return;
+        }
+
         // Redraw The Ghost Only When The Snapped Target Or Copy Mode Changes
         var target    = TargetFor(drag, e);
         var duplicate = drag.Kind is DragKind.Move or DragKind.AllDay && KeyState.IsDown(Windows.System.VirtualKey.Menu);
-        e.Handled = true;
         if (target.Equals(drag.Target) && duplicate == drag.Duplicate)
         {
             return;
@@ -896,10 +925,27 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
-        _drag = null;
+        _drag           = null;
+        _box.Visibility = Visibility.Collapsed;
         ReleasePointerCapture(e.Pointer);
         ClearGhosts();
-        if (!drag.Started || drag.Target is not { } target)
+        if (!drag.Started)
+        {
+            return;
+        }
+
+        // Box: the timed events under it on the days showing (a hidden weekend's events stay out); Ctrl adds
+        if (drag.Kind == DragKind.Box)
+        {
+            e.Handled = true;
+            var (day, minutes) = BodyPosition(e);
+            var first          = day < drag.BoxDay ? day : drag.BoxDay;
+            var days           = Enumerable.Range(0, Math.Abs(day.DayNumber - drag.BoxDay.DayNumber) + 1).Select(first.AddDays).Where(_strip.Contains);
+            _vm.SelectBox(BoxSelection.InTimeBox(_vm.OnDays(days), drag.BoxDay, day, drag.BoxMinutes, minutes, _vm.Zone), add: KeyState.IsDown(Windows.System.VirtualKey.Control));
+            return;
+        }
+
+        if (drag.Target is not { } target)
         {
             return;
         }
@@ -1012,6 +1058,22 @@ public sealed partial class TimeGridView : Grid, IDisposable
             var bottom = end >= dayEnd ? 24 * 60 : MinutesIntoDay(end);
             column.SetGhost(top, Math.Max(bottom, top + DragMath.SnapMinutes), copy + (t.Start >= dayStart ? TimeLabels.Range(t.Start, t.End, _vm.Zone, _vm.Settings.Use24HourTime) : ""));
         }
+    }
+
+    /// <summary>
+    /// Shows a selection box between two corners in its canvas (the time grid's and the month view's). The accent is
+    /// read each time, so theme and high-contrast changes apply.
+    /// </summary>
+    internal static void ShowBox(Border box, Point a, Point b, bool dark)
+    {
+        box.BorderBrush = LeafBrushes.Accent(dark);
+        box.Background  = LeafBrushes.Accent(dark);
+        box.Opacity     = 0.25;
+        box.Width       = Math.Abs(b.X - a.X);
+        box.Height      = Math.Abs(b.Y - a.Y);
+        box.Visibility  = Visibility.Visible;
+        Canvas.SetLeft(box, Math.Min(a.X, b.X));
+        Canvas.SetTop(box, Math.Min(a.Y, b.Y));
     }
 
     void ClearGhosts()

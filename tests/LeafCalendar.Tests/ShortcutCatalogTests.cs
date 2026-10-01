@@ -45,7 +45,13 @@ public sealed class ShortcutCatalogTests
     }
 
     [Fact]
-    public void Rows_LeaveOutBoxSelect() => Assert.DoesNotContain(ShortcutCatalog.Rows, r => r.Action == "Box select");
+    public void Rows_ListBoxSelectAfterSelectAll()
+    {
+        var selection = ShortcutCatalog.Rows.Where(r => r.Section == "Selection").Select(r => r.Action).ToList();
+
+        Assert.Equal(selection.IndexOf("Select all visible") + 1, selection.IndexOf("Box select"));
+        Assert.Contains(ShortcutCatalog.Rows, r => r.Keys == "Shift+drag" && r.Action == "Box select");
+    }
 
     [Theory]
     [InlineData("rsvp", 1)]

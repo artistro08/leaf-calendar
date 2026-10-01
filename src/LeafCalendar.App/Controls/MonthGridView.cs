@@ -1,6 +1,7 @@
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Views;
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -118,12 +119,17 @@ public sealed partial class MonthGridView : Grid, IDisposable
         // Dragging Chips Between Days
         _ghost.Child = _ghostLabel;
         _dragLayer.Children.Add(_ghost);
+        AutomationProperties.SetAutomationId(_box, "SelectionBox");
+        _dragLayer.Children.Add(_box);
         SetRow(_dragLayer, 1);
         Children.Add(_dragLayer);
         AddHandler(PointerMovedEvent, new PointerEventHandler(OnDragMoved), handledEventsToo: true);
         AddHandler(PointerReleasedEvent, new PointerEventHandler(OnDragReleased), handledEventsToo: true);
         PointerCaptureLost += (_, _) => CancelDrag();
         PointerCanceled    += (_, _) => CancelDrag();
+
+        // Shift+Press On An Empty Cell Starts A Selection Box (chips, day numbers, and "more" buttons aren't the row itself)
+        AddHandler(PointerPressedEvent, new PointerEventHandler(OnBoxPressed), handledEventsToo: false);
     }
 
     /// <summary>The view model.</summary>
@@ -423,10 +429,37 @@ public sealed partial class MonthGridView : Grid, IDisposable
         public DateOnly? Target { get; set; }
     }
 
-    ChipDrag? _drag;
+    // Shift+Drag Box: the press point (in the drag layer) and the cell it started in
+    sealed class BoxDrag(Point origin, (int Row, int Column) cell)
+    {
+        public Point Origin { get; } = origin;
+        public (int Row, int Column) Cell { get; } = cell;
+        public bool Started { get; set; }
+    }
 
-    /// <summary>True between a press on a chip and its release.</summary>
-    public bool IsDragPending => _drag is not null;
+    ChipDrag? _drag;
+    BoxDrag? _boxDrag;
+    readonly Border _box = new() { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+
+    /// <summary>True between a press on a chip (or a Shift+press on empty space) and its release.</summary>
+    public bool IsDragPending => _drag is not null || _boxDrag is not null;
+
+    void OnBoxPressed(object sender, PointerRoutedEventArgs e)
+    {
+        var point = e.GetCurrentPoint(_dragLayer);
+        if (!point.Properties.IsLeftButtonPressed || e.Pointer.PointerDeviceType == PointerDeviceType.Touch || !KeyState.IsDown(VirtualKey.Shift))
+        {
+            return;
+        }
+
+        // Not While Picking Times To Share Or Editing, And Only On A Row's Empty Space
+        if (_vm.IsSharing || _vm.Editing is not null || _drag is not null || !_rows.Any(r => ReferenceEquals(r, e.OriginalSource)))
+        {
+            return;
+        }
+
+        _boxDrag = new BoxDrag(point.Position, CellAt(e.GetCurrentPoint(_repeater).Position));
+    }
 
     /// <summary>A chip was pressed: dragging moves the event to another day (keeping its time). Events you can't change don't drag.</summary>
     public void BeginChipDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e)
@@ -450,13 +483,15 @@ public sealed partial class MonthGridView : Grid, IDisposable
     /// <summary>Drops a pending or running drag without changing anything (Esc). Returns true when there was one.</summary>
     public bool CancelDrag()
     {
-        if (_drag is null)
+        if (_drag is null && _boxDrag is null)
         {
             return false;
         }
 
         _drag             = null;
+        _boxDrag          = null;
         _ghost.Visibility = Visibility.Collapsed;
+        _box.Visibility   = Visibility.Collapsed;
         ReleasePointerCaptures();
         return true;
     }
@@ -472,6 +507,12 @@ public sealed partial class MonthGridView : Grid, IDisposable
 
     void OnDragMoved(object sender, PointerRoutedEventArgs e)
     {
+        if (_boxDrag is { } box)
+        {
+            MoveBox(box, e);
+            return;
+        }
+
         if (_drag is not { } drag)
         {
             return;
@@ -529,8 +570,67 @@ public sealed partial class MonthGridView : Grid, IDisposable
         _ghost.Visibility      = Visibility.Visible;
     }
 
+    // The box follows the pointer once it moves past the threshold (ponytail: selection applies on release, not live)
+    void MoveBox(BoxDrag box, PointerRoutedEventArgs e)
+    {
+        // Button Already Up: the release went somewhere else, so the press is over
+        var point = e.GetCurrentPoint(_dragLayer);
+        if (!point.Properties.IsLeftButtonPressed)
+        {
+            CancelDrag();
+            return;
+        }
+
+        var at = point.Position;
+        if (!box.Started)
+        {
+            if (Math.Abs(at.X - box.Origin.X) < DragThreshold && Math.Abs(at.Y - box.Origin.Y) < DragThreshold)
+            {
+                return;
+            }
+
+            if (!CapturePointer(e.Pointer))
+            {
+                CancelDrag();
+                return;
+            }
+
+            box.Started = true;
+        }
+
+        e.Handled = true;
+        TimeGridView.ShowBox(_box, box.Origin, at, IsDark);
+    }
+
+    // Every event on the shown days of the covered cells (hidden weekends aren't columns, so they stay out); Ctrl adds
+    void ReleaseBox(BoxDrag box, PointerRoutedEventArgs e)
+    {
+        _boxDrag        = null;
+        _box.Visibility = Visibility.Collapsed;
+        ReleasePointerCapture(e.Pointer);
+        if (!box.Started)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        var end                 = CellAt(e.GetCurrentPoint(_repeater).Position);
+        var (firstRow, lastRow) = (Math.Min(box.Cell.Row, end.Row), Math.Max(box.Cell.Row, end.Row));
+        var (firstCol, lastCol) = (Math.Min(box.Cell.Column, end.Column), Math.Max(box.Cell.Column, end.Column));
+        var days                = Enumerable.Range(firstRow, lastRow - firstRow + 1)
+            .SelectMany(r => ColumnDates(_weeks[r].WeekStart).Where((_, column) => column >= firstCol && column <= lastCol));
+
+        _vm.SelectBox(_vm.OnDays(days), add: KeyState.IsDown(VirtualKey.Control));
+    }
+
     void OnDragReleased(object sender, PointerRoutedEventArgs e)
     {
+        if (_boxDrag is { } box)
+        {
+            ReleaseBox(box, e);
+            return;
+        }
+
         if (_drag is not { } drag)
         {
             return;

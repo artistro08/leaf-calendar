@@ -80,7 +80,8 @@ public sealed partial class WeekRow : Canvas
             AddLine(c * colW, 0, colW, 1, dark);
             if (ViewNavigator.IsWeekend(date))
             {
-                var tint = new Rectangle { Width = colW, Height = height, Fill = LeafBrushes.WeekendFill(dark) };
+                // Click-Through, So A Press On A Weekend Is A Press On The Row (Shift+drag box)
+                var tint = new Rectangle { Width = colW, Height = height, Fill = LeafBrushes.WeekendFill(dark), IsHitTestVisible = false };
                 SetLeft(tint, c * colW);
                 Children.Add(tint);
             }
@@ -137,7 +138,7 @@ public sealed partial class WeekRow : Canvas
 
     void AddLine(double x, double y, double w, double h, bool dark)
     {
-        var line = new Rectangle { Width = w, Height = h, Fill = LeafBrushes.GridLine(dark) };
+        var line = new Rectangle { Width = w, Height = h, Fill = LeafBrushes.GridLine(dark), IsHitTestVisible = false };
         SetLeft(line, x);
         SetTop(line, y);
         Children.Add(line);
