@@ -113,13 +113,13 @@ public static class InviteWatcher
     }
 
     /// <summary>Forgets an account's recorded invitations, reminders, and first-look marks (the account was removed).</summary>
-    public static void Forget(SqliteConnection conn, string accountId)
+    public static void Forget(SqliteConnection conn, string accountId, SqliteTransaction? tx = null)
     {
-        AlertLedger.RemoveForAccount(conn, accountId);
-        AlertLedger.DeleteMarksStartingWith(conn, SeededMark + accountId + "|");
+        AlertLedger.RemoveForAccount(conn, accountId, tx);
+        AlertLedger.DeleteMarksStartingWith(conn, SeededMark + accountId + "|", tx);
 
         // The Mark Before Per-Calendar Marks (one per account)
-        AlertLedger.DeleteMark(conn, SeededMark + accountId);
+        AlertLedger.DeleteMark(conn, SeededMark + accountId, tx);
     }
 
     static IReadOnlyList<CalendarOccurrence> Upcoming(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone)

@@ -73,12 +73,12 @@ public sealed class GlobalShortcuts(AppLog log)
         _registered.Clear();
     }
 
-    /// <summary>True when Windows would let Leaf register <paramref name="hotkey"/> now.</summary>
+    /// <summary>True when Windows would let Leaf register <paramref name="hotkey"/> now (never without the tray icon's window, which can't register anything).</summary>
     public bool IsFree(Hotkey hotkey)
     {
         if (_hwnd.IsNull)
         {
-            return true;
+            return false;
         }
 
         if (!PInvoke.RegisterHotKey(_hwnd, ProbeId, Modifiers(hotkey), (uint)hotkey.Key))

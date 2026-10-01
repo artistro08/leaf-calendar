@@ -75,8 +75,9 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
     }
 
     /// <summary>
-    /// Splits a command line (without the executable path) into arguments the way Windows does: spaces separate them,
-    /// double quotes group them, and backslashes escape a quote only right before one.
+    /// Splits a command line (without the executable path) into arguments the way Windows does: spaces and tabs separate
+    /// them, double quotes group them, two double quotes inside quotes are one literal quote, and backslashes escape a
+    /// quote only right before one.
     /// </summary>
     public static IReadOnlyList<string> SplitCommandLine(string commandLine)
     {
@@ -88,8 +89,10 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
         var started     = false;
         var backslashes = 0;
 
-        foreach (var c in commandLine)
+        for (var i = 0; i < commandLine.Length; i++)
         {
+            var c = commandLine[i];
+
             // Backslashes Count Only Before A Quote
             if (c == '\\')
             {
@@ -105,6 +108,12 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
                 {
                     current.Append('"');
                 }
+                else if (quoted && i + 1 < commandLine.Length && commandLine[i + 1] == '"')
+                {
+                    // "" Inside Quotes Is A Literal Quote (and the quotes go on)
+                    current.Append('"');
+                    i++;
+                }
                 else
                 {
                     quoted = !quoted;
@@ -119,7 +128,7 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
             backslashes = 0;
 
             // A Space Outside Quotes Ends The Argument
-            if (char.IsWhiteSpace(c) && !quoted)
+            if (c is ' ' or '	' && !quoted)
             {
                 if (started)
                 {

@@ -63,9 +63,9 @@ public static class AlertLedger
     /// Forgets every notification about one account's events (the account was removed). Keys read
     /// <c>Kind|account|...</c>; the account ID is compared exactly, no wildcards.
     /// </summary>
-    public static void RemoveForAccount(SqliteConnection conn, string accountId) =>
+    public static void RemoveForAccount(SqliteConnection conn, string accountId, SqliteTransaction? tx = null) =>
         conn.Execute(
-            null,
+            tx,
             "DELETE FROM alert_ledger WHERE substr(key, instr(key, '|') + 1, length($account)) = $account;",
             ("$account", accountId + "|"));
 
@@ -89,13 +89,13 @@ public static class AlertLedger
             ("$value", value.ToString(CultureInfo.InvariantCulture)));
 
     /// <summary>Deletes one named mark.</summary>
-    public static void DeleteMark(SqliteConnection conn, string name) =>
-        conn.Execute(null, "DELETE FROM settings WHERE key = $key;", ("$key", "mark:" + name));
+    public static void DeleteMark(SqliteConnection conn, string name, SqliteTransaction? tx = null) =>
+        conn.Execute(tx, "DELETE FROM settings WHERE key = $key;", ("$key", "mark:" + name));
 
     /// <summary>Deletes every named mark whose name starts with <paramref name="prefix"/> (compared exactly, no wildcards).</summary>
-    public static void DeleteMarksStartingWith(SqliteConnection conn, string prefix) =>
+    public static void DeleteMarksStartingWith(SqliteConnection conn, string prefix, SqliteTransaction? tx = null) =>
         conn.Execute(
-            null,
+            tx,
             "DELETE FROM settings WHERE substr(key, 1, length($prefix)) = $prefix;",
             ("$prefix", "mark:" + prefix));
 }

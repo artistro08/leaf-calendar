@@ -49,8 +49,8 @@ public static class AccountStore
         conn.Execute(null, "UPDATE accounts SET status = $status WHERE id = $id;", ("$status", ToText(status)), ("$id", id));
 
     /// <summary>Deletes an account and (by cascade) its calendars and events.</summary>
-    public static void Delete(SqliteConnection conn, string id) =>
-        conn.Execute(null, "DELETE FROM accounts WHERE id = $id;", ("$id", id));
+    public static void Delete(SqliteConnection conn, string id, SqliteTransaction? tx = null) =>
+        conn.Execute(tx, "DELETE FROM accounts WHERE id = $id;", ("$id", id));
 
     static string ToText(AccountStatus status) => status == AccountStatus.NeedsSignIn ? "needs-sign-in" : "ok";
 

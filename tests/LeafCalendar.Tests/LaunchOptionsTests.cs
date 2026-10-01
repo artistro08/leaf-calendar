@@ -149,6 +149,18 @@ public class LaunchOptionsTests
     }
 
     [Fact]
+    public void SplitCommandLine_DoubledQuoteInsideQuotes_IsALiteralQuote()
+    {
+        Assert.Equal(["say \"hi\" now", "next"], LaunchOptions.SplitCommandLine("\"say \"\"hi\"\" now\" next"));
+    }
+
+    [Fact]
+    public void SplitCommandLine_OnlySpacesAndTabsSeparate()
+    {
+        Assert.Equal(["a", "b\u00A0c\nd", "e"], LaunchOptions.SplitCommandLine("a\tb\u00A0c\nd e"));
+    }
+
+    [Fact]
     public void SplitCommandLine_Blank_IsEmpty()
     {
         Assert.Empty(LaunchOptions.SplitCommandLine("   "));
