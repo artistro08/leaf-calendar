@@ -130,7 +130,7 @@ Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manag
 4. Event data kept in a bounded sliding window (Section 6.4). Event visuals recycled.
 5. No WebView2. Event descriptions render with native text controls.
 6. Avatars and images decoded at display size (`DecodePixelWidth`).
-7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64. Measured 2026-09-29 at 78-79 MB private bytes and 11 MB working set (three runs), measured with sync running against the fake Google. Raised 2026-09-29 at the close of Milestone 2 to private bytes ≤ 120 MB (working set unchanged at ≤ 25 MB). Measured at 105-106 MB private bytes and 18 MB working set (three runs). The growth is expected: it's native WinUI memory for the new sidebar (mini month) and the time grid, committed while the window is open and kept after it closes. The managed heap stays at about 2 MB, and clearing the whole window tree on close freed nothing measurable. Measured 2026-09-30 at the close of Milestone 3 (Settings and onboarding windows, event editor, drag, conflict dialog) at 100 MB private bytes and 17 MB working set (three runs), inside the unchanged budget.
+7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64. Measured 2026-09-29 at 78-79 MB private bytes and 11 MB working set (three runs), measured with sync running against the fake Google. Raised 2026-09-29 at the close of Milestone 2 to private bytes ≤ 120 MB (working set unchanged at ≤ 25 MB). Measured at 105-106 MB private bytes and 18 MB working set (three runs). The growth is expected: it's native WinUI memory for the new sidebar (mini month) and the time grid, committed while the window is open and kept after it closes. The managed heap stays at about 2 MB, and clearing the whole window tree on close freed nothing measurable. Measured 2026-09-30 at the close of Milestone 3 (Settings and onboarding windows, event editor, drag, conflict dialog) at 100 MB private bytes and 17 MB working set (three runs), inside the unchanged budget. Measured 2026-09-30 at the close of the second Milestone 3 polish round (contact autocomplete, Meet, undo stack, navigation history) at 98-99 MB private bytes and 17 MB working set (three runs, final build; 100-101 MB and 15-17 MB earlier the same day), inside the unchanged budget.
 
 ---
 
@@ -217,7 +217,7 @@ Anyone can send an invite, so event content is treated as hostile.
 | `accounts` | Account ID, email, display name, avatar URL, status (ok / needs sign-in), settings timezone. |
 | `calendars` | Calendar ID, account ID, summary, summary override, color, access role, hidden, order, default reminders, sync token. |
 | `events` | Event ID, calendar ID, iCalUID, etag, status, start/end (UTC plus original zone), all-day flag, recurrence rules, recurring event ID, original start, updated time, raw JSON. Indexed by calendar and time range. |
-| `outbox` | Sequence, account ID, operation (create / patch / delete / move / RSVP), target event, payload JSON, base etag, send-updates choice, attempt count, last error. Also the rows before the edit (for undo and rejected edits), a hold-until time (the 6-second undo window for deletes), and a state (pending or conflict). |
+| `outbox` | Sequence, account ID, operation (create / patch / delete / move / RSVP), target event, payload JSON, base etag, send-updates choice, attempt count, last error. Also the rows before the edit (for undo and rejected edits), a hold-until time (the 6-second undo window for deletes; after it, undo (Ctrl+Z, any delete from this session) re-creates the event quietly with a new ID (no emails; guest replies reset), and restores a canceled instance or an ended repeat instead), and a state (pending or conflict). |
 | `conflicts` | Outbox entry, local version JSON, Google version JSON, detected time. |
 | `settings` | Key/value app settings. |
 
@@ -305,7 +305,7 @@ Anyone can send an invite, so event content is treated as hostile.
 ### 6.5 Right Panel (Collapsible)
 
 - Nothing selected: upcoming meetings for the next X hours (setting), each with a Join button.
-- Event selected: event details and the editor (Section 7).
+- Event selected: event details and the editor (Section 7). Shows Busy/Free and visibility (read-only).
 
 ### 6.6 Command Menu
 
@@ -348,12 +348,12 @@ Its own window (Milestone 3 owner redesign), modeled on the Windows 11 Settings 
 - Repeat: daily, weekly, monthly, yearly, or custom, ending on a date, after a count, or never.
 - Calendar picker, which also moves the event between calendars or accounts. A move within one account uses `events.move`; a move across accounts is a create plus a delete.
 - Guests:
-  - Autocomplete from contacts, other contacts, the Workspace directory, and people you meet often or recently.
+  - Autocomplete from contacts, other contacts, the Workspace directory, and people you meet often or recently. Built in the Milestone 3 polish: contacts and other contacts (People API). The Workspace directory and people you meet often are still deferred.
   - Optional-guest toggle.
   - Meeting rooms and resources (Workspace accounts).
 - Location, opened in Google Maps or Bing Maps (setting).
 - Description with bold, italic, underline, links, and lists.
-- Conferencing: auto Google Meet (default per account, or none). Pasted Zoom, Teams, Webex, and other links are detected.
+- Conferencing: auto Google Meet (default per account, or none). Pasted Zoom, Teams, Webex, and other links are detected. Built in the Milestone 3 polish: Add Google Meet / Remove in the editor, off for new events.
 - Reminders: calendar defaults or custom.
 - Event type: Event, Focus time, Out of office. The last two need Workspace accounts and are hidden otherwise.
 - Busy/Free, Public/Private visibility, and per-event color.
@@ -473,10 +473,14 @@ Registered with `RegisterHotKey`. If a combination is already taken by another a
 | `Ctrl+F` or `/` | Search (command menu) |
 | `?` | Shortcut cheat sheet |
 | `Ctrl+,` | Settings |
+| `Ctrl+Z` | Undo the last delete (this session) |
+| `Alt+Left` / `Alt+Right`, mouse back / forward | Back / forward through visited views |
 | `Ctrl+Shift+L` | Toggle light / dark |
 | `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / reset |
 | `Ctrl+Shift+E` | Show / hide weekends |
 | `Ctrl+Shift+D` | Show / hide declined events |
+
+Ctrl+wheel over the time grid zooms like Ctrl+= / Ctrl+-.
 
 **Events**
 
@@ -524,7 +528,7 @@ Registered with `RegisterHotKey`. If a combination is already taken by another a
 - Start week on
 - Show weekends, declined events, week numbers
 - 12-hour or 24-hour time
-- Default view and default day count
+- Default day count (the view you last used is kept)
 - Upcoming meetings lookahead in the right panel
 - Prompt to switch time zone when the Windows time zone changes
 - Map provider (Google Maps or Bing Maps)
@@ -534,7 +538,7 @@ Registered with `RegisterHotKey`. If a combination is already taken by another a
 - Google OAuth client ID and secret, with the setup guide
 - Add or disconnect accounts
 - Primary account
-- Default calendar for new events
+- Default calendar for new events (built in the Milestone 3 polish)
 - Default conferencing per account (Google Meet or none)
 
 **Calendars**
@@ -654,9 +658,9 @@ Each milestone gets its own implementation plan. Tests are built within each mil
      - Time travel (Z)
      - Title-bar search icon (opens the command menu), placed at the top of the left sidebar in its title-bar row, styled like the details panel's edit and delete icons (owner request, Milestone 3)
    - Deferred from Milestone 3:
-     - Guest autocomplete (contacts, other contacts, Workspace directory) and meeting rooms/resources
-     - Creating Google Meet links, including offline `conferenceData.createRequest` (spec 5.4 item 6), and the per-account default conferencing setting
-     - Event type (Focus time, Out of office), Busy/Free, and Public/Private in the editor
+     - Guest autocomplete from the Workspace directory and frequent contacts, and meeting rooms/resources (contacts and other contacts shipped in the Milestone 3 polish)
+     - The per-account default conferencing setting (creating and removing Meet links shipped in the Milestone 3 polish)
+     - Event type (Focus time, Out of office), and editing Busy/Free and Public/Private (shown read-only since the Milestone 3 polish)
      - The event's own time zone in the editor, and E then Z
      - E then F (participant overlay, with the people overlay)
      - Map provider choice (Google Maps is used until the settings page; Bing Maps arrives with it)
