@@ -18,18 +18,18 @@
                 Visibility="Collapsed" />
 
             <!-- Accounts (the -24 top margin cancels the first group header's gap below the page title) -->
-            <ItemsControl x:Name="GroupList" Margin="0,-24,0,0" IsTabStop="False" AutomationProperties.AutomationId="SettingsCalendarList">
-                <ItemsControl.ItemTemplate>
+            <controls:PinnedItemsControl x:Name="GroupList" Margin="0,-24,0,0" IsTabStop="False" AutomationProperties.AutomationId="SettingsCalendarList">
+                <controls:PinnedItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:AccountGroup">
                         <StackPanel Spacing="4">
                             <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="{x:Bind Email, Mode=OneWay}" />
-                            <ItemsControl ItemsSource="{x:Bind Calendars}" IsTabStop="False">
-                                <ItemsControl.ItemsPanel>
+                            <controls:PinnedItemsControl ItemsSource="{x:Bind Calendars}" IsTabStop="False">
+                                <controls:PinnedItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <StackPanel Spacing="4" />
                                     </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
+                                </controls:PinnedItemsControl.ItemsPanel>
+                                <controls:PinnedItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:CalendarRow">
                                         <!-- Calendar Row (color picker, then the show/hide switch) -->
                                         <controls:SettingRow Header="{x:Bind Name, Mode=OneWay}" Description="{x:Bind local:CalendarsPage.ColorSource(Info), Mode=OneWay}">
@@ -62,12 +62,12 @@
                                             </StackPanel>
                                         </controls:SettingRow>
                                     </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                </controls:PinnedItemsControl.ItemTemplate>
+                            </controls:PinnedItemsControl>
                         </StackPanel>
                     </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                </controls:PinnedItemsControl.ItemTemplate>
+            </controls:PinnedItemsControl>
             <!-- /Accounts -->
         </StackPanel>
     </ScrollViewer>

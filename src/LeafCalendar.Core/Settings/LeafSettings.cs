@@ -201,6 +201,9 @@ public sealed record LeafSettings
     /// <summary>Calendars left out of the tray flyout and tooltip (the rest follow what's shown in Leaf).</summary>
     public IReadOnlyList<CalendarRef> TrayExcludedCalendars { get; init; } = [];
 
+    /// <summary>Detailed logging (Settings › About): a breadcrumb trail and crash dumps in the log folder. Off by default.</summary>
+    public bool DetailedLogging { get; init; }
+
     /// <summary>
     /// Returns a copy with every value made safe.
     /// </summary>

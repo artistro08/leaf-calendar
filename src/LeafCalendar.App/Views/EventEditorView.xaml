@@ -121,8 +121,8 @@
                 <Border Style="{StaticResource LeafDividerStyle}" AutomationProperties.AutomationId="EditorDivider_Calendar" />
 
                 <!-- Calendar -->
-                <ComboBox x:Name="CalendarBox" Header="Calendar" HorizontalAlignment="Stretch" ItemsSource="{x:Bind Editor.Calendars, Mode=OneWay}" SelectedIndex="{x:Bind Editor.CalendarIndex, Mode=TwoWay}" AutomationProperties.AutomationId="EditorCalendar">
-                    <ComboBox.ItemTemplate>
+                <controls:PinnedComboBox x:Name="CalendarBox" Header="Calendar" HorizontalAlignment="Stretch" ItemsSource="{x:Bind Editor.Calendars, Mode=OneWay}" SelectedIndex="{x:Bind Editor.CalendarIndex, Mode=TwoWay}" AutomationProperties.AutomationId="EditorCalendar">
+                    <controls:PinnedComboBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:CalendarChoice">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Ellipse Width="10" Height="10" VerticalAlignment="Center" Fill="{x:Bind local:EventEditorView.Brush(Color)}" />
@@ -132,8 +132,8 @@
                                 </StackPanel>
                             </StackPanel>
                         </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
+                    </controls:PinnedComboBox.ItemTemplate>
+                </controls:PinnedComboBox>
 
                 <!-- Show As And Visibility (Busy/Free is short; visibility takes the rest so "Default visibility" fits) -->
                 <Grid ColumnSpacing="8" ColumnDefinitions="Auto,*">
@@ -177,18 +177,18 @@
                 </ComboBox>
                 <StackPanel Spacing="8" Visibility="{x:Bind Editor.ShowRepeatOptions, Mode=OneWay}">
                     <NumberBox Header="Every" Minimum="1" Maximum="99" SpinButtonPlacementMode="Compact" Value="{x:Bind Editor.RepeatInterval, Mode=TwoWay}" AutomationProperties.AutomationId="EditorRepeatInterval" />
-                    <ItemsControl ItemsSource="{x:Bind Editor.Weekdays, Mode=OneWay}" Visibility="{x:Bind Editor.ShowWeekdays, Mode=OneWay}">
-                        <ItemsControl.ItemsPanel>
+                    <controls:PinnedItemsControl x:Name="WeekdayList" ItemsSource="{x:Bind Editor.Weekdays, Mode=OneWay}" Visibility="{x:Bind Editor.ShowWeekdays, Mode=OneWay}">
+                        <controls:PinnedItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Orientation="Horizontal" Spacing="4" />
                             </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
+                        </controls:PinnedItemsControl.ItemsPanel>
+                        <controls:PinnedItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:WeekdayToggle">
                                 <ToggleButton MinWidth="34" Padding="4" Content="{x:Bind Label}" IsChecked="{x:Bind IsOn, Mode=TwoWay}" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
                             </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                        </controls:PinnedItemsControl.ItemTemplate>
+                    </controls:PinnedItemsControl>
                     <ComboBox x:Name="EndsBox" Header="Ends" HorizontalAlignment="Stretch" SelectedIndex="{x:Bind Editor.EndsIndex, Mode=TwoWay}" AutomationProperties.AutomationId="EditorEnds">
                         <ComboBoxItem Content="Never" />
                         <ComboBoxItem Content="On a date" />
@@ -269,13 +269,13 @@
                             </DataTemplate>
                         </AutoSuggestBox.ItemTemplate>
                     </AutoSuggestBox>
-                    <ItemsControl ItemsSource="{x:Bind Editor.Guests, Mode=OneWay}">
-                        <ItemsControl.ItemsPanel>
+                    <controls:PinnedItemsControl x:Name="GuestList" ItemsSource="{x:Bind Editor.Guests, Mode=OneWay}">
+                        <controls:PinnedItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Spacing="4" />
                             </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
+                        </controls:PinnedItemsControl.ItemsPanel>
+                        <controls:PinnedItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:GuestRow">
                                 <!-- Guest Chip -->
                                 <Border
@@ -311,8 +311,8 @@
                                     </Grid>
                                 </Border>
                             </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                        </controls:PinnedItemsControl.ItemTemplate>
+                    </controls:PinnedItemsControl>
                 </StackPanel>
                 <!-- /Guests -->
 
@@ -324,8 +324,8 @@
                     <TextBlock Text="Reminder" />
                     <CheckBox Content="Use calendar default" IsChecked="{x:Bind Editor.UseDefaultReminders, Mode=TwoWay}" AutomationProperties.AutomationId="EditorDefaultReminders" />
                     <StackPanel Visibility="{x:Bind Editor.ShowReminderChoices, Mode=OneWay}">
-                        <ItemsControl ItemsSource="{x:Bind Editor.ReminderRows, Mode=OneWay}">
-                            <ItemsControl.ItemTemplate>
+                        <controls:PinnedItemsControl x:Name="ReminderList" ItemsSource="{x:Bind Editor.ReminderRows, Mode=OneWay}">
+                            <controls:PinnedItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:ReminderRow">
                                     <Grid Margin="0,0,0,4" ColumnSpacing="4" ColumnDefinitions="*,Auto">
                                         <ComboBox
@@ -347,8 +347,8 @@
                                         </Button>
                                     </Grid>
                                 </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                            </controls:PinnedItemsControl.ItemTemplate>
+                        </controls:PinnedItemsControl>
                         <HyperlinkButton Content="Add reminder" Click="OnAddReminderClick" Visibility="{x:Bind Editor.CanAddReminder, Mode=OneWay}" AutomationProperties.AutomationId="EditorAddReminder" />
                     </StackPanel>
                 </StackPanel>

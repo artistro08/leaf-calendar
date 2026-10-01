@@ -2,6 +2,7 @@
     x:Class="LeafCalendar.App.Views.DetailsPanel"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:LeafCalendar.App.Controls"
     xmlns:vm="using:LeafCalendar.App.ViewModels"
     xmlns:local="using:LeafCalendar.App.Views"
     AutomationProperties.Name="Details"
@@ -32,8 +33,8 @@
                             AutomationProperties.AutomationId="UpcomingShowAll" />
                     </Grid>
                     <TextBlock x:Name="UpcomingEmpty" Text="Nothing in the next 8 hours." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                    <ItemsControl x:Name="UpcomingList" AutomationProperties.Name="Upcoming events" AutomationProperties.AutomationId="UpcomingList">
-                        <ItemsControl.ItemTemplate>
+                    <controls:PinnedItemsControl x:Name="UpcomingList" AutomationProperties.Name="Upcoming events" AutomationProperties.AutomationId="UpcomingList">
+                        <controls:PinnedItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:UpcomingItem">
                                 <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
@@ -72,8 +73,8 @@
                                         AutomationProperties.AutomationId="{x:Bind JoinId}" />
                                 </Grid>
                             </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                        </controls:PinnedItemsControl.ItemTemplate>
+                    </controls:PinnedItemsControl>
                 </StackPanel>
                 <!-- /Upcoming -->
 
@@ -163,16 +164,16 @@
                             <TextBlock x:Name="GuestsText" FontWeight="SemiBold" VerticalAlignment="Center" />
                             <HyperlinkButton x:Name="EmailGuestsLink" HorizontalAlignment="Right" Padding="0" Content="Email guests" Click="OnEmailGuestsClick" AutomationProperties.AutomationId="DetailsEmailGuests" />
                         </Grid>
-                        <ItemsControl x:Name="GuestList" AutomationProperties.Name="Guests" AutomationProperties.AutomationId="DetailsGuestList">
-                            <ItemsControl.ItemTemplate>
+                        <controls:PinnedItemsControl x:Name="GuestList" AutomationProperties.Name="Guests" AutomationProperties.AutomationId="DetailsGuestList">
+                            <controls:PinnedItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:GuestItem">
                                     <StackPanel Padding="0,2">
                                         <TextBlock Text="{x:Bind Email}" IsTextSelectionEnabled="True" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Text="{x:Bind Detail}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                            </controls:PinnedItemsControl.ItemTemplate>
+                        </controls:PinnedItemsControl>
                     </StackPanel>
                     <!-- /Guests -->
 

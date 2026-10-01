@@ -31,3 +31,9 @@ SetLayeredWindowAttributes
 ClientToScreen
 RegisterHotKey
 UnregisterHotKey
+MiniDumpWriteDump
+SetUnhandledExceptionFilter
+GetCurrentProcessId
+GetCurrentThreadId
+WerRegisterAppLocalDump
+WerUnregisterAppLocalDump

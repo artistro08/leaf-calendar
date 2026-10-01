@@ -26,20 +26,20 @@
                 Margin="0,0,0,8"
                 Text="No accounts yet. Add your Google account to see your calendars."
                 Visibility="{x:Bind ViewModel.HasNoAccounts, Mode=OneWay}" />
-            <ItemsControl ItemsSource="{x:Bind ViewModel.Accounts}" IsTabStop="False" AutomationProperties.AutomationId="AccountsList">
-                <ItemsControl.ItemsPanel>
+            <controls:PinnedItemsControl ItemsSource="{x:Bind ViewModel.Accounts}" IsTabStop="False" AutomationProperties.AutomationId="AccountsList">
+                <controls:PinnedItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <StackPanel Spacing="4" />
                     </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
+                </controls:PinnedItemsControl.ItemsPanel>
+                <controls:PinnedItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:AccountRow">
                         <controls:SettingRow Glyph="&#xE77B;" Header="{x:Bind Email}" Description="{x:Bind Summary}">
                             <Button Content="Disconnect" Tag="{x:Bind Id}" Click="OnDisconnectClick" />
                         </controls:SettingRow>
                     </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                </controls:PinnedItemsControl.ItemTemplate>
+            </controls:PinnedItemsControl>
             <controls:SettingRow Glyph="&#xE8FA;" Header="Add a Google account" Description="Sign in with Google in your browser. Leaf then syncs its calendars.">
                 <StackPanel Orientation="Horizontal" Spacing="12">
                     <ProgressRing Width="20" Height="20" IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
@@ -61,13 +61,13 @@
 
             <!-- Video Calls -->
             <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Video calls" />
-            <ItemsControl x:Name="MeetList" IsTabStop="False" AutomationProperties.AutomationId="MeetByDefaultList">
-                <ItemsControl.ItemsPanel>
+            <controls:PinnedItemsControl x:Name="MeetList" IsTabStop="False" AutomationProperties.AutomationId="MeetByDefaultList">
+                <controls:PinnedItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <StackPanel Spacing="4" />
                     </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
+                </controls:PinnedItemsControl.ItemsPanel>
+                <controls:PinnedItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:MeetDefaultRow">
                         <controls:SettingRow Glyph="&#xE714;" Header="{x:Bind Email}" Description="Add a Google Meet link to new events.">
                             <ToggleSwitch
@@ -77,8 +77,8 @@
                                 AutomationProperties.AutomationId="{x:Bind SwitchId}" />
                         </controls:SettingRow>
                     </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                </controls:PinnedItemsControl.ItemTemplate>
+            </controls:PinnedItemsControl>
             <!-- /Video Calls -->
 
             <!-- New Events -->

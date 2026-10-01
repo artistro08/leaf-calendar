@@ -2,6 +2,7 @@
     x:Class="LeafCalendar.App.Views.SidebarView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:LeafCalendar.App.Controls"
     xmlns:vm="using:LeafCalendar.App.ViewModels"
     xmlns:local="using:LeafCalendar.App.Views"
     x:Name="Self">
@@ -73,19 +74,19 @@
              kept in step with the calendars in place, never rebuilt: only a calendar that comes or goes animates
              (it fades in or out and the rows below slide), and nothing else on the list moves. -->
         <ScrollViewer x:Name="ContentScroll" Grid.Row="1" Margin="0,4,0,0" AutomationProperties.AutomationId="SidebarScroll">
-            <ItemsControl x:Name="CalendarList" Margin="0,0,11,0" AutomationProperties.AutomationId="CalendarList">
+            <controls:PinnedItemsControl x:Name="CalendarList" Margin="0,0,11,0" AutomationProperties.AutomationId="CalendarList">
                 <!-- Accounts only slide when the rows above them grow or shrink: an add or delete transition here played on
                      every launch (each account group scaled in), which read as the whole list moving on its own -->
-                <ItemsControl.ItemContainerTransitions>
+                <controls:PinnedItemsControl.ItemContainerTransitions>
                     <TransitionCollection>
                         <RepositionThemeTransition />
                     </TransitionCollection>
-                </ItemsControl.ItemContainerTransitions>
-                <ItemsControl.ItemTemplate>
+                </controls:PinnedItemsControl.ItemContainerTransitions>
+                <controls:PinnedItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:AccountGroup">
                         <StackPanel>
                             <TextBlock Style="{StaticResource LeafSectionHeaderStyle}" Text="{x:Bind Email, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
-                            <ListView
+                            <controls:PinnedListView
                                 ItemsSource="{x:Bind Calendars}"
                                 SelectionMode="None"
                                 ScrollViewer.VerticalScrollMode="Disabled"
@@ -97,26 +98,26 @@
                                 ContainerContentChanging="OnCalendarRowChanging"
                                 Tag="{x:Bind Email}">
                                 <!-- Only rows that come or go animate (fade, and the rows below slide); no entrance slide when the list updates -->
-                                <ListView.ItemContainerTransitions>
+                                <controls:PinnedListView.ItemContainerTransitions>
                                     <TransitionCollection>
                                         <AddDeleteThemeTransition />
                                         <ReorderThemeTransition />
                                     </TransitionCollection>
-                                </ListView.ItemContainerTransitions>
+                                </controls:PinnedListView.ItemContainerTransitions>
                                 <!-- The row draws its own hover (it fades), so the item's built-in one is off -->
-                                <ListView.Resources>
+                                <controls:PinnedListView.Resources>
                                     <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
                                     <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />
-                                </ListView.Resources>
-                                <ListView.ItemContainerStyle>
+                                </controls:PinnedListView.Resources>
+                                <controls:PinnedListView.ItemContainerStyle>
                                     <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
                                         <Setter Property="MinHeight" Value="32" />
                                         <Setter Property="Padding" Value="0" />
                                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                                         <Setter Property="VerticalContentAlignment" Value="Stretch" />
                                     </Style>
-                                </ListView.ItemContainerStyle>
-                                <ListView.ItemTemplate>
+                                </controls:PinnedListView.ItemContainerStyle>
+                                <controls:PinnedListView.ItemTemplate>
                                     <DataTemplate x:DataType="vm:CalendarRow">
                                         <!-- Row (hovering anywhere on it lights the row, the checkbox, and the name together) -->
                                         <Grid
@@ -142,12 +143,12 @@
                                             </CheckBox>
                                         </Grid>
                                     </DataTemplate>
-                                </ListView.ItemTemplate>
-                            </ListView>
+                                </controls:PinnedListView.ItemTemplate>
+                            </controls:PinnedListView>
                         </StackPanel>
                     </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                </controls:PinnedItemsControl.ItemTemplate>
+            </controls:PinnedItemsControl>
         </ScrollViewer>
         <!-- /Calendars -->
 

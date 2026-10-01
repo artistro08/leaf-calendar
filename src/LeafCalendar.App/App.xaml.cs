@@ -48,6 +48,7 @@ public partial class App : Application
     DispatcherQueue _dispatcher = null!;
     DispatcherQueueTimer? _minuteTimer;
     DispatcherQueueTimer? _probeTimer;
+    DispatcherQueueTimer? _gcStressTimer;
     readonly LocalZoneWatcher _zone = new();
 
     // The tray settings (and the day) the tooltip and agenda were last refreshed for
@@ -61,9 +62,23 @@ public partial class App : Application
     {
         InitializeComponent();
 
-        // Crash Logging (the type only: an exception's message can carry event content)
-        UnhandledException                    += (_, e) => _log?.Info("app.unhandled", $"error={e.Exception.GetType().Name}");
-        TaskScheduler.UnobservedTaskException += (_, e) => _log?.Info("app.task.unobserved", $"error={e.Exception.GetType().Name}");
+        // Crash Logging: type and stack always, a dump with Detailed logging on. A XAML error's own message is kept (it's
+        // the framework's); a managed exception's message can carry event content, so it isn't
+        UnhandledException                         += (_, e) => OnCrash("app.unhandled", e.Exception, e.Exception is System.Runtime.InteropServices.COMException ? e.Message : null);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => OnCrash("app.unhandled.domain", e.ExceptionObject as Exception, null);
+        TaskScheduler.UnobservedTaskException      += (_, e) => _log?.Crash("app.task.unobserved", e.Exception);
+    }
+
+    // A crash is about to end Leaf: what happened, then the dump
+    void OnCrash(string eventName, Exception? exception, string? message)
+    {
+        if (_log is not { } log || exception is null)
+        {
+            return;
+        }
+
+        log.Crash(eventName, exception, message);
+        CrashDump.Write(log);
     }
 
     /// <inheritdoc />
@@ -89,6 +104,25 @@ public partial class App : Application
         _log        = services.Log;
         _services   = services;
         _dispatcher = DispatcherQueue.GetForCurrentThread();
+
+        // Detailed Logging (Settings › About) Starts With The Saved Choice
+        _log.Detailed = CurrentSettings().DetailedLogging;
+        CrashDump.Install(_log, Path.GetRelativePath(localFolder, _log.Directory));
+        _log.Info("app.start", $"kind={Program.StartKind}");
+
+        // Crash Tests: collect constantly, so an object Windows still uses after .NET let go of it fails right away
+        if (options.GcStress)
+        {
+            _gcStressTimer          = _dispatcher.CreateTimer();
+            _gcStressTimer.Interval = TimeSpan.FromMilliseconds(20);
+            _gcStressTimer.Tick    += (_, _) =>
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+            };
+            _gcStressTimer.Start();
+        }
 
         // How This Launch Started Couldn't Be Read (the type only)
         if (Program.StartReadError is { } readError)
@@ -336,9 +370,11 @@ public partial class App : Application
             return;
         }
 
+        services.Log.Trace("window.main", "open");
         var window = new MainWindow(services, AcquireCalendar());
         window.Closed += (_, _) =>
         {
+            services.Log.Trace("window.main", "closed");
             _window = null;
             if (!_quitting)
             {

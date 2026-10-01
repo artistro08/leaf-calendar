@@ -55,13 +55,13 @@
                 Style="{StaticResource LeafSecondaryTextStyle}"
                 Text="Choose which calendars the flyout and the tray icon's tooltip include. Calendars hidden in Leaf never appear."
                 TextWrapping="Wrap" />
-            <ItemsControl x:Name="CalendarList" IsTabStop="False" AutomationProperties.AutomationId="TrayCalendarList">
-                <ItemsControl.ItemsPanel>
+            <controls:PinnedItemsControl x:Name="CalendarList" IsTabStop="False" AutomationProperties.AutomationId="TrayCalendarList">
+                <controls:PinnedItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <StackPanel Spacing="4" />
                     </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
+                </controls:PinnedItemsControl.ItemsPanel>
+                <controls:PinnedItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="local:TrayCalendarRow">
                         <controls:SettingRow Header="{x:Bind Name}" Description="{x:Bind AccountEmail}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
@@ -79,8 +79,8 @@
                             </StackPanel>
                         </controls:SettingRow>
                     </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                </controls:PinnedItemsControl.ItemTemplate>
+            </controls:PinnedItemsControl>
             <!-- /Calendars -->
         </StackPanel>
     </ScrollViewer>
