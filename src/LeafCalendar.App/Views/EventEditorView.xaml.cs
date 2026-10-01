@@ -2,12 +2,15 @@ using System.ComponentModel;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Views;
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.System;
 
 namespace LeafCalendar.App.Views;
@@ -78,6 +81,7 @@ public sealed partial class EventEditorView : UserControl
 
         editor.PropertyChanged += OnEditorPropertyChanged;
         BuildColors();
+        LoadDescription();
 
         // Focus After The Key That Opened The Editor Is Done (its character never reaches the title), or once the
         // editor first loads (a focus call before then fails)
@@ -250,6 +254,12 @@ public sealed partial class EventEditorView : UserControl
             return;
         }
 
+        // Ctrl+B, I, And U In The Description Change Its Format Without A TextChanged
+        if (e.Key is VirtualKey.B or VirtualKey.I or VirtualKey.U && KeyState.IsDown(VirtualKey.Control) && DescriptionBox.FocusState != FocusState.Unfocused)
+        {
+            _descriptionTouched = true;
+        }
+
         // Esc in an open dropdown (or the guest suggestions) only closes it
         if (e.Key == VirtualKey.Escape && !RepeatBox.IsDropDownOpen && !EndsBox.IsDropDownOpen && !CalendarBox.IsDropDownOpen && !_reminderDropDownOpen && !GuestBox.IsSuggestionListOpen && !RoomBox.IsSuggestionListOpen
             && !TimeZoneBox.IsSuggestionListOpen && !EventTypeBox.IsDropDownOpen && !ShowAsBox.IsDropDownOpen && !VisibilityBox.IsDropDownOpen)
@@ -407,9 +417,112 @@ public sealed partial class EventEditorView : UserControl
 
     void Save(bool sendUpdates)
     {
+        CommitDescription();
         if (_owner is { } owner)
         {
             owner.Fire(() => owner.SaveEditorAsync(sendUpdates), "event.save.failed");
         }
+    }
+
+    // =========================================================================
+    // DESCRIPTION
+    // =========================================================================
+
+    List<(string Text, Uri Link)> _anchors = [];
+    bool _descriptionTouched;
+    bool _loadingDescription;
+
+    // Loads the editor's description into the box; a description Leaf had to cut short is read-only with no toolbar
+    void LoadDescription()
+    {
+        var tooLong = Editor?.DescriptionTooLong == true;
+
+        _loadingDescription           = true;
+        DescriptionBox.IsReadOnly     = false;
+        _anchors                      = RichDescription.Load(DescriptionBox, DescriptionHtml.Lines(Editor?.Description ?? ""));
+        DescriptionBox.IsReadOnly     = tooLong;
+        DescriptionToolbar.Visibility = tooLong ? Visibility.Collapsed : Visibility.Visible;
+        _descriptionTouched           = false;
+        _loadingDescription           = false;
+        SyncToolbar();
+    }
+
+    // Before saving: only a description the user changed is read back (an untouched one is never rewritten)
+    void CommitDescription()
+    {
+        if (!_descriptionTouched || Editor is not { DescriptionTooLong: false } editor)
+        {
+            return;
+        }
+
+        editor.Description = DescriptionHtml.Write(RichDescription.Read(DescriptionBox, _anchors));
+    }
+
+    void OnDescriptionTextChanged(object sender, RoutedEventArgs e) => _descriptionTouched |= !_loadingDescription;
+
+    void OnBoldClick(object sender, RoutedEventArgs e) => Format(f => f.Bold = FormatEffect.Toggle);
+
+    void OnItalicClick(object sender, RoutedEventArgs e) => Format(f => f.Italic = FormatEffect.Toggle);
+
+    void OnUnderlineClick(object sender, RoutedEventArgs e) =>
+        Format(f => f.Underline = f.Underline == UnderlineType.None ? UnderlineType.Single : UnderlineType.None);
+
+    void OnBulletsClick(object sender, RoutedEventArgs e) => List(MarkerType.Bullet);
+
+    void OnNumbersClick(object sender, RoutedEventArgs e) => List(MarkerType.Arabic);
+
+    // Applies a character format to the selection, marks the description changed, and returns focus to the box
+    void Format(Action<ITextCharacterFormat> change)
+    {
+        change(DescriptionBox.Document.Selection.CharacterFormat);
+        _descriptionTouched = true;
+        DescriptionBox.Focus(FocusState.Programmatic);
+        SyncToolbar();
+    }
+
+    // Toggles the selected paragraphs in or out of a list of this kind
+    void List(MarkerType kind)
+    {
+        var paragraph = DescriptionBox.Document.Selection.ParagraphFormat;
+        RichDescription.SetList(paragraph, paragraph.ListType == kind ? MarkerType.None : kind);
+        _descriptionTouched = true;
+        DescriptionBox.Focus(FocusState.Programmatic);
+        SyncToolbar();
+    }
+
+    void OnDescriptionSelectionChanged(object sender, RoutedEventArgs e) => SyncToolbar();
+
+    // Toolbar toggles show the selection's format
+    void SyncToolbar()
+    {
+        var format = DescriptionBox.Document.Selection.CharacterFormat;
+        var list   = DescriptionBox.Document.Selection.ParagraphFormat.ListType;
+
+        BoldButton.IsChecked      = format.Bold == FormatEffect.On;
+        ItalicButton.IsChecked    = format.Italic == FormatEffect.On;
+        UnderlineButton.IsChecked = format.Underline != UnderlineType.None;
+        BulletsButton.IsChecked   = list == MarkerType.Bullet;
+        NumbersButton.IsChecked   = list is not (MarkerType.None or MarkerType.Undefined or MarkerType.Bullet);
+    }
+
+    // Paste is always plain text: no pictures, objects, or foreign formatting (Review Focus 3)
+    void OnDescriptionPaste(object sender, TextControlPasteEventArgs e)
+    {
+        e.Handled = true;
+        _owner?.Fire(PastePlainTextAsync, "editor.paste.failed");
+    }
+
+    async Task PastePlainTextAsync()
+    {
+        var content = Clipboard.GetContent();
+        if (DescriptionBox.IsReadOnly || !content.Contains(StandardDataFormats.Text))
+        {
+            return;
+        }
+
+        var text = (await content.GetTextAsync()).Replace("\r\n", "\r", StringComparison.Ordinal).Replace('\n', '\r');
+        DescriptionBox.Document.Selection.SetText(TextSetOptions.None, text);
+        DescriptionBox.Document.Selection.Collapse(false);
+        _descriptionTouched = true;
     }
 }
