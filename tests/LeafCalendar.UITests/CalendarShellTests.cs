@@ -31,6 +31,30 @@ public sealed class CalendarShellTests : IDisposable
         Assert.Contains("2026", leaf.WaitFor("PeriodTitle").Name, StringComparison.Ordinal);
     }
 
+    // First run: 1277 × 814 DIPs (the owner's own size), no bigger than the work area. Closed at another size, the
+    // window opens at that size the next time
+    [Fact]
+    public void WindowSize_DefaultThenRemembered()
+    {
+        using (var first = Launch())
+        {
+            first.WaitFor("CalendarRoot");
+            var box  = first.MainWindow.BoundingRectangle;
+            var work = System.Windows.Forms.Screen.FromHandle(first.MainWindow.Properties.NativeWindowHandle.Value).WorkingArea;
+            Assert.True(Math.Abs(box.Width - Math.Min(1277 * first.Scale, work.Width)) <= 2, $"The first window is {box.Width} wide.");
+            Assert.True(Math.Abs(box.Height - Math.Min(814 * first.Scale, work.Height)) <= 2, $"The first window is {box.Height} tall.");
+
+            first.Resize(1500, 900);
+            first.MainWindow.Close();
+            Assert.True(Retry.WhileTrue(() => first.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
+        }
+
+        using var leaf = Launch();
+        leaf.WaitFor("CalendarRoot");
+        var size = leaf.MainWindow.BoundingRectangle;
+        Assert.True(Math.Abs(size.Width - 1500) <= 2 && Math.Abs(size.Height - 900) <= 2, $"The window reopened at {size.Width} × {size.Height}.");
+    }
+
     [Fact]
     public void ViewMenu_HasOnlyViewChoices()
     {

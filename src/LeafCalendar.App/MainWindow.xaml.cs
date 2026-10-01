@@ -61,6 +61,9 @@ public sealed partial class MainWindow : Window
     static readonly TimeSpan WaitingDelay = TimeSpan.FromSeconds(2);
     readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _waitingTimer;
     bool _waitingDue;
+
+    // The window's size while restored (not maximized or minimized), saved on close
+    Core.Views.WindowSize _restoredSize;
     Storyboard? _toolbarSlide;
     (double Right, bool Sidebar, bool Calendar)? _titleBarLayout;
 
@@ -114,6 +117,17 @@ public sealed partial class MainWindow : Window
         // Window Presenter (ours, kept, so its minimum size can be set without casting AppWindow.Presenter)
         AppWindow.SetPresenter(_presenter);
 
+        // Window Size (as it last closed, else the first-run default; a restored window's size is kept as it changes)
+        _restoredSize = (_calendar.Settings.MainWindowSize ?? Core.Views.WindowSize.MainDefault) with { Maximized = false };
+        Interop.WindowPlacement.Restore(AppWindow, _presenter, _calendar.Settings.MainWindowSize ?? Core.Views.WindowSize.MainDefault);
+        AppWindow.Changed += (_, e) =>
+        {
+            if (e.DidSizeChange && _presenter.State == OverlappedPresenterState.Restored)
+            {
+                _restoredSize = Interop.WindowPlacement.SizeOf(AppWindow);
+            }
+        };
+
         // Title Bar
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
@@ -142,6 +156,10 @@ public sealed partial class MainWindow : Window
             _waitingTimer.Stop();
             _calendar.LayoutChanged   -= OnCalendarLayoutChanged;
             _calendar.PropertyChanged -= OnCalendarPropertyChanged;
+
+            // Remember The Size For Next Time (the restored size, and whether it was maximized)
+            var size = _restoredSize with { Maximized = _presenter.State == OverlappedPresenterState.Maximized };
+            _calendar.Remember(s => s with { MainWindowSize = size }, inBackground: false);
         };
 
         ShowCalendar();

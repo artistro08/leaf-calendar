@@ -41,7 +41,7 @@ public sealed record SettingsContext(LeafServices Services, CalendarViewModel Ca
 /// The Settings window, modeled on the Windows 11 Settings app: Mica, a stock title bar with the app icon and a pane
 /// toggle, and a stock left <see cref="NavigationView"/> (240 wide, collapsing when the window is narrow) over a frame
 /// of setting pages: General, Calendars, Time zones, Notifications, Tray, Shortcuts, Accounts, and About at the bottom
-/// of the pane. There's one at a time: <see cref="Open"/> brings the open one forward. It opens at 1000 × 720 DIPs,
+/// of the pane. There's one at a time: <see cref="Open"/> brings the open one forward. It opens at 1000 × 720 DIPs the first time (then at the size it last closed at),
 /// centered on the monitor under the cursor, and stays open when the main window closes (Leaf lives in the tray). Every
 /// change saves immediately through the shared view model.
 /// </summary>
@@ -60,6 +60,9 @@ public sealed partial class SettingsWindow : Window
     AccountsViewModel? _accounts;
     SettingsSection? _shown;
     bool _inClientForm;
+
+    // The window's size while restored, saved on close
+    Core.Views.WindowSize? _restoredSize;
 
     SettingsWindow(LeafServices services, CalendarViewModel calendar)
     {
@@ -103,6 +106,12 @@ public sealed partial class SettingsWindow : Window
             calendar.LayoutChanged    -= OnLayoutChanged;
             calendar.CalendarsChanged -= OnCalendarsChanged;
             Current = null;
+
+            // Remember The Size For Next Time (the restored size, and whether it was maximized)
+            if (_restoredSize is { } size)
+            {
+                calendar.Remember(s => s with { SettingsWindowSize = size with { Maximized = _presenter.State == OverlappedPresenterState.Maximized } }, inBackground: false);
+            }
         };
     }
 
@@ -180,8 +189,29 @@ public sealed partial class SettingsWindow : Window
         PInvoke.SetForegroundWindow(new HWND(Win32Interop.GetWindowFromWindowId(AppWindow.Id)));
     }
 
-    // Centered on the monitor under the cursor at the opening size, with the minimum from that monitor's scale
-    void Place() => SetMinimumSize(WindowPlacement.CenterOnCursorMonitor(AppWindow, OpenWidth, OpenHeight));
+    // Centered on the monitor under the cursor at the size it last closed at (else the opening size), with the minimum from
+    // that monitor's scale; a restored window's size is kept as it changes, for the next time
+    void Place()
+    {
+        if (_context.Calendar.Settings.SettingsWindowSize is { } saved)
+        {
+            WindowPlacement.Restore(AppWindow, _presenter, saved);
+            ApplyMinimumSize();
+        }
+        else
+        {
+            SetMinimumSize(WindowPlacement.CenterOnCursorMonitor(AppWindow, OpenWidth, OpenHeight));
+        }
+
+        _restoredSize = (_context.Calendar.Settings.SettingsWindowSize ?? WindowPlacement.SizeOf(AppWindow)) with { Maximized = false };
+        AppWindow.Changed += (_, e) =>
+        {
+            if (e.DidSizeChange && _presenter.State == OverlappedPresenterState.Restored)
+            {
+                _restoredSize = WindowPlacement.SizeOf(AppWindow);
+            }
+        };
+    }
 
     void ApplyMinimumSize() => SetMinimumSize(RootGrid.XamlRoot?.RasterizationScale ?? 1);
 
