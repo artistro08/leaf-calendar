@@ -94,6 +94,17 @@
                     AutomationProperties.Name="Use 24-hour time"
                     AutomationProperties.AutomationId="Clock24Switch" />
             </controls:SettingRow>
+
+            <!-- Startup (spec 8.1) -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Startup" />
+            <controls:SettingRow x:Name="StartupRow" Glyph="&#xE770;" Header="Start with Windows" Description="Leaf starts in the tray when you sign in to Windows, so reminders arrive on time.">
+                <ToggleSwitch
+                    x:Name="StartupSwitch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="OnStartupToggled"
+                    AutomationProperties.Name="Start with Windows"
+                    AutomationProperties.AutomationId="StartupSwitch" />
+            </controls:SettingRow>
         </StackPanel>
     </ScrollViewer>
 </Page>

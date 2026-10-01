@@ -69,6 +69,15 @@ public enum SettingsSection
     /// <summary>Extra time-zone columns.</summary>
     TimeZones,
 
+    /// <summary>Reminder, Join now, invitation, and sound switches.</summary>
+    Notifications,
+
+    /// <summary>The tray flyout's agenda and lookahead.</summary>
+    Tray,
+
+    /// <summary>Global shortcuts.</summary>
+    Shortcuts,
+
     /// <summary>Google accounts, sync, and the OAuth client.</summary>
     Accounts,
 

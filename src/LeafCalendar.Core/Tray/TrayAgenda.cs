@@ -29,6 +29,12 @@ public static class TrayAgenda
     /// <summary>The longest tooltip the shell shows (<c>NOTIFYICONDATA.szTip</c> is 128 characters with the terminator).</summary>
     public const int MaxTooltip = 127;
 
+    /// <summary>
+    /// The days loaded to find the next event, whatever the flyout lists: today and tomorrow, so the longest lookahead
+    /// (8 hours) late in the evening still sees a meeting after midnight.
+    /// </summary>
+    public const int NextDays = 2;
+
     const int MaxTitle = 200;
 
     /// <summary>The agenda for <paramref name="days"/> days from today (local to <paramref name="zone"/>).</summary>

@@ -1,0 +1,50 @@
+<Page
+    x:Class="LeafCalendar.App.Views.Settings.NotificationsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:LeafCalendar.App.Controls">
+
+    <ScrollViewer x:Name="PageScroll">
+        <StackPanel MaxWidth="900" Spacing="4">
+            <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Notifications" />
+
+            <!-- Meetings -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Meetings" />
+            <controls:SettingRow Glyph="&#xEA8F;" Header="Reminder notifications" Description="Show a notification at your Google reminder times, with Join, Snooze, and Dismiss.">
+                <ToggleSwitch
+                    x:Name="RemindersSwitch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="OnRemindersToggled"
+                    AutomationProperties.Name="Reminder notifications"
+                    AutomationProperties.AutomationId="RemindersSwitch" />
+            </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xE714;" Header="Persistent “Join now” notification" Description="When a meeting with a link starts, keep a notification on screen until you join or dismiss it.">
+                <ToggleSwitch
+                    x:Name="JoinNowSwitch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="OnJoinNowToggled"
+                    AutomationProperties.Name="Persistent “Join now” notification"
+                    AutomationProperties.AutomationId="JoinNowSwitch" />
+            </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xE715;" Header="Invite notifications" Description="Show new and updated invitations with Yes, No, and Maybe buttons.">
+                <ToggleSwitch
+                    x:Name="InvitesSwitch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="OnInvitesToggled"
+                    AutomationProperties.Name="Invite notifications"
+                    AutomationProperties.AutomationId="InvitesSwitch" />
+            </controls:SettingRow>
+
+            <!-- Sound -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Sound" />
+            <controls:SettingRow Glyph="&#xE767;" Header="Sound" Description="Play the Windows notification sound. Do not disturb and Focus in Windows still apply.">
+                <ToggleSwitch
+                    x:Name="SoundSwitch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="OnSoundToggled"
+                    AutomationProperties.Name="Sound"
+                    AutomationProperties.AutomationId="SoundSwitch" />
+            </controls:SettingRow>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

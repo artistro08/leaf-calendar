@@ -18,14 +18,32 @@ namespace LeafCalendar.App.Views.Settings;
 /// model (shared, so a change shows in the main window right away), and the window, which forwards the view model's
 /// change events while it's open.
 /// </summary>
-public sealed record SettingsContext(LeafServices Services, CalendarViewModel Calendar, SettingsWindow Window);
+public sealed record SettingsContext(LeafServices Services, CalendarViewModel Calendar, SettingsWindow Window)
+{
+    /// <summary>
+    /// Saves a change from a page's control. It runs from control events, so nothing may escape: a save that fails
+    /// (the database can't be written) is logged by its type only and the setting stays as it was.
+    /// </summary>
+    public void Save(Func<LeafSettings, LeafSettings> change)
+    {
+        try
+        {
+            Calendar.Update(change);
+        }
+        catch (Exception ex)
+        {
+            Services.Log.Info("settings.save.failed", $"error={ex.GetType().Name}");
+        }
+    }
+}
 
 /// <summary>
 /// The Settings window, modeled on the Windows 11 Settings app: Mica, a stock title bar with the app icon and a pane
 /// toggle, and a stock left <see cref="NavigationView"/> (240 wide, collapsing when the window is narrow) over a frame
-/// of setting pages: General, Calendars, Time zones, Accounts, and About at the bottom of the pane. There's one at a
-/// time: <see cref="Open"/> brings the open one forward. It opens at 1000 × 720 DIPs, centered on the monitor under
-/// the cursor, and stays open when the main window closes (Leaf lives in the tray). Every change saves immediately through the shared view model.
+/// of setting pages: General, Calendars, Time zones, Notifications, Tray, Shortcuts, Accounts, and About at the bottom
+/// of the pane. There's one at a time: <see cref="Open"/> brings the open one forward. It opens at 1000 × 720 DIPs,
+/// centered on the monitor under the cursor, and stays open when the main window closes (Leaf lives in the tray). Every
+/// change saves immediately through the shared view model.
 /// </summary>
 [SuppressMessage("Design", "CA1001", Justification = "Windows aren't disposable.")]
 public sealed partial class SettingsWindow : Window
@@ -54,6 +72,9 @@ public sealed partial class SettingsWindow : Window
             (SettingsSection.General, NavItem("General", 0xE771, "SettingsNav_General"), typeof(GeneralPage)),
             (SettingsSection.Calendars, NavItem("Calendars", 0xE787, "SettingsNav_Calendars"), typeof(CalendarsPage)),
             (SettingsSection.TimeZones, NavItem("Time zones", 0xE774, "SettingsNav_TimeZones"), typeof(TimeZonesPage)),
+            (SettingsSection.Notifications, NavItem("Notifications", 0xEA8F, "SettingsNav_Notifications"), typeof(NotificationsPage)),
+            (SettingsSection.Tray, NavItem("Tray", 0xE7C4, "SettingsNav_Tray"), typeof(TrayPage)),
+            (SettingsSection.Shortcuts, NavItem("Shortcuts", 0xE765, "SettingsNav_Shortcuts"), typeof(ShortcutsPage)),
             (SettingsSection.Accounts, NavItem("Accounts", 0xE77B, "SettingsNav_Accounts"), typeof(AccountsPage)),
             (SettingsSection.About, NavItem("About", 0xE946, "SettingsNav_About"), typeof(AboutPage)),
         ];

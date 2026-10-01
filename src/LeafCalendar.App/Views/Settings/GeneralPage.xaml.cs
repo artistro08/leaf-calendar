@@ -5,13 +5,14 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Navigation;
+using Windows.ApplicationModel;
 
 namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
-/// Settings › General: theme, the calendar view options, and date and time. Every change saves right away through the
-/// shared calendar view model, so the main window follows it; changes made elsewhere (the view menu, shortcuts) show
-/// here too.
+/// Settings › General: theme, the calendar view options, date and time, and starting with Windows. Every change saves
+/// right away through the shared calendar view model, so the main window follows it; changes made elsewhere (the view
+/// menu, shortcuts) show here too. Starting with Windows is the package's startup task, whose state Windows owns.
 /// </summary>
 public sealed partial class GeneralPage : Page
 {
@@ -19,10 +20,19 @@ public sealed partial class GeneralPage : Page
     static readonly AppTheme[] Themes      = [AppTheme.System, AppTheme.Light, AppTheme.Dark];
     static readonly DayOfWeek[] WeekStarts = [DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Saturday];
 
+    // The startup task declared in Package.appxmanifest
+    const string StartupTaskId = "LeafCalendarStartup";
+
+    // The startup row's description when Windows leaves the switch to Leaf
+    const string StartupDescription = "Leaf starts in the tray when you sign in to Windows, so reminders arrive on time.";
+
     SettingsContext _context = null!;
 
     // True until the saved values are shown (setting the slider's range in the constructor already raises ValueChanged)
     bool _loading = true;
+
+    // True while the startup task's state is being shown
+    bool _loadingStartup;
 
     /// <summary>Creates the page.</summary>
     public GeneralPage()
@@ -41,6 +51,7 @@ public sealed partial class GeneralPage : Page
         _context = (SettingsContext)e.Parameter;
         _context.Window.SettingsChanged += OnSettingsChanged;
         Load();
+        _ = LoadStartupAsync();
     }
 
     /// <inheritdoc />
@@ -143,6 +154,69 @@ public sealed partial class GeneralPage : Page
         {
             var on = Clock24Switch.IsOn;
             Calendar.Update(s => s with { Use24HourTime = on });
+        }
+    }
+
+    // =========================================================================
+    // START WITH WINDOWS
+    // =========================================================================
+
+    // Windows owns the startup state: turned off in Task Manager, only the user can turn it back on there; a policy
+    // decides it for them. Runs unawaited from navigation, so nothing may escape
+    async Task LoadStartupAsync()
+    {
+        _loadingStartup = true;
+        try
+        {
+            var task  = await StartupTask.GetAsync(StartupTaskId);
+            var state = task.State;
+            StartupSwitch.IsOn      = state is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy;
+            StartupSwitch.IsEnabled = state is StartupTaskState.Enabled or StartupTaskState.Disabled;
+            StartupRow.Description  = state switch
+            {
+                StartupTaskState.DisabledByUser                                       => "Turned off in Task Manager › Startup apps. Turn it on there.",
+                StartupTaskState.DisabledByPolicy or StartupTaskState.EnabledByPolicy => "Your organization manages this setting.",
+                _                                                                     => StartupDescription,
+            };
+        }
+        catch (Exception ex)
+        {
+            // Not packaged, or the task is missing: the switch stays off; the type only
+            StartupSwitch.IsEnabled = false;
+            _context.Services.Log.Info("settings.startup.failed", $"error={ex.GetType().Name}");
+        }
+        finally
+        {
+            _loadingStartup = false;
+        }
+    }
+
+    async void OnStartupToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loadingStartup)
+        {
+            return;
+        }
+
+        // async void: anything that escapes here would end the process
+        try
+        {
+            var on   = StartupSwitch.IsOn;
+            var task = await StartupTask.GetAsync(StartupTaskId);
+            if (on)
+            {
+                await task.RequestEnableAsync();
+            }
+            else
+            {
+                task.Disable();
+            }
+
+            await LoadStartupAsync();
+        }
+        catch (Exception ex)
+        {
+            _context.Services.Log.Info("settings.startup.failed", $"error={ex.GetType().Name}");
         }
     }
 }

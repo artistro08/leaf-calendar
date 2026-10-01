@@ -1,6 +1,7 @@
 using System.Text.Json;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Google;
+using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Tray;
 using LeafCalendar.Tests.Support;
 
@@ -130,6 +131,17 @@ public sealed class TrayAgendaTests : IDisposable
     {
         Assert.Null(TrayAgenda.Next(Load(Morning), Morning, TimeSpan.FromMinutes(30)));
         Assert.Equal("Dentist appointment", TrayAgenda.Next(Load(Morning), Morning, TimeSpan.FromHours(1))!.Item.Title);
+    }
+
+    [Fact]
+    public void Next_LookaheadCrossesMidnight_FindsTomorrowsMeeting()
+    {
+        Store("""{"id":"evt-late","status":"confirmed","summary":"Late call","start":{"dateTime":"2026-10-02T01:00:00-04:00"},"end":{"dateTime":"2026-10-02T02:00:00-04:00"}}""");
+        var now = new DateTimeOffset(2026, 10, 1, 22, 0, 0, TimeSpan.FromHours(-4));
+
+        var next = TrayAgenda.Next(Load(now, TrayAgenda.NextDays), now, TimeSpan.FromMinutes(LeafSettings.LookaheadChoices.Max()));
+
+        Assert.Equal("Late call", next!.Item.Title);
     }
 
     [Fact]

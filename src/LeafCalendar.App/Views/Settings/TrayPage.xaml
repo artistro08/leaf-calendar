@@ -1,0 +1,52 @@
+<Page
+    x:Class="LeafCalendar.App.Views.Settings.TrayPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:LeafCalendar.App.Controls">
+
+    <ScrollViewer x:Name="PageScroll">
+        <StackPanel MaxWidth="900" Spacing="4">
+            <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Tray" />
+
+            <!-- Flyout -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Flyout" />
+            <controls:SettingRow Glyph="&#xE787;" Header="Days in the agenda" Description="How many days the tray flyout lists, starting today. From 1 to 14. It shows the calendars you show in Leaf.">
+                <NumberBox
+                    x:Name="DaysBox"
+                    MinWidth="180"
+                    Minimum="1"
+                    Maximum="14"
+                    SpinButtonPlacementMode="Compact"
+                    ValueChanged="OnDaysChanged"
+                    AutomationProperties.Name="Days in the agenda"
+                    AutomationProperties.AutomationId="FlyoutDaysNumberBox" />
+            </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xE8BF;" Header="Include all-day events" Description="List all-day events at the top of each day.">
+                <ToggleSwitch
+                    x:Name="AllDaySwitch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="OnAllDayToggled"
+                    AutomationProperties.Name="Include all-day events"
+                    AutomationProperties.AutomationId="FlyoutAllDaySwitch" />
+            </controls:SettingRow>
+
+            <!-- Next Event -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Next event" />
+            <controls:SettingRow Glyph="&#xE916;" Header="Next-event lookahead" Description="How far ahead the flyout header and the tray icon's tooltip look for your next event.">
+                <ComboBox
+                    x:Name="LookaheadBox"
+                    MinWidth="180"
+                    SelectionChanged="OnLookaheadChanged"
+                    AutomationProperties.Name="Next-event lookahead"
+                    AutomationProperties.AutomationId="LookaheadComboBox">
+                    <ComboBoxItem Content="15 minutes" />
+                    <ComboBoxItem Content="30 minutes" />
+                    <ComboBoxItem Content="1 hour" />
+                    <ComboBoxItem Content="2 hours" />
+                    <ComboBoxItem Content="4 hours" />
+                    <ComboBoxItem Content="8 hours" />
+                </ComboBox>
+            </controls:SettingRow>
+        </StackPanel>
+    </ScrollViewer>
+</Page>
