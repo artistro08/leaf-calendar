@@ -23,7 +23,7 @@ public sealed partial class AllDayCanvas : Canvas
     readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Text = "+ Copy" };
     DayStrip? _strip;
 
-    /// <summary>Creates the row owned by <paramref name="owner"/>. Its background is hit-testable, so a click on empty all-day space reaches the page and clears the selection.</summary>
+    /// <summary>Creates the row owned by <paramref name="owner"/>. Its background is hit-testable, so a click on empty all-day space reaches the page and clears the selection, and a double-click there creates an all-day event.</summary>
     public AllDayCanvas(TimeGridView owner)
     {
         _owner     = owner;
@@ -31,6 +31,16 @@ public sealed partial class AllDayCanvas : Canvas
         _ghost.Child = _ghostLabel;
         Children.Add(_ghost);
         SetZIndex(_ghost, 20);
+
+        // Double-Click Empty Space: a new all-day event that day (chips mark their own double-clicks handled)
+        DoubleTapped += (_, e) =>
+        {
+            if (ReferenceEquals(e.OriginalSource, this))
+            {
+                _owner.CreateAllDayAt(e.GetPosition(this).X);
+                e.Handled = true;
+            }
+        };
     }
 
     /// <summary>Lanes used by the last render.</summary>

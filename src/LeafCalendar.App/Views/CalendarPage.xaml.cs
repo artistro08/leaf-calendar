@@ -28,8 +28,8 @@ public sealed class PanesChangedEventArgs(bool animate, bool opening) : EventArg
 /// <summary>
 /// The main calendar page in three parts: the sidebar and the details panel on the window's Mica,
 /// and between them a flat "island" holding the period title and the current view. The page runs
-/// under the title bar. The side panes are the panes of two nested inline <see cref="SplitView"/>s
-/// (sidebar on the outer one, details on the inner one), so they open and close with WinUI's own slide.
+/// under the title bar. The side panes lie over the page and slide by composition while the island stays put
+/// (see CalendarPage.Panes.cs).
 /// </summary>
 public sealed partial class CalendarPage : Page
 {
@@ -97,13 +97,7 @@ public sealed partial class CalendarPage : Page
     /// <summary>The page's view model.</summary>
     public CalendarViewModel ViewModel => _args.ViewModel;
 
-    /// <summary>True when the sidebar takes up room. A SplitView resizes its content as soon as the pane starts to open or close, then slides it.</summary>
-    public bool IsSidebarOpen => SidebarSplit.IsPaneOpen;
-
-    /// <summary>True when the details panel takes up room.</summary>
-    public bool IsDetailsOpen => DetailsSplit.IsPaneOpen;
-
-    /// <summary>The sidebar or details panel started to open or close (the island has its new size and is sliding into place).</summary>
+    /// <summary>The sidebar or details panel started to open or close (the island already has its new size).</summary>
     public event EventHandler<PanesChangedEventArgs>? PanesChanged;
 
     /// <inheritdoc />
@@ -166,18 +160,17 @@ public sealed partial class CalendarPage : Page
     /// <summary>Shows or hides the sidebar (sliding when <paramref name="animate"/>) and remembers the choice.</summary>
     public void SetSidebarOpen(bool open, bool animate)
     {
-        SetPaneOpen(SidebarSplit, open, animate);
-
+        SetPaneOpen(sidebar: true, open, animate);
         if (ViewModel.Settings.SidebarOpen != open)
         {
-            ViewModel.Update(s => s with { SidebarOpen = open });
+            ViewModel.Remember(s => s with { SidebarOpen = open });
         }
     }
 
     /// <summary>Shows or hides the details panel (sliding when <paramref name="animate"/>) and remembers the choice.</summary>
     public void SetDetailsOpen(bool open, bool animate)
     {
-        SetPaneOpen(DetailsSplit, open, animate);
+        SetPaneOpen(sidebar: false, open, animate);
 
         // Closing Ends An E Sequence (the next key is a shortcut again, not typing into the hidden editor's title)
         if (!open)
@@ -189,32 +182,18 @@ public sealed partial class CalendarPage : Page
 
         if (ViewModel.Settings.DetailsPanelOpen != open)
         {
-            ViewModel.Update(s => s with { DetailsPanelOpen = open });
+            ViewModel.Remember(s => s with { DetailsPanelOpen = open });
         }
     }
 
-    // The SplitView plays its own pane transition; this only reports the change so the title bar can follow
-    void SetPaneOpen(SplitView split, bool open, bool animate)
+    // Slides the pane (CalendarPage.Panes.cs) and reports the change so the title bar can follow
+    void SetPaneOpen(bool sidebar, bool open, bool animate)
     {
-        split.IsPaneOpen = open;
+        SlidePane(sidebar, open, animate);
 
         // With the sidebar closed the title bar's pane toggle sits over the island's corner, so the title moves right
         PeriodTitle.Margin = new Thickness(IsSidebarOpen ? TitleInset : PaneToggleClearance + TitleInset, 9, 0, 8);
         PanesChanged?.Invoke(this, new PanesChangedEventArgs(animate, open));
-    }
-
-    // Inline panes slide the content with them, and a closing right pane starts the content one pane width
-    // to the left; clip it so the island never shows through the sidebar's see-through pane
-    void OnDetailsSplitSizeChanged(object sender, SizeChangedEventArgs e) =>
-        DetailsSplit.Clip = new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
-
-    // Nothing in the island (the grid keeps neighbor days realized and slides its header by composition) may draw
-    // under the see-through panes. A composition clip on the island's own size: a XAML Clip here clipped the island's
-    // fill but not the time grid's scrolling content, so the next day showed under the details panel as it slid shut
-    void OnIslandSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(Island);
-        visual.Clip ??= visual.Compositor.CreateInsetClip();
     }
 
     /// <summary>Puts the view for the current mode into <see cref="ViewHost"/>, keeping one view per mode family.</summary>
@@ -289,6 +268,14 @@ public sealed partial class CalendarPage : Page
 
     void OnEscapeInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        // Esc With The Cheat Sheet Open Only Closes It
+        if (_sheet is not null)
+        {
+            CloseShortcutSheet();
+            args.Handled = true;
+            return;
+        }
+
         // Esc During A Drag Only Cancels The Drag
         if ((_view is Controls.TimeGridView grid && grid.CancelDrag()) || (_view is Controls.MonthGridView month && month.CancelDrag()))
         {
@@ -343,6 +330,15 @@ public sealed partial class CalendarPage : Page
                     Details.EditorView?.FocusTitleNow();
                     return false;
             }
+        }
+
+        // S Over A New, Untouched Event Shares Availability Instead (the empty editor closes; typing in a box stays typing)
+        if (e.Key == VirtualKey.S && ViewModel.Editing is { IsNew: true } fresh && IsUntouched(fresh) && !ShortcutsBlocked()
+            && !Controls.KeyState.IsDown(VirtualKey.Control) && !Controls.KeyState.IsDown(VirtualKey.Shift) && !Controls.KeyState.IsDown(VirtualKey.Menu))
+        {
+            ViewModel.CancelEdit();
+            StartShareAvailability();
+            return true;
         }
 
         // A Hidden Editor Doesn't Block Shortcuts (the editor handles its own keys while it shows)
@@ -450,6 +446,13 @@ public sealed partial class CalendarPage : Page
     {
         var focused = FocusManager.GetFocusedElement(XamlRoot);
         return focused is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox or CalendarView || IsInOpenPopup(focused);
+    }
+
+    // Nothing changed since it opened: the same calendar, and no field Google would be sent (every field of the draft)
+    static bool IsUntouched(EventEditorViewModel editor)
+    {
+        var now = editor.ToDraft();
+        return now.AccountId == editor.Before.AccountId && now.CalendarId == editor.Before.CalendarId && EventJson.BuildPatch(editor.Before, now).Count == 0;
     }
 
     static bool IsModifier(VirtualKey key) => key is VirtualKey.Control or VirtualKey.LeftControl or VirtualKey.RightControl

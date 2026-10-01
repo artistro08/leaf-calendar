@@ -209,6 +209,15 @@ public sealed partial class CalendarViewModel
     /// <summary>The calendars whose busy times are left out of the shared times (all shareable ones when sharing starts).</summary>
     public IReadOnlySet<CalendarRef> ShareCalendars => _shareCalendars;
 
+    /// <summary>True while a time to share is being dragged out on the grid (the share card steps aside).</summary>
+    public bool IsPickingTime
+    {
+        get => _pickingTime;
+        set => SetProperty(ref _pickingTime, value);
+    }
+
+    bool _pickingTime;
+
     /// <summary>Sharing started or stopped, or the slots changed (redraw the bar and the slots).</summary>
     public event EventHandler? ShareChanged;
 
@@ -257,6 +266,19 @@ public sealed partial class CalendarViewModel
         }
 
         _slots.RemoveAt(index);
+        ShareChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Changes the picked time at <paramref name="index"/> (the right panel's times; merged again with any it now overlaps or touches).</summary>
+    public void UpdateShareSlot(int index, DateTimeOffset start, DateTimeOffset end)
+    {
+        if (index < 0 || index >= _slots.Count || end <= start)
+        {
+            return;
+        }
+
+        _slots[index] = new BusyRange(start, end);
+        _slots        = [.. BusyMath.Merge(_slots)];
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -315,7 +337,7 @@ public sealed partial class CalendarViewModel
         }
     }
 
-    /// <summary>Copies the free picked times as text (never logged), or says why it couldn't.</summary>
+    /// <summary>Copies the free picked times as text (never logged), then stops sharing and says so in the notice; or says why it couldn't (sharing goes on).</summary>
     public async Task CopyAvailabilityAsync()
     {
         var text = await BuildAvailabilityAsync(_life.Token);
@@ -337,7 +359,8 @@ public sealed partial class CalendarViewModel
         Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
 
         _services.Log.Info("share.copy", $"slots={_slots.Count} calendars={_shareCalendars.Count}");
-        ShowMessage("Copied your free times");
+        StopSharing();
+        ShowMessage("Availability copied");
     }
 
     /// <summary>True when <paramref name="text"/> is exactly one valid email address.</summary>

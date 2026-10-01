@@ -41,7 +41,6 @@ public sealed class CommandRow
         AutomationId      = automationId;
         EventVisibility   = kind == CommandRowKind.Event ? Visibility.Visible : Visibility.Collapsed;
         ActionVisibility  = kind is CommandRowKind.Action or CommandRowKind.Date ? Visibility.Visible : Visibility.Collapsed;
-        DetailVisibility  = detail.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         KeysVisibility    = keys.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         HeaderVisibility  = kind == CommandRowKind.Header ? Visibility.Visible : Visibility.Collapsed;
         RowVisibility     = kind == CommandRowKind.Header ? Visibility.Collapsed : Visibility.Visible;
@@ -74,8 +73,8 @@ public sealed class CommandRow
     /// <summary>Shows the glyph (actions and dates).</summary>
     public Visibility ActionVisibility { get; }
 
-    /// <summary>Shows the detail line.</summary>
-    public Visibility DetailVisibility { get; }
+    /// <summary>The space between the title and a detail (an em space; none without a detail).</summary>
+    public string DetailGap => Detail.Length > 0 ? " " : "";
 
     /// <summary>Shows the shortcut chip (only when there's a shortcut).</summary>
     public Visibility KeysVisibility { get; }

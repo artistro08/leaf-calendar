@@ -50,7 +50,6 @@ public sealed partial class MainWindow : Window
     const double EventActionsSpan = 16 - 8 + 32 + 32;
 
     readonly LeafServices _services;
-    readonly IconSource? _appIcon;
 
     // Lifts the whole title bar 2 physical pixels (set per display scale in LiftTitleBar)
     readonly TranslateTransform _titleBarLift = new();
@@ -62,6 +61,9 @@ public sealed partial class MainWindow : Window
     static readonly TimeSpan WaitingDelay = TimeSpan.FromSeconds(2);
     readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _waitingTimer;
     bool _waitingDue;
+
+    // The window's size while restored (not maximized or minimized), saved on close
+    Core.Views.WindowSize _restoredSize;
     Storyboard? _toolbarSlide;
     (double Right, bool Sidebar, bool Calendar)? _titleBarLayout;
 
@@ -71,7 +73,6 @@ public sealed partial class MainWindow : Window
         _services = services;
         _calendar = calendar;
         InitializeComponent();
-        _appIcon = AppTitleBar.IconSource;
 
         // Sync Status Waiting Delay
         _waitingTimer             = DispatcherQueue.CreateTimer();
@@ -116,6 +117,20 @@ public sealed partial class MainWindow : Window
         // Window Presenter (ours, kept, so its minimum size can be set without casting AppWindow.Presenter)
         AppWindow.SetPresenter(_presenter);
 
+        // Window Size (as it last closed, else the first-run default; a restored window's size is kept as it changes)
+        // (the minimum applies first, and a size saved before the minimum grew is grown to it)
+        var opening = (_calendar.Settings.MainWindowSize ?? Core.Views.WindowSize.MainDefault).AtLeast(MinimumWidth, MinimumHeight);
+        ApplyMinimumSize();
+        _restoredSize = opening with { Maximized = false };
+        Interop.WindowPlacement.Restore(AppWindow, _presenter, opening);
+        AppWindow.Changed += (_, e) =>
+        {
+            if (e.DidSizeChange && _presenter.State == OverlappedPresenterState.Restored)
+            {
+                _restoredSize = Interop.WindowPlacement.SizeOf(AppWindow);
+            }
+        };
+
         // Title Bar
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
@@ -144,6 +159,10 @@ public sealed partial class MainWindow : Window
             _waitingTimer.Stop();
             _calendar.LayoutChanged   -= OnCalendarLayoutChanged;
             _calendar.PropertyChanged -= OnCalendarPropertyChanged;
+
+            // Remember The Size For Next Time (the restored size, and whether it was maximized)
+            var size = _restoredSize with { Maximized = _presenter.State == OverlappedPresenterState.Maximized };
+            _calendar.Remember(s => s with { MainWindowSize = size }, inBackground: false);
         };
 
         ShowCalendar();
@@ -225,7 +244,9 @@ public sealed partial class MainWindow : Window
                 UpdateTitleBarLayout(e.Animate);
                 UpdateEventActions();
                 DetailsToggle.IsChecked = page.IsDetailsOpen;
+                ShowPaneGlyphs(page);
             };
+            ShowPaneGlyphs(page);
             SyncMenu();
         }
 
@@ -233,9 +254,15 @@ public sealed partial class MainWindow : Window
         UpdateEventActions();
     }
 
+    // The pane toggles' glyphs: a pane's panel is filled while it's open
+    static void ShowPaneGlyphs(CalendarPage page)
+    {
+        Controls.PaneGlyph.SetOpen("Sidebar", page.IsSidebarOpen);
+        Controls.PaneGlyph.SetOpen("Details", page.IsDetailsOpen);
+    }
+
     // Line the toolbar up with the calendar island's right edge (next to the caption buttons when
-    // the details panel is closed), and hide the app name when the sidebar is closed so the
-    // island's title has room. Then re-punch the title bar's click-through holes for the buttons.
+    // the details panel is closed). Then re-punch the title bar's click-through holes for the buttons.
     // Where the title bar's content area ends is measured, not assumed: TitleBar reserves the caption
     // buttons' width in screen pixels as if they were DIPs, so above 100% its content area stops short
     // of the buttons (about 34 DIPs at 125%). Resizing calls this for every step of the drag, so
@@ -248,7 +275,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        // The Search Icon Moves With The Toolbar Host's Left Edge (the app title or Back appearing), Even When Nothing Else Changed
+        // The Search Icon Moves With The Toolbar Host's Left Edge (Back appearing), Even When Nothing Else Changed
         PlaceSearchButton();
 
         // Target: The Toolbar Inset In From The Island's Right Edge, Or From The Caption Buttons
@@ -269,8 +296,6 @@ public sealed partial class MainWindow : Window
 
         CalendarToolbar.Margin = new Thickness(0, 0, layout.Right, 0);
         EventActions.Margin    = new Thickness(0, 0, layout.Right - CalendarPage.ToolbarInset - EventActionsSpan, 0);
-        AppTitleBar.Title      = layout.Sidebar ? "Leaf Calendar" : "";
-        AppTitleBar.IconSource = layout.Sidebar ? _appIcon : null;
 
         // Slide From The Old Spot (so the toolbar tracks the island's edge instead of jumping ahead of it)
         _toolbarSlide?.Stop();
@@ -317,9 +342,9 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        // No Forced Layout Here (it ran the whole window's layout, the calendar's included, inside a pane toggle and held up the slide):
+        // FollowSearchAnchor re-punches the icon's hole once the next layout pass has moved it
         SearchButton.Margin = new Thickness(left, 0, 0, 0);
-        SearchButton.UpdateLayout();
-        AppTitleBar.RecomputeDragRegions();
     }
 
     // The dim's fade (the design standard's 167 ms), whether the menu is open now, and the timer that collapses it
@@ -363,7 +388,7 @@ public sealed partial class MainWindow : Window
     (double Button, double Host, double Anchor, bool Open)? _searchSpot;
 
     // After any layout pass: the Next month button, the toolbar host, or the icon itself can move without a size change
-    // (the sidebar settling, the app icon and title appearing). Re-place the icon and re-punch its
+    // (the sidebar settling, Back appearing). Re-place the icon and re-punch its
     // click-through hole. The title bar also re-punches its holes on its own when its content moves, from where the icon
     // was before the new margin landed, so the hole is punched again once that layout pass is over; a stale hole
     // leaves the icon in the drag region, where a click does nothing. Nothing happens unless something actually moved.
@@ -435,7 +460,7 @@ public sealed partial class MainWindow : Window
     // follows the monitor's scale and adds the window frame (the invisible resize borders, about 14 DIPs across)
     void ApplyMinimumSize()
     {
-        var scale = RootGrid.XamlRoot?.RasterizationScale ?? 1;
+        var scale = RootGrid.XamlRoot?.RasterizationScale ?? Interop.WindowPlacement.ScaleOf(AppWindow);
         var frame = AppWindow.Size;
         var inner = AppWindow.ClientSize;
         _presenter.PreferredMinimumWidth  = (int)Math.Ceiling(MinimumWidth * scale) + Math.Max(0, frame.Width - inner.Width);

@@ -1,4 +1,6 @@
+using System.Drawing;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Capturing;
 using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
@@ -220,6 +222,104 @@ public sealed class SidebarTests : IDisposable
         before.Remove($"CalendarToggle_{FamilyId}");
         Assert.Equal(before, RowElements(leaf));
     }
+
+    // The calendar never slides with a pane: from the toggle on, the last day's header (one step to its new width at
+    // most), the details panel, and the vertical scroll stay where the final layout puts them. An inline SplitView
+    // resized the island at once and then slid it and the details panel by the pane's width, so the calendar's center jumped
+    [Fact]
+    public void SidebarToggle_KeepsTheCalendarInPlace()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor($"CalendarToggle_{FamilyId}");
+        var toggle  = leaf.WaitFor("AppTitleBar").FindFirstDescendant(cf => cf.ByAutomationId("PART_PaneToggleButton"))!.AsButton();
+        var last    = leaf.WaitFor("DayHeader_2026-10-03");
+        var details = leaf.WaitFor("DetailsPanel");
+        var grid    = leaf.WaitFor("TimeGrid");
+        LeafApp.WaitUntilStill(last);
+        Thread.Sleep(500);
+
+        var right = last.BoundingRectangle.Right;
+        var panel = details.BoundingRectangle;
+        var top   = Top(grid);
+        foreach (var open in new[] { false, true, false })
+        {
+            toggle.Invoke();
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var edges = new HashSet<int> { right };
+            while (watch.ElapsedMilliseconds < 400)
+            {
+                // A Header Being Rebuilt For The New Width Has No Box For A Moment
+                var edge = last.BoundingRectangle.Right;
+                if (edge > 0)
+                {
+                    edges.Add(edge);
+                }
+
+                var now = details.BoundingRectangle;
+                Assert.True(now == panel, $"open={open} at {watch.ElapsedMilliseconds} ms: {now} (was {panel}); edges {string.Join(", ", edges)}");
+            }
+
+            // At Most One Step: The Columns Take Their New Width Once, Then Stay
+            Assert.True(edges.Count <= 2, $"The last day's header slid through {string.Join(", ", edges)}.");
+            right = last.BoundingRectangle.Right;
+
+            Assert.Equal(open, leaf.Exists("MiniMonth"));
+            Assert.True(Retry.WhileFalse(() => Top(grid) == top, TimeSpan.FromSeconds(3)).Success, $"The grid scrolled to {Top(grid)} (from {top}).");
+        }
+    }
+
+    // Each pane toggle's glyph has a narrow panel (the sidebar's on the left, the details panel's on the right), filled
+    // with the icon's color while its pane is open and outlined while it's closed: the panel's middle pixel is the
+    // icon's color, then the background
+    [Fact]
+    public void PaneToggleGlyphs_FillTheirPanelWhileOpen()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor($"CalendarToggle_{FamilyId}");
+        var sidebar = leaf.WaitFor("AppTitleBar").FindFirstDescendant(cf => cf.ByAutomationId("PART_PaneToggleButton"))!;
+        var details = leaf.WaitFor("DetailsToggleButton");
+        Thread.Sleep(500);
+
+        // The Panel's Middle: 5 DIPs from the button's center, toward its side
+        Color Panel(AutomationElement button, int side)
+        {
+            var box = button.BoundingRectangle;
+            var x   = (int)Math.Round(box.X + box.Width / 2.0 + side * 5 * leaf.Scale);
+            var y   = (int)Math.Round(box.Y + box.Height / 2.0);
+            using var shot = Capture.Rectangle(new Rectangle(x, y, 1, 1));
+            return shot.Bitmap.GetPixel(0, 0);
+        }
+
+        static int Distance(Color a, Color b) => Math.Abs(a.R - b.R) + Math.Abs(a.G - b.G) + Math.Abs(a.B - b.B);
+
+        var sidebarOpen = Panel(sidebar, -1);
+        var detailsOpen = Panel(details, 1);
+        sidebar.AsButton().Invoke();
+        details.AsToggleButton().Toggle();
+        Thread.Sleep(800);
+
+        Assert.True(Distance(sidebarOpen, Panel(sidebar, -1)) > 120, $"The sidebar glyph's panel is {sidebarOpen} open and {Panel(sidebar, -1)} closed.");
+        Assert.True(Distance(detailsOpen, Panel(details, 1)) > 120, $"The details glyph's panel is {detailsOpen} open and {Panel(details, 1)} closed.");
+    }
+
+    static readonly string[] ReadingOrder = ["Sidebar", "ViewHost", "DetailsPanel"];
+
+    // Narrator and Tab meet the parts left to right: the sidebar, the calendar, then the details panel
+    [Fact]
+    public void Parts_AreInReadingOrder()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor($"CalendarToggle_{FamilyId}");
+
+        var ids   = leaf.WaitFor("CalendarRoot").FindAllDescendants().Select(e => e.Properties.AutomationId.ValueOrDefault ?? "").ToList();
+        var order = ReadingOrder.Select(id => ids.IndexOf(id)).ToList();
+
+        Assert.True(order.All(i => i >= 0) && order[0] < order[1] && order[1] < order[2], $"Order: {string.Join(", ", order)}.");
+    }
+
+    // The time grid's vertical offset, from the state it publishes when it comes to rest
+    static string Top(AutomationElement grid) =>
+        (grid.Properties.ItemStatus.ValueOrDefault ?? "").Split(';').FirstOrDefault(p => p.StartsWith("top=", StringComparison.Ordinal)) ?? "";
 
     // Measured from the page's corner: the sidebar pane runs down the page's left edge, while the Sidebar element's own
     // automation box only covers what it draws (inside its padding)

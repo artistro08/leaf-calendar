@@ -149,17 +149,22 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
+                    <!-- The sidebar glyph: its left panel filled while the sidebar is open -->
                     <Border Background="Transparent" CornerRadius="{TemplateBinding CornerRadius}">
-                        <FontIcon
-                            Glyph="&#xE90D;"
-                            FontSize="16"
-                            FlowDirection="RightToLeft"
-                            MirroredWhenRightToLeft="True"
-                            Foreground="{TemplateBinding Foreground}" />
+                        <controls:PaneGlyph Pane="Sidebar" Foreground="{TemplateBinding Foreground}" />
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- Floating Card (the shortcut sheet and the share availability card over the calendar view: solid like the notice
+         toast, the flyout border, and the overlay radius; CalendarPage gives it its ThemeShadow) -->
+    <Style x:Key="LeafFloatingCardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource SurfaceStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
     </Style>
 
     <!-- Mini Month Day (the text color is set per day in code, so hover and press only fade the layer behind it) -->

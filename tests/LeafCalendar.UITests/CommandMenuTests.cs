@@ -53,6 +53,27 @@ public sealed class CommandMenuTests : IDisposable
 
     static string PeriodTitle(LeafApp leaf) => leaf.WaitFor("PeriodTitle").Name;
 
+    // The menu sits centered over the window, and nothing in it scrolls sideways (it was 2 DIPs wider than its presenter)
+    [Fact]
+    public void Menu_IsCenteredOverTheWindow_WithNoHorizontalScrollBar()
+    {
+        using var leaf = Launch();
+        OpenMenu(leaf);
+        Keyboard.Type("e");
+        var menu = leaf.WaitForAnywhere("CommandMenu");
+        Thread.Sleep(500);
+
+        var box    = menu.BoundingRectangle;
+        var client = leaf.ClientBounds;
+        var offset = box.Left + box.Width / 2.0 - (client.Left + client.Width / 2.0);
+        Assert.True(Math.Abs(offset) <= 2, $"The menu's center is {offset} px off the window's.");
+
+        // Every Scroll Bar Around The Menu Is Vertical (the presenter's, the results')
+        var popup = menu.Parent!.Parent ?? menu;
+        var bars  = popup.FindAllDescendants(cf => cf.ByControlType(ControlType.ScrollBar)).Where(b => !b.IsOffscreen && b.BoundingRectangle.Width > b.BoundingRectangle.Height).ToList();
+        Assert.Empty(bars.Select(b => b.BoundingRectangle.ToString()));
+    }
+
     [Fact]
     public void CtrlK_OpensTheMenu_WithFocusInTheSearchBox()
     {

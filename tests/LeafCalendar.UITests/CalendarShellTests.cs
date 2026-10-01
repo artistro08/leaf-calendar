@@ -31,6 +31,35 @@ public sealed class CalendarShellTests : IDisposable
         Assert.Contains("2026", leaf.WaitFor("PeriodTitle").Name, StringComparison.Ordinal);
     }
 
+    // First run: 1277 × 814 DIPs (the owner's own size), no bigger than the work area. Closed at another size, the
+    // window opens at that size the next time (in DIPs: it opens on the monitor under the pointer, whatever its scale)
+    [Fact]
+    public void WindowSize_DefaultThenRemembered()
+    {
+        double width, height;
+        using (var first = Launch())
+        {
+            first.WaitFor("CalendarRoot");
+            var box  = first.MainWindow.BoundingRectangle;
+            var work = System.Windows.Forms.Screen.FromHandle(first.MainWindow.Properties.NativeWindowHandle.Value).WorkingArea;
+            Assert.True(Math.Abs(box.Width - Math.Min(1277 * first.Scale, work.Width)) <= 2, $"The first window is {box.Width} wide.");
+            Assert.True(Math.Abs(box.Height - Math.Min(814 * first.Scale, work.Height)) <= 2, $"The first window is {box.Height} tall.");
+
+            first.Resize(1500, 900);
+            width  = 1500 / first.Scale;
+            height = 900 / first.Scale;
+            first.MainWindow.Close();
+            Assert.True(Retry.WhileTrue(() => first.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
+        }
+
+        using var leaf = Launch();
+        leaf.WaitFor("CalendarRoot");
+        var size = leaf.MainWindow.BoundingRectangle;
+        var area = System.Windows.Forms.Screen.FromHandle(leaf.MainWindow.Properties.NativeWindowHandle.Value).WorkingArea;
+        var (w, h) = (Math.Min(width * leaf.Scale, area.Width), Math.Min(height * leaf.Scale, area.Height));
+        Assert.True(Math.Abs(size.Width - w) <= 3 && Math.Abs(size.Height - h) <= 3, $"The window reopened at {size.Width} × {size.Height}, not {w:0} × {h:0}.");
+    }
+
     [Fact]
     public void ViewMenu_HasOnlyViewChoices()
     {

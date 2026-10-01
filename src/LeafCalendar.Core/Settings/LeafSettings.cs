@@ -1,5 +1,6 @@
 using System.Globalization;
 using LeafCalendar.Core.Tray;
+using LeafCalendar.Core.Views;
 
 namespace LeafCalendar.Core.Settings;
 
@@ -138,6 +139,12 @@ public sealed record LeafSettings
     /// <summary>Right details panel shown.</summary>
     public bool DetailsPanelOpen { get; init; } = true;
 
+    /// <summary>The main window's size when it last closed; null until then (it opens at <see cref="WindowSize.MainDefault"/>).</summary>
+    public WindowSize? MainWindowSize { get; init; }
+
+    /// <summary>The Settings window's size when it last closed; null until then.</summary>
+    public WindowSize? SettingsWindowSize { get; init; }
+
     /// <summary>Where new events go; null uses your main Google calendar (primary, else the first you can write to).</summary>
     public CalendarRef? DefaultCalendar { get; init; }
 
@@ -215,7 +222,7 @@ public sealed record LeafSettings
     /// An unknown map provider becomes Google.
     /// An upcoming lookahead that isn't one of <see cref="UpcomingChoices"/> becomes 8 hours.
     /// A primary time zone this PC doesn't know becomes null (follow Windows).
-    /// A blank main account becomes null.
+    /// A blank main account becomes null, and so does a window size that isn't positive and finite.
     /// Blank and repeated Meet-by-default accounts are dropped. (The old tray-excluded calendars are no longer read: the
     /// tray follows what's shown in Leaf, so a saved row that still has them loads without them.)
     /// A list whose contents didn't change keeps its instance, so normalizing twice gives an equal record.
@@ -255,6 +262,8 @@ public sealed record LeafSettings
             UpcomingHours         = UpcomingChoices.Contains(UpcomingHours) ? UpcomingHours : 8,
             PrimaryTimeZone       = PrimaryTimeZone is { } z && TimeZoneInfo.TryFindSystemTimeZoneById(z, out _) ? z : null,
             MainAccountId         = string.IsNullOrWhiteSpace(MainAccountId) ? null : MainAccountId,
+            MainWindowSize        = MainWindowSize?.Clean(),
+            SettingsWindowSize    = SettingsWindowSize?.Clean(),
             MeetByDefaultAccounts = Keep(MeetByDefaultAccounts, [.. (MeetByDefaultAccounts ?? []).Where(a => !string.IsNullOrWhiteSpace(a)).Distinct(StringComparer.Ordinal)]),
         };
     }

@@ -7,6 +7,8 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 
 namespace LeafCalendar.App.Views;
 
@@ -68,6 +70,7 @@ public sealed partial class CalendarPage
             _travelBar = null;
         }
 
+        CloseShortcutSheet();
         _commandFlyout?.Hide();
         _commandFlyout = null;
         _commandMenu   = null;
@@ -102,7 +105,11 @@ public sealed partial class CalendarPage
             var style  = new Style(typeof(FlyoutPresenter));
             style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(0)));
             style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(8)));
-            style.Setters.Add(new Setter(FrameworkElement.MaxWidthProperty, 640d));
+            // The presenter fits the 640 wide menu and its border exactly, and never scrolls sideways (a 640 cap, border
+            // included, left the menu 2 DIPs too wide: a horizontal scrollbar, and the menu off center)
+            style.Setters.Add(new Setter(FrameworkElement.MaxWidthProperty, double.PositiveInfinity));
+            style.Setters.Add(new Setter(ScrollViewer.HorizontalScrollModeProperty, ScrollMode.Disabled));
+            style.Setters.Add(new Setter(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled));
 
             // The window dims behind the menu while it's open (closed by Esc, a pick, or a click outside it)
             var flyout = new Flyout { Content = menu, FlyoutPresenterStyle = style };
@@ -200,8 +207,56 @@ public sealed partial class CalendarPage
     // CHEAT SHEET
     // =========================================================================
 
-    // ?
-    void ShowShortcutSheet() => ShowDialog(() => ShortcutSheet.ShowAsync(this, ViewModel.Settings), "shortcuts.sheet.failed");
+    // The open cheat sheet panel, or null, and what had focus before it opened (focus goes back there when it closes)
+    Border? _sheet;
+    DependencyObject? _beforeSheet;
+
+    // ?: the cheat sheet as a panel at the right of the calendar view, over it (? again, Esc, or its close button closes it)
+    void ShowShortcutSheet()
+    {
+        if (_sheet is not null)
+        {
+            CloseShortcutSheet();
+            return;
+        }
+
+        var (panel, filter) = ShortcutSheet.Panel(this, ViewModel.Settings, CloseShortcutSheet);
+        panel.HorizontalAlignment = HorizontalAlignment.Right;
+        panel.Margin              = new Thickness(16);
+        Grid.SetRow(panel, 2);
+        Float(panel);
+        Island.Children.Add(panel);
+        _sheet       = panel;
+        _beforeSheet = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
+        filter.Loaded += (_, _) => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => filter.Focus(FocusState.Programmatic));
+    }
+
+    void CloseShortcutSheet()
+    {
+        if (_sheet is null)
+        {
+            return;
+        }
+
+        Island.Children.Remove(_sheet);
+        _sheet = null;
+        if (_beforeSheet is { } before)
+        {
+            _ = FocusManager.TryFocusAsync(before, FocusState.Programmatic);
+        }
+
+        _beforeSheet = null;
+    }
+
+    // Lifts a floating card (the cheat sheet, the share card) over the calendar view: raised 32 like a flyout, its
+    // shadow falling on the view
+    void Float(UIElement card)
+    {
+        card.Translation = new System.Numerics.Vector3(0, 0, 32);
+        var shadow = new ThemeShadow();
+        shadow.Receivers.Add(ViewHost);
+        card.Shadow = shadow;
+    }
 
     // One dialog at a time: our own flag covers Leaf's sheet and time travel; any other dialog already open (a scope
     // question, the conflict dialog) makes WinUI refuse a second one, which is noted by type and otherwise ignored

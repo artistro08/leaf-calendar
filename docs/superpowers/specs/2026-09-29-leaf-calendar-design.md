@@ -295,7 +295,7 @@ Anyone can send an invite, so event content is treated as hostile.
   - Color picker
   - Drag to reorder
   - Right-click: rename (Google summary override), change color, show upcoming events for this calendar
-- Buttons: "Share availability" and "Manage Google booking pages" (opens Google Calendar's appointment schedule page in the browser).
+- Button: "Share availability".
 - Milestone 3 owner redesign: calendar rows only show or hide their calendar (the checkbox keeps the calendar's color); colors moved to Settings › Calendars. The "Google booking pages" link was removed from the sidebar. An icon-only Settings button sits at the bottom-left of the sidebar and replaces the Accounts row.
 - Subscribed calendars appear automatically from the Google calendar list.
 - Milestone 5: right-click a calendar for Rename… (Google summary override, needs a connection), Show upcoming events (next 30 days, in the details panel), and Change color… (opens Settings › Calendars). A share-availability icon sits beside the Settings icon.
@@ -395,7 +395,7 @@ Its own window (Milestone 3 owner redesign), modeled on the Windows 11 Settings 
 - Press `S` or use the sidebar button. Drag on the calendar to pick candidate slots.
 - Leaf checks free/busy across the calendars you choose and removes busy time.
 - It copies text such as "Tue Sep 30: 10–11 AM, 2–4 PM ET" to the clipboard, in a selectable time zone.
-- "Manage Google booking pages" opens Google's appointment schedule page, since Google has no API for booking pages.
+- The share controls float as a card in the calendar view's bottom-right corner (zone, calendars, Cancel, Copy). The picked times are listed in the right panel, where each one's start and end can be changed or removed. Copy copies the text, stops sharing, and shows "Availability copied" in the notice.
 - Needs a connection (Google free/busy). Zone choices: the zone on screen, Windows' zone, and the extra zone columns.
 
 ---

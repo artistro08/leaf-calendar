@@ -71,7 +71,7 @@ public sealed partial class DayColumn : Canvas
         Children.Add(_nowLine);
         Children.Add(_nowDot);
 
-        // Drag Ghost
+        // Drag Ghost (its label is what UI tests find, by date)
         _ghost.Child = _ghostLabel;
         Children.Add(_ghost);
         SetZIndex(_ghost, 20);
@@ -102,6 +102,7 @@ public sealed partial class DayColumn : Canvas
     {
         Date = date;
         ClearGhost();
+        AutomationProperties.SetAutomationId(_ghostLabel, string.Create(CultureInfo.InvariantCulture, $"Ghost_{date:yyyy-MM-dd}"));
         Render();
     }
 
