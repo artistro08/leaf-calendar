@@ -44,4 +44,17 @@ public static class ChromeColors
 
     /// <summary>Text on the accent fill (TextOnAccentFillColorPrimary: black in dark, white in light).</summary>
     public static string OnAccent(bool dark) => dark ? "#FF000000" : "#FFFFFFFF";
+
+    // People On The Overlay: Purple, Magenta, Teal, Orange
+    static readonly string[] PersonLight = ["#8764B8", "#C239B3", "#038387", "#CA5010"];
+    static readonly string[] PersonDark  = ["#B4A0FF", "#F48FE8", "#5FD3D6", "#FF9C62"];
+
+    /// <summary>How many person colors there are (indexes wrap).</summary>
+    public static int PersonCount => PersonLight.Length;
+
+    /// <summary>An overlaid person's color (their busy blocks' edge and their chip's dot).</summary>
+    public static string Person(int index, bool dark) => (dark ? PersonDark : PersonLight)[((index % PersonCount) + PersonCount) % PersonCount];
+
+    /// <summary>An overlaid person's busy-block fill: their color at 20%.</summary>
+    public static string PersonFill(int index, bool dark) => "#33" + Person(index, dark)[1..];
 }

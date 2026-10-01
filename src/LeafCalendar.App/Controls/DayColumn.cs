@@ -1,7 +1,9 @@
+using System.Globalization;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Shapes;
 
@@ -14,6 +16,8 @@ namespace LeafCalendar.App.Controls;
 /// </summary>
 public sealed partial class DayColumn : Canvas
 {
+    static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
+
     readonly TimeGridView _owner;
     readonly Action<CalendarOccurrence> _select;
     readonly Rectangle[] _hourLines = new Rectangle[24];
@@ -24,6 +28,8 @@ public sealed partial class DayColumn : Canvas
     readonly List<EventBlock> _blocks = [];
     readonly Border _ghost = new() { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
     readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 2, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+    readonly Canvas _overlay = new() { IsHitTestVisible = false };
+    readonly List<(Border Block, TextBlock Title)> _overlayBlocks = [];
 
     /// <summary>Creates a column owned by <paramref name="owner"/>.</summary>
     public DayColumn(TimeGridView owner)
@@ -35,6 +41,9 @@ public sealed partial class DayColumn : Canvas
             Children.Add(_hourLines[h] = new Rectangle { Height = 1, IsHitTestVisible = false });
             Children.Add(_halfLines[h] = new Rectangle { Height = 1, IsHitTestVisible = false });
         }
+
+        // People Overlay (under the events; clicks and drags go through to the grid)
+        Children.Add(_overlay);
 
         _divider.IsHitTestVisible = false;
         _nowLine.IsHitTestVisible = false;
@@ -102,6 +111,8 @@ public sealed partial class DayColumn : Canvas
         _divider.Height = Height;
         _divider.Fill   = LeafBrushes.GridLine(dark);
 
+        RenderOverlay();
+
         // Events (drawn at the same minimum length DayLayout uses for overlap, so short events never collide)
         var blocks = DayLayout.Layout(Date, vm.Cache.ForDay(Date), vm.Zone);
         EnsureBlocks(blocks.Count);
@@ -162,6 +173,60 @@ public sealed partial class DayColumn : Canvas
 
     /// <summary>Hides the ghost.</summary>
     public void ClearGhost() => _ghost.Visibility = Visibility.Collapsed;
+
+    /// <summary>
+    /// Draws the overlaid people's busy stretches that fall on this day, under the events. Each block's number counts
+    /// that person's loaded blocks in time order, so it's the same in every column and after a redraw.
+    /// </summary>
+    public void RenderOverlay()
+    {
+        var vm       = _owner.ViewModel;
+        var dark     = _owner.IsDark;
+        var dayStart = OccurrenceQuery.LocalMidnight(Date, vm.Zone);
+        var dayEnd   = OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
+        var counts   = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var shown    = 0;
+
+        foreach (var b in vm.OverlayBlocks(DateTimeOffset.MinValue, DateTimeOffset.MaxValue))
+        {
+            var n = counts[b.Email] = counts.GetValueOrDefault(b.Email) + 1;
+            if (b.Start >= dayEnd || b.End <= dayStart)
+            {
+                continue;
+            }
+
+            // Reuse A Pooled Block
+            if (shown == _overlayBlocks.Count)
+            {
+                var title = new TextBlock { FontSize = 12, Margin = new Thickness(6, 2, 6, 2), TextTrimming = TextTrimming.CharacterEllipsis };
+                var block = new Border { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(3, 0, 0, 0), Child = title };
+                _overlayBlocks.Add((block, title));
+                _overlay.Children.Add(block);
+            }
+
+            var (border, text) = _overlayBlocks[shown++];
+            var top    = b.Start <= dayStart ? 0 : _owner.MinutesIntoDay(b.Start);
+            var bottom = b.End >= dayEnd ? 24 * 60 : _owner.MinutesIntoDay(b.End);
+
+            border.Visibility  = Visibility.Visible;
+            border.Background  = LeafBrushes.PersonFill(b.ColorIndex, dark);
+            border.BorderBrush = LeafBrushes.Person(b.ColorIndex, dark);
+            border.Width       = Math.Max(_owner.ColumnWidth - 2, 4);
+            border.Height      = Math.Max((bottom - top) / 60 * _owner.HourHeight, 2);
+            text.Text          = b.Title ?? "";
+            text.Foreground    = LeafBrushes.PrimaryText(dark);
+            SetTop(border, top / 60 * _owner.HourHeight);
+
+            var when = $"{TimeZoneInfo.ConvertTime(b.Start, vm.Zone).ToString("h:mm tt", English)}–{TimeZoneInfo.ConvertTime(b.End, vm.Zone).ToString("h:mm tt", English)}";
+            AutomationProperties.SetAutomationId(border, $"OverlayBlock_{b.Email}_{n - 1}");
+            AutomationProperties.SetName(border, $"{b.Email} busy {when}" + (b.Title is { } t ? $": {t}" : ""));
+        }
+
+        for (var i = shown; i < _overlayBlocks.Count; i++)
+        {
+            _overlayBlocks[i].Block.Visibility = Visibility.Collapsed;
+        }
+    }
 
     void EnsureBlocks(int count)
     {

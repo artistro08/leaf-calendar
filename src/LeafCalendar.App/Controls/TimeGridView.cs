@@ -209,6 +209,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _vm.LayoutChanged         += OnLayoutChanged;
         _vm.NavigateRequested     += OnNavigateRequested;
         _vm.ScrollToTimeRequested += OnScrollToTimeRequested;
+        _vm.OverlayChanged        += OnOverlayChanged;
         ActualThemeChanged        += (_, _) => RenderRealized();
         Loaded                    += (_, _) =>
         {
@@ -291,6 +292,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _vm.LayoutChanged         -= OnLayoutChanged;
         _vm.NavigateRequested     -= OnNavigateRequested;
         _vm.ScrollToTimeRequested -= OnScrollToTimeRequested;
+        _vm.OverlayChanged        -= OnOverlayChanged;
     }
 
     // =========================================================================
@@ -702,6 +704,20 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     void OnScrollToTimeRequested(object? sender, DateTimeOffset instant) => ScrollToTime(instant);
 
+    // Only the overlay layer changes (people, their busy times)
+    void OnOverlayChanged(object? sender, EventArgs e)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        foreach (var column in _columns)
+        {
+            column.RenderOverlay();
+        }
+    }
+
     // =========================================================================
     // DRAGGING
     // =========================================================================
@@ -971,7 +987,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // The strip's day at an x position (the repeater and the all-day row both lay the strip out from 0)
     DateOnly DayAt(double x) => _strip[Math.Clamp((int)Math.Floor(x / ColumnWidth), 0, _strip.Count - 1)];
 
-    double MinutesIntoDay(DateTimeOffset instant) => TimeZoneInfo.ConvertTime(instant, _vm.Zone).TimeOfDay.TotalMinutes;
+    /// <summary>Minutes past local midnight (the wall clock of the zone on screen).</summary>
+    internal double MinutesIntoDay(DateTimeOffset instant) => TimeZoneInfo.ConvertTime(instant, _vm.Zone).TimeOfDay.TotalMinutes;
 
     DateOnly LocalDate(DateTimeOffset instant) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, _vm.Zone).DateTime);
 
