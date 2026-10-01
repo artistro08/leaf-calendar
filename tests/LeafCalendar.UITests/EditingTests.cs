@@ -159,11 +159,26 @@ public sealed class EditingTests : IDisposable
         leaf.Press(VirtualKeyShort.DELETE);
         var box = leaf.WaitFor("NoticeBar").BoundingRectangle;
 
-        // A strip left of the icon: hour lines behind a see-through bar would vary its lightness
-        var strip = new Rectangle(box.X + 3, box.Y + 3, 8, box.Height - 6);
+        // In This Theme, Then The Other (Ctrl+Shift+L)
+        var first = Lightness(box);
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.SHIFT, VirtualKeyShort.KEY_L);
+        Thread.Sleep(1000);
+        var other = Lightness(leaf.WaitFor("NoticeBar").BoundingRectangle);
+
+        Assert.True(Math.Abs(first.Average() - other.Average()) > 0.3f, "The theme didn't change.");
+        foreach (var lightness in new[] { first, other })
+        {
+            Assert.True(lightness.Max() - lightness.Min() < 0.03f, $"The grid shows through the notice ({lightness.Min():0.00} to {lightness.Max():0.00}).");
+        }
+    }
+
+    // A strip left of the notice's icon, clear of its rounded corners (their edge stroke reads darker in light theme):
+    // hour lines behind a see-through bar would vary its lightness
+    static List<float> Lightness(Rectangle box)
+    {
+        var strip = new Rectangle(box.X + 6, box.Y + box.Height / 4, 8, box.Height / 2);
         using var shot = FlaUI.Core.Capturing.Capture.Rectangle(strip);
-        var lightness = Enumerable.Range(0, shot.Bitmap.Width).SelectMany(x => Enumerable.Range(0, shot.Bitmap.Height).Select(y => shot.Bitmap.GetPixel(x, y).GetBrightness())).ToList();
-        Assert.True(lightness.Max() - lightness.Min() < 0.03f, $"The grid shows through the notice ({lightness.Min():0.00} to {lightness.Max():0.00}).");
+        return [.. Enumerable.Range(0, shot.Bitmap.Width).SelectMany(x => Enumerable.Range(0, shot.Bitmap.Height).Select(y => shot.Bitmap.GetPixel(x, y).GetBrightness()))];
     }
 
     [Fact]
