@@ -3,8 +3,10 @@
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap5 rescap">
+  IgnorableNamespaces="uap uap5 com desktop rescap">
 
   <Identity Name="LeafCalendar" Publisher="CN=Artistro08" Version="0.1.0.0" />
 
@@ -39,6 +41,18 @@
         <uap5:Extension Category="windows.startupTask">
           <uap5:StartupTask TaskId="LeafCalendarStartup" Enabled="true" DisplayName="Leaf Calendar" />
         </uap5:Extension>
+
+        <!-- Notifications: Windows activates this COM class when a Leaf notification (or one of its buttons) is clicked -->
+        <desktop:Extension Category="windows.toastNotificationActivation">
+          <desktop:ToastNotificationActivation ToastActivatorCLSID="8E1C4A57-2B9D-4F36-A0C8-5D7E91B3F264" />
+        </desktop:Extension>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:ExeServer Executable="LeafCalendar.exe" DisplayName="Leaf Calendar" Arguments="----AppNotificationActivated:">
+              <com:Class Id="8E1C4A57-2B9D-4F36-A0C8-5D7E91B3F264" />
+            </com:ExeServer>
+          </com:ComServer>
+        </com:Extension>
       </Extensions>
     </Application>
   </Applications>

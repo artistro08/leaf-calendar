@@ -256,6 +256,26 @@ public sealed class LeafApp : IDisposable
         }
     }
 
+    /// <summary>Notifications Leaf showed or withdrew, oldest first ("show" or "remove", group, tag, toast XML; fake-Google mode records them instead of showing them).</summary>
+    public static IReadOnlyList<string> NotificationLines(string profile)
+    {
+        var file = Path.Combine(ProfileFolder(profile), "notifications.txt");
+        try
+        {
+            return File.Exists(file) ? File.ReadAllLines(file) : [];
+        }
+        catch (IOException)
+        {
+            // Leaf is writing it; the next poll reads it
+            return [];
+        }
+    }
+
+    /// <summary>Waits for a notification line matching <paramref name="match"/>.</summary>
+    public static string WaitForNotification(string profile, Func<string, bool> match, int seconds = 60) =>
+        Retry.WhileNull(() => NotificationLines(profile).FirstOrDefault(match), TimeSpan.FromSeconds(seconds)).Result
+        ?? throw new InvalidOperationException("Leaf didn't show the expected notification.");
+
     /// <summary>Waits (up to 5 s) until <paramref name="element"/> stops moving on screen, so a navigation's scroll has landed.</summary>
     public static void WaitUntilStill(AutomationElement element)
     {

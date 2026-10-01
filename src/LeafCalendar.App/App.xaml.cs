@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using LeafCalendar.App.Interop;
+using LeafCalendar.App.Notifications;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.App.Views.Onboarding;
 using LeafCalendar.App.Views.Settings;
@@ -37,6 +38,8 @@ public partial class App : Application
     CalendarViewModel? _calendar;
     SettingsWindow? _hookedSettings;
     TrayIcon? _tray;
+    Notifier? _notifier;
+    AlertCenter? _alerts;
     SyncEngine? _attachedSync;
     DispatcherQueue _dispatcher = null!;
     DispatcherQueueTimer? _minuteTimer;
@@ -146,6 +149,12 @@ public partial class App : Application
             services.Log.Error("tray.create.failed", ex);
         }
 
+        // Notifications (registered before any click is handled)
+        _notifier = new Notifier(services);
+        _notifier.Register();
+        _alerts = new AlertCenter(services, _notifier, () => _zone.Zone);
+        _alerts.Start();
+
         // Minute Clock (tooltip countdown, time zone)
         _minuteTimer          = _dispatcher!.CreateTimer();
         _minuteTimer.Interval = TimeSpan.FromMinutes(1);
@@ -177,7 +186,12 @@ public partial class App : Application
 
     void OnMinute()
     {
-        _zone.Check();
+        // A New PC Time Zone Re-Plans The Alerts (all-day reminders count from local midnight)
+        if (_zone.Check())
+        {
+            _alerts?.Invalidate();
+        }
+
         RefreshTooltip();
     }
 
