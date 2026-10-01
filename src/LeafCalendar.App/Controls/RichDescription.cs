@@ -2,22 +2,24 @@ using LeafCalendar.Core.Events;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Windows.UI;
 
 namespace LeafCalendar.App.Controls;
 
 /// <summary>
 /// Moves a description between <see cref="DescriptionLine"/>s and a <see cref="RichEditBox"/>: one paragraph per line,
-/// bold, italic, underline, and bullet or numbered paragraphs. Links never become live in the box; they show in the
-/// accent color, their targets are kept as anchors, and they're put back on read when the link text is unchanged.
+/// bold, italic, underline, and bullet or numbered paragraphs. Links never become live in the box; each shows in its
+/// own tint of the accent color (<see cref="DescriptionAnchors"/>), its target is kept as an anchor, and it's put back
+/// on read when the link text is unchanged.
 /// </summary>
 internal static class RichDescription
 {
     /// <summary>Fills the box and clears its undo history. Returns the link anchors to pass to <see cref="Read"/>.</summary>
     public static List<(string Text, Uri Link)> Load(RichEditBox box, IReadOnlyList<DescriptionLine> lines)
     {
-        var document  = box.Document;
-        var anchors   = new List<(string Text, Uri Link)>();
-        var linkColor = LeafBrushes.Accent(box.ActualTheme == ElementTheme.Dark).Color;
+        var document = box.Document;
+        var anchors  = new List<(string Text, Uri Link)>();
+        var accent   = Accent(box);
         document.SetText(TextSetOptions.None, string.Join("\r", lines.Select(l => string.Concat(l.Runs.Select(r => r.Text)))));
 
         // Nothing Carries Over From The Last Description (bold, link color, or a list on the first paragraph)
@@ -37,10 +39,10 @@ internal static class RichDescription
                 format.Italic    = run.Italic ? FormatEffect.On : FormatEffect.Off;
                 format.Underline = run.Underline ? UnderlineType.Single : UnderlineType.None;
 
-                // A Link Is Colored Text (its own run, so it reads back whole) With Its Target Kept Aside
+                // A Link Is Text In Its Own Tint (its own run, so it reads back whole) With Its Target Kept Aside
                 if (run.Link is { } link)
                 {
-                    format.ForegroundColor = linkColor;
+                    format.ForegroundColor = ToColor(DescriptionAnchors.Tint(accent, anchors.Count));
                     anchors.Add((run.Text, link));
                 }
 
@@ -57,6 +59,7 @@ internal static class RichDescription
         }
 
         document.Selection.SetRange(0, 0);
+        PlainInsertion(box);
         document.ClearUndoRedoHistory();
         return anchors;
     }
@@ -67,16 +70,16 @@ internal static class RichDescription
         var document = box.Document;
         document.GetText(TextGetOptions.None, out var all);
 
-        // RichEdit always ends with a paragraph mark
-        all = all.TrimEnd('\r');
-        var lines = new List<DescriptionLine>();
+        // RichEdit always ends with a paragraph mark; a soft break (Shift+Enter) is a line too (same length, so positions hold)
+        all = all.TrimEnd('\r').Replace('\v', '\r');
+        var runs  = new List<(int Line, DescriptionRun Run, int? Slot)>();
+        var lists = new List<ListKind>();
         var start = 0;
 
         foreach (var paragraph in all.Split('\r'))
         {
-            var end  = start + paragraph.Length;
-            var runs = new List<DescriptionRun>();
-            var at   = start;
+            var end = start + paragraph.Length;
+            var at  = start;
 
             while (at < end)
             {
@@ -88,27 +91,26 @@ internal static class RichDescription
                     runEnd = end;
                 }
 
-                var text   = all[at..runEnd];
                 var format = range.CharacterFormat;
-                // ponytail: exact-text anchors; a link whose text the user edits becomes plain text. Track ranges if owners want link editing.
-                var link   = anchors.FirstOrDefault(a => a.Text == text).Link;
-                runs.Add(new DescriptionRun(text, format.Bold == FormatEffect.On, format.Italic == FormatEffect.On, format.Underline != UnderlineType.None, link));
+                var run    = new DescriptionRun(all[at..runEnd], format.Bold == FormatEffect.On, format.Italic == FormatEffect.On, format.Underline != UnderlineType.None);
+                runs.Add((lists.Count, run, SlotOf(format.ForegroundColor)));
                 at = runEnd;
             }
 
-            var listType = document.GetRange(start, start).ParagraphFormat.ListType;
-            var list     = listType switch
+            lists.Add(document.GetRange(start, start).ParagraphFormat.ListType switch
             {
                 MarkerType.None or MarkerType.Undefined => ListKind.None,
                 MarkerType.Bullet                        => ListKind.Bullet,
                 _                                        => ListKind.Numbered,
-            };
-
-            lines.Add(new DescriptionLine(runs, list));
+            });
             start = end + 1;
         }
 
-        return lines;
+        // Links Come Back Only On Their Own Unchanged Text
+        var targets = DescriptionAnchors.Resolve(anchors, [.. runs.Select(r => (r.Run.Text, r.Slot))]);
+        var linked  = runs.Select((r, i) => (r.Line, Run: r.Run with { Link = targets[i] })).ToLookup(r => r.Line, r => r.Run);
+
+        return [.. lists.Select((list, line) => new DescriptionLine([.. linked[line]], list))];
     }
 
     /// <summary>Puts paragraphs in a list of <paramref name="kind"/> (the marker hangs left of the text), or out of any list for <see cref="MarkerType.None"/>.</summary>
@@ -127,4 +129,64 @@ internal static class RichDescription
         paragraph.ListTab   = 12;
         paragraph.SetIndents(-12, 18, 0);
     }
+
+    /// <summary>
+    /// Typing at a link's edge (or inside it) gets plain text, not the link's tint: the caret's format is reset to the
+    /// default, keeping bold, italic, and underline.
+    /// </summary>
+    public static void PlainInsertion(RichEditBox box)
+    {
+        if (box.Document.Selection.Length == 0)
+        {
+            Untint(box, box.Document.Selection);
+        }
+    }
+
+    /// <summary>Gives a link-tinted range (text pasted at a link, or the caret) the default format, keeping bold, italic, and underline.</summary>
+    public static void Untint(RichEditBox box, ITextRange range)
+    {
+        var current = range.CharacterFormat;
+        if (SlotOf(current.ForegroundColor) is null)
+        {
+            return;
+        }
+
+        var plain             = box.Document.GetDefaultCharacterFormat();
+        plain.Bold            = current.Bold;
+        plain.Italic          = current.Italic;
+        plain.Underline       = current.Underline;
+        range.CharacterFormat = plain;
+    }
+
+    /// <summary>Re-tints every link for the box's current theme (each keeps its slot).</summary>
+    public static void Recolor(RichEditBox box)
+    {
+        var document = box.Document;
+        var accent   = Accent(box);
+        document.GetText(TextGetOptions.None, out var all);
+
+        for (var at = 0; at < all.Length;)
+        {
+            var range = document.GetRange(at, at);
+            range.Expand(TextRangeUnit.CharacterFormat);
+            if (SlotOf(range.CharacterFormat.ForegroundColor) is { } slot)
+            {
+                range.CharacterFormat.ForegroundColor = ToColor(DescriptionAnchors.Tint(accent, slot));
+            }
+
+            at = Math.Max(range.EndPosition, at + 1);
+        }
+    }
+
+    // The accent for the box's theme
+    static (byte R, byte G, byte B) Accent(RichEditBox box) => FromColor(LeafBrushes.Accent(box.ActualTheme == ElementTheme.Dark).Color);
+
+    // A link's slot from its color, in either theme's tint (a theme change may not have re-tinted it yet)
+    static int? SlotOf(Color color) =>
+        DescriptionAnchors.SlotOf(FromColor(color), FromColor(LeafBrushes.Accent(true).Color))
+        ?? DescriptionAnchors.SlotOf(FromColor(color), FromColor(LeafBrushes.Accent(false).Color));
+
+    static (byte R, byte G, byte B) FromColor(Color color) => (color.R, color.G, color.B);
+
+    static Color ToColor((byte R, byte G, byte B) rgb) => Color.FromArgb(255, rgb.R, rgb.G, rgb.B);
 }

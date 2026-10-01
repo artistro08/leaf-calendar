@@ -43,6 +43,8 @@ public sealed partial class EventEditorView : UserControl
         _suggestTimer.Interval    = TimeSpan.FromMilliseconds(250);
         _suggestTimer.IsRepeating = false;
         _suggestTimer.Tick       += (_, _) => RefreshSuggestions();
+
+        ActualThemeChanged += OnThemeChanged;
     }
 
     /// <summary>The fields being edited, or null.</summary>
@@ -254,10 +256,11 @@ public sealed partial class EventEditorView : UserControl
             return;
         }
 
-        // Ctrl+B, I, And U In The Description Change Its Format Without A TextChanged
-        if (e.Key is VirtualKey.B or VirtualKey.I or VirtualKey.U && KeyState.IsDown(VirtualKey.Control) && DescriptionBox.FocusState != FocusState.Unfocused)
+        // Description Keys (only what Leaf saves gets through)
+        if (DescriptionBox.FocusState != FocusState.Unfocused && DescriptionKey(e.Key))
         {
-            _descriptionTouched = true;
+            e.Handled = true;
+            return;
         }
 
         // Esc in an open dropdown (or the guest suggestions) only closes it
@@ -460,6 +463,52 @@ public sealed partial class EventEditorView : UserControl
 
     void OnDescriptionTextChanged(object sender, RoutedEventArgs e) => _descriptionTouched |= !_loadingDescription;
 
+    // A key in the description, seen before the box: true when it's handled here. RichEdit's own Ctrl shortcuts (align,
+    // all caps, sub/superscript, line spacing, other list styles) make formatting Leaf can't save, so only bold, italic,
+    // underline, undo, redo, select all, copy, cut, and paste get through; Ctrl+Shift+L is the bulleted list. Tab moves
+    // focus (in a list it would nest it). AltGr (Ctrl+Alt) still types.
+    bool DescriptionKey(VirtualKey key)
+    {
+        var ctrl  = KeyState.IsDown(VirtualKey.Control);
+        var shift = KeyState.IsDown(VirtualKey.Shift);
+
+        if (key == VirtualKey.Tab && !ctrl)
+        {
+            FocusManager.TryMoveFocus(shift ? FocusNavigationDirection.Previous : FocusNavigationDirection.Next, new FindNextElementOptions { SearchRoot = XamlRoot.Content });
+            return true;
+        }
+
+        if (!ctrl || KeyState.IsDown(VirtualKey.Menu) || !IsCharacterKey(key))
+        {
+            return false;
+        }
+
+        if (shift && key == VirtualKey.L)
+        {
+            List(MarkerType.Bullet);
+            return true;
+        }
+
+        if (!shift && key is VirtualKey.B or VirtualKey.I or VirtualKey.U)
+        {
+            _descriptionTouched = true;
+            return false;
+        }
+
+        return !(shift ? key is VirtualKey.Z or VirtualKey.V : key is VirtualKey.Z or VirtualKey.Y or VirtualKey.A or VirtualKey.C or VirtualKey.X or VirtualKey.V);
+    }
+
+    // Space, letters, digits, and symbol keys (the ones a Ctrl shortcut uses)
+    static bool IsCharacterKey(VirtualKey key) => (int)key is 0x20 or (>= 0x30 and <= 0x39) or (>= 0x41 and <= 0x5A) or (>= 0x60 and <= 0x6F) or (>= 0xBA and <= 0xC0) or (>= 0xDB and <= 0xDF) or 0xE2;
+
+    // Links keep their own tint in the new theme
+    void OnThemeChanged(FrameworkElement sender, object args)
+    {
+        _loadingDescription = true;
+        RichDescription.Recolor(DescriptionBox);
+        _loadingDescription = false;
+    }
+
     void OnBoldClick(object sender, RoutedEventArgs e) => Format(f => f.Bold = FormatEffect.Toggle);
 
     void OnItalicClick(object sender, RoutedEventArgs e) => Format(f => f.Italic = FormatEffect.Toggle);
@@ -490,7 +539,12 @@ public sealed partial class EventEditorView : UserControl
         SyncToolbar();
     }
 
-    void OnDescriptionSelectionChanged(object sender, RoutedEventArgs e) => SyncToolbar();
+    // Typing at a link's edge is plain text, then the toolbar shows the caret's format
+    void OnDescriptionSelectionChanged(object sender, RoutedEventArgs e)
+    {
+        RichDescription.PlainInsertion(DescriptionBox);
+        SyncToolbar();
+    }
 
     // Toolbar toggles show the selection's format
     void SyncToolbar()
@@ -512,17 +566,26 @@ public sealed partial class EventEditorView : UserControl
         _owner?.Fire(PastePlainTextAsync, "editor.paste.failed");
     }
 
+    // The text lands only in the editor it was pasted into (the panel may have moved on while the clipboard was read)
     async Task PastePlainTextAsync()
     {
+        var editor  = Editor;
         var content = Clipboard.GetContent();
-        if (DescriptionBox.IsReadOnly || !content.Contains(StandardDataFormats.Text))
+        if (editor is null || DescriptionBox.IsReadOnly || !content.Contains(StandardDataFormats.Text))
         {
             return;
         }
 
         var text = (await content.GetTextAsync()).Replace("\r\n", "\r", StringComparison.Ordinal).Replace('\n', '\r');
-        DescriptionBox.Document.Selection.SetText(TextSetOptions.None, text);
-        DescriptionBox.Document.Selection.Collapse(false);
+        if (!ReferenceEquals(Editor, editor) || DescriptionBox.IsReadOnly)
+        {
+            return;
+        }
+
+        var selection = DescriptionBox.Document.Selection;
+        selection.SetText(TextSetOptions.None, text);
+        RichDescription.Untint(DescriptionBox, selection);
+        selection.Collapse(false);
         _descriptionTouched = true;
     }
 }

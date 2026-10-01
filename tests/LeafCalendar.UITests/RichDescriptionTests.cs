@@ -124,6 +124,73 @@ public sealed class RichDescriptionTests : IDisposable
         Assert.DoesNotContain('￼', description);
     }
 
+    // Shift+Insert Pastes Plain Text Too
+    [Fact]
+    public void ShiftInsertRichText_InsertsPlainText()
+    {
+        using var leaf = OpenEditor();
+        Clipboard.SetHtml("<b>Pasted</b><img src=\"https://tracker.example/p.gif\">", plainText: "Pasted");
+        FocusDescription(leaf);
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.END);
+        Keyboard.TypeSimultaneously(VirtualKeyShort.SHIFT, VirtualKeyShort.INSERT);
+        leaf.WaitFor("EditorSaveButton").AsButton().Invoke();
+
+        var write       = RichPatch();
+        var description = SentDescription(write);
+        Assert.Contains("Pasted", description, StringComparison.Ordinal);
+        Assert.DoesNotContain("<b>Pasted", description, StringComparison.Ordinal);
+        Assert.DoesNotContain("tracker", write.Body, StringComparison.Ordinal);
+    }
+
+    // Dropping Rich Text Or A File On The Description Does Nothing
+    [Fact]
+    public void DropRichTextOrFile_ChangesNothing()
+    {
+        using var leaf = OpenEditor();
+        var box    = FocusDescription(leaf);
+        var before = box.Patterns.Text.Pattern.DocumentRange.GetText(-1);
+        var bounds = box.BoundingRectangle;
+        var center = new System.Drawing.Point(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2);
+        var file   = Path.Combine(Path.GetTempPath(), $"leaf-drop-{Guid.NewGuid():N}.txt");
+        File.WriteAllText(file, "Dropped file");
+
+        try
+        {
+            // Rich Text
+            var rich = new System.Windows.Forms.DataObject();
+            rich.SetData(System.Windows.Forms.DataFormats.Html, "<b>Dropped</b>");
+            rich.SetText("Dropped");
+            DragSource.DropAt(center, rich);
+
+            // A File
+            var files = new System.Windows.Forms.DataObject();
+            files.SetFileDropList([file]);
+            DragSource.DropAt(center, files);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+
+        Assert.Equal(before, box.Patterns.Text.Pattern.DocumentRange.GetText(-1));
+        leaf.WaitFor("EditorTitle").AsTextBox().Text = "Planning v2";
+        leaf.WaitFor("EditorSaveButton").AsButton().Invoke();
+        Assert.DoesNotContain("description", RichPatch().Body, StringComparison.Ordinal);
+    }
+
+    // An RTF Field In A Description Is Literal Text, Never A Link
+    [Fact]
+    public void RtfFieldDescription_ShowsAsLiteralText()
+    {
+        _google.EditOnGoogle(SeededProfile.Email, Rich, e => e["description"] = """{\rtf1{\field{\*\fldinst HYPERLINK "https://x"}{\fldrslt Click}}}""");
+        using var leaf = OpenEditor();
+        var text = FocusDescription(leaf).Patterns.Text.Pattern.DocumentRange.GetText(-1);
+
+        Assert.Contains(@"{\rtf1", text, StringComparison.Ordinal);
+        Assert.Contains("fldinst HYPERLINK", text, StringComparison.Ordinal);
+        Assert.Empty(LeafApp.LaunchedLinks(_profile));
+    }
+
     // Ctrl+Enter Saves From The Description, It Doesn't Add A Line
     [Fact]
     public void CtrlEnterInDescription_Saves()
