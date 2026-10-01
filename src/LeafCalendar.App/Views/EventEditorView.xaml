@@ -185,6 +185,25 @@
                         Text="Turn on the People API in Google Cloud Console to get suggestions."
                         Visibility="{x:Bind Editor.ShowContactsApiOff, Mode=OneWay}"
                         AutomationProperties.AutomationId="EditorContactsApiOff" />
+
+                    <!-- Room Box (Workspace accounts: rooms you've booked before) -->
+                    <AutoSuggestBox
+                        x:Name="RoomBox"
+                        PlaceholderText="Add a room"
+                        UpdateTextOnSelect="False"
+                        Text="{x:Bind Editor.RoomInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        ItemsSource="{x:Bind Editor.RoomSuggestions, Mode=OneWay}"
+                        Visibility="{x:Bind Editor.ShowRooms, Mode=OneWay}"
+                        TextChanged="OnRoomTextChanged"
+                        QuerySubmitted="OnRoomQuerySubmitted"
+                        AutomationProperties.Name="Add a room"
+                        AutomationProperties.AutomationId="EditorRoomInput">
+                        <AutoSuggestBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:RoomSuggestion">
+                                <TextBlock Text="{x:Bind Display}" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </AutoSuggestBox.ItemTemplate>
+                    </AutoSuggestBox>
                     <ItemsControl ItemsSource="{x:Bind Editor.Guests, Mode=OneWay}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -206,8 +225,15 @@
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock VerticalAlignment="Center" Text="{x:Bind Email}" TextTrimming="CharacterEllipsis" />
-                                        <CheckBox Grid.Column="1" MinWidth="0" Content="Optional" IsChecked="{x:Bind Optional, Mode=TwoWay}" AutomationProperties.AutomationId="{x:Bind OptionalId}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon VerticalAlignment="Center" Glyph="&#xE7BE;" FontSize="16" Visibility="{x:Bind IsRoom}" />
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                Text="{x:Bind DisplayName, Mode=OneWay}"
+                                                TextTrimming="CharacterEllipsis"
+                                                AutomationProperties.AutomationId="{x:Bind GuestId}" />
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="1" MinWidth="0" Content="Optional" IsChecked="{x:Bind Optional, Mode=TwoWay}" Visibility="{x:Bind ShowOptional}" AutomationProperties.AutomationId="{x:Bind OptionalId}" />
                                         <Button Grid.Column="2" Background="Transparent" BorderThickness="0" Command="{x:Bind RemoveCommand}" AutomationProperties.Name="Remove guest" AutomationProperties.AutomationId="{x:Bind RemoveId}">
                                             <FontIcon Glyph="&#xE711;" FontSize="12" />
                                         </Button>

@@ -130,4 +130,12 @@ internal static class Schema
 
         CREATE INDEX ix_alert_ledger_open ON alert_ledger (kind, retracted);
         """;
+
+    /// <summary>
+    /// Version 6: <c>accounts.hosted_domain</c>, Google's <c>hd</c> sign-in claim. Null until Leaf knows it (accounts
+    /// that signed in before Milestone 5 are looked up once), empty for a personal account, else the Workspace domain.
+    /// </summary>
+    public const string V6 = """
+        ALTER TABLE accounts ADD COLUMN hosted_domain TEXT;
+        """;
 }

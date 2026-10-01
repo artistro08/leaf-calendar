@@ -7,6 +7,7 @@ using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.People;
 using LeafCalendar.Core.Views;
+using CalendarRooms = LeafCalendar.Core.People.Rooms;
 
 namespace LeafCalendar.App.ViewModels;
 
@@ -17,8 +18,8 @@ public sealed record CalendarChoice(string AccountId, string CalendarId, string 
     public override string ToString() => Name;
 }
 
-/// <summary>A guest in the editor, with its optional toggle and remove button.</summary>
-public sealed partial class GuestRow(Guest guest, Action<GuestRow> remove) : ObservableObject
+/// <summary>A guest in the editor, with its optional toggle and remove button. A room shows its name, and has no optional toggle.</summary>
+public sealed partial class GuestRow(Guest guest, Action<GuestRow> remove, string? roomName = null) : ObservableObject
 {
     /// <summary>The guest as loaded (or typed).</summary>
     public Guest Guest { get; } = guest;
@@ -26,9 +27,26 @@ public sealed partial class GuestRow(Guest guest, Action<GuestRow> remove) : Obs
     /// <summary>Address.</summary>
     public string Email => Guest.Email;
 
+    /// <summary>A room (Google's resource attendee).</summary>
+    public bool IsRoom => Guest.IsResource;
+
+    /// <summary>The optional toggle shows (people only).</summary>
+    public bool ShowOptional => !IsRoom;
+
+    /// <summary>The chip's text: the address, or "{name} (room)" for a room (its address until its name is known).</summary>
+    public string DisplayName => IsRoom ? $"{RoomName ?? Email} (room)" : Email;
+
+    /// <summary>A room's cleaned name, once known.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayName))]
+    public partial string? RoomName { get; set; } = roomName;
+
     /// <summary>Optional attendance.</summary>
     [ObservableProperty]
     public partial bool Optional { get; set; } = guest.Optional;
+
+    /// <summary>Automation ID of the chip's text.</summary>
+    public string GuestId => $"EditorGuest_{Email}";
 
     /// <summary>Automation ID of the optional checkbox.</summary>
     public string OptionalId => $"EditorGuestOptional_{Email}";
@@ -48,6 +66,19 @@ public sealed class ContactSuggestion(string name, string email)
 
     /// <summary>"Name &lt;email&gt;", or the address alone (plain text; Core already removed control characters).</summary>
     public string Display { get; } = name.Length > 0 ? $"{name} <{email}>" : email;
+
+    /// <summary>The shown text (what a screen reader says for the item).</summary>
+    public override string ToString() => Display;
+}
+
+/// <summary>A room suggestion for the room box (an App type, so WinRT can hold the list).</summary>
+public sealed class RoomSuggestion(Room room)
+{
+    /// <summary>The room (name already cleaned by Core).</summary>
+    public Room Room { get; } = room;
+
+    /// <summary>The room's name.</summary>
+    public string Display => Room.Name;
 
     /// <summary>The shown text (what a screen reader says for the item).</summary>
     public override string ToString() => Display;
@@ -384,23 +415,43 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     public async Task RefreshSuggestionsAsync()
     {
         var text = GuestInput.Trim();
-        if (text.Length == 0 || SearchContacts is not { } search)
+        if (text.Length == 0)
         {
             ClearSuggestions();
             return;
         }
 
-        // Stale (the user kept typing) or closed
+        // People You Meet Often Show At Once
         var account = ContactsAccountId;
+        ShowSuggestions(LocalPeople?.Invoke(account, text) ?? []);
+        if (SearchContacts is not { } search)
+        {
+            return;
+        }
+
+        // Stale (the user kept typing) or closed
         if (await _contactSearch.RunAsync(ct => search(text, ct)) is not { } results)
         {
             return;
         }
 
+        // Google's Answers Go After Them (read again: they may have loaded meanwhile)
         _searchedAccount = account;
         ContactsAccess   = results.Access;
+        ShowSuggestions([.. LocalPeople?.Invoke(account, text) ?? [], .. results.Contacts]);
+    }
+
+    /// <summary>
+    /// "People you meet often" for an account and the typed text (set by <see cref="CalendarViewModel"/>); listed before
+    /// Google's suggestions. Null leaves them out.
+    /// </summary>
+    public Func<string, string, IReadOnlyList<Contact>>? LocalPeople { get; set; }
+
+    // One row per address (ignoring case), at most as many as a Google search gives
+    void ShowSuggestions(IEnumerable<Contact> contacts)
+    {
         Suggestions.Clear();
-        foreach (var contact in results.Contacts)
+        foreach (var contact in contacts.DistinctBy(c => c.Email, StringComparer.OrdinalIgnoreCase).Take(ContactSearch.MaxResults))
         {
             Suggestions.Add(new ContactSuggestion(contact.Name, contact.Email));
         }
@@ -420,9 +471,16 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         Suggestions.Clear();
     }
 
-    // Another account's contacts: what the last account allowed no longer counts
+    // Another account's contacts: what the last account allowed no longer counts (and its rooms are its own)
     partial void OnCalendarIndexChanged(int value)
     {
+        OnPropertyChanged(nameof(ShowRooms));
+        if (_ready && Rooms.Count > 0)
+        {
+            Rooms = [];
+            RoomSuggestions.Clear();
+        }
+
         if (_searchedAccount is not null && _searchedAccount != ContactsAccountId)
         {
             _searchedAccount = null;
@@ -436,15 +494,116 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         if (value.Trim().Length == 0)
         {
             ClearSuggestions();
+            return;
         }
+
+        // The First Letter Starts Loading People You Meet Often, So They're Ready When The Search Runs
+        _ = LocalPeople?.Invoke(ContactsAccountId, "");
     }
 
     /// <summary>The editor closed: stops any search and lets go of the suggestions.</summary>
     public void Dispose()
     {
         ClearSuggestions();
+        RoomSuggestions.Clear();
+        Rooms = [];
         _contactSearch.Dispose();
     }
+
+    // =========================================================================
+    // ROOMS
+    // =========================================================================
+
+    /// <summary>Whether an account is a Google Workspace one (set by <see cref="CalendarViewModel"/>); rooms show only there.</summary>
+    public Func<string, bool>? IsWorkspaceAccount
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged(nameof(ShowRooms));
+        }
+    }
+
+    /// <summary>Loads the rooms an account booked before (set by <see cref="CalendarViewModel"/>, cached per editor).</summary>
+    public Func<string, Task<IReadOnlyList<Room>>>? LoadRooms { get; set; }
+
+    /// <summary>The picked calendar's account's rooms (empty until loaded).</summary>
+    public IReadOnlyList<Room> Rooms { get; private set; } = [];
+
+    /// <summary>The room box shows (a Workspace account's calendar is picked).</summary>
+    public bool ShowRooms => IsWorkspaceAccount?.Invoke(ContactsAccountId) == true;
+
+    /// <summary>Leaf learned which accounts are Workspace ones (an older account's first lookup): the rows that depend on it update.</summary>
+    public void AccountsChanged() => OnPropertyChanged(nameof(ShowRooms));
+
+    /// <summary>The room name being typed.</summary>
+    [ObservableProperty]
+    public partial string RoomInput { get; set; } = "";
+
+    /// <summary>Rooms matching the typed text.</summary>
+    public ObservableCollection<RoomSuggestion> RoomSuggestions { get; } = [];
+
+    /// <summary>Loads the picked account's rooms (once per editor), names the room chips, and lists the rooms matching the typed text.</summary>
+    public async Task RefreshRoomSuggestionsAsync()
+    {
+        await EnsureRoomsAsync();
+
+        RoomSuggestions.Clear();
+        foreach (var room in CalendarRooms.Match(Rooms, RoomInput))
+        {
+            RoomSuggestions.Add(new RoomSuggestion(room));
+        }
+    }
+
+    /// <summary>Loads the picked account's rooms when it's a Workspace one, and gives room chips their names.</summary>
+    public async Task EnsureRoomsAsync()
+    {
+        if (!ShowRooms || LoadRooms is not { } load)
+        {
+            return;
+        }
+
+        // Another calendar picked meanwhile: its own load will run
+        var account = ContactsAccountId;
+        var rooms   = await load(account);
+        if (account != ContactsAccountId)
+        {
+            return;
+        }
+
+        Rooms = rooms;
+        foreach (var row in Guests.Where(g => g.IsRoom))
+        {
+            row.RoomName = rooms.FirstOrDefault(r => string.Equals(r.Email, row.Email, StringComparison.OrdinalIgnoreCase))?.Name ?? row.RoomName;
+        }
+    }
+
+    /// <summary>Adds a picked room as a resource guest (once), and empties the room box.</summary>
+    public void PickRoom(RoomSuggestion room)
+    {
+        ArgumentNullException.ThrowIfNull(room);
+
+        if (!Guests.Any(g => string.Equals(g.Email, room.Room.Email, StringComparison.OrdinalIgnoreCase)))
+        {
+            Guests.Add(new GuestRow(new Guest(room.Room.Email, IsResource: true), RemoveGuest, room.Room.Name));
+        }
+
+        RoomInput = "";
+        RoomSuggestions.Clear();
+    }
+
+    partial void OnRoomInputChanged(string value)
+    {
+        if (value.Trim().Length == 0)
+        {
+            RoomSuggestions.Clear();
+        }
+    }
+
+    // =========================================================================
+    // GUESTS AND SAVING
+    // =========================================================================
 
     /// <summary>Adds the typed address as a guest; false (with <see cref="Error"/>) when it isn't a valid address.</summary>
     public bool AddGuest()

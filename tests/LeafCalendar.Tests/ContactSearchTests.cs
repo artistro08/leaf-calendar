@@ -9,11 +9,13 @@ namespace LeafCalendar.Tests;
 
 public sealed class ContactSearchTests : IDisposable
 {
-    const string Account     = "109876543210";
-    const string TokenUrl    = "https://oauth2.googleapis.com/token";
-    const string ContactsUrl = "https://people.googleapis.com/v1/people:searchContacts";
-    const string OthersUrl   = "https://people.googleapis.com/v1/otherContacts:search";
-    const string AllScopes   = "openid https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly";
+    const string Account       = "109876543210";
+    const string TokenUrl      = "https://oauth2.googleapis.com/token";
+    const string ContactsUrl   = "https://people.googleapis.com/v1/people:searchContacts";
+    const string OthersUrl     = "https://people.googleapis.com/v1/otherContacts:search";
+    const string DirectoryUrl  = "https://people.googleapis.com/v1/people:searchDirectoryPeople";
+    const string AllScopes     = "openid https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly";
+    const string WithDirectory = AllScopes + " https://www.googleapis.com/auth/directory.readonly";
 
     // Right-to-left override, a format character that can disguise text
     static readonly string Rlo = char.ConvertFromUtf32(0x202E);
@@ -396,5 +398,79 @@ public sealed class ContactSearchTests : IDisposable
         Assert.Equal(
             ["m1@example.com", "m2@example.com", "m3@example.com", "m4@example.com", "m5@example.com", "second@example.com"],
             results.Contacts.Select(c => c.Email));
+    }
+
+    // =========================================================================
+    // WORKSPACE DIRECTORY
+    // =========================================================================
+
+    [Fact]
+    public async Task Search_WithDirectoryScope_ListsDirectoryBetweenContactsAndOthers()
+    {
+        RouteToken(WithDirectory);
+        _google.On(HttpMethod.Get, ContactsUrl, HttpStatusCode.OK, """{"results":[{"person":{"names":[{"displayName":"Alice"}],"emailAddresses":[{"value":"alice@example.com"}]}}]}""");
+        _google.On(HttpMethod.Get, DirectoryUrl, HttpStatusCode.OK, """{"people":[{"names":[{"displayName":"Dana Director"}],"emailAddresses":[{"value":"dana@example.com"}]}]}""");
+        _google.On(HttpMethod.Get, OthersUrl, HttpStatusCode.OK, $$"""{"results":[{{Person("bob@example.com")}}]}""");
+
+        var results = await CreateSearch().SearchAsync(Account, "a", TestContext.Current.CancellationToken);
+
+        Assert.Equal(ContactAccess.Allowed, results.Access);
+        Assert.Equal(["alice@example.com", "dana@example.com", "bob@example.com"], results.Contacts.Select(c => c.Email));
+        Assert.Equal("Dana Director", results.Contacts[1].Name);
+        var directory = Assert.Single(_google.Requests, r => r.Uri.AbsolutePath.Contains("searchDirectoryPeople", StringComparison.Ordinal));
+        Assert.Equal(DirectoryUrl + "?query=a&readMask=names,emailAddresses&sources=DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE&pageSize=10", directory.Uri.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task Search_DirectoryRefused_KeepsTheOtherSources()
+    {
+        RouteToken(WithDirectory);
+        _google.On(HttpMethod.Get, ContactsUrl, HttpStatusCode.OK, $$"""{"results":[{{Person("alice@example.com")}}]}""");
+        _google.On(HttpMethod.Get, DirectoryUrl, HttpStatusCode.BadRequest, """{"error":{"status":"FAILED_PRECONDITION","message":"Must be a G Suite domain user."}}""");
+        _google.On(HttpMethod.Get, OthersUrl, HttpStatusCode.OK, $$"""{"results":[{{Person("bob@example.com")}}]}""");
+
+        var results = await CreateSearch().SearchAsync(Account, "a", TestContext.Current.CancellationToken);
+
+        Assert.Equal(ContactAccess.Allowed, results.Access);
+        Assert.Equal(["alice@example.com", "bob@example.com"], results.Contacts.Select(c => c.Email));
+        Assert.Contains($"contacts.search.failed account={Account} status=400", File.ReadAllText(_log.FilePath), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Search_WithoutDirectoryScope_NeverAsksTheDirectory()
+    {
+        RouteToken(AllScopes);
+        _google.On(r => r.Method == HttpMethod.Get, _ => FakeHttpHandler.Json(HttpStatusCode.OK, "{}"));
+
+        await CreateSearch().SearchAsync(Account, "a", TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain(_google.Requests, r => r.Uri.AbsoluteUri.Contains("searchDirectoryPeople", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Search_WorkspaceWithoutDirectoryScope_OffersConsentAndStillLists()
+    {
+        RouteToken(AllScopes);
+        _google.On(HttpMethod.Get, ContactsUrl, HttpStatusCode.OK, $$"""{"results":[{{Person("alice@example.com")}}]}""");
+        _google.On(HttpMethod.Get, OthersUrl, HttpStatusCode.OK, "{}");
+
+        var search    = CreateSearch();
+        var workspace = await search.SearchAsync(Account, "a", workspace: true, TestContext.Current.CancellationToken);
+        var personal  = await search.SearchAsync(Account, "a", TestContext.Current.CancellationToken);
+
+        Assert.Equal(ContactAccess.NeedsConsent, workspace.Access);
+        Assert.Equal(["alice@example.com"], workspace.Contacts.Select(c => c.Email));
+        Assert.Equal(ContactAccess.Allowed, personal.Access);
+    }
+
+    [Fact]
+    public async Task Search_WorkspaceWithDirectoryScope_IsAllowed()
+    {
+        RouteToken(WithDirectory);
+        _google.On(r => r.Method == HttpMethod.Get, _ => FakeHttpHandler.Json(HttpStatusCode.OK, "{}"));
+
+        var results = await CreateSearch().SearchAsync(Account, "a", workspace: true, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ContactAccess.Allowed, results.Access);
     }
 }

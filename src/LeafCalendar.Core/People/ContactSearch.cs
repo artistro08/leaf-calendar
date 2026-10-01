@@ -6,7 +6,9 @@ using System.Net.Http.Json;
 using System.Net.Mail;
 using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Diagnostics;
+using System.Text.Json.Serialization.Metadata;
 using LeafCalendar.Core.Google;
+using LeafCalendar.Core.Tray;
 
 namespace LeafCalendar.Core.People;
 
@@ -30,7 +32,8 @@ public enum ContactAccess
 public sealed record ContactResults(IReadOnlyList<Contact> Contacts, ContactAccess Access);
 
 /// <summary>
-/// Guest autocomplete from the People API: your contacts, then "other contacts" (people you've emailed), read-only.
+/// Guest autocomplete from the People API: your contacts, then your Workspace directory (coworkers), then "other
+/// contacts" (people you've emailed), read-only.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -38,13 +41,19 @@ public sealed record ContactResults(IReadOnlyList<Contact> Contacts, ContactAcce
 /// parse exactly are kept. Nothing is stored; logs carry the account ID and HTTP status only.
 /// </para>
 /// <para>
-/// Both sources are searched at once, each limited to <see cref="Timeout"/>. A source that fails is left out and the
-/// other still counts. Google's search cache needs an empty-query "warmup" request before it returns results, so
-/// the first search of each source for each account sends one. The warmup runs on its own (the caller canceling
-/// doesn't stop it), its answer and any failure are ignored, and nothing about it is logged. It is kept per source,
-/// so a source added by a later re-sign-in is warmed the first time it's searched.
+/// The sources are searched at once, each limited to <see cref="Timeout"/>. A source that fails is left out and the
+/// others still count. Google's contacts search cache needs an empty-query "warmup" request before it returns
+/// results, so the first search of each contacts source for each account sends one. The warmup runs on its own (the
+/// caller canceling doesn't stop it), its answer and any failure are ignored, and nothing about it is logged. It is
+/// kept per source, so a source added by a later re-sign-in is warmed the first time it's searched.
+/// </para>
+/// <para>
+/// The directory is searched only when the grant includes <see cref="GoogleOAuthClient.DirectoryScope"/>, with no
+/// warmup. Google refuses it for personal accounts (<c>400 FAILED_PRECONDITION</c>), so any refusal there is just a
+/// failed source, never something the user is asked to fix.
 /// </para>
 /// </remarks>
+/// <seealso href="https://developers.google.com/people/api/rest/v1/people/searchDirectoryPeople"/>
 /// <seealso href="https://developers.google.com/people/api/rest/v1/people/searchContacts"/>
 /// <seealso href="https://developers.google.com/people/api/rest/v1/otherContacts/search"/>
 public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, AppLog log, GoogleEndpoints? endpoints = null)
@@ -52,16 +61,19 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
     /// <summary>Most suggestions returned.</summary>
     public const int MaxResults = 8;
 
+    /// <summary>Longest name kept (longer ones are cut).</summary>
+    internal const int MaxName = 100;
+
     const int MaxQuery     = 100;
-    const int MaxName      = 100;
     const int MaxEmail     = 254;
     const int MaxPeople    = 50;
     const int MaxPerPerson = 5;
     const int MaxPerSource = 25;
 
     // Relative paths start with "./" so the colon isn't read as a URI scheme
-    const string ContactsPath = "./people:searchContacts";
-    const string OthersPath   = "./otherContacts:search";
+    const string ContactsPath  = "./people:searchContacts";
+    const string OthersPath    = "./otherContacts:search";
+    const string DirectoryPath = "./people:searchDirectoryPeople";
 
     readonly Uri _root = (endpoints ?? GoogleEndpoints.Default).PeopleApi;
 
@@ -72,11 +84,20 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
-    /// Searches both sources. Google, network, timeout, malformed-answer, and sign-in problems never throw: a failed
-    /// source is left out, and the access state says when the user can fix something.
+    /// Searches your contacts, your Workspace directory (when the grant has <see cref="GoogleOAuthClient.DirectoryScope"/>),
+    /// and other contacts, merged in that order. Google, network, timeout, malformed-answer, and sign-in problems never
+    /// throw: a failed source is left out, and the access state says when the user can fix something.
     /// </summary>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was canceled (the user kept typing).</exception>
-    public async Task<ContactResults> SearchAsync(string accountId, string query, CancellationToken ct)
+    public Task<ContactResults> SearchAsync(string accountId, string query, CancellationToken ct) => SearchAsync(accountId, query, workspace: false, ct);
+
+    /// <summary>
+    /// <see cref="SearchAsync(string, string, CancellationToken)"/>, for an account Leaf knows is a Workspace one: when
+    /// its grant lacks the directory permission, the results still come back, marked
+    /// <see cref="ContactAccess.NeedsConsent"/>, so the editor offers the one re-sign-in that adds it.
+    /// </summary>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was canceled (the user kept typing).</exception>
+    public async Task<ContactResults> SearchAsync(string accountId, string query, bool workspace, CancellationToken ct)
     {
         // Nothing To Search
         query = query.Trim();
@@ -86,11 +107,12 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
         }
 
         // Which Sources The Grant Allows
-        bool contacts, others;
+        bool contacts, others, directory;
         try
         {
-            contacts = await tokens.HasScopeAsync(accountId, GoogleOAuthClient.ContactsScope, ct);
-            others   = await tokens.HasScopeAsync(accountId, GoogleOAuthClient.OtherContactsScope, ct);
+            contacts  = await tokens.HasScopeAsync(accountId, GoogleOAuthClient.ContactsScope, ct);
+            others    = await tokens.HasScopeAsync(accountId, GoogleOAuthClient.OtherContactsScope, ct);
+            directory = await tokens.HasScopeAsync(accountId, GoogleOAuthClient.DirectoryScope, ct);
         }
         catch (AccountNeedsSignInException)
         {
@@ -104,11 +126,17 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
 
         string[] paths = [.. new[] { contacts ? ContactsPath : null, others ? OthersPath : null }.OfType<string>()];
 
-        // Warm Up Google's Search Cache Once Per Source
+        // Warm Up Google's Search Cache Once Per Source (the directory needs none)
         await Task.WhenAll(paths.Select(path => _warmups.GetOrAdd($"{accountId} {path}", _ => WarmUpAsync(accountId, path)))).WaitAsync(ct);
 
-        // Search Both Sources At Once
-        var pages = await Task.WhenAll(paths.Select(path => GetAsync(accountId, Url(path, query), ct)));
+        // Search Every Source At Once (the directory between contacts and other contacts)
+        var searches = paths.Select(path => SearchSourceAsync(accountId, Url(path, query), ct)).ToList();
+        if (directory)
+        {
+            searches.Insert(contacts ? 1 : 0, SearchDirectoryAsync(accountId, query, ct));
+        }
+
+        var pages = await Task.WhenAll(searches);
 
         // A Problem The User Can Fix Wins
         if (pages.Select(p => p.Access).FirstOrDefault(a => a != ContactAccess.Allowed) is var access and not ContactAccess.Allowed)
@@ -116,9 +144,25 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
             return new([], access);
         }
 
-        // Merge, Contacts First
-        var found = pages.Where(p => p.Page is not null).SelectMany(p => Clean(p.Page!).Take(MaxPerSource));
-        return new([.. found.DistinctBy(c => c.Email, StringComparer.OrdinalIgnoreCase).Take(MaxResults)], ContactAccess.Allowed);
+        // Merge In Source Order; A Workspace Grant Without The Directory Still Lists, With The Offer To Add It
+        var found = pages.SelectMany(p => p.People.Take(MaxPerSource)).DistinctBy(c => c.Email, StringComparer.OrdinalIgnoreCase).Take(MaxResults);
+        return new([.. found], workspace && !directory ? ContactAccess.NeedsConsent : ContactAccess.Allowed);
+    }
+
+    // Contacts or other contacts
+    async Task<(IEnumerable<Contact> People, ContactAccess Access)> SearchSourceAsync(string accountId, Uri uri, CancellationToken ct)
+    {
+        var (page, access) = await GetAsync(accountId, uri, GoogleJsonContext.Default.PeopleSearchResponse, ct);
+        return (Clean((page?.Results ?? []).Select(r => r.Person)), access);
+    }
+
+    // The Workspace directory: any refusal (personal accounts always get 400) is only a failed source, logged by status,
+    // never something to fix
+    async Task<(IEnumerable<Contact> People, ContactAccess Access)> SearchDirectoryAsync(string accountId, string query, CancellationToken ct)
+    {
+        var uri       = new Uri(_root, $"{DirectoryPath}?query={Uri.EscapeDataString(query)}&readMask=names,emailAddresses&sources=DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE&pageSize=10");
+        var (page, _) = await GetAsync(accountId, uri, GoogleJsonContext.Default.DirectorySearchResponse, ct, canFix: false);
+        return (Clean(page?.People ?? []), ContactAccess.Allowed);
     }
 
     // =========================================================================
@@ -144,8 +188,10 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
     }
 
     // One search, limited to Timeout. A null page with Allowed means it failed (logged by status only).
-    // Anything but the caller's own cancellation is a failure of this source, never an exception.
-    async Task<(PeopleSearchResponse? Page, ContactAccess Access)> GetAsync(string accountId, Uri uri, CancellationToken ct)
+    // Anything but the caller's own cancellation is a failure of this source, never an exception. Without canFix,
+    // every refusal is just a failure (the directory's).
+    async Task<(T? Page, ContactAccess Access)> GetAsync<T>(string accountId, Uri uri, JsonTypeInfo<T> type, CancellationToken ct, bool canFix = true)
+        where T : class
     {
         var status = 0;
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -159,11 +205,11 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
             // Success
             if (response.IsSuccessStatusCode)
             {
-                return (await response.Content.ReadFromJsonAsync(GoogleJsonContext.Default.PeopleSearchResponse, limit.Token) ?? new(), ContactAccess.Allowed);
+                return (await response.Content.ReadFromJsonAsync(type, limit.Token), ContactAccess.Allowed);
             }
 
             // Refusals The User Can Fix
-            if (response.StatusCode == HttpStatusCode.Forbidden)
+            if (canFix && response.StatusCode == HttpStatusCode.Forbidden)
             {
                 var error   = GoogleJson.TryParse(await response.Content.ReadAsStringAsync(limit.Token), GoogleJsonContext.Default.ApiErrorEnvelope)?.Error;
                 var reasons = (error?.Errors ?? []).Concat(error?.Details ?? []).Select(e => e.Reason).ToList();
@@ -181,7 +227,7 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
         }
         catch (AccountNeedsSignInException)
         {
-            return (null, ContactAccess.NeedsConsent);
+            return (null, canFix ? ContactAccess.NeedsConsent : ContactAccess.Allowed);
         }
         catch (Exception ex) when (!ct.IsCancellationRequested && ex is not OutOfMemoryException)
         {
@@ -223,9 +269,9 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
     // =========================================================================
 
     // Up to five valid addresses per person, each with the person's first name; people without one are dropped
-    static IEnumerable<Contact> Clean(PeopleSearchResponse page)
+    static IEnumerable<Contact> Clean(IEnumerable<PeoplePerson?> people)
     {
-        foreach (var person in (page.Results ?? []).Take(MaxPeople).Select(r => r.Person).OfType<PeoplePerson>())
+        foreach (var person in people.Take(MaxPeople).OfType<PeoplePerson>())
         {
             var name = Plain(person.Names?.FirstOrDefault()?.DisplayName, MaxName);
 
@@ -236,9 +282,11 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
         }
     }
 
-    // Kept only when it has no hidden or separator characters and parses back to exactly the same text
-    // (the guest field's rule); never altered
-    static string? ValidEmail(string? value)
+    /// <summary>
+    /// An untrusted address, kept only when it has no hidden or separator characters and parses back to exactly the
+    /// same text (the guest field's rule); never altered. Null when it doesn't pass.
+    /// </summary>
+    internal static string? ValidEmail(string? value)
     {
         var email = value?.Trim();
         if (string.IsNullOrEmpty(email) || email.Length > MaxEmail || email.Any(c => IsHidden(c) || char.IsSeparator(c)))
@@ -249,10 +297,14 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
         return MailAddress.TryCreate(email, out var address) && address.Address == email ? email : null;
     }
 
-    // Drops control and format characters (e.g. right-to-left overrides), trims, and caps the length
-    static string Plain(string? text, int max)
+    /// <summary>
+    /// Untrusted text as one plain line: <see cref="DisplayText.Clean"/>'s rules (control characters become spaces;
+    /// bidi, zero-width, and other format characters and lone surrogate halves go), trimmed, and cut at
+    /// <paramref name="max"/> without an ellipsis, never inside an emoji.
+    /// </summary>
+    internal static string Plain(string? text, int max)
     {
-        var plain = new string((text ?? "").Where(c => !IsHidden(c)).ToArray()).Trim();
+        var plain = DisplayText.Clean(text, int.MaxValue);
         if (plain.Length <= max)
         {
             return plain;

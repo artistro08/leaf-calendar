@@ -128,8 +128,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         using (var conn = services.Database.Open())
         {
             Settings  = SettingsStore.Load(conn);
-            Calendars     = CalendarStore.GetAll(conn);
-            AccountEmails = AccountStore.GetAll(conn).ToDictionary(a => a.Id, a => a.Email);
+            Calendars = CalendarStore.GetAll(conn);
+            ReadAccounts(conn);
         }
 
         // "Today" Is The Date In The Zone On Screen, Not The PC Clock's
@@ -185,6 +185,22 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     /// <summary>Account ID → email, for sidebar headers.</summary>
     public IReadOnlyDictionary<string, string> AccountEmails { get; private set; } = new Dictionary<string, string>();
+
+    /// <summary>True for a Google Workspace account (Google's <c>hd</c> sign-in claim); rooms and event types show only there.</summary>
+    public bool IsWorkspace(string accountId) => _workspace.Contains(accountId);
+
+    // The accounts Leaf knows are Workspace ones
+    HashSet<string> _workspace = [];
+
+    // Workspace domains are looked up once per session, for accounts that signed in before Leaf stored them
+    bool _domainsChecked;
+
+    void ReadAccounts(Microsoft.Data.Sqlite.SqliteConnection conn)
+    {
+        var accounts  = AccountStore.GetAll(conn);
+        AccountEmails = accounts.ToDictionary(a => a.Id, a => a.Email);
+        _workspace    = [.. accounts.Where(AccountStore.IsWorkspace).Select(a => a.Id)];
+    }
 
     /// <summary>Events in the next <see cref="UpcomingWindow"/>.</summary>
     public ObservableCollection<UpcomingItem> Upcoming { get; } = [];
@@ -581,9 +597,11 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         using (var conn = _services.Database.Open())
         {
-            Calendars     = CalendarStore.GetAll(conn);
-            AccountEmails = AccountStore.GetAll(conn).ToDictionary(a => a.Id, a => a.Email);
+            Calendars = CalendarStore.GetAll(conn);
+            ReadAccounts(conn);
         }
+
+        Editing?.AccountsChanged();
 
         // A Disconnected Account's Choices Go With It (main account, Meet by default, tray-excluded calendars)
         var pruned = Settings.ForAccounts([.. AccountEmails.Keys]);
@@ -742,9 +760,59 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     partial void OnEditingChanged(EventEditorViewModel? oldValue, EventEditorViewModel? newValue)
     {
         oldValue?.Dispose();
-        newValue?.SearchContacts = (query, ct) => _services.Google is { } google
-            ? google.Contacts.SearchAsync(newValue.ContactsAccountId, query, ct)
+        if (newValue is null)
+        {
+            return;
+        }
+
+        // Google's Suggestions (a Workspace account without the directory permission is offered it)
+        newValue.SearchContacts = (query, ct) => _services.Google is { } google
+            ? google.Contacts.SearchAsync(newValue.ContactsAccountId, query, IsWorkspace(newValue.ContactsAccountId), ct)
             : Task.FromResult(new ContactResults([], ContactAccess.Allowed));
+
+        // People You Meet Often And Rooms: read from local events on a background thread once per account per editor,
+        // kept in memory only while it's open
+        var people = new Dictionary<string, Task<IReadOnlyList<Contact>>>(StringComparer.Ordinal);
+        var rooms  = new Dictionary<string, Task<IReadOnlyList<Room>>>(StringComparer.Ordinal);
+        var now    = Now;
+
+        newValue.IsWorkspaceAccount = IsWorkspace;
+        newValue.LocalPeople        = (account, query) =>
+        {
+            if (!people.TryGetValue(account, out var load))
+            {
+                people[account] = load = Task.Run(() => ReadLocal(conn => FrequentPeople.Load(conn, account, now)));
+            }
+
+            return load.IsCompletedSuccessfully ? FrequentPeople.Match(load.Result, query) : [];
+        };
+        newValue.LoadRooms = account =>
+        {
+            if (!rooms.TryGetValue(account, out var load))
+            {
+                rooms[account] = load = Task.Run(() => ReadLocal(conn => Rooms.Load(conn, account)));
+            }
+
+            return load;
+        };
+
+        // Room Chips Of A Loaded Event Get Their Names
+        Fire(newValue.EnsureRoomsAsync, "rooms.load.failed");
+    }
+
+    // A local read for suggestions; a failure is logged and suggests nothing
+    IReadOnlyList<T> ReadLocal<T>(Func<Microsoft.Data.Sqlite.SqliteConnection, IReadOnlyList<T>> read)
+    {
+        try
+        {
+            using var conn = _services.Database.Open();
+            return read(conn);
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex)
+        {
+            _services.Log.Error("suggestions.load.failed", ex);
+            return [];
+        }
     }
 
     /// <summary>
@@ -1294,12 +1362,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>The "Email guests" address for an event (every guest but you), or null when no usable address remains.</summary>
+    /// <summary>The "Email guests" address for an event (every guest but you and the rooms), or null when no usable address remains.</summary>
     public static Uri? GuestsMailto(SelectedEventInfo info)
     {
         ArgumentNullException.ThrowIfNull(info);
 
-        var emails = info.Draft.Guests.Where(g => !g.IsSelf).Select(g => g.Email).ToList();
+        var emails = info.Draft.Guests.Where(g => !g.IsSelf && !g.IsResource).Select(g => g.Email).ToList();
         return emails.Count > 0 ? LinkSafety.MailtoGuests(emails, info.Details.Title) : null;
     }
 
@@ -1554,6 +1622,17 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
 
         IsOffline = _attachedSync?.IsOffline ?? false;
+
+        // Once Google Is Ready, Older Accounts Learn Whether They're Workspace Ones (once a session; then the editor sees it)
+        if (_services.Google is { } google && !_domainsChecked)
+        {
+            _domainsChecked = true;
+            Fire(async () =>
+            {
+                await google.RefreshHostedDomainsAsync(_life.Token);
+                ReloadCalendars();
+            }, "account.domain.failed");
+        }
     }
 
     void OnGoogleChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(AttachSync);

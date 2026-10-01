@@ -118,7 +118,7 @@ public sealed class SignInFlow(
         tokenStore.SetRefreshToken(user.Sub, tokens.RefreshToken!);
         accessTokens.Seed(user.Sub, tokens);
 
-        var account = new Account(user.Sub, user.Email, user.Name, user.Picture, AccountStatus.Ok);
+        var account = new Account(user.Sub, user.Email, user.Name, user.Picture, AccountStatus.Ok, user.Hd ?? "");
         using (var conn = database.Open())
         {
             AccountStore.Upsert(conn, account);

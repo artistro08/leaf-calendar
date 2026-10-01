@@ -24,7 +24,7 @@ public sealed class LeafDatabaseTests : IDisposable
         foreignKeys.CommandText = "PRAGMA foreign_keys;";
 
         Assert.Equal("wal", (string)mode.ExecuteScalar()!);
-        Assert.Equal(5L, (long)version.ExecuteScalar()!);
+        Assert.Equal(6L, (long)version.ExecuteScalar()!);
         Assert.Equal(1L, (long)foreignKeys.ExecuteScalar()!);
     }
 
@@ -89,8 +89,38 @@ public sealed class LeafDatabaseTests : IDisposable
             Assert.Equal(1L, pending[1].DependsOn);
             Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM calendars;", r => r.GetInt64(0)).Single());
             Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM events;", r => r.GetInt64(0)).Single());
-            Assert.Equal(5L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(6L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.True(AlertLedger.TryAdd(conn, "k", LeafCalendar.Core.Alerts.AlertKind.Reminder, "t", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            conn.Close();
+            SqliteConnection.ClearPool(conn);
+        }
+    }
+
+    [Fact]
+    public void Migrate_FromTheMilestone4Schema_AddsHostedDomainAsNull()
+    {
+        using var folder = new TempFolder();
+        var database     = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
+
+        // A Version 5 Database With One Account (what Milestone 4 installs have)
+        using (var conn = database.Open())
+        using (var setup = conn.CreateCommand())
+        {
+            setup.CommandText = Schema.V1 + Schema.V2 + Schema.V3 + Schema.V4 + Schema.V5 + """
+                PRAGMA user_version = 5;
+                INSERT INTO accounts (id, email, display_name) VALUES ('acct', 'a@example.com', 'A');
+                """;
+            setup.ExecuteNonQuery();
+        }
+
+        database.Migrate();
+
+        using (var conn = database.Open())
+        {
+            var account = Assert.Single(AccountStore.GetAll(conn));
+            Assert.Equal(("acct", "a@example.com", "A"), (account.Id, account.Email, account.DisplayName));
+            Assert.Null(account.HostedDomain);
+            Assert.Equal(6L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             conn.Close();
             SqliteConnection.ClearPool(conn);
         }

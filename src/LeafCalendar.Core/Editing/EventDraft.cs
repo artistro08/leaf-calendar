@@ -2,14 +2,18 @@ using LeafCalendar.Core.Events;
 
 namespace LeafCalendar.Core.Editing;
 
-/// <summary>A guest as the editor shows it. Google owns <see cref="IsSelf"/> and <see cref="IsOrganizer"/>.</summary>
+/// <summary>
+/// A guest as the editor shows it. Google owns <see cref="IsSelf"/> and <see cref="IsOrganizer"/>.
+/// <see cref="IsResource"/> marks a room (Google's <c>resource</c> attendees).
+/// </summary>
 public sealed record Guest(
     string Email,
     bool Optional = false,
     ResponseStatus Response = ResponseStatus.NeedsAction,
     string? Comment = null,
     bool IsSelf = false,
-    bool IsOrganizer = false);
+    bool IsOrganizer = false,
+    bool IsResource = false);
 
 /// <summary>
 /// The fields Leaf's editor changes. Comparing a "before" and an "after" draft gives the patch Leaf sends

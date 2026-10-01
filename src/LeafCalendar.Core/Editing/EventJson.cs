@@ -596,6 +596,11 @@ public static class EventJson
                 added["optional"] = true;
             }
 
+            if (guest.IsResource)
+            {
+                added["resource"] = true;
+            }
+
             result.Add((JsonNode)added);
         }
 
@@ -639,6 +644,12 @@ public static class EventJson
             if (guest.IsOrganizer)
             {
                 attendee["organizer"] = true;
+            }
+
+            // A Room Books The Resource
+            if (guest.IsResource)
+            {
+                attendee["resource"] = true;
             }
 
             array.Add((JsonNode)attendee);
@@ -691,12 +702,19 @@ public static class EventJson
         {
             if (Str(attendee, "email") is { Length: > 0 } email)
             {
-                guests.Add(new Guest(email, Flag(attendee, "optional"), ParseResponse(Str(attendee, "responseStatus")), Str(attendee, "comment"), Flag(attendee, "self"), Flag(attendee, "organizer")));
+                guests.Add(new Guest(email, Flag(attendee, "optional"), ParseResponse(Str(attendee, "responseStatus")), Str(attendee, "comment"), Flag(attendee, "self"), Flag(attendee, "organizer"), IsRoom(attendee, email)));
             }
         }
 
         return guests;
     }
+
+    /// <summary>True for a room: an attendee Google flags as a resource, or one with Google's resource address.</summary>
+    internal static bool IsRoom(JsonElement attendee, string email) =>
+        Flag(attendee, "resource") || email.EndsWith(RoomDomain, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The address suffix Google gives every room and resource calendar.</summary>
+    internal const string RoomDomain = "@resource.calendar.google.com";
 
     static IReadOnlyList<int> PopupMinutes(JsonElement root)
     {

@@ -224,7 +224,7 @@ public sealed partial class EventEditorView : UserControl
         }
 
         // Esc in an open dropdown (or the guest suggestions) only closes it
-        if (e.Key == VirtualKey.Escape && !RepeatBox.IsDropDownOpen && !EndsBox.IsDropDownOpen && !CalendarBox.IsDropDownOpen && !_reminderDropDownOpen && !GuestBox.IsSuggestionListOpen)
+        if (e.Key == VirtualKey.Escape && !RepeatBox.IsDropDownOpen && !EndsBox.IsDropDownOpen && !CalendarBox.IsDropDownOpen && !_reminderDropDownOpen && !GuestBox.IsSuggestionListOpen && !RoomBox.IsSuggestionListOpen)
         {
             e.Handled = true;
             _owner?.CancelEdit();
@@ -278,6 +278,25 @@ public sealed partial class EventEditorView : UserControl
     }
 
     void OnAddGuestClick(object sender, RoutedEventArgs e) => Editor?.AddGuest();
+
+    // Rooms come from local events, so typing lists them right away
+    void OnRoomTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput && _owner is { } owner && Editor is { } editor)
+        {
+            owner.Fire(editor.RefreshRoomSuggestionsAsync, "rooms.suggest.failed");
+        }
+    }
+
+    // A picked room is found by reference in our own list (never cast back from WinRT); typed text alone adds nothing
+    void OnRoomQuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        if (Editor is { } editor && (args.ChosenSuggestion ?? editor.RoomSuggestions.FirstOrDefault()) is { } chosen
+            && editor.RoomSuggestions.FirstOrDefault(s => ReferenceEquals(s, chosen)) is { } room)
+        {
+            editor.PickRoom(room);
+        }
+    }
 
     void OnAllowContactsClick(object sender, RoutedEventArgs e)
     {

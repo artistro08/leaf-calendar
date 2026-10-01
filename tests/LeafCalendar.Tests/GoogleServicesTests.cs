@@ -10,7 +10,8 @@ namespace LeafCalendar.Tests;
 
 public sealed class GoogleServicesTests : IDisposable
 {
-    const string RevokeUrl = "https://oauth2.googleapis.com/revoke";
+    const string RevokeUrl   = "https://oauth2.googleapis.com/revoke";
+    const string UserInfoUrl = "https://openidconnect.googleapis.com/v1/userinfo";
 
     readonly SyncHarness _h = new();
     readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
@@ -62,6 +63,38 @@ public sealed class GoogleServicesTests : IDisposable
         await services.DisconnectAsync(SyncHarness.AccountId, TestContext.Current.CancellationToken);
 
         Assert.Equal(["mine"], withdrawn);
+    }
+
+    [Fact]
+    public async Task RefreshHostedDomainsAsync_UnknownDomain_IsLookedUpOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _h.Google.On(HttpMethod.Post, SyncHarness.TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        _h.Google.On(HttpMethod.Get, UserInfoUrl, HttpStatusCode.OK, """{"sub":"109876543210","email":"leaf.tester@gmail.com","hd":"example.com"}""");
+        await using var services = CreateServices();
+
+        await services.RefreshHostedDomainsAsync(ct);
+        await services.RefreshHostedDomainsAsync(ct);
+
+        using var conn = _h.Db.Database.Open();
+        Assert.Equal("example.com", AccountStore.GetAll(conn).Single().HostedDomain);
+        Assert.Single(_h.Google.Requests, r => r.Uri.AbsoluteUri == UserInfoUrl);
+    }
+
+    [Fact]
+    public async Task RefreshHostedDomainsAsync_Failure_LogsTheAccountOnlyAndTriesAgainLater()
+    {
+        _h.Google.On(HttpMethod.Post, SyncHarness.TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        _h.Google.On(HttpMethod.Get, UserInfoUrl, HttpStatusCode.InternalServerError, """{"email":"leaf.tester@gmail.com"}""");
+        await using var services = CreateServices();
+
+        await services.RefreshHostedDomainsAsync(TestContext.Current.CancellationToken);
+
+        using var conn = _h.Db.Database.Open();
+        Assert.Null(AccountStore.GetAll(conn).Single().HostedDomain);
+        var log = File.ReadAllText(_h.LogPath);
+        Assert.Contains($"account.domain.failed account={SyncHarness.AccountId} error=GoogleApiException", log, StringComparison.Ordinal);
+        Assert.DoesNotContain("[email]", log, StringComparison.Ordinal);
     }
 
     [Fact]

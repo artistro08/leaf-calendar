@@ -26,6 +26,7 @@ public class EventJsonTests
         """;
 
     static readonly DateTimeOffset Start = new(2026, 10, 1, 18, 0, 0, TimeSpan.Zero);
+    static readonly DateTimeOffset End   = Start.AddHours(1);
 
     static EventDraft Read(string json = Meeting) => EventJson.ReadDraft("acct", "cal", json, Start, Start.AddHours(1), isAllDay: false);
 
@@ -449,5 +450,48 @@ public class EventJsonTests
         var draft = EventJson.ReadDraft("a", "c", """{"id":"x","summary":"S","start":{"dateTime":"2026-10-02T14:00:00Z"},"end":{"dateTime":"2026-10-02T15:00:00Z"},"conferenceData":{"conferenceId":"q"}}""",
             new DateTimeOffset(2026, 10, 2, 14, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 2, 15, 0, 0, TimeSpan.Zero), false);
         Assert.True(draft.HasConference);
+    }
+
+    // =========================================================================
+    // ROOMS
+    // =========================================================================
+
+    static EventDraft SampleDraft() => new() { AccountId = "acct", CalendarId = "cal", Title = "Coffee", Start = Start, End = End, TimeZone = "America/New_York" };
+
+    [Fact]
+    public void BuildCreate_RoomGuest_IsSentAsAResource()
+    {
+        var draft = SampleDraft() with { Guests = [new Guest("c_1@resource.calendar.google.com", IsResource: true)] };
+
+        var body = EventJson.BuildCreate("id1", draft);
+
+        Assert.True((bool)body["attendees"]![0]!["resource"]!);
+    }
+
+    [Fact]
+    public void ReadDraft_ResourceAttendee_IsARoom()
+    {
+        var draft = EventJson.ReadDraft("a", "c", """{"id":"x","attendees":[{"email":"c_1@resource.calendar.google.com","resource":true}]}""", Start, End, false);
+
+        Assert.True(Assert.Single(draft.Guests).IsResource);
+    }
+
+    [Fact]
+    public void ReadDraft_ResourceAddressWithoutTheFlag_IsARoom()
+    {
+        var draft = EventJson.ReadDraft("a", "c", """{"id":"x","attendees":[{"email":"c_1@resource.calendar.google.com"},{"email":"amy@example.com"}]}""", Start, End, false);
+
+        Assert.Equal([true, false], draft.Guests.Select(g => g.IsResource));
+    }
+
+    [Fact]
+    public void BuildPatch_AddedRoom_IsSentAsAResource()
+    {
+        var before = Read();
+        var after  = before with { Guests = [.. before.Guests, new Guest("c_1@resource.calendar.google.com", IsResource: true)] };
+
+        var attendees = (JsonArray)EventJson.BuildPatch(before, after, Meeting)["attendees"]!;
+
+        Assert.True((bool)attendees[^1]!["resource"]!);
     }
 }
