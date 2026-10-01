@@ -20,17 +20,35 @@ public static class BoxSelection
 
         var (firstDay, lastDay) = dayA <= dayB ? (dayA, dayB) : (dayB, dayA);
         var (from, to)          = (Math.Min(minutesA, minutesB), Math.Max(minutesA, minutesB));
-        var bands               = new List<(DateTimeOffset Start, DateTimeOffset End)>();
-
-        // One Band Per Covered Day
-        for (var day = firstDay; day <= lastDay; day = day.AddDays(1))
-        {
-            bands.Add((DragMath.Instant(day, from, zone), DragMath.Instant(day, to, zone)));
-        }
+        var days                = Enumerable.Range(0, lastDay.DayNumber - firstDay.DayNumber + 1).Select(firstDay.AddDays).ToList();
 
         return [.. occurrences
-            .Where(o => !o.IsAllDay)
-            .Where(o => bands.Exists(b => o.Start == o.End ? o.Start >= b.Start && o.Start <= b.End : o.Start < b.End && o.End > b.Start))
+            .Where(o => !o.IsAllDay && days.Exists(day => Hits(o, day, from, to, zone)))
             .DistinctBy(o => o.Key)];
     }
+
+    // The event's part of the day, in wall-clock minutes as the grid draws it, against the band. Wall-clock (not
+    // instants), so both passes of the repeated fall-back hour, and a spring-forward gap, count where they're drawn
+    static bool Hits(CalendarOccurrence o, DateOnly day, double from, double to, TimeZoneInfo zone)
+    {
+        var dayStart = DragMath.Instant(day, 0, zone);
+        var dayEnd   = DragMath.Instant(day.AddDays(1), 0, zone);
+
+        // A Zero-Minute Event Counts When It Sits Inside The Band
+        if (o.Start == o.End)
+        {
+            return o.Start >= dayStart && o.Start < dayEnd && WallMinutes(o.Start, zone) is var at && at >= from && at <= to;
+        }
+
+        if (o.Start >= dayEnd || o.End <= dayStart)
+        {
+            return false;
+        }
+
+        var top    = o.Start <= dayStart ? 0 : WallMinutes(o.Start, zone);
+        var bottom = o.End >= dayEnd ? 24 * 60 : WallMinutes(o.End, zone);
+        return top < to && bottom > from;
+    }
+
+    static double WallMinutes(DateTimeOffset instant, TimeZoneInfo zone) => TimeZoneInfo.ConvertTime(instant, zone).TimeOfDay.TotalMinutes;
 }

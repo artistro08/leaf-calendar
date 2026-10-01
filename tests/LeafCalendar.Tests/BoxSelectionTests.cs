@@ -57,6 +57,37 @@ public class BoxSelectionTests
         Assert.Equal(["three-am"], BoxSelection.InTimeBox(all, sunday, sunday, 2.5 * 60, 4 * 60, NewYork).Select(o => o.EventId));
     }
 
+    // Fall-back Sunday: a band inside the repeated 1:00–2:00 hour covers both passes, since the grid draws both there
+    [Fact]
+    public void InTimeBox_FallBackDay_BandInsideRepeatedHour_PicksBothPasses()
+    {
+        var sunday = new DateOnly(2026, 11, 1);
+        var edt    = TimeSpan.FromHours(-4);
+        var est    = TimeSpan.FromHours(-5);
+        CalendarOccurrence[] all =
+        [
+            TestOccurrences.Make("first-pass", new DateTimeOffset(2026, 11, 1, 1, 20, 0, edt), new DateTimeOffset(2026, 11, 1, 1, 40, 0, edt), false),
+            TestOccurrences.Make("second-pass", new DateTimeOffset(2026, 11, 1, 1, 20, 0, est), new DateTimeOffset(2026, 11, 1, 1, 40, 0, est), false),
+            At("two-am", sunday, 2, 3),
+        ];
+
+        Assert.Equal(["first-pass", "second-pass"], BoxSelection.InTimeBox(all, sunday, sunday, 75, 105, NewYork).Select(o => o.EventId));
+    }
+
+    // Spring-forward Sunday (Mar 8 2026): 2:00–3:00 doesn't happen; a band drawn there covers what the grid draws there
+    [Fact]
+    public void InTimeBox_SpringForwardGap_PicksWhatSpansTheGapOnly()
+    {
+        var sunday = new DateOnly(2026, 3, 8);
+        CalendarOccurrence[] all =
+        [
+            TestOccurrences.Make("across-gap", new DateTimeOffset(2026, 3, 8, 1, 30, 0, TimeSpan.FromHours(-5)), new DateTimeOffset(2026, 3, 8, 3, 30, 0, TimeSpan.FromHours(-4)), false),
+            At("three-am", sunday, 3, 4),
+        ];
+
+        Assert.Equal(["across-gap"], BoxSelection.InTimeBox(all, sunday, sunday, 2 * 60, 2.75 * 60, NewYork).Select(o => o.EventId));
+    }
+
     [Fact]
     public void InTimeBox_EventCrossingMidnight_PickedFromEitherDay()
     {

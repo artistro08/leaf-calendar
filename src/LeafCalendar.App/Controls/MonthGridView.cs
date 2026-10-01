@@ -119,7 +119,6 @@ public sealed partial class MonthGridView : Grid, IDisposable
         // Dragging Chips Between Days
         _ghost.Child = _ghostLabel;
         _dragLayer.Children.Add(_ghost);
-        AutomationProperties.SetAutomationId(_box, "SelectionBox");
         _dragLayer.Children.Add(_box);
         SetRow(_dragLayer, 1);
         Children.Add(_dragLayer);
@@ -288,6 +287,12 @@ public sealed partial class MonthGridView : Grid, IDisposable
             _animating = false;
         }
 
+        // A Box Being Dragged Keeps Its Press Corner On The Day It Started On
+        if (_boxDrag is { Started: true } box)
+        {
+            DrawBox(box);
+        }
+
         // Navigating: wait for the target (the destination was reported when the navigation began)
         if (_pendingIndex is not null)
         {
@@ -429,17 +434,20 @@ public sealed partial class MonthGridView : Grid, IDisposable
         public DateOnly? Target { get; set; }
     }
 
-    // Shift+Drag Box: the press point (in the drag layer) and the cell it started in
-    sealed class BoxDrag(Point origin, (int Row, int Column) cell)
+    // Shift+Drag Box: the press point (in the drag layer, for the threshold; in the week rows, so it scrolls with
+    // them), the cell it started in, and where the pointer is now (in the drag layer)
+    sealed class BoxDrag(Point origin, Point corner, (int Row, int Column) cell)
     {
         public Point Origin { get; } = origin;
+        public Point Corner { get; } = corner;
         public (int Row, int Column) Cell { get; } = cell;
+        public Point Pointer { get; set; }
         public bool Started { get; set; }
     }
 
     ChipDrag? _drag;
     BoxDrag? _boxDrag;
-    readonly Border _box = new() { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+    readonly Border _box = TimeGridView.SelectionBox();
 
     /// <summary>True between a press on a chip (or a Shift+press on empty space) and its release.</summary>
     public bool IsDragPending => _drag is not null || _boxDrag is not null;
@@ -458,7 +466,8 @@ public sealed partial class MonthGridView : Grid, IDisposable
             return;
         }
 
-        _boxDrag = new BoxDrag(point.Position, CellAt(e.GetCurrentPoint(_repeater).Position));
+        var corner = e.GetCurrentPoint(_repeater).Position;
+        _boxDrag   = new BoxDrag(point.Position, corner, CellAt(corner));
     }
 
     /// <summary>A chip was pressed: dragging moves the event to another day (keeping its time). Events you can't change don't drag.</summary>
@@ -505,6 +514,14 @@ public sealed partial class MonthGridView : Grid, IDisposable
         return (row, column);
     }
 
+    // The cell under the pointer, kept to the visible rows (a pointer above or below the view counts as the edge row)
+    (int Row, int Column) VisibleCellAt(PointerRoutedEventArgs e)
+    {
+        var inRepeater = e.GetCurrentPoint(_repeater).Position;
+        var top        = _scroll.VerticalOffset;
+        return CellAt(new Point(inRepeater.X, Math.Clamp(inRepeater.Y, top, top + Math.Max(0, _scroll.ViewportHeight - 1))));
+    }
+
     void OnDragMoved(object sender, PointerRoutedEventArgs e)
     {
         if (_boxDrag is { } box)
@@ -544,10 +561,9 @@ public sealed partial class MonthGridView : Grid, IDisposable
         }
 
         // Redraw The Ghost Only When The Cell Or Copy Mode Changes (the pointer is kept to the visible rows)
-        var inRepeater = e.GetCurrentPoint(_repeater).Position;
-        var top        = _scroll.VerticalOffset;
-        var cell       = CellAt(new Point(inRepeater.X, Math.Clamp(inRepeater.Y, top, top + Math.Max(0, _scroll.ViewportHeight - 1))));
-        var duplicate  = KeyState.IsDown(VirtualKey.Menu);
+        var top       = _scroll.VerticalOffset;
+        var cell      = VisibleCellAt(e);
+        var duplicate = KeyState.IsDown(VirtualKey.Menu);
         e.Handled = true;
         if (cell == drag.Cell && duplicate == drag.Duplicate)
         {
@@ -595,12 +611,18 @@ public sealed partial class MonthGridView : Grid, IDisposable
                 return;
             }
 
+            // The Accent Is Read Once Per Drag
             box.Started = true;
+            TimeGridView.StyleBox(_box, IsDark);
         }
 
-        e.Handled = true;
-        TimeGridView.ShowBox(_box, box.Origin, at, IsDark);
+        e.Handled   = true;
+        box.Pointer = at;
+        DrawBox(box);
     }
+
+    // The press corner stays on the day it was pressed on (it scrolls with the rows); the other follows the pointer
+    void DrawBox(BoxDrag box) => TimeGridView.ShowBox(_box, _repeater.TransformToVisual(_dragLayer).TransformPoint(box.Corner), box.Pointer);
 
     // Every event on the shown days of the covered cells (hidden weekends aren't columns, so they stay out); Ctrl adds
     void ReleaseBox(BoxDrag box, PointerRoutedEventArgs e)
@@ -614,7 +636,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
         }
 
         e.Handled = true;
-        var end                 = CellAt(e.GetCurrentPoint(_repeater).Position);
+        var end                 = VisibleCellAt(e);
         var (firstRow, lastRow) = (Math.Min(box.Cell.Row, end.Row), Math.Max(box.Cell.Row, end.Row));
         var (firstCol, lastCol) = (Math.Min(box.Cell.Column, end.Column), Math.Max(box.Cell.Column, end.Column));
         var days                = Enumerable.Range(firstRow, lastRow - firstRow + 1)

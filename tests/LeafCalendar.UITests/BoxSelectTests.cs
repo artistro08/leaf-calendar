@@ -71,9 +71,19 @@ public sealed class BoxSelectTests : IDisposable
 
         ShiftDrag(from, to);
 
-        Assert.Matches(@"^\d+ events selected$", leaf.WaitFor("SelectionSummary").Name);
+        var summary = leaf.WaitFor("SelectionSummary").Name;
+        Assert.Matches(@"^\d+ events selected$", summary);
+        Assert.True(int.Parse(summary.Split(' ')[0], CultureInfo.InvariantCulture) >= 2, summary);
+        Assert.True(Retry.WhileFalse(() => IsSelected(leaf, Monday) && IsSelected(leaf, Friday), TimeSpan.FromSeconds(5)).Success, "Monday's and Friday's cards aren't both selected.");
         Assert.Empty(_google.Writes);
     }
+
+    // Cards publish "Selected" in their automation ItemStatus
+    static bool IsSelected(LeafApp leaf, string id) =>
+        (leaf.WaitFor(id).Properties.ItemStatus.ValueOrDefault ?? "").Split(';').Contains("Selected");
+
+    static bool BoxShowing(LeafApp leaf) =>
+        (leaf.WaitFor("TimeGrid").Properties.ItemStatus.ValueOrDefault ?? "").Split(';').Contains("box=1");
 
     // The same path with no Shift still creates an event
     [Fact]
@@ -126,6 +136,10 @@ public sealed class BoxSelectTests : IDisposable
                 Thread.Sleep(30);
             }
 
+            // The Box Really Shows Before Esc
+            Assert.True(Retry.WhileFalse(() => BoxShowing(leaf), TimeSpan.FromSeconds(5)).Success, "No box showed while dragging.");
+            Assert.True(leaf.Exists("SelectionBox"));
+
             Keyboard.Release(VirtualKeyShort.SHIFT);
             Keyboard.Press(VirtualKeyShort.ESCAPE);
         }
@@ -138,6 +152,7 @@ public sealed class BoxSelectTests : IDisposable
         Thread.Sleep(500);
         Assert.False(leaf.Exists("SelectionSummary"));
         Assert.False(leaf.Exists("SelectionBox"));
+        Assert.False(BoxShowing(leaf));
         Assert.False(leaf.Exists("EventEditor"));
     }
 

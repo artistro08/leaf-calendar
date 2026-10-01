@@ -238,7 +238,6 @@ public sealed partial class TimeGridView : Grid, IDisposable
         PointerCanceled    += (_, _) => CancelDrag();
 
         // Selection Box (over the whole view, so its canvas shares this view's coordinates; clicks go through)
-        AutomationProperties.SetAutomationId(_box, "SelectionBox");
         _boxLayer.Children.Add(_box);
         SetRowSpan(_boxLayer, 2);
         SetColumnSpan(_boxLayer, 2);
@@ -425,6 +424,12 @@ public sealed partial class TimeGridView : Grid, IDisposable
             _animating   = false;
         }
 
+        // A Box Being Dragged Keeps Its Press Corner On The Time It Started At
+        if (_drag is { Kind: DragKind.Box, Started: true } box)
+        {
+            DrawBox(box);
+        }
+
         // Navigating: wait for the target, then take it (the destination was reported when the navigation began)
         if (_pendingIndex is not null)
         {
@@ -550,8 +555,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
     }
 
     // Where the body came to rest, for UI tests (the first day, the offsets, and the column width)
+    // (and ";box=1" while a selection box shows)
     void PublishOffset() =>
-        AutomationProperties.SetItemStatus(this, string.Create(CultureInfo.InvariantCulture, $"first={_strip[_firstIndex]:yyyy-MM-dd};offset={_bodyScroll.HorizontalOffset:R};column={ColumnWidth:R};top={_bodyScroll.VerticalOffset:R}"));
+        AutomationProperties.SetItemStatus(this, string.Create(CultureInfo.InvariantCulture, $"first={_strip[_firstIndex]:yyyy-MM-dd};offset={_bodyScroll.HorizontalOffset:R};column={ColumnWidth:R};top={_bodyScroll.VerticalOffset:R}{(_box.Visibility == Visibility.Visible ? ";box=1" : "")}"));
 
     // The mouse wheel over the hour gutter or the day headers scrolls the body (vertically; a tilt wheel or
     // Shift+wheel horizontally), building on a scroll that's still animating so fast notches add up
@@ -771,6 +777,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
         public DateOnly GrabbedDay { get; init; }
         public DateOnly BoxDay { get; init; }
         public double BoxMinutes { get; init; }
+        public Point BoxCorner { get; init; }
+        public Point BoxPointer { get; set; }
         public bool Started { get; set; }
         public bool Duplicate { get; set; }
         public (DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? Target { get; set; }
@@ -778,9 +786,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     DragSession? _drag;
 
-    // Shift+Drag Box (spec 7.3), drawn on its own layer above the grid
+    // Shift+Drag Box (spec 7.3), drawn on its own layer above the grid (the probe gives UI tests something to find)
     readonly Canvas _boxLayer = new() { IsHitTestVisible = false };
-    readonly Border _box      = new() { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+    readonly Border _box      = SelectionBox();
 
     /// <summary>True between a press on something draggable and its release.</summary>
     public bool IsDragPending => _drag is not null;
@@ -813,10 +821,15 @@ public sealed partial class TimeGridView : Grid, IDisposable
     {
         var (day, minutes) = BodyPosition(e);
 
-        // Shift: Box Select Instead Of Create (spec 7.3; not while picking times to share or editing)
-        if (KeyState.IsDown(Windows.System.VirtualKey.Shift) && !_vm.IsSharing && _vm.Editing is null)
+        // Shift: Box Select Instead Of Create (spec 7.3). While editing it does nothing (no box, no new event);
+        // while picking times to share it picks a time like any drag
+        if (KeyState.IsDown(Windows.System.VirtualKey.Shift) && !_vm.IsSharing)
         {
-            _drag = new DragSession(DragKind.Box, e.GetCurrentPoint(this).Position) { BoxDay = day, BoxMinutes = minutes };
+            if (_vm.Editing is null)
+            {
+                _drag = new DragSession(DragKind.Box, e.GetCurrentPoint(this).Position) { BoxDay = day, BoxMinutes = minutes, BoxCorner = e.GetCurrentPoint(_bodyRepeater).Position };
+            }
+
             return;
         }
 
@@ -858,8 +871,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return false;
         }
 
-        _drag           = null;
-        _box.Visibility = Visibility.Collapsed;
+        _drag = null;
+        HideBox();
         ClearGhosts();
         ReleasePointerCaptures();
         return true;
@@ -901,7 +914,14 @@ public sealed partial class TimeGridView : Grid, IDisposable
         e.Handled = true;
         if (drag.Kind == DragKind.Box)
         {
-            ShowBox(_box, drag.Origin, at, IsDark);
+            // The Accent Is Read Once Per Drag (so theme and high-contrast changes apply to the next box)
+            if (_box.Visibility == Visibility.Collapsed)
+            {
+                StyleBox(_box, IsDark);
+            }
+
+            drag.BoxPointer = at;
+            DrawBox(drag);
             return;
         }
 
@@ -925,8 +945,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
-        _drag           = null;
-        _box.Visibility = Visibility.Collapsed;
+        _drag = null;
+        HideBox();
         ReleasePointerCapture(e.Pointer);
         ClearGhosts();
         if (!drag.Started)
@@ -1060,18 +1080,52 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
     }
 
-    /// <summary>
-    /// Shows a selection box between two corners in its canvas (the time grid's and the month view's). The accent is
-    /// read each time, so theme and high-contrast changes apply.
-    /// </summary>
-    internal static void ShowBox(Border box, Point a, Point b, bool dark)
+    // The press corner stays on the time it was pressed at (it scrolls with the body); the other follows the pointer
+    void DrawBox(DragSession drag)
     {
-        box.BorderBrush = LeafBrushes.Accent(dark);
-        box.Background  = LeafBrushes.Accent(dark);
+        var showing = _box.Visibility == Visibility.Visible;
+        ShowBox(_box, _bodyRepeater.TransformToVisual(this).TransformPoint(drag.BoxCorner), drag.BoxPointer);
+        if (!showing)
+        {
+            PublishOffset();
+        }
+    }
+
+    void HideBox()
+    {
+        if (_box.Visibility == Visibility.Collapsed)
+        {
+            return;
+        }
+
+        _box.Visibility = Visibility.Collapsed;
+        PublishOffset();
+    }
+
+    /// <summary>A hidden selection box (the time grid's and the month view's), with an automation probe UI tests can find.</summary>
+    internal static Border SelectionBox()
+    {
+        var probe = new TextBlock();
+        AutomationProperties.SetAutomationId(probe, "SelectionBox");
+        AutomationProperties.SetName(probe, "Selection box");
+        return new Border { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), IsHitTestVisible = false, Visibility = Visibility.Collapsed, Child = probe };
+    }
+
+    /// <summary>Colors a selection box with the accent, once per drag.</summary>
+    internal static void StyleBox(Border box, bool dark)
+    {
+        var accent      = LeafBrushes.Accent(dark);
+        box.BorderBrush = accent;
+        box.Background  = accent;
         box.Opacity     = 0.25;
-        box.Width       = Math.Abs(b.X - a.X);
-        box.Height      = Math.Abs(b.Y - a.Y);
-        box.Visibility  = Visibility.Visible;
+    }
+
+    /// <summary>Shows a selection box between two corners in its canvas.</summary>
+    internal static void ShowBox(Border box, Point a, Point b)
+    {
+        box.Width      = Math.Abs(b.X - a.X);
+        box.Height     = Math.Abs(b.Y - a.Y);
+        box.Visibility = Visibility.Visible;
         Canvas.SetLeft(box, Math.Min(a.X, b.X));
         Canvas.SetTop(box, Math.Min(a.Y, b.Y));
     }
