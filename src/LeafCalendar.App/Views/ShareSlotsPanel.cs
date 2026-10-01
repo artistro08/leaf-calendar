@@ -36,8 +36,8 @@ public sealed partial class ShareSlotsPanel : UserControl
         stack.Children.Add(_empty);
         stack.Children.Add(_rows);
 
-        Padding = new Thickness(0, 48, 0, 0);
-        Content = new ScrollViewer { Content = stack };
+        // Under The Title Bar Row (a UserControl doesn't apply its own padding)
+        Content = new ScrollViewer { Content = stack, Margin = new Thickness(0, 48, 0, 0) };
         AutomationProperties.SetName(this, "Times to share");
         AutomationProperties.SetAutomationId(this, "ShareSlotsPanel");
     }
