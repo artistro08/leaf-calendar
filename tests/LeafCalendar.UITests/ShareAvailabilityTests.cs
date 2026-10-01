@@ -15,7 +15,10 @@ public sealed class ShareAvailabilityTests : IDisposable
     const string Family  = "family123@group.calendar.google.com";
 
     readonly FakeGoogleServer _google = new();
-    string _profile = SeededProfile.Create();
+    // Leaf shows Eastern time (the copied text names ET), whatever this PC's time zone is
+    const string Eastern = "America/New_York";
+
+    string _profile = SeededProfile.Create(new LeafSettings { PrimaryTimeZone = Eastern });
 
     public void Dispose()
     {
@@ -90,7 +93,7 @@ public sealed class ShareAvailabilityTests : IDisposable
     public void CopyInTokyoTime_SplitsAtMidnight()
     {
         LeafApp.DeleteProfile(_profile);
-        _profile = SeededProfile.Create(new LeafSettings { TimeZones = [new ExtraTimeZone("Asia/Tokyo", null)] });
+        _profile = SeededProfile.Create(new LeafSettings { PrimaryTimeZone = Eastern, TimeZones = [new ExtraTimeZone("Asia/Tokyo", null)] });
         using var leaf = Launch();
         StartSharing(leaf);
 
