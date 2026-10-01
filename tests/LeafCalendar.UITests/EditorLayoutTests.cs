@@ -105,6 +105,12 @@ public sealed class EditorLayoutTests : IDisposable
             var time = leaf.WaitFor(timeId).BoundingRectangle;
             Assert.True(Overlap(date, time), $"{dateId} at {date} and {timeId} at {time} aren't on one row.");
             Assert.True(date.Right <= panel.Right && time.Right <= panel.Right, $"{dateId} ({date}) or {timeId} ({time}) runs past the panel ({panel}).");
+
+            // Every part of the time shows: "8 00 AM" is five separate glyphs, "8 00" three. Its box alone can't tell, since
+            // UI Automation clips it to what's visible; a picker drawn wider than its column loses the minutes or AM/PM
+            using var ink = Ink.Capture(time);
+            var glyphs = ink.Runs((int)Math.Ceiling(4 * leaf.Scale)).Count;
+            Assert.True(glyphs >= (use24Hour ? 3 : 5), $"{timeId} shows {glyphs} glyphs; part of the time is cut off.");
         }
     }
 

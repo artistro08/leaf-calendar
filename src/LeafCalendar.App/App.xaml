@@ -8,10 +8,6 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <ResourceDictionary Source="ms-appx:///Styles/LeafTheme.xaml" />
             </ResourceDictionary.MergedDictionaries>
-
-            <!-- Time pickers shrink to their column (the editor's date and time share a row). The picker's template reads
-                 this as a StaticResource, so it has to live at the app level; the editor's are the only time pickers. -->
-            <x:Double x:Key="TimePickerThemeMinWidth">0</x:Double>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

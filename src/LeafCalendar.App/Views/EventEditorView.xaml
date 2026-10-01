@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:LeafCalendar.App.ViewModels"
     xmlns:local="using:LeafCalendar.App.Views"
+    xmlns:controls="using:LeafCalendar.App.Controls"
     AutomationProperties.Name="Event editor"
     AutomationProperties.AutomationId="EventEditor">
 
@@ -39,7 +40,7 @@
                             HorizontalAlignment="Stretch"
                             Date="{x:Bind Editor.StartDate, Mode=TwoWay}"
                             AutomationProperties.AutomationId="EditorStartDate" />
-                        <TimePicker
+                        <controls:LeafTimePicker
                             Grid.Column="1"
                             MinWidth="0"
                             HorizontalAlignment="Stretch"
@@ -60,7 +61,7 @@
                             HorizontalAlignment="Stretch"
                             Date="{x:Bind Editor.EndDate, Mode=TwoWay}"
                             AutomationProperties.AutomationId="EditorEndDate" />
-                        <TimePicker
+                        <controls:LeafTimePicker
                             x:Name="EndTimePicker"
                             Grid.Column="1"
                             MinWidth="0"
