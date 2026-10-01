@@ -1,5 +1,7 @@
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
+using FlaUI.Core.WindowsAPI;
 using LeafCalendar.UITests.Support;
 
 namespace LeafCalendar.UITests;
@@ -37,6 +39,20 @@ public sealed class TrayMenuTests : IDisposable
         }
 
         Assert.Equal("Settings…", leaf.WaitForPopup("TrayMenuSettings").Name);
+    }
+
+    [Fact]
+    public void Escape_ClosesTheMenuAndHidesItsHost()
+    {
+        using var leaf = Launch();
+        leaf.RightClickTrayIcon();
+        leaf.WaitForPopup("TrayMenuOpen");
+        Assert.True(leaf.IsTrayHostShown());
+
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+
+        Assert.True(Retry.WhileTrue(() => leaf.PopupExists("TrayMenuOpen"), TimeSpan.FromSeconds(5)).Success);
+        Assert.True(Retry.WhileTrue(leaf.IsTrayHostShown, TimeSpan.FromSeconds(5)).Success);
     }
 
     [Fact]

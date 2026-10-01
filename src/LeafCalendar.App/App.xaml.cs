@@ -56,9 +56,9 @@ public partial class App : Application
     {
         InitializeComponent();
 
-        // Crash Logging
-        UnhandledException                    += (_, e) => _log?.Error("app.unhandled", e.Exception);
-        TaskScheduler.UnobservedTaskException += (_, e) => _log?.Error("app.task.unobserved", e.Exception);
+        // Crash Logging (the type only: an exception's message can carry event content)
+        UnhandledException                    += (_, e) => _log?.Info("app.unhandled", $"error={e.Exception.GetType().Name}");
+        TaskScheduler.UnobservedTaskException += (_, e) => _log?.Info("app.task.unobserved", $"error={e.Exception.GetType().Name}");
     }
 
     /// <inheritdoc />
@@ -77,7 +77,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            _log.Error("app.start.failed", ex);
+            _log.Info("app.start.failed", $"error={ex.GetType().Name}");
             throw;
         }
 
@@ -164,7 +164,7 @@ public partial class App : Application
         // Tray Menu And Flyout (the host is created once and kept hidden; without it Leaf runs on without them)
         try
         {
-            var host = new TrayHost();
+            var host = new TrayHost(services.Log);
             host.OpenRequested      += (_, _) => ShowMainWindow();
             host.NewEventRequested  += (_, _) => NewEvent();
             host.JoinNextRequested  += (_, _) => JoinNext();
@@ -620,16 +620,23 @@ public partial class App : Application
         _quitting = true;
         try
         {
-            _minuteTimer?.Stop();
-            _alerts?.Dispose();
-            _notifier?.Dispose();
-            _tray?.Dispose();
-            _tray = null;
-            SettingsWindow.Current?.Close();
-            _window?.Close();
-            _host?.Shutdown();
-            _calendar?.Dispose();
-            _calendar = null;
+            // Each Step On Its Own, So One Failure Can't Skip The Database And Sync Teardown
+            QuitStep("timer", () => _minuteTimer?.Stop());
+            QuitStep("alerts", () => _alerts?.Dispose());
+            QuitStep("notifier", () => _notifier?.Dispose());
+            QuitStep("tray", () =>
+            {
+                _tray?.Dispose();
+                _tray = null;
+            });
+            QuitStep("settings", () => SettingsWindow.Current?.Close());
+            QuitStep("window", () => _window?.Close());
+            QuitStep("host", () => _host?.Shutdown());
+            QuitStep("calendar", () =>
+            {
+                _calendar?.Dispose();
+                _calendar = null;
+            });
             if (_services is { } services)
             {
                 _services = null;
@@ -643,6 +650,19 @@ public partial class App : Application
         finally
         {
             Exit();
+        }
+    }
+
+    // One Quit step: logged by its name and the error type, then Quit carries on
+    void QuitStep(string step, Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            _log?.Info("app.quit.step.failed", $"step={step} error={ex.GetType().Name}");
         }
     }
 
@@ -662,7 +682,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            services.Log.Error("app.dispose.failed", ex);
+            services.Log.Info("app.dispose.failed", $"error={ex.GetType().Name}");
         }
     }
 }

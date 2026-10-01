@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.Interop;
+using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Tray;
@@ -40,6 +41,7 @@ public sealed partial class TrayHost : Window
     // The icon click that closed the flyout (by taking focus) arrives just after the close, so it mustn't reopen it
     const long ReopenGuardMs = 300;
 
+    readonly AppLog _log;
     Action? _pendingOpen;
     TaskbarEdge _edge;
     AgendaModel? _model;
@@ -48,9 +50,10 @@ public sealed partial class TrayHost : Window
     bool _exitFinished;
     bool _shuttingDown;
 
-    /// <summary>Creates the hidden host.</summary>
-    public TrayHost()
+    /// <summary>Creates the hidden host; a failed open is logged to <paramref name="log"/> by event name and error type.</summary>
+    public TrayHost(AppLog log)
     {
+        _log = log;
         InitializeComponent();
         InvisibleHost.Apply(this);
         ScrollIndicator.ShowOnHover(AgendaScroll);
@@ -105,11 +108,24 @@ public sealed partial class TrayHost : Window
     /// <summary>Opens the menu for a right-click at a screen point (physical pixels), growing away from the taskbar.</summary>
     public void ShowMenu(int x, int y, AppTheme theme)
     {
-        HideAgenda();
-        var screen   = TrayScreen.At(x, y);
-        var (ax, ay) = TrayPlacement.MenuAnchor(x, y, screen.Area, screen.Edge, screen.Scale);
-        Root.RequestedTheme = MainWindow.ElementThemeOf(theme);
-        Open(ax, ay, screen.Scale, position => Menu.ShowAt(Root, new FlyoutShowOptions { Position = position, Placement = MenuPlacement(screen.Edge) }));
+        try
+        {
+            // One Popup At A Time (a second right-click moves the menu)
+            HideAgenda();
+            if (Menu.IsOpen)
+            {
+                Menu.Hide();
+            }
+
+            var screen   = TrayScreen.At(x, y);
+            var (ax, ay) = TrayPlacement.MenuAnchor(x, y, screen.Area, screen.Edge, screen.Scale);
+            Root.RequestedTheme = MainWindow.ElementThemeOf(theme);
+            Open(ax, ay, screen.Scale, position => Menu.ShowAt(Root, new FlyoutShowOptions { Position = position, Placement = MenuPlacement(screen.Edge) }));
+        }
+        catch (Exception ex)
+        {
+            Fail("tray.menu.open.failed", ex);
+        }
     }
 
     /// <summary>Opens the flyout next to the tray icon (or at the primary taskbar's far end when its place is unknown).</summary>
@@ -120,27 +136,34 @@ public sealed partial class TrayHost : Window
             return;
         }
 
-        if (Menu.IsOpen)
+        try
         {
-            Menu.Hide();
+            if (Menu.IsOpen)
+            {
+                Menu.Hide();
+            }
+
+            // Placement: the panel next to the icon, opened from the frame's corner on the taskbar side
+            var screen   = icon is { } r ? TrayScreen.At((r.Left + r.Right) / 2, (r.Top + r.Bottom) / 2) : TrayScreen.Primary();
+            var panel    = TrayPlacement.Flyout(screen.Area, screen.Edge, icon, screen.Scale);
+            var (ax, ay) = TrayPlacement.FlyoutAnchor(TrayPlacement.Frame(panel, screen.Scale), screen.Edge);
+            _edge                      = screen.Edge;
+            AgendaPanel.Width          = panel.Width / screen.Scale;
+            AgendaPanel.Height         = panel.Height / screen.Scale;
+            AgendaFrame.RequestedTheme = MainWindow.ElementThemeOf(theme);
+            UpdateAgenda(model);
+
+            Open(ax, ay, screen.Scale, position => Agenda.ShowAt(Root, new FlyoutShowOptions
+            {
+                Position  = position,
+                Placement = AgendaPlacement(screen.Edge),
+                ShowMode  = FlyoutShowMode.Standard,
+            }));
         }
-
-        // Placement: the panel next to the icon, opened from the frame's corner on the taskbar side
-        var screen   = icon is { } r ? TrayScreen.At((r.Left + r.Right) / 2, (r.Top + r.Bottom) / 2) : TrayScreen.Primary();
-        var panel    = TrayPlacement.Flyout(screen.Area, screen.Edge, icon, screen.Scale);
-        var (ax, ay) = TrayPlacement.FlyoutAnchor(TrayPlacement.Frame(panel, screen.Scale), screen.Edge);
-        _edge                      = screen.Edge;
-        AgendaPanel.Width          = panel.Width / screen.Scale;
-        AgendaPanel.Height         = panel.Height / screen.Scale;
-        AgendaFrame.RequestedTheme = MainWindow.ElementThemeOf(theme);
-        UpdateAgenda(model);
-
-        Open(ax, ay, screen.Scale, position => Agenda.ShowAt(Root, new FlyoutShowOptions
+        catch (Exception ex)
         {
-            Position  = position,
-            Placement = AgendaPlacement(screen.Edge),
-            ShowMode  = FlyoutShowMode.Standard,
-        }));
+            Fail("tray.flyout.open.failed", ex);
+        }
     }
 
     /// <summary>Shows new content in the flyout (a sync or the minute clock while it's open).</summary>
@@ -191,7 +214,11 @@ public sealed partial class TrayHost : Window
         AppWindow.Move(new PointInt32(x, y));
         AppWindow.Show(true);
         Activate();
-        InvisibleHost.TakeForeground(this);
+        if (!InvisibleHost.TakeForeground(this))
+        {
+            // Without the foreground, light dismiss may not close the popup; Esc and its own buttons still do
+            _log.Info("tray.host.foreground.refused");
+        }
 
         var origin   = InvisibleHost.ClientOrigin(this);
         var position = new Point((x - origin.X) / scale, (y - origin.Y) / scale);
@@ -202,11 +229,34 @@ public sealed partial class TrayHost : Window
         }
     }
 
+    // Also runs from Root.Loaded, where an escaping exception would end the process
     void RunPendingOpen()
     {
         var open = _pendingOpen;
         _pendingOpen = null;
-        open?.Invoke();
+        try
+        {
+            open?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            Fail("tray.host.open.failed", ex);
+        }
+    }
+
+    // A failed open must never strand the invisible topmost host on screen; the type only, never content
+    void Fail(string eventName, Exception ex)
+    {
+        _log.Info(eventName, $"error={ex.GetType().Name}");
+        try
+        {
+            _pendingOpen = null;
+            HideHostIfIdle();
+        }
+        catch (Exception hideEx)
+        {
+            _log.Info("tray.host.hide.failed", $"error={hideEx.GetType().Name}");
+        }
     }
 
     // Grows away from the taskbar (Sony Control's tray menu)

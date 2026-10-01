@@ -47,8 +47,8 @@ internal static class InvisibleHost
         return new PointInt32(origin.X, origin.Y);
     }
 
-    /// <summary>Takes the foreground (light dismiss needs it; a tray click or a hotkey allows it).</summary>
-    public static void TakeForeground(Window window) => PInvoke.SetForegroundWindow(Handle(window));
+    /// <summary>Takes the foreground (light dismiss needs it; a tray click or a hotkey allows it). False when Windows refused.</summary>
+    public static bool TakeForeground(Window window) => PInvoke.SetForegroundWindow(Handle(window));
 
     static HWND Handle(Window window) => new(WindowNative.GetWindowHandle(window));
 }

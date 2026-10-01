@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using LeafCalendar.Core.Alerts;
 using Microsoft.Windows.AppNotifications;
 
@@ -45,8 +44,9 @@ internal sealed class Notifier(LeafServices services) : IDisposable
             AppNotificationManager.Default.Register();
             _registered = true;
         }
-        catch (Exception ex) when (ex is COMException or InvalidOperationException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
+            // Runs while the tray starts, so nothing may escape: Leaf runs on without notifications
             services.Log.Info("notifications.register.failed", $"error={ex.GetType().Name}");
         }
     }
@@ -115,8 +115,9 @@ internal sealed class Notifier(LeafServices services) : IDisposable
             AppNotificationManager.Default.NotificationInvoked -= OnInvoked;
             AppNotificationManager.Default.Unregister();
         }
-        catch (Exception ex) when (ex is COMException or InvalidOperationException)
+        catch (Exception ex)
         {
+            // Runs during Quit, which must still reach the database and sync teardown
             services.Log.Info("notifications.unregister.failed", $"error={ex.GetType().Name}");
         }
     }

@@ -393,6 +393,22 @@ public sealed class LeafApp : IDisposable
         NativeMethods.PostMessage(hwnd, 0x8001, (nint)((y << 16) | (x & 0xFFFF)), (nint)((1 << 16) | (int)trayEvent));
     }
 
+    /// <summary>True while this Leaf's invisible tray host window (the menu's and the flyout's anchor) is shown.</summary>
+    public bool IsTrayHostShown()
+    {
+        var hwnd = nint.Zero;
+        while ((hwnd = NativeMethods.FindWindowEx(nint.Zero, hwnd, null, "Leaf Calendar tray")) != nint.Zero)
+        {
+            _ = NativeMethods.GetWindowThreadProcessId(hwnd, out var processId);
+            if (processId == App.ProcessId)
+            {
+                return NativeMethods.IsWindowVisible(hwnd);
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>Right-clicks the tray icon near the bottom-right corner of the primary screen.</summary>
     public void RightClickTrayIcon() =>
         PostTrayMessage(TrayContextMenu, NativeMethods.GetSystemMetrics(NativeMethods.PrimaryScreenWidth) - 100, NativeMethods.GetSystemMetrics(NativeMethods.PrimaryScreenHeight) - 20);
@@ -521,7 +537,12 @@ public sealed class LeafApp : IDisposable
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-        internal static extern nint FindWindowEx(nint parent, nint childAfter, string className, string? windowName);
+        internal static extern nint FindWindowEx(nint parent, nint childAfter, string? className, string? windowName);
+
+        [DllImport("user32.dll")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool IsWindowVisible(nint hwnd);
 
         [DllImport("user32.dll")]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
