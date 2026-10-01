@@ -11,8 +11,12 @@ using CalendarRooms = LeafCalendar.Core.People.Rooms;
 
 namespace LeafCalendar.App.ViewModels;
 
-/// <summary>A calendar in the editor's picker (an App type, so WinRT can hold the list). <see cref="IsPrimary"/> marks the account's main calendar.</summary>
-public sealed record CalendarChoice(string AccountId, string CalendarId, string Name, string AccountEmail, string Color, bool IsPrimary = false)
+/// <summary>
+/// A calendar in the editor's picker (an App type, so WinRT can hold the list). <see cref="IsPrimary"/> marks the account's
+/// main calendar. <see cref="ShowAccount"/> shows the account's email under the name: only with more than one account
+/// connected, since one account has nothing to tell apart.
+/// </summary>
+public sealed record CalendarChoice(string AccountId, string CalendarId, string Name, string AccountEmail, string Color, bool IsPrimary = false, bool ShowAccount = true)
 {
     /// <summary>The name (what a screen reader says for the picker's item).</summary>
     public override string ToString() => Name;
@@ -33,8 +37,17 @@ public sealed partial class GuestRow(Guest guest, Action<GuestRow> remove, strin
     /// <summary>The optional toggle shows (people only).</summary>
     public bool ShowOptional => !IsRoom;
 
-    /// <summary>The chip's text: the address, or "{name} (room)" for a room (its address until its name is known).</summary>
-    public string DisplayName => IsRoom ? $"{RoomName ?? Email} (room)" : Email;
+    /// <summary>
+    /// The chip's first line: the person's name (else the address), or "{name} (room)" for a room (its address until its
+    /// name is known).
+    /// </summary>
+    public string DisplayName => IsRoom ? $"{RoomName ?? Email} (room)" : Guest.Name ?? Email;
+
+    /// <summary>The chip's second line: a named person's address (empty otherwise).</summary>
+    public string Detail => !IsRoom && Guest.Name is not null ? Email : "";
+
+    /// <summary>The second line shows.</summary>
+    public bool ShowDetail => Detail.Length > 0;
 
     /// <summary>A room's cleaned name, once known.</summary>
     [ObservableProperty]
@@ -47,6 +60,9 @@ public sealed partial class GuestRow(Guest guest, Action<GuestRow> remove, strin
 
     /// <summary>Automation ID of the chip's text.</summary>
     public string GuestId => $"EditorGuest_{Email}";
+
+    /// <summary>Automation ID of the chip's address line.</summary>
+    public string DetailId => $"EditorGuestEmail_{Email}";
 
     /// <summary>Automation ID of the optional checkbox.</summary>
     public string OptionalId => $"EditorGuestOptional_{Email}";
@@ -64,6 +80,9 @@ public sealed class ContactSuggestion(string name, string email)
     /// <summary>Address added as the guest.</summary>
     public string Email { get; } = email;
 
+    /// <summary>The contact's name, or empty.</summary>
+    public string Name { get; } = name;
+
     /// <summary>"Name &lt;email&gt;", or the address alone (plain text; Core already removed control characters).</summary>
     public string Display { get; } = name.Length > 0 ? $"{name} <{email}>" : email;
 
@@ -79,6 +98,12 @@ public sealed class ZoneSuggestion(TimeZoneChoice choice)
 
     /// <summary>"Tokyo (UTC+9 · Tokyo Standard Time)".</summary>
     public string Display { get; } = choice.ToString();
+
+    /// <summary>The row's first line: "Tokyo (UTC+9)".</summary>
+    public string Label { get; } = $"{choice.City} ({choice.Detail.Split(" · ")[0]})";
+
+    /// <summary>The row's second line: Windows' name for the zone ("Tokyo Standard Time"), or empty.</summary>
+    public string ZoneName { get; } = choice.Detail.Split(" · ") is [_, var name, ..] ? name : "";
 
     /// <summary>The shown text (what a screen reader says for the item).</summary>
     public override string ToString() => Display;
@@ -208,8 +233,9 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         VisibilityIndex   = draft.Visibility switch { "public" => 1, "private" or "confidential" => 2, _ => 0 };
         _loadedVisibility = VisibilityIndex;
 
-        // Fields
-        Calendars           = new ObservableCollection<CalendarChoice>(calendars);
+        // Fields (the account email shows under each calendar only when there's more than one account)
+        var manyAccounts    = calendars.Select(c => c.AccountId).Distinct().Skip(1).Any();
+        Calendars           = new ObservableCollection<CalendarChoice>(calendars.Select(c => c with { ShowAccount = manyAccounts }));
         CalendarIndex       = calendars.ToList().FindIndex(c => c.AccountId == draft.AccountId && c.CalendarId == draft.CalendarId);
         Title               = draft.Title;
         Location            = draft.Location;
@@ -534,11 +560,11 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Lists the zones matching the typed text.</summary>
-    public void RefreshZoneSuggestions(DateTimeOffset now)
+    /// <summary>Lists the zones matching the typed text, or with <paramref name="all"/> (the dropdown arrow) every common zone.</summary>
+    public void RefreshZoneSuggestions(DateTimeOffset now, bool all = false)
     {
         ZoneSuggestions.Clear();
-        foreach (var choice in TimeZoneCatalog.Search(ZoneInput, now, 8))
+        foreach (var choice in all ? TimeZoneCatalog.Search("", now, 100) : TimeZoneCatalog.Search(ZoneInput, now, 8))
         {
             ZoneSuggestions.Add(new ZoneSuggestion(choice));
         }
@@ -692,7 +718,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     public void PickSuggestion(ContactSuggestion suggestion)
     {
         GuestInput = suggestion.Email;
-        AddGuest();
+        AddGuest(suggestion.Name);
     }
 
     /// <summary>Stops any search and lets go of the suggestions (contacts stay in memory only while typing).</summary>
@@ -837,8 +863,11 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     // GUESTS AND SAVING
     // =========================================================================
 
-    /// <summary>Adds the typed address as a guest; false (with <see cref="Error"/>) when it isn't a valid address.</summary>
-    public bool AddGuest()
+    /// <summary>
+    /// Adds the typed address as a guest (with <paramref name="name"/>, a picked contact's, shown on its chip); false (with
+    /// <see cref="Error"/>) when it isn't a valid address.
+    /// </summary>
+    public bool AddGuest(string? name = null)
     {
         var email = GuestInput.Trim();
         if (!MailAddress.TryCreate(email, out var address) || address.Address != email)
@@ -849,7 +878,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
 
         if (!Guests.Any(g => string.Equals(g.Email, email, StringComparison.OrdinalIgnoreCase)))
         {
-            Guests.Add(new GuestRow(new Guest(email), RemoveGuest));
+            Guests.Add(new GuestRow(new Guest(email, Name: string.IsNullOrWhiteSpace(name) ? null : name), RemoveGuest));
         }
 
         GuestInput = "";

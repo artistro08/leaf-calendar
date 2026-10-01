@@ -71,7 +71,7 @@ public sealed class EditorExtrasTests : IDisposable
         using var leaf = Launch();
         EditDentist(leaf);
 
-        leaf.WaitFor("EditorShowAs").AsComboBox().Select("Free");
+        leaf.WaitFor("EditorShowAs").AsComboBox().Select("Show me as free");
         SaveWithCtrlEnter(leaf);
 
         Assert.Equal("""{"transparency":"transparent"}""", JsonNode.Parse(DentistPatch().Body)!.ToJsonString());
@@ -178,6 +178,56 @@ public sealed class EditorExtrasTests : IDisposable
 
         var body = JsonNode.Parse(_google.WaitForWrite(w => w.Method == "POST" && w.Body.Contains("\"x\"", StringComparison.Ordinal)).Body)!;
         Assert.NotNull(body["conferenceData"]?["createRequest"]);
+    }
+
+    [Fact]
+    public void TimeZoneArrow_ListsZones_AndTakesOnlyAListedOne()
+    {
+        Seed(new LeafSettings { PrimaryTimeZone = "America/New_York" });
+        using var leaf = Launch();
+        EditDentist(leaf);
+        var edit   = ZoneEdit(leaf);
+        var before = edit.Text;
+
+        // The arrow (the input row's right end; UI Automation doesn't list it) drops down the common zones without typing
+        var box = edit.BoundingRectangle;
+        Mouse.Click(new System.Drawing.Point(box.Right - (int)(14 * leaf.Scale), box.Bottom - (int)(16 * leaf.Scale)));
+        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count > 3, TimeSpan.FromSeconds(10)).Success, $"The arrow listed {Suggestions(leaf).Count} zones.");
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count == 0, TimeSpan.FromSeconds(5)).Success, "Esc left the zone list open.");
+
+        // Alt+Down does the same from the keyboard
+        edit.Focus();
+        Keyboard.TypeSimultaneously(VirtualKeyShort.ALT, VirtualKeyShort.DOWN);
+        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count > 3, TimeSpan.FromSeconds(10)).Success, $"Alt+Down listed {Suggestions(leaf).Count} zones.");
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+
+        // With text typed, the arrow lists its matches and changes nothing; Esc closes the list, puts the zone back, and
+        // keeps the editor open
+        edit.Click();
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
+        Keyboard.Type("Tokyo");
+        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count > 0, TimeSpan.FromSeconds(5)).Success, "Typing listed no zones.");
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count == 0 && ZoneEdit(leaf).Text == before, TimeSpan.FromSeconds(5)).Success, $"Esc left \"{ZoneEdit(leaf).Text}\".");
+        Assert.True(leaf.Exists("EditorTitle"), "Esc in the zone list closed the editor.");
+
+        edit.Click();
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
+        Keyboard.Type("Tokyo");
+        Mouse.Click(new System.Drawing.Point(box.Right - (int)(14 * leaf.Scale), box.Bottom - (int)(16 * leaf.Scale)));
+        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Any(s => (s.Name ?? "").StartsWith("Tokyo (", StringComparison.Ordinal)), TimeSpan.FromSeconds(5)).Success, "The arrow didn't list Tokyo.");
+        Thread.Sleep(300);
+        Assert.False(leaf.Exists("EditorLocalTimeText"), "The arrow picked a zone.");
+        Assert.Equal("Tokyo", ZoneEdit(leaf).Text);
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+
+        // Typed text that isn't picked is dropped when focus leaves
+        edit.Click();
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
+        Keyboard.Type("Nowhere at all");
+        leaf.WaitFor("EditorTitle").AsTextBox().Focus();
+        Assert.True(Retry.WhileFalse(() => ZoneEdit(leaf).Text == before, TimeSpan.FromSeconds(5)).Success, $"The box kept \"{ZoneEdit(leaf).Text}\".");
     }
 
     [Fact]

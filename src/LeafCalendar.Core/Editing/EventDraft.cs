@@ -4,7 +4,8 @@ namespace LeafCalendar.Core.Editing;
 
 /// <summary>
 /// A guest as the editor shows it. Google owns <see cref="IsSelf"/> and <see cref="IsOrganizer"/>.
-/// <see cref="IsResource"/> marks a room (Google's <c>resource</c> attendees).
+/// <see cref="IsResource"/> marks a room (Google's <c>resource</c> attendees). <see cref="Name"/> is Google's display name
+/// (plain text, shown only; never sent back), or null.
 /// </summary>
 public sealed record Guest(
     string Email,
@@ -13,7 +14,8 @@ public sealed record Guest(
     string? Comment = null,
     bool IsSelf = false,
     bool IsOrganizer = false,
-    bool IsResource = false);
+    bool IsResource = false,
+    string? Name = null);
 
 /// <summary>
 /// The fields Leaf's editor changes. Comparing a "before" and an "after" draft gives the patch Leaf sends

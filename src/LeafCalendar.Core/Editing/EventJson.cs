@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.People;
 
 namespace LeafCalendar.Core.Editing;
 
@@ -757,7 +758,8 @@ public static class EventJson
         {
             if (Str(attendee, "email") is { Length: > 0 } email)
             {
-                guests.Add(new Guest(email, Flag(attendee, "optional"), ParseResponse(Str(attendee, "responseStatus")), Str(attendee, "comment"), Flag(attendee, "self"), Flag(attendee, "organizer"), IsRoom(attendee, email)));
+                guests.Add(new Guest(email, Flag(attendee, "optional"), ParseResponse(Str(attendee, "responseStatus")), Str(attendee, "comment"), Flag(attendee, "self"), Flag(attendee, "organizer"), IsRoom(attendee, email),
+                    ContactSearch.Plain(Str(attendee, "displayName"), ContactSearch.MaxName) is { Length: > 0 } name ? name : null));
             }
         }
 

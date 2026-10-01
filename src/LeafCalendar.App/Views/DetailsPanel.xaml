@@ -136,9 +136,9 @@
                     <!-- /Join -->
 
                     <!-- Location -->
-                    <StackPanel x:Name="LocationRow" Spacing="2">
+                    <StackPanel x:Name="LocationRow" Spacing="4">
                         <TextBlock x:Name="LocationText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsLocation" />
-                        <Button x:Name="MapsLink" HorizontalAlignment="Left" Content="Open in Google Maps" Click="OnMapsClick" AutomationProperties.AutomationId="DetailsMapsLink" />
+                        <Button x:Name="MapsLink" HorizontalAlignment="Stretch" Content="Open in Google Maps" Click="OnMapsClick" AutomationProperties.AutomationId="DetailsMapsLink" />
                     </StackPanel>
                     <TextBlock x:Name="ConferenceText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsConference" />
 
@@ -168,7 +168,14 @@
                             <controls:PinnedItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:GuestItem">
                                     <StackPanel Padding="0,2">
-                                        <TextBlock Text="{x:Bind Email}" IsTextSelectionEnabled="True" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{x:Bind Primary}" IsTextSelectionEnabled="True" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock
+                                            Text="{x:Bind Address}"
+                                            FontSize="12"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            IsTextSelectionEnabled="True"
+                                            TextTrimming="CharacterEllipsis"
+                                            Visibility="{x:Bind ShowAddress}" />
                                         <TextBlock Text="{x:Bind Detail}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </DataTemplate>

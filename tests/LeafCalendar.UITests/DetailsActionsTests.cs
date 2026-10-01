@@ -45,6 +45,14 @@ public sealed class DetailsActionsTests : IDisposable
         var maps = leaf.WaitFor("DetailsMapsLink");
         Assert.Equal(ControlType.Button, maps.ControlType);
         Assert.Equal("Open in Google Maps", maps.Name);
+
+        // Full width (the join button's), with a 4 DIP gap under the location text
+        var button   = maps.BoundingRectangle;
+        var join     = leaf.WaitFor("DetailsJoinButton").BoundingRectangle;
+        var location = leaf.WaitFor("DetailsLocation").BoundingRectangle;
+        Assert.Equal(join.Left, button.Left);
+        Assert.True(Math.Abs(leaf.WaitFor("DetailsJoinMenuButton").BoundingRectangle.Right - button.Right) <= 1, $"The maps button ({button}) isn't full width.");
+        Assert.True(button.Top - location.Bottom >= (int)(4 * leaf.Scale), $"The maps button sits {button.Top - location.Bottom} px under the location.");
         maps.AsButton().Invoke();
 
         Assert.True(Launched("https://www.google.com/maps/search/?api=1&query=Room%204"));

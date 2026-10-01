@@ -91,6 +91,22 @@ public sealed class GuestDirectoryTests : IDisposable
 
         Assert.NotNull(leaf.WaitFor("EditorGuest_dana@example.com"));
         Assert.Contains(_google.Requests, r => r.Contains("people:searchDirectoryPeople", StringComparison.Ordinal));
+
+        // The Chip: Name, Then The Address, Then Optional, Each On Its Own Line; Remove Pinned Top Right
+        var name     = leaf.WaitFor("EditorGuest_dana@example.com").BoundingRectangle;
+        var email    = leaf.WaitFor("EditorGuestEmail_dana@example.com");
+        var optional = leaf.WaitFor("EditorGuestOptional_dana@example.com").BoundingRectangle;
+        var remove   = leaf.WaitFor("EditorGuestRemove_dana@example.com").BoundingRectangle;
+        Assert.Equal("Dana Director", leaf.WaitFor("EditorGuest_dana@example.com").Name);
+        Assert.Equal("dana@example.com", email.Name);
+        Assert.True(name.Bottom <= email.BoundingRectangle.Top && email.BoundingRectangle.Bottom <= optional.Top, $"Name {name}, email {email.BoundingRectangle}, optional {optional} aren't stacked.");
+        Assert.True(remove.Top <= name.Top + 4 * leaf.Scale && remove.Left >= name.Right && remove.Left >= optional.Right, $"Remove ({remove}) isn't in the top right corner.");
+
+        // A typed address has no name: the address alone on line 1
+        ConferencingAndContactsTests.GuestEdit(leaf).Text = "sam@example.com";
+        leaf.WaitFor("EditorAddGuest").AsButton().Invoke();
+        Assert.Equal("sam@example.com", leaf.WaitFor("EditorGuest_sam@example.com").Name);
+        Assert.False(leaf.Exists("EditorGuestEmail_sam@example.com"), "An unnamed guest shows its address twice.");
     }
 
     [Fact]

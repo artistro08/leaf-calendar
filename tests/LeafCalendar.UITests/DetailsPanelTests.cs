@@ -38,6 +38,24 @@ public sealed class DetailsPanelTests : IDisposable
     }
 
     [Fact]
+    public void Guests_NamedGuestShowsNameThenAddress()
+    {
+        _google.EditOnGoogle(SeededProfile.Email, "evt-meeting", e => e["attendees"]![0]!["displayName"] = "Pat Boss");
+        using var leaf = Launch();
+
+        leaf.WaitFor("Event_evt-meeting_202610011800").Click();
+        var list  = leaf.WaitFor("DetailsGuestList");
+        var texts = Retry.WhileNull(() => list.FindAllDescendants().FirstOrDefault(t => t.Name == "Pat Boss") is { } name ? list.FindAllDescendants() : null, TimeSpan.FromSeconds(10)).Result
+            ?? throw new InvalidOperationException("The named guest's name didn't show.");
+        var name    = texts.First(t => t.Name == "Pat Boss").BoundingRectangle;
+        var address = texts.First(t => t.Name == "boss@example.com").BoundingRectangle;
+
+        // Name on line 1, the address under it; an unnamed guest shows its address alone
+        Assert.True(address.Top >= name.Bottom, $"The address ({address}) isn't under the name ({name}).");
+        Assert.Single(texts, t => t.Name == "sam@example.com");
+    }
+
+    [Fact]
     public void Details_ShowBusyAndVisibility()
     {
         _google.EditOnGoogle(SeededProfile.Email, "evt-single", e =>
@@ -80,6 +98,9 @@ public sealed class DetailsPanelTests : IDisposable
     public void Editor_DividersSeparateTheGroups()
     {
         using var leaf = Launch();
+
+        // Tall enough for the first two groups (show as and visibility take a row each)
+        leaf.Resize((int)(1366 * leaf.Scale), (int)(900 * leaf.Scale));
         leaf.WaitFor("Event_evt-single_202610011300").Click();
         leaf.WaitFor("DetailsStatus");
         leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
