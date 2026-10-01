@@ -13,8 +13,8 @@ public sealed record EventPalette(string Accent, string Fill, string Text, strin
 /// </summary>
 public static partial class EventColors
 {
-    /// <summary>Faded past cards, at the lowest opacity that keeps their text at 4.5:1 on every Google color.</summary>
-    public const double PastOpacity = 0.9;
+    /// <summary>How far a past card's colors (accent and fill) move toward the calendar surface; its text is not faded but picked against the faded fill.</summary>
+    public const double PastFade = 0.45;
 
     const string DarkSurface  = "#202020";
     const string LightSurface = "#FFFFFF";
@@ -64,11 +64,17 @@ public static partial class EventColors
         return Hex().IsMatch(calendarColor) ? calendarColor.ToUpperInvariant() : CalendarInfo.DefaultColor;
     }
 
-    /// <summary>Card colors for an accent in the dark or light theme.</summary>
-    public static EventPalette Palette(string accentHex, bool dark)
+    /// <summary>Card colors for an accent in the dark or light theme; <paramref name="past"/> fades the accent and fill toward the calendar surface and picks text against the faded fill.</summary>
+    public static EventPalette Palette(string accentHex, bool dark, bool past = false)
     {
         var accent = Hex().IsMatch(accentHex) ? accentHex.ToUpperInvariant() : CalendarInfo.DefaultColor;
         var fill   = Blend(accent, dark ? DarkSurface : LightSurface, dark ? 0.62 : 0.78);
+        if (past)
+        {
+            accent = Blend(accent, ChromeColors.Surface(dark), PastFade);
+            fill   = Blend(fill, ChromeColors.Surface(dark), PastFade);
+        }
+
         var text   = ContrastRatio(LightText, fill) >= ContrastRatio(DarkText, fill) ? LightText : DarkText;
 
         return new EventPalette(accent, fill, text, (text == LightText ? "#F2" : "#D9") + text[1..]);

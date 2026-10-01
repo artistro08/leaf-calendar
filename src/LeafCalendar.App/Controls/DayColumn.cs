@@ -113,7 +113,7 @@ public sealed partial class DayColumn : Canvas
             var usable  = width - 10;
             var colW    = usable / b.ColumnCount;
             var height  = Math.Max(b.EndMinute - b.StartMinute, DayLayout.MinVisualMinutes) / 60 * hour - 2;
-            var palette = EventColors.Palette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark);
+            var palette = EventColors.Palette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, vm.IsPast(b.Occurrence));
 
             card.Width      = Math.Max(colW - 2, 10);
             card.Height     = height;

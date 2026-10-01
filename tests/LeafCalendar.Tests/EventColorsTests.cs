@@ -42,25 +42,28 @@ public class EventColorsTests
         Assert.Equal(21, EventColors.ContrastRatio("#000000", "#FFFFFF"), 1);
     }
 
-    // Past Events Fade, But Their Text Still Meets 4.5:1 (title and time) On Every Google Color, Both Themes
+    // Sum of per-channel differences between two #RRGGBB colors
+    static int Distance(string a, string b) =>
+        Enumerable.Range(0, 3).Sum(i => Math.Abs(Convert.ToInt32(a.Substring(1 + 2 * i, 2), 16) - Convert.ToInt32(b.Substring(1 + 2 * i, 2), 16)));
+
+    // Past Cards Are Clearly Faded (fill closer to the surface) And Their Text Still Meets 4.5:1 On The Faded Fill, Both Themes
     [Fact]
-    public void PastCards_FadedText_MeetsAA()
+    public void PastCards_FadedFill_IsLighterAndTextMeetsAA()
     {
         foreach (var dark in new[] { true, false })
         {
             var surface = ChromeColors.Surface(dark);
             foreach (var accent in EventColors.CalendarPalette.Concat(EventColors.EventColorNames.Select(c => EventColors.ResolveAccent(c.Id, "#039BE5"))))
             {
-                var palette   = EventColors.Palette(accent, dark);
-                var secondary = EventColors.Blend("#" + palette.SecondaryText[3..], palette.Fill, 1 - Convert.ToInt32(palette.SecondaryText[1..3], 16) / 255.0);
-                var fill      = EventColors.Blend(palette.Fill, surface, 1 - EventColors.PastOpacity);
+                var current   = EventColors.Palette(accent, dark);
+                var past      = EventColors.Palette(accent, dark, past: true);
+                var secondary = EventColors.Blend("#" + past.SecondaryText[3..], past.Fill, 1 - Convert.ToInt32(past.SecondaryText[1..3], 16) / 255.0);
 
-                foreach (var text in new[] { palette.Text, secondary })
-                {
-                    var faded = EventColors.Blend(text, surface, 1 - EventColors.PastOpacity);
-                    Assert.True(EventColors.ContrastRatio(faded, fill) >= 4.5, $"{accent} dark={dark} text={text}");
-                }
+                Assert.True(Distance(past.Fill, surface) < Distance(current.Fill, surface), $"{accent} dark={dark}: fill not closer to surface");
+                Assert.True(EventColors.ContrastRatio(past.Text, past.Fill) >= 4.5, $"{accent} dark={dark} text");
+                Assert.True(EventColors.ContrastRatio(secondary, past.Fill) >= 4.5, $"{accent} dark={dark} secondary");
             }
         }
     }
 }
+

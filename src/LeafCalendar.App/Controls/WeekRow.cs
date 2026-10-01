@@ -179,7 +179,7 @@ public sealed partial class WeekRow : Canvas
     {
         var vm       = _owner.ViewModel;
         var o        = b.Occurrence;
-        var palette  = EventColors.Palette(EventColors.ResolveAccent(o.ColorId, o.CalendarColor), dark);
+        var palette  = EventColors.Palette(EventColors.ResolveAccent(o.ColorId, o.CalendarColor), dark, vm.IsPast(o));
         var spanning = SpanLayout.IsSpanning(o);
         var selected = vm.IsSelected(o);
         var first    = SpanLayout.CoveredDates(o, vm.Zone).First;
@@ -246,7 +246,6 @@ public sealed partial class WeekRow : Canvas
 
         // Past Events Fade (still readable)
         var past = vm.IsPast(o);
-        chip.Opacity = past ? EventColors.PastOpacity : 1;
         AutomationProperties.SetItemStatus(chip, past ? "Past" : "");
 
         SetLeft(chip, b.FirstColumn * colW + 3);

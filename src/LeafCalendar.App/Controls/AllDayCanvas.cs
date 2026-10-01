@@ -67,7 +67,7 @@ public sealed partial class AllDayCanvas : Canvas
             }
 
             var b       = shown[i];
-            var palette = EventColors.Palette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark);
+            var palette = EventColors.Palette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, vm.IsPast(b.Occurrence));
             var start   = SpanLayout.CoveredDates(b.Occurrence, vm.Zone).First;
             _shown[chip] = b.Occurrence;
 
@@ -87,7 +87,6 @@ public sealed partial class AllDayCanvas : Canvas
 
             // Past Events Fade (still readable)
             var past = vm.IsPast(b.Occurrence);
-            chip.Opacity = past ? 0.55 : 1;
             AutomationProperties.SetItemStatus(chip, past ? "Past" : "");
         }
     }
