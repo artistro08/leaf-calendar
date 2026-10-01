@@ -1,4 +1,5 @@
 using System.Globalization;
+using LeafCalendar.App.Interop;
 using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Diagnostics;
@@ -39,6 +40,9 @@ public sealed class LeafServices : IAsyncDisposable
         Editor.Changed    += (_, _) => Google?.Loop.TriggerNow();
         Conflicts.Changed += (_, _) => Google?.Loop.TriggerNow();
 
+        // Global Shortcuts (registered by the tray once its window exists)
+        Shortcuts = new GlobalShortcuts(Log);
+
         Tokens = new CredentialLockerTokenStore(options.Profile);
         _http  = new HttpClient(new GoogleRetryHandler(Time) { InnerHandler = new SocketsHttpHandler() });
 
@@ -76,6 +80,9 @@ public sealed class LeafServices : IAsyncDisposable
 
     /// <summary>Conflict answers and outbox counts.</summary>
     public ConflictResolver Conflicts { get; }
+
+    /// <summary>Global shortcuts (registered once the tray icon exists).</summary>
+    public GlobalShortcuts Shortcuts { get; }
 
     /// <summary>Google services, or null before the OAuth client is set up.</summary>
     public GoogleServices? Google { get; private set; }

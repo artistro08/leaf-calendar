@@ -191,6 +191,25 @@ public partial class App : Application
             services.Log.Info("tray.menu.create.failed", $"error={ex.GetType().Name}");
         }
 
+        // Global Shortcuts (spec 8.6), on the tray icon's window; JoinNext and ToggleAgenda never throw, since they run
+        // from the window procedure
+        services.Shortcuts.Pressed += (_, action) =>
+        {
+            if (action == ShortcutAction.Join)
+            {
+                JoinNext();
+            }
+            else
+            {
+                ToggleAgenda();
+            }
+        };
+        if (_tray is not null)
+        {
+            _tray.HotkeyPressed += (_, id) => services.Shortcuts.OnHotkey(id);
+            services.Shortcuts.Attach(_tray.Handle, CurrentSettings());
+        }
+
         // Notifications (registered before any click is handled)
         _notifier          = new Notifier(services);
         _notifier.Invoked += (_, argument) => _dispatcher.TryEnqueue(() => HandleToast(argument));
@@ -751,6 +770,7 @@ public partial class App : Application
             QuitStep("timer", () => _minuteTimer?.Stop());
             QuitStep("alerts", () => _alerts?.Dispose());
             QuitStep("notifier", () => _notifier?.Dispose());
+            QuitStep("shortcuts", () => _services?.Shortcuts.Suspend());
             QuitStep("tray", () =>
             {
                 _tray?.Dispose();
