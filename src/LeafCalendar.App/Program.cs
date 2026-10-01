@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Hosting;
 using Microsoft.UI.Dispatching;
@@ -13,7 +12,10 @@ using Windows.Win32.System.Com;
 namespace LeafCalendar.App;
 
 /// <summary>A later launch handed to the running Leaf: how it was started, and its arguments when it has any.</summary>
-internal sealed record Activation(ExtendedActivationKind Kind, string? Arguments);
+/// <param name="Kind">How it was started.</param>
+/// <param name="Arguments">The notification's argument or the command line, when there is one.</param>
+/// <param name="ReadError">The exception type when the activation couldn't be read (logged by the App), else null.</param>
+internal sealed record Activation(ExtendedActivationKind Kind, string? Arguments, string? ReadError = null);
 
 /// <summary>
 /// Entry point. Leaf runs once per profile: a second launch with the same profile hands its activation to the running
@@ -39,6 +41,9 @@ public static class Program
     /// <summary>The notification's argument when a notification click started this process, else null.</summary>
     internal static string? StartArgument { get; private set; }
 
+    /// <summary>The exception type when this launch's activation couldn't be read (the log doesn't exist yet), else null.</summary>
+    internal static string? StartReadError { get; private set; }
+
     /// <summary>Redirects to the running Leaf for this profile, or starts the app.</summary>
     [STAThread]
     static void Main(string[] args)
@@ -49,6 +54,7 @@ public static class Program
         var activation = AppInstance.GetCurrent().GetActivatedEventArgs();
         var started    = Read(activation);
         StartKind      = started.Kind;
+        StartReadError = started.ReadError;
         Options        = LaunchOptions.Parse(args);
 
         // A Notification Click That Started Leaf Belongs To The Profile It Names (Windows starts it without --profile)
@@ -118,23 +124,27 @@ public static class Program
     // through As<T>(), which Native AOT supports (a C# cast of a WinRT object read back isn't safe there).
     static Activation Read(AppActivationArguments args)
     {
-        if (args.Data is null)
-        {
-            return new Activation(args.Kind, null);
-        }
-
+        var kind = ExtendedActivationKind.Launch;
         try
         {
-            return args.Kind switch
+            kind = args.Kind;
+            if (args.Data is null)
             {
-                ExtendedActivationKind.AppNotification => new Activation(args.Kind, args.Data.As<AppNotificationActivatedEventArgs>().Argument),
-                ExtendedActivationKind.Launch          => new Activation(args.Kind, args.Data.As<Windows.ApplicationModel.Activation.ILaunchActivatedEventArgs>().Arguments),
-                _                                      => new Activation(args.Kind, null),
+                return new Activation(kind, null);
+            }
+
+            return kind switch
+            {
+                ExtendedActivationKind.AppNotification => new Activation(kind, args.Data.As<AppNotificationActivatedEventArgs>().Argument),
+                ExtendedActivationKind.Launch          => new Activation(kind, args.Data.As<Windows.ApplicationModel.Activation.ILaunchActivatedEventArgs>().Arguments),
+                _                                      => new Activation(kind, null),
             };
         }
-        catch (Exception ex) when (ex is InvalidCastException or COMException)
+#pragma warning disable CA1031 // A pure read on every launch: whatever fails, the launch goes on without its arguments
+        catch (Exception ex)
+#pragma warning restore CA1031
         {
-            return new Activation(args.Kind, null);
+            return new Activation(kind, null, ex.GetType().Name);
         }
     }
 

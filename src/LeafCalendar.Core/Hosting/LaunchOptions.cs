@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 
 namespace LeafCalendar.Core.Hosting;
 
@@ -71,6 +72,76 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
         }
 
         return new LaunchOptions(profile, trayProbe, fake, fake is null ? null : date, fake is null ? null : now, fake is null ? null : toast);
+    }
+
+    /// <summary>
+    /// Splits a command line (without the executable path) into arguments the way Windows does: spaces separate them,
+    /// double quotes group them, and backslashes escape a quote only right before one.
+    /// </summary>
+    public static IReadOnlyList<string> SplitCommandLine(string commandLine)
+    {
+        ArgumentNullException.ThrowIfNull(commandLine);
+
+        var args        = new List<string>();
+        var current     = new StringBuilder();
+        var quoted      = false;
+        var started     = false;
+        var backslashes = 0;
+
+        foreach (var c in commandLine)
+        {
+            // Backslashes Count Only Before A Quote
+            if (c == '\\')
+            {
+                backslashes++;
+                started = true;
+                continue;
+            }
+
+            if (c == '"')
+            {
+                current.Append('\\', backslashes / 2);
+                if (backslashes % 2 == 1)
+                {
+                    current.Append('"');
+                }
+                else
+                {
+                    quoted = !quoted;
+                }
+
+                backslashes = 0;
+                started     = true;
+                continue;
+            }
+
+            current.Append('\\', backslashes);
+            backslashes = 0;
+
+            // A Space Outside Quotes Ends The Argument
+            if (char.IsWhiteSpace(c) && !quoted)
+            {
+                if (started)
+                {
+                    args.Add(current.ToString());
+                    current.Clear();
+                    started = false;
+                }
+
+                continue;
+            }
+
+            current.Append(c);
+            started = true;
+        }
+
+        current.Append('\\', backslashes);
+        if (started)
+        {
+            args.Add(current.ToString());
+        }
+
+        return args;
     }
 
     static Uri? ParseLoopback(string value)

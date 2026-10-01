@@ -83,10 +83,11 @@ public sealed class GoogleServices : IAsyncDisposable
         _tokenStore.RemoveRefreshToken(accountId);
         AccessTokens.Forget(accountId);
 
-        // Its Alerts Go Too, So Adding It Again Starts With A Quiet First Look
+        // Its Alerts Go Too, So Adding It Again Starts With A Quiet First Look (after its calendars, so an invite pass
+        // running now can't mark them seeded again)
         using var conn = _database.Open();
-        InviteWatcher.Forget(conn, accountId);
         AccountStore.Delete(conn, accountId);
+        InviteWatcher.Forget(conn, accountId);
         _log.Info("account.disconnected", $"account={accountId}");
     }
 

@@ -36,6 +36,7 @@ public partial class App : Application
 {
     MainWindow? _window;
     OnboardingWindow? _onboarding;
+    readonly RepeatFilter _toastRepeats = new(TimeProvider.System);
     LeafServices? _services;
     CalendarViewModel? _calendar;
     SettingsWindow? _hookedSettings;
@@ -85,6 +86,12 @@ public partial class App : Application
         _log        = services.Log;
         _services   = services;
         _dispatcher = DispatcherQueue.GetForCurrentThread();
+
+        // How This Launch Started Couldn't Be Read (the type only)
+        if (Program.StartReadError is { } readError)
+        {
+            _log.Info("app.activation.unreadable", $"error={readError}");
+        }
 
         // First Run: onboarding shows instead of the main window until there's an OAuth client and an account; the tray starts when it's done
         if (OnboardingFlow.IsNeeded(services.Tokens.GetClientCredentials() is not null, services.HasAccount()))
@@ -364,6 +371,12 @@ public partial class App : Application
 
     void OnActivated(Activation activation)
     {
+        // An Activation Windows Handed Over That Couldn't Be Read (the type only)
+        if (activation.ReadError is { } readError)
+        {
+            _log?.Info("app.activation.unreadable", $"error={readError}");
+        }
+
         switch (activation.Kind)
         {
             // Windows' Sign-In Start While Leaf Already Runs Changes Nothing
@@ -376,7 +389,7 @@ public partial class App : Application
                 return;
 
             // UI Tests Click Notifications With "--toast-action" On A Second Launch (fake-Google profiles only)
-            case ExtendedActivationKind.Launch when TestToastAction(activation.Arguments) is { } toast:
+            case ExtendedActivationKind.Launch when _services?.Options.FakeGoogle is not null && TestToastAction(activation.Arguments) is { } toast:
                 HandleToast(toast);
                 return;
 
@@ -387,7 +400,7 @@ public partial class App : Application
     }
 
     static string? TestToastAction(string? commandLine) =>
-        string.IsNullOrWhiteSpace(commandLine) ? null : LaunchOptions.Parse(commandLine.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToastAction;
+        string.IsNullOrWhiteSpace(commandLine) ? null : LaunchOptions.Parse(LaunchOptions.SplitCommandLine(commandLine)).ToastAction;
 
     // The main window and Settings share one view model, so a Settings change shows in the calendar at once
     CalendarViewModel AcquireCalendar()
@@ -607,8 +620,22 @@ public partial class App : Application
     // A notification or one of its buttons was clicked (spec 8.4); on the UI thread, and nothing may escape
     void HandleToast(string? argument)
     {
+        // Setup Isn't Finished: nothing to act on yet, so setup comes forward
+        if (_onboarding is not null)
+        {
+            BringToFront();
+            return;
+        }
+
         if (_services is not { } services || ToastArgs.Parse(argument) is not { } toast)
         {
+            return;
+        }
+
+        // The Same Click Twice (a click that starts Leaf also arrives as NotificationInvoked), so one reply is sent
+        if (_toastRepeats.IsRepeat(argument!))
+        {
+            services.Log.Info("notification.repeat");
             return;
         }
 

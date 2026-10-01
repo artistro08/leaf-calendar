@@ -88,6 +88,10 @@ public static class AlertLedger
             ("$key", "mark:" + name),
             ("$value", value.ToString(CultureInfo.InvariantCulture)));
 
+    /// <summary>Deletes one named mark.</summary>
+    public static void DeleteMark(SqliteConnection conn, string name) =>
+        conn.Execute(null, "DELETE FROM settings WHERE key = $key;", ("$key", "mark:" + name));
+
     /// <summary>Deletes every named mark whose name starts with <paramref name="prefix"/> (compared exactly, no wildcards).</summary>
     public static void DeleteMarksStartingWith(SqliteConnection conn, string prefix) =>
         conn.Execute(

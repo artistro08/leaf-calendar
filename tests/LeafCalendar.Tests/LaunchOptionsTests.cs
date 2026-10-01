@@ -133,4 +133,24 @@ public class LaunchOptionsTests
     {
         Assert.Null(LaunchOptions.Parse(["--toast-action", "action=ReviewConflicts;profile=default"]).ToastAction);
     }
+
+    [Fact]
+    public void SplitCommandLine_QuotesAndSpaces_KeepsEachArgumentWhole()
+    {
+        var args = LaunchOptions.SplitCommandLine("--profile uitest-a  --toast-action \"a=1&b=two words\" \"say \\\"hi\\\"\"");
+
+        Assert.Equal(["--profile", "uitest-a", "--toast-action", "a=1&b=two words", "say \"hi\""], args);
+    }
+
+    [Fact]
+    public void SplitCommandLine_BackslashesNotBeforeAQuote_StayAsTheyAre()
+    {
+        Assert.Equal([@"C:\a\b", @"x\"], LaunchOptions.SplitCommandLine(@"C:\a\b ""x\\"""));
+    }
+
+    [Fact]
+    public void SplitCommandLine_Blank_IsEmpty()
+    {
+        Assert.Empty(LaunchOptions.SplitCommandLine("   "));
+    }
 }

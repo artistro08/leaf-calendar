@@ -249,4 +249,17 @@ public sealed class InviteWatcherTests : IDisposable
         Assert.False(AlertLedger.HasPrefix(conn, $"Invite|{Account}|"));
         Assert.Null(AlertLedger.GetMark(conn, $"invites-seeded:{Account}|{Primary}"));
     }
+
+    [Fact]
+    public void Forget_OldPerAccountMark_ClearsOnlyThatAccounts()
+    {
+        using var conn = _db.Database.Open();
+        AlertLedger.SetMark(conn, $"invites-seeded:{Account}", 1);
+        AlertLedger.SetMark(conn, $"invites-seeded:{Account}0", 1);
+
+        InviteWatcher.Forget(conn, Account);
+
+        Assert.Null(AlertLedger.GetMark(conn, $"invites-seeded:{Account}"));
+        Assert.Equal(1, AlertLedger.GetMark(conn, $"invites-seeded:{Account}0"));
+    }
 }
