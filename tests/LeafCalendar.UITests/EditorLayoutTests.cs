@@ -51,6 +51,7 @@ public sealed class EditorLayoutTests : IDisposable
     public void Footer_ButtonsFitAndStayPinnedWhileScrolling()
     {
         using var leaf = Launch();
+        leaf.Resize(1086, 540);
         EditDentist(leaf);
         ConferencingAndContactsTests.GuestEdit(leaf).Text = "sam@example.com";
         leaf.WaitFor("EditorAddGuest").AsButton().Invoke();
@@ -64,11 +65,15 @@ public sealed class EditorLayoutTests : IDisposable
             Assert.True(panel.Contains(box), $"{id} at {box} isn't inside the panel {panel}.");
         }
 
-        // Scrolling the body leaves the footer where it is
-        var footer = leaf.WaitFor("EditorFooter").BoundingRectangle;
-        LeafApp.WheelOver(leaf.WaitFor("EventEditor"), -10);
+        // Scrolling the body leaves the footer where it is (followed by its Save button: the footer's Border isn't in the
+        // automation tree), while the body under it really scrolls
+        var footer = leaf.WaitFor("EditorSaveButton").BoundingRectangle;
+        var editor = leaf.WaitFor("EventEditor");
+        var body   = editor.FindAllDescendants().First(e => e.Patterns.Scroll.IsSupported).Patterns.Scroll.Pattern;
+        LeafApp.WheelOver(editor, -10);
         Thread.Sleep(500);
-        Assert.Equal(footer.Y, leaf.WaitFor("EditorFooter").BoundingRectangle.Y);
+        Assert.Equal(footer.Y, leaf.WaitFor("EditorSaveButton").BoundingRectangle.Y);
+        Assert.True(body.VerticalScrollPercent.ValueOrDefault > 0, "The editor body didn't scroll.");
         Assert.True(panel.Contains(leaf.WaitFor("EditorCancelButton").BoundingRectangle), "Cancel left the panel after scrolling.");
     }
 

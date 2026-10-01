@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Text.Json.Nodes;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
@@ -56,9 +57,19 @@ public sealed class EditingTests : IDisposable
         Assert.DoesNotContain(_google.Writes, w => w.Method == "DELETE");
     }
 
-    // Whether any element on screen carries this text in its name
+    // Whether any element on screen carries this text in its name (some elements have no name at all)
     static bool ShowsText(LeafApp leaf, string text) =>
-        Retry.WhileFalse(() => leaf.MainWindow.FindAllDescendants().Any(e => e.Name.Contains(text, StringComparison.Ordinal)), TimeSpan.FromSeconds(10)).Success;
+        Retry.WhileFalse(() => leaf.MainWindow.FindAllDescendants().Any(e => (e.Properties.Name.ValueOrDefault ?? "").Contains(text, StringComparison.Ordinal)), TimeSpan.FromSeconds(10)).Success;
+
+    // A second event of your own on Oct 1 at 16:00 UTC (the seeded "Design review" is someone else's invite, which you
+    // can neither edit nor delete)
+    void AddLunch() => _google.AddEvent(SeededProfile.Email, new JsonObject
+    {
+        ["id"]      = "evt-lunch",
+        ["summary"] = "Team lunch",
+        ["start"]   = new JsonObject { ["dateTime"] = "2026-10-01T16:00:00Z" },
+        ["end"]     = new JsonObject { ["dateTime"] = "2026-10-01T17:00:00Z" },
+    });
 
     [Fact]
     public void Delete_AfterTheNoticeIsGone_CtrlZ_RecreatesItQuietly()
@@ -94,23 +105,26 @@ public sealed class EditingTests : IDisposable
         var restore = _google.WaitForWrite(w => w.Method == "PATCH" && w.Path.EndsWith("/events/evt-weekly_20261005T133000Z", StringComparison.Ordinal));
         Assert.Contains("sendUpdates=none", restore.Query, StringComparison.Ordinal);
         Assert.Contains("\"status\":\"confirmed\"", restore.Body.Replace(" ", string.Empty, StringComparison.Ordinal), StringComparison.Ordinal);
-        Assert.NotNull(leaf.WaitFor("Event_evt-weekly_202610051330"));
+
+        // Google keeps the restored day as its own instance (the canceled exception, confirmed again), so it shows under that ID
+        Assert.NotNull(leaf.WaitFor("Event_evt-weekly_20261005T133000Z_202610051330"));
     }
 
     [Fact]
     public void CtrlZ_Twice_UndoesTwoDeletesNewestFirst()
     {
+        AddLunch();
         using var leaf = Launch();
         leaf.WaitFor("Event_evt-single_202610011300").Click();
         leaf.Press(VirtualKeyShort.DELETE);
         _google.WaitForWrite(w => w.Method == "DELETE" && w.Path.EndsWith("/events/evt-single", StringComparison.Ordinal));
-        leaf.WaitFor("Event_evt-meeting_202610011800").Click();
+        leaf.WaitFor("Event_evt-lunch_202610011600").Click();
         leaf.Press(VirtualKeyShort.DELETE);
-        _google.WaitForWrite(w => w.Method == "DELETE" && w.Path.EndsWith("/events/evt-meeting", StringComparison.Ordinal));
+        _google.WaitForWrite(w => w.Method == "DELETE" && w.Path.EndsWith("/events/evt-lunch", StringComparison.Ordinal));
 
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_Z);
         var first = _google.WaitForWrite(w => w.Method == "POST");
-        Assert.Contains("\"Design review\"", first.Body, StringComparison.Ordinal);
+        Assert.Contains("\"Team lunch\"", first.Body, StringComparison.Ordinal);
 
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_Z);
         var second = _google.WaitForWrite(w => w.Method == "POST" && w.Body.Contains("\"Dentist appointment\"", StringComparison.Ordinal));
@@ -121,11 +135,12 @@ public sealed class EditingTests : IDisposable
     [Fact]
     public void CtrlZ_WhileTypingInTheEditor_UndoesTextNotADelete()
     {
+        AddLunch();
         using var leaf = Launch();
         leaf.WaitFor("Event_evt-single_202610011300").Click();
         leaf.Press(VirtualKeyShort.DELETE);
         _google.WaitForWrite(w => w.Method == "DELETE");
-        leaf.WaitFor("Event_evt-meeting_202610011800").Click();
+        leaf.WaitFor("Event_evt-lunch_202610011600").Click();
         leaf.Press(VirtualKeyShort.KEY_E);
         var title = leaf.WaitFor("EditorTitle").AsTextBox();
         title.Focus();
