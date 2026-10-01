@@ -1,9 +1,9 @@
 // Track A (Milestone 5 Tasks 3-5) owns this file: the command menu, the cheat sheet, time travel, and interface scale.
-// Empty hooks until the owning track fills them in; the owner deletes this line once every method uses the page
-#pragma warning disable CA1822 // Mark members as static
-
+using System.ComponentModel;
 using System.Globalization;
 using LeafCalendar.App.ViewModels;
+using LeafCalendar.Core.Views;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -15,7 +15,13 @@ public sealed partial class CalendarPage
     // The command menu, built on first use and kept for the page's life
     Flyout? _commandFlyout;
     CommandMenu? _commandMenu;
-    bool _sheetOpen;
+    bool _dialogOpen;
+
+    // The time travel and zone switch bars above the calendar
+    TimeTravelBar? _travelBar;
+
+    /// <summary>The interface scale changed (the window recomputes its minimum size and the search icon's place).</summary>
+    public event EventHandler? ScaleChanged;
 
     /// <summary>The mini month's "Next month" button (the title bar centers its search icon over it).</summary>
     public FrameworkElement? MiniMonthNextButton => Sidebar.MiniMonthNextButton;
@@ -45,17 +51,68 @@ public sealed partial class CalendarPage
         PeriodTitle.Margin = new Thickness(left, PeriodTitle.Margin.Top, 0, PeriodTitle.Margin.Bottom);
     }
 
-    // Called once when the page opens
+    // Called once when the page opens: the zone bars, and the interface scale
     void AttachNavigate()
     {
+        _travelBar = new TimeTravelBar(ViewModel);
+        IslandBars.Children.Add(_travelBar);
+        ViewModel.PropertyChanged += OnNavigatePropertyChanged;
+        ViewModel.LayoutChanged   += OnNavigateLayoutChanged;
+        ApplyScale();
     }
 
-    // Called from Detach: the menu holds the long-lived view model, so it goes with the page
+    // Called from Detach: undo everything AttachNavigate wired to the long-lived view model (the menu holds it too)
     void DetachNavigate()
     {
+        ViewModel.PropertyChanged -= OnNavigatePropertyChanged;
+        ViewModel.LayoutChanged   -= OnNavigateLayoutChanged;
+        if (_travelBar is not null)
+        {
+            IslandBars.Children.Remove(_travelBar);
+            _travelBar = null;
+        }
+
         _commandFlyout?.Hide();
         _commandFlyout = null;
         _commandMenu   = null;
+    }
+
+    void OnNavigatePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(CalendarViewModel.TravelZoneId) or nameof(CalendarViewModel.ZoneSwitchOffer))
+        {
+            _travelBar?.Update(ViewModel);
+        }
+    }
+
+    // Settings changes raise LayoutChanged: the zone on screen and the scale may have moved (SyncZone is a no-op when
+    // the zone stayed, so its own LayoutChanged can't loop)
+    void OnNavigateLayoutChanged(object? sender, EventArgs e)
+    {
+        ViewModel.SyncZone();
+        ApplyScale();
+        _travelBar?.Update(ViewModel);
+    }
+
+    // =========================================================================
+    // INTERFACE SCALE
+    // =========================================================================
+
+    // Interface Scale (Settings › General): the panes grow with their content; the title bar stays 48 DIPs
+    void ApplyScale()
+    {
+        var scale = ViewModel.Settings.InterfaceScale;
+        if (ViewScale.Scale == scale && SidebarSplit.OpenPaneLength == SidebarWidth * scale)
+        {
+            return;
+        }
+
+        ViewScale.Scale             = scale;
+        Sidebar.BodyScale.Scale     = scale;
+        Details.BodyScale.Scale     = scale;
+        SidebarSplit.OpenPaneLength = SidebarWidth * scale;
+        DetailsSplit.OpenPaneLength = DetailsWidth * scale;
+        ScaleChanged?.Invoke(this, EventArgs.Empty);
     }
 
     // =========================================================================
@@ -173,12 +230,12 @@ public sealed partial class CalendarPage
     // ?: one sheet at a time (a second dialog while one is open throws in WinUI)
     void ShowShortcutSheet()
     {
-        if (_sheetOpen)
+        if (_dialogOpen)
         {
             return;
         }
 
-        _sheetOpen = true;
+        _dialogOpen = true;
         ViewModel.Fire(async () =>
         {
             try
@@ -187,13 +244,82 @@ public sealed partial class CalendarPage
             }
             finally
             {
-                _sheetOpen = false;
+                _dialogOpen = false;
             }
         }, "shortcuts.sheet.failed");
     }
 
-    // Z (Task 5)
+    // =========================================================================
+    // TIME TRAVEL
+    // =========================================================================
+
+    // Z: pick a zone to view the calendar in, for this session (one dialog at a time, shared with the cheat sheet's guard)
     void StartTimeTravel()
     {
+        if (_dialogOpen)
+        {
+            return;
+        }
+
+        _dialogOpen = true;
+        ViewModel.Fire(async () =>
+        {
+            try
+            {
+                if (await AskTravelZoneAsync() is { } zoneId)
+                {
+                    ViewModel.TravelTo(zoneId);
+                }
+            }
+            finally
+            {
+                _dialogOpen = false;
+            }
+        }, "calendar.timetravel.failed");
+    }
+
+    // The zone picker ("Go" waits for a picked suggestion). Suggestions go to the box as plain strings (a list of Core
+    // records can't be marshaled to WinRT under Native AOT) and come back by matching our own list
+    async Task<string?> AskTravelZoneAsync()
+    {
+        IReadOnlyList<TimeZoneChoice> suggestions = [];
+        TimeZoneChoice? picked = null;
+
+        var box = new AutoSuggestBox { PlaceholderText = "Search a city or zone (Tokyo, NYC, UTC)", Width = 360 };
+        AutomationProperties.SetName(box, "Time zone");
+        AutomationProperties.SetAutomationId(box, "TimeTravelBox");
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot               = XamlRoot,
+            Title                  = "Time travel",
+            Content                = box,
+            PrimaryButtonText      = "Go",
+            CloseButtonText        = "Cancel",
+            DefaultButton          = ContentDialogButton.Primary,
+            IsPrimaryButtonEnabled = false,
+        };
+
+        // Typing Again Drops The Pick
+        box.TextChanged += (sender, args) =>
+        {
+            if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
+            {
+                return;
+            }
+
+            picked                        = null;
+            dialog.IsPrimaryButtonEnabled = false;
+            suggestions                   = TimeZoneCatalog.Search(sender.Text, ViewModel.Now);
+            sender.ItemsSource            = suggestions.Select(c => c.ToString()).ToList();
+        };
+        box.SuggestionChosen += (_, args) =>
+        {
+            picked                        = args.SelectedItem is string text ? suggestions.FirstOrDefault(c => c.ToString() == text) : null;
+            dialog.IsPrimaryButtonEnabled = picked is not null;
+        };
+        dialog.Opened += (_, _) => box.Focus(FocusState.Programmatic);
+
+        return await dialog.ShowAsync() == ContentDialogResult.Primary ? picked?.Id : null;
     }
 }
