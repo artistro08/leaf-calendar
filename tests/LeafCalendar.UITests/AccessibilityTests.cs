@@ -215,7 +215,11 @@ public sealed class AccessibilityTests : IDisposable
         Retry.WhileFalse(() => box.Properties.HasKeyboardFocus.ValueOrDefault, Wait);
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.END);
         Keyboard.Type(VirtualKeyShort.ENTER);
-        leaf.WaitFor("DescriptionNumbers").Click();
+
+        // The Toolbar Is Laid Out A Beat After The Box Takes Focus (until then it has no clickable point)
+        var numbers = leaf.WaitFor("DescriptionNumbers");
+        Retry.WhileTrue(() => numbers.Properties.IsOffscreen.ValueOrDefault, Wait);
+        numbers.Click();
         Keyboard.Type("First");
         Keyboard.Type(VirtualKeyShort.ENTER);
         Keyboard.Type("Second");
