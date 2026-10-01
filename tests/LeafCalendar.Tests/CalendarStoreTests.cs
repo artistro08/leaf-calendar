@@ -45,6 +45,21 @@ public sealed class CalendarStoreTests : IDisposable
     }
 
     [Fact]
+    public void GetAll_HostileName_IsCleanedAndCapped()
+    {
+        using var conn = _db.Database.Open();
+        AccountStore.Upsert(conn, TestDatabase.SampleAccount);
+        var hostile = Entries("calendar-list-primary-only.json");
+        hostile[0].Summary = "Te‮am​\nPlans" + new string('x', 300);
+
+        CalendarStore.ReplaceForAccount(conn, TestDatabase.SampleAccount.Id, hostile);
+
+        var name = Assert.Single(CalendarStore.GetAll(conn)).Summary;
+        Assert.StartsWith("Team Plans", name, StringComparison.Ordinal);
+        Assert.Equal(100, name.Length);
+    }
+
+    [Fact]
     public void DeleteAccount_WithCalendars_CascadesToCalendars()
     {
         using var conn = _db.Database.Open();

@@ -70,6 +70,27 @@ public class ShortcutMapTests
         Assert.Equal(CalendarCommand.NavigateForward, ShortcutMap.Resolve("Right", false, false, alt: true).Command);
     }
 
+    [Theory]
+    [InlineData("K", true, false, CalendarCommand.CommandMenu)]
+    [InlineData("F", true, false, CalendarCommand.Search)]
+    [InlineData("191", false, false, CalendarCommand.Search)]       // "/"
+    [InlineData("Divide", false, false, CalendarCommand.Search)]    // numpad "/"
+    [InlineData("191", false, true, CalendarCommand.ShortcutSheet)] // "?" is Shift+"/"
+    [InlineData("188", true, false, CalendarCommand.OpenSettings)]  // Ctrl+,
+    [InlineData("Z", false, false, CalendarCommand.TimeTravel)]
+    [InlineData("S", false, false, CalendarCommand.ShareAvailability)]
+    [InlineData("P", false, false, CalendarCommand.PeopleOverlay)]
+    [InlineData("F", false, false, CalendarCommand.MeetWith)]
+    public void Resolve_M5Keys(string key, bool ctrl, bool shift, CalendarCommand expected) =>
+        Assert.Equal(expected, ShortcutMap.Resolve(key, ctrl, shift, alt: false).Command);
+
+    [Fact]
+    public void Resolve_CtrlZ_StillUndo_ZAloneTimeTravels()
+    {
+        Assert.Equal(CalendarCommand.Undo, ShortcutMap.Resolve("Z", true, false, false).Command);
+        Assert.Equal(CalendarCommand.TimeTravel, ShortcutMap.Resolve("Z", false, false, false).Command);
+    }
+
     [Fact]
     public void OtherAltChords_StayUnmapped()
     {

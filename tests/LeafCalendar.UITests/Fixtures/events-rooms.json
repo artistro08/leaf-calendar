@@ -1,0 +1,36 @@
+{
+  "kind": "calendar#events",
+  "items": [
+    {
+      "id": "evt-planning",
+      "status": "confirmed",
+      "etag": "\"3181161784712300\"",
+      "iCalUID": "evt-planning@google.com",
+      "summary": "Planning",
+      "start": { "dateTime": "2026-09-15T10:00:00-04:00", "timeZone": "America/New_York" },
+      "end": { "dateTime": "2026-09-15T11:00:00-04:00", "timeZone": "America/New_York" },
+      "organizer": { "email": "leaf.tester@gmail.com", "self": true },
+      "attendees": [
+        { "email": "leaf.tester@gmail.com", "self": true, "organizer": true, "responseStatus": "accepted" },
+        { "email": "frank@example.com", "displayName": "Frank Often", "responseStatus": "accepted" },
+        { "email": "c_1888room4west@resource.calendar.google.com", "displayName": "Room 4 West", "resource": true, "responseStatus": "accepted" }
+      ],
+      "updated": "2026-09-10T12:00:00.000Z"
+    },
+    {
+      "id": "evt-planning-2",
+      "status": "confirmed",
+      "etag": "\"3181161784712301\"",
+      "iCalUID": "evt-planning-2@google.com",
+      "summary": "Planning follow-up",
+      "start": { "dateTime": "2026-09-16T10:00:00-04:00", "timeZone": "America/New_York" },
+      "end": { "dateTime": "2026-09-16T10:30:00-04:00", "timeZone": "America/New_York" },
+      "organizer": { "email": "leaf.tester@gmail.com", "self": true },
+      "attendees": [
+        { "email": "leaf.tester@gmail.com", "self": true, "organizer": true, "responseStatus": "accepted" },
+        { "email": "frank@example.com", "displayName": "Frank Often", "responseStatus": "accepted" }
+      ],
+      "updated": "2026-09-10T12:00:00.000Z"
+    }
+  ]
+}

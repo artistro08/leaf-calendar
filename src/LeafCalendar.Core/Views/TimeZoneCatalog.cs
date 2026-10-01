@@ -55,6 +55,10 @@ public static class TimeZoneCatalog
 
     static readonly Lazy<IReadOnlyList<Entry>> AllEntries = new(BuildEntries);
 
+    /// <summary>A zone's IANA ID (what Google wants), converting a Windows ID such as "Eastern Standard Time".</summary>
+    public static string IanaId(TimeZoneInfo zone) =>
+        TimeZoneInfo.TryConvertWindowsIdToIanaId(zone.Id, out var iana) ? iana : zone.Id;
+
     /// <summary>True when this PC can resolve <paramref name="id"/>.</summary>
     public static bool IsKnown(string id) => TimeZoneInfo.TryFindSystemTimeZoneById(id, out _);
 

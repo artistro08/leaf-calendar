@@ -50,6 +50,9 @@ public sealed class GoogleUserInfo
 
     /// <summary>Avatar image address.</summary>
     public string? Picture { get; set; }
+
+    /// <summary>Workspace domain (Google's <c>hd</c> claim); absent for personal accounts.</summary>
+    public string? Hd { get; set; }
 }
 
 // =========================================================================
@@ -260,4 +263,68 @@ public sealed class PeopleEmail
 {
     /// <summary>The address.</summary>
     public string? Value { get; set; }
+}
+
+/// <summary><c>people:searchDirectoryPeople</c> answer.</summary>
+public sealed class DirectorySearchResponse
+{
+    /// <summary>Matching people in your Workspace directory.</summary>
+    public List<PeoplePerson>? People { get; set; }
+}
+
+// =========================================================================
+// FREE/BUSY
+// =========================================================================
+
+/// <summary>One busy stretch.</summary>
+public sealed record BusyRange(DateTimeOffset Start, DateTimeOffset End);
+
+/// <summary>Free/busy for one calendar or person: <see cref="Error"/> is Google's reason (e.g. <c>notFound</c>) when it had none to give.</summary>
+public sealed record FreeBusyResult(IReadOnlyList<BusyRange> Busy, string? Error);
+
+/// <summary><c>freeBusy.query</c> body.</summary>
+public sealed class FreeBusyRequest
+{
+    /// <summary>RFC 3339 UTC start.</summary>
+    public string TimeMin { get; set; } = "";
+
+    /// <summary>RFC 3339 UTC end.</summary>
+    public string TimeMax { get; set; } = "";
+
+    /// <summary>Calendars or people.</summary>
+    public List<FreeBusyItem> Items { get; set; } = [];
+}
+
+/// <summary>One calendar or address to query.</summary>
+public sealed class FreeBusyItem
+{
+    /// <summary>Calendar ID or email.</summary>
+    public string Id { get; set; } = "";
+}
+
+/// <summary><c>freeBusy.query</c> answer.</summary>
+public sealed class FreeBusyResponse
+{
+    /// <summary>Per ID.</summary>
+    public Dictionary<string, FreeBusyCalendar>? Calendars { get; set; }
+}
+
+/// <summary>One ID's answer.</summary>
+public sealed class FreeBusyCalendar
+{
+    /// <summary>Busy stretches.</summary>
+    public List<FreeBusyPeriod>? Busy { get; set; }
+
+    /// <summary>Why there's no answer.</summary>
+    public List<ApiErrorItem>? Errors { get; set; }
+}
+
+/// <summary>A busy stretch as Google sends it.</summary>
+public sealed class FreeBusyPeriod
+{
+    /// <summary>Start.</summary>
+    public DateTimeOffset Start { get; set; }
+
+    /// <summary>End.</summary>
+    public DateTimeOffset End { get; set; }
 }

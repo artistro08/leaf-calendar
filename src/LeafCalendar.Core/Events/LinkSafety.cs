@@ -278,6 +278,10 @@ public static partial class LinkSafety
     public static Uri MapsSearch(string location) =>
         new("https://www.google.com/maps/search/?api=1&query=" + Uri.EscapeDataString(location));
 
+    /// <summary>Google Calendar's appointment schedule (booking pages) for an account; Google has no API for them.</summary>
+    public static Uri BookingPages(string accountEmail) =>
+        new("https://calendar.google.com/calendar/appointments?authuser=" + Uri.EscapeDataString(accountEmail));
+
     [GeneratedRegex(@"https://[^\s<>""']+", RegexOptions.IgnoreCase)]
     internal static partial Regex HttpsLink();
 }

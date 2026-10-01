@@ -226,6 +226,110 @@ public class GoogleCalendarClientTests : IDisposable
         Assert.Equal("family123@group.calendar.google.com", request.Query("destination"));
     }
 
+    // =========================================================================
+    // CALENDAR LIST AND FREE/BUSY
+    // =========================================================================
+
+    // A client whose access-token refresh succeeds
+    GoogleCalendarClient SignedIn()
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        return CreateClient();
+    }
+
+    [Fact]
+    public async Task QueryFreeBusy_PostsRangeAndIds_ReadsBusyAndErrors()
+    {
+        var client = SignedIn();
+        _google.Respond(HttpMethod.Post, "freeBusy", 200, """
+            {"calendars":{
+              "dana@example.com":{"busy":[{"start":"2026-10-01T15:00:00Z","end":"2026-10-01T16:00:00Z"}]},
+              "nobody@example.org":{"errors":[{"domain":"global","reason":"notFound"}],"busy":[]}}}
+            """);
+
+        var result = await client.QueryFreeBusyAsync(Account, ["dana@example.com", "nobody@example.org"],
+            new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 2, 0, 0, 0, TimeSpan.Zero),
+            TestContext.Current.CancellationToken);
+
+        var body = _google.Last.Body!;
+        Assert.Contains("\"timeMin\":\"2026-10-01T00:00:00Z\"", body, StringComparison.Ordinal);
+        Assert.Contains("\"timeMax\":\"2026-10-02T00:00:00Z\"", body, StringComparison.Ordinal);
+        Assert.Contains("\"items\":[{\"id\":\"dana@example.com\"},{\"id\":\"nobody@example.org\"}]", body, StringComparison.Ordinal);
+        Assert.Equal([new BusyRange(new(2026, 10, 1, 15, 0, 0, TimeSpan.Zero), new(2026, 10, 1, 16, 0, 0, TimeSpan.Zero))], result["dana@example.com"].Busy);
+        Assert.Null(result["dana@example.com"].Error);
+        Assert.Equal("notFound", result["nobody@example.org"].Error);
+    }
+
+    [Fact]
+    public async Task QueryFreeBusy_IdMissingFromAnswer_IsAnError()
+    {
+        var client = SignedIn();
+        _google.Respond(HttpMethod.Post, "freeBusy", 200, """{"calendars":{}}""");
+
+        var result = await client.QueryFreeBusyAsync(Account, ["dana@example.com"], DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(1), TestContext.Current.CancellationToken);
+
+        Assert.Equal("missing", result["dana@example.com"].Error);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(51)]
+    public async Task QueryFreeBusy_ZeroOrOver50Ids_Throws(int count)
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => CreateClient().QueryFreeBusyAsync(Account,
+            [.. Enumerable.Range(0, count).Select(i => $"p{i}@example.com")], DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(1),
+            TestContext.Current.CancellationToken));
+        Assert.Empty(_google.Requests);
+    }
+
+    [Fact]
+    public async Task PatchCalendarList_SendsPatchToTheListEntry()
+    {
+        var client = SignedIn();
+        _google.Respond(HttpMethod.Patch, "users/me/calendarList/family%40group.calendar.google.com", 200, """{"id":"family@group.calendar.google.com","summaryOverride":"Kids"}""");
+
+        var json = await client.PatchCalendarListAsync(Account, "family@group.calendar.google.com", """{"summaryOverride":"Kids"}""", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpMethod.Patch, _google.Last.Method);
+        Assert.Equal("""{"summaryOverride":"Kids"}""", _google.Last.Body);
+        Assert.Contains("Kids", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PatchCalendarList_Refused_ThrowsGoogleApiException()
+    {
+        var client = SignedIn();
+        _google.Respond(HttpMethod.Patch, "users/me/calendarList/x", 400, Fixture.Read("error-forbidden.json"));
+
+        await Assert.ThrowsAsync<GoogleApiException>(() => client.PatchCalendarListAsync(Account, "x", "{}", TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData(403)]
+    [InlineData(404)]
+    public async Task ListEventsInRange_NotReadable_ReturnsNull(int status)
+    {
+        var client = SignedIn();
+        _google.Respond(HttpMethod.Get, "calendars/dana%40example.com/events", status, "{}");
+
+        Assert.Null(await client.ListEventsInRangeAsync(Account, "dana@example.com", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(1), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ListEventsInRange_AsksForSingleEventsInTheRange()
+    {
+        var client = SignedIn();
+        _google.Respond(HttpMethod.Get, "calendars/dana%40example.com/events", 200, """{"items":[{"id":"a","status":"confirmed"}]}""");
+
+        var page = await client.ListEventsInRangeAsync(Account, "dana@example.com",
+            new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 2, 0, 0, 0, TimeSpan.Zero), TestContext.Current.CancellationToken);
+
+        Assert.Single(page!.Items);
+        Assert.Equal("2026-10-01T00:00:00Z", _google.Last.Query("timeMin"));
+        Assert.Equal("2026-10-02T00:00:00Z", _google.Last.Query("timeMax"));
+        Assert.Equal("true", _google.Last.Query("singleEvents"));
+    }
+
     public void Dispose()
     {
         _google.Dispose();

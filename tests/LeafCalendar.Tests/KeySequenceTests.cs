@@ -56,6 +56,23 @@ public class KeySequenceTests
         Assert.Equal(CalendarCommand.None, keys.Expire().Command);
     }
 
+    [Theory]
+    [InlineData("Z", CalendarCommand.EditTimeZone)]
+    [InlineData("F", CalendarCommand.ParticipantOverlay)]
+    public void EThen_M5Keys(string second, CalendarCommand expected)
+    {
+        var keys = new KeySequence(_time);
+
+        Press(keys, "E");
+        _time.Advance(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(expected, Press(keys, second));
+    }
+
+    [Fact]
+    public void FAlone_IsMeetWith() =>
+        Assert.Equal(CalendarCommand.MeetWith, Press(new KeySequence(_time), "F"));
+
     [Fact]
     public void CtrlE_IsNotASequence()
     {

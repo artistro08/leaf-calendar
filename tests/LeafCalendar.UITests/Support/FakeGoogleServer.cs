@@ -25,7 +25,8 @@ public sealed record FakeWrite(string Method, string Path, string Query, string?
 /// <item>Incremental syncs return what changed since <c>sync-token-N</c>.</item>
 /// </list>
 /// <see cref="Offline"/> drops every connection, and <see cref="EditOnGoogle"/> changes an event as if someone
-/// edited it elsewhere. Start the app with <c>--fake-google {BaseUri}</c>.
+/// edited it elsewhere. Free/busy answers from <see cref="Busy"/> and the seeded calendars, calendar-list PATCHes show on
+/// later list GETs, and the directory answers only while <see cref="HostedDomain"/> is set. Start the app with <c>--fake-google {BaseUri}</c>.
 /// </remarks>
 public sealed class FakeGoogleServer : IDisposable
 {
@@ -33,7 +34,7 @@ public sealed class FakeGoogleServer : IDisposable
     const string FamilyId       = "family123@group.calendar.google.com";
     const string EventsPrefix   = "/calendar/v3/calendars/";
     const string CalendarScopes = "openid https://www.googleapis.com/auth/calendar";
-    const string ContactsScopes = "https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly";
+    const string ContactsScopes = "https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly https://www.googleapis.com/auth/directory.readonly";
 
     readonly TcpListener _listener = new(IPAddress.Loopback, 0);
     readonly CancellationTokenSource _stop = new();
@@ -42,6 +43,9 @@ public sealed class FakeGoogleServer : IDisposable
 
     // Google's copy: calendar ID -> event ID -> event
     readonly Dictionary<string, Dictionary<string, JsonObject>> _events = new(StringComparer.Ordinal);
+
+    // Calendar-list entry changes (rename, default reminders), by calendar ID; a null value removes the property
+    readonly Dictionary<string, JsonObject> _listPatches = new(StringComparer.Ordinal);
 
     // Change feed for incremental syncs
     readonly List<(long Version, string Calendar, string Id)> _changes = [];
@@ -55,6 +59,7 @@ public sealed class FakeGoogleServer : IDisposable
         Seed(PrimaryId, "events-page1.json");
         Seed(PrimaryId, "events-page2.json");
         Seed(PrimaryId, "events-meeting.json");
+        Seed(PrimaryId, "events-rooms.json");
         Seed(FamilyId, "events-family.json");
 
         _listener.Start();
@@ -103,6 +108,21 @@ public sealed class FakeGoogleServer : IDisposable
 
     /// <summary>When true, refreshing an access token fails with <c>invalid_grant</c>, as when the user revoked Leaf's access.</summary>
     public bool RejectRefresh { get; set; }
+
+    /// <summary>People's busy times for <c>freeBusy</c>, by email; an address not here and not a seeded calendar answers <c>notFound</c>.</summary>
+    public ConcurrentDictionary<string, List<(DateTimeOffset Start, DateTimeOffset End)>> Busy { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Calendars shared with details: a range GET of events on one of these answers these items.</summary>
+    public ConcurrentDictionary<string, JsonArray> TeammateEvents { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The Workspace domain userinfo reports (<c>hd</c>); null for a personal account. Directory searches answer only
+    /// while it's set (a personal account gets Google's <c>400 FAILED_PRECONDITION</c>).
+    /// </summary>
+    public string? HostedDomain { get; set; }
+
+    /// <summary>Every <c>freeBusy</c> request body, in order.</summary>
+    public ConcurrentQueue<string> FreeBusyQueries { get; } = new();
 
     /// <summary>How many token revocations were requested.</summary>
     public int RevokeCount => Volatile.Read(ref _revokes);
@@ -260,25 +280,33 @@ public sealed class FakeGoogleServer : IDisposable
                 user["email"] = OtherUserEmail;
             }
 
+            if (HostedDomain is not null)
+            {
+                user["hd"] = HostedDomain;
+            }
+
             return (200, user.ToJsonString(), null);
         }
 
         // Calendar List
         if (method == "GET" && path == "/calendar/v3/users/me/calendarList")
         {
-            var list  = JsonNode.Parse(Read(ManyCalendars ? "calendar-list-many.json" : "calendar-list.json"))!;
-            var items = list["items"]!.AsArray();
-            foreach (var item in items.OfType<JsonObject>().Where(c => (string?)c["id"] == DroppedCalendarId).ToList())
-            {
-                items.Remove(item);
-            }
+            return (200, CalendarList().ToJsonString(), null);
+        }
 
-            foreach (var item in list["items"]!.AsArray().OfType<JsonObject>().Where(c => (string?)c["id"] == ReadOnlyCalendarId))
-            {
-                item["accessRole"] = "reader";
-            }
+        // Calendar List Entry Changes (rename, default reminders; later list GETs show them)
+        if (method == "PATCH" && path.StartsWith("/calendar/v3/users/me/calendarList/", StringComparison.Ordinal))
+        {
+            var id = Uri.UnescapeDataString(path["/calendar/v3/users/me/calendarList/".Length..]);
+            Writes.Enqueue(new FakeWrite(method, path, uri.Query, ifMatch, body));
+            return PatchListEntry(id, body);
+        }
 
-            return (200, list.ToJsonString(), null);
+        // Free/Busy
+        if (method == "POST" && path == "/calendar/v3/freeBusy")
+        {
+            FreeBusyQueries.Enqueue(body);
+            return FreeBusy(body);
         }
 
         // Contacts
@@ -296,7 +324,7 @@ public sealed class FakeGoogleServer : IDisposable
         return NotFound();
     }
 
-    (int, string, string?) RouteEvents(string method, string rest, string rawQuery, IReadOnlyDictionary<string, string> query, string? ifMatch, string body)
+    (int, string, string?) RouteEvents(string method, string rest, string rawQuery, Dictionary<string, string> query, string? ifMatch, string body)
     {
         var parts = rest.Split('/');
         if (parts.Length < 2 || parts[1] != "events")
@@ -310,6 +338,21 @@ public sealed class FakeGoogleServer : IDisposable
         }
 
         var calendarId = Uri.UnescapeDataString(parts[0]);
+
+        // A Range List (an overlay with details): a teammate's shared events, else 404 for a calendar you can't read
+        if (method == "GET" && parts.Length == 2 && query.ContainsKey("timeMin"))
+        {
+            if (TeammateEvents.TryGetValue(calendarId, out var shared))
+            {
+                return (200, new JsonObject { ["items"] = shared.DeepClone() }.ToJsonString(), null);
+            }
+
+            if (calendarId is not (PrimaryId or FamilyId))
+            {
+                return NotFound();
+            }
+        }
+
         lock (_gate)
         {
             if (parts.Length == 2)
@@ -339,18 +382,121 @@ public sealed class FakeGoogleServer : IDisposable
     }
 
     // =========================================================================
+    // CALENDAR LIST AND FREE/BUSY
+    // =========================================================================
+
+    // The fixture list with the test's edits, then the PATCHed changes on top
+    JsonNode CalendarList()
+    {
+        var list  = JsonNode.Parse(Read(ManyCalendars ? "calendar-list-many.json" : "calendar-list.json"))!;
+        var items = list["items"]!.AsArray();
+        foreach (var item in items.OfType<JsonObject>().Where(c => (string?)c["id"] == DroppedCalendarId).ToList())
+        {
+            items.Remove(item);
+        }
+
+        foreach (var item in items.OfType<JsonObject>().Where(c => (string?)c["id"] == ReadOnlyCalendarId))
+        {
+            item["accessRole"] = "reader";
+        }
+
+        lock (_gate)
+        {
+            foreach (var item in items.OfType<JsonObject>())
+            {
+                if (_listPatches.TryGetValue((string?)item["id"] ?? "", out var patch))
+                {
+                    Merge(item, patch);
+                }
+            }
+        }
+
+        return list;
+    }
+
+    // Remembers the change (nulls included, so a later GET drops the property) and answers the changed entry
+    (int, string, string?) PatchListEntry(string id, string body)
+    {
+        var patch = JsonNode.Parse(body)!.AsObject();
+        lock (_gate)
+        {
+            if (!_listPatches.TryGetValue(id, out var stored))
+            {
+                _listPatches[id] = stored = [];
+            }
+
+            foreach (var (name, value) in patch)
+            {
+                stored[name] = value?.DeepClone();
+            }
+        }
+
+        var entry = CalendarList()["items"]!.AsArray().FirstOrDefault(i => (string?)i!["id"] == id);
+        return entry is null ? NotFound() : (200, entry.ToJsonString(), null);
+    }
+
+    // Busy for each item: Busy's ranges, the seeded calendars' timed busy events, or Google's notFound
+    (int, string, string?) FreeBusy(string body)
+    {
+        var request   = JsonNode.Parse(body)!;
+        var from      = DateTimeOffset.Parse((string)request["timeMin"]!, CultureInfo.InvariantCulture);
+        var to        = DateTimeOffset.Parse((string)request["timeMax"]!, CultureInfo.InvariantCulture);
+        var calendars = new JsonObject();
+
+        foreach (var id in request["items"]!.AsArray().Select(i => (string)i!["id"]!))
+        {
+            List<(DateTimeOffset Start, DateTimeOffset End)>? ranges = null;
+            if (Busy.TryGetValue(id, out var busy))
+            {
+                ranges = busy;
+            }
+            else if (id is PrimaryId or FamilyId)
+            {
+                // ponytail: repeating events aren't expanded; the seeded busy events in the test week are all single
+                lock (_gate)
+                {
+                    ranges = [.. Store(id).Values
+                        .Where(e => (string?)e["status"] != "cancelled" && (string?)e["transparency"] != "transparent" && e["start"]?["dateTime"] is not null)
+                        .Select(e => (DateTimeOffset.Parse((string)e["start"]!["dateTime"]!, CultureInfo.InvariantCulture), DateTimeOffset.Parse((string)e["end"]!["dateTime"]!, CultureInfo.InvariantCulture)))];
+                }
+            }
+
+            calendars[id] = ranges is null
+                ? new JsonObject
+                {
+                    ["errors"] = new JsonArray(new JsonObject { ["domain"] = "global", ["reason"] = "notFound" }),
+                    ["busy"]   = new JsonArray(),
+                }
+                : new JsonObject
+                {
+                    ["busy"] = new JsonArray([.. ranges.Where(r => r.Start < to && r.End > from).OrderBy(r => r.Start).Select(r => (JsonNode)new JsonObject
+                    {
+                        ["start"] = Utc(r.Start),
+                        ["end"]   = Utc(r.End),
+                    })]),
+                };
+        }
+
+        return (200, new JsonObject { ["calendars"] = calendars }.ToJsonString(), null);
+    }
+
+    static string Utc(DateTimeOffset at) => at.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+
+    // =========================================================================
     // PEOPLE
     // =========================================================================
 
     // Google's contact search: a case-insensitive prefix of any word of the name, or of the address.
-    // An empty query is the warmup request and matches nothing, as on Google.
+    // An empty query is the warmup request and matches nothing, as on Google. The directory answers only
+    // Workspace accounts (HostedDomain), and lists its matches under "people" instead of "results".
     (int, string, string?) People(string path, IReadOnlyDictionary<string, string> query)
     {
-        var fixture = path switch
+        var (fixture, directory) = path switch
         {
-            "/people/v1/people:searchContacts" => "contacts-search.json",
-            "/people/v1/otherContacts:search"  => "other-contacts-search.json",
-            _                                  => null,
+            "/people/v1/people:searchContacts"        => ("contacts-search.json", false),
+            "/people/v1/otherContacts:search"         => ("other-contacts-search.json", false),
+            "/people/v1/people:searchDirectoryPeople" => ("directory-search.json", true),
+            _                                         => ((string?)null, false),
         };
 
         if (fixture is null)
@@ -363,12 +509,18 @@ public sealed class FakeGoogleServer : IDisposable
             return (403, Error(403, "accessNotConfigured"), null);
         }
 
+        if (directory && HostedDomain is null)
+        {
+            return (400, """{"error":{"code":400,"message":"Must be a G Suite domain user.","status":"FAILED_PRECONDITION","errors":[{"reason":"failedPrecondition"}]}}""", null);
+        }
+
         var text    = query.GetValueOrDefault("query") ?? "";
-        var results = JsonNode.Parse(Read(fixture))!["results"]!.AsArray()
-            .Where(r => text.Length > 0 && Matches(r!["person"]!, text))
+        var key     = directory ? "people" : "results";
+        var matches = JsonNode.Parse(Read(fixture))![key]!.AsArray()
+            .Where(r => text.Length > 0 && Matches(directory ? r! : r!["person"]!, text))
             .Select(r => r!.DeepClone());
 
-        return (200, new JsonObject { ["results"] = new JsonArray([.. results]) }.ToJsonString(), null);
+        return (200, new JsonObject { [key] = new JsonArray([.. matches]) }.ToJsonString(), null);
     }
 
     static bool Matches(JsonNode person, string text)
@@ -385,7 +537,7 @@ public sealed class FakeGoogleServer : IDisposable
     // EVENTS (called under _gate)
     // =========================================================================
 
-    (int, string, string?) List(string calendarId, IReadOnlyDictionary<string, string> query)
+    (int, string, string?) List(string calendarId, Dictionary<string, string> query)
     {
         var events = Store(calendarId);
         IEnumerable<JsonObject> items = events.Values;
@@ -640,6 +792,7 @@ public sealed class FakeGoogleServer : IDisposable
         200 => "OK",
         204 => "No Content",
         302 => "Found",
+        400 => "Bad Request",
         403 => "Forbidden",
         409 => "Conflict",
         410 => "Gone",

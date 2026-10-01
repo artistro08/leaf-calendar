@@ -102,7 +102,6 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     readonly DispatcherQueue _dispatcher;
     readonly DispatcherQueueTimer _minuteTimer;
     readonly CancellationTokenSource _life = new();
-    readonly LocalZoneWatcher _zones = new();
     (DateOnly First, DateOnly Last) _ensuredMonths;
     SyncEngine? _attachedSync;
     readonly List<CalendarOccurrence> _selection = [];
@@ -133,8 +132,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             AccountEmails = AccountStore.GetAll(conn).ToDictionary(a => a.Id, a => a.Email);
         }
 
-        Today = services.Options.StartDate ?? DateOnly.FromDateTime(DateTime.Now);
-        Cache = new EventWindowCache(LoadAsync, Zone);
+        // "Today" Is The Date In The Zone On Screen, Not The PC Clock's
+        _applied = Zone;
+        Today    = services.Options.StartDate ?? LocalDate(Now);
+        Cache    = new EventWindowCache(LoadAsync, Zone);
         Cache.Changed += (_, _) =>
         {
             RefreshUpcoming();
@@ -151,7 +152,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         AttachSync();
 
         // Local Edits Reload The Views
-        services.Editor.LocalZoneId = IanaZoneId(Zone);
+        services.Editor.LocalZoneId = TimeZoneCatalog.IanaId(Zone);
         services.Editor.Changed    += OnEditsChanged;
         services.Conflicts.Changed += OnEditsChanged;
         RefreshSyncState();
@@ -172,9 +173,6 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     /// <summary>True once <paramref name="o"/> is over (drawn faded).</summary>
     public bool IsPast(CalendarOccurrence o) => o.HasEndedBy(Now, Zone);
-
-    /// <summary>The zone the grid is drawn in: the PC's, followed while Leaf runs (see <see cref="CheckTimeZone"/>).</summary>
-    public TimeZoneInfo Zone => _zones.Zone;
 
     /// <summary>The user's view settings.</summary>
     public LeafSettings Settings { get; private set; }
@@ -404,9 +402,11 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             Editing?.ClearSuggestions();
         }
 
-        // Pane Flags Only
-        var panesOnly = Settings with { SidebarOpen = before.SidebarOpen, DetailsPanelOpen = before.DetailsPanelOpen, TimeZones = before.TimeZones } == before
-            && Settings.TimeZones.SequenceEqual(before.TimeZones);
+        // A Primary Zone Change Re-Sorts The Events (no-op when the zone on screen stayed)
+        SyncZone();
+
+        // Pane Flags Only (Normalize keeps unchanged lists, so record equality holds)
+        var panesOnly = Settings with { SidebarOpen = before.SidebarOpen, DetailsPanelOpen = before.DetailsPanelOpen } == before;
         if (panesOnly && !reloadData)
         {
             return;
@@ -585,6 +585,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             AccountEmails = AccountStore.GetAll(conn).ToDictionary(a => a.Id, a => a.Email);
         }
 
+        // A Disconnected Account's Choices Go With It (main account, Meet by default, tray-excluded calendars)
+        var pruned = Settings.ForAccounts([.. AccountEmails.Keys]);
+        if (pruned != Settings)
+        {
+            Update(_ => pruned);
+        }
+
         CalendarsChanged?.Invoke(this, EventArgs.Empty);
         Run(RefreshAsync);
     }
@@ -646,32 +653,6 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>
-    /// Follows the PC's time zone. When it changed since the last check, the events are sorted into the new
-    /// local days and the views redraw (hour labels, now line, today, the selected event's time, and the
-    /// upcoming list). Runs every minute and whenever the window is activated.
-    /// </summary>
-    public void CheckTimeZone()
-    {
-        var before = Zone;
-        if (!_zones.Check())
-        {
-            return;
-        }
-
-        _services.Log.Info("calendar.timezone.changed", $"{before.Id} -> {Zone.Id}");
-        Cache.Zone = Zone;
-        _services.Editor.LocalZoneId = IanaZoneId(Zone);
-        Today      = _services.Options.StartDate ?? DateOnly.FromDateTime(DateTime.Now);
-        if (SelectedInfo is { } selected)
-        {
-            SelectedInfo = selected with { When = WhenText(selected.Occurrence) };
-        }
-
-        LayoutChanged?.Invoke(this, EventArgs.Empty);
-        Run(RefreshAsync);
-    }
-
     /// <inheritdoc />
     public void Dispose()
     {
@@ -718,7 +699,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             return;
         }
 
-        Editing = new EventEditorViewModel(info.Draft, info.Occurrence, WritableCalendars(info.Occurrence), Zone, IanaZoneId(Zone), Settings.Use24HourTime, focusEnd);
+        Editing = new EventEditorViewModel(info.Draft, info.Occurrence, WritableCalendars(info.Occurrence), Zone, TimeZoneCatalog.IanaId(Zone), Settings.Use24HourTime, focusEnd);
     }
 
     /// <summary>Opens the editor on a new event in your default calendar (your chosen one, else primary, else the first you can write to).</summary>
@@ -737,11 +718,11 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             Start      = start,
             End        = end,
             IsAllDay   = isAllDay,
-            TimeZone   = isAllDay ? null : IanaZoneId(Zone),
+            TimeZone   = isAllDay ? null : TimeZoneCatalog.IanaId(Zone),
         };
 
         ClearSelection();
-        Editing = new EventEditorViewModel(draft, null, WritableCalendars(), Zone, IanaZoneId(Zone), Settings.Use24HourTime);
+        Editing = new EventEditorViewModel(draft, null, WritableCalendars(), Zone, TimeZoneCatalog.IanaId(Zone), Settings.Use24HourTime);
     }
 
     /// <summary>A new one-hour event at the picked time, or the next quarter hour (C).</summary>
@@ -1539,10 +1520,6 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     DateOnly DayOf(CalendarOccurrence o) => o.IsAllDay ? o.AllDayStart : LocalDate(o.Start);
 
-    // Google wants IANA zone IDs; Windows reports its own
-    static string IanaZoneId(TimeZoneInfo zone) =>
-        TimeZoneInfo.TryConvertWindowsIdToIanaId(zone.Id, out var iana) ? iana : zone.Id;
-
     // =========================================================================
     // INTERNALS
     // =========================================================================
@@ -1601,7 +1578,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     void OnMinute()
     {
         CheckTimeZone();
-        var today = _services.Options.StartDate ?? DateOnly.FromDateTime(DateTime.Now);
+        var today = _services.Options.StartDate ?? LocalDate(Now);
         if (today != Today)
         {
             Today = today;

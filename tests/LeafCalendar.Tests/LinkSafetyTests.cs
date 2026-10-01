@@ -225,4 +225,13 @@ public class LinkSafetyTests
     [Fact]
     public void DisplayForm_HostWithoutAnAsciiForm_IsNull() =>
         Assert.Null(LinkSafety.DisplayForm(new Uri("https://a․b.com/")));
+
+    [Fact]
+    public void BookingPages_IsHttpsGoogleWithTheAccount()
+    {
+        var uri = LinkSafety.BookingPages("leaf.tester@gmail.com");
+
+        Assert.Equal("https://calendar.google.com/calendar/appointments?authuser=leaf.tester%40gmail.com", uri.AbsoluteUri);
+        Assert.True(LinkSafety.CanLaunch(uri));
+    }
 }

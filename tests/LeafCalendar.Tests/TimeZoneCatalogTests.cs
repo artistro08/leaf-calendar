@@ -47,6 +47,14 @@ public class TimeZoneCatalogTests
         Assert.Equal("Buenos Aires", TimeZoneCatalog.CityFor("America/Argentina/Buenos_Aires"));
     }
 
+    [Theory]
+    [InlineData("Eastern Standard Time", "America/New_York")]
+    [InlineData("Tokyo Standard Time", "Asia/Tokyo")]
+    [InlineData("Europe/London", "Europe/London")]
+    [InlineData("UTC", "Etc/UTC")]
+    public void IanaId_WindowsOrIana_GivesIana(string id, string expected) =>
+        Assert.Equal(expected, TimeZoneCatalog.IanaId(TimeZoneInfo.FindSystemTimeZoneById(id)));
+
     [Fact]
     public void Choice_ToString_ShowsCityAndDetail()
     {

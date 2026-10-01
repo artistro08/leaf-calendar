@@ -40,6 +40,27 @@ public sealed class FakeHttpHandler : HttpMessageHandler
     public FakeHttpHandler On(HttpMethod method, string urlPrefix, HttpStatusCode status, string body, bool once = false) =>
         On(r => r.Method == method && r.Uri.AbsoluteUri.StartsWith(urlPrefix, StringComparison.Ordinal), _ => Json(status, body), once);
 
+    /// <summary>Base of <see cref="Respond"/>'s relative paths (Google Calendar API v3).</summary>
+    public const string CalendarApi = "https://www.googleapis.com/calendar/v3/";
+
+    /// <summary>The newest request (throws when none was sent).</summary>
+    public RecordedRequest Last => Requests[^1];
+
+    /// <summary>
+    /// Adds a route matching a method and a Calendar API path exactly (relative to <see cref="CalendarApi"/>, escaped as
+    /// sent, query ignored), answering with JSON.
+    /// </summary>
+    public FakeHttpHandler Respond(HttpMethod method, string relativePath, int status, string body, bool once = false) =>
+        On(r => r.Method == method && r.Uri.GetLeftPart(UriPartial.Path) == CalendarApi + relativePath, _ => Json((HttpStatusCode)status, body), once);
+
+    /// <summary>Adds a route answering every request with this method.</summary>
+    public FakeHttpHandler RespondToAny(HttpMethod method, int status, string body) =>
+        On(r => r.Method == method, _ => Json((HttpStatusCode)status, body));
+
+    /// <summary>Adds a route that throws for every request not matched by an earlier route (e.g. offline).</summary>
+    public FakeHttpHandler Throw(Exception error) =>
+        On(_ => true, _ => throw error);
+
     /// <summary>Creates a JSON response.</summary>
     public static HttpResponseMessage Json(HttpStatusCode status, string body) =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };

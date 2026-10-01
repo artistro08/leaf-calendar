@@ -125,12 +125,17 @@ public sealed class SidebarTests : IDisposable
     }
 
     [Fact]
-    public void Footer_HasOnlyTheSettingsButton()
+    public void Footer_HasSettingsThenShareAvailability()
     {
         using var leaf = Launch();
         leaf.WaitFor($"CalendarToggle_{FamilyId}");
 
-        Assert.Equal("Settings", leaf.WaitFor("SettingsButton").Name);
+        var settings = leaf.WaitFor("SettingsButton");
+        var share    = leaf.WaitFor("SidebarShareAvailability");
+        Assert.Equal("Settings", settings.Name);
+        Assert.Equal("Share availability", share.Name);
+        Assert.Equal(settings.BoundingRectangle.Top, share.BoundingRectangle.Top);
+        Assert.True(share.BoundingRectangle.Left > settings.BoundingRectangle.Right, "Share availability sits right of Settings.");
         Assert.False(leaf.Exists("BookingPagesLink"));
         Assert.False(leaf.Exists("AccountsButton"));
         Assert.False(leaf.Exists($"CalendarColor_{FamilyId}"));

@@ -26,7 +26,7 @@ public class XamlLintTests
 
         // Optical alignment tuned by hand (title bar lift, sidebar glyph centers); see the comments in each file
         "Views/CalendarPage.xaml|spacing|0,9,0,8 (TextBlock in PeriodTitle)",
-        "Views/SidebarView.xaml|spacing|5,48,5,6 (Grid in Self)",
+        "Views/SidebarView.xaml|spacing|5,0,5,6 (Grid in BodyScale)",
         "Views/SidebarView.xaml|spacing|9,0,0,0 (TextBlock in MiniMonthTitle)",
         "Views/SidebarView.xaml|spacing|9,0,4,0 (Grid in CalendarList)",
         "Views/SidebarView.xaml|spacing|0,0,11,0 (ItemsControl in CalendarList)",

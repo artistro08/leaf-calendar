@@ -111,6 +111,36 @@ public enum CalendarCommand
     /// <summary>Alt+Right (or the mouse forward button).</summary>
     NavigateForward,
 
+    /// <summary>Ctrl+K: the command menu.</summary>
+    CommandMenu,
+
+    /// <summary>Ctrl+F or /: the command menu, searching events.</summary>
+    Search,
+
+    /// <summary>? (Shift+/): the keyboard shortcut sheet.</summary>
+    ShortcutSheet,
+
+    /// <summary>Ctrl+, (comma): Settings.</summary>
+    OpenSettings,
+
+    /// <summary>Z: time travel (view the calendar in another time zone).</summary>
+    TimeTravel,
+
+    /// <summary>S: share availability.</summary>
+    ShareAvailability,
+
+    /// <summary>P: overlay people's calendars.</summary>
+    PeopleOverlay,
+
+    /// <summary>F: meet with (find a time with people).</summary>
+    MeetWith,
+
+    /// <summary>E then Z: edit the selected event's time zone.</summary>
+    EditTimeZone,
+
+    /// <summary>E then F: overlay the selected event's guests.</summary>
+    ParticipantOverlay,
+
     /// <summary>E was pressed; waiting up to 1.5 s for the second key.</summary>
     SequenceStarted,
 }
@@ -162,6 +192,9 @@ public static class ShortcutMap
                 "V"                        => new(CalendarCommand.Paste),
                 "Z"                        => new(CalendarCommand.Undo),
                 "J"                        => new(CalendarCommand.JoinMeeting),
+                "K"                        => new(CalendarCommand.CommandMenu),
+                "F"                        => new(CalendarCommand.Search),
+                "188"                      => new(CalendarCommand.OpenSettings),
                 _                          => default,
             };
         }
@@ -169,7 +202,12 @@ public static class ShortcutMap
         // Shift
         if (shift)
         {
-            return key == "N" ? new(CalendarCommand.PreviousEvent) : default;
+            return key switch
+            {
+                "N"   => new(CalendarCommand.PreviousEvent),
+                "191" => new(CalendarCommand.ShortcutSheet),
+                _     => default,
+            };
         }
 
         // Plain Keys
@@ -199,6 +237,11 @@ public static class ShortcutMap
             "V"                 => new(CalendarCommand.OpenMeetingLink),
             "X"                 => new(CalendarCommand.ToggleSelect),
             "Delete"            => new(CalendarCommand.DeleteSelected),
+            "191" or "Divide"   => new(CalendarCommand.Search),
+            "Z"                 => new(CalendarCommand.TimeTravel),
+            "S"                 => new(CalendarCommand.ShareAvailability),
+            "P"                 => new(CalendarCommand.PeopleOverlay),
+            "F"                 => new(CalendarCommand.MeetWith),
             _                   => default,
         };
     }

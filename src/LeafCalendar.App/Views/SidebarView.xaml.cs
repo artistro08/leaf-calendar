@@ -47,6 +47,9 @@ public sealed partial class SidebarView : UserControl
         ActualThemeChanged += (_, _) => RenderMiniMonth();
     }
 
+    /// <summary>The share-availability button was clicked.</summary>
+    public event EventHandler? ShareAvailabilityRequested;
+
     /// <summary>x:Bind helper: automation ID of a calendar's visibility checkbox.</summary>
     public static string ToggleId(CalendarInfo info) => $"CalendarToggle_{info.Id}";
 
@@ -352,4 +355,6 @@ public sealed partial class SidebarView : UserControl
     }
 
     void OnSettingsClick(object sender, RoutedEventArgs e) => _viewModel?.OpenSettings?.Invoke(SettingsSection.General);
+
+    void OnShareClick(object sender, RoutedEventArgs e) => ShareAvailabilityRequested?.Invoke(this, EventArgs.Empty);
 }

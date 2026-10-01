@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
 using LeafCalendar.Core.Auth;
@@ -130,6 +132,86 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
             return null;
         }
     }
+
+    // =========================================================================
+    // CALENDAR LIST AND FREE/BUSY
+    // =========================================================================
+
+    /// <summary>Most IDs Google takes in one free/busy query.</summary>
+    public const int MaxFreeBusyIds = 50;
+
+    /// <summary>
+    /// Busy times for calendars or people (a person's ID is their email) over <c>[from, to)</c>. An ID Google has no
+    /// answer for (not found, outside your domain, not shared) comes back with an <see cref="FreeBusyResult.Error"/>,
+    /// never as free.
+    /// </summary>
+    /// <exception cref="ArgumentException">No IDs, or more than <see cref="MaxFreeBusyIds"/>.</exception>
+    /// <exception cref="GoogleApiException">Google refused the query.</exception>
+    public async Task<IReadOnlyDictionary<string, FreeBusyResult>> QueryFreeBusyAsync(string accountId, IReadOnlyList<string> ids, DateTimeOffset from, DateTimeOffset to, CancellationToken ct)
+    {
+        if (ids.Count is 0 or > MaxFreeBusyIds)
+        {
+            throw new ArgumentException($"Between 1 and {MaxFreeBusyIds} IDs.", nameof(ids));
+        }
+
+        // Request
+        var body = JsonSerializer.Serialize(new FreeBusyRequest
+        {
+            TimeMin = Rfc3339(from),
+            TimeMax = Rfc3339(to),
+            Items   = [.. ids.Select(id => new FreeBusyItem { Id = id })],
+        }, GoogleJsonContext.Default.FreeBusyRequest);
+
+        using var response = await SendAsync(accountId, HttpMethod.Post, "freeBusy", body, null, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await GoogleJson.ToExceptionAsync(response, ct);
+        }
+
+        // Answer (an ID left out counts as an error, never as free)
+        var answer = await response.Content.ReadFromJsonAsync(GoogleJsonContext.Default.FreeBusyResponse, ct);
+        var found  = answer?.Calendars ?? [];
+        return ids.Distinct(StringComparer.Ordinal).ToDictionary(id => id, id => found.TryGetValue(id, out var c)
+            ? new FreeBusyResult([.. (c.Busy ?? []).Where(b => b.End > b.Start).Select(b => new BusyRange(b.Start, b.End))], c.Errors?.FirstOrDefault()?.Reason)
+            : new FreeBusyResult([], "missing"), StringComparer.Ordinal);
+    }
+
+    /// <summary>Changes your calendar-list entry (<c>summaryOverride</c>, <c>defaultReminders</c>) and returns Google's JSON.</summary>
+    /// <exception cref="GoogleApiException">Google refused it.</exception>
+    public async Task<string> PatchCalendarListAsync(string accountId, string calendarId, string patchJson, CancellationToken ct)
+    {
+        using var response = await SendAsync(accountId, HttpMethod.Patch, $"users/me/calendarList/{Uri.EscapeDataString(calendarId)}", patchJson, null, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await GoogleJson.ToExceptionAsync(response, ct);
+        }
+
+        return await response.Content.ReadAsStringAsync(ct);
+    }
+
+    /// <summary>
+    /// Single events overlapping <c>[from, to)</c> on someone else's calendar, for an overlay with details. Null when
+    /// you can't read it (403 or 404): then only free/busy is available. Reads one page of at most 250 events.
+    /// </summary>
+    /// <exception cref="GoogleApiException">Google refused it for another reason.</exception>
+    public async Task<EventsPage?> ListEventsInRangeAsync(string accountId, string calendarId, DateTimeOffset from, DateTimeOffset to, CancellationToken ct)
+    {
+        var path = $"{EventsPath(calendarId)}?timeMin={Uri.EscapeDataString(Rfc3339(from))}&timeMax={Uri.EscapeDataString(Rfc3339(to))}&singleEvents=true&orderBy=startTime&maxResults=250";
+        using var response = await SendAsync(accountId, HttpMethod.Get, path, null, null, ct);
+        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await GoogleJson.ToExceptionAsync(response, ct);
+        }
+
+        return await response.Content.ReadFromJsonAsync(GoogleJsonContext.Default.EventsPage, ct);
+    }
+
+    static string Rfc3339(DateTimeOffset at) => at.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
 
     // =========================================================================
     // HTTP

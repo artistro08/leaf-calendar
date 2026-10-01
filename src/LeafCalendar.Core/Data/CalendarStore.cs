@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using LeafCalendar.Core.Google;
+using LeafCalendar.Core.Tray;
 using Microsoft.Data.Sqlite;
 
 namespace LeafCalendar.Core.Data;
@@ -36,6 +37,9 @@ public sealed record CalendarInfo(
 /// <summary>Reads and writes the <c>calendars</c> table.</summary>
 public static partial class CalendarStore
 {
+    /// <summary>Longest calendar name shown (longer names are clipped with "…").</summary>
+    public const int MaxNameLength = 100;
+
     const string SelectColumns = """
         SELECT c.account_id, c.id, COALESCE(c.summary_override, c.summary), c.background_color, c.access_role,
                c.is_primary, c.hidden, c.sync_token, COALESCE(c.leaf_hidden, c.hidden), c.leaf_color, c.sort_order
@@ -200,10 +204,11 @@ public static partial class CalendarStore
         }
     }
 
+    // Names come from Google (or another person's calendar), so they're cleaned like any untrusted text
     static CalendarInfo Map(SqliteDataReader r) => new(
         r.GetString(0),
         r.GetString(1),
-        r.GetString(2),
+        DisplayText.Clean(r.GetString(2), MaxNameLength),
         r.GetStringOrNull(3),
         r.GetString(4),
         r.GetBoolean(5),

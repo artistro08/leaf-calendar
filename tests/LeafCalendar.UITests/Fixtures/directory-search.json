@@ -1,0 +1,6 @@
+{
+  "people": [
+    { "names": [ { "displayName": "Dana Director" } ], "emailAddresses": [ { "value": "dana@example.com" } ] },
+    { "names": [ { "displayName": "Dennis Directory" } ], "emailAddresses": [ { "value": "dennis.dir@example.com" } ] }
+  ]
+}

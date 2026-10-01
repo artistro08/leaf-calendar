@@ -103,6 +103,12 @@ public sealed partial class CalendarPage : Page
     /// <summary>True when the details panel takes up room.</summary>
     public bool IsDetailsOpen => DetailsSplit.IsPaneOpen;
 
+    /// <summary>Width of the open sidebar as laid out now (<see cref="SidebarWidth"/> at 100% interface scale).</summary>
+    public double SidebarPaneWidth => SidebarSplit.OpenPaneLength;
+
+    /// <summary>Width of the open details panel as laid out now (<see cref="DetailsWidth"/> at 100% interface scale).</summary>
+    public double DetailsPaneWidth => DetailsSplit.OpenPaneLength;
+
     /// <summary>The sidebar or details panel started to open or close (the island has its new size and is sliding into place).</summary>
     public event EventHandler<PanesChangedEventArgs>? PanesChanged;
 
@@ -127,6 +133,11 @@ public sealed partial class CalendarPage : Page
         ViewModel.ReloadCalendars();
         UpdateEmptyState();
         ApplyView();
+
+        // Each Track's Own Wiring (Milestone 5)
+        AttachNavigate();
+        AttachPeople();
+        AttachExtras();
     }
 
     /// <inheritdoc />
@@ -139,6 +150,11 @@ public sealed partial class CalendarPage : Page
     /// </summary>
     public void Detach()
     {
+        // Each Track's Own Unwiring (the view model outlives the window in tray mode)
+        DetachNavigate();
+        DetachPeople();
+        DetachExtras();
+
         ViewModel.LayoutChanged        -= OnLayoutChanged;
         ViewModel.CalendarsChanged     -= OnCalendarsChanged;
         ViewModel.DetailsOpenRequested -= OnDetailsOpenRequested;
@@ -323,6 +339,13 @@ public sealed partial class CalendarPage : Page
                     ViewModel.CancelEdit();
                     Execute(second);
                     return true;
+                case CalendarCommand.EditTimeZone:
+                    EditTimeZone();
+                    return true;
+                case CalendarCommand.ParticipantOverlay:
+                    ViewModel.CancelEdit();
+                    Execute(second);
+                    return true;
                 default:
                     // Typing: the title box gets the key, even if its own focus hasn't landed yet
                     Details.EditorView?.FocusTitleNow();
@@ -395,6 +418,21 @@ public sealed partial class CalendarPage : Page
     }
 
     /// <summary>
+    /// Runs a calendar command as if its shortcut were pressed (the command menu's one path into every action). Like
+    /// the C key, "create" brings back a hidden editor instead of replacing its unsaved text.
+    /// </summary>
+    public void RunCommand(CalendarCommand command, int days = 0)
+    {
+        if (command == CalendarCommand.CreateEvent && ViewModel.Editing is not null)
+        {
+            SetDetailsOpen(true, animate: true);
+            return;
+        }
+
+        Execute(new ShortcutResult(command, days));
+    }
+
+    /// <summary>
     /// Goes back or forward through the visited places, under the same rules as the keyboard shortcuts: nothing
     /// happens while the editor shows or while focus is in a text box, flyout, menu, or dialog.
     /// </summary>
@@ -428,7 +466,8 @@ public sealed partial class CalendarPage : Page
         // One-Event Shortcuts With Several Selected: say why nothing happens
         if (vm.Selection.Count > 1 && result.Command is CalendarCommand.EditEvent or CalendarCommand.EditDuration
             or CalendarCommand.RsvpYes or CalendarCommand.RsvpNo or CalendarCommand.RsvpMaybe
-            or CalendarCommand.EmailGuests or CalendarCommand.OpenMeetingLink)
+            or CalendarCommand.EmailGuests or CalendarCommand.OpenMeetingLink
+            or CalendarCommand.EditTimeZone or CalendarCommand.ParticipantOverlay)
         {
             vm.ShowMessage("Select one event");
             return;
@@ -471,6 +510,15 @@ public sealed partial class CalendarPage : Page
             case CalendarCommand.EmailGuests:        vm.Fire(vm.EmailGuestsAsync); break;
             case CalendarCommand.JoinMeeting:        vm.Fire(() => vm.JoinAsync()); break;
             case CalendarCommand.OpenMeetingLink:    vm.Fire(vm.OpenMeetingLinkAsync); break;
+            case CalendarCommand.CommandMenu or CalendarCommand.Search: OpenCommandMenu(); break;
+            case CalendarCommand.ShortcutSheet:      ShowShortcutSheet(); break;
+            case CalendarCommand.OpenSettings:       vm.OpenSettings?.Invoke(SettingsSection.General); break;
+            case CalendarCommand.TimeTravel:         StartTimeTravel(); break;
+            case CalendarCommand.ShareAvailability:  StartShareAvailability(); break;
+            case CalendarCommand.PeopleOverlay:      ShowPeopleOverlay(); break;
+            case CalendarCommand.MeetWith:           ShowMeetWith(); break;
+            case CalendarCommand.ParticipantOverlay: ShowParticipantOverlay(); break;
+            case CalendarCommand.EditTimeZone:       EditTimeZone(); break;
         }
     }
 

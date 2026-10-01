@@ -38,6 +38,39 @@ public sealed record ExtraTimeZone(string Id, string? Label);
 /// <summary>A calendar by account and calendar ID.</summary>
 public sealed record CalendarRef(string AccountId, string CalendarId);
 
+/// <summary>Which map site "Open in maps" uses (Settings › General).</summary>
+public enum MapProvider
+{
+    /// <summary>Google Maps.</summary>
+    Google,
+
+    /// <summary>Bing Maps.</summary>
+    Bing,
+}
+
+/// <summary>
+/// Your working hours. Google's Calendar API doesn't expose the ones set in Google Calendar, so Leaf keeps its own.
+/// Minutes from local midnight; the end is exclusive.
+/// </summary>
+public sealed record WorkingHours
+{
+    /// <summary>Weekdays, Monday to Friday.</summary>
+    public static IReadOnlyList<DayOfWeek> Weekdays { get; } =
+        [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday];
+
+    /// <summary>Shade the hours outside these.</summary>
+    public bool Enabled { get; init; } = true;
+
+    /// <summary>Start, minutes from midnight (9 AM).</summary>
+    public int StartMinute { get; init; } = 9 * 60;
+
+    /// <summary>End, minutes from midnight (5 PM).</summary>
+    public int EndMinute { get; init; } = 17 * 60;
+
+    /// <summary>Days you work.</summary>
+    public IReadOnlyList<DayOfWeek> Days { get; init; } = Weekdays;
+}
+
 /// <summary>
 /// The user's preferences. Stored as one JSON row by <see cref="SettingsStore"/> and always passed
 /// through <see cref="Normalize"/>, so an old or damaged row can never produce unusable values.
@@ -136,6 +169,42 @@ public sealed record LeafSettings
     /// <summary>Global shortcut that shows or hides the tray flyout; empty for none.</summary>
     public string FlyoutShortcut { get; set; } = DefaultFlyoutShortcut;
 
+    /// <summary>Interface scale choices (Settings › General › Appearance).</summary>
+    public static IReadOnlyList<double> ScaleChoices { get; } = [0.8, 0.9, 1.0, 1.1, 1.25, 1.5];
+
+    /// <summary>Upcoming-list lookahead choices in hours (details panel, nothing selected).</summary>
+    public static IReadOnlyList<int> UpcomingChoices { get; } = [2, 4, 8, 12, 24];
+
+    /// <summary>How big the sidebar, calendar, and details panel are drawn (1 = 100%).</summary>
+    public double InterfaceScale { get; init; } = 1.0;
+
+    /// <summary>Your working hours (shading outside them).</summary>
+    public WorkingHours WorkingHours { get; init; } = new();
+
+    /// <summary>The all-day row starts expanded.</summary>
+    public bool AllDayExpanded { get; init; }
+
+    /// <summary>Map site for locations.</summary>
+    public MapProvider MapProvider { get; init; } = MapProvider.Google;
+
+    /// <summary>How many hours ahead the details panel's upcoming list looks.</summary>
+    public int UpcomingHours { get; init; } = 8;
+
+    /// <summary>Leaf's own time zone (IANA ID); null follows Windows.</summary>
+    public string? PrimaryTimeZone { get; init; }
+
+    /// <summary>With <see cref="PrimaryTimeZone"/> set, offer to switch when Windows' time zone changes.</summary>
+    public bool PromptOnZoneChange { get; init; } = true;
+
+    /// <summary>The main account: listed first, and used for people overlays and free/busy. Null: the first account.</summary>
+    public string? MainAccountId { get; init; }
+
+    /// <summary>Accounts whose new events get a Google Meet link by default.</summary>
+    public IReadOnlyList<string> MeetByDefaultAccounts { get; init; } = [];
+
+    /// <summary>Calendars left out of the tray flyout and tooltip (the rest follow what's shown in Leaf).</summary>
+    public IReadOnlyList<CalendarRef> TrayExcludedCalendars { get; init; } = [];
+
     /// <summary>
     /// Returns a copy with every value made safe.
     /// </summary>
@@ -146,6 +215,14 @@ public sealed record LeafSettings
     /// that isn't one of <see cref="LookaheadChoices"/> becomes 60 minutes, shortcuts are rewritten in
     /// <see cref="Hotkey"/>'s order (unreadable ones return to their defaults, empty stays empty), and a flyout
     /// shortcut that repeats the join shortcut is turned off.
+    /// An interface scale that isn't one of <see cref="ScaleChoices"/> becomes 100%.
+    /// Working hours that are backwards or outside the day return to 9 AM-5 PM, and unknown or repeated days are dropped.
+    /// An unknown map provider becomes Google.
+    /// An upcoming lookahead that isn't one of <see cref="UpcomingChoices"/> becomes 8 hours.
+    /// A primary time zone this PC doesn't know becomes null (follow Windows).
+    /// A blank main account becomes null.
+    /// Blank and repeated Meet-by-default accounts and tray-excluded calendars are dropped.
+    /// A list whose contents didn't change keeps its instance, so normalizing twice gives an equal record.
     /// </remarks>
     public LeafSettings Normalize()
     {
@@ -166,17 +243,54 @@ public sealed record LeafSettings
 
         return this with
         {
-            WeekStart            = Enum.IsDefined(WeekStart) ? WeekStart : DayOfWeek.Sunday,
-            ViewMode             = Enum.IsDefined(ViewMode) ? ViewMode : CalendarViewMode.Week,
-            Theme                = Enum.IsDefined(Theme) ? Theme : AppTheme.System,
-            CustomDayCount       = Math.Clamp(CustomDayCount, 1, 31),
-            HourHeight           = double.IsFinite(HourHeight) ? Math.Clamp(HourHeight, MinHourHeight, MaxHourHeight) : DefaultHourHeight,
-            TimeZones            = zones,
-            DefaultCalendar      = DefaultCalendar is { } d && !string.IsNullOrWhiteSpace(d.AccountId) && !string.IsNullOrWhiteSpace(d.CalendarId) ? d : null,
-            FlyoutDays           = Math.Clamp(FlyoutDays, 1, MaxFlyoutDays),
-            TrayLookaheadMinutes = LookaheadChoices.Contains(TrayLookaheadMinutes) ? TrayLookaheadMinutes : 60,
-            JoinShortcut         = join,
-            FlyoutShortcut       = flyout,
+            WeekStart             = Enum.IsDefined(WeekStart) ? WeekStart : DayOfWeek.Sunday,
+            ViewMode              = Enum.IsDefined(ViewMode) ? ViewMode : CalendarViewMode.Week,
+            Theme                 = Enum.IsDefined(Theme) ? Theme : AppTheme.System,
+            CustomDayCount        = Math.Clamp(CustomDayCount, 1, 31),
+            HourHeight            = double.IsFinite(HourHeight) ? Math.Clamp(HourHeight, MinHourHeight, MaxHourHeight) : DefaultHourHeight,
+            TimeZones             = Keep(TimeZones, zones),
+            DefaultCalendar       = DefaultCalendar is { } d && !string.IsNullOrWhiteSpace(d.AccountId) && !string.IsNullOrWhiteSpace(d.CalendarId) ? d : null,
+            FlyoutDays            = Math.Clamp(FlyoutDays, 1, MaxFlyoutDays),
+            TrayLookaheadMinutes  = LookaheadChoices.Contains(TrayLookaheadMinutes) ? TrayLookaheadMinutes : 60,
+            JoinShortcut          = join,
+            FlyoutShortcut        = flyout,
+            InterfaceScale        = ScaleChoices.Contains(InterfaceScale) ? InterfaceScale : 1.0,
+            WorkingHours          = CleanHours(WorkingHours),
+            MapProvider           = Enum.IsDefined(MapProvider) ? MapProvider : MapProvider.Google,
+            UpcomingHours         = UpcomingChoices.Contains(UpcomingHours) ? UpcomingHours : 8,
+            PrimaryTimeZone       = PrimaryTimeZone is { } z && TimeZoneInfo.TryFindSystemTimeZoneById(z, out _) ? z : null,
+            MainAccountId         = string.IsNullOrWhiteSpace(MainAccountId) ? null : MainAccountId,
+            MeetByDefaultAccounts = Keep(MeetByDefaultAccounts, [.. (MeetByDefaultAccounts ?? []).Where(a => !string.IsNullOrWhiteSpace(a)).Distinct(StringComparer.Ordinal)]),
+            TrayExcludedCalendars = Keep(TrayExcludedCalendars, [.. (TrayExcludedCalendars ?? []).Where(c => c is not null && !string.IsNullOrWhiteSpace(c.AccountId) && !string.IsNullOrWhiteSpace(c.CalendarId)).Distinct()]),
+        };
+    }
+
+    /// <summary>
+    /// Returns a copy without the per-account choices of accounts no longer connected (the main account, Meet by
+    /// default, and tray-excluded calendars), so adding the same Google account again starts fresh. Equal to this
+    /// record when every account they name is still in <paramref name="accountIds"/>.
+    /// </summary>
+    public LeafSettings ForAccounts(IReadOnlyCollection<string> accountIds) => this with
+    {
+        MainAccountId         = MainAccountId is { } main && accountIds.Contains(main) ? main : null,
+        MeetByDefaultAccounts = Keep(MeetByDefaultAccounts, [.. MeetByDefaultAccounts.Where(accountIds.Contains)]),
+        TrayExcludedCalendars = Keep(TrayExcludedCalendars, [.. TrayExcludedCalendars.Where(c => accountIds.Contains(c.AccountId))]),
+    };
+
+    // Records compare lists by reference, so an unchanged list keeps its instance and a normalized copy still equals the original
+    static IReadOnlyList<T> Keep<T>(IReadOnlyList<T>? original, List<T> cleaned) =>
+        original is not null && original.SequenceEqual(cleaned) ? original : cleaned;
+
+    // Out of range or backwards falls back to 9-5; unknown and repeated days are dropped
+    static WorkingHours CleanHours(WorkingHours? hours)
+    {
+        var h     = hours ?? new WorkingHours();
+        var valid = h.StartMinute is >= 0 and < 1440 && h.EndMinute is > 0 and <= 1440 && h.StartMinute < h.EndMinute;
+        return h with
+        {
+            StartMinute = valid ? h.StartMinute : 9 * 60,
+            EndMinute   = valid ? h.EndMinute : 17 * 60,
+            Days        = Keep(h.Days, [.. (h.Days ?? WorkingHours.Weekdays).Where(d => Enum.IsDefined(d)).Distinct()]),
         };
     }
 

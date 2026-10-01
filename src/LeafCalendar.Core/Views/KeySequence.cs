@@ -2,7 +2,7 @@ namespace LeafCalendar.Core.Views;
 
 /// <summary>
 /// "E then ..." key sequences (spec 8.7): E then Y / N / M replies, E then E emails guests, E then U edits the
-/// duration. The second key must come within <see cref="Timeout"/>. E on its own edits the selected event once
+/// duration, E then Z edits the time zone, and E then F overlays the guests' calendars. The second key must come within <see cref="Timeout"/>. E on its own edits the selected event once
 /// the sequence times out: the app calls <see cref="Expire"/> from a 1.5 s timer.
 /// </summary>
 public sealed class KeySequence(TimeProvider time)
@@ -57,6 +57,8 @@ public sealed class KeySequence(TimeProvider time)
         "M" => CalendarCommand.RsvpMaybe,
         "E" => CalendarCommand.EmailGuests,
         "U" => CalendarCommand.EditDuration,
+        "Z" => CalendarCommand.EditTimeZone,
+        "F" => CalendarCommand.ParticipantOverlay,
         _   => null,
     };
 }
