@@ -129,7 +129,8 @@
     <Style x:Key="LeafTitleBarPaneToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource LeafBareIconButtonStyle}">
         <Setter Property="Width" Value="{ThemeResource TitleBarPaneToggleButtonWidth}" />
         <Setter Property="Height" Value="NaN" />
-        <Setter Property="Margin" Value="2" />
+        <!-- 1 DIP higher than centered, so the glyph lines up with the caption buttons' glyphs -->
+        <Setter Property="Margin" Value="2,1,2,3" />
         <Setter Property="VerticalAlignment" Value="Stretch" />
         <Setter Property="Template">
             <Setter.Value>

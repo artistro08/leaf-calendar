@@ -9,6 +9,7 @@ using LeafCalendar.Core.Sync;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
@@ -454,14 +455,16 @@ public sealed partial class MainWindow : Window
         }
 
         var s = _calendar.Settings;
-        ViewModeButton.Content  = s.ViewMode switch
+        var view = s.ViewMode switch
         {
             CalendarViewMode.Day   => "Day",
             CalendarViewMode.Month => "Month",
             CalendarViewMode.Days  => $"{s.CustomDayCount} days",
             _                      => "Week",
         };
+        ViewModeLabel.Text      = view;
         DetailsToggle.IsChecked = s.DetailsPanelOpen;
+        AutomationProperties.SetName(ViewModeButton, view);
     }
 
     // =========================================================================

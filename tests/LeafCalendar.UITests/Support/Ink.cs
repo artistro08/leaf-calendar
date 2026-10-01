@@ -38,14 +38,18 @@ public sealed class Ink : IDisposable
         _background = Median(Border(_bitmap).ToList());
     }
 
+    /// <summary>The background's lightness (0 black to 1 white).</summary>
+    public float Background => _background;
+
     /// <summary>Captures <paramref name="region"/> (screen pixels).</summary>
     public static Ink Capture(Rectangle region) => new(region);
 
     /// <summary>The ink box of the whole region, or of columns [<paramref name="fromX"/>, <paramref name="toX"/>) in screen x; <paramref name="inset"/> pixels at each edge are skipped. Null when there's no ink.</summary>
     public InkBox? Measure(int inset = 0, int? fromX = null, int? toX = null)
     {
-        var left   = Math.Max(inset, (fromX ?? int.MinValue) - _origin.X);
-        var right  = Math.Min(_bitmap.Width - inset, (toX ?? int.MaxValue) - _origin.X);
+        // No bounds means the whole region (an int.MinValue default minus the origin would wrap around to a huge left edge)
+        var left   = Math.Max(inset, fromX is { } from ? from - _origin.X : 0);
+        var right  = Math.Min(_bitmap.Width - inset, toX is { } to ? to - _origin.X : _bitmap.Width);
         int top    = int.MaxValue, bottom = -1, first = int.MaxValue, last = -1;
         double sum = 0, weights = 0;
 

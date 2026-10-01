@@ -90,38 +90,75 @@ public sealed class CalendarShellTests : IDisposable
 
     // The owner thought the title bar icons sat off the caption buttons' line. Every title bar button's ink is
     // measured against the Close glyph's: icons whole, text buttons by their first capital only (T, W: no descender,
-    // so the ink box runs from the cap top to the baseline), and the view menu's chevron on its own. The measurements
-    // go to the test output, and an 8x zoom of the title bar with a red line at the Close glyph's center is saved to
-    // TestOutput/title-bar-ink-8x.png next to the test binaries, for the owner
+    // so the ink box runs from the cap top to the baseline), and the view menu's chevron on its own. It's measured in
+    // both themes with the sidebar open and closed (at whatever display scale the PC runs). The measurements go to the
+    // test output, and an 8x zoom of the title bar with a red line at the Close glyph's center is saved per state to
+    // TestOutput/title-bar-ink-8x-<state>.png next to the test binaries, for the owner
     [Fact]
     public void TitleBarGlyphs_ShareTheCaptionButtonsInkCenter()
     {
         using var leaf = Launch();
         leaf.WaitFor("Event_evt-single_202610011300");
+        var start = leaf.ClientBounds;
+        Mouse.MoveTo(new Point(start.Left + start.Width / 2, start.Bottom - 20));
+
+        var off = new List<string>();
+        foreach (var theme in new[] { "first theme", "other theme" })
+        {
+            foreach (var pane in new[] { "sidebar open", "sidebar closed" })
+            {
+                off.AddRange(MeasureTitleBar(leaf, $"{theme}, {pane}"));
+                ToggleSidebar(leaf);
+            }
+
+            Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.SHIFT, VirtualKeyShort.KEY_L);
+            Thread.Sleep(1000);
+        }
+
+        // Each Ink Center On The Close Glyph's (half a screen pixel), in every state
+        Assert.Empty(off);
+    }
+
+    static void ToggleSidebar(LeafApp leaf)
+    {
+        leaf.WaitFor("AppTitleBar").FindFirstDescendant(cf => cf.ByAutomationId("PART_PaneToggleButton"))!.AsButton().Invoke();
+        Thread.Sleep(1000);
+    }
+
+    // Measures one state and returns what's more than half a pixel off the Close glyph's center
+    static List<string> MeasureTitleBar(LeafApp leaf, string state)
+    {
         var scale  = leaf.Scale;
-        var client = leaf.ClientBounds;
         var row    = (int)Math.Round(48 * scale);
         var inset  = (int)Math.Ceiling(3 * scale);
         var log    = TestContext.Current.TestOutputHelper;
 
-        // Caption Buttons: the three glyphs in the client area's top-right 3 x 46 (Minimize, Maximize, Close)
+        // Caption Buttons (the pointer is off the title bar: a hovered Close button fills red): the three glyphs in the
+        // client area's top-right 3 x 46 (Minimize, Maximize, Close). Measured again until the Close glyph is whole: while
+        // the window still opens (it zooms in, and is placed where it was last), a capture finds faint or partial glyphs
         var captionWidth = (int)Math.Round(3 * 46 * scale);
-        InkBox close;
-        using (var caption = Ink.Capture(new Rectangle(client.Right - captionWidth, client.Top, captionWidth, row)))
+        var names        = new[] { "Minimize", "Maximize", "Close" };
+        var client       = leaf.ClientBounds;
+        var dark         = false;
+        List<InkBox> boxes = [];
+        Retry.WhileFalse(() =>
         {
-            var runs = caption.Runs();
-            Assert.True(runs.Count >= 3, $"Expected the three caption glyphs, found {runs.Count} ink runs.");
-            var names = new[] { "Minimize", "Maximize", "Close" };
-            var boxes = runs.TakeLast(3).Select((r, i) => Required(caption.Measure(fromX: r.From, toX: r.To), names[i])).ToList();
-            for (var i = 0; i < boxes.Count; i++)
-            {
-                log?.WriteLine($"{names[i]}: {boxes[i]}");
-            }
+            client = leaf.ClientBounds;
+            using var caption = Ink.Capture(new Rectangle(client.Right - captionWidth, client.Top, captionWidth, row));
+            dark = caption.Background < 0.5f;
 
-            close = boxes[2];
-        }
+            // Glyph-wide runs only, inside the edges: the window's rounded corner can leave a 1 px speck at the right edge,
+            // and its 1 px border runs along the top
+            var runs = caption.Runs(inset).Where(r => r.To - r.From >= 5 * scale).ToList();
+            boxes = [.. runs.TakeLast(3).Select(r => caption.Measure(inset, r.From, r.To)).OfType<InkBox>()];
+            return boxes.Count == 3 && Math.Abs(boxes[2].Width - 10 * scale) <= 1.5 * scale && Math.Abs(boxes[2].Bottom - boxes[2].Top - 10 * scale) <= 1.5 * scale;
+        }, TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(250));
 
-        Assert.True(Math.Abs(close.Width - 10 * scale) <= 1.5 * scale, $"The Close glyph should be about {10 * scale:0.0} px wide, measured {close}.");
+        state = $"{(dark ? "dark" : "light")}, {state.Split(", ")[1]}";
+        Assert.True(boxes.Count == 3, $"{state}: expected the three caption glyphs, found {boxes.Count}.");
+        var close = boxes[2];
+        log?.WriteLine($"== {state} (scale {scale:0.00}): Close glyph {close}, its center {close.CenterY - client.Top:0.00} px below the client top");
+        Assert.True(Math.Abs(close.Width - 10 * scale) <= 1.5 * scale, $"{state}: the Close glyph should be about {10 * scale:0.0} px wide, measured {close}.");
 
         // Title Bar Buttons (Today and the view menu by ID, in case their control types aren't Button)
         var titleBar = leaf.WaitFor("AppTitleBar");
@@ -157,15 +194,12 @@ public sealed class CalendarShellTests : IDisposable
 
         using (var bar = Ink.Capture(new Rectangle(client.Left, client.Top, client.Width, row)))
         {
-            var path = Path.Combine(AppContext.BaseDirectory, "TestOutput", "title-bar-ink-8x.png");
+            var path = Path.Combine(AppContext.BaseDirectory, "TestOutput", $"title-bar-ink-8x-{state.Replace(", ", "-", StringComparison.Ordinal).Replace(' ', '-')}.png");
             bar.SaveZoomed(path, 8, close.CenterY);
             log?.WriteLine($"Zoomed title bar: {path}");
         }
 
-        // Each Ink Center On The Close Glyph's (half a screen pixel)
-        Assert.All(measured, m => Assert.True(
-            Math.Abs(m.Box.CenterY - close.CenterY) <= 0.5,
-            $"{m.Name} ink {m.Box}; Close {close}."));
+        return [.. measured.Where(m => Math.Abs(m.Box.CenterY - close.CenterY) > 0.5).Select(m => $"{state}: {m.Name} ink {m.Box}; Close {close}.")];
     }
 
     // A text button's first capital: the ink in the first 5 DIP from where its text starts (inside the letter,

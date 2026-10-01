@@ -35,9 +35,13 @@
                 <ImageIconSource ImageSource="ms-appx:///Assets/Square44x44Logo.png" />
             </TitleBar.IconSource>
 
-            <!-- Toolbar (only its buttons take clicks; the space around them drags the window) -->
+            <!-- Toolbar (only its buttons take clicks; the space around them drags the window). Raised 1 DIP: centered in the
+                 48 DIP row, its glyphs sat 1 DIP below the caption buttons' glyphs (measured by the title bar ink test) -->
             <TitleBar.Content>
                 <Grid x:Name="ToolbarHost">
+                    <Grid.RenderTransform>
+                        <TranslateTransform Y="-1" />
+                    </Grid.RenderTransform>
                     <!-- Slide (the toolbar and the edit icon follow the island's right edge together) -->
                     <Grid x:Name="ToolbarSlide">
                         <StackPanel
@@ -93,7 +97,9 @@
                             </Grid>
                             <!-- /Sync Status -->
 
-                            <DropDownButton x:Name="ViewModeButton" Height="32" Content="Week" AutomationProperties.AutomationId="ViewModeButton">
+                            <!-- View Menu (the label sits 1 px higher than centered and the Today text 1 px higher too, so the
+                                 capitals' middles line up with the caption glyphs; the chevron stays centered) -->
+                            <DropDownButton x:Name="ViewModeButton" Height="32" AutomationProperties.Name="Week" AutomationProperties.AutomationId="ViewModeButton">
                                 <DropDownButton.Flyout>
                                     <MenuFlyout Placement="BottomEdgeAlignedRight">
                                         <MenuFlyoutItem Text="Day" Tag="Day" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDay" />
@@ -113,9 +119,11 @@
                                         </MenuFlyoutSubItem>
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>
+                                <TextBlock x:Name="ViewModeLabel" Margin="0,-1,0,0" Text="Week" />
                             </DropDownButton>
                             <Button
                                 Style="{StaticResource LeafToolbarButtonStyle}"
+                                Padding="10,0,10,1"
                                 Content="Today"
                                 Click="OnTodayClick"
                                 ToolTipService.ToolTip="Today (T)"
