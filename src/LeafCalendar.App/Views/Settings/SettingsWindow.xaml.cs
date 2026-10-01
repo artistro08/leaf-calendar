@@ -186,7 +186,11 @@ public sealed partial class SettingsWindow : Window
     }
 
     // Centered on the monitor under the cursor at the opening size, with the minimum from that monitor's scale
-    void Place() => SetMinimumSize(WindowPlacement.CenterOnCursorMonitor(AppWindow, OpenWidth, OpenHeight));
+    void Place()
+    {
+        _minimumScale = WindowPlacement.CenterOnCursorMonitor(AppWindow, OpenWidth, OpenHeight);
+        SetMinimumSize(_minimumScale);
+    }
 
     // XamlRoot.Changed fires for every step of a resize drag, but the minimum only changes with the scale; it's set only
     // when the scale moves, so the presenter isn't rewritten from inside the window's own sizing loop
