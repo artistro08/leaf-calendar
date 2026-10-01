@@ -18,7 +18,7 @@ public sealed class AccountFlowTests : IDisposable
         var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri}");
         OnboardingTests.CompleteOnboarding(leaf);
         leaf.OpenSettings("Accounts");
-        WaitForNameInSettings(leaf, "2 calendars · 6 events");
+        WaitForNameInSettings(leaf, "2 calendars · 8 events");
         return leaf;
     }
 
@@ -50,7 +50,7 @@ public sealed class AccountFlowTests : IDisposable
             leaf.WaitInSettings("AddAccountButton").AsButton().Invoke();
 
             Assert.NotNull(WaitForNameInSettings(leaf, Email));
-            Assert.NotNull(WaitForNameInSettings(leaf, "2 calendars · 6 events"));
+            Assert.NotNull(WaitForNameInSettings(leaf, "2 calendars · 8 events"));
 
             // The main window's sidebar lists the account's calendars
             Assert.NotNull(leaf.WaitForName(Email));
