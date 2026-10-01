@@ -165,7 +165,7 @@
                                     AutomationProperties.Name="Details panel"
                                     AutomationProperties.AutomationId="DetailsToggleButton">
                                     <!-- The details glyph: its right panel filled while the panel is open -->
-                                    <controls:PaneGlyph Pane="Details" />
+                                    <controls:PaneGlyph Pane="Details" Foreground="{Binding Foreground, ElementName=DetailsToggle}" />
                                 </ToggleButton>
                             </StackPanel>
                         </StackPanel>

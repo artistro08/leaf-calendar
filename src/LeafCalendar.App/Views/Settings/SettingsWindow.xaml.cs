@@ -195,8 +195,10 @@ public sealed partial class SettingsWindow : Window
     {
         if (_context.Calendar.Settings.SettingsWindowSize is { } saved)
         {
-            WindowPlacement.Restore(AppWindow, _presenter, saved);
-            ApplyMinimumSize();
+            // The Minimum First (from the window's own monitor: there's no XamlRoot yet), And A Saved Size Never Below It
+            SetMinimumSize(WindowPlacement.ScaleOf(AppWindow));
+            WindowPlacement.Restore(AppWindow, _presenter, saved.AtLeast(MinimumWidth, MinimumHeight));
+            SetMinimumSize(WindowPlacement.ScaleOf(AppWindow));
         }
         else
         {
@@ -213,7 +215,7 @@ public sealed partial class SettingsWindow : Window
         };
     }
 
-    void ApplyMinimumSize() => SetMinimumSize(RootGrid.XamlRoot?.RasterizationScale ?? 1);
+    void ApplyMinimumSize() => SetMinimumSize(RootGrid.XamlRoot?.RasterizationScale ?? WindowPlacement.ScaleOf(AppWindow));
 
     // The minimum is the content's, in DIPs; the presenter takes the whole window in screen pixels, frame included
     void SetMinimumSize(double scale)

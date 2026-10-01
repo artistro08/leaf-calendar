@@ -13,6 +13,9 @@ public sealed record WindowSize(double Width, double Height, bool Maximized = fa
     public WindowSize? Clean() =>
         double.IsFinite(Width) && double.IsFinite(Height) && Width > 0 && Height > 0 ? this : null;
 
+    /// <summary>This size, grown to at least <paramref name="minWidth"/> × <paramref name="minHeight"/> (a size saved before the minimum grew).</summary>
+    public WindowSize AtLeast(double minWidth, double minHeight) => this with { Width = Math.Max(Width, minWidth), Height = Math.Max(Height, minHeight) };
+
     /// <summary>
     /// Where the window goes, in screen pixels: this size at the monitor's <paramref name="scale"/>, no bigger than
     /// the work area, centered on it with the title bar never above its top.

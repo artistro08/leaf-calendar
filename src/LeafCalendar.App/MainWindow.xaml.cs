@@ -118,8 +118,11 @@ public sealed partial class MainWindow : Window
         AppWindow.SetPresenter(_presenter);
 
         // Window Size (as it last closed, else the first-run default; a restored window's size is kept as it changes)
-        _restoredSize = (_calendar.Settings.MainWindowSize ?? Core.Views.WindowSize.MainDefault) with { Maximized = false };
-        Interop.WindowPlacement.Restore(AppWindow, _presenter, _calendar.Settings.MainWindowSize ?? Core.Views.WindowSize.MainDefault);
+        // (the minimum applies first, and a size saved before the minimum grew is grown to it)
+        var opening = (_calendar.Settings.MainWindowSize ?? Core.Views.WindowSize.MainDefault).AtLeast(MinimumWidth, MinimumHeight);
+        ApplyMinimumSize();
+        _restoredSize = opening with { Maximized = false };
+        Interop.WindowPlacement.Restore(AppWindow, _presenter, opening);
         AppWindow.Changed += (_, e) =>
         {
             if (e.DidSizeChange && _presenter.State == OverlappedPresenterState.Restored)
@@ -457,7 +460,7 @@ public sealed partial class MainWindow : Window
     // follows the monitor's scale and adds the window frame (the invisible resize borders, about 14 DIPs across)
     void ApplyMinimumSize()
     {
-        var scale = RootGrid.XamlRoot?.RasterizationScale ?? 1;
+        var scale = RootGrid.XamlRoot?.RasterizationScale ?? Interop.WindowPlacement.ScaleOf(AppWindow);
         var frame = AppWindow.Size;
         var inner = AppWindow.ClientSize;
         _presenter.PreferredMinimumWidth  = (int)Math.Ceiling(MinimumWidth * scale) + Math.Max(0, frame.Width - inner.Width);

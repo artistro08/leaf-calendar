@@ -27,6 +27,10 @@ public sealed class WindowSizeTests : IDisposable
         Assert.Equal((100, 40, 1920, 1040), place);
     }
 
+    [Fact]
+    public void AtLeast_GrowsOnlyWhatsTooSmall() =>
+        Assert.Equal(new WindowSize(1100, 900, true), new WindowSize(800, 900, true).AtLeast(1100, 540));
+
     [Theory]
     [InlineData(double.NaN, 600)]
     [InlineData(800, double.PositiveInfinity)]

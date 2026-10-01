@@ -84,10 +84,19 @@ public static class ShortcutSheet
         // Esc Or ? Closes It, Even While Typing In The Filter
         panel.PreviewKeyDown += (_, e) =>
         {
-            var question = e.Key == (Windows.System.VirtualKey)191 && KeyState.IsDown(Windows.System.VirtualKey.Shift);
-            if (e.Key == Windows.System.VirtualKey.Escape || question)
+            if (e.Key == Windows.System.VirtualKey.Escape)
             {
                 e.Handled = true;
+                close();
+            }
+        };
+
+        // ? Typed Into The Filter (the character, whatever the keyboard layout; elsewhere ? is the page's own shortcut)
+        filter.BeforeTextChanging += (_, e) =>
+        {
+            if (e.NewText.Contains('?', StringComparison.Ordinal))
+            {
+                e.Cancel = true;
                 close();
             }
         };

@@ -32,10 +32,11 @@ public sealed class CalendarShellTests : IDisposable
     }
 
     // First run: 1277 × 814 DIPs (the owner's own size), no bigger than the work area. Closed at another size, the
-    // window opens at that size the next time
+    // window opens at that size the next time (in DIPs: it opens on the monitor under the pointer, whatever its scale)
     [Fact]
     public void WindowSize_DefaultThenRemembered()
     {
+        double width, height;
         using (var first = Launch())
         {
             first.WaitFor("CalendarRoot");
@@ -45,6 +46,8 @@ public sealed class CalendarShellTests : IDisposable
             Assert.True(Math.Abs(box.Height - Math.Min(814 * first.Scale, work.Height)) <= 2, $"The first window is {box.Height} tall.");
 
             first.Resize(1500, 900);
+            width  = 1500 / first.Scale;
+            height = 900 / first.Scale;
             first.MainWindow.Close();
             Assert.True(Retry.WhileTrue(() => first.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
         }
@@ -52,7 +55,9 @@ public sealed class CalendarShellTests : IDisposable
         using var leaf = Launch();
         leaf.WaitFor("CalendarRoot");
         var size = leaf.MainWindow.BoundingRectangle;
-        Assert.True(Math.Abs(size.Width - 1500) <= 2 && Math.Abs(size.Height - 900) <= 2, $"The window reopened at {size.Width} × {size.Height}.");
+        var area = System.Windows.Forms.Screen.FromHandle(leaf.MainWindow.Properties.NativeWindowHandle.Value).WorkingArea;
+        var (w, h) = (Math.Min(width * leaf.Scale, area.Width), Math.Min(height * leaf.Scale, area.Height));
+        Assert.True(Math.Abs(size.Width - w) <= 3 && Math.Abs(size.Height - h) <= 3, $"The window reopened at {size.Width} × {size.Height}, not {w:0} × {h:0}.");
     }
 
     [Fact]

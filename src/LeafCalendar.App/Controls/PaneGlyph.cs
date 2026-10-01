@@ -7,8 +7,9 @@ namespace LeafCalendar.App.Controls;
 /// The sidebar and details panel toggles' icon: a rounded window outline (16 × 12, like Segoe Fluent's dock glyph)
 /// with a narrow panel at one side. The panel is filled with the icon's color while its pane is open and outlined
 /// while it's closed. Drawn from borders, so the edges land on whole pixels at every scale. Every glyph for a pane
-/// follows <see cref="SetOpen"/>; the colors follow the inherited <see cref="Control.Foreground"/> (hover, press,
-/// disabled, theme), copied without reading a brush back through a cast (a Native AOT trap).
+/// follows <see cref="SetOpen"/>; the colors follow its <see cref="Control.Foreground"/> (set by its button: the title bar's
+/// template binds it, the details toggle binds it by name), repainted on theme and contrast changes too, and copied as values,
+/// never read back through a cast (a Native AOT trap).
 /// </summary>
 public sealed partial class PaneGlyph : UserControl
 {
@@ -28,14 +29,26 @@ public sealed partial class PaneGlyph : UserControl
         Content   = new Grid { Children = { _outline, _panel } };
         RegisterPropertyChangedCallback(ForegroundProperty, (_, _) => Paint());
 
-        // An Inherited Color Changes With The Theme Without A Callback, So Repaint Once The New Theme Has Settled
+        // Theme And Contrast Changes Repaint Once They've Settled (an inherited color changes without a callback)
         ActualThemeChanged += (_, _) => DispatcherQueue.TryEnqueue(Paint);
+        void OnContrast(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(Paint);
+
+        // Listed Once While On Screen (Loaded can come again without an Unloaded between)
         Loaded   += (_, _) =>
         {
-            Shown.Add(this);
+            if (!Shown.Contains(this))
+            {
+                Shown.Add(this);
+                LeafBrushes.ContrastChanged += OnContrast;
+            }
+
             Paint();
         };
-        Unloaded += (_, _) => Shown.Remove(this);
+        Unloaded += (_, _) =>
+        {
+            Shown.Remove(this);
+            LeafBrushes.ContrastChanged -= OnContrast;
+        };
     }
 
     /// <summary>The pane this glyph stands for ("Sidebar" or "Details"); its panel sits on the sidebar's left or the details panel's right.</summary>
@@ -60,7 +73,7 @@ public sealed partial class PaneGlyph : UserControl
         _panel.HorizontalAlignment = left ? HorizontalAlignment.Left : HorizontalAlignment.Right;
         _panel.CornerRadius        = left ? new CornerRadius(3, 0, 0, 3) : new CornerRadius(0, 3, 3, 0);
 
-        // The Icon's Color (set as a value, never read back as a typed brush)
+        // The Icon's Color (set as a value, never read back as a typed brush); the panel filled only while open
         var color = GetValue(ForegroundProperty);
         _outline.SetValue(Border.BorderBrushProperty, color);
         _panel.SetValue(Border.BorderBrushProperty, color);

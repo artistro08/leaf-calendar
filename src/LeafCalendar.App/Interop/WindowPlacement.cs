@@ -56,7 +56,8 @@ internal static class WindowPlacement
         return new(Math.Round(window.Size.Width / scale), Math.Round(window.Size.Height / scale));
     }
 
-    static double ScaleOf(AppWindow window) => PInvoke.GetDpiForWindow(new HWND(Win32Interop.GetWindowFromWindowId(window.Id))) / 96.0;
+    /// <summary>The scale of the monitor the window is on (its DPI over 96), usable before its content has a XamlRoot.</summary>
+    public static double ScaleOf(AppWindow window) => PInvoke.GetDpiForWindow(new HWND(Win32Interop.GetWindowFromWindowId(window.Id))) / 96.0;
 
     // Centered on the work area, with the title bar never above its top
     static PointInt32 Centered(RectInt32 work, SizeInt32 size) =>
