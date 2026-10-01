@@ -37,6 +37,20 @@ public sealed class DetailsActionsTests : IDisposable
     }
 
     [Fact]
+    public void OpenInGoogleMaps_IsAButtonAndOpensTheMapsSearch()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Meeting).Click();
+
+        var maps = leaf.WaitFor("DetailsMapsLink");
+        Assert.Equal(ControlType.Button, maps.ControlType);
+        Assert.Equal("Open in Google Maps", maps.Name);
+        maps.AsButton().Invoke();
+
+        Assert.True(Launched("https://www.google.com/maps/search/?api=1&query=Room%204"));
+    }
+
+    [Fact]
     public void Join_NamesTheServiceAndCopiesTheLink()
     {
         using var leaf = Launch();

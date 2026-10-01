@@ -122,7 +122,7 @@
                     <!-- Location -->
                     <StackPanel x:Name="LocationRow" Spacing="2">
                         <TextBlock x:Name="LocationText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsLocation" />
-                        <HyperlinkButton x:Name="MapsLink" Padding="0" Content="Open in Google Maps" Click="OnMapsClick" AutomationProperties.AutomationId="DetailsMapsLink" />
+                        <Button x:Name="MapsLink" HorizontalAlignment="Left" Content="Open in Google Maps" Click="OnMapsClick" AutomationProperties.AutomationId="DetailsMapsLink" />
                     </StackPanel>
                     <TextBlock x:Name="ConferenceText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsConference" />
 
