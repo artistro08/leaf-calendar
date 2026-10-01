@@ -106,11 +106,13 @@ public sealed class EditorLayoutTests : IDisposable
             Assert.True(Overlap(date, time), $"{dateId} at {date} and {timeId} at {time} aren't on one row.");
             Assert.True(date.Right <= panel.Right && time.Right <= panel.Right, $"{dateId} ({date}) or {timeId} ({time}) runs past the panel ({panel}).");
 
-            // Every part of the time shows: "8 00 AM" is five separate glyphs, "8 00" three. Its box alone can't tell, since
-            // UI Automation clips it to what's visible; a picker drawn wider than its column loses the minutes or AM/PM
+            // Every part of the time shows: "8 | 00 | AM" is three groups of ink, "8 | 00" two (a group's letters may touch;
+            // the 1 px column dividers aren't ink). Its box alone can't tell, since UI Automation clips it to what's
+            // visible; a picker drawn wider than its column loses the minutes or AM/PM
             using var ink = Ink.Capture(time);
-            var glyphs = ink.Runs((int)Math.Ceiling(4 * leaf.Scale)).Count;
-            Assert.True(glyphs >= (use24Hour ? 3 : 5), $"{timeId} shows {glyphs} glyphs; part of the time is cut off.");
+            var runs   = ink.Runs((int)Math.Ceiling(4 * leaf.Scale)).Where(r => r.To - r.From >= 2).ToList();
+            var groups = 1 + runs.Zip(runs.Skip(1)).Count(p => p.Second.From - p.First.To >= 4 * leaf.Scale);
+            Assert.True(runs.Count > 0 && groups >= (use24Hour ? 2 : 3), $"{timeId} shows {groups} parts of the time; part of it is cut off.");
         }
     }
 

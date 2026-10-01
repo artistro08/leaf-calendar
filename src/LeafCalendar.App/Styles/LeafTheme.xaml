@@ -128,10 +128,11 @@
     <!-- Title Bar Pane Toggle (replaces TitleBar's own animated hamburger: the details toggle's panel icon, mirrored so the panel is on the left, no hover or press fill) -->
     <Style x:Key="LeafTitleBarPaneToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource LeafBareIconButtonStyle}">
         <Setter Property="Width" Value="{ThemeResource TitleBarPaneToggleButtonWidth}" />
-        <Setter Property="Height" Value="NaN" />
-        <!-- 1 DIP higher than centered, so the glyph lines up with the caption buttons' glyphs -->
-        <Setter Property="Margin" Value="2,1,2,3" />
-        <Setter Property="VerticalAlignment" Value="Stretch" />
+        <!-- 32 tall and centered like the toolbar's icons, so its glyph lands on the same pixel row (stretched to the row, it
+             rounded 1 px lower at 125%) -->
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Margin" Value="2" />
+        <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">

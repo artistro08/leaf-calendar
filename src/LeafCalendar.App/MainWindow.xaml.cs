@@ -51,6 +51,9 @@ public sealed partial class MainWindow : Window
 
     readonly LeafServices _services;
     readonly IconSource? _appIcon;
+
+    // Lifts the whole title bar 2 physical pixels (set per display scale in LiftTitleBar)
+    readonly TranslateTransform _titleBarLift = new();
     readonly TranslateTransform _toolbarShift = new();
     readonly OverlappedPresenter _presenter = OverlappedPresenter.Create();
     CalendarViewModel? _calendar;
@@ -115,14 +118,17 @@ public sealed partial class MainWindow : Window
         // Title Bar
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
+        AppTitleBar.RenderTransform = _titleBarLift;
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         ToolbarHost.SizeChanged += (_, _) => UpdateTitleBarLayout(animate: false);
         RootGrid.Loaded += (_, _) =>
         {
             ApplyMinimumSize();
+            LiftTitleBar();
             RootGrid.XamlRoot.Changed += (_, _) =>
             {
                 ApplyMinimumSize();
+                LiftTitleBar();
                 UpdateTitleBarLayout(animate: false);
             };
         };
@@ -433,6 +439,10 @@ public sealed partial class MainWindow : Window
             }
         }
     }
+
+    // Centered in the 48 DIP row, the title bar's glyphs sat about 2 physical pixels below the caption buttons' glyphs
+    // at 125% and 150% alike (Windows draws those in whole pixels, a little above center), so the lift is in pixels, not DIPs
+    void LiftTitleBar() => _titleBarLift.Y = -2 / (RootGrid.XamlRoot?.RasterizationScale ?? 1);
 
     // Ctrl+Shift+L: flip between light and dark based on what's showing now
     void ToggleTheme()

@@ -35,13 +35,9 @@
                 <ImageIconSource ImageSource="ms-appx:///Assets/Square44x44Logo.png" />
             </TitleBar.IconSource>
 
-            <!-- Toolbar (only its buttons take clicks; the space around them drags the window). Raised 1 DIP: centered in the
-                 48 DIP row, its glyphs sat 1 DIP below the caption buttons' glyphs (measured by the title bar ink test) -->
+            <!-- Toolbar (only its buttons take clicks; the space around them drags the window) -->
             <TitleBar.Content>
                 <Grid x:Name="ToolbarHost">
-                    <Grid.RenderTransform>
-                        <TranslateTransform Y="-1" />
-                    </Grid.RenderTransform>
                     <!-- Slide (the toolbar and the edit icon follow the island's right edge together) -->
                     <Grid x:Name="ToolbarSlide">
                         <StackPanel
