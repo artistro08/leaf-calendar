@@ -62,6 +62,7 @@ public class DescriptionFormatterTests
     [InlineData("<a href=\"https://evil.example/x\">\u2060www.bank.example</a>")]
     [InlineData("<a href=\"https://evil.example/x\">\uFEFFhttps://bank.example</a>")]
     [InlineData("<a href=\"https://evil.example/x\">• https://bank.example/login</a>")]
+    [InlineData("<ol><a href=\"https://evil.example/x\"><li>https://bank.example/login</a></ol>")]
     [InlineData("<a href=\"https://evil.example/x\">bank.example/login</a>")]
     [InlineData("<a href=\"https://evil.example/x\">bank.example</a>")]
     [InlineData("<a href=\"https://bank.example@evil.example/x\">https://bank.example/login</a>")]
@@ -156,6 +157,21 @@ public class DescriptionFormatterTests
         var runs = DescriptionFormatter.Format("<p>Agenda:</p><ul><li>Budget &amp; timeline</li><li>Hiring</li></ul>\n\n\n\nThanks<script>alert(1)</script>");
 
         Assert.Equal("Agenda:\n• Budget & timeline\n• Hiring\n\nThanks" + "alert(1)", Text(runs));
+    }
+
+    [Fact]
+    public void Format_ListMarkers_CarryTheirKind()
+    {
+        var runs = DescriptionFormatter.Format("Agenda<ul><li>a</li></ul><ol><li>b</li><li>c</li></ol>");
+
+        Assert.Equal("Agenda\n• a\n\n1. b\n2. c", Text(runs));
+        Assert.Equal([ListKind.Bullet, ListKind.Numbered, ListKind.Numbered], runs.Where(r => r.List != ListKind.None).Select(r => r.List));
+    }
+
+    [Fact]
+    public void Format_PrettyPrintedList_HasNoExtraBlankLines()
+    {
+        Assert.Equal("Agenda\n• a\n• b\n\nThanks", Text(DescriptionFormatter.Format("Agenda\n<ul>\n  <li>a</li>\n  <li>b</li>\n</ul>\nThanks")));
     }
 
     [Fact]

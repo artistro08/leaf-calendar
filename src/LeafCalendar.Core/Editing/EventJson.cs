@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using LeafCalendar.Core.Events;
@@ -61,7 +60,7 @@ public static class EventJson
             IsAllDay            = isAllDay,
             TimeZone            = Str(Get(root, "start"), "timeZone"),
             Location            = Str(root, "location") ?? "",
-            Description         = details.Description,
+            Description         = DescriptionHtml.Normalize(Str(root, "description") ?? ""),
             ColorId             = Str(root, "colorId"),
             Guests              = Guests(root),
             UseDefaultReminders = Get(Get(root, "reminders"), "useDefault") is not { ValueKind: JsonValueKind.False },
@@ -134,9 +133,11 @@ public static class EventJson
             body["location"] = draft.Location;
         }
 
-        if (draft.Description.Length > 0)
+        // Normalized again here: a draft can come from anywhere, and only Leaf's allowlisted subset goes to Google
+        var description = DescriptionHtml.Normalize(draft.Description);
+        if (description.Length > 0)
         {
-            body["description"] = TextToHtml(draft.Description);
+            body["description"] = description;
         }
 
         if (draft.ColorId is not null)
@@ -202,10 +203,11 @@ public static class EventJson
             patch["location"] = after.Location;
         }
 
-        // Line endings differ between parsed text and WinUI text boxes, so compare as HTML
-        if (TextToHtml(before.Description) != TextToHtml(after.Description))
+        // Same description in Leaf's subset → nothing to send (Google's original HTML stays as it was)
+        var description = DescriptionHtml.Normalize(after.Description);
+        if (DescriptionHtml.Normalize(before.Description) != description)
         {
-            patch["description"] = TextToHtml(after.Description);
+            patch["description"] = description;
         }
 
         if (before.ColorId != after.ColorId)
@@ -461,10 +463,6 @@ public static class EventJson
 
         return draft with { IsAllDay = true, Start = start, End = start.AddDays(1), Recurrence = ["RRULE:FREQ=YEARLY"] };
     }
-
-    /// <summary>Plain text as Google description HTML: escaped, with line breaks as <c>&lt;br&gt;</c> (WinUI text boxes use <c>\r</c>).</summary>
-    public static string TextToHtml(string text) =>
-        WebUtility.HtmlEncode(text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n')).Replace("\n", "<br>", StringComparison.Ordinal);
 
     /// <summary>Google's word for a reply.</summary>
     public static string ResponseText(ResponseStatus response) => response switch

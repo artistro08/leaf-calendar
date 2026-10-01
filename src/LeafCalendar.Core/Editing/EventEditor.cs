@@ -403,7 +403,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         IsAllDay            = before.IsAllDay == after.IsAllDay ? target.IsAllDay : after.IsAllDay,
         TimeZone            = before.TimeZone == after.TimeZone ? target.TimeZone : after.TimeZone,
         Location            = before.Location == after.Location ? target.Location : after.Location,
-        Description         = EventJson.TextToHtml(before.Description) == EventJson.TextToHtml(after.Description) ? target.Description : after.Description,
+        Description         = DescriptionHtml.Normalize(before.Description) == DescriptionHtml.Normalize(after.Description) ? target.Description : after.Description,
         ColorId             = before.ColorId == after.ColorId ? target.ColorId : after.ColorId,
         Guests              = before.Guests.SequenceEqual(after.Guests) ? target.Guests : after.Guests,
         UseDefaultReminders = before.UseDefaultReminders == after.UseDefaultReminders ? target.UseDefaultReminders : after.UseDefaultReminders,

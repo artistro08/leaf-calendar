@@ -510,7 +510,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
             IsAllDay            = IsAllDay,
             TimeZone            = untouched || IsAllDay ? Before.TimeZone : Before.TimeZone ?? _localZoneId,
             Location            = Location,
-            Description         = Description.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n'),
+            Description         = Description,
             ColorId             = ColorId,
             Guests              = [.. Guests.Select(g => g.Guest with { Optional = g.Optional })],
             UseDefaultReminders = UseDefaultReminders,

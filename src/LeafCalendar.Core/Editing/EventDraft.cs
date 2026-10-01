@@ -17,7 +17,7 @@ public sealed record Guest(
 /// </summary>
 /// <remarks>
 /// Times follow <see cref="CalendarOccurrence"/>: all-day events use UTC midnights with an exclusive end.
-/// <see cref="Description"/> is plain text; it's only written back when it changed.
+/// <see cref="Description"/> is Leaf-normalized description HTML (<see cref="DescriptionHtml.Normalize"/>); it's only written back when it changed.
 /// </remarks>
 public sealed record EventDraft
 {
@@ -45,7 +45,7 @@ public sealed record EventDraft
     /// <summary>Location (plain text).</summary>
     public string Location { get; init; } = "";
 
-    /// <summary>Description as plain text.</summary>
+    /// <summary>Description as Leaf-normalized description HTML (empty when none).</summary>
     public string Description { get; init; } = "";
 
     /// <summary>Google event color 1-11, or null for the calendar's color.</summary>

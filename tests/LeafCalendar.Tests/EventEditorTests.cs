@@ -653,6 +653,19 @@ public sealed class EventEditorTests : IDisposable
         Assert.Equal("Team standup", Occurrence("evt-weekly", Oct12).Title);
     }
 
+    // Review Focus 2: The Series' Own Description HTML Stays As Google Wrote It
+    [Fact]
+    public void Save_AllWithDescriptionRespelled_KeepsTheSeriesDescription()
+    {
+        Seed("""{"id":"evt-weekly","status":"confirmed","etag":"\"9\"","summary":"Team standup","description":"<p><strong>Agenda</strong></p><table><tr><td>Budget</td></tr></table>","start":{"dateTime":"2026-10-05T09:30:00-04:00","timeZone":"America/New_York"},"end":{"dateTime":"2026-10-05T10:00:00-04:00","timeZone":"America/New_York"},"recurrence":["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"]}""");
+        var o      = Occurrence("evt-weekly", Oct9);
+        var before = _editor.Load(o);
+
+        _editor.Save(o, before, before with { Location = "Room 4", Description = before.Description.Replace("<b>", "<strong>", StringComparison.Ordinal) }, EditScope.All, sendUpdates: false);
+
+        Assert.Equal("""{"location":"Room 4"}""", Outbox()[^1].Payload);
+    }
+
     [Fact]
     public void Move_AllFromChangedInstance_OnlyShiftsSeriesTimes()
     {

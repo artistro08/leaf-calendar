@@ -6,8 +6,25 @@ using System.Text.RegularExpressions;
 
 namespace LeafCalendar.Core.Events;
 
-/// <summary>A piece of description text with its style; <see cref="Link"/> is set only for allowlisted links.</summary>
-public sealed record DescriptionRun(string Text, bool Bold = false, bool Italic = false, bool Underline = false, Uri? Link = null);
+/// <summary>The kind of list a description line or list marker belongs to.</summary>
+public enum ListKind
+{
+    /// <summary>Not in a list.</summary>
+    None,
+
+    /// <summary>A bulleted list (<c>ul</c>).</summary>
+    Bullet,
+
+    /// <summary>A numbered list (<c>ol</c>).</summary>
+    Numbered,
+}
+
+/// <summary>
+/// A piece of description text with its style; <see cref="Link"/> is set only for allowlisted links.
+/// <see cref="List"/> other than <see cref="ListKind.None"/> marks a list marker run, whose text is "• " or "N. " and may
+/// start with line breaks.
+/// </summary>
+public sealed record DescriptionRun(string Text, bool Bold = false, bool Italic = false, bool Underline = false, Uri? Link = null, ListKind List = ListKind.None);
 
 /// <summary>
 /// Turns Google's description HTML into styled text runs for native rendering (spec 4.5): bold, italic,
@@ -17,7 +34,8 @@ public sealed record DescriptionRun(string Text, bool Bold = false, bool Italic 
 /// Only <c>https</c> and <c>mailto</c> links become clickable; other links keep their text as plain text. Bare
 /// <c>https://</c> addresses in the text are linked too. A link whose visible text is itself a web address for a
 /// different host than the real target is not clickable (a best-effort check; the UI also shows the real URL). Unknown
-/// tags are dropped (their text stays, inert). Runs of more than one blank line collapse to one. The input is
+/// tags are dropped (their text stays, inert). Lists and list items start on a new line, and numbered list markers count.
+/// Source line breaks right next to a tag that breaks the line aren't extra lines. Runs of more than one blank line collapse to one. The input is
 /// bounded before any regex runs, and the output is capped at 10,000 characters plus an ellipsis.
 /// </remarks>
 public static partial class DescriptionFormatter
@@ -45,22 +63,30 @@ public static partial class DescriptionFormatter
             html = html[..MaxInput];
         }
 
-        var runs      = new List<DescriptionRun>();
-        var bold      = 0;
-        var italic    = 0;
-        var underline = 0;
-        Uri? link     = null;
-        var linkStart = 0;
-        var position  = 0;
+        var runs           = new List<DescriptionRun>();
+        var lists          = new Stack<(ListKind Kind, int Count)>();
+        var bold           = 0;
+        var italic         = 0;
+        var underline      = 0;
+        Uri? link          = null;
+        var linkStart      = 0;
+        var position       = 0;
+        var lineStart      = true;
+        var previousBreaks = false;
 
         foreach (Match tag in Tag().Matches(html))
         {
-            AddText(html[position..tag.Index]);
-            position = tag.Index + tag.Length;
-
+            var name    = tag.Groups[2].Value.ToLowerInvariant();
             var closing = tag.Groups[1].Value == "/";
             var step    = closing ? -1 : 1;
-            switch (tag.Groups[2].Value.ToLowerInvariant())
+
+            // Tags that end or start a line
+            var breaks = name is "br" or "li" or "ul" or "ol" || (closing && name is "p" or "div" or "h1" or "h2" or "h3" or "h4" or "h5" or "h6");
+            AddText(SourceText(html[position..tag.Index], previousBreaks, breaks));
+            position       = tag.Index + tag.Length;
+            previousBreaks = breaks;
+
+            switch (name)
             {
                 case "b" or "strong":
                     bold = Math.Max(0, bold + step);
@@ -81,29 +107,71 @@ public static partial class DescriptionFormatter
 
                     break;
                 case "br":
-                    runs.Add(new DescriptionRun("\n"));
+                    Add(new DescriptionRun("\n"));
+                    break;
+                case "ul" or "ol" when closing:
+                    lists.TryPop(out _);
+                    Add(new DescriptionRun("\n"));
+                    break;
+                case "ul" or "ol":
+                    lists.Push((name == "ul" ? ListKind.Bullet : ListKind.Numbered, 0));
+                    NewLine();
+                    break;
+                case "li" when closing:
+                    Add(new DescriptionRun("\n"));
                     break;
                 case "li":
-                    runs.Add(new DescriptionRun(closing ? "\n" : "• "));
+                    // A stray item outside any list reads as a bullet
+                    var kind  = ListKind.Bullet;
+                    var count = 0;
+                    if (lists.TryPop(out var top))
+                    {
+                        (kind, count) = (top.Kind, top.Count + 1);
+                        lists.Push((kind, count));
+                    }
+
+                    NewLine();
+                    Add(new DescriptionRun(kind == ListKind.Numbered ? $"{count}. " : "• ", List: kind));
                     break;
-                case "p" or "div" or "ul" or "ol" or "h1" or "h2" or "h3" or "h4" or "h5" or "h6":
+                case "p" or "div" or "h1" or "h2" or "h3" or "h4" or "h5" or "h6":
                     if (closing)
                     {
-                        runs.Add(new DescriptionRun("\n"));
+                        Add(new DescriptionRun("\n"));
                     }
 
                     break;
             }
         }
 
-        AddText(html[position..]);
+        AddText(SourceText(html[position..], previousBreaks, before: false));
         EndLink();
         return Tidy(runs);
+
+        // Adds a run, tracking whether the text so far ends at the start of a line (list markers don't count as text)
+        void Add(DescriptionRun run)
+        {
+            runs.Add(run);
+            var text = run.Text.AsSpan().TrimEnd(" \t\r");
+            if (run.List == ListKind.None && text.Length > 0)
+            {
+                lineStart = text[^1] == '\n';
+            }
+        }
+
+        // Lists and their items start on a new line
+        void NewLine()
+        {
+            if (!lineStart)
+            {
+                Add(new DescriptionRun("\n"));
+            }
+        }
 
         // Closes the open link; if its visible text is a web address for another host, the link is stripped
         void EndLink()
         {
-            if (link is not null && DisguisesTarget(link, string.Concat(runs.Skip(linkStart).Select(r => r.Text))))
+            // List markers aren't part of the link's visible text
+            if (link is not null && DisguisesTarget(link, string.Concat(runs.Skip(linkStart).Where(r => r.List == ListKind.None).Select(r => r.Text))))
             {
                 for (var i = linkStart; i < runs.Count; i++)
                 {
@@ -126,30 +194,94 @@ public static partial class DescriptionFormatter
             var style = new DescriptionRun("", bold > 0, italic > 0, underline > 0, link);
             if (link is not null)
             {
-                runs.Add(style with { Text = text });
+                Add(style with { Text = text });
                 return;
             }
 
-            var start = 0;
-            foreach (Match match in LinkSafety.HttpsLink().Matches(text))
+            foreach (var piece in WithBareLinks(style with { Text = text }))
             {
-                var url = match.Value.TrimEnd('.', ',', ')', ';', '!', '?');
-                if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !LinkSafety.IsClickableInDescription(uri))
-                {
-                    continue;
-                }
-
-                runs.Add(style with { Text = text[start..match.Index] });
-                runs.Add(style with { Text = url, Link = uri });
-                start = match.Index + url.Length;
+                Add(piece);
             }
-
-            runs.Add(style with { Text = text[start..] });
         }
     }
 
+    /// <summary>An unlinked run split so its bare <c>https://</c> addresses become links (a linked run comes back as is).</summary>
+    internal static IEnumerable<DescriptionRun> WithBareLinks(DescriptionRun run)
+    {
+        if (run.Link is not null)
+        {
+            yield return run;
+            yield break;
+        }
+
+        var text  = run.Text;
+        var start = 0;
+        foreach (Match match in LinkSafety.HttpsLink().Matches(text))
+        {
+            var url = match.Value.TrimEnd('.', ',', ')', ';', '!', '?');
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !LinkSafety.IsClickableInDescription(uri))
+            {
+                continue;
+            }
+
+            yield return run with { Text = text[start..match.Index] };
+            yield return run with { Text = url, Link = uri };
+            start = match.Index + url.Length;
+        }
+
+        yield return run with { Text = text[start..] };
+    }
+
+    // Source formatting next to a tag that breaks the line isn't a line of its own: whitespace-only text there is
+    // dropped, and so is one line break right after or right before the tag ("<b>a</b>\n<br>\nb" reads "a", "b")
+    static string SourceText(string raw, bool after, bool before)
+    {
+        if (!after && !before)
+        {
+            return raw;
+        }
+
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return "";
+        }
+
+        var start = 0;
+        var end   = raw.Length;
+
+        // One Leading Line Break
+        if (after)
+        {
+            var i = 0;
+            while (i < end && raw[i] is ' ' or '\t')
+            {
+                i++;
+            }
+
+            var broke = i < end && raw[i] is '\r' or '\n';
+            i += i + 1 < end && raw[i] == '\r' && raw[i + 1] == '\n' ? 2 : broke ? 1 : 0;
+            start = broke ? i : 0;
+        }
+
+        // One Trailing Line Break
+        if (before)
+        {
+            var i = end;
+            while (i > start && raw[i - 1] is ' ' or '\t')
+            {
+                i--;
+            }
+
+            var broke = i > start && raw[i - 1] is '\r' or '\n';
+            i -= i - 1 > start && raw[i - 1] == '\n' && raw[i - 2] == '\r' ? 2 : broke ? 1 : 0;
+            end = broke ? i : end;
+        }
+
+        return raw[start..end];
+    }
+
     // True when the visible text names a web address whose host differs from where the link really goes
-    static bool DisguisesTarget(Uri target, string visible)
+    internal static bool DisguisesTarget(Uri target, string visible)
     {
         // Invisible characters (zero-width, bidi controls, BOM) and a leading bullet can't be used to dodge the check
         var shown = new string(visible.Where(c => char.GetUnicodeCategory(c) is not (UnicodeCategory.Format or UnicodeCategory.Control)).ToArray())
@@ -216,7 +348,7 @@ public static partial class DescriptionFormatter
     }
 
     // Keeps only subject, body, and cc from a mailto link's query, so an invite can't add bcc or attachments
-    static Uri? TrimMailto(string value)
+    internal static Uri? TrimMailto(string value)
     {
         var parts = value.Split('?', 2);
         var kept  = parts.Length < 2

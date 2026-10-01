@@ -36,7 +36,7 @@ public class EventJsonTests
 
         Assert.Equal("Design review", draft.Title);
         Assert.Equal("Room 4", draft.Location);
-        Assert.Equal("Agenda\nBudget", draft.Description);
+        Assert.Equal("<b>Agenda</b><br>Budget", draft.Description);
         Assert.Equal("5", draft.ColorId);
         Assert.Equal("America/New_York", draft.TimeZone);
         Assert.False(draft.UseDefaultReminders);
@@ -91,13 +91,22 @@ public class EventJsonTests
     }
 
     [Fact]
-    public void BuildPatch_Description_EncodesTextAsHtml()
+    public void BuildPatch_RichDescription_SendsItEncoded()
     {
         var draft = Read();
 
-        var patch = EventJson.BuildPatch(draft, draft with { Description = "Bring <notes>\rand snacks" });
+        var patch = EventJson.BuildPatch(draft, draft with { Description = "Bring &lt;notes&gt;<br>and snacks" });
 
         Assert.Equal("Bring &lt;notes&gt;<br>and snacks", (string?)patch["description"]);
+    }
+
+    [Fact]
+    public void BuildCreate_HostileDescription_SendsOnlyTheAllowlist()
+    {
+        var draft = Read() with { Description = "<img src=x onerror=alert(1)><b onclick=x()>Hi</b>" };
+
+        Assert.Equal("<b>Hi</b>", (string?)EventJson.BuildCreate("new-id", draft)["description"]);
+        Assert.False(EventJson.BuildCreate("new-id", draft with { Description = "<script></script>" }).ContainsKey("description"));
     }
 
     [Fact]
@@ -281,15 +290,33 @@ public class EventJsonTests
         Assert.Same(draft, EventJson.ApplyBirthdayRule(draft, NewYork));
     }
 
+    // Review Focus 2: An Untouched Description Is Never Rewritten
     [Theory]
-    [InlineData("Agenda\r\nBudget")]
-    [InlineData("Agenda\rBudget")]
-    [InlineData("Agenda\nBudget")]
-    public void BuildPatch_UntouchedDescriptionWithAnyLineEnding_IsNotSent(string text)
+    [InlineData("<b>Agenda</b><br>Budget")]
+    [InlineData("<strong>Agenda</strong><br/>Budget")]
+    [InlineData("<b>Agenda</b>\n<br>Budget")]
+    public void BuildPatch_RichDescriptionUntouched_IsNotSent(string html)
     {
         var draft = Read();
 
-        Assert.False(EventJson.BuildPatch(draft, draft with { Description = text }).ContainsKey("description"));
+        Assert.False(EventJson.BuildPatch(draft, draft with { Description = html }).ContainsKey("description"));
+    }
+
+    [Fact]
+    public void BuildPatch_DescriptionChanged_SendsNormalizedHtml()
+    {
+        var draft = Read();
+        var patch = EventJson.BuildPatch(draft, draft with { Description = "<b>Agenda</b><ul><li>Budget</li></ul><script>x</script>" });
+
+        Assert.Equal("<b>Agenda</b><ul><li>Budget</li></ul>x", (string?)patch["description"]);
+    }
+
+    [Fact]
+    public void ReadDraft_GoogleTable_KeepsTextAndDropsTheTable()
+    {
+        var draft = Read(Meeting.Replace("<b>Agenda</b><br>Budget", "<table><tr><td>Cell</td></tr></table>", StringComparison.Ordinal));
+
+        Assert.Equal("Cell", draft.Description);
     }
 
     [Fact]
