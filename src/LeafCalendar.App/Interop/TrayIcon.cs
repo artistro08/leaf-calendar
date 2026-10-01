@@ -203,10 +203,12 @@ internal sealed unsafe class TrayIcon : IDisposable
     // Placeholder Art: the app logo PNG, turned into an icon at the taskbar's small-icon size
     void LoadIcon()
     {
+        // Remembered even when the load fails, so a failed size isn't retried on every setting change
+        var size  = IconSize();
+        _iconSize = size;
         try
         {
-            var png  = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Assets", "Square44x44Logo.png"));
-            var size = IconSize();
+            var png = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Assets", "Square44x44Logo.png"));
             HICON icon;
             fixed (byte* bits = png)
             {
@@ -224,8 +226,7 @@ internal sealed unsafe class TrayIcon : IDisposable
                 PInvoke.DestroyIcon(_icon);
             }
 
-            _icon     = icon;
-            _iconSize = size;
+            _icon = icon;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {

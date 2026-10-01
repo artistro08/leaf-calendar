@@ -23,7 +23,8 @@ namespace LeafCalendar.App.Notifications;
 internal sealed class Notifier(LeafServices services) : IDisposable
 {
     readonly Lock _fileGate = new();
-    bool _registered;
+    // Read on the scheduler's and the sync threads, written on the UI thread
+    volatile bool _registered;
 
     /// <summary>A notification or one of its buttons was clicked; the argument is its activation text. Raised on a background thread.</summary>
     public event EventHandler<string>? Invoked;
@@ -46,7 +47,7 @@ internal sealed class Notifier(LeafServices services) : IDisposable
         }
         catch (Exception ex) when (ex is COMException or InvalidOperationException or UnauthorizedAccessException)
         {
-            services.Log.Error("notifications.register.failed", ex);
+            services.Log.Info("notifications.register.failed", $"error={ex.GetType().Name}");
         }
     }
 
@@ -68,9 +69,10 @@ internal sealed class Notifier(LeafServices services) : IDisposable
         {
             AppNotificationManager.Default.Show(new AppNotification(message.Xml) { Tag = message.Tag, Group = message.Group });
         }
-        catch (Exception ex) when (ex is COMException or ArgumentException or InvalidOperationException)
+        catch (Exception ex)
         {
-            services.Log.Error("notifications.show.failed", ex);
+            // Called from the alert handlers, which must never throw
+            services.Log.Info("notifications.show.failed", $"error={ex.GetType().Name}");
         }
     }
 
@@ -92,9 +94,10 @@ internal sealed class Notifier(LeafServices services) : IDisposable
         {
             await AppNotificationManager.Default.RemoveByTagAndGroupAsync(tag, group);
         }
-        catch (Exception ex) when (ex is COMException or ArgumentException or InvalidOperationException)
+        catch (Exception ex)
         {
-            services.Log.Error("notifications.remove.failed", ex);
+            // Callers fire and forget this task, so nothing may fault it
+            services.Log.Info("notifications.remove.failed", $"error={ex.GetType().Name}");
         }
     }
 
@@ -114,7 +117,7 @@ internal sealed class Notifier(LeafServices services) : IDisposable
         }
         catch (Exception ex) when (ex is COMException or InvalidOperationException)
         {
-            services.Log.Error("notifications.unregister.failed", ex);
+            services.Log.Info("notifications.unregister.failed", $"error={ex.GetType().Name}");
         }
     }
 
@@ -129,9 +132,10 @@ internal sealed class Notifier(LeafServices services) : IDisposable
                 File.AppendAllText(Path.Combine(services.Paths.ProfileDirectory, "notifications.txt"), $"{verb}\t{group}\t{tag}\t{xml.ReplaceLineEndings(" ")}{Environment.NewLine}");
             }
         }
-        catch (IOException ex)
+        catch (Exception ex)
         {
-            services.Log.Error("notifications.record.failed", ex);
+            // IO, access, or a bad profile path: the test log is best effort and never ends an alert pass
+            services.Log.Info("notifications.record.failed", $"error={ex.GetType().Name}");
         }
     }
 }

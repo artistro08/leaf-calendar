@@ -1,10 +1,8 @@
-using System.Text.Json;
 using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Sync;
-using Microsoft.Data.Sqlite;
 
 namespace LeafCalendar.App.Notifications;
 
@@ -30,7 +28,9 @@ internal sealed class AlertCenter : IDisposable
     readonly Notifier _notifier;
     readonly Func<TimeZoneInfo> _zone;
     readonly AlertScheduler _scheduler;
+    readonly Lock _syncGate = new();
     SyncEngine? _sync;
+    bool _disposed;
 
     /// <summary>Wires the scheduler to the notifier and to every source of changed events.</summary>
     /// <param name="services">The app services (database, clock, edits, Google).</param>
@@ -68,7 +68,12 @@ internal sealed class AlertCenter : IDisposable
         _services.Editor.Changed    -= OnDataChanged;
         _services.Conflicts.Changed -= OnDataChanged;
         _services.GoogleChanged     -= OnGoogleChanged;
-        DetachSync();
+        lock (_syncGate)
+        {
+            _disposed = true;
+            DetachSync();
+        }
+
         _scheduler.Dispose();
     }
 
@@ -109,9 +114,10 @@ internal sealed class AlertCenter : IDisposable
                 : ToastContent.Reminder(alert, details, when, profile, settings.NotificationSound));
             _services.Log.Info("alert.shown", $"kind={alert.Kind} tag={alert.Tag}");
         }
-        catch (Exception ex) when (ex is SqliteException or JsonException or InvalidOperationException)
+        catch (Exception ex)
         {
-            _services.Log.Error("alert.show.failed", ex);
+            // Raised under the scheduler's pass lock, so nothing may escape
+            _services.Log.Info("alert.show.failed", $"error={ex.GetType().Name}");
         }
     }
 
@@ -124,7 +130,7 @@ internal sealed class AlertCenter : IDisposable
     void OnSyncSoon(object? sender, EventArgs e) => _services.Google?.Loop.TriggerNow();
 
     // Logging never throws, so a failure report can't fail in turn
-    void OnSchedulerFailed(object? sender, Exception ex) => _services.Log.Error("alert.check.failed", ex);
+    void OnSchedulerFailed(object? sender, Exception ex) => _services.Log.Info("alert.check.failed", $"error={ex.GetType().Name}");
 
     // =========================================================================
     // CHANGED EVENTS
@@ -135,13 +141,22 @@ internal sealed class AlertCenter : IDisposable
 
     void OnGoogleChanged(object? sender, EventArgs e) => AttachSync();
 
+    // GoogleChanged may arrive on any thread, even while Quit disposes this, so attaching and detaching share a lock
     void AttachSync()
     {
-        DetachSync();
-        _sync = _services.Google?.Sync;
-        if (_sync is not null)
+        lock (_syncGate)
         {
-            _sync.DataChanged += OnDataChanged;
+            if (_disposed)
+            {
+                return;
+            }
+
+            DetachSync();
+            _sync = _services.Google?.Sync;
+            if (_sync is not null)
+            {
+                _sync.DataChanged += OnDataChanged;
+            }
         }
     }
 
