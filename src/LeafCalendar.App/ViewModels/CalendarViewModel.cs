@@ -52,8 +52,21 @@ public sealed record SelectedEventInfo(
     }}";
 }
 
-/// <summary>A guest in the details panel: address and a summary such as "Maybe · Optional · “Late”".</summary>
-public sealed record GuestItem(string Email, string Detail);
+/// <summary>
+/// A guest in the details panel: address, a summary such as "Maybe · Optional · “Late”", and Google's display name if
+/// known. Like the editor's chip, a named guest shows the name with the address under it.
+/// </summary>
+public sealed record GuestItem(string Email, string Detail, string? Name = null)
+{
+    /// <summary>The first line: the name, else the address.</summary>
+    public string Primary => Name ?? Email;
+
+    /// <summary>A named guest's address line (empty otherwise).</summary>
+    public string Address => Name is null ? "" : Email;
+
+    /// <summary>The address line shows.</summary>
+    public bool ShowAddress => Name is not null;
+}
 
 /// <summary>The bar at the bottom of the calendar ("Event deleted · Undo", or a short message).</summary>
 public sealed record NoticeInfo(string Text, bool CanUndo);

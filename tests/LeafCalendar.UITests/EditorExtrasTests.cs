@@ -202,6 +202,26 @@ public sealed class EditorExtrasTests : IDisposable
         Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count > 3, TimeSpan.FromSeconds(10)).Success, $"Alt+Down listed {Suggestions(leaf).Count} zones.");
         Keyboard.Press(VirtualKeyShort.ESCAPE);
 
+        // With text typed, the arrow lists its matches and changes nothing; Esc closes the list, puts the zone back, and
+        // keeps the editor open
+        edit.Click();
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
+        Keyboard.Type("Tokyo");
+        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count > 0, TimeSpan.FromSeconds(5)).Success, "Typing listed no zones.");
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count == 0 && ZoneEdit(leaf).Text == before, TimeSpan.FromSeconds(5)).Success, $"Esc left \"{ZoneEdit(leaf).Text}\".");
+        Assert.True(leaf.Exists("EditorTitle"), "Esc in the zone list closed the editor.");
+
+        edit.Click();
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
+        Keyboard.Type("Tokyo");
+        Mouse.Click(new System.Drawing.Point(box.Right - (int)(14 * leaf.Scale), box.Bottom - (int)(16 * leaf.Scale)));
+        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Any(s => (s.Name ?? "").StartsWith("Tokyo (", StringComparison.Ordinal)), TimeSpan.FromSeconds(5)).Success, "The arrow didn't list Tokyo.");
+        Thread.Sleep(300);
+        Assert.False(leaf.Exists("EditorLocalTimeText"), "The arrow picked a zone.");
+        Assert.Equal("Tokyo", ZoneEdit(leaf).Text);
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+
         // Typed text that isn't picked is dropped when focus leaves
         edit.Click();
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);

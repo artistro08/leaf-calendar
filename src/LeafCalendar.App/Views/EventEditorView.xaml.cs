@@ -27,9 +27,11 @@ public sealed partial class EventEditorView : UserControl
 
     readonly List<(Button Swatch, string? Id)> _swatches = [];
     readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _suggestTimer;
+    readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _zoneFocusCheck;
     CalendarViewModel? _owner;
     bool _endTimeAsked;
     bool _zoneAsked;
+    bool _zoneEnter;
     bool _reminderDropDownOpen;
 
     /// <summary>Creates the editor.</summary>
@@ -43,6 +45,12 @@ public sealed partial class EventEditorView : UserControl
         _suggestTimer.Interval    = TimeSpan.FromMilliseconds(250);
         _suggestTimer.IsRepeating = false;
         _suggestTimer.Tick       += (_, _) => RefreshSuggestions();
+
+        // The Zone Box Checks Where Focus Went After A Press In Its List
+        _zoneFocusCheck = DispatcherQueue.CreateTimer();
+        _zoneFocusCheck.Interval    = TimeSpan.FromMilliseconds(300);
+        _zoneFocusCheck.IsRepeating = false;
+        _zoneFocusCheck.Tick       += (_, _) => CheckZoneFocus();
 
         ActualThemeChanged += OnThemeChanged;
     }
@@ -170,6 +178,7 @@ public sealed partial class EventEditorView : UserControl
     {
         _owner = null;
         _suggestTimer.Stop();
+        _zoneFocusCheck.Stop();
         if (Editor is not { } editor)
         {
             return;
@@ -371,48 +380,76 @@ public sealed partial class EventEditorView : UserControl
         }
     }
 
-    // A picked zone (or the first match for Enter on typed text) is found by reference in our own list
+    // Only a pick from the list, or Enter (the first match for typed text), changes the zone; the arrow only opens the
+    // list. Picks are found by reference in our own list
     void OnZoneQuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
+        var enter  = _zoneEnter;
+        _zoneEnter = false;
         if (Editor is not { } editor)
         {
             return;
         }
 
-        // The Arrow (Or Enter) With Nothing Typed Drops Down Every Common Zone
-        if (args.ChosenSuggestion is null && args.QueryText == editor.TimeZoneText)
+        if (args.ChosenSuggestion is { } chosen && editor.ZoneSuggestions.FirstOrDefault(s => ReferenceEquals(s, chosen)) is { } picked)
         {
-            ShowAllZones(editor);
+            editor.PickZone(picked);
             return;
         }
 
-        var chosen = args.ChosenSuggestion ?? editor.ZoneSuggestions.FirstOrDefault();
-        if (editor.ZoneSuggestions.FirstOrDefault(s => ReferenceEquals(s, chosen)) is { } zone)
+        // The Arrow, Or Enter With Nothing Typed, Drops The List Down (every common zone, or the typed text's matches)
+        var typed = args.QueryText != editor.TimeZoneText;
+        if (!enter || !typed)
         {
-            editor.PickZone(zone);
+            OpenZoneList(editor, all: !typed);
+            return;
+        }
+
+        if (editor.ZoneSuggestions.FirstOrDefault() is { } first)
+        {
+            editor.PickZone(first);
             return;
         }
 
         editor.ResetZoneInput();
     }
 
-    // Alt+Down or F4 drops the list down, like a ComboBox (the arrow button isn't reachable by keyboard)
+    // Enter is told apart from the arrow (both submit); Alt+Down or F4 drops the list down like a ComboBox; Esc closes
+    // the list and puts the event's zone back
     void OnZoneKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        var altDown = e.Key == VirtualKey.Down && KeyState.IsDown(VirtualKey.Menu);
-        if (Editor is not { } editor || !(altDown || e.Key == VirtualKey.F4))
+        if (Editor is not { } editor)
         {
             return;
         }
 
-        e.Handled = true;
-        ShowAllZones(editor);
+        if (e.Key == VirtualKey.Enter)
+        {
+            _zoneEnter = true;
+            return;
+        }
+
+        if (e.Key == VirtualKey.Escape && TimeZoneBox.IsSuggestionListOpen)
+        {
+            e.Handled = true;
+            editor.ResetZoneInput();
+            TimeZoneBox.IsSuggestionListOpen = false;
+            return;
+        }
+
+        if ((e.Key == VirtualKey.Down && KeyState.IsDown(VirtualKey.Menu)) || e.Key == VirtualKey.F4)
+        {
+            e.Handled = true;
+            OpenZoneList(editor, all: ZoneInputUntyped(editor));
+        }
     }
 
-    void ShowAllZones(EventEditorViewModel editor)
+    static bool ZoneInputUntyped(EventEditorViewModel editor) => editor.ZoneInput == editor.TimeZoneText;
+
+    void OpenZoneList(EventEditorViewModel editor, bool all)
     {
         // Opened after the box is done with the submit (it closes its list as the query goes through)
-        editor.RefreshZoneSuggestions(DateTimeOffset.UtcNow, all: true);
+        editor.RefreshZoneSuggestions(DateTimeOffset.UtcNow, all);
         TimeZoneBox.Focus(FocusState.Programmatic);
         DispatcherQueue.TryEnqueue(() => TimeZoneBox.IsSuggestionListOpen = ReferenceEquals(Editor, editor) && editor.ZoneSuggestions.Count > 0);
     }
@@ -421,11 +458,41 @@ public sealed partial class EventEditorView : UserControl
     // the box first, and its click still has to find it (the next typing replaces them)
     void OnZoneLostFocus(object sender, RoutedEventArgs e)
     {
-        if (Editor is { } editor && !TimeZoneBox.IsSuggestionListOpen)
+        if (Editor is not { } editor)
+        {
+            return;
+        }
+
+        if (!TimeZoneBox.IsSuggestionListOpen)
         {
             editor.ResetZoneInput(keepSuggestions: true);
+            return;
         }
+
+        // A Press In The Open List Takes Focus Before Its Click Picks: Check Again Once That's Done
+        _zoneFocusCheck.Stop();
+        _zoneFocusCheck.Start();
     }
+
+    // Focus left the box: once its list has closed without a pick (a click elsewhere dismisses it), the event's zone shows
+    // again. Focus coming back to the box stops the check
+    void CheckZoneFocus()
+    {
+        if (Editor is not { } editor)
+        {
+            return;
+        }
+
+        if (TimeZoneBox.IsSuggestionListOpen)
+        {
+            _zoneFocusCheck.Start();
+            return;
+        }
+
+        editor.ResetZoneInput(keepSuggestions: true);
+    }
+
+    void OnZoneGotFocus(object sender, RoutedEventArgs e) => _zoneFocusCheck.Stop();
 
     // =========================================================================
     // VIDEO CALL

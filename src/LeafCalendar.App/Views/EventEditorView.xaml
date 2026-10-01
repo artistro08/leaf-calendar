@@ -99,6 +99,7 @@
                         Visibility="{x:Bind Editor.ShowTimeZone, Mode=OneWay}"
                         TextChanged="OnZoneTextChanged"
                         QuerySubmitted="OnZoneQuerySubmitted"
+                        GotFocus="OnZoneGotFocus"
                         LostFocus="OnZoneLostFocus"
                         PreviewKeyDown="OnZoneKeyDown"
                         AutomationProperties.Name="Time zone"
@@ -108,7 +109,15 @@
                         </AutoSuggestBox.QueryIcon>
                         <AutoSuggestBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:ZoneSuggestion">
-                                <TextBlock Text="{x:Bind Display}" TextTrimming="CharacterEllipsis" />
+                                <!-- City and offset, then Windows' zone name under it (each fits the 320 panel) -->
+                                <StackPanel Padding="0,4">
+                                    <TextBlock Text="{x:Bind Label}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="{x:Bind ZoneName}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
                             </DataTemplate>
                         </AutoSuggestBox.ItemTemplate>
                     </AutoSuggestBox>

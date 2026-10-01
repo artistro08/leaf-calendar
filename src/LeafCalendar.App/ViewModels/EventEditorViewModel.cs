@@ -99,6 +99,12 @@ public sealed class ZoneSuggestion(TimeZoneChoice choice)
     /// <summary>"Tokyo (UTC+9 · Tokyo Standard Time)".</summary>
     public string Display { get; } = choice.ToString();
 
+    /// <summary>The row's first line: "Tokyo (UTC+9)".</summary>
+    public string Label { get; } = $"{choice.City} ({choice.Detail.Split(" · ")[0]})";
+
+    /// <summary>The row's second line: Windows' name for the zone ("Tokyo Standard Time"), or empty.</summary>
+    public string ZoneName { get; } = choice.Detail.Split(" · ") is [_, var name, ..] ? name : "";
+
     /// <summary>The shown text (what a screen reader says for the item).</summary>
     public override string ToString() => Display;
 }

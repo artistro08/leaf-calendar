@@ -167,7 +167,14 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:GuestItem">
                                     <StackPanel Padding="0,2">
-                                        <TextBlock Text="{x:Bind Email}" IsTextSelectionEnabled="True" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{x:Bind Primary}" IsTextSelectionEnabled="True" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock
+                                            Text="{x:Bind Address}"
+                                            FontSize="12"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            IsTextSelectionEnabled="True"
+                                            TextTrimming="CharacterEllipsis"
+                                            Visibility="{x:Bind ShowAddress}" />
                                         <TextBlock Text="{x:Bind Detail}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </DataTemplate>
