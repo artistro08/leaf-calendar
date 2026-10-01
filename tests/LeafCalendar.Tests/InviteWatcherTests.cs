@@ -170,4 +170,83 @@ public sealed class InviteWatcherTests : IDisposable
 
         Assert.Equal(new DateTimeOffset(2026, 10, 5, 15, 0, 0, TimeSpan.Zero), invite.Occurrence.Start);
     }
+
+    [Fact]
+    public void TakeNew_NewlySubscribedCalendar_RecordsItsInvitesQuietly()
+    {
+        TakeNew();
+        const string Team = "team456@group.calendar.google.com";
+        using (var conn = _db.Database.Open())
+        {
+            var entries = JsonSerializer.Deserialize(Fixture.Read("calendar-list.json"), GoogleJsonContext.Default.CalendarListPage)!.Items;
+            entries.Add(new CalendarListEntry { Id = Team, Summary = "Team", Selected = true });
+            CalendarStore.ReplaceForAccount(conn, Account, entries);
+        }
+
+        Synced(Team);
+        Store(Invite(), Team);
+        Assert.Empty(TakeNew());
+
+        Store(Invite(id: "evt-inv2"), Team);
+        Assert.Equal("evt-inv2", Assert.Single(TakeNew()).Occurrence.EventId);
+    }
+
+    [Fact]
+    public void TakeNew_UnhiddenCalendar_DoesNotBringInvitesThatCameWhileHidden()
+    {
+        TakeNew();
+        using (var conn = _db.Database.Open())
+        {
+            CalendarStore.SetHidden(conn, Account, Family, true);
+        }
+
+        Store(Invite(), Family);
+        Assert.Empty(TakeNew());
+
+        using (var conn = _db.Database.Open())
+        {
+            CalendarStore.SetHidden(conn, Account, Family, false);
+        }
+
+        Assert.Empty(TakeNew());
+    }
+
+    [Fact]
+    public void TakeNew_OneCalendarStillOnItsFirstSync_OthersStillNotify()
+    {
+        TakeNew();
+        using (var conn = _db.Database.Open())
+        {
+            CalendarStore.SetSyncToken(conn, null, Account, Family, null);
+        }
+
+        Store(Invite());
+
+        Assert.Equal("evt-inv", Assert.Single(TakeNew()).Occurrence.EventId);
+    }
+
+    [Fact]
+    public void TakeNew_EndedUnansweredSeries_RecordedQuietly()
+    {
+        TakeNew();
+        Store(Invite(id: "evt-old", start: "2026-08-03T15:00:00Z", end: "2026-08-03T16:00:00Z", extra: "\"recurrence\":[\"RRULE:FREQ=WEEKLY;COUNT=3\"],"));
+
+        Assert.Empty(TakeNew());
+
+        using var conn = _db.Database.Open();
+        Assert.True(AlertLedger.Contains(conn, $"Invite|{Account}|{Primary}|evt-old|0"));
+    }
+
+    [Fact]
+    public void Forget_AccountRemoved_ClearsItsMarksAndAlerts()
+    {
+        Store(Invite());
+        TakeNew();
+
+        using var conn = _db.Database.Open();
+        InviteWatcher.Forget(conn, Account);
+
+        Assert.False(AlertLedger.HasPrefix(conn, $"Invite|{Account}|"));
+        Assert.Null(AlertLedger.GetMark(conn, $"invites-seeded:{Account}|{Primary}"));
+    }
 }

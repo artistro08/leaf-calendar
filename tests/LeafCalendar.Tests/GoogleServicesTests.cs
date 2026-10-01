@@ -1,4 +1,5 @@
 using System.Net;
+using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Hosting;
@@ -27,6 +28,11 @@ public sealed class GoogleServicesTests : IDisposable
         _h.RouteStandardGoogle();
         await using var services = CreateServices();
         await services.Sync.SyncAccountAsync(SyncHarness.AccountId, ct);
+        using (var seed = _h.Db.Database.Open())
+        {
+            AlertLedger.TryAdd(seed, $"Invite|{SyncHarness.AccountId}|cal|evt|0", AlertKind.Invite, "T", _time.GetUtcNow().AddDays(1), _time.GetUtcNow());
+            AlertLedger.SetMark(seed, $"invites-seeded:{SyncHarness.AccountId}|cal", 1);
+        }
 
         await services.DisconnectAsync(SyncHarness.AccountId, ct);
 
@@ -35,6 +41,8 @@ public sealed class GoogleServicesTests : IDisposable
         using var conn = _h.Db.Database.Open();
         Assert.Empty(AccountStore.GetAll(conn));
         Assert.Empty(CalendarStore.GetForAccount(conn, SyncHarness.AccountId));
+        Assert.False(AlertLedger.HasPrefix(conn, $"Invite|{SyncHarness.AccountId}|"));
+        Assert.Null(AlertLedger.GetMark(conn, $"invites-seeded:{SyncHarness.AccountId}|cal"));
     }
 
     [Fact]

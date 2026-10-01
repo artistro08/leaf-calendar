@@ -21,8 +21,10 @@ public sealed record InviteAlert(CalendarOccurrence Occurrence, EventDetails Det
 /// organizer's change notifies once as an update.
 /// </para>
 /// <para>
-/// An account is looked at only once every calendar of it finished its first sync, and that first look records its
-/// existing invitations without notifying, so adding an account doesn't bring a flood.
+/// Each calendar is looked at only once its first sync finished, and that first look records its existing invitations
+/// without notifying, so adding an account or subscribing to a calendar doesn't bring a flood. Invitations on hidden
+/// calendars are recorded quietly too, so showing a calendar again doesn't either, and so are unanswered series that
+/// have ended (nothing is left to answer).
 /// </para>
 /// </remarks>
 public static class InviteWatcher
@@ -32,13 +34,20 @@ public static class InviteWatcher
     // How far ahead the next instance of a repeating invitation is looked for
     const int LookaheadDays = 366;
 
+    // Calendars whose first sync finished, shown or hidden
+    const string CalendarsSql = """
+        SELECT account_id, id, COALESCE(leaf_hidden, hidden)
+        FROM calendars
+        WHERE sync_token IS NOT NULL
+        ORDER BY account_id, sort_order;
+        """;
+
     // "needsAction" in the JSON is a cheap first filter; the JSON is then read properly
     const string Sql = """
-        SELECT e.account_id, e.calendar_id, e.id, e.raw_json, e.is_recurring_master
+        SELECT e.id, e.raw_json, e.is_recurring_master
         FROM events e
-        JOIN calendars c ON c.account_id = e.account_id AND c.id = e.calendar_id
         WHERE e.account_id = $account
-          AND COALESCE(c.leaf_hidden, c.hidden) = 0
+          AND e.calendar_id = $calendar
           AND e.status <> 'cancelled'
           AND (e.end_utc > $now OR e.is_recurring_master = 1)
           AND e.raw_json LIKE '%needsAction%'
@@ -50,17 +59,15 @@ public static class InviteWatcher
     {
         var result = new List<InviteAlert>();
         IReadOnlyList<CalendarOccurrence>? upcoming = null;
+        var calendars = conn.Query(null, CalendarsSql, r => (Account: r.GetString(0), Id: r.GetString(1), Hidden: r.GetBoolean(2)));
 
-        foreach (var account in AccountStore.GetAll(conn))
+        foreach (var calendar in calendars)
         {
-            // Not Before The Account's First Sync Finished
-            if (!IsSynced(conn, account.Id))
-            {
-                continue;
-            }
-
-            var seeded = AlertLedger.GetMark(conn, SeededMark + account.Id) is not null;
-            var rows   = conn.Query(null, Sql, r => (Calendar: r.GetString(1), Id: r.GetString(2), Json: r.GetString(3), IsMaster: r.GetBoolean(4)), ("$account", account.Id), ("$now", now.ToUnixTimeMilliseconds()));
+            // The First Look At A Calendar, Or A Hidden One, Records Quietly
+            var mark   = SeededMark + calendar.Account + "|" + calendar.Id;
+            var seeded = AlertLedger.GetMark(conn, mark) is not null;
+            var notify = seeded && !calendar.Hidden;
+            var rows   = conn.Query(null, Sql, r => (Id: r.GetString(0), Json: r.GetString(1), IsMaster: r.GetBoolean(2)), ("$account", calendar.Account), ("$calendar", calendar.Id), ("$now", now.ToUnixTimeMilliseconds()));
 
             foreach (var row in rows)
             {
@@ -70,27 +77,27 @@ public static class InviteWatcher
                 }
 
                 // Seen Before (same event, same sequence)
-                var prefix = $"Invite|{account.Id}|{row.Calendar}|{row.Id}|";
+                var prefix = $"Invite|{calendar.Account}|{calendar.Id}|{row.Id}|";
                 var key    = prefix + sequence.ToString(CultureInfo.InvariantCulture);
                 if (AlertLedger.Contains(conn, key))
                 {
                     continue;
                 }
 
-                // Its Next Instance (loaded once, only when something needs it)
+                // Its Next Instance (loaded once, only when something needs it); a single event too far ahead waits until it's in range
                 upcoming ??= Upcoming(conn, now, zone);
-                var occurrence = upcoming.FirstOrDefault(o => o.AccountId == account.Id && o.CalendarId == row.Calendar && o.EventId == row.Id && o.EndIn(zone) > now);
-                if (occurrence is null && seeded)
+                var occurrence = upcoming.FirstOrDefault(o => o.AccountId == calendar.Account && o.CalendarId == calendar.Id && o.EventId == row.Id && o.EndIn(zone) > now);
+                if (occurrence is null && notify && !row.IsMaster)
                 {
                     continue;
                 }
 
-                // Record, Then Notify (unless this is the account's first look)
+                // Record, Then Notify (not on a first look, a hidden calendar, or a series that has ended)
                 var isUpdate = AlertLedger.HasPrefix(conn, prefix);
                 var tag      = Alert.TagFor(key);
                 var end      = row.IsMaster || occurrence is null ? now.AddDays(LookaheadDays) : occurrence.EndIn(zone);
                 AlertLedger.TryAdd(conn, key, AlertKind.Invite, tag, end, now);
-                if (seeded && occurrence is not null)
+                if (notify && occurrence is not null)
                 {
                     result.Add(new InviteAlert(occurrence, EventDetailsParser.Parse(row.Json), isUpdate, tag));
                 }
@@ -98,11 +105,18 @@ public static class InviteWatcher
 
             if (!seeded)
             {
-                AlertLedger.SetMark(conn, SeededMark + account.Id, 1);
+                AlertLedger.SetMark(conn, mark, 1);
             }
         }
 
         return result;
+    }
+
+    /// <summary>Forgets an account's recorded invitations, reminders, and first-look marks (the account was removed).</summary>
+    public static void Forget(SqliteConnection conn, string accountId)
+    {
+        AlertLedger.RemoveForAccount(conn, accountId);
+        AlertLedger.DeleteMarksStartingWith(conn, SeededMark + accountId + "|");
     }
 
     static IReadOnlyList<CalendarOccurrence> Upcoming(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone)
@@ -110,14 +124,6 @@ public static class InviteWatcher
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
         return OccurrenceQuery.Load(conn, today.AddDays(-1), today.AddDays(LookaheadDays), zone, includeDeclined: true);
     }
-
-    // Every calendar of the account has a sync token (its first sync finished)
-    static bool IsSynced(SqliteConnection conn, string accountId) =>
-        conn.Query(
-            null,
-            "SELECT COUNT(*) > 0 AND SUM(CASE WHEN sync_token IS NULL THEN 1 ELSE 0 END) = 0 FROM calendars WHERE account_id = $account;",
-            r => !r.IsDBNull(0) && r.GetBoolean(0),
-            ("$account", accountId)).Single();
 
     // Someone else organizes it and your own reply is still "needsAction"; also returns Google's sequence number
     static bool IsOpenInvite(string json, out int sequence)

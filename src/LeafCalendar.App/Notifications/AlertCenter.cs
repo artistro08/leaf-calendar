@@ -7,18 +7,20 @@ using LeafCalendar.Core.Sync;
 namespace LeafCalendar.App.Notifications;
 
 /// <summary>
-/// Turns Leaf's alerts into Windows notifications (spec 8.4): reminders at Google's reminder times, and the persistent
-/// "Join now" at start, withdrawn once its meeting ends, moves, or is declined.
+/// Turns Leaf's alerts into Windows notifications (spec 8.4): reminders at Google's reminder times, the persistent
+/// "Join now" at start (withdrawn once its meeting ends, moves, or is declined), new and updated invitations,
+/// "1 change needs your review" (spec 5.5), and "Sign in again" (spec 4.2).
 /// </summary>
 /// <remarks>
 /// <para>
 /// The <see cref="AlertScheduler"/> decides what's due; every local edit, conflict answer, and sync that wrote something
-/// makes it plan again, and a minute before each alert it asks for a sync (spec 5.3). Settings are read on every pass,
-/// so a change in Settings › Notifications applies to the next alert. Logs carry the alert's kind and tag only.
+/// makes it plan again, and a minute before each alert it asks for a sync (spec 5.3). Each sync that wrote something
+/// also looks for invitations. Settings are read for every notification, so a change in Settings › Notifications
+/// applies to the next one. Logs carry the kind and the tag only.
 /// </para>
 /// <para>
-/// The scheduler raises its events on its own thread while it holds its pass lock, so these handlers never wait on the
-/// UI thread and never throw. The PC time zone comes from the App's watcher; the App calls <see cref="Invalidate"/>
+/// The scheduler raises its events on its own thread while it holds its pass lock, and the sync engine on the syncing
+/// thread, so these handlers never wait on the UI thread and never throw. The PC time zone comes from the App's watcher; the App calls <see cref="Invalidate"/>
 /// when it changes (all-day reminders count from local midnight).
 /// </para>
 /// </remarks>
@@ -29,6 +31,7 @@ internal sealed class AlertCenter : IDisposable
     readonly Func<TimeZoneInfo> _zone;
     readonly AlertScheduler _scheduler;
     readonly Lock _syncGate = new();
+    readonly Lock _inviteGate = new();
     SyncEngine? _sync;
     bool _disposed;
 
@@ -51,13 +54,24 @@ internal sealed class AlertCenter : IDisposable
 
         // Changed Events Re-Plan
         services.Editor.Changed    += OnDataChanged;
-        services.Conflicts.Changed += OnDataChanged;
+        services.Conflicts.Changed += OnConflictsChanged;
         services.GoogleChanged     += OnGoogleChanged;
         AttachSync();
     }
 
-    /// <summary>Starts the 15-second passes (the first one right away, on the scheduler's thread).</summary>
-    public void Start() => _scheduler.Start();
+    /// <summary>
+    /// Starts the 15-second passes (the first one right away, on the scheduler's thread), and, off the UI thread, looks
+    /// for invitations and for accounts that already need signing in again.
+    /// </summary>
+    public void Start()
+    {
+        _scheduler.Start();
+        _ = Task.Run(() =>
+        {
+            ShowInvites();
+            ShowSignInsNeeded();
+        });
+    }
 
     /// <summary>Plans again on the next pass, which runs right away (the PC time zone changed).</summary>
     public void Invalidate() => _scheduler.Invalidate();
@@ -66,7 +80,7 @@ internal sealed class AlertCenter : IDisposable
     public void Dispose()
     {
         _services.Editor.Changed    -= OnDataChanged;
-        _services.Conflicts.Changed -= OnDataChanged;
+        _services.Conflicts.Changed -= OnConflictsChanged;
         _services.GoogleChanged     -= OnGoogleChanged;
         lock (_syncGate)
         {
@@ -133,11 +147,109 @@ internal sealed class AlertCenter : IDisposable
     void OnSchedulerFailed(object? sender, Exception ex) => _services.Log.Info("alert.check.failed", $"error={ex.GetType().Name}");
 
     // =========================================================================
-    // CHANGED EVENTS
+    // SYNC SIGNALS (raised on the syncing thread; nothing may escape)
     // =========================================================================
 
-    // Edits, conflict answers, and syncs (on the sync thread); Invalidate only nudges the timer, never runs a pass here
+    // Edits; Invalidate only nudges the timer, never runs a pass here
     void OnDataChanged(object? sender, EventArgs e) => _scheduler.Invalidate();
+
+    // A sync wrote something: plan again, then look for invitations
+    void OnSyncDataChanged(object? sender, EventArgs e)
+    {
+        _scheduler.Invalidate();
+        ShowInvites();
+    }
+
+    // One look at a time, so the startup look and a sync's can't both show the same invitation
+    void ShowInvites()
+    {
+        try
+        {
+            lock (_inviteGate)
+            {
+                using var conn = _services.Database.Open();
+                var settings   = SettingsStore.Load(conn);
+                var now        = _services.Time.GetUtcNow();
+                var zone       = _zone();
+                foreach (var invite in InviteWatcher.TakeNew(conn, now, zone))
+                {
+                    // Recorded Either Way, So Turning Invitations Back On Doesn't Bring Old Ones
+                    if (!settings.InviteNotifications)
+                    {
+                        continue;
+                    }
+
+                    var when = ToastContent.When(invite.Occurrence, zone, settings.Use24HourTime, now);
+                    _notifier.Show(ToastContent.Invite(invite.Occurrence, invite.Details, invite.IsUpdate, invite.Tag, when, _services.Options.Profile, settings.NotificationSound));
+                    _services.Log.Info("alert.shown", $"kind=Invite tag={invite.Tag}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _services.Log.Info("alert.invites.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // New conflicts: one notification with the total, replacing any earlier one
+    void OnConflictsFound(object? sender, int found)
+    {
+        try
+        {
+            using var conn = _services.Database.Open();
+            var count      = ConflictStore.Count(conn);
+            if (count > 0)
+            {
+                _notifier.Show(ToastContent.Conflicts(count, _services.Options.Profile, SettingsStore.Load(conn).NotificationSound));
+                _services.Log.Info("alert.shown", $"kind=Conflicts count={count}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _services.Log.Info("alert.conflicts.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // A conflict was answered: plan again, and withdraw the notification once none are left
+    void OnConflictsChanged(object? sender, EventArgs e)
+    {
+        _scheduler.Invalidate();
+        try
+        {
+            using var conn = _services.Database.Open();
+            if (ConflictStore.Count(conn) == 0)
+            {
+                _ = _notifier.RemoveAsync(ToastContent.ConflictTag, ToastContent.ConflictGroup);
+            }
+        }
+        catch (Exception ex)
+        {
+            _services.Log.Info("alert.conflicts.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    void OnSignInNeeded(object? sender, string accountId) => ShowSignIn(a => a.Id == accountId);
+
+    // At Start: accounts whose sign-in stopped working while Leaf wasn't running (each toast replaces its earlier one)
+    void ShowSignInsNeeded() => ShowSignIn(a => a.Status == AccountStatus.NeedsSignIn);
+
+    void ShowSignIn(Func<Account, bool> which)
+    {
+        try
+        {
+            using var conn = _services.Database.Open();
+            var sound      = SettingsStore.Load(conn).NotificationSound;
+            foreach (var account in AccountStore.GetAll(conn).Where(which))
+            {
+                _notifier.Show(ToastContent.SignIn(account.Id, account.Email, _services.Options.Profile, sound));
+                _services.Log.Info("alert.shown", $"kind=SignIn account={account.Id}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _services.Log.Info("alert.signin.failed", $"error={ex.GetType().Name}");
+        }
+    }
 
     void OnGoogleChanged(object? sender, EventArgs e) => AttachSync();
 
@@ -155,7 +267,9 @@ internal sealed class AlertCenter : IDisposable
             _sync = _services.Google?.Sync;
             if (_sync is not null)
             {
-                _sync.DataChanged += OnDataChanged;
+                _sync.DataChanged    += OnSyncDataChanged;
+                _sync.ConflictsFound += OnConflictsFound;
+                _sync.SignInNeeded   += OnSignInNeeded;
             }
         }
     }
@@ -164,7 +278,9 @@ internal sealed class AlertCenter : IDisposable
     {
         if (_sync is not null)
         {
-            _sync.DataChanged -= OnDataChanged;
+            _sync.DataChanged    -= OnSyncDataChanged;
+            _sync.ConflictsFound -= OnConflictsFound;
+            _sync.SignInNeeded   -= OnSignInNeeded;
         }
 
         _sync = null;

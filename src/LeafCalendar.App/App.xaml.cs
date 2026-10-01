@@ -7,6 +7,7 @@ using LeafCalendar.App.Views.Onboarding;
 using LeafCalendar.App.Views.Settings;
 using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Diagnostics;
+using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Hosting;
 using LeafCalendar.Core.Settings;
@@ -118,10 +119,14 @@ public partial class App : Application
         {
             StartTray(services);
 
-            // Started By Windows At Sign-In: stay in the tray
-            if (Program.StartKind == ExtendedActivationKind.StartupTask)
+            // Started By Windows At Sign-In, Or By A Notification Click: the tray, plus what the click asked for
+            if (Program.StartKind is ExtendedActivationKind.StartupTask or ExtendedActivationKind.AppNotification)
             {
                 GoToTray();
+                if (Program.StartKind == ExtendedActivationKind.AppNotification)
+                {
+                    HandleToast(Program.StartArgument);
+                }
             }
             else
             {
@@ -187,7 +192,8 @@ public partial class App : Application
         }
 
         // Notifications (registered before any click is handled)
-        _notifier = new Notifier(services);
+        _notifier          = new Notifier(services);
+        _notifier.Invoked += (_, argument) => _dispatcher.TryEnqueue(() => HandleToast(argument));
         _notifier.Register();
         _alerts = new AlertCenter(services, _notifier, () => _zone.Zone);
         _alerts.Start();
@@ -339,14 +345,30 @@ public partial class App : Application
 
     void OnActivated(Activation activation)
     {
-        // Windows' sign-in start while Leaf already runs changes nothing
-        if (activation.Kind == ExtendedActivationKind.StartupTask)
+        switch (activation.Kind)
         {
-            return;
-        }
+            // Windows' Sign-In Start While Leaf Already Runs Changes Nothing
+            case ExtendedActivationKind.StartupTask:
+                return;
 
-        BringToFront();
+            // A Notification Click That Windows Handed To A New Process, Which Passed It On
+            case ExtendedActivationKind.AppNotification:
+                HandleToast(activation.Arguments);
+                return;
+
+            // UI Tests Click Notifications With "--toast-action" On A Second Launch (fake-Google profiles only)
+            case ExtendedActivationKind.Launch when TestToastAction(activation.Arguments) is { } toast:
+                HandleToast(toast);
+                return;
+
+            default:
+                BringToFront();
+                return;
+        }
     }
+
+    static string? TestToastAction(string? commandLine) =>
+        string.IsNullOrWhiteSpace(commandLine) ? null : LaunchOptions.Parse(commandLine.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToastAction;
 
     // The main window and Settings share one view model, so a Settings change shows in the calendar at once
     CalendarViewModel AcquireCalendar()
@@ -534,6 +556,88 @@ public partial class App : Application
         }
 
         EfficiencyMode.Set(!visible && SettingsWindow.Current is null);
+    }
+
+    // =========================================================================
+    // NOTIFICATION CLICKS
+    // =========================================================================
+
+    // A notification or one of its buttons was clicked (spec 8.4); on the UI thread, and nothing may escape
+    void HandleToast(string? argument)
+    {
+        if (_services is not { } services || ToastArgs.Parse(argument) is not { } toast)
+        {
+            return;
+        }
+
+        // Another Profile's Notification (every profile shares Leaf's notification identity)
+        if (toast.Profile != services.Options.Profile)
+        {
+            services.Log.Info("notification.other-profile");
+            return;
+        }
+
+        try
+        {
+            switch (toast.Action)
+            {
+                case ToastAction.ReviewConflicts:
+                    ShowMainWindow();
+                    _dispatcher?.TryEnqueue(DispatcherQueuePriority.Low, () => _ = _window?.ReviewConflictsAsync());
+                    return;
+
+                case ToastAction.SignIn:
+                    OpenSettings(SettingsSection.Accounts);
+                    return;
+            }
+
+            // About An Event: find the instance again by its IDs (it may have moved or gone since)
+            CalendarOccurrence? occurrence;
+            using (var conn = services.Database.Open())
+            {
+                occurrence = OccurrenceLookup.Find(conn, toast.AccountId!, toast.CalendarId!, toast.EventId!, toast.Start!.Value, _zone.Zone);
+            }
+
+            if (occurrence is null)
+            {
+                services.Log.Info("notification.event-gone");
+                return;
+            }
+
+            switch (toast.Action)
+            {
+                case ToastAction.Open:
+                    RevealEvent(occurrence);
+                    break;
+
+                // The link comes from the stored event and goes through LinkSafety at launch, never from the arguments
+                case ToastAction.Join:
+                    JoinEvent(occurrence);
+                    break;
+
+                default:
+                    Respond(occurrence, toast.Action);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            // The type only, never content or the arguments
+            services.Log.Info("notification.action.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // Yes / No / Maybe on an invitation: Google emails the organizer, like its own buttons; a repeating invitation is answered for the series
+    void Respond(CalendarOccurrence occurrence, ToastAction action)
+    {
+        var response = action switch
+        {
+            ToastAction.Accept  => ResponseStatus.Accepted,
+            ToastAction.Decline => ResponseStatus.Declined,
+            _                   => ResponseStatus.Tentative,
+        };
+        var scope = occurrence.RecurringEventId is not null ? EditScope.All : EditScope.This;
+        _services!.Editor.Respond(occurrence, response, note: null, sendUpdates: true, scope);
     }
 
     // =========================================================================

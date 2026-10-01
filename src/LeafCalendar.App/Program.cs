@@ -1,7 +1,11 @@
+using System.Runtime.InteropServices;
+using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Hosting;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
+using Microsoft.Windows.AppNotifications;
+using WinRT;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.System.Com;
@@ -32,6 +36,9 @@ public static class Program
     /// <summary>How Windows started this process.</summary>
     internal static ExtendedActivationKind StartKind { get; private set; } = ExtendedActivationKind.Launch;
 
+    /// <summary>The notification's argument when a notification click started this process, else null.</summary>
+    internal static string? StartArgument { get; private set; }
+
     /// <summary>Redirects to the running Leaf for this profile, or starts the app.</summary>
     [STAThread]
     static void Main(string[] args)
@@ -40,8 +47,19 @@ public static class Program
 
         // How This Launch Started
         var activation = AppInstance.GetCurrent().GetActivatedEventArgs();
-        StartKind = activation.Kind;
-        Options   = LaunchOptions.Parse(args);
+        var started    = Read(activation);
+        StartKind      = started.Kind;
+        Options        = LaunchOptions.Parse(args);
+
+        // A Notification Click That Started Leaf Belongs To The Profile It Names (Windows starts it without --profile)
+        if (started.Kind == ExtendedActivationKind.AppNotification)
+        {
+            StartArgument = started.Arguments;
+            if (ToastArgs.Parse(started.Arguments)?.Profile is { } profile && LaunchOptions.Parse(["--profile", profile]).Profile == profile)
+            {
+                Options = Options with { Profile = profile };
+            }
+        }
 
         // Single Instance Per Profile (the key ignores case, like Windows' profile folders; UI tests' parallel uitest-* profiles stay independent)
         var main = AppInstance.FindOrRegisterForKey("LeafCalendar-" + Options.Profile.ToLowerInvariant());
@@ -96,8 +114,29 @@ public static class Program
         handler?.Invoke(activation);
     }
 
-    // What a redirected activation carries
-    static Activation Read(AppActivationArguments args) => new(args.Kind, null);
+    // What an activation carries: a notification's argument, or a plain launch's command line. The WinRT payload is read
+    // through As<T>(), which Native AOT supports (a C# cast of a WinRT object read back isn't safe there).
+    static Activation Read(AppActivationArguments args)
+    {
+        if (args.Data is null)
+        {
+            return new Activation(args.Kind, null);
+        }
+
+        try
+        {
+            return args.Kind switch
+            {
+                ExtendedActivationKind.AppNotification => new Activation(args.Kind, args.Data.As<AppNotificationActivatedEventArgs>().Argument),
+                ExtendedActivationKind.Launch          => new Activation(args.Kind, args.Data.As<Windows.ApplicationModel.Activation.ILaunchActivatedEventArgs>().Arguments),
+                _                                      => new Activation(args.Kind, null),
+            };
+        }
+        catch (Exception ex) when (ex is InvalidCastException or COMException)
+        {
+            return new Activation(args.Kind, null);
+        }
+    }
 
     // Microsoft's documented pattern: redirect on a background thread while this STA thread waits with COM pumping,
     // so the redirect can't deadlock it. The wait is bounded: a running Leaf that never answers doesn't keep this

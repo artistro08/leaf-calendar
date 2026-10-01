@@ -1,3 +1,4 @@
+using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Diagnostics;
@@ -82,7 +83,9 @@ public sealed class GoogleServices : IAsyncDisposable
         _tokenStore.RemoveRefreshToken(accountId);
         AccessTokens.Forget(accountId);
 
+        // Its Alerts Go Too, So Adding It Again Starts With A Quiet First Look
         using var conn = _database.Open();
+        InviteWatcher.Forget(conn, accountId);
         AccountStore.Delete(conn, accountId);
         _log.Info("account.disconnected", $"account={accountId}");
     }

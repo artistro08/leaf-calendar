@@ -101,6 +101,9 @@ public sealed class FakeGoogleServer : IDisposable
     /// <summary>The other user's Google ID.</summary>
     public const string OtherUserId = "222222222222";
 
+    /// <summary>When true, refreshing an access token fails with <c>invalid_grant</c>, as when the user revoked Leaf's access.</summary>
+    public bool RejectRefresh { get; set; }
+
     /// <summary>How many token revocations were requested.</summary>
     public int RevokeCount => Volatile.Read(ref _revokes);
 
@@ -222,11 +225,18 @@ public sealed class FakeGoogleServer : IDisposable
 
         if (method == "POST" && path == "/token")
         {
+            var grant = QueryString.Parse(body).GetValueOrDefault("grant_type");
+
             // A new sign-in grants everything token-response.json lists, contacts included
-            if (QueryString.Parse(body).GetValueOrDefault("grant_type") == "authorization_code")
+            if (grant == "authorization_code")
             {
                 ContactsGranted = true;
                 return (200, Read("token-response.json"), null);
+            }
+
+            if (RejectRefresh && grant == "refresh_token")
+            {
+                return (400, """{"error":"invalid_grant","error_description":"Token has been expired or revoked."}""", null);
             }
 
             // Refresh: the scope string says which grants the account holds

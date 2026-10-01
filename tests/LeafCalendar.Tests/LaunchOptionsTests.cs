@@ -119,4 +119,18 @@ public class LaunchOptionsTests
     {
         Assert.Null(LaunchOptions.Parse(["--profile", "uitest-a", "--fake-google", "http://127.0.0.1:5000/", "--now", value]).Now);
     }
+
+    [Fact]
+    public void Parse_ToastActionWithFakeGoogle_IsKept()
+    {
+        var options = LaunchOptions.Parse(["--profile", "uitest-a", "--fake-google", "http://127.0.0.1:5000/", "--toast-action", "action=ReviewConflicts;profile=uitest-a"]);
+
+        Assert.Equal("action=ReviewConflicts;profile=uitest-a", options.ToastAction);
+    }
+
+    [Fact]
+    public void Parse_ToastActionOnARealProfile_IsIgnored()
+    {
+        Assert.Null(LaunchOptions.Parse(["--toast-action", "action=ReviewConflicts;profile=default"]).ToastAction);
+    }
 }

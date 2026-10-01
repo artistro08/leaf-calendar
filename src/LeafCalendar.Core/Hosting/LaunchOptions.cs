@@ -18,9 +18,10 @@ namespace LeafCalendar.Core.Hosting;
 /// The accepted forms are <c>yyyy-MM-ddTHH:mm:ss±hh:mm</c> and <c>yyyy-MM-ddTHH:mm±hh:mm</c>; a value without an
 /// offset is ignored, so the test clock never depends on the PC's time zone. It moves the services clock (alerts, tray, join shortcut) only; the calendar view's "now"
 /// (<c>CalendarViewModel.Now</c>) still follows <c>--start-date</c> or the real clock.</item>
+/// <item><c>--toast-action &lt;arguments&gt;</c> acts as if a notification with those arguments was clicked (UI tests, through the single-instance redirect). It's honored only with <c>--fake-google</c>.</item>
 /// </list>
 /// </remarks>
-public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoogle = null, DateOnly? StartDate = null, DateTimeOffset? Now = null)
+public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoogle = null, DateOnly? StartDate = null, DateTimeOffset? Now = null, string? ToastAction = null)
 {
     /// <summary>Parses arguments (without the executable path).</summary>
     public static LaunchOptions Parse(IReadOnlyList<string> args)
@@ -30,6 +31,7 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
         Uri? fake           = null;
         DateOnly? date      = null;
         DateTimeOffset? now = null;
+        string? toast       = null;
 
         for (var i = 0; i < args.Count; i++)
         {
@@ -54,6 +56,10 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
                 case "--now" when i + 1 < args.Count:
                     now = ParseInstant(args[++i]);
                     break;
+
+                case "--toast-action" when i + 1 < args.Count:
+                    toast = args[++i];
+                    break;
             }
         }
 
@@ -64,7 +70,7 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
             fake = null;
         }
 
-        return new LaunchOptions(profile, trayProbe, fake, fake is null ? null : date, fake is null ? null : now);
+        return new LaunchOptions(profile, trayProbe, fake, fake is null ? null : date, fake is null ? null : now, fake is null ? null : toast);
     }
 
     static Uri? ParseLoopback(string value)

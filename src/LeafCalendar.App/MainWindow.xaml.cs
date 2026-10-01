@@ -557,21 +557,33 @@ public sealed partial class MainWindow : Window
     // Offline or waiting: try sending now
     void OnSyncStatusClick(object sender, RoutedEventArgs e) => _services.Google?.Loop.TriggerNow();
 
-    async void OnConflictsClick(object sender, RoutedEventArgs e)
+    /// <summary>Opens the conflict dialog (the toolbar's conflicts button, or the "needs your review" notification). Never throws.</summary>
+    public async Task ReviewConflictsAsync()
     {
-        if (_calendar is not { } vm)
+        // A Window Just Opened For A Notification May Not Have Laid Out Yet
+        if (!RootGrid.IsLoaded)
         {
+            void Later(object sender, RoutedEventArgs e)
+            {
+                RootGrid.Loaded -= Later;
+                _ = ReviewConflictsAsync();
+            }
+
+            RootGrid.Loaded += Later;
             return;
         }
 
-        // async void: anything that escapes here would end the process
         try
         {
-            await ConflictDialog.ReviewAsync(RootGrid.XamlRoot, vm, RootGrid.ActualTheme == ElementTheme.Dark);
+            await ConflictDialog.ReviewAsync(RootGrid.XamlRoot, _calendar, RootGrid.ActualTheme == ElementTheme.Dark);
         }
         catch (Exception ex)
         {
-            vm.LogError("conflict.review.failed", ex);
+            // The type only: an exception's message can carry event content
+            _services.Log.Info("conflict.review.failed", $"error={ex.GetType().Name}");
         }
     }
+
+    // ReviewConflictsAsync never throws
+    async void OnConflictsClick(object sender, RoutedEventArgs e) => await ReviewConflictsAsync();
 }

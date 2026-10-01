@@ -101,4 +101,36 @@ public sealed class AlertLedgerTests : IDisposable
         Assert.Equal([10], defaults[(TestDatabase.SampleAccount.Id, "leaf.tester@gmail.com")]);
         Assert.Equal([5], defaults[(TestDatabase.SampleAccount.Id, "family123@group.calendar.google.com")]);
     }
+
+    [Fact]
+    public void RemoveForAccount_ForgetsOnlyThatAccountsAlerts()
+    {
+        using var conn = _db.Database.Open();
+        AlertLedger.TryAdd(conn, "Reminder|acct|cal|evt|1|10", AlertKind.Reminder, "T1", Now.AddDays(1), Now);
+        AlertLedger.TryAdd(conn, "Invite|acct|cal|evt|0", AlertKind.Invite, "T2", Now.AddDays(1), Now);
+        AlertLedger.TryAdd(conn, "JoinNow|acct2|cal|evt|1|0", AlertKind.JoinNow, "T3", Now.AddDays(1), Now);
+        AlertLedger.TryAdd(conn, "Invite|acc|cal|evt|0", AlertKind.Invite, "T4", Now.AddDays(1), Now);
+
+        AlertLedger.RemoveForAccount(conn, "acct");
+
+        Assert.False(AlertLedger.Contains(conn, "Reminder|acct|cal|evt|1|10"));
+        Assert.False(AlertLedger.Contains(conn, "Invite|acct|cal|evt|0"));
+        Assert.True(AlertLedger.Contains(conn, "JoinNow|acct2|cal|evt|1|0"));
+        Assert.True(AlertLedger.Contains(conn, "Invite|acc|cal|evt|0"));
+    }
+
+    [Fact]
+    public void DeleteMarksStartingWith_ClearsOnlyMatchingMarks()
+    {
+        using var conn = _db.Database.Open();
+        AlertLedger.SetMark(conn, "invites-seeded:1|cal-a", 1);
+        AlertLedger.SetMark(conn, "invites-seeded:1|cal_b", 1);
+        AlertLedger.SetMark(conn, "invites-seeded:10|cal-a", 1);
+
+        AlertLedger.DeleteMarksStartingWith(conn, "invites-seeded:1|");
+
+        Assert.Null(AlertLedger.GetMark(conn, "invites-seeded:1|cal-a"));
+        Assert.Null(AlertLedger.GetMark(conn, "invites-seeded:1|cal_b"));
+        Assert.Equal(1, AlertLedger.GetMark(conn, "invites-seeded:10|cal-a"));
+    }
 }

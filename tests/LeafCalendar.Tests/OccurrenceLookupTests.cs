@@ -68,4 +68,13 @@ public sealed class OccurrenceLookupTests : IDisposable
     {
         Assert.Null(Find("evt-nope", new DateTimeOffset(2026, 10, 1, 13, 0, 0, TimeSpan.Zero)));
     }
+
+    [Fact]
+    public void Find_StartMovedSince_PicksTheNearestInstance()
+    {
+        // Thursday evening sits between Wednesday's and Friday's standups, closer to Friday's
+        var o = Find("evt-weekly", new DateTimeOffset(2026, 10, 15, 22, 0, 0, TimeSpan.Zero));
+
+        Assert.Equal(new DateTimeOffset(2026, 10, 16, 13, 30, 0, TimeSpan.Zero), o!.Start);
+    }
 }
