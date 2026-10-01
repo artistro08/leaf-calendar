@@ -1,9 +1,12 @@
 // Track B owns this file (Milestone 5 Tasks 7-8): the people overlay, Meet with, and share availability.
 using System.Net.Mail;
+using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.People;
+using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Tray;
+using LeafCalendar.Core.Views;
 
 namespace LeafCalendar.App.ViewModels;
 
@@ -162,6 +165,162 @@ public sealed partial class CalendarViewModel
         _services.Google is { } google && PeopleAccountId() is { } account
             ? google.Contacts.SearchAsync(account, text, ct)
             : Task.FromResult(new ContactResults([], ContactAccess.Allowed));
+
+    // =========================================================================
+    // SHARE AVAILABILITY
+    // =========================================================================
+
+    bool _sharing;
+    List<BusyRange> _slots = [];
+    string _shareZoneId = "";
+    HashSet<CalendarRef> _shareCalendars = [];
+
+    /// <summary>True while you pick times to share: a drag on the time grid adds a slot instead of a new event.</summary>
+    public bool IsSharing => _sharing;
+
+    /// <summary>The picked times, merged and in order.</summary>
+    public IReadOnlyList<BusyRange> ShareSlots => _slots;
+
+    /// <summary>The IANA ID of the zone the copied text is written in (the zone on screen when sharing starts).</summary>
+    public string ShareZoneId
+    {
+        get => _shareZoneId;
+        set => _shareZoneId = value;
+    }
+
+    /// <summary>The calendars whose busy times are left out of the shared times (all shareable ones when sharing starts).</summary>
+    public IReadOnlySet<CalendarRef> ShareCalendars => _shareCalendars;
+
+    /// <summary>Sharing started or stopped, or the slots changed (redraw the bar and the slots).</summary>
+    public event EventHandler? ShareChanged;
+
+    /// <summary>Starts picking times to share (nothing happens while already sharing).</summary>
+    public void StartSharing()
+    {
+        if (_sharing)
+        {
+            return;
+        }
+
+        _slots          = [];
+        _shareZoneId    = TimeZoneCatalog.IanaId(Zone);
+        _shareCalendars = [.. ShareableCalendars().Select(c => new CalendarRef(c.AccountId, c.Id))];
+        _sharing        = true;
+        ShareChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Stops sharing and forgets the picked times.</summary>
+    public void StopSharing()
+    {
+        _sharing        = false;
+        _slots          = [];
+        _shareCalendars = [];
+        ShareChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Adds a picked time (merged with any it overlaps or touches).</summary>
+    public void AddShareSlot(DateTimeOffset start, DateTimeOffset end)
+    {
+        if (!_sharing || end <= start)
+        {
+            return;
+        }
+
+        _slots = [.. BusyMath.Merge([.. _slots, new BusyRange(start, end)])];
+        ShareChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Removes the picked time at <paramref name="index"/>.</summary>
+    public void RemoveShareSlot(int index)
+    {
+        if (index < 0 || index >= _slots.Count)
+        {
+            return;
+        }
+
+        _slots.RemoveAt(index);
+        ShareChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Counts a calendar's busy times in (or leaves them out of) the shared times.</summary>
+    public void SetShareCalendar(CalendarRef calendar, bool include)
+    {
+        if (include)
+        {
+            _shareCalendars.Add(calendar);
+        }
+        else
+        {
+            _shareCalendars.Remove(calendar);
+        }
+    }
+
+    /// <summary>The calendars whose busy times can block shared times: the visible ones you own or can write to.</summary>
+    public IReadOnlyList<CalendarInfo> ShareableCalendars() => [.. Calendars.Where(c => c.IsVisible && c.AccessRole is "owner" or "writer")];
+
+    /// <summary>
+    /// The picked times minus everything busy on the chosen calendars (Google free/busy), as text in the chosen zone;
+    /// <c>""</c> when none is free, null when Google couldn't be asked or had no answer for a calendar.
+    /// </summary>
+    public async Task<string?> BuildAvailabilityAsync(CancellationToken ct)
+    {
+        if (_slots.Count == 0 || _services.Google is not { } google)
+        {
+            return _slots.Count == 0 ? "" : null;
+        }
+
+        var from = _slots.Min(s => s.Start);
+        var to   = _slots.Max(s => s.End);
+
+        try
+        {
+            // One Query Per Account (At Most 50 Calendars Each), Accounts In Parallel
+            var queries = _shareCalendars
+                .GroupBy(c => c.AccountId)
+                .SelectMany(g => g.Select(c => c.CalendarId).Chunk(GoogleCalendarClient.MaxFreeBusyIds).Select(ids => google.Calendar.QueryFreeBusyAsync(g.Key, ids, from, to, ct)))
+                .ToList();
+            var answers = await Task.WhenAll(queries);
+
+            if (answers.SelectMany(a => a.Values).Any(r => r.Error is not null))
+            {
+                return null;
+            }
+
+            var busy = answers.SelectMany(a => a.Values).SelectMany(r => r.Busy);
+            var free = BusyMath.Subtract(_slots, busy);
+            return AvailabilityText.Format(free, TimeZoneInfo.FindSystemTimeZoneById(_shareZoneId), Settings.Use24HourTime);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _services.Log.Info("share.build.failed", $"status={Status(ex)}");
+            return null;
+        }
+    }
+
+    /// <summary>Copies the free picked times as text (never logged), or says why it couldn't.</summary>
+    public async Task CopyAvailabilityAsync()
+    {
+        var text = await BuildAvailabilityAsync(_life.Token);
+        if (text is null)
+        {
+            ShowMessage("Couldn't check your calendars. Check your connection.");
+            return;
+        }
+
+        if (text.Length == 0)
+        {
+            ShowMessage("None of those times are free");
+            return;
+        }
+
+        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(text);
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
+
+        _services.Log.Info("share.copy", $"slots={_slots.Count} calendars={_shareCalendars.Count}");
+        ShowMessage("Copied your free times");
+    }
 
     /// <summary>True when <paramref name="text"/> is exactly one valid email address.</summary>
     public static bool IsAddress(string text) => MailAddress.TryCreate(text, out var address) && address.Address == text;

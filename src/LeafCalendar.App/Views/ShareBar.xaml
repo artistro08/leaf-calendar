@@ -1,0 +1,81 @@
+<UserControl
+    x:Class="LeafCalendar.App.Views.ShareBar"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Visibility="Collapsed"
+    AutomationProperties.AutomationId="ShareBar"
+    AutomationProperties.Name="Share availability">
+
+    <!-- Share Bar: pick times on the grid, then copy the free ones as text. Two rows, so nothing clips at the
+         minimum window: the hint and the booking-pages link, then the choices on the left and the buttons on the right -->
+    <Border
+        Margin="16,0,16,8"
+        Padding="12,8"
+        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+        BorderThickness="1"
+        CornerRadius="8">
+        <Grid ColumnSpacing="12" RowSpacing="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Hint -->
+            <TextBlock
+                VerticalAlignment="Center"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Text="Drag on the calendar to pick times. Leaf leaves out the busy ones."
+                TextWrapping="Wrap" />
+
+            <!-- Booking Pages -->
+            <HyperlinkButton
+                Grid.Column="1"
+                Content="Manage Google booking pages"
+                Click="OnBookingPagesClick"
+                AutomationProperties.AutomationId="BookingPagesLink" />
+
+            <!-- Zone And Calendars -->
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+                <ComboBox
+                    x:Name="ShareZoneBox"
+                    MinWidth="180"
+                    SelectionChanged="OnZoneChanged"
+                    AutomationProperties.AutomationId="ShareZoneBox"
+                    AutomationProperties.Name="Time zone" />
+                <DropDownButton
+                    Content="Calendars"
+                    AutomationProperties.AutomationId="ShareCalendarsButton">
+                    <DropDownButton.Flyout>
+                        <MenuFlyout x:Name="CalendarsMenu" Placement="Bottom" />
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+            </StackPanel>
+
+            <!-- Cancel And Copy (the one accent on the surface) -->
+            <StackPanel
+                Grid.Row="1"
+                Grid.Column="1"
+                HorizontalAlignment="Right"
+                Orientation="Horizontal"
+                Spacing="8">
+                <Button
+                    Content="Cancel"
+                    Click="OnCancelClick"
+                    AutomationProperties.AutomationId="ShareCancelButton" />
+                <Button
+                    x:Name="CopyButton"
+                    Content="Copy"
+                    Style="{StaticResource AccentButtonStyle}"
+                    IsEnabled="False"
+                    Click="OnCopyClick"
+                    AutomationProperties.AutomationId="ShareCopyButton" />
+            </StackPanel>
+        </Grid>
+    </Border>
+    <!-- /Share Bar -->
+</UserControl>

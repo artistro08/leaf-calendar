@@ -210,6 +210,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _vm.NavigateRequested     += OnNavigateRequested;
         _vm.ScrollToTimeRequested += OnScrollToTimeRequested;
         _vm.OverlayChanged        += OnOverlayChanged;
+        _vm.ShareChanged          += OnShareChanged;
         ActualThemeChanged        += (_, _) => RenderRealized();
         Loaded                    += (_, _) =>
         {
@@ -293,6 +294,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _vm.NavigateRequested     -= OnNavigateRequested;
         _vm.ScrollToTimeRequested -= OnScrollToTimeRequested;
         _vm.OverlayChanged        -= OnOverlayChanged;
+        _vm.ShareChanged          -= OnShareChanged;
     }
 
     // =========================================================================
@@ -718,6 +720,20 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
     }
 
+    // Only the shared-availability slots changed
+    void OnShareChanged(object? sender, EventArgs e)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        foreach (var column in _columns)
+        {
+            column.RenderSlots();
+        }
+    }
+
     // =========================================================================
     // DRAGGING
     // =========================================================================
@@ -747,6 +763,13 @@ public sealed partial class TimeGridView : Grid, IDisposable
     /// <summary>A timed event was pressed: dragging moves it, or resizes it from the bottom edge. Events you can't change don't drag.</summary>
     public void BeginEventDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e, bool resize)
     {
+        // Picking Times To Share: a drag that starts on an event picks times too (busy ones are left out when copying)
+        if (_vm.IsSharing)
+        {
+            BeginCreateDrag(e);
+            return;
+        }
+
         if (!_vm.CanEdit(occurrence))
         {
             return;
@@ -782,9 +805,14 @@ public sealed partial class TimeGridView : Grid, IDisposable
         };
     }
 
-    /// <summary>Double-click on empty time: a new one-hour event there.</summary>
+    /// <summary>Double-click on empty time: a new one-hour event there (nothing while picking times to share; only a drag adds a time).</summary>
     public void CreateAt(DateOnly day, double y)
     {
+        if (_vm.IsSharing)
+        {
+            return;
+        }
+
         var start = DragMath.Snap(DragMath.Instant(day, y / HourHeight * 60, _vm.Zone), _vm.Zone);
         _vm.BeginCreate(start, start + DragMath.DefaultLength, isAllDay: false);
     }
@@ -865,6 +893,13 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
 
         e.Handled = true;
+        // Sharing Availability: the range is a time to share, not a new event
+        if (drag.Kind == DragKind.Create && _vm.IsSharing)
+        {
+            _vm.AddShareSlot(target.Start, target.End);
+            return;
+        }
+
         if (drag.Kind == DragKind.Create)
         {
             _vm.BeginCreate(target.Start, target.End, isAllDay: false);

@@ -8,26 +8,32 @@ namespace LeafCalendar.App.Views;
 public sealed partial class CalendarPage
 {
     OverlayBar? _overlayBar;
+    ShareBar? _shareBar;
 
-    // Called once when the page opens: the bar, and the view model events it follows
+    // Called once when the page opens: the overlay and share bars, and the view model events they follow
     void AttachPeople()
     {
         _overlayBar = new OverlayBar();
         IslandBars.Children.Add(_overlayBar);
         _overlayBar.Update(ViewModel);
+        _shareBar = new ShareBar();
+        IslandBars.Children.Add(_shareBar);
+        _shareBar.Update(ViewModel);
 
-        ViewModel.OverlayChanged      += OnOverlayChanged;
-        ViewModel.LayoutChanged       += OnOverlayChanged;
-        ViewModel.PropertyChanged     += OnPeoplePropertyChanged;
+        ViewModel.ShareChanged             += OnShareChanged;
+        ViewModel.OverlayChanged           += OnOverlayChanged;
+        ViewModel.LayoutChanged            += OnOverlayChanged;
+        ViewModel.PropertyChanged          += OnPeoplePropertyChanged;
         Sidebar.ShareAvailabilityRequested += OnShareAvailabilityRequested;
     }
 
     // Called from Detach: undo everything AttachPeople wired to the long-lived view model
     void DetachPeople()
     {
-        ViewModel.OverlayChanged      -= OnOverlayChanged;
-        ViewModel.LayoutChanged       -= OnOverlayChanged;
-        ViewModel.PropertyChanged     -= OnPeoplePropertyChanged;
+        ViewModel.ShareChanged             -= OnShareChanged;
+        ViewModel.OverlayChanged           -= OnOverlayChanged;
+        ViewModel.LayoutChanged            -= OnOverlayChanged;
+        ViewModel.PropertyChanged          -= OnPeoplePropertyChanged;
         Sidebar.ShareAvailabilityRequested -= OnShareAvailabilityRequested;
 
         if (_overlayBar is not null)
@@ -35,9 +41,17 @@ public sealed partial class CalendarPage
             IslandBars.Children.Remove(_overlayBar);
             _overlayBar = null;
         }
+
+        if (_shareBar is not null)
+        {
+            IslandBars.Children.Remove(_shareBar);
+            _shareBar = null;
+        }
     }
 
     void OnOverlayChanged(object? sender, EventArgs e) => _overlayBar?.Update(ViewModel);
+
+    void OnShareChanged(object? sender, EventArgs e) => _shareBar?.Update(ViewModel);
 
     void OnShareAvailabilityRequested(object? sender, EventArgs e) => StartShareAvailability();
 
@@ -97,9 +111,15 @@ public sealed partial class CalendarPage
         ViewModel.Fire(() => ViewModel.ShowOverlayAsync(guests, meetWith: false), "people.overlay.failed");
     }
 
-    // S and the sidebar's share button (Task 8 fills it in)
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Task 8 fills it in")]
+    // S, the sidebar's share button, and the command menu: S again (or Cancel) stops
     void StartShareAvailability()
     {
+        if (ViewModel.IsSharing)
+        {
+            ViewModel.StopSharing();
+            return;
+        }
+
+        ViewModel.StartSharing();
     }
 }
