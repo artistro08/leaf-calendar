@@ -1,6 +1,4 @@
-using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
-using System.Text.Json;
 using LeafCalendar.App.Interop;
 using LeafCalendar.App.Notifications;
 using LeafCalendar.App.ViewModels;
@@ -12,7 +10,6 @@ using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Sync;
 using LeafCalendar.Core.Tray;
 using LeafCalendar.Core.Views;
-using Microsoft.Data.Sqlite;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
@@ -85,6 +82,14 @@ public partial class App : Application
         // First Run: onboarding shows instead of the main window until there's an OAuth client and an account; the tray starts when it's done
         if (OnboardingFlow.IsNeeded(services.Tokens.GetClientCredentials() is not null, services.HasAccount()))
         {
+            // Started By Windows At Sign-In Before Setup Was Finished: no setup window at sign-in, just exit
+            if (Program.StartKind == ExtendedActivationKind.StartupTask)
+            {
+                _services = null;
+                _ = ExitQuietlyAsync(services);
+                return;
+            }
+
             _onboarding = new OnboardingWindow(services, () =>
             {
                 StartTray(services);
@@ -144,9 +149,10 @@ public partial class App : Application
             _tray          = new TrayIcon(services.Log);
             _tray.Invoked += (_, _) => ShowMainWindow();
         }
-        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+        catch (Exception ex)
         {
-            services.Log.Error("tray.create.failed", ex);
+            // Any failure here would end the launch, and Leaf is still useful without its icon
+            services.Log.Info("tray.create.failed", $"error={ex.GetType().Name}");
         }
 
         // Notifications (registered before any click is handled)
@@ -211,9 +217,10 @@ public partial class App : Application
             var soon       = TrayAgenda.Load(conn, now, _zone.Zone, 2, includeAllDay: false, settings.Use24HourTime);
             _tray.SetTooltip(TrayAgenda.Tooltip(TrayAgenda.Next(soon, now, TimeSpan.FromMinutes(settings.TrayLookaheadMinutes))));
         }
-        catch (Exception ex) when (ex is SqliteException or JsonException or InvalidOperationException)
+        catch (Exception ex)
         {
-            services.Log.Error("tray.tooltip.failed", ex);
+            // Runs from the minute clock and syncs, so nothing may escape; the type only, never content
+            services.Log.Info("tray.tooltip.failed", $"error={ex.GetType().Name}");
         }
     }
 
@@ -225,8 +232,17 @@ public partial class App : Application
             return vm.Settings;
         }
 
-        using var conn = _services!.Database.Open();
-        return SettingsStore.Load(conn);
+        try
+        {
+            using var conn = _services!.Database.Open();
+            return SettingsStore.Load(conn);
+        }
+        catch (Exception ex)
+        {
+            // Runs from timers and syncs, so nothing may escape: the defaults stand in until the database reads again
+            _log?.Info("settings.load.failed", $"error={ex.GetType().Name}");
+            return new LeafSettings().Normalize();
+        }
     }
 
     // =========================================================================
@@ -349,6 +365,13 @@ public partial class App : Application
 
         EfficiencyMode.Set(true);
         MemoryTrimmer.Trim();
+    }
+
+    // Nothing to show: the services go, then the app ends
+    async Task ExitQuietlyAsync(LeafServices services)
+    {
+        await DisposeServicesAsync(services);
+        Exit();
     }
 
     // Window close must not crash the process on a disposal failure, so log and carry on

@@ -55,6 +55,7 @@ internal sealed unsafe class TrayIcon : IDisposable
     readonly HWND _hwnd;
     readonly uint _taskbarCreated;
     HICON _icon;
+    int _iconSize;
     string _tooltip = "Leaf Calendar";
     bool _disposed;
 
@@ -71,31 +72,50 @@ internal sealed unsafe class TrayIcon : IDisposable
         _log      = log;
         s_current = this;
 
-        // Hidden Window
-        var instance = PInvoke.GetModuleHandle((string?)null);
-        fixed (char* className = WindowClass)
+        try
         {
-            var windowClass = new WNDCLASSEXW
+            // Hidden Window (the exe's module handle is borrowed, never owned, so nothing ever frees it)
+            var instance = (HINSTANCE)(nint)PInvoke.GetModuleHandle(default(PCWSTR)).Value;
+            fixed (char* className = WindowClass)
+            fixed (char* title = "Leaf Calendar tray")
             {
-                cbSize        = (uint)sizeof(WNDCLASSEXW),
-                lpfnWndProc   = &WindowProc,
-                hInstance     = (HINSTANCE)instance.DangerousGetHandle(),
-                lpszClassName = className,
-            };
-            PInvoke.RegisterClassEx(in windowClass);
+                var windowClass = new WNDCLASSEXW
+                {
+                    cbSize        = (uint)sizeof(WNDCLASSEXW),
+                    lpfnWndProc   = &WindowProc,
+                    hInstance     = instance,
+                    lpszClassName = className,
+                };
+                PInvoke.RegisterClassEx(in windowClass);
 
-            _hwnd = PInvoke.CreateWindowEx(WINDOW_EX_STYLE.WS_EX_TOOLWINDOW, WindowClass, "Leaf Calendar tray", WINDOW_STYLE.WS_OVERLAPPED, 0, 0, 0, 0, HWND.Null, null, instance, null);
+                _hwnd = PInvoke.CreateWindowEx(WINDOW_EX_STYLE.WS_EX_TOOLWINDOW, className, title, WINDOW_STYLE.WS_OVERLAPPED, 0, 0, 0, 0, HWND.Null, HMENU.Null, instance, null);
+            }
+
+            if (_hwnd.IsNull)
+            {
+                throw new Win32Exception();
+            }
+
+            // Explorer Restarts Are Announced With This Message
+            _taskbarCreated = PInvoke.RegisterWindowMessage("TaskbarCreated");
+            Add();
         }
-
-        if (_hwnd.IsNull)
+        catch
         {
-            s_current = null;
-            throw new Win32Exception();
-        }
+            // A Half-Built Icon Leaves Nothing Behind, So A Later Attempt Can Start Clean
+            if (!_hwnd.IsNull)
+            {
+                PInvoke.DestroyWindow(_hwnd);
+            }
 
-        // Explorer Restarts Are Announced With This Message
-        _taskbarCreated = PInvoke.RegisterWindowMessage("TaskbarCreated");
-        Add();
+            if (!_icon.IsNull)
+            {
+                PInvoke.DestroyIcon(_icon);
+            }
+
+            s_current = null;
+            throw;
+        }
     }
 
     /// <summary>The icon was clicked, or Enter was pressed on it.</summary>
@@ -186,7 +206,7 @@ internal sealed unsafe class TrayIcon : IDisposable
         try
         {
             var png  = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Assets", "Square44x44Logo.png"));
-            var size = PInvoke.GetSystemMetricsForDpi(SYSTEM_METRICS_INDEX.SM_CXSMICON, TaskbarDpi());
+            var size = IconSize();
             HICON icon;
             fixed (byte* bits = png)
             {
@@ -204,13 +224,21 @@ internal sealed unsafe class TrayIcon : IDisposable
                 PInvoke.DestroyIcon(_icon);
             }
 
-            _icon = icon;
+            _icon     = icon;
+            _iconSize = size;
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            _log.Error("tray.icon.failed", ex);
+            _log.Info("tray.icon.failed", $"error={ex.GetType().Name}");
         }
     }
+
+    // The taskbar's small-icon size, in pixels
+    static int IconSize() => PInvoke.GetSystemMetricsForDpi(SYSTEM_METRICS_INDEX.SM_CXSMICON, TaskbarDpi());
+
+    // WM_SETTINGCHANGE names the changed area in lParam; "ImmersiveColorSet" is a light/dark theme switch
+    static bool IsColorSetChange(LPARAM lParam) =>
+        lParam.Value != 0 && new string((char*)lParam.Value) == "ImmersiveColorSet";
 
     // The taskbar's own DPI, then 96
     static uint TaskbarDpi()
@@ -274,8 +302,8 @@ internal sealed unsafe class TrayIcon : IDisposable
             return true;
         }
 
-        // Theme Or DPI: reload the icon at the new size
-        if (message is WmSettingChange or WmDpiChanged)
+        // Theme Or DPI: reload the icon at the new size (most setting changes are neither, so those are skipped)
+        if (message == WmDpiChanged || (message == WmSettingChange && (IsColorSetChange(lParam) || IconSize() != _iconSize)))
         {
             LoadIcon();
             var data = Data(NOTIFY_ICON_DATA_FLAGS.NIF_ICON);
