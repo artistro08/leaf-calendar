@@ -2,6 +2,7 @@
     x:Class="LeafCalendar.App.Views.OverlayBar"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:LeafCalendar.App.Controls"
     xmlns:local="using:LeafCalendar.App.Views"
     Visibility="Collapsed"
     AutomationProperties.AutomationId="OverlayBar"
@@ -40,13 +41,13 @@
                 HorizontalScrollMode="Auto"
                 VerticalScrollBarVisibility="Disabled"
                 VerticalScrollMode="Disabled">
-                <ItemsControl x:Name="Chips" AutomationProperties.Name="Overlaid people">
-                    <ItemsControl.ItemsPanel>
+                <controls:PinnedItemsControl x:Name="Chips" AutomationProperties.Name="Overlaid people">
+                    <controls:PinnedItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel Orientation="Horizontal" Spacing="8" />
                         </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
+                    </controls:PinnedItemsControl.ItemsPanel>
+                    <controls:PinnedItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="local:OverlayChip">
                             <!-- Chip -->
                             <Border
@@ -76,8 +77,8 @@
                             </Border>
                             <!-- /Chip -->
                         </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                    </controls:PinnedItemsControl.ItemTemplate>
+                </controls:PinnedItemsControl>
             </ScrollViewer>
 
             <!-- Clear -->

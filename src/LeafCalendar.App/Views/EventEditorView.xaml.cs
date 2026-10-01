@@ -165,7 +165,7 @@ public sealed partial class EventEditorView : UserControl
         DispatcherQueue.TryEnqueue(() => EndTimePicker.Focus(FocusState.Programmatic));
     }
 
-    /// <summary>Lets go of the current editor and empties the calendar picker, so the next editor's pick isn't reset.</summary>
+    /// <summary>Lets go of the current editor and empties every list (the calendar picker too, so the next editor's pick isn't reset).</summary>
     public void Detach()
     {
         _owner = null;
@@ -175,14 +175,20 @@ public sealed partial class EventEditorView : UserControl
             return;
         }
 
-        // x:Bind skips a null Editor, so the calendar list is let go by hand (with Editor null nothing is written back)
         editor.PropertyChanged -= OnEditorPropertyChanged;
         LeafBrushes.ContrastChanged -= OnContrastChanged;
 
-        // WinUI finishes with the old guest, reminder, and suggestion rows on a later pass (see KeepAlive)
-        KeepAlive.Hold(editor);
+        // x:Bind skips a null Editor, so every list is let go by hand: the controls clear their rows now instead of
+        // holding the old editor's (see ItemPins)
         Editor = null;
-        CalendarBox.ItemsSource = null;
+        Bindings.Update();
+        CalendarBox.ItemsSource  = null;
+        WeekdayList.ItemsSource  = null;
+        GuestList.ItemsSource    = null;
+        ReminderList.ItemsSource = null;
+        TimeZoneBox.ItemsSource  = null;
+        GuestBox.ItemsSource     = null;
+        RoomBox.ItemsSource      = null;
     }
 
     void OnEditorPropertyChanged(object? sender, PropertyChangedEventArgs e)

@@ -1177,28 +1177,42 @@ public sealed partial class TimeGridView : Grid, IDisposable
     sealed partial class DayColumnFactory(TimeGridView owner) : IElementFactory
     {
         readonly Stack<DayColumn> _pool = new();
+        readonly ItemPins _pins = new();
 
         public UIElement GetElement(ElementFactoryGetArgs args)
         {
             var column = _pool.Count > 0 ? _pool.Pop() : new DayColumn(owner);
             column.Bind(((DayItem)args.Data).Date);
+            _pins.Pin(column, args.Data);
             return column;
         }
 
-        public void RecycleElement(ElementFactoryRecycleArgs args) => _pool.Push((DayColumn)args.Element);
+        public void RecycleElement(ElementFactoryRecycleArgs args)
+        {
+            var column = (DayColumn)args.Element;
+            _pins.Unpin(column);
+            _pool.Push(column);
+        }
     }
 
     sealed partial class DayHeaderFactory(TimeGridView owner) : IElementFactory
     {
         readonly Stack<DayHeaderCell> _pool = new();
+        readonly ItemPins _pins = new();
 
         public UIElement GetElement(ElementFactoryGetArgs args)
         {
             var cell = _pool.Count > 0 ? _pool.Pop() : new DayHeaderCell(owner);
             cell.Bind(((DayItem)args.Data).Date);
+            _pins.Pin(cell, args.Data);
             return cell;
         }
 
-        public void RecycleElement(ElementFactoryRecycleArgs args) => _pool.Push((DayHeaderCell)args.Element);
+        public void RecycleElement(ElementFactoryRecycleArgs args)
+        {
+            var cell = (DayHeaderCell)args.Element;
+            _pins.Unpin(cell);
+            _pool.Push(cell);
+        }
     }
 }

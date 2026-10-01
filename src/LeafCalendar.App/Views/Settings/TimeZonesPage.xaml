@@ -72,7 +72,7 @@
                 Style="{StaticResource LeafSecondaryTextStyle}"
                 Text="No extra time zones yet."
                 Visibility="Collapsed" />
-            <ListView
+            <controls:PinnedListView
                 x:Name="ZoneList"
                 SelectionMode="None"
                 CanReorderItems="True"
@@ -82,19 +82,19 @@
                 AutomationProperties.Name="Your time zones"
                 AutomationProperties.AutomationId="TimeZoneList">
                 <!-- Cards draw their own background, so the item's hover and press fills are off -->
-                <ListView.Resources>
+                <controls:PinnedListView.Resources>
                     <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
                     <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />
-                </ListView.Resources>
-                <ListView.ItemContainerStyle>
+                </controls:PinnedListView.Resources>
+                <controls:PinnedListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
                         <Setter Property="Padding" Value="0" />
                         <Setter Property="Margin" Value="0,0,0,4" />
                         <Setter Property="MinHeight" Value="0" />
                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                     </Style>
-                </ListView.ItemContainerStyle>
-                <ListView.ItemTemplate>
+                </controls:PinnedListView.ItemContainerStyle>
+                <controls:PinnedListView.ItemTemplate>
                     <DataTemplate x:DataType="vm:ZoneRow">
                         <!-- Zone Row (label box, then remove) -->
                         <controls:SettingRow Glyph="&#xE76F;" Header="{x:Bind City}" Description="{x:Bind Detail}">
@@ -119,8 +119,8 @@
                             </StackPanel>
                         </controls:SettingRow>
                     </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
+                </controls:PinnedListView.ItemTemplate>
+            </controls:PinnedListView>
         </StackPanel>
     </ScrollViewer>
 </Page>

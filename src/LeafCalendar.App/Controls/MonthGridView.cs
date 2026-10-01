@@ -708,14 +708,21 @@ public sealed partial class MonthGridView : Grid, IDisposable
     sealed partial class WeekRowFactory(MonthGridView owner) : IElementFactory
     {
         readonly Stack<WeekRow> _pool = new();
+        readonly ItemPins _pins = new();
 
         public UIElement GetElement(ElementFactoryGetArgs args)
         {
             var row = _pool.Count > 0 ? _pool.Pop() : new WeekRow(owner);
             row.Bind(((WeekItem)args.Data).WeekStart);
+            _pins.Pin(row, args.Data);
             return row;
         }
 
-        public void RecycleElement(ElementFactoryRecycleArgs args) => _pool.Push((WeekRow)args.Element);
+        public void RecycleElement(ElementFactoryRecycleArgs args)
+        {
+            var row = (WeekRow)args.Element;
+            _pins.Unpin(row);
+            _pool.Push(row);
+        }
     }
 }

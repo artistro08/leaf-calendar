@@ -2,6 +2,7 @@
     x:Class="LeafCalendar.App.Tray.TrayHost"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:LeafCalendar.App.Controls"
     xmlns:local="using:LeafCalendar.App.Tray"
     Title="Leaf Calendar tray">
 
@@ -153,13 +154,13 @@
                             <!-- Agenda (only this part scrolls) -->
                             <ScrollViewer x:Name="AgendaScroll" Grid.Row="2" AutomationProperties.AutomationId="FlyoutAgenda">
                                 <StackPanel Padding="8,4,8,12">
-                                    <ItemsControl x:Name="AgendaDays">
-                                        <ItemsControl.ItemTemplate>
+                                    <controls:PinnedItemsControl x:Name="AgendaDays">
+                                        <controls:PinnedItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="local:AgendaDayRow">
                                                 <StackPanel Spacing="2">
                                                     <TextBlock Margin="8,12,8,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="{x:Bind Header}" />
-                                                    <ItemsControl ItemsSource="{x:Bind Items}">
-                                                        <ItemsControl.ItemTemplate>
+                                                    <controls:PinnedItemsControl ItemsSource="{x:Bind Items}">
+                                                        <controls:PinnedItemsControl.ItemTemplate>
                                                             <DataTemplate x:DataType="local:AgendaRow">
                                                                 <Grid ColumnSpacing="8">
                                                                     <Grid.ColumnDefinitions>
@@ -200,12 +201,12 @@
                                                                         AutomationProperties.AutomationId="{x:Bind JoinId}" />
                                                                 </Grid>
                                                             </DataTemplate>
-                                                        </ItemsControl.ItemTemplate>
-                                                    </ItemsControl>
+                                                        </controls:PinnedItemsControl.ItemTemplate>
+                                                    </controls:PinnedItemsControl>
                                                 </StackPanel>
                                             </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                        </controls:PinnedItemsControl.ItemTemplate>
+                                    </controls:PinnedItemsControl>
                                     <TextBlock
                                         x:Name="AgendaEmpty"
                                         Margin="8,12"
