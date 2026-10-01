@@ -86,16 +86,13 @@ public sealed partial class DetailsPanel : UserControl
             }
 
             var view = EditorView!;
-            UpcomingView.Visibility  = Visibility.Collapsed;
-            DetailsView.Visibility   = Visibility.Collapsed;
-            SelectionView.Visibility = Visibility.Collapsed;
+            ContentScroll.Visibility = Visibility.Collapsed;
             view.Visibility          = Visibility.Visible;
 
             // A new editor starts at the top (a refresh behind an open editor keeps the scroll position)
             if (!ReferenceEquals(view.Editor, editing))
             {
                 _shownKey = null;
-                ContentScroll.ChangeView(null, 0, null, true);
                 view.Attach(_vm, editing);
             }
 
@@ -103,6 +100,7 @@ public sealed partial class DetailsPanel : UserControl
         }
 
         // Several Events Selected
+        ContentScroll.Visibility = Visibility.Visible;
         var count = _vm?.Selection.Count ?? 0;
         SelectionView.Visibility = Visible(count > 1);
         if (count > 1)

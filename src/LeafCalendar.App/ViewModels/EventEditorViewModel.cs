@@ -56,28 +56,35 @@ public sealed partial class WeekdayToggle(DayOfWeek day, bool isOn) : Observable
     public partial bool IsOn { get; set; } = isOn;
 }
 
-/// <summary>A popup reminder time.</summary>
-public sealed partial class ReminderToggle(int minutes, bool isOn) : ObservableObject
+/// <summary>A custom reminder: a dropdown of times and a remove button.</summary>
+public sealed partial class ReminderRow(int index, IReadOnlyList<string> choices, int choiceIndex, Action<ReminderRow> remove) : ObservableObject
 {
-    /// <summary>Minutes before the start.</summary>
-    public int Minutes { get; } = minutes;
+    /// <summary>The times to pick from (shared by every row).</summary>
+    public IReadOnlyList<string> Choices { get; } = choices;
 
-    /// <summary>"10 min", "1 hr", "1 day", or "At start".</summary>
-    public string Label => Minutes switch
-    {
-        0                         => "At start",
-        < 60                      => string.Create(CultureInfo.InvariantCulture, $"{Minutes} min"),
-        _ when Minutes % 1440 == 0 => Minutes == 1440 ? "1 day" : string.Create(CultureInfo.InvariantCulture, $"{Minutes / 1440} days"),
-        _ when Minutes % 60 == 0   => string.Create(CultureInfo.InvariantCulture, $"{Minutes / 60} hr"),
-        _                         => string.Create(CultureInfo.InvariantCulture, $"{Minutes} min"),
-    };
-
-    /// <summary>Automation ID.</summary>
-    public string AutomationId => string.Create(CultureInfo.InvariantCulture, $"EditorReminder_{Minutes}");
-
-    /// <summary>Reminder on.</summary>
+    /// <summary>The picked time's position in <see cref="Choices"/>.</summary>
     [ObservableProperty]
-    public partial bool IsOn { get; set; } = isOn;
+    public partial int ChoiceIndex { get; set; } = choiceIndex;
+
+    /// <summary>The row's position (renumbered when a row above is removed).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutomationId))]
+    public partial int Index { get; set; } = index;
+
+    /// <summary>Automation ID of the dropdown.</summary>
+    public string AutomationId => string.Create(CultureInfo.InvariantCulture, $"EditorReminder_{Index}");
+
+    // A dropdown swapping its list writes "nothing picked" back; keep the pick
+    partial void OnChoiceIndexChanged(int oldValue, int newValue)
+    {
+        if (newValue < 0)
+        {
+            ChoiceIndex = oldValue;
+        }
+    }
+
+    [RelayCommand]
+    void Remove() => remove(this);
 }
 
 /// <summary>
@@ -91,7 +98,7 @@ public sealed partial class ReminderToggle(int minutes, bool isOn) : ObservableO
 /// </remarks>
 public sealed partial class EventEditorViewModel : ObservableObject
 {
-    static readonly int[] ReminderPresets = [0, 5, 10, 15, 30, 60, 1440];
+    const int MaxReminders = 5;
 
     readonly TimeZoneInfo _zone;
     readonly string _localZoneId;
@@ -99,6 +106,7 @@ public sealed partial class EventEditorViewModel : ObservableObject
     readonly DayOfWeek? _wkst;
     readonly string? _loadedLine;
     readonly (DateOnly? StartDay, TimeSpan StartTime, DateOnly? EndDay, TimeSpan EndTime) _loadedWhen;
+    readonly int[] _reminderMinutes;
     bool _ready;
 
     /// <summary>Loads the fields from <paramref name="draft"/>.</summary>
@@ -121,7 +129,15 @@ public sealed partial class EventEditorViewModel : ObservableObject
         IsAllDay            = draft.IsAllDay;
         UseDefaultReminders = draft.UseDefaultReminders;
         Guests              = new ObservableCollection<GuestRow>(draft.Guests.Select(g => new GuestRow(g, RemoveGuest)));
-        Reminders           = new ObservableCollection<ReminderToggle>(ReminderPresets.Union(draft.ReminderMinutes).Order().Select(m => new ReminderToggle(m, draft.ReminderMinutes.Contains(m))));
+
+        // Reminders (one row per loaded time)
+        _reminderMinutes = [.. ReminderTimes.Choices(draft.ReminderMinutes)];
+        ReminderChoices  = _reminderMinutes.Select(ReminderTimes.Label).ToList();
+        ReminderRows     = [];
+        foreach (var minutes in draft.ReminderMinutes)
+        {
+            AddReminder(minutes);
+        }
 
         // When (an all-day event shows its last day, inclusive)
         var start = draft.IsAllDay ? draft.Start.UtcDateTime : TimeZoneInfo.ConvertTime(draft.Start, zone).DateTime;
@@ -148,7 +164,8 @@ public sealed partial class EventEditorViewModel : ObservableObject
         // The rule as the untouched fields write it, so saving without a repeat change keeps Google's exact lines
         _loadedLine = rule is null ? null : RepeatLine();
 
-        Guests.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasGuests));
+        Guests.CollectionChanged       += (_, _) => OnPropertyChanged(nameof(HasGuests));
+        ReminderRows.CollectionChanged += (_, _) => OnPropertyChanged(nameof(CanAddReminder));
         _ready = true;
     }
 
@@ -164,8 +181,8 @@ public sealed partial class EventEditorViewModel : ObservableObject
     /// <summary>Focus the end time first ("E then U").</summary>
     public bool FocusEnd { get; }
 
-    /// <summary>"New event" or "Edit event".</summary>
-    public string HeaderText => IsNew ? "New event" : "Edit event";
+    /// <summary>A new event's typed title (else "New event"), or "Edit event".</summary>
+    public string HeaderText => !IsNew ? "Edit event" : Title.Trim() is { Length: > 0 } title ? title : "New event";
 
     /// <summary>The event loaded with a repeat rule the editor can't show ("Custom rule (kept as is)" is offered only then).</summary>
     public bool HasCustomRule { get; }
@@ -182,11 +199,15 @@ public sealed partial class EventEditorViewModel : ObservableObject
     /// <summary>Weekday toggles (Sunday first).</summary>
     public ObservableCollection<WeekdayToggle> Weekdays { get; }
 
-    /// <summary>Popup reminder choices.</summary>
-    public ObservableCollection<ReminderToggle> Reminders { get; }
+    /// <summary>The reminder times every dropdown offers ("At start", "10 min", ...).</summary>
+    public IReadOnlyList<string> ReminderChoices { get; }
+
+    /// <summary>Custom popup reminders, one dropdown each.</summary>
+    public ObservableCollection<ReminderRow> ReminderRows { get; }
 
     /// <summary>Title.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HeaderText))]
     public partial string Title { get; set; }
 
     /// <summary>All-day event.</summary>
@@ -277,8 +298,11 @@ public sealed partial class EventEditorViewModel : ObservableObject
     /// <summary>Count shows.</summary>
     public bool ShowEndsAfter => ShowRepeatOptions && EndsIndex == 2;
 
-    /// <summary>Custom reminder toggles show.</summary>
+    /// <summary>Custom reminder dropdowns show.</summary>
     public bool ShowReminderChoices => !UseDefaultReminders;
+
+    /// <summary>Another reminder can be added (Google allows 5).</summary>
+    public bool CanAddReminder => ReminderRows.Count < MaxReminders;
 
     /// <summary>There are guests (the quiet save shows).</summary>
     public bool HasGuests => Guests.Count > 0;
@@ -350,7 +374,7 @@ public sealed partial class EventEditorViewModel : ObservableObject
             : IsAllDay
                 ? (Midnight(startDay), Midnight(endDay.AddDays(1)))
                 : (DragMath.ToInstant(startDay.ToDateTime(TimeOnly.FromTimeSpan(StartTime)), _zone), DragMath.ToInstant(endDay.ToDateTime(TimeOnly.FromTimeSpan(EndTime)), _zone));
-        var reminders = Reminders.Where(r => r.IsOn).Select(r => r.Minutes).ToList();
+        var reminders = ReminderRows.Select(r => _reminderMinutes[r.ChoiceIndex]).Distinct().ToList();
 
         return Before with
         {
@@ -404,6 +428,38 @@ public sealed partial class EventEditorViewModel : ObservableObject
         _wkst).ToRRule(IsAllDay, _zone);
 
     void RemoveGuest(GuestRow row) => Guests.Remove(row);
+
+    /// <summary>Adds a 10 minute reminder row (none past Google's 5).</summary>
+    public void AddReminder() => AddReminder(10);
+
+    void AddReminder(int minutes)
+    {
+        if (!CanAddReminder)
+        {
+            return;
+        }
+
+        ReminderRows.Add(new ReminderRow(ReminderRows.Count, ReminderChoices, Array.IndexOf(_reminderMinutes, minutes), RemoveReminder));
+    }
+
+    // The rows below move up a place
+    void RemoveReminder(ReminderRow row)
+    {
+        ReminderRows.Remove(row);
+        for (var i = 0; i < ReminderRows.Count; i++)
+        {
+            ReminderRows[i].Index = i;
+        }
+    }
+
+    // Turning off the default with no custom times starts with one
+    partial void OnUseDefaultRemindersChanged(bool value)
+    {
+        if (_ready && !value && ReminderRows.Count == 0)
+        {
+            AddReminder();
+        }
+    }
 
     // =========================================================================
     // END FOLLOWS START

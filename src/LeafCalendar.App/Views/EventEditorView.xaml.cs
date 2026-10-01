@@ -25,15 +25,23 @@ public sealed partial class EventEditorView : UserControl
     readonly List<(Button Swatch, string? Id)> _swatches = [];
     CalendarViewModel? _owner;
     bool _endTimeAsked;
+    bool _reminderDropDownOpen;
 
     /// <summary>Creates the editor.</summary>
-    public EventEditorView() => InitializeComponent();
+    public EventEditorView()
+    {
+        InitializeComponent();
+        ScrollIndicator.ShowOnHover(BodyScroll);
+    }
 
     /// <summary>The fields being edited, or null.</summary>
     public EventEditorViewModel? Editor { get; private set; }
 
     /// <summary>x:Bind helper: a brush for a hex color.</summary>
     public static SolidColorBrush Brush(string hex) => LeafBrushes.FromHex(hex);
+
+    /// <summary>x:Bind helper: the date takes the whole row when the time picker hides (all-day).</summary>
+    public static int DateSpan(bool showTimes) => showTimes ? 1 : 2;
 
     /// <summary>Shows <paramref name="editor"/> and focuses the title (or the end time for "E then U").</summary>
     public void Attach(CalendarViewModel owner, EventEditorViewModel editor)
@@ -47,6 +55,10 @@ public sealed partial class EventEditorView : UserControl
         _owner        = owner;
         Editor        = editor;
         _endTimeAsked = false;
+
+        // A new editor starts at the top
+        ScrollIndicator.Hide(BodyScroll);
+        BodyScroll.ChangeView(null, 0, null, true);
 
         // Filling the calendar list can write "nothing picked" back through the TwoWay binding; put the pick back
         var calendarIndex = editor.CalendarIndex;
@@ -149,15 +161,23 @@ public sealed partial class EventEditorView : UserControl
 
         foreach (var (id, name) in Colors)
         {
+            var color  = LeafBrushes.FromHex(EventColors.ResolveAccent(id, calendarColor)).Color;
+            var ring   = LeafBrushes.PrimaryText(ActualTheme == ElementTheme.Dark);
             var swatch = new Button
             {
                 Width           = 24,
                 Height          = 24,
                 Padding         = new Thickness(0),
                 CornerRadius    = new CornerRadius(12),
-                Background      = LeafBrushes.FromHex(EventColors.ResolveAccent(id, calendarColor)),
-                BorderBrush     = LeafBrushes.PrimaryText(ActualTheme == ElementTheme.Dark),
+                Background      = new SolidColorBrush(color),
+                BorderBrush     = ring,
             };
+
+            // Hover And Press Tint The Color Instead Of Replacing It (the picked ring stays too)
+            swatch.Resources["ButtonBackgroundPointerOver"]  = new SolidColorBrush(color) { Opacity = 0.8 };
+            swatch.Resources["ButtonBackgroundPressed"]      = new SolidColorBrush(color) { Opacity = 0.6 };
+            swatch.Resources["ButtonBorderBrushPointerOver"] = ring;
+            swatch.Resources["ButtonBorderBrushPressed"]     = ring;
             AutomationProperties.SetName(swatch, name);
             AutomationProperties.SetAutomationId(swatch, $"EditorColor_{id ?? "Calendar"}");
             ToolTipService.SetToolTip(swatch, name);
@@ -187,7 +207,7 @@ public sealed partial class EventEditorView : UserControl
         }
 
         // Esc in an open dropdown only closes the dropdown
-        if (e.Key == VirtualKey.Escape && !RepeatBox.IsDropDownOpen && !EndsBox.IsDropDownOpen && !CalendarBox.IsDropDownOpen)
+        if (e.Key == VirtualKey.Escape && !RepeatBox.IsDropDownOpen && !EndsBox.IsDropDownOpen && !CalendarBox.IsDropDownOpen && !_reminderDropDownOpen)
         {
             e.Handled = true;
             _owner?.CancelEdit();
@@ -204,6 +224,13 @@ public sealed partial class EventEditorView : UserControl
     }
 
     void OnAddGuestClick(object sender, RoutedEventArgs e) => Editor?.AddGuest();
+
+    void OnAddReminderClick(object sender, RoutedEventArgs e) => Editor?.AddReminder();
+
+    // Reminder dropdowns live in a template, so their open state is tracked here (one opens at a time)
+    void OnReminderDropDownOpened(object? sender, object e) => _reminderDropDownOpen = true;
+
+    void OnReminderDropDownClosed(object? sender, object e) => _reminderDropDownOpen = false;
 
     void OnSaveClick(object sender, RoutedEventArgs e) => Save(sendUpdates: true);
 
