@@ -24,6 +24,7 @@
             IsBackButtonVisible="False"
             IsPaneToggleButtonVisible="False"
             PaneToggleRequested="OnPaneToggleRequested"
+            BackRequested="OnBackRequested"
             AutomationProperties.AutomationId="AppTitleBar">
             <TitleBar.Resources>
                 <x:Double x:Key="TitleBarCompactHeight">48</x:Double>
@@ -38,6 +39,18 @@
             <!-- Toolbar (only its buttons take clicks; the space around them drags the window) -->
             <TitleBar.Content>
                 <Grid x:Name="ToolbarHost">
+                    <!-- Search (opens the command menu; over the sidebar, centered on the mini month's Next month button; positioned in code) -->
+                    <Button
+                        x:Name="SearchButton"
+                        HorizontalAlignment="Left"
+                        Style="{StaticResource LeafBareIconButtonStyle}"
+                        Click="OnSearchClick"
+                        ToolTipService.ToolTip="Search (Ctrl+K)"
+                        AutomationProperties.Name="Search"
+                        AutomationProperties.AutomationId="SearchButton">
+                        <FontIcon Glyph="&#xE721;" FontSize="16" />
+                    </Button>
+
                     <!-- Slide (the toolbar and the edit icon follow the island's right edge together) -->
                     <Grid x:Name="ToolbarSlide">
                         <StackPanel

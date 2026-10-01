@@ -1,0 +1,108 @@
+<UserControl
+    x:Class="LeafCalendar.App.Views.CommandMenu"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:LeafCalendar.App.Views"
+    Width="560"
+    AutomationProperties.Name="Command menu"
+    AutomationProperties.AutomationId="CommandMenu">
+
+    <!-- Command Menu (search box, divider, results or the empty line) -->
+    <StackPanel>
+        <!-- Search Box (Alt+Enter jumps to the selected event; WinUI routes it as a system key, so it's an accelerator) -->
+        <TextBox
+            x:Name="CommandSearchBox"
+            Margin="12"
+            PlaceholderText="Search events, or type a command or a date"
+            TextChanged="OnTextChanged"
+            PreviewKeyDown="OnSearchKeyDown"
+            AutomationProperties.Name="Search"
+            AutomationProperties.AutomationId="CommandSearchBox">
+            <TextBox.KeyboardAccelerators>
+                <KeyboardAccelerator Key="Enter" Modifiers="Menu" Invoked="OnJumpInvoked" />
+            </TextBox.KeyboardAccelerators>
+        </TextBox>
+
+        <!-- Divider -->
+        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+        <!-- Results (the list doesn't scroll itself, so the scroller is ours and its indicator shows on hover) -->
+        <ScrollViewer x:Name="ResultsScroll" MaxHeight="400">
+            <ListView
+                x:Name="CommandResults"
+                Padding="4"
+                SelectionMode="Single"
+                IsItemClickEnabled="True"
+                IsTabStop="False"
+                ScrollViewer.VerticalScrollMode="Disabled"
+                ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                ItemClick="OnItemClick"
+                ContainerContentChanging="OnRowChanging"
+                AutomationProperties.Name="Results"
+                AutomationProperties.AutomationId="CommandResults">
+                <ListView.ItemTemplate>
+                    <!-- Result Row -->
+                    <DataTemplate x:DataType="local:CommandRow">
+                        <Grid
+                            MinHeight="40"
+                            Padding="8,4"
+                            ColumnSpacing="12"
+                            AutomationProperties.Name="{x:Bind Title}"
+                            AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Event Color, Or The Action's Glyph -->
+                            <Border
+                                Width="12"
+                                Height="12"
+                                CornerRadius="4"
+                                Background="{x:Bind local:CommandMenu.Brush(Color)}"
+                                Visibility="{x:Bind EventVisibility}" />
+                            <FontIcon
+                                FontSize="16"
+                                Glyph="{x:Bind Glyph}"
+                                Visibility="{x:Bind ActionVisibility}"
+                                AutomationProperties.AccessibilityView="Raw" />
+
+                            <!-- Title And Detail -->
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{x:Bind Detail}"
+                                    TextTrimming="CharacterEllipsis"
+                                    Visibility="{x:Bind DetailVisibility}" />
+                            </StackPanel>
+
+                            <!-- Shortcut -->
+                            <TextBlock
+                                Grid.Column="2"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource CaptionTextBlockStyle}"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{x:Bind Keys}" />
+                        </Grid>
+                    </DataTemplate>
+                    <!-- /Result Row -->
+                </ListView.ItemTemplate>
+            </ListView>
+        </ScrollViewer>
+        <!-- /Results -->
+
+        <!-- Nothing Found -->
+        <TextBlock
+            x:Name="CommandEmpty"
+            Margin="16,12"
+            Style="{StaticResource CaptionTextBlockStyle}"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Text="No events or actions match."
+            Visibility="Collapsed"
+            AutomationProperties.AutomationId="CommandEmpty" />
+    </StackPanel>
+    <!-- /Command Menu -->
+</UserControl>

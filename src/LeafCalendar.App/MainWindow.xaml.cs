@@ -213,10 +213,17 @@ public sealed partial class MainWindow : Window
         var onCalendar = page is not null;
 
         CalendarToolbar.Visibility            = onCalendar ? Visibility.Visible : Visibility.Collapsed;
+        SearchButton.Visibility               = CalendarToolbar.Visibility;
         AppTitleBar.IsPaneToggleButtonVisible = onCalendar;
 
         if (page is not null)
         {
+            // The Search Icon Follows The Mini Month's Next Button Once It's Laid Out
+            if (page.MiniMonthNextButton is { } next)
+            {
+                next.SizeChanged += (_, _) => PlaceSearchButton();
+            }
+
             page.PanesChanged += (_, e) =>
             {
                 UpdateTitleBarLayout(e.Animate);
@@ -244,6 +251,9 @@ public sealed partial class MainWindow : Window
         {
             return;
         }
+
+        // The Search Icon Moves With The Toolbar Host's Left Edge (the app title or Back appearing), Even When Nothing Else Changed
+        PlaceSearchButton();
 
         // Target: The Toolbar Inset In From The Island's Right Edge, Or From The Caption Buttons
         var scale   = RootGrid.XamlRoot.RasterizationScale;
@@ -288,6 +298,31 @@ public sealed partial class MainWindow : Window
             _toolbarSlide.Begin();
         }
 
+        AppTitleBar.RecomputeDragRegions();
+    }
+
+    // The search icon: centered over the mini month's Next month button while the sidebar is open, else 8 after the
+    // title bar's left items (and the period title moves clear of it). Only the button takes clicks.
+    void PlaceSearchButton()
+    {
+        if (ContentFrame.Content is not CalendarPage page || RootGrid.XamlRoot is null)
+        {
+            return;
+        }
+
+        var scale = RootGrid.XamlRoot.RasterizationScale;
+        var hostX = ToolbarHost.TransformToVisual(RootGrid).TransformPoint(default).X;
+        var left  = page.IsSidebarOpen && page.MiniMonthNextCenterX is { } center ? center - hostX - SearchButton.Width / 2 : 8;
+        left      = Math.Max(8, Math.Round(left * scale) / scale);
+
+        page.KeepTitleClearOf(hostX + left + SearchButton.Width);
+        if (SearchButton.Margin.Left == left)
+        {
+            return;
+        }
+
+        SearchButton.Margin = new Thickness(left, 0, 0, 0);
+        SearchButton.UpdateLayout();
         AppTitleBar.RecomputeDragRegions();
     }
 
@@ -368,6 +403,17 @@ public sealed partial class MainWindow : Window
     // =========================================================================
 
     void OnTodayClick(object sender, RoutedEventArgs e) => _calendar?.GoToToday();
+
+    void OnSearchClick(object sender, RoutedEventArgs e)
+    {
+        if (ContentFrame.Content is CalendarPage page)
+        {
+            page.RunCommand(Core.Views.CalendarCommand.CommandMenu);
+        }
+    }
+
+    // The title bar's Back shows only after a command-menu jump
+    void OnBackRequested(TitleBar sender, object args) => _calendar.BackFromJump();
 
     void OnPreviousClick(object sender, RoutedEventArgs e) => _calendar?.Previous();
 
@@ -492,6 +538,11 @@ public sealed partial class MainWindow : Window
         else if (e.PropertyName is nameof(CalendarViewModel.ConflictCount) or nameof(CalendarViewModel.PendingCount) or nameof(CalendarViewModel.IsOffline))
         {
             ShowSyncState();
+        }
+        else if (e.PropertyName == nameof(CalendarViewModel.ShowBack))
+        {
+            AppTitleBar.IsBackButtonVisible = _calendar.ShowBack;
+            AppTitleBar.RecomputeDragRegions();
         }
     }
 
