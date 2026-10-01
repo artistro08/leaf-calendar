@@ -9,7 +9,7 @@ using LeafCalendar.UITests.Support;
 
 namespace LeafCalendar.UITests;
 
-public sealed class ZoneAndScaleTests : IDisposable
+public sealed class ZoneTests : IDisposable
 {
     const string Dentist = "Event_evt-single_202610011300";
 
@@ -148,24 +148,9 @@ public sealed class ZoneAndScaleTests : IDisposable
     }
 
     [Fact]
-    public void Scale125_SeededSetting_PanesAndCalendarGrow()
+    public void AtMinimumWindow_NothingOverlaps()
     {
-        using var leaf = Launch(new LeafSettings { InterfaceScale = 1.25 });
-        LeafApp.WaitUntilStill(leaf.WaitFor("ViewHost"));
-
-        Assert.True(Math.Abs(SidebarPaneWidth(leaf) - 264 * 1.25 * leaf.Scale) <= 1 + leaf.Scale,
-            $"The sidebar pane is {SidebarPaneWidth(leaf)} px wide at display scale {leaf.Scale}.");
-        Assert.True(Math.Abs(leaf.WaitFor("MiniDay_2026-10-01").BoundingRectangle.Width - 28 * 1.25 * leaf.Scale) <= 1 + leaf.Scale);
-    }
-
-    // The sidebar pane's width: from the page's left edge to the calendar view's (the view spans the island). The
-    // Sidebar element's own box is only the union of what it shows, without its title bar row or padding.
-    static int SidebarPaneWidth(LeafApp leaf) => leaf.WaitFor("ViewHost").BoundingRectangle.Left - leaf.WaitFor("CalendarRoot").BoundingRectangle.Left;
-
-    [Fact]
-    public void Scale150_AtMinimumWindow_NothingOverlaps()
-    {
-        using var leaf = Launch(new LeafSettings { InterfaceScale = 1.5 });
+        using var leaf = Launch();
 
         // Shrink Below The Minimum (it stops there), Then Open The Editor
         leaf.MainWindow.Patterns.Transform.Pattern.Resize(400, 300);
@@ -194,25 +179,5 @@ public sealed class ZoneAndScaleTests : IDisposable
         var days    = leaf.MainWindow.FindAllDescendants().Where(e => (e.Properties.AutomationId.ValueOrDefault ?? "").StartsWith("MiniDay_", StringComparison.Ordinal)).ToList();
         Assert.NotEmpty(days);
         Assert.All(days, d => Assert.True(Rectangle.Inflate(sidebar, 1, 1).Contains(d.BoundingRectangle), $"{d.AutomationId} {d.BoundingRectangle} is outside the sidebar {sidebar}."));
-    }
-
-    [Fact]
-    public void ScaleFromTheCommandMenu_Applies()
-    {
-        using var leaf = Launch();
-
-        leaf.Press(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_K);
-        leaf.WaitForAnywhere("CommandSearchBox");
-        Keyboard.Type("scale 110");
-        Assert.True(Retry.WhileFalse(() => leaf.ExistsAnywhere("CommandResult_scale-110"), Wait).Success);
-        Keyboard.Type(VirtualKeyShort.RETURN);
-
-        // The Sidebar Grows, And Settings Shows The Choice
-        Assert.True(Retry.WhileFalse(() => Math.Abs(SidebarPaneWidth(leaf) - 264 * 1.1 * leaf.Scale) <= 1 + leaf.Scale, Wait).Success,
-            $"The sidebar pane is {SidebarPaneWidth(leaf)} px wide.");
-
-        leaf.OpenSettings("General");
-        var box = leaf.WaitInSettings("InterfaceScaleBox");
-        Assert.Contains("110%", box.AsComboBox().SelectedItem?.Text ?? box.Name, StringComparison.Ordinal);
     }
 }

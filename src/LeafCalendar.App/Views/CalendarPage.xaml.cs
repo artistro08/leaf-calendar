@@ -103,12 +103,6 @@ public sealed partial class CalendarPage : Page
     /// <summary>True when the details panel takes up room.</summary>
     public bool IsDetailsOpen => DetailsSplit.IsPaneOpen;
 
-    /// <summary>Width of the open sidebar as laid out now (<see cref="SidebarWidth"/> at 100% interface scale).</summary>
-    public double SidebarPaneWidth => SidebarSplit.OpenPaneLength;
-
-    /// <summary>Width of the open details panel as laid out now (<see cref="DetailsWidth"/> at 100% interface scale).</summary>
-    public double DetailsPaneWidth => DetailsSplit.OpenPaneLength;
-
     /// <summary>The sidebar or details panel started to open or close (the island has its new size and is sliding into place).</summary>
     public event EventHandler<PanesChangedEventArgs>? PanesChanged;
 

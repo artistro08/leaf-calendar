@@ -22,14 +22,6 @@
                     <ComboBoxItem Content="Dark" AutomationProperties.AutomationId="ThemeDark" />
                 </ComboBox>
             </controls:SettingRow>
-            <controls:SettingRow Glyph="&#xE740;" Header="Interface scale" Description="Make the sidebar, calendar, and details panel bigger or smaller.">
-                <ComboBox
-                    x:Name="InterfaceScaleBox"
-                    MinWidth="180"
-                    SelectionChanged="OnInterfaceScaleChanged"
-                    AutomationProperties.Name="Interface scale"
-                    AutomationProperties.AutomationId="InterfaceScaleBox" />
-            </controls:SettingRow>
             <controls:SettingRow Glyph="&#xE8BF;" Header="Expand the all-day section" Description="Show every all-day event when Leaf opens, not just the first few.">
                 <ToggleSwitch
                     x:Name="AllDayExpandedSwitch"

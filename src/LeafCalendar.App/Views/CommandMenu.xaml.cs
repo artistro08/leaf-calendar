@@ -120,7 +120,6 @@ public sealed class CommandRow
         "back"                                           => "",
         "forward"                                        => "",
         _ when id.StartsWith("settings", StringComparison.Ordinal) => "",
-        _ when id.StartsWith("scale-", StringComparison.Ordinal)   => "",
         _ when id.StartsWith("view-", StringComparison.Ordinal)    => "",
         _                                                => "",
     };

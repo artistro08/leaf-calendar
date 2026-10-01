@@ -1,4 +1,4 @@
-// Track A (Milestone 5 Tasks 3-5) owns this file: the command menu, the cheat sheet, time travel, and interface scale.
+// Track A (Milestone 5 Tasks 3-5) owns this file: the command menu, the cheat sheet, and time travel.
 using System.ComponentModel;
 using System.Globalization;
 using LeafCalendar.App.ViewModels;
@@ -19,9 +19,6 @@ public sealed partial class CalendarPage
 
     // The time travel and zone switch bars above the calendar
     TimeTravelBar? _travelBar;
-
-    /// <summary>The interface scale changed (the window recomputes its minimum size and the toolbar's place).</summary>
-    public event EventHandler? ScaleChanged;
 
     /// <summary>
     /// The Next month button's center, in window DIPs, once the open sidebar has settled; null before it's laid out.
@@ -48,14 +45,13 @@ public sealed partial class CalendarPage
         PeriodTitle.Margin = new Thickness(left, PeriodTitle.Margin.Top, 0, PeriodTitle.Margin.Bottom);
     }
 
-    // Called once when the page opens: the zone bars, and the interface scale
+    // Called once when the page opens: the zone bars
     void AttachNavigate()
     {
         _travelBar = new TimeTravelBar(ViewModel);
         IslandBars.Children.Add(_travelBar);
         ViewModel.PropertyChanged += OnNavigatePropertyChanged;
         ViewModel.LayoutChanged   += OnNavigateLayoutChanged;
-        ApplyScale();
     }
 
     // Called from Detach: undo everything AttachNavigate wired to the long-lived view model (the menu holds it too)
@@ -82,34 +78,12 @@ public sealed partial class CalendarPage
         }
     }
 
-    // Settings changes raise LayoutChanged: the zone on screen and the scale may have moved (SyncZone is a no-op when
-    // the zone stayed, so its own LayoutChanged can't loop)
+    // Settings changes raise LayoutChanged: the zone on screen may have moved (SyncZone is a no-op when the zone
+    // stayed, so its own LayoutChanged can't loop)
     void OnNavigateLayoutChanged(object? sender, EventArgs e)
     {
         ViewModel.SyncZone();
-        ApplyScale();
         _travelBar?.Update(ViewModel);
-    }
-
-    // =========================================================================
-    // INTERFACE SCALE
-    // =========================================================================
-
-    // Interface Scale (Settings › General): the panes grow with their content; the title bar stays 48 DIPs
-    void ApplyScale()
-    {
-        var scale = ViewModel.Settings.InterfaceScale;
-        if (ViewScale.Scale == scale && SidebarSplit.OpenPaneLength == SidebarWidth * scale)
-        {
-            return;
-        }
-
-        ViewScale.Scale             = scale;
-        Sidebar.BodyScale.Scale     = scale;
-        Details.BodyScale.Scale     = scale;
-        SidebarSplit.OpenPaneLength = SidebarWidth * scale;
-        DetailsSplit.OpenPaneLength = DetailsWidth * scale;
-        ScaleChanged?.Invoke(this, EventArgs.Empty);
     }
 
     // =========================================================================
@@ -192,13 +166,6 @@ public sealed partial class CalendarPage
             case "sync":
                 vm.Fire(vm.RefreshAsync);
                 return;
-        }
-
-        // Interface Scale
-        if (id.StartsWith("scale-", StringComparison.Ordinal) && int.TryParse(id[6..], NumberStyles.None, CultureInfo.InvariantCulture, out var percent))
-        {
-            vm.Update(s => s with { InterfaceScale = percent / 100.0 });
-            return;
         }
 
         // Settings Pages

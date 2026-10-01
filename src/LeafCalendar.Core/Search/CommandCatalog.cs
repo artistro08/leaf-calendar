@@ -1,5 +1,4 @@
 using System.Globalization;
-using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Views;
 
 namespace LeafCalendar.Core.Search;
@@ -13,9 +12,6 @@ public sealed record CommandItem(string Id, string Title, string Keys, CalendarC
 /// <summary>Every command-menu action, and matching typed text against them.</summary>
 public static class CommandCatalog
 {
-    /// <summary>An interface scale as a whole percent ("125").</summary>
-    static string Percent(double s) => ((int)Math.Round(s * 100)).ToString(CultureInfo.InvariantCulture);
-
     /// <summary>Every action, in the order shown when scores tie.</summary>
     public static IReadOnlyList<CommandItem> All { get; } =
     [
@@ -37,7 +33,6 @@ public static class CommandCatalog
         new("toggle-24-hour", "Turn 24-hour time on or off", "", Keywords: "toggle clock"),
         new("toggle-working-hours", "Show or hide working hours", "", Keywords: "toggle shading"),
         new("toggle-theme", "Switch between light and dark", "Ctrl+Shift+L", CalendarCommand.ToggleTheme, Keywords: "theme"),
-        .. LeafSettings.ScaleChoices.Select(s => new CommandItem($"scale-{Percent(s)}", $"Interface scale {Percent(s)}%", "", Keywords: "zoom size")),
         new("settings", "Settings", "Ctrl+,", CalendarCommand.OpenSettings, Keywords: "open preferences options"),
         new("settings-general", "Settings: General", "", Keywords: "preferences"),
         new("settings-calendars", "Settings: Calendars", "", Keywords: "preferences colors"),

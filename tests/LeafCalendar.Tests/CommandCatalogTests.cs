@@ -40,7 +40,7 @@ public sealed class CommandCatalogTests
 
     [Fact]
     public void Match_Keywords_Count() =>
-        Assert.Contains(CommandCatalog.Match("zoom"), c => c.Id.StartsWith("scale-", StringComparison.Ordinal));
+        Assert.Contains(CommandCatalog.Match("cheat"), c => c.Id == "shortcuts");
 
     [Fact]
     public void Match_EveryWordMustHit() => Assert.Empty(CommandCatalog.Match("share zzz"));

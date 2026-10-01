@@ -9,7 +9,6 @@ public sealed class PowerSettingsTests
     {
         var s = new LeafSettings().Normalize();
 
-        Assert.Equal(1.0, s.InterfaceScale);
         Assert.True(s.WorkingHours.Enabled);
         Assert.Equal(9 * 60, s.WorkingHours.StartMinute);
         Assert.Equal(17 * 60, s.WorkingHours.EndMinute);
@@ -23,14 +22,6 @@ public sealed class PowerSettingsTests
         Assert.Empty(s.MeetByDefaultAccounts);
         Assert.Empty(s.TrayExcludedCalendars);
     }
-
-    [Theory]
-    [InlineData(0.7, 1.0)]
-    [InlineData(1.33, 1.0)]
-    [InlineData(double.NaN, 1.0)]
-    [InlineData(1.25, 1.25)]
-    public void Normalize_ScaleNotAChoice_ResetsTo100(double saved, double expected) =>
-        Assert.Equal(expected, (new LeafSettings { InterfaceScale = saved }).Normalize().InterfaceScale);
 
     [Fact]
     public void Normalize_WorkingHoursBackwardsOrOutOfRange_ResetToDefaults()
@@ -131,9 +122,20 @@ public sealed class PowerSettingsTests
         Assert.False(s.ShowWeekends);
         Assert.Equal(CalendarViewMode.Month, s.ViewMode);
         Assert.Equal(5, s.FlyoutDays);
-        Assert.Equal(1.0, s.InterfaceScale);
         Assert.True(s.WorkingHours.Enabled);
         Assert.Equal(8, s.UpcomingHours);
         Assert.Empty(s.MeetByDefaultAccounts);
+    }
+
+    [Fact]
+    public void SavedWithInterfaceScale_StillLoads()
+    {
+        // Milestone 5 builds wrote an interface scale; the setting is gone, and the rest of the row still loads
+        var json = """{"weekStart":"Monday","interfaceScale":1.25,"upcomingHours":4,"mapProvider":"Bing"}""";
+        var s    = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
+
+        Assert.Equal(DayOfWeek.Monday, s.WeekStart);
+        Assert.Equal(4, s.UpcomingHours);
+        Assert.Equal(MapProvider.Bing, s.MapProvider);
     }
 }

@@ -171,14 +171,8 @@ public sealed record LeafSettings
     /// <summary>Global shortcut that shows or hides the tray flyout; empty for none.</summary>
     public string FlyoutShortcut { get; set; } = DefaultFlyoutShortcut;
 
-    /// <summary>Interface scale choices (Settings › General › Appearance).</summary>
-    public static IReadOnlyList<double> ScaleChoices { get; } = [0.8, 0.9, 1.0, 1.1, 1.25, 1.5];
-
     /// <summary>Upcoming-list lookahead choices in hours (details panel, nothing selected).</summary>
     public static IReadOnlyList<int> UpcomingChoices { get; } = [2, 4, 8, 12, 24];
-
-    /// <summary>How big the sidebar, calendar, and details panel are drawn (1 = 100%).</summary>
-    public double InterfaceScale { get; init; } = 1.0;
 
     /// <summary>Your working hours (shading outside them).</summary>
     public WorkingHours WorkingHours { get; init; } = new();
@@ -217,7 +211,6 @@ public sealed record LeafSettings
     /// that isn't one of <see cref="LookaheadChoices"/> becomes 60 minutes, shortcuts are rewritten in
     /// <see cref="Hotkey"/>'s order (unreadable ones return to their defaults, empty stays empty), and a flyout
     /// shortcut that repeats the join shortcut is turned off.
-    /// An interface scale that isn't one of <see cref="ScaleChoices"/> becomes 100%.
     /// Working hours that are backwards or outside the day return to 9 AM-5 PM, and unknown or repeated days are dropped.
     /// An unknown map provider becomes Google.
     /// An upcoming lookahead that isn't one of <see cref="UpcomingChoices"/> becomes 8 hours.
@@ -256,7 +249,6 @@ public sealed record LeafSettings
             TrayLookaheadMinutes  = LookaheadChoices.Contains(TrayLookaheadMinutes) ? TrayLookaheadMinutes : 60,
             JoinShortcut          = join,
             FlyoutShortcut        = flyout,
-            InterfaceScale        = ScaleChoices.Contains(InterfaceScale) ? InterfaceScale : 1.0,
             WorkingHours          = CleanHours(WorkingHours),
             MapProvider           = Enum.IsDefined(MapProvider) ? MapProvider : MapProvider.Google,
             UpcomingHours         = UpcomingChoices.Contains(UpcomingHours) ? UpcomingHours : 8,

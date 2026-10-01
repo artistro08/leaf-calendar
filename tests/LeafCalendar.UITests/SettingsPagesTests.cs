@@ -74,7 +74,6 @@ public sealed class SettingsPagesTests : IDisposable
         using (var leaf = Launch())
         {
             leaf.OpenSettings();
-            leaf.WaitInSettings("InterfaceScaleBox").AsComboBox().Select("125%");
             leaf.WaitInSettings("AllDayExpandedSwitch").AsToggleButton().Toggle();
             leaf.WaitInSettings("UpcomingHoursBox").AsComboBox().Select("Next 4 hours");
             leaf.WaitInSettings("MapProviderBox").AsComboBox().Select("Bing Maps");
@@ -86,7 +85,6 @@ public sealed class SettingsPagesTests : IDisposable
 
         using var relaunched = Launch();
         relaunched.OpenSettings();
-        Assert.True(Retry.WhileFalse(() => Selected(relaunched, "InterfaceScaleBox") == "125%", TimeSpan.FromSeconds(10)).Success, $"Scale: {Selected(relaunched, "InterfaceScaleBox")}");
         Assert.True(IsOn(relaunched, "AllDayExpandedSwitch"));
         Assert.Equal("Next 4 hours", Selected(relaunched, "UpcomingHoursBox"));
         Assert.Equal("Bing Maps", Selected(relaunched, "MapProviderBox"));

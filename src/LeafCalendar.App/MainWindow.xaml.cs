@@ -37,20 +37,17 @@ public sealed partial class MainWindow : Window
     static readonly TimeSpan PaneOpenDuration  = TimeSpan.FromMilliseconds(200);
     static readonly TimeSpan PaneCloseDuration = TimeSpan.FromMilliseconds(100);
 
-    // Smallest window, in DIPs: both panes open (264 + 320 at 100%, grown by the interface scale) around an island that
-    // still fits the widest title ("September 2026": 17 in, 170 wide), a 16 gap, and the widest toolbar (about 257,
+    // Smallest window, in DIPs: both panes open (264 + 320) around an island that still fits the
+    // widest title ("September 2026": 17 in, 170 wide), a 16 gap, and the widest toolbar (about 257,
     // with "31 days" on the view button, plus 36 for the sync status slot and its gap) 6 in from the island's right edge, which also leaves the
-    // week grid its 56 gutter and seven 48-wide days. The title bar toolbar and insets don't scale. The height keeps the sidebar's mini
-    // month, an account with three calendars, and its footer, and shows about eight hours of the grid at the default hour height;
-    // below the 48 DIP title bar row it grows with the interface scale, as the sidebar does.
-    static double MinimumWidthAt(double scale) =>
-        (CalendarPage.SidebarWidth + CalendarPage.DetailsWidth) * scale + CalendarPage.TitleInset + 170 + 16 + 257 + 36 + CalendarPage.ToolbarInset;
-
-    static double MinimumHeightAt(double scale) => 48 + (540 - 48) * scale;
+    // week grid its 56 gutter and seven 48-wide days. The height keeps the sidebar's mini month, an account with three calendars, and
+    // its footer, and shows about eight hours of the grid at the default hour height.
+    const double MinimumWidth  = CalendarPage.SidebarWidth + CalendarPage.TitleInset + 170 + 16 + 257 + 36 + CalendarPage.ToolbarInset + CalendarPage.DetailsWidth;
+    const double MinimumHeight = 540;
 
     // The event actions' right end, in from the details panel's left edge: the edit glyph (8 in on its 32-wide
-    // button) starts at the panel's 16 px content inset (which grows with the interface scale), and the delete button touches it
-    static double EventActionsSpan(double scale) => 16 * scale - 8 + 32 + 32;
+    // button) starts at the panel's 16 px content inset, and the delete button touches it
+    const double EventActionsSpan = 16 - 8 + 32 + 32;
 
     readonly LeafServices _services;
     readonly IconSource? _appIcon;
@@ -222,13 +219,6 @@ public sealed partial class MainWindow : Window
 
         if (page is not null)
         {
-            // The Interface Scale Changes The Minimum Size And The Panes' Widths
-            page.ScaleChanged += (_, _) =>
-            {
-                ApplyMinimumSize();
-                UpdateTitleBarLayout(animate: false);
-            };
-
             page.PanesChanged += (_, e) =>
             {
                 UpdateTitleBarLayout(e.Animate);
@@ -265,7 +255,7 @@ public sealed partial class MainWindow : Window
         var width   = RootGrid.ActualWidth;
         var caption = AppWindow.TitleBar.RightInset / scale;
         var hostEnd = ToolbarHost.TransformToVisual(RootGrid).TransformPoint(new Windows.Foundation.Point(ToolbarHost.ActualWidth, 0)).X;
-        var target  = page is { IsDetailsOpen: true } ? width - page.DetailsPaneWidth - CalendarPage.ToolbarInset : width - caption - CalendarPage.ToolbarInset;
+        var target  = page is { IsDetailsOpen: true } ? width - CalendarPage.DetailsWidth - CalendarPage.ToolbarInset : width - caption - CalendarPage.ToolbarInset;
         var right   = page is null ? 0 : Math.Round((hostEnd - target) * scale) / scale;
         var layout  = (Right: right, Sidebar: page?.IsSidebarOpen ?? true, Calendar: page is not null);
         if (layout == _titleBarLayout)
@@ -277,7 +267,7 @@ public sealed partial class MainWindow : Window
         _titleBarLayout = layout;
 
         CalendarToolbar.Margin = new Thickness(0, 0, layout.Right, 0);
-        EventActions.Margin    = new Thickness(0, 0, layout.Right - CalendarPage.ToolbarInset - EventActionsSpan(_calendar.Settings.InterfaceScale), 0);
+        EventActions.Margin    = new Thickness(0, 0, layout.Right - CalendarPage.ToolbarInset - EventActionsSpan, 0);
         AppTitleBar.Title      = layout.Sidebar ? "Leaf Calendar" : "";
         AppTitleBar.IconSource = layout.Sidebar ? _appIcon : null;
 
@@ -336,7 +326,7 @@ public sealed partial class MainWindow : Window
     (double Button, double Host, double Anchor, bool Open)? _searchSpot;
 
     // After any layout pass: the Next month button, the toolbar host, or the icon itself can move without a size change
-    // (the sidebar settling or rescaling, the app icon and title appearing). Re-place the icon and re-punch its
+    // (the sidebar settling, the app icon and title appearing). Re-place the icon and re-punch its
     // click-through hole. The title bar also re-punches its holes on its own when its content moves, from where the icon
     // was before the new margin landed, so the hole is punched again once that layout pass is over; a stale hole
     // leaves the icon in the drag region, where a click does nothing. Nothing happens unless something actually moved.
@@ -405,24 +395,14 @@ public sealed partial class MainWindow : Window
     }
 
     // The minimum size is the content's, in DIPs; the presenter takes the whole window in screen pixels, so it
-    // follows the monitor's scale and adds the window frame (the invisible resize borders, about 14 DIPs across).
-    // It never passes the monitor's work area (a large interface scale on a small screen; the toolbar then has less
-    // room), and a window smaller than a new minimum grows to it, keeping its top-left corner
+    // follows the monitor's scale and adds the window frame (the invisible resize borders, about 14 DIPs across)
     void ApplyMinimumSize()
     {
-        var scale  = RootGrid.XamlRoot?.RasterizationScale ?? 1;
-        var frame  = AppWindow.Size;
-        var inner  = AppWindow.ClientSize;
-        var work   = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
-        var width  = Math.Min((int)Math.Ceiling(MinimumWidthAt(_calendar.Settings.InterfaceScale) * scale) + Math.Max(0, frame.Width - inner.Width), work.Width);
-        var height = Math.Min((int)Math.Ceiling(MinimumHeightAt(_calendar.Settings.InterfaceScale) * scale) + Math.Max(0, frame.Height - inner.Height), work.Height);
-        _presenter.PreferredMinimumWidth  = width;
-        _presenter.PreferredMinimumHeight = height;
-
-        if (_presenter.State == OverlappedPresenterState.Restored && (frame.Width < width || frame.Height < height))
-        {
-            AppWindow.Resize(new Windows.Graphics.SizeInt32(Math.Max(frame.Width, width), Math.Max(frame.Height, height)));
-        }
+        var scale = RootGrid.XamlRoot?.RasterizationScale ?? 1;
+        var frame = AppWindow.Size;
+        var inner = AppWindow.ClientSize;
+        _presenter.PreferredMinimumWidth  = (int)Math.Ceiling(MinimumWidth * scale) + Math.Max(0, frame.Width - inner.Width);
+        _presenter.PreferredMinimumHeight = (int)Math.Ceiling(MinimumHeight * scale) + Math.Max(0, frame.Height - inner.Height);
     }
 
     void OnPaneToggleRequested(TitleBar sender, object args)

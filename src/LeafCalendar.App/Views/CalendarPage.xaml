@@ -3,7 +3,6 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:LeafCalendar.App.Views"
-    xmlns:controls="using:LeafCalendar.App.Controls"
     KeyboardAcceleratorPlacementMode="Hidden">
 
     <!-- The InfoBar's severity states paint their own see-through fill over Background; the notice is always Informational, so its fill is made solid here (Fluent's solid tertiary background; window color in high contrast) -->
@@ -87,15 +86,14 @@
                         <!-- Island Bars (time travel, people overlay, share availability; each track adds its own bar from code) -->
                         <StackPanel x:Name="IslandBars" Grid.Row="1" />
 
-                        <!-- View (drawn at the interface scale) -->
-                        <controls:ScaleHost x:Name="ViewScale" Grid.Row="2">
-                            <Grid
-                                x:Name="ViewHost"
-                                Tapped="OnViewHostTapped"
-                                AutomationProperties.Name="Calendar view"
-                                AutomationProperties.LandmarkType="Main"
-                                AutomationProperties.AutomationId="ViewHost" />
-                        </controls:ScaleHost>
+                        <!-- View -->
+                        <Grid
+                            x:Name="ViewHost"
+                            Grid.Row="2"
+                            Tapped="OnViewHostTapped"
+                            AutomationProperties.Name="Calendar view"
+                            AutomationProperties.LandmarkType="Main"
+                            AutomationProperties.AutomationId="ViewHost" />
 
                         <!-- Notice ("Event deleted · Undo"; solid so the grid never shows through) -->
                         <InfoBar

@@ -12,7 +12,7 @@ using Windows.ApplicationModel;
 namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
-/// Settings › General: theme and interface scale, the calendar view options, date and time, working hours, the map
+/// Settings › General: theme, the calendar view options, date and time, working hours, the map
 /// site for locations, and starting with Windows. Every change saves
 /// right away through the shared calendar view model, so the main window follows it; changes made elsewhere (the view
 /// menu, shortcuts) show here too. Starting with Windows is the package's startup task, whose state Windows owns.
@@ -54,9 +54,8 @@ public sealed partial class GeneralPage : Page
         HourHeightSlider.Minimum = LeafSettings.MinHourHeight;
         HourHeightSlider.Maximum = LeafSettings.MaxHourHeight;
 
-        // Choices Built From The Settings' Own Lists ("80%", "Next 2 hours")
-        InterfaceScaleBox.ItemsSource = LeafSettings.ScaleChoices.Select(s => s.ToString("0%", English)).ToList();
-        UpcomingHoursBox.ItemsSource  = LeafSettings.UpcomingChoices.Select(h => string.Create(English, $"Next {h} hours")).ToList();
+        // Choices Built From The Settings' Own List ("Next 2 hours")
+        UpcomingHoursBox.ItemsSource = LeafSettings.UpcomingChoices.Select(h => string.Create(English, $"Next {h} hours")).ToList();
     }
 
     CalendarViewModel Calendar => _context.Calendar;
@@ -91,10 +90,9 @@ public sealed partial class GeneralPage : Page
         Clock24Switch.IsOn         = s.Use24HourTime;
 
         // Milestone 5 Settings
-        InterfaceScaleBox.SelectedIndex = LeafSettings.ScaleChoices.ToList().IndexOf(s.InterfaceScale);
-        AllDayExpandedSwitch.IsOn       = s.AllDayExpanded;
-        UpcomingHoursBox.SelectedIndex  = LeafSettings.UpcomingChoices.ToList().IndexOf(s.UpcomingHours);
-        MapProviderBox.SelectedIndex    = Array.IndexOf(MapSources, s.MapProvider);
+        AllDayExpandedSwitch.IsOn      = s.AllDayExpanded;
+        UpcomingHoursBox.SelectedIndex = LeafSettings.UpcomingChoices.ToList().IndexOf(s.UpcomingHours);
+        MapProviderBox.SelectedIndex   = Array.IndexOf(MapSources, s.MapProvider);
         LoadWorkingHours(s.WorkingHours, s.WeekStart, s.Use24HourTime);
 
         _loading = false;
@@ -103,15 +101,6 @@ public sealed partial class GeneralPage : Page
     // =========================================================================
     // APPEARANCE, UPCOMING, AND LOCATIONS
     // =========================================================================
-
-    void OnInterfaceScaleChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (!_loading && InterfaceScaleBox.SelectedIndex >= 0)
-        {
-            var scale = LeafSettings.ScaleChoices[InterfaceScaleBox.SelectedIndex];
-            _context.Save(s => s with { InterfaceScale = scale });
-        }
-    }
 
     void OnAllDayExpandedToggled(object sender, RoutedEventArgs e)
     {
