@@ -201,7 +201,8 @@ public sealed class TimeGridTests : IDisposable
     }
 
     // The owner saw the next day through the see-through details pane in Day view. Checked while the pane slides
-    // open, at rest, and while Day view scrolls to the next day and back (one capture is one frame)
+    // closed and open, at rest, and while Day view scrolls to the next day and back (one capture is one frame). With
+    // the DetailsSplit clip removed, the closing slide shows the next day's events under the pane (checked 2026-09-30)
     [Fact]
     public void DayView_DetailsPanel_DoesNotShowTheNextDay()
     {
@@ -217,11 +218,7 @@ public sealed class TimeGridTests : IDisposable
         leaf.WaitFor("Event_evt-single_202610011300");
         SwitchToDayView(leaf);
 
-        // Close The Pane (it opens by default), So Its Slide Can Be Watched
-        leaf.WaitFor("DetailsToggleButton").AsToggleButton().Toggle();
-        Assert.True(Retry.WhileTrue(() => leaf.Exists("UpcomingHeader"), TimeSpan.FromSeconds(5)).Success);
-
-        // Sample The Event's Fill On Its Own Day
+        // Sample The Event's Fill On Its Own Day (the pane is open, its default)
         leaf.WaitFor("NextButton").AsButton().Invoke();
         Assert.True(Retry.WhileFalse(() => Rest(leaf).First == "2026-10-02", TimeSpan.FromSeconds(10)).Success);
         var card = leaf.WaitFor("Event_evt-tomorrow_202610021300");
@@ -240,23 +237,30 @@ public sealed class TimeGridTests : IDisposable
         var root   = leaf.WaitFor("CalendarRoot").BoundingRectangle;
         var scale  = leaf.WaitFor("DetailsToggleButton").BoundingRectangle.Width / 32.0;
         var width  = (int)Math.Round(320 * scale);
-        var region = new Rectangle(root.Right - width, box.Y, width, box.Height);
+        // The frames take the whole row (island and pane), so they also show that something was moving while they were
+        // taken; only the pane's part is searched for the event's fill
+        var row    = new Rectangle(root.Left, box.Y, root.Width, box.Height);
+        var pane   = row.Width - width + 1; // the pane's first pixel column may still hold the island's edge (layout rounding)
 
-        // Mid-Slide: the pane opening
+        // Mid-Slide: the pane closing (the content starts one pane width to the left and slides back under it), then opening
         leaf.WaitFor("DetailsToggleButton").AsToggleButton().Toggle();
-        AssertNoFill(Frames(region), fill, "while the pane opens");
+        AssertNoFill(Frames(row), pane, fill, "while the pane closes", moving: true);
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("UpcomingHeader"), TimeSpan.FromSeconds(5)).Success);
+        Thread.Sleep(500);
+        leaf.WaitFor("DetailsToggleButton").AsToggleButton().Toggle();
+        AssertNoFill(Frames(row), pane, fill, "while the pane opens", moving: true);
 
         // At Rest
         leaf.WaitFor("UpcomingHeader");
         Thread.Sleep(300);
-        AssertNoFill(Frames(region, 1), fill, "at rest");
+        AssertNoFill(Frames(row, 1), pane, fill, "at rest", moving: false);
 
         // Mid-Scroll: to the next day and back
         leaf.WaitFor("NextButton").AsButton().Invoke();
-        AssertNoFill(Frames(region), fill, "while scrolling to Oct 2");
+        AssertNoFill(Frames(row), pane, fill, "while scrolling to Oct 2", moving: true);
         Assert.True(Retry.WhileFalse(() => Rest(leaf).First == "2026-10-02", TimeSpan.FromSeconds(10)).Success);
         leaf.WaitFor("PreviousButton").AsButton().Invoke();
-        AssertNoFill(Frames(region), fill, "while scrolling back to Oct 1");
+        AssertNoFill(Frames(row), pane, fill, "while scrolling back to Oct 1", moving: true);
     }
 
     // Back-to-back captures of the region (scanned afterward, so the frames stay close together)
@@ -267,16 +271,24 @@ public sealed class TimeGridTests : IDisposable
             return new Bitmap(shot.Bitmap);
         })];
 
-    // No pixel within 12 (per RGB channel) of the event's fill, in any frame
-    static void AssertNoFill(List<Bitmap> frames, Color fill, string when)
+    // No pixel within 12 (per RGB channel) of the event's fill right of x = paneFrom, in any frame. With moving, at
+    // least three of the frames differ, so some were taken mid-motion (not all before it started or after it ended)
+    static void AssertNoFill(List<Bitmap> frames, int paneFrom, Color fill, string when, bool moving)
     {
         try
         {
+            if (moving)
+            {
+                var distinct = frames.Select(Signature).Distinct().Count();
+                Assert.True(distinct >= 3, $"Only {distinct} different frames {when}: the captures missed the motion.");
+            }
+
             for (var i = 0; i < frames.Count; i++)
             {
                 var frame    = frames[i];
                 var bleeding = 0;
-                for (var x = 0; x < frame.Width; x++)
+                var columns  = new SortedSet<int>();
+                for (var x = paneFrom; x < frame.Width; x++)
                 {
                     for (var y = 0; y < frame.Height; y++)
                     {
@@ -284,17 +296,33 @@ public sealed class TimeGridTests : IDisposable
                         if (Math.Abs(c.R - fill.R) <= 12 && Math.Abs(c.G - fill.G) <= 12 && Math.Abs(c.B - fill.B) <= 12)
                         {
                             bleeding++;
+                            columns.Add(x - paneFrom);
                         }
                     }
                 }
 
-                Assert.True(bleeding == 0, $"{bleeding} pixels of the next day's event ({fill}) show in the details pane {when} (frame {i + 1} of {frames.Count}).");
+                Assert.True(bleeding == 0, $"{bleeding} pixels of the next day's event ({fill}) show in the details pane {when} (frame {i + 1} of {frames.Count}, {columns.Count} columns from {columns.FirstOrDefault()} px into the pane).");
             }
         }
         finally
         {
             frames.ForEach(f => f.Dispose());
         }
+    }
+
+    // A frame's pixels, summed with their positions (equal frames give equal sums)
+    static long Signature(Bitmap frame)
+    {
+        long sum = 0;
+        for (var x = 0; x < frame.Width; x += 2)
+        {
+            for (var y = 0; y < frame.Height; y += 2)
+            {
+                sum = sum * 31 + frame.GetPixel(x, y).ToArgb();
+            }
+        }
+
+        return sum;
     }
 
     [Fact]

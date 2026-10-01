@@ -201,9 +201,13 @@ public sealed partial class CalendarPage : Page
         DetailsSplit.Clip = new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
 
     // Nothing in the island (the grid keeps neighbor days realized and slides its header by composition) may draw
-    // under the see-through panes
-    void OnIslandSizeChanged(object sender, SizeChangedEventArgs e) =>
-        Island.Clip = new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
+    // under the see-through panes. A composition clip on the island's own size: a XAML Clip here clipped the island's
+    // fill but not the time grid's scrolling content, so the next day showed under the details panel as it slid shut
+    void OnIslandSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(Island);
+        visual.Clip ??= visual.Compositor.CreateInsetClip();
+    }
 
     /// <summary>Puts the view for the current mode into <see cref="ViewHost"/>, keeping one view per mode family.</summary>
     public void ApplyView()
