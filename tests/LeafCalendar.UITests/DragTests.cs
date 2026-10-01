@@ -86,6 +86,34 @@ public sealed class DragTests : IDisposable
         Assert.Equal(TimeSpan.FromHours(2), End(write) - Start(write));
     }
 
+    // A drag on empty time while an edit hides behind the closed panel starts a new event; only C and E bring the hidden edit back
+    [Fact]
+    public void DragEmptyTime_WithAHiddenEdit_StartsANewEvent()
+    {
+        using var leaf = Launch();
+        var dentist = leaf.WaitFor(Dentist);
+        var hour    = HourPixels(dentist);
+        dentist.Click();
+        leaf.Press(VirtualKeyShort.KEY_E);
+        var title = leaf.WaitFor("EditorTitle").AsTextBox();
+        title.Text += " moved";
+        leaf.WaitFor("DetailsToggleButton").AsToggleButton().Toggle();
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(5)).Success);
+
+        var column = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
+        var x      = column.X + column.Width / 2;
+        var from   = dentist.BoundingRectangle.Y + 4 * hour + hour / 10;
+        LeafApp.Drag(new Point(x, from), new Point(x, from + 2 * hour));
+
+        Assert.True(Retry.WhileFalse(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(5)).Success);
+        Assert.Equal("", leaf.WaitFor("EditorTitle").AsTextBox().Text);
+        leaf.WaitFor("EditorTitle").AsTextBox().Text = "Focus block";
+        leaf.WaitFor("EditorSaveButton").AsButton().Invoke();
+        var write = _google.WaitForWrite(w => w.Method == "POST");
+        Assert.Equal(new DateTimeOffset(2026, 10, 2, 17, 0, 0, TimeSpan.Zero), Start(write));
+        Assert.DoesNotContain(_google.Writes, w => w.Method == "PATCH");
+    }
+
     [Fact]
     public void AltDrag_DuplicatesAndKeepsTheOriginal()
     {

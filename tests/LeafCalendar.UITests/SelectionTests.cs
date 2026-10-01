@@ -71,6 +71,23 @@ public sealed class SelectionTests : IDisposable
         Assert.NotNull(leaf.WaitFor("Event_evt-weekly_202610091330"));
     }
 
+    // Adding to the selection ends an edit, the same as selecting another event (nothing is saved)
+    [Fact]
+    public void CtrlClick_WhileEditing_EndsTheEdit()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Dentist).Click();
+        leaf.Press(VirtualKeyShort.KEY_E);
+        leaf.WaitFor("EditorTitle").AsTextBox().Text = "Never saved";
+
+        CtrlClick(leaf.WaitFor("Event_evt-meeting_202610011800"));
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(5)).Success);
+        Assert.Equal("2 events selected", leaf.WaitFor("SelectionSummary").Name);
+        Thread.Sleep(1000);
+        Assert.Empty(_google.Writes);
+    }
+
     [Fact]
     public void CopyThenPasteAtClickedTime_CreatesCopyThere()
     {
