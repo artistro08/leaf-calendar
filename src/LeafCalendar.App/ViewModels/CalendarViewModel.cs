@@ -371,6 +371,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         var before = Settings;
         Settings = change(Settings).Normalize();
+
+        // A hidden editor keeps its fields, not contact suggestions
+        if (before.DetailsPanelOpen && !Settings.DetailsPanelOpen)
+        {
+            Editing?.ClearSuggestions();
+        }
         using (var conn = _services.Database.Open())
         {
             SettingsStore.Save(conn, Settings);
@@ -718,6 +724,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Closes the editor without saving.</summary>
     public void CancelEdit() => Editing = null;
 
+    // True while "Allow contact suggestions" waits for the browser
+    bool _allowingContacts;
+
     // A closed editor drops its contact suggestions; a new one searches the account of the calendar it has picked
     partial void OnEditingChanged(EventEditorViewModel? oldValue, EventEditorViewModel? newValue)
     {
@@ -733,7 +742,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// </summary>
     public async Task AllowContactsAsync(string accountId)
     {
-        if (_services.Google is not { } google)
+        // One Sign-In At A Time; Answers Go To The Editor That Asked (if it's still open)
+        if (_services.Google is not { } google || Editing is not { } editor || _allowingContacts)
         {
             return;
         }
@@ -744,25 +754,45 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             email = AccountStore.GetAll(conn).FirstOrDefault(a => a.Id == accountId)?.Email;
         }
 
+        string? problem = null;
+        _allowingContacts = true;
         try
         {
-            await google.CreateSignIn(_services.OpenSignInPageAsync).RunAsync(email, CancellationToken.None);
+            // Only this account may come back; another Google user is never saved
+            await google.CreateSignIn(_services.OpenSignInPageAsync).RunAsync(email, accountId, CancellationToken.None);
+        }
+        catch (WrongAccountException ex)
+        {
+            problem = $"You signed in as {ex.SignedInEmail}. Sign in as {ex.ExpectedEmail} to allow suggestions.";
         }
         catch (SignInException ex)
         {
-            Editing?.Error = ex.Message;
-            return;
+            problem = ex.Message;
         }
         catch (HttpRequestException)
         {
-            Editing?.Error = "Couldn't reach Google. Check your connection and try again.";
+            problem = "Couldn't reach Google. Check your connection and try again.";
+        }
+        finally
+        {
+            _allowingContacts = false;
+        }
+
+        if (!ReferenceEquals(Editing, editor))
+        {
             return;
         }
 
-        if (Editing is { } editor)
+        if (problem is not null)
         {
-            await editor.RefreshSuggestionsAsync();
+            editor.Error = problem;
+            return;
         }
+
+        // Allowed Now (the link goes even with an empty box)
+        editor.Error          = null;
+        editor.ContactsAccess = ContactAccess.Allowed;
+        await editor.RefreshSuggestionsAsync();
     }
 
     // Closing the panel only hides an editor; editing again (the toolbar's Edit, a double-click) brings that one back

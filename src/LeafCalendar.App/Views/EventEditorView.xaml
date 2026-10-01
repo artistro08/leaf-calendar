@@ -162,11 +162,13 @@
                         <Button Grid.Column="1" VerticalAlignment="Bottom" Content="Add" Click="OnAddGuestClick" AutomationProperties.AutomationId="EditorAddGuest" />
                     </Grid>
                     <HyperlinkButton
+                        x:Name="AllowContactsLink"
                         Content="Allow contact suggestions"
                         Click="OnAllowContactsClick"
                         Visibility="{x:Bind Editor.ShowAllowContacts, Mode=OneWay}"
                         AutomationProperties.AutomationId="EditorAllowContacts" />
                     <TextBlock
+                        x:Name="ContactsApiOffText"
                         Style="{StaticResource LeafSecondaryTextStyle}"
                         Text="Turn on the People API in Google Cloud Console to get suggestions."
                         Visibility="{x:Bind Editor.ShowContactsApiOff, Mode=OneWay}"

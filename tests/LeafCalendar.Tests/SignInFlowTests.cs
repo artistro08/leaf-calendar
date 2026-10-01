@@ -137,6 +137,35 @@ public sealed class SignInFlowTests : IDisposable
     }
 
     [Fact]
+    public async Task RunAsync_ExpectedAccount_AnotherUserSignsIn_FailsAndSavesNothing()
+    {
+        GoogleAccepts();
+
+        var error = await Assert.ThrowsAsync<WrongAccountException>(
+            () => CreateFlow(GoogleRedirects(Approve)).RunAsync("work‮@example.com", "555", TestContext.Current.CancellationToken));
+
+        // Both addresses come back as plain text, and nothing about the other user is kept (its grant isn't revoked:
+        // it may be an account Leaf already holds)
+        Assert.Equal("leaf.tester@gmail.com", error.SignedInEmail);
+        Assert.Equal("work@example.com", error.ExpectedEmail);
+        Assert.Empty(_store.GetAccountIds());
+        Assert.DoesNotContain(_google.Requests, r => r.Uri.AbsoluteUri == RevokeUrl);
+        using var conn = _db.Database.Open();
+        Assert.Empty(AccountStore.GetAll(conn));
+    }
+
+    [Fact]
+    public async Task RunAsync_ExpectedAccount_SameUser_SavesIt()
+    {
+        GoogleAccepts();
+
+        var account = await CreateFlow(GoogleRedirects(Approve)).RunAsync("leaf.tester@gmail.com", "109876543210", TestContext.Current.CancellationToken);
+
+        Assert.Equal("109876543210", account.Id);
+        Assert.Equal("1//test-refresh-token", _store.GetRefreshToken("109876543210"));
+    }
+
+    [Fact]
     public async Task RunAsync_SameAccountTwice_KeepsOneAccountWithLatestToken()
     {
         var ct = TestContext.Current.CancellationToken;

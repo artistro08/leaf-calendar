@@ -11,4 +11,21 @@ public sealed class AccountNeedsSignInException(string accountId) : Exception("T
 }
 
 /// <summary>Sign-in failed. <see cref="Exception.Message"/> is written for the user.</summary>
-public sealed class SignInException(string message) : Exception(message);
+public class SignInException(string message) : Exception(message);
+
+/// <summary>
+/// A sign-in for one account came back as another Google user, so nothing was saved. Both addresses are plain text
+/// (control and format characters removed), ready to show.
+/// </summary>
+public sealed class WrongAccountException(string signedInEmail, string? expectedEmail)
+    : SignInException("You signed in with a different Google account.")
+{
+    /// <summary>The address Google signed in.</summary>
+    public string SignedInEmail { get; } = Plain(signedInEmail);
+
+    /// <summary>The address that was asked for (empty when unknown).</summary>
+    public string ExpectedEmail { get; } = Plain(expectedEmail ?? "");
+
+    static string Plain(string text) =>
+        new([.. text.Where(c => !char.IsControl(c) && char.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.Format)]);
+}

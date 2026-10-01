@@ -4,7 +4,10 @@ using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
+using LeafCalendar.Core.Auth;
+using LeafCalendar.Core.Data;
 using LeafCalendar.UITests.Support;
+using Microsoft.Data.Sqlite;
 
 namespace LeafCalendar.UITests;
 
@@ -75,6 +78,16 @@ public sealed class ConferencingAndContactsTests : IDisposable
             ["entryPoints"]  = new JsonArray(new JsonObject { ["entryPointType"] = "video", ["uri"] = "https://meet.google.com/abc-defg-hij" }),
         };
     });
+
+    // The element shows inside the editor's scrolling body, above the pinned footer, without scrolling by hand
+    static void AssertVisibleAboveFooter(LeafApp leaf, AutomationElement element)
+    {
+        var footerTop = leaf.WaitFor("EditorSaveButton").BoundingRectangle.Top;
+        var panelTop  = leaf.WaitFor("DetailsPanel").BoundingRectangle.Top;
+        Assert.True(
+            Retry.WhileFalse(() => element.BoundingRectangle is { Height: > 0 } box && box.Top >= panelTop && box.Bottom <= footerTop, TimeSpan.FromSeconds(5)).Success,
+            $"'{element.Properties.AutomationId.ValueOrDefault}' at {element.BoundingRectangle} is hidden (footer starts at {footerTop}).");
+    }
 
     static string NoSpaces(string text) => text.Replace(" ", string.Empty, StringComparison.Ordinal);
 
@@ -208,13 +221,59 @@ public sealed class ConferencingAndContactsTests : IDisposable
 
         var allow = leaf.WaitFor("EditorAllowContacts");
         Assert.Empty(SuggestionNames(leaf));
+        AssertVisibleAboveFooter(leaf, allow);
 
-        // The fake browser finishes the consent on its own, as sign-in does in AccountFlowTests
+        // With the box emptied the link stays, and goes once the consent is done (the fake browser finishes it on its
+        // own, as sign-in does in AccountFlowTests)
+        GuestEdit(leaf).Text = "";
         allow.AsButton().Invoke();
         Assert.True(Retry.WhileFalse(() => _google.ContactsGranted && !leaf.Exists("EditorAllowContacts"), TimeSpan.FromSeconds(20)).Success, "Allowing contacts didn't finish.");
 
         TypeGuest(leaf, "ali");
         Assert.NotNull(WaitForSuggestion(leaf, Alice));
+    }
+
+    [Fact]
+    public void AllowContacts_AnotherGoogleAccount_SavesNothingAndSaysWhy()
+    {
+        _google.ContactsGranted   = false;
+        _google.SignInAsOtherUser = true;
+        using (var leaf = Launch())
+        {
+            EditDentist(leaf);
+            TypeGuest(leaf, "ali");
+
+            leaf.WaitFor("EditorAllowContacts").AsButton().Invoke();
+
+            var error = leaf.WaitFor("EditorError");
+            Assert.True(
+                Retry.WhileFalse(() => error.Name == $"You signed in as {FakeGoogleServer.OtherUserEmail}. Sign in as {SeededProfile.Email} to allow suggestions.", TimeSpan.FromSeconds(20)).Success,
+                $"The editor says \"{error.Name}\".");
+            Assert.True(leaf.Exists("EditorAllowContacts"));
+        }
+
+        // Nothing of the other user was saved: no account row, no refresh token
+        var database = new LeafDatabase(Path.Combine(LeafApp.ProfileFolder(_profile), "leaf.db"));
+        using (var conn = database.Open())
+        {
+            Assert.Equal([SeededProfile.AccountId], AccountStore.GetAll(conn).Select(a => a.Id));
+        }
+
+        SqliteConnection.ClearAllPools();
+        Assert.Null(new CredentialLockerTokenStore(_profile).GetRefreshToken(FakeGoogleServer.OtherUserId));
+    }
+
+    [Fact]
+    public void GuestInput_EnterOnATypedAddress_AddsTheGuest()
+    {
+        using var leaf = Launch();
+        EditDentist(leaf);
+
+        TypeGuest(leaf, "sam@example.com");
+        Keyboard.Press(VirtualKeyShort.RETURN);
+
+        Assert.NotNull(leaf.WaitFor("EditorGuestOptional_sam@example.com"));
+        Assert.True(Retry.WhileFalse(() => GuestEdit(leaf).Text.Length == 0, TimeSpan.FromSeconds(5)).Success, $"The guest box still says \"{GuestEdit(leaf).Text}\".");
     }
 
     [Fact]
@@ -226,7 +285,9 @@ public sealed class ConferencingAndContactsTests : IDisposable
 
         TypeGuest(leaf, "ali");
 
-        Assert.Equal("Turn on the People API in Google Cloud Console to get suggestions.", leaf.WaitFor("EditorContactsApiOff").Name);
+        var line = leaf.WaitFor("EditorContactsApiOff");
+        Assert.Equal("Turn on the People API in Google Cloud Console to get suggestions.", line.Name);
+        AssertVisibleAboveFooter(leaf, line);
         Assert.Empty(SuggestionNames(leaf));
         Assert.False(leaf.Exists("EditorAllowContacts"));
     }
@@ -252,8 +313,9 @@ public sealed class ConferencingAndContactsTests : IDisposable
         }
 
         Assert.NotEmpty(text);
-        Assert.DoesNotContain("alice", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("Alice", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("ali", text, StringComparison.Ordinal);
+        foreach (var contact in new[] { "Alice Example", "alice@example.com", "ali.other@example.com", "ali.hostile@example.com", "Ali<b>ce</b>", "query=ali" })
+        {
+            Assert.DoesNotContain(contact, text, StringComparison.OrdinalIgnoreCase);
+        }
     }
 }

@@ -32,7 +32,15 @@ public sealed class SignInFlow(
 
     /// <summary>Runs sign-in and returns the saved account.</summary>
     /// <exception cref="SignInException">Sign-in failed, was canceled, or timed out.</exception>
-    public async Task<Account> RunAsync(string? loginHint, CancellationToken ct)
+    public Task<Account> RunAsync(string? loginHint, CancellationToken ct) => RunAsync(loginHint, null, ct);
+
+    /// <summary>
+    /// Runs sign-in and returns the saved account. With <paramref name="expectedAccountId"/>, only that account may come
+    /// back (signing in again for more permissions): another Google user saves nothing.
+    /// </summary>
+    /// <exception cref="WrongAccountException">Google signed in a different user than <paramref name="expectedAccountId"/>.</exception>
+    /// <exception cref="SignInException">Sign-in failed, was canceled, or timed out.</exception>
+    public async Task<Account> RunAsync(string? loginHint, string? expectedAccountId, CancellationToken ct)
     {
         using var listener = new LoopbackListener();
         var verifier = Pkce.CreateVerifier();
@@ -97,6 +105,13 @@ public sealed class SignInFlow(
         {
             log.Error("signin.exchange-failed", ex);
             throw Fail("exchange-failed", "Google couldn't complete sign-in. Try again.");
+        }
+
+        // Only The Expected Account (nothing of the other user is kept; its grant isn't revoked, Leaf may hold it)
+        if (expectedAccountId is not null && user.Sub != expectedAccountId)
+        {
+            log.Info("signin.failed", "reason=wrong-account");
+            throw new WrongAccountException(user.Email, loginHint);
         }
 
         // Save Account

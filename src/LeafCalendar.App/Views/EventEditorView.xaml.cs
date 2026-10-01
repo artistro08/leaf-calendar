@@ -154,6 +154,14 @@ public sealed partial class EventEditorView : UserControl
             PaintSwatches();
         }
 
+        // A Contacts Line That Turns On Scrolls Into View (the guest box sits low, near the pinned footer); after layout,
+        // so it's measured
+        if (e.PropertyName == nameof(EventEditorViewModel.ContactsAccess) && Editor is { } editor && (editor.ShowAllowContacts || editor.ShowContactsApiOff))
+        {
+            FrameworkElement line = editor.ShowAllowContacts ? AllowContactsLink : ContactsApiOffText;
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => line.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = false }));
+        }
+
         // The "Calendar color" swatch follows the picked calendar
         if (e.PropertyName == nameof(EventEditorViewModel.CalendarIndex))
         {
@@ -264,6 +272,8 @@ public sealed partial class EventEditorView : UserControl
             return;
         }
 
+        // The submitted text itself (the box's two-way text can lag right after typing)
+        editor.GuestInput = args.QueryText;
         editor.AddGuest();
     }
 

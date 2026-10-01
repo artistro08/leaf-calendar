@@ -128,6 +128,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     readonly (DateOnly? StartDay, TimeSpan StartTime, DateOnly? EndDay, TimeSpan EndTime) _loadedWhen;
     readonly int[] _reminderMinutes;
     readonly LatestSearch<ContactResults> _contactSearch = new();
+    string? _searchedAccount;
     bool _ready;
 
     /// <summary>Loads the fields from <paramref name="draft"/>.</summary>
@@ -384,12 +385,14 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         }
 
         // Stale (the user kept typing) or closed
+        var account = ContactsAccountId;
         if (await _contactSearch.RunAsync(ct => search(text, ct)) is not { } results)
         {
             return;
         }
 
-        ContactsAccess = results.Access;
+        _searchedAccount = account;
+        ContactsAccess   = results.Access;
         Suggestions.Clear();
         foreach (var contact in results.Contacts)
         {
@@ -397,19 +400,29 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Adds a picked suggestion as a guest and empties the box (which drops the suggestions).</summary>
+    /// <summary>Adds a picked suggestion as a guest; the box empties (dropping the suggestions) only when it's added.</summary>
     public void PickSuggestion(ContactSuggestion suggestion)
     {
         GuestInput = suggestion.Email;
         AddGuest();
-        GuestInput = "";
     }
 
-    // Contacts stay in memory only while typing
-    void ClearSuggestions()
+    /// <summary>Stops any search and lets go of the suggestions (contacts stay in memory only while typing).</summary>
+    public void ClearSuggestions()
     {
         _contactSearch.Cancel();
         Suggestions.Clear();
+    }
+
+    // Another account's contacts: what the last account allowed no longer counts
+    partial void OnCalendarIndexChanged(int value)
+    {
+        if (_searchedAccount is not null && _searchedAccount != ContactsAccountId)
+        {
+            _searchedAccount = null;
+            ContactsAccess   = ContactAccess.Allowed;
+            ClearSuggestions();
+        }
     }
 
     partial void OnGuestInputChanged(string value)

@@ -92,6 +92,15 @@ public sealed class FakeGoogleServer : IDisposable
     /// <summary>When true, contact searches get Google's "People API is turned off" refusal (<c>403 accessNotConfigured</c>).</summary>
     public bool PeopleApiDisabled { get; set; }
 
+    /// <summary>When true, sign-in comes back as a different Google user (<see cref="OtherUserEmail"/>) than the fixture account.</summary>
+    public bool SignInAsOtherUser { get; set; }
+
+    /// <summary>The other user's address (sub <see cref="OtherUserId"/>).</summary>
+    public const string OtherUserEmail = "other.person@example.com";
+
+    /// <summary>The other user's Google ID.</summary>
+    public const string OtherUserId = "222222222222";
+
     /// <summary>How many token revocations were requested.</summary>
     public int RevokeCount => Volatile.Read(ref _revokes);
 
@@ -234,7 +243,14 @@ public sealed class FakeGoogleServer : IDisposable
 
         if (method == "GET" && path == "/userinfo")
         {
-            return (200, Read("userinfo.json"), null);
+            var user = JsonNode.Parse(Read("userinfo.json"))!;
+            if (SignInAsOtherUser)
+            {
+                user["sub"]   = OtherUserId;
+                user["email"] = OtherUserEmail;
+            }
+
+            return (200, user.ToJsonString(), null);
         }
 
         // Calendar List
