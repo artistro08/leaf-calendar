@@ -72,6 +72,9 @@
                     </StackPanel>
                     <TextBlock x:Name="StatusText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.AutomationId="DetailsStatus" />
 
+                    <!-- Divider -->
+                    <Border x:Name="DividerJoin" Style="{StaticResource LeafDividerStyle}" AutomationProperties.AutomationId="DetailsDivider_Join" />
+
                     <!-- Join (the whole width; the label names the service, the arrow opens the menu. Two accent buttons that
                          read as one split button. Edit and Delete are icons in the title bar row, see MainWindow) -->
                     <Grid x:Name="JoinGroup" ColumnSpacing="1">
@@ -82,6 +85,7 @@
                         <Button
                             x:Name="JoinButton"
                             HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
                             Style="{StaticResource AccentButtonStyle}"
                             CornerRadius="4,0,0,4"
                             Content="Join meeting"
@@ -91,6 +95,7 @@
                             x:Name="JoinMenuButton"
                             Grid.Column="1"
                             Width="32"
+                            VerticalAlignment="Stretch"
                             Padding="0"
                             Style="{StaticResource AccentButtonStyle}"
                             CornerRadius="0,4,4,0"
@@ -120,6 +125,9 @@
                         <HyperlinkButton x:Name="MapsLink" Padding="0" Content="Open in Google Maps" Click="OnMapsClick" AutomationProperties.AutomationId="DetailsMapsLink" />
                     </StackPanel>
                     <TextBlock x:Name="ConferenceText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsConference" />
+
+                    <!-- Divider -->
+                    <Border x:Name="DividerPeople" Style="{StaticResource LeafDividerStyle}" AutomationProperties.AutomationId="DetailsDivider_People" />
 
                     <!-- Your Reply -->
                     <StackPanel x:Name="RsvpRow" Spacing="8">
@@ -152,6 +160,9 @@
                         </ItemsControl>
                     </StackPanel>
                     <!-- /Guests -->
+
+                    <!-- Divider -->
+                    <Border x:Name="DividerDescription" Style="{StaticResource LeafDividerStyle}" AutomationProperties.AutomationId="DetailsDivider_Description" />
 
                     <RichTextBlock x:Name="DescriptionBlock" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsDescription" />
                 </StackPanel>

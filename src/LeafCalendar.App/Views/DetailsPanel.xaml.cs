@@ -176,6 +176,12 @@ public sealed partial class DetailsPanel : UserControl
         GuestList.ItemsSource = guests.Select(g => new GuestItem(g.Email, GuestDetail(g))).ToList();
 
         RenderDescription(info.DescriptionRuns);
+
+        // Dividers: one above each group that shows, never above the first group (the title block), so none sit
+        // at the ends or side by side
+        DividerJoin.Visibility        = Visible(JoinGroup.Visibility == Visibility.Visible || LocationRow.Visibility == Visibility.Visible || ConferenceText.Visibility == Visibility.Visible);
+        DividerPeople.Visibility      = Visible(RsvpRow.Visibility == Visibility.Visible || GuestsRow.Visibility == Visibility.Visible);
+        DividerDescription.Visibility = DescriptionBlock.Visibility;
     }
 
     // The arrow opens the menu once, right-aligned under the whole button group

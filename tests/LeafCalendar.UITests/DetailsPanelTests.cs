@@ -17,6 +17,8 @@ public sealed class DetailsPanelTests : IDisposable
         _google.Dispose();
     }
 
+    static readonly string[] EditorDividers = ["Calendar", "Guests", "Reminder", "Description"];
+
     LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     [Fact]
@@ -50,6 +52,47 @@ public sealed class DetailsPanelTests : IDisposable
         // Another Event Keeps Google's Defaults
         leaf.WaitFor("Event_evt-meeting_202610011800").Click();
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsStatus").Name == "Busy · Default visibility", TimeSpan.FromSeconds(5)).Success, $"Status says \"{leaf.WaitFor("DetailsStatus").Name}\".");
+    }
+
+    [Fact]
+    public void Details_DividersSeparateTheGroupsThatShow_NeverAtTheEnds()
+    {
+        using var leaf = Launch();
+
+        // The dentist has no call, guests, or description: one group, no dividers
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        leaf.WaitFor("DetailsStatus");
+        Assert.False(leaf.Exists("DetailsDivider_Join") || leaf.Exists("DetailsDivider_People") || leaf.Exists("DetailsDivider_Description"));
+
+        // The design review has all four groups: three dividers, in order, each between two groups
+        leaf.WaitFor("Event_evt-meeting_202610011800").Click();
+        var status = leaf.WaitFor("DetailsStatus").BoundingRectangle;
+        var join   = leaf.WaitFor("DetailsDivider_Join").BoundingRectangle;
+        var people = leaf.WaitFor("DetailsDivider_People").BoundingRectangle;
+        var text   = leaf.WaitFor("DetailsDivider_Description").BoundingRectangle;
+        var last   = leaf.WaitFor("DetailsDescription").BoundingRectangle;
+        Assert.True(status.Bottom <= join.Top && join.Bottom <= leaf.WaitFor("DetailsJoinButton").BoundingRectangle.Top, "The first divider isn't between the title block and Join.");
+        Assert.True(join.Bottom < people.Top && people.Bottom < text.Top && text.Bottom <= last.Top, "The dividers are out of order or touching.");
+    }
+
+    [Fact]
+    public void Editor_DividersSeparateTheGroups()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        leaf.WaitFor("DetailsStatus");
+        leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
+        leaf.WaitFor("EditorTitle");
+
+        // Title and dates | calendar, color, repeat | location, call, guests | reminders | description
+        var edges = EditorDividers
+            .Select(name => leaf.WaitFor($"EditorDivider_{name}").BoundingRectangle.Top)
+            .ToList();
+        // Dividers scrolled out of view report no position, so only the ones on screen are ordered
+        var shown = edges.Where(top => top > 0).ToList();
+        Assert.True(shown.Count >= 2, "The first two dividers should be on screen.");
+        Assert.Equal(shown.Order().ToList(), shown);
+        Assert.True(leaf.WaitFor("EditorDivider_Calendar").BoundingRectangle.Top > leaf.WaitFor("EditorEndTime").BoundingRectangle.Top, "A divider sits above the dates.");
     }
 
     [Fact]
