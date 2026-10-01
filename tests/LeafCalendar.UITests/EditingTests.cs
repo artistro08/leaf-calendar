@@ -249,6 +249,33 @@ public sealed class EditingTests : IDisposable
         Assert.DoesNotContain(_google.Writes, w => w.Path.EndsWith("/events/evt-weekly", StringComparison.Ordinal));
     }
 
+    // Ruling: A Description Leaf Had To Cut Short Is Read-Only And Never Sent (sending it would delete the rest on Google)
+    [Fact]
+    public void Edit_DescriptionTooLong_IsReadOnlyAndNotSent()
+    {
+        _google.AddEvent(SeededProfile.Email, new JsonObject
+        {
+            ["id"]          = "evt-lunch",
+            ["summary"]     = "Team lunch",
+            ["description"] = new string('x', 20_000),
+            ["start"]       = new JsonObject { ["dateTime"] = "2026-10-01T16:00:00Z" },
+            ["end"]         = new JsonObject { ["dateTime"] = "2026-10-01T17:00:00Z" },
+        });
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-lunch_202610011600").Click();
+        leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
+
+        Assert.Equal("This description is too long to edit in Leaf.", leaf.WaitFor("EditorDescriptionTooLong").Name);
+        Assert.True(leaf.WaitFor("EditorDescription").Patterns.Value.Pattern.IsReadOnly.Value);
+
+        leaf.WaitFor("EditorTitle").AsTextBox().Text = "Long lunch";
+        leaf.WaitFor("EditorSaveQuietButton").AsButton().Invoke();
+
+        var write = _google.WaitForWrite(w => w.Method == "PATCH" && w.Path.EndsWith("/events/evt-lunch", StringComparison.Ordinal));
+        Assert.Contains("Long lunch", write.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("description", write.Body, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void AddGuest_SaveWithoutEmailing_SendsAttendeesQuietly()
     {

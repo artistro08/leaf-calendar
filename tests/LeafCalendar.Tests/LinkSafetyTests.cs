@@ -28,6 +28,8 @@ public class LinkSafetyTests
     [InlineData("mailto:sam@example.com", true)]
     [InlineData("zoommtg://zoom.us/join", false)]
     [InlineData("http://example.com", false)]
+    [InlineData("https://bank.example@evil.example/", false)]
+    [InlineData("https://user:pass@example.com/", false)]
     public void IsClickableInDescription_HttpsAndMailtoOnly(string link, bool expected)
     {
         Assert.Equal(expected, LinkSafety.IsClickableInDescription(new Uri(link)));
@@ -187,6 +189,23 @@ public class LinkSafetyTests
     [InlineData("https://meet.google.com/abc?authuser=leaf%40gmail.com", "https://meet.google.com/abc?authuser=leaf%40gmail.com")]
     public void DisplayForm_ShowsAsciiHosts(string link, string expected) =>
         Assert.Equal(expected, LinkSafety.DisplayForm(new Uri(link)));
+
+    // Review Focus 1: The Details Panel Names Where A Link Really Goes Unless Its Text Already Does
+    [Theory]
+    [InlineData("https://evil.example/x", "Log in at bank.example", "evil.example")]
+    [InlineData("https://evil.example/x", "here", "evil.example")]
+    [InlineData("https://аpple.com/", "apple", "xn--pple-43d.com")]
+    [InlineData("https://evil.example/", "bank</a><a>.example", "evil.example")]
+    [InlineData("mailto:sam@example.com", "Sam", "sam@example.com")]
+    [InlineData("https://example.com/x", "https://example.com/x", null)]
+    [InlineData("https://example.com/x", "https://example.com/other", null)]
+    [InlineData("https://example.com/x", "EXAMPLE.COM", null)]
+    [InlineData("https://www.example.com/", "www.example.com", null)]
+    [InlineData("mailto:sam@example.com", "sam@example.com", null)]
+    public void HostNote_OnlyWhenTheTextDoesNotShowTheTarget(string link, string text, string? expected)
+    {
+        Assert.Equal(expected, LinkSafety.HostNote(new Uri(link), text));
+    }
 
     [Fact]
     public void DisplayForm_StripsInvisibleAndDirectionCharacters()

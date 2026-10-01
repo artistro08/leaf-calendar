@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
@@ -93,6 +94,30 @@ public sealed class DetailsPanelTests : IDisposable
         Assert.True(shown.Count >= 2, "The first two dividers should be on screen.");
         Assert.Equal(shown.Order().ToList(), shown);
         Assert.True(leaf.WaitFor("EditorDivider_Calendar").BoundingRectangle.Top > leaf.WaitFor("EditorEndTime").BoundingRectangle.Top, "A divider sits above the dates.");
+    }
+
+    // Review Focus 1: A Link Whose Text Doesn't Show Where It Goes Is Followed By Its Real Host
+    [Fact]
+    public void Description_LinkTextHidesTheTarget_ShowsTheRealHost()
+    {
+        _google.AddEvent(SeededProfile.Email, new JsonObject
+        {
+            ["id"]          = "evt-lunch",
+            ["summary"]     = "Team lunch",
+            ["description"] = "<a href=\"https://evil.example/login\">Log in at bank.example</a> or <a href=\"https://example.com/\">example.com</a>",
+            ["start"]       = new JsonObject { ["dateTime"] = "2026-10-01T16:00:00Z" },
+            ["end"]         = new JsonObject { ["dateTime"] = "2026-10-01T17:00:00Z" },
+        });
+        using var leaf = Launch();
+
+        leaf.WaitFor("Event_evt-lunch_202610011600").Click();
+        var text = "";
+        Assert.True(Retry.WhileFalse(() =>
+        {
+            text = leaf.WaitFor("DetailsDescription").Patterns.Text.Pattern.DocumentRange.GetText(-1);
+            return text.Contains("Log in at bank.example (evil.example)", StringComparison.Ordinal);
+        }, TimeSpan.FromSeconds(5)).Success, $"The description reads \"{text}\".");
+        Assert.DoesNotContain("example.com (", text, StringComparison.Ordinal);
     }
 
     [Fact]

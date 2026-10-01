@@ -63,9 +63,9 @@ public static partial class LinkSafety
         uri.IsAbsoluteUri && LaunchSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase)
             && (uri.Scheme != Uri.UriSchemeHttps || TryIdnHost(uri, out _));
 
-    /// <summary>True for links a description may make clickable: <c>https</c> and <c>mailto</c>.</summary>
+    /// <summary>True for links a description may make clickable: <c>https</c> (without a user name, which can pose as a host) and <c>mailto</c>.</summary>
     public static bool IsClickableInDescription(Uri uri) =>
-        uri.IsAbsoluteUri && ((uri.Scheme == Uri.UriSchemeHttps && TryIdnHost(uri, out _)) || uri.Scheme == Uri.UriSchemeMailto);
+        uri.IsAbsoluteUri && ((uri.Scheme == Uri.UriSchemeHttps && uri.UserInfo.Length == 0 && TryIdnHost(uri, out _)) || uri.Scheme == Uri.UriSchemeMailto);
 
     /// <summary>The meeting service an <c>https</c> link belongs to, or null.</summary>
     public static MeetingProvider? ProviderOf(Uri uri)
@@ -150,6 +150,39 @@ public static partial class LinkSafety
         }
 
         return new string(text.Where(c => !IsHiddenCharacter(c)).ToArray());
+    }
+
+    /// <summary>
+    /// Where a description link really goes, to show after its text: the ASCII host (the address for <c>mailto</c>).
+    /// Null when the text already shows that host or address, or the link has no ASCII form.
+    /// </summary>
+    public static string? HostNote(Uri link, string text)
+    {
+        ArgumentNullException.ThrowIfNull(link);
+        ArgumentNullException.ThrowIfNull(text);
+
+        if (!TryIdnHost(link, out var host) || host.Length == 0)
+        {
+            return null;
+        }
+
+        var shown = new string(text.Where(c => !IsHiddenCharacter(c)).ToArray()).Trim();
+
+        // Mail: The Text Is The Address
+        if (link.Scheme == Uri.UriSchemeMailto)
+        {
+            var address = link.UserInfo.Length > 0 ? $"{Uri.UnescapeDataString(link.UserInfo)}@{host}" : host;
+            return string.Equals(shown, address, StringComparison.OrdinalIgnoreCase) ? null : address;
+        }
+
+        // Web: The Text Is The Host, Or An Address On It
+        var asText = shown.Contains("://", StringComparison.Ordinal) ? shown : "https://" + shown;
+        var same   = Uri.TryCreate(asText, UriKind.Absolute, out var shownUri)
+            && (shownUri.Scheme == Uri.UriSchemeHttps || shownUri.Scheme == Uri.UriSchemeHttp)
+            && shownUri.UserInfo.Length == 0
+            && TryIdnHost(shownUri, out var shownHost)
+            && string.Equals(shownHost, host, StringComparison.OrdinalIgnoreCase);
+        return same ? null : host;
     }
 
     // Direction controls (U+202A-202E, U+2066-2069, U+200E/F, U+061C) and zero-width characters (U+200B-200D, U+2060, U+FEFF)

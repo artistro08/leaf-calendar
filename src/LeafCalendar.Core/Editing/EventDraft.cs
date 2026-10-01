@@ -48,6 +48,12 @@ public sealed record EventDraft
     /// <summary>Description as Leaf-normalized description HTML (empty when none).</summary>
     public string Description { get; init; } = "";
 
+    /// <summary>
+    /// True when reading cut the description short (<see cref="DescriptionHtml.IsTooLong"/>). Leaf then never writes the
+    /// description back, since that would delete the rest of it on Google, and the editor shows it read-only.
+    /// </summary>
+    public bool DescriptionTooLong { get; init; }
+
     /// <summary>Google event color 1-11, or null for the calendar's color.</summary>
     public string? ColorId { get; init; }
 

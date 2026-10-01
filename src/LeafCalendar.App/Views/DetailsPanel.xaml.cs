@@ -212,8 +212,10 @@ public sealed partial class DetailsPanel : UserControl
         DescriptionBlock.Visibility = Visible(runs.Count > 0);
 
         var paragraph = new Paragraph();
-        foreach (var run in runs)
+        var linkStart = 0;
+        for (var r = 0; r < runs.Count; r++)
         {
+            var run   = runs[r];
             var lines = run.Text.Split('\n');
             for (var i = 0; i < lines.Length; i++)
             {
@@ -226,6 +228,18 @@ public sealed partial class DetailsPanel : UserControl
                 {
                     paragraph.Inlines.Add(Styled(run, lines[i]));
                 }
+            }
+
+            // Backstop: after a link whose text doesn't show where it goes, its real host follows in dim plain text
+            var linkEnds = run.Link is { } link && (r == runs.Count - 1 || runs[r + 1].Link?.AbsoluteUri != link.AbsoluteUri);
+            if (linkEnds && LinkSafety.HostNote(run.Link!, string.Concat(runs.Skip(linkStart).Take(r - linkStart + 1).Select(x => x.Text))) is { } host)
+            {
+                paragraph.Inlines.Add(new Run { Text = $" ({host})", Foreground = LeafBrushes.SecondaryText(ActualTheme == ElementTheme.Dark) });
+            }
+
+            if (run.Link is null || linkEnds)
+            {
+                linkStart = r + 1;
             }
         }
 

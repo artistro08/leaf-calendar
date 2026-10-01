@@ -148,12 +148,148 @@ public partial class DescriptionHtmlTests
         Assert.Equal(output, DescriptionHtml.Normalize(output));
     }
 
-    [Fact]
-    public void Write_DisguisedLink_IsWrittenAsText()
+    [Theory]
+    [InlineData("https://bank.example/login")]
+    [InlineData("bank\uFF0Eexample")]
+    [InlineData("bank\u3002example")]
+    [InlineData("//bank.example")]
+    public void Write_DisguisedLink_IsWrittenAsText(string text)
     {
-        var html = DescriptionHtml.Write([Line(ListKind.None, new DescriptionRun("https://bank.example/login", Link: new Uri("https://evil.example/")))]);
+        var html = DescriptionHtml.Write([Line(ListKind.None, new DescriptionRun(text, Link: new Uri("https://evil.example/")))]);
 
         Assert.DoesNotContain("evil.example", html, StringComparison.Ordinal);
+    }
+
+    // Adjacent runs with one target are written as adjacent links, which read back as one link, so they're checked together
+    [Fact]
+    public void Write_DisguisedLinkSplitAcrossRuns_IsWrittenAsText()
+    {
+        var html = DescriptionHtml.Write([Line(ListKind.None, new DescriptionRun("bank", Link: new Uri("https://evil.example")), new DescriptionRun(".example", Bold: true, Link: new Uri("https://evil.example")))]);
+
+        Assert.DoesNotContain("evil.example", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Write_DisguisedPieceNextToAnotherLink_IsWrittenAsText()
+    {
+        var html = DescriptionHtml.Write([Line(ListKind.None, new DescriptionRun("https://bank", Link: new Uri("https://bank.evil.example")), new DescriptionRun(".example", Link: new Uri("https://evil.example")))]);
+
+        Assert.DoesNotContain("bank.evil.example", html, StringComparison.Ordinal);
+    }
+
+    // Review Focus 1: Hrefs Go To Google With ASCII Hosts And Nothing Hidden
+    [Theory]
+    [InlineData("<a href=\"https://\u0430pple.com/\">apple</a>", "https://xn--pple-43d.com/")]
+    [InlineData("<a href=\"https://ba\u200Bnk.example/\">x</a>", "https://bank.example/")]
+    public void Normalize_UnicodeHosts_AreWrittenAscii(string html, string href)
+    {
+        var output = DescriptionHtml.Normalize(html);
+
+        Assert.Contains($"href=\"{href}\"", output, StringComparison.Ordinal);
+        Assert.Equal(output, DescriptionHtml.Normalize(output));
+    }
+
+    [Fact]
+    public void Write_UnicodeHost_IsWrittenAscii()
+    {
+        var html = DescriptionHtml.Write([Line(ListKind.None, new DescriptionRun("apple", Link: new Uri("https://\u0430pple.com/login")))]);
+
+        Assert.Equal("<a href=\"https://xn--pple-43d.com/login\">apple</a>", html);
+    }
+
+    [Theory]
+    [InlineData(10_000, "x", false)]
+    [InlineData(10_001, "x", true)]
+    [InlineData(9_000, "&amp;", true)]
+    [InlineData(5_001, "<b></b>x", true)]
+    [InlineData(0, "x", false)]
+    public void IsTooLong_WhenReadingCutTheDescriptionShort(int count, string piece, bool expected)
+    {
+        Assert.Equal(expected, DescriptionHtml.IsTooLong(string.Concat(Enumerable.Repeat(piece, count))));
+    }
+
+    // Review Focus 1: Direction Controls Never Reach Google In Body Text
+    [Fact]
+    public void Normalize_BidiControlsInText_AreDropped()
+    {
+        Assert.Equal("abcdefghi", DescriptionHtml.Normalize("a\u202Ab\u202Bc\u202Cd\u202De\u202Ef\u2066g\u2067h\u2068\u2069i"));
+    }
+
+    // Text split into runs reads back joined, so bare addresses are linked per line, not per run
+    [Theory]
+    [InlineData("x https:<span>//bank.example</span>")]
+    [InlineData("<span>https://</span>bank.example")]
+    [InlineData("<b>https:</b><b>//bank.example</b>")]
+    [InlineData("<a href=\"https://evil.example\">https://bank</a>.example")]
+    [InlineData("<a href=\"javascript:x\">https://bank</a>.example/login")]
+    [InlineData("https://a\uFFFC.example")]
+    [InlineData("https://bank.example\u202E")]
+    public void Normalize_BareLinksAcrossRuns_IsIdempotent(string html)
+    {
+        var once = DescriptionHtml.Normalize(html);
+
+        Assert.Equal(once, DescriptionHtml.Normalize(once));
+    }
+
+    // The reviewer's probe: every input stays inside the allowlist, carries no hidden header or hidden character, and is stable
+    [Theory]
+    [InlineData("<a href=\"https://evil.example\">bank\uFF0Eexample</a>")]
+    [InlineData("<a href=\"https://evil.example\">bank\u3002example/login</a>")]
+    [InlineData("<a href=\"https://evil.example\">bank\u2024example</a>")]
+    [InlineData("<a href=\"https://evil.example\">//bank.example/login</a>")]
+    [InlineData("<a href=\"https://evil.example\">Log in at bank.example</a>")]
+    [InlineData("<a href=\"https://evil.example\">bank</a><a href=\"https://evil.example\">.example</a>")]
+    [InlineData("<a href=\"https://evil.example\">https://</a><a href=\"https://evil.example\">bank.example</a>")]
+    [InlineData("<a href=\"https://evil.example\">bank.example\u00A0</a>")]
+    [InlineData("<a href=\"https://evil.example\">\u202Eelpmaxe.knab</a>")]
+    [InlineData("<a href=\"https://ok.example/\u202Egnp.exe\">x</a>")]
+    [InlineData("<a href=\"https://ok.example/a&#x0A;b&#x09;c\">x</a>")]
+    [InlineData("<a href=\"https://ba\u200Bnk.example/\">x</a>")]
+    [InlineData(@"<a href=""https:\evil.example\x"">x</a>")]
+    [InlineData("<a href=\"//evil.example/x\">x</a>")]
+    [InlineData("<a href=\" java&#x09;script:alert(1)\">x</a>")]
+    [InlineData("<a href=\"&#106;avascript:alert(1)\">x</a>")]
+    [InlineData("<a href=\"file:///c:/x\">x</a>")]
+    [InlineData("<a href=\"https://bank.example@evil.example/\">x</a>")]
+    [InlineData("<a href='https://ok.example/\"onmouseover=x'>x</a>")]
+    [InlineData("<a href=\"https://\u0430pple.com/\">apple</a>")]
+    [InlineData("<a href=\"mailto:a@b.example?%62cc=c@d.example&amp;body=hi\">mail</a>")]
+    [InlineData("<a href=\"mailto:a@b.example?BCC=c@d.example\">mail</a>")]
+    [InlineData("<a href=\"mailto:a@b.example,c@d.example?cc=e@f.example&amp;bcc=g@h.example&amp;to=i@j.example\">mail</a>")]
+    [InlineData("<a href=\"mailto:a@b.example%3Fbcc=c@d.example\">mail</a>")]
+    [InlineData("<a href=\"mailto:a@b.example?subject=x%26bcc%3Dc@d.example\">mail</a>")]
+    [InlineData("<a href=\"mailto:a@b.example?subject=x;bcc=c@d.example\">mail</a>")]
+    [InlineData("<a href=\"mailto:a@b.example?attach=C:x&amp;body=%0Dhi\">mail</a>")]
+    [InlineData("<a href=\"mailto:a@b.example?%20bcc=c@d.example\">mail</a>")]
+    [InlineData("<b><i>x</b>y</i><u>z<ol><li>q")]
+    [InlineData("<ul><li>a<ol><li>b</li></ol>c</li></ul>")]
+    [InlineData("<a href=\"https://evil.example\"><li>bank.example</a>")]
+    [InlineData("https://bank.example\u202E")]
+    [InlineData("<a href=\"https://evil.example\">bank<ul><li>.example</li></ul></a>")]
+    public void Normalize_ReviewerProbe_StaysSafeAndStable(string html)
+    {
+        var output = DescriptionHtml.Normalize(html);
+
+        Assert.DoesNotMatch(ForeignTag(), output);
+        Assert.Equal(output, DescriptionHtml.Normalize(output));
+        Assert.DoesNotContain("href=\"https://evil.example/\">bank", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"https://evil.example/\">https", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("@evil.example", output, StringComparison.Ordinal);
+        Assert.False(Regex.IsMatch(output, @"href=""(?!https://|mailto:)"), output);
+        Assert.False(Regex.IsMatch(output, @"href=""[^""]*(bcc|%62cc|to=|attach|;|%3F)", RegexOptions.IgnoreCase), output);
+        Assert.False(output.Any(c => char.IsControl(c) || c is (>= '\u202A' and <= '\u202E') or (>= '\u2066' and <= '\u2069') or '\u200B'), output);
+    }
+
+    [Fact]
+    public void Write_ReviewerProbeLinks_StaySafe()
+    {
+        Assert.Equal("<a href=\"mailto:a@b.example?cc=x@y.example\">mail</a>", WriteLink("mail", "mailto:a@b.example?bcc=c@d.example&cc=x@y.example"));
+        Assert.Equal("<a href=\"https://ok.example/%E2%80%AEgnp.exe\">x</a>", WriteLink("x", "https://ok.example/\u202Egnp.exe"));
+        Assert.Equal("x", WriteLink("x", "data:text/html,hi"));
+        Assert.Equal("x", WriteLink("x", "file:///c:/x"));
+        Assert.Equal("x", WriteLink("x", "https://bank.example@evil.example/"));
+
+        static string WriteLink(string text, string link) => DescriptionHtml.Write([Line(ListKind.None, new DescriptionRun(text, Link: new Uri(link)))]);
     }
 
     [Fact]

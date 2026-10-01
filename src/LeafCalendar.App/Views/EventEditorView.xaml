@@ -261,7 +261,8 @@
                 <Border Style="{StaticResource LeafDividerStyle}" AutomationProperties.AutomationId="EditorDivider_Description" />
 
                 <!-- Description -->
-                <TextBox Header="Description" MinHeight="80" AcceptsReturn="True" TextWrapping="Wrap" Text="{x:Bind Editor.Description, Mode=TwoWay}" AutomationProperties.AutomationId="EditorDescription" />
+                <TextBox Header="Description" MinHeight="80" AcceptsReturn="True" TextWrapping="Wrap" Text="{x:Bind Editor.Description, Mode=TwoWay}" IsReadOnly="{x:Bind Editor.DescriptionTooLong}" AutomationProperties.AutomationId="EditorDescription" />
+                <TextBlock Text="This description is too long to edit in Leaf." Visibility="{x:Bind Editor.DescriptionTooLong}" Style="{StaticResource LeafSecondaryTextStyle}" AutomationProperties.AutomationId="EditorDescriptionTooLong" />
                 <!-- /Description -->
 
                 <TextBlock Text="{x:Bind Editor.Error, Mode=OneWay}" Visibility="{x:Bind Editor.HasError, Mode=OneWay}" Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" AutomationProperties.AutomationId="EditorError" />

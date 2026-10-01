@@ -56,9 +56,13 @@ public static partial class DescriptionFormatter
     }
 
     /// <summary>Runs for description HTML.</summary>
-    public static IReadOnlyList<DescriptionRun> Format(string html)
+    public static IReadOnlyList<DescriptionRun> Format(string html) => Format(html, out _);
+
+    /// <summary>Runs for description HTML; <paramref name="capped"/> says whether the input or the text was cut short.</summary>
+    internal static IReadOnlyList<DescriptionRun> Format(string html, out bool capped)
     {
-        if (html.Length > MaxInput)
+        var tooLong = html.Length > MaxInput;
+        if (tooLong)
         {
             html = html[..MaxInput];
         }
@@ -73,6 +77,9 @@ public static partial class DescriptionFormatter
         var position       = 0;
         var lineStart      = true;
         var previousBreaks = false;
+        Uri? closedLink    = null;
+        var closedStart    = 0;
+        var closedEnd      = 0;
 
         foreach (Match tag in Tag().Matches(html))
         {
@@ -98,11 +105,19 @@ public static partial class DescriptionFormatter
                     underline = Math.Max(0, underline + step);
                     break;
                 case "a":
-                    EndLink();
+                    CloseLink();
                     if (!closing)
                     {
-                        link      = SafeLink(tag.Groups[3].Value);
-                        linkStart = runs.Count;
+                        // Reopened on the same target with no text between: it reads as one link, so it's checked as one
+                        var opened = SafeLink(tag.Groups[3].Value);
+                        if (opened is not null && closedLink is not null && closedEnd == runs.Count && closedLink.AbsoluteUri == opened.AbsoluteUri)
+                        {
+                            (link, linkStart, closedLink) = (opened, closedStart, null);
+                            break;
+                        }
+
+                        CheckClosedLink();
+                        (link, linkStart) = (opened, runs.Count);
                     }
 
                     break;
@@ -144,12 +159,21 @@ public static partial class DescriptionFormatter
         }
 
         AddText(SourceText(html[position..], previousBreaks, before: false));
-        EndLink();
-        return Tidy(runs);
+        CloseLink();
+        CheckClosedLink();
+        var result = Tidy(runs, out var cut);
+        capped = tooLong || cut;
+        return result;
 
         // Adds a run, tracking whether the text so far ends at the start of a line (list markers don't count as text)
         void Add(DescriptionRun run)
         {
+            if (run.Text.Length == 0)
+            {
+                return;
+            }
+
+            CheckClosedLink();
             runs.Add(run);
             var text = run.Text.AsSpan().TrimEnd(" \t\r");
             if (run.List == ListKind.None && text.Length > 0)
@@ -167,19 +191,31 @@ public static partial class DescriptionFormatter
             }
         }
 
-        // Closes the open link; if its visible text is a web address for another host, the link is stripped
-        void EndLink()
+        // Closes the open link. Its check waits until something else follows, since the same link reopened right away reads
+        // as one link with it
+        void CloseLink()
+        {
+            if (link is not null)
+            {
+                (closedLink, closedStart, closedEnd) = (link, linkStart, runs.Count);
+            }
+
+            link = null;
+        }
+
+        // Checks the closed link: if its visible text is a web address for another host, the link is stripped
+        void CheckClosedLink()
         {
             // List markers aren't part of the link's visible text
-            if (link is not null && DisguisesTarget(link, string.Concat(runs.Skip(linkStart).Where(r => r.List == ListKind.None).Select(r => r.Text))))
+            if (closedLink is not null && DisguisesTarget(closedLink, string.Concat(runs.Skip(closedStart).Take(closedEnd - closedStart).Where(r => r.List == ListKind.None).Select(r => r.Text))))
             {
-                for (var i = linkStart; i < runs.Count; i++)
+                for (var i = closedStart; i < closedEnd; i++)
                 {
                     runs[i] = runs[i] with { Link = null };
                 }
             }
 
-            link = null;
+            closedLink = null;
         }
 
         // Text between tags: decoded, and bare https links outside an <a> become links
@@ -283,9 +319,21 @@ public static partial class DescriptionFormatter
     // True when the visible text names a web address whose host differs from where the link really goes
     internal static bool DisguisesTarget(Uri target, string visible)
     {
-        // Invisible characters (zero-width, bidi controls, BOM) and a leading bullet can't be used to dodge the check
-        var shown = new string(visible.Where(c => char.GetUnicodeCategory(c) is not (UnicodeCategory.Format or UnicodeCategory.Control)).ToArray())
-            .Trim().TrimStart('•', ' ').Trim();
+        // Look-alike forms (fullwidth letters, other dots) read as what they look like; text that can't be normalized isn't trusted
+        string folded;
+        try
+        {
+            folded = visible.Normalize(NormalizationForm.FormKC);
+        }
+        catch (ArgumentException)
+        {
+            return true;
+        }
+
+        // Invisible characters (zero-width, bidi controls, BOM), a leading bullet, and leading slashes or dots ("//bank.example") can't dodge the check
+        var shown = new string(folded.Where(c => char.GetUnicodeCategory(c) is not (UnicodeCategory.Format or UnicodeCategory.Control))
+                .Select(c => c is '。' or '｡' or '．' or '․' ? '.' : c).ToArray())
+            .Trim().TrimStart('•', ' ').Trim().TrimStart('/', '.');
         var web = shown.StartsWith("http", StringComparison.OrdinalIgnoreCase);
         if (!web && shown.Any(char.IsWhiteSpace))
         {
@@ -339,25 +387,40 @@ public static partial class DescriptionFormatter
         }
 
         value = WebUtility.HtmlDecode(value).Trim();
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || !LinkSafety.IsClickableInDescription(uri))
+        if (value.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase))
+        {
+            return TrimMailto(value);
+        }
+
+        return Uri.TryCreate(value, UriKind.Absolute, out var uri) && LinkSafety.IsClickableInDescription(uri) ? uri : null;
+    }
+
+    // Keeps only subject, body, and cc from a mailto link's query, so an invite can't add bcc or attachments
+    // Recipients must be plain addresses, so one that hides "?bcc=" or another header behind encoding makes the link unclickable.
+    // A kept value can't hold "&", "=", or ";" once decoded either (a client that decodes before splitting would read a new field)
+    internal static Uri? TrimMailto(string value)
+    {
+        var parts = value.Split('?', 2);
+        if (!parts[0].StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) || !AreAddresses(parts[0]["mailto:".Length..], allowEmpty: true))
         {
             return null;
         }
 
-        return uri.Scheme == Uri.UriSchemeMailto ? TrimMailto(value) : uri;
-    }
-
-    // Keeps only subject, body, and cc from a mailto link's query, so an invite can't add bcc or attachments
-    internal static Uri? TrimMailto(string value)
-    {
-        var parts = value.Split('?', 2);
-        var kept  = parts.Length < 2
+        var kept = parts.Length < 2
             ? []
             : parts[1].Split('&', StringSplitOptions.RemoveEmptyEntries)
-                .Where(p => p.Split('=')[0].ToLowerInvariant() is "subject" or "body" or "cc"
-                    && !p.Any(char.IsControl) && !p.Contains("%0D", StringComparison.OrdinalIgnoreCase) && !p.Contains("%0A", StringComparison.OrdinalIgnoreCase))
+                .Select(p => p.Split('=', 2))
+                .Where(p => p.Length == 2 && p[0].ToLowerInvariant() is "subject" or "body" or "cc"
+                    && Uri.UnescapeDataString(p[1]) is var decoded && !decoded.Any(c => char.IsControl(c) || c is '&' or '=' or ';')
+                    && (!p[0].Equals("cc", StringComparison.OrdinalIgnoreCase) || AreAddresses(p[1], allowEmpty: false)))
+                .Select(p => $"{p[0]}={p[1]}")
                 .ToList();
-        var clean = parts[0] + (kept.Count > 0 ? "?" + string.Join("&", kept) : "");
+        // Several recipients: Uri takes only one "@" in the address part, so all but the last "@" and the commas are
+        // percent-encoded (mail apps decode them back to "a@b.example,c@d.example")
+        var to    = Uri.UnescapeDataString(parts[0]["mailto:".Length..]);
+        var at    = to.LastIndexOf('@');
+        var clean = "mailto:" + (to.Contains(',', StringComparison.Ordinal) ? to[..at].Replace("@", "%40", StringComparison.Ordinal).Replace(",", "%2C", StringComparison.Ordinal) + to[at..] : to)
+            + (kept.Count > 0 ? "?" + string.Join("&", kept) : "");
         if (!Uri.TryCreate(clean, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeMailto)
         {
             return null;
@@ -369,10 +432,27 @@ public static partial class DescriptionFormatter
             : uri;
     }
 
+    // A comma-separated list of plain addresses ("name@host": letters, digits, ".", "-", "_", "+"), checked once decoded
+    static bool AreAddresses(string encoded, bool allowEmpty)
+    {
+        if (encoded.Length == 0)
+        {
+            return allowEmpty;
+        }
+
+        return Uri.UnescapeDataString(encoded).Split(',').All(address =>
+        {
+            var at = address.IndexOf('@', StringComparison.Ordinal);
+            return at > 0 && at == address.LastIndexOf('@') && at < address.Length - 1
+                && address.All(c => char.IsLetterOrDigit(c) || c is '.' or '-' or '_' or '+' or '@');
+        });
+    }
+
     // Drops leading and trailing line breaks, keeps at most one blank line, drops empty runs, and caps the length
-    static List<DescriptionRun> Tidy(List<DescriptionRun> runs)
+    static List<DescriptionRun> Tidy(List<DescriptionRun> runs, out bool cut)
     {
         var result   = new List<DescriptionRun>();
+        cut          = false;
         var newlines = 0;
         var started  = false;
         var total    = 0;
@@ -411,6 +491,7 @@ public static partial class DescriptionFormatter
             if (total + text.Length > MaxLength)
             {
                 result.Add(run with { Text = text.ToString(0, MaxLength - total) + "…" });
+                cut = true;
                 return result;
             }
 

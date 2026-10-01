@@ -48,7 +48,8 @@ public static class EventJson
     {
         var details = EventDetailsParser.Parse(rawJson);
         using var doc = JsonDocument.Parse(rawJson);
-        var root = doc.RootElement;
+        var root        = doc.RootElement;
+        var description = Str(root, "description") ?? "";
 
         return new EventDraft
         {
@@ -60,7 +61,8 @@ public static class EventJson
             IsAllDay            = isAllDay,
             TimeZone            = Str(Get(root, "start"), "timeZone"),
             Location            = Str(root, "location") ?? "",
-            Description         = DescriptionHtml.Normalize(Str(root, "description") ?? ""),
+            Description         = DescriptionHtml.Normalize(description),
+            DescriptionTooLong  = DescriptionHtml.IsTooLong(description),
             ColorId             = Str(root, "colorId"),
             Guests              = Guests(root),
             UseDefaultReminders = Get(Get(root, "reminders"), "useDefault") is not { ValueKind: JsonValueKind.False },
@@ -203,9 +205,10 @@ public static class EventJson
             patch["location"] = after.Location;
         }
 
-        // Same description in Leaf's subset → nothing to send (Google's original HTML stays as it was)
+        // Same description in Leaf's subset → nothing to send (Google's original HTML stays as it was). One Leaf had to cut
+        // short is never sent: that would delete the rest of it on Google
         var description = DescriptionHtml.Normalize(after.Description);
-        if (DescriptionHtml.Normalize(before.Description) != description)
+        if (!before.DescriptionTooLong && DescriptionHtml.Normalize(before.Description) != description)
         {
             patch["description"] = description;
         }

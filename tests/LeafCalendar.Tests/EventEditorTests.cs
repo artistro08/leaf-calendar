@@ -667,6 +667,18 @@ public sealed class EventEditorTests : IDisposable
     }
 
     [Fact]
+    public void Save_AllWithDescriptionTooLongToEdit_KeepsTheSeriesDescription()
+    {
+        Seed($$"""{"id":"evt-weekly","status":"confirmed","etag":"\"9\"","summary":"Team standup","description":"{{new string('x', 20_000)}}","start":{"dateTime":"2026-10-05T09:30:00-04:00","timeZone":"America/New_York"},"end":{"dateTime":"2026-10-05T10:00:00-04:00","timeZone":"America/New_York"},"recurrence":["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"]}""");
+        var o      = Occurrence("evt-weekly", Oct9);
+        var before = _editor.Load(o);
+
+        _editor.Save(o, before, before with { Location = "Room 4", Description = "short" }, EditScope.All, sendUpdates: false);
+
+        Assert.Equal("""{"location":"Room 4"}""", Outbox()[^1].Payload);
+    }
+
+    [Fact]
     public void Move_AllFromChangedInstance_OnlyShiftsSeriesTimes()
     {
         var o = ChangedInstance();

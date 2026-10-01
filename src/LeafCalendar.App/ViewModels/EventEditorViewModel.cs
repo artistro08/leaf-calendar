@@ -266,6 +266,12 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string Description { get; set; }
 
+    /// <summary>
+    /// True when Leaf had to cut the description short when reading it. It's shown read-only and never saved, since saving
+    /// it would delete the rest of it on Google.
+    /// </summary>
+    public bool DescriptionTooLong => Before.DescriptionTooLong;
+
     /// <summary>Event color 1-11, or null for the calendar's.</summary>
     [ObservableProperty]
     public partial string? ColorId { get; set; }

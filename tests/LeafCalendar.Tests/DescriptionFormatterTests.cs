@@ -63,6 +63,18 @@ public class DescriptionFormatterTests
     [InlineData("<a href=\"https://evil.example/x\">\uFEFFhttps://bank.example</a>")]
     [InlineData("<a href=\"https://evil.example/x\">• https://bank.example/login</a>")]
     [InlineData("<ol><a href=\"https://evil.example/x\"><li>https://bank.example/login</a></ol>")]
+    [InlineData("<a href=\"https://evil.example\">bank．example</a>")]
+    [InlineData("<a href=\"https://evil.example\">bank。example/login</a>")]
+    [InlineData("<a href=\"https://evil.example\">bank｡example</a>")]
+    [InlineData("<a href=\"https://evil.example\">bank․example</a>")]
+    [InlineData("<a href=\"https://evil.example\">ｂａｎｋ.example</a>")]
+    [InlineData("<a href=\"https://evil.example\">//bank.example/login</a>")]
+    [InlineData("<a href=\"https://evil.example\">bank</a><a href=\"https://evil.example\">.example</a>")]
+    [InlineData("<a href=\"https://evil.example\">https://</a><a href=\"https://evil.example\">bank.example</a>")]
+    [InlineData("<a href=\"https://evil.example\">bank</a><b><a href=\"https://evil.example\">.example</a></b>")]
+    [InlineData("<a href=\"https://evil.example\">bank.example </a>")]
+    [InlineData("<a href=\"https://evil.example\">‮elpmaxe.knab</a>")]
+    [InlineData("<a href=\"https://evil.example\"><li>bank.example</a>")]
     [InlineData("<a href=\"https://evil.example/x\">bank.example/login</a>")]
     [InlineData("<a href=\"https://evil.example/x\">bank.example</a>")]
     [InlineData("<a href=\"https://bank.example@evil.example/x\">https://bank.example/login</a>")]
@@ -70,7 +82,8 @@ public class DescriptionFormatterTests
     [InlineData("<a href=\"mailto:sam@example.com\">https://bank.example/login</a>")]
     public void Format_DisguiseBypasses_AreNotClickable(string html)
     {
-        Assert.All(DescriptionFormatter.Format(html), r => Assert.Null(r.Link));
+        // The text may still link to the address it shows itself (a bare https address), never to the hidden target
+        Assert.All(DescriptionFormatter.Format(html), r => Assert.True(r.Link is null || (r.Link.Scheme == Uri.UriSchemeHttps && r.Text.Contains(r.Link.Host, StringComparison.Ordinal)), r.Link?.AbsoluteUri));
     }
 
     [Theory]
@@ -106,6 +119,16 @@ public class DescriptionFormatterTests
         Assert.DoesNotContain("%0", link!.AbsoluteUri, StringComparison.OrdinalIgnoreCase);
     }
 
+    // A recipient that hides a query ("%3Fbcc=") or a second header isn't a plain address, so the link isn't clickable
+    [Theory]
+    [InlineData("mailto:a@b.example%3Fbcc=c@d.example")]
+    [InlineData("mailto:a@b.example;c@d.example")]
+    [InlineData("mailto:a@b.example,%0Dbcc:c@d.example")]
+    public void Format_MailtoOddRecipients_AreNotClickable(string href)
+    {
+        Assert.All(DescriptionFormatter.Format($"<a href=\"{href}\">mail</a>"), r => Assert.Null(r.Link));
+    }
+
     [Fact]
     public void Format_MailtoText_StaysClickable()
     {
@@ -116,6 +139,12 @@ public class DescriptionFormatterTests
     [InlineData("mailto:sam@example.com?subject=Hi&attach=C:/secret.txt", "mailto:sam@example.com?subject=Hi")]
     [InlineData("mailto:sam@example.com?bcc=evil@example.com&body=Yo&cc=a@example.com", "mailto:sam@example.com?body=Yo&cc=a@example.com")]
     [InlineData("mailto:sam@example.com?ATTACH=x&BCC=y", "mailto:sam@example.com")]
+    [InlineData("mailto:a@b.example,c@d.example?cc=e@f.example&amp;bcc=g@h.example&amp;to=i@j.example", "mailto:a%40b.example%2Cc@d.example?cc=e@f.example")]
+    [InlineData("mailto:a@b.example?%62cc=c@d.example&amp;body=hi", "mailto:a@b.example?body=hi")]
+    [InlineData("mailto:a@b.example?subject=x;bcc=c@d.example", "mailto:a@b.example")]
+    [InlineData("mailto:a@b.example?%20bcc=c@d.example", "mailto:a@b.example")]
+    [InlineData("mailto:a@b.example?attach=C:x&amp;body=%0Dhi", "mailto:a@b.example")]
+    [InlineData("mailto:a@b.example?cc=e@f.example%3Fbcc%3Dg@h.example", "mailto:a@b.example")]
     public void Format_MailtoLinks_KeepOnlySubjectBodyCc(string href, string expected)
     {
         Assert.Equal(expected, DescriptionFormatter.Format($"<a href=\"{href}\">mail</a>").Single().Link?.OriginalString);

@@ -311,6 +311,28 @@ public class EventJsonTests
         Assert.Equal("<b>Agenda</b><ul><li>Budget</li></ul>x", (string?)patch["description"]);
     }
 
+    // Ruling: A Description Leaf Had To Cut Short Is Never Written Back (that would delete the rest on Google)
+    [Theory]
+    [InlineData(10_001)]
+    [InlineData(50_000)]
+    public void BuildPatch_DescriptionTooLongToEdit_IsNeverSent(int length)
+    {
+        var draft = Read(Meeting.Replace("<b>Agenda</b><br>Budget", new string('x', length), StringComparison.Ordinal));
+
+        Assert.True(draft.DescriptionTooLong);
+        Assert.False(EventJson.BuildPatch(draft, draft with { Description = "short" }).ContainsKey("description"));
+        Assert.False(EventJson.BuildPatch(draft, draft with { Title = "Moved" }).ContainsKey("description"));
+    }
+
+    [Fact]
+    public void ReadDraft_DescriptionAtTheLimit_IsEditable()
+    {
+        var draft = Read(Meeting.Replace("<b>Agenda</b><br>Budget", new string('x', 10_000), StringComparison.Ordinal));
+
+        Assert.False(draft.DescriptionTooLong);
+        Assert.True(EventJson.BuildPatch(draft, draft with { Description = "short" }).ContainsKey("description"));
+    }
+
     [Fact]
     public void ReadDraft_GoogleTable_KeepsTextAndDropsTheTable()
     {
