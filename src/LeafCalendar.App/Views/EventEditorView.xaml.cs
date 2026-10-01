@@ -178,6 +178,9 @@ public sealed partial class EventEditorView : UserControl
         // x:Bind skips a null Editor, so the calendar list is let go by hand (with Editor null nothing is written back)
         editor.PropertyChanged -= OnEditorPropertyChanged;
         LeafBrushes.ContrastChanged -= OnContrastChanged;
+
+        // WinUI finishes with the old guest, reminder, and suggestion rows on a later pass (see KeepAlive)
+        KeepAlive.Hold(editor);
         Editor = null;
         CalendarBox.ItemsSource = null;
     }

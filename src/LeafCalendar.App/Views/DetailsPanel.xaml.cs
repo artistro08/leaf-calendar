@@ -23,6 +23,7 @@ public sealed partial class DetailsPanel : UserControl
 {
     CalendarViewModel? _vm;
     string? _shownKey;
+    List<GuestItem>? _guestItems;
 
     /// <summary>Creates the panel.</summary>
     public DetailsPanel()
@@ -217,7 +218,11 @@ public sealed partial class DetailsPanel : UserControl
         ToolTipService.SetToolTip(EmailGuestsLink, mailto is null ? null : $"Email guests (E then E)\n{LinkSafety.DisplayForm(mailto)}");
         GuestsRow.Visibility  = Visible(guests.Count > 0);
         GuestsText.Text       = guests.Count == 1 ? "1 guest" : string.Create(CultureInfo.InvariantCulture, $"{guests.Count} guests");
-        GuestList.ItemsSource = guests.Select(g => new GuestItem(g.Email, GuestDetail(g))).ToList();
+
+        // WinUI finishes with the last event's guest rows on a later pass (see KeepAlive)
+        KeepAlive.Hold(_guestItems);
+        _guestItems           = [.. guests.Select(g => new GuestItem(g.Email, GuestDetail(g)))];
+        GuestList.ItemsSource = _guestItems;
 
         RenderDescription(info.DescriptionRuns);
 
