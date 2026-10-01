@@ -38,7 +38,7 @@
                                                     Click="OnColorClick"
                                                     Tag="{x:Bind}"
                                                     ToolTipService.ToolTip="Change color"
-                                                    AutomationProperties.Name="{x:Bind local:CalendarsPage.ColorName(Name)}"
+                                                    AutomationProperties.Name="{x:Bind local:CalendarsPage.ColorName(Name), Mode=OneWay}"
                                                     AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.ColorId(Info)}">
                                                     <Ellipse Width="16" Height="16" Fill="{x:Bind local:CalendarsPage.BrushFor(Color), Mode=OneWay}" />
                                                 </DropDownButton>
@@ -48,8 +48,17 @@
                                                     Toggled="OnVisibleToggled"
                                                     Tag="{x:Bind}"
                                                     ToolTipService.ToolTip="Show in Leaf"
-                                                    AutomationProperties.Name="{x:Bind Name}"
+                                                    AutomationProperties.Name="{x:Bind Name, Mode=OneWay}"
                                                     AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.VisibleId(Info)}" />
+                                                <Button
+                                                    Style="{StaticResource LeafIconButtonStyle}"
+                                                    Click="OnMoreClick"
+                                                    Tag="{x:Bind}"
+                                                    ToolTipService.ToolTip="More options"
+                                                    AutomationProperties.Name="{x:Bind local:CalendarsPage.MoreName(Name), Mode=OneWay}"
+                                                    AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.MoreId(Info)}">
+                                                    <FontIcon Glyph="&#xE712;" FontSize="16" />
+                                                </Button>
                                             </StackPanel>
                                         </controls:SettingRow>
                                     </DataTemplate>

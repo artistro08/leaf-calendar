@@ -20,6 +20,19 @@
                     TextTrimming="CharacterEllipsis"
                     AutomationProperties.AutomationId="EditorHeader" />
 
+                <!-- Event Type (new timed events on a Workspace account's primary calendar) -->
+                <ComboBox
+                    x:Name="EventTypeBox"
+                    HorizontalAlignment="Stretch"
+                    SelectedIndex="{x:Bind Editor.EventTypeIndex, Mode=TwoWay}"
+                    Visibility="{x:Bind Editor.ShowEventType, Mode=OneWay}"
+                    AutomationProperties.Name="Event type"
+                    AutomationProperties.AutomationId="EditorEventType">
+                    <ComboBoxItem Content="Event" />
+                    <ComboBoxItem Content="Focus time" />
+                    <ComboBoxItem Content="Out of office" />
+                </ComboBox>
+
                 <!-- Title -->
                 <TextBox
                     x:Name="TitleBox"
@@ -30,7 +43,7 @@
                     AutomationProperties.AutomationId="EditorTitle" />
 
                 <!-- When -->
-                <CheckBox Content="All day" IsChecked="{x:Bind Editor.IsAllDay, Mode=TwoWay}" AutomationProperties.AutomationId="EditorAllDay" />
+                <CheckBox Content="All day" IsChecked="{x:Bind Editor.IsAllDay, Mode=TwoWay}" IsEnabled="{x:Bind Editor.IsOrdinaryType, Mode=OneWay}" AutomationProperties.AutomationId="EditorAllDay" />
                 <StackPanel Spacing="6">
                     <!-- Starts -->
                     <Grid ColumnSpacing="8" ColumnDefinitions="*,132">
@@ -74,6 +87,33 @@
                             AutomationProperties.Name="End time"
                             AutomationProperties.AutomationId="EditorEndTime" />
                     </Grid>
+
+                    <!-- Time Zone (the dates and times above are on this zone's clock) -->
+                    <AutoSuggestBox
+                        x:Name="TimeZoneBox"
+                        Header="Time zone"
+                        UpdateTextOnSelect="False"
+                        Text="{x:Bind Editor.ZoneInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        ItemsSource="{x:Bind Editor.ZoneSuggestions, Mode=OneWay}"
+                        Visibility="{x:Bind Editor.ShowTimeZone, Mode=OneWay}"
+                        TextChanged="OnZoneTextChanged"
+                        QuerySubmitted="OnZoneQuerySubmitted"
+                        LostFocus="OnZoneLostFocus"
+                        AutomationProperties.Name="Time zone"
+                        AutomationProperties.AutomationId="EditorTimeZoneBox">
+                        <AutoSuggestBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ZoneSuggestion">
+                                <TextBlock Text="{x:Bind Display}" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </AutoSuggestBox.ItemTemplate>
+                    </AutoSuggestBox>
+                    <TextBlock
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        TextWrapping="Wrap"
+                        Text="{x:Bind Editor.LocalTimeText, Mode=OneWay}"
+                        Visibility="{x:Bind Editor.ShowLocalTime, Mode=OneWay}"
+                        AutomationProperties.AutomationId="EditorLocalTimeText" />
                 </StackPanel>
                 <!-- /When -->
 
@@ -94,6 +134,31 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
+
+                <!-- Show As And Visibility -->
+                <Grid ColumnSpacing="8" ColumnDefinitions="*,*">
+                    <ComboBox
+                        x:Name="ShowAsBox"
+                        HorizontalAlignment="Stretch"
+                        SelectedIndex="{x:Bind Editor.ShowAsIndex, Mode=TwoWay}"
+                        IsEnabled="{x:Bind Editor.IsOrdinaryType, Mode=OneWay}"
+                        AutomationProperties.Name="Show as"
+                        AutomationProperties.AutomationId="EditorShowAs">
+                        <ComboBoxItem Content="Busy" />
+                        <ComboBoxItem Content="Free" />
+                    </ComboBox>
+                    <ComboBox
+                        x:Name="VisibilityBox"
+                        Grid.Column="1"
+                        HorizontalAlignment="Stretch"
+                        SelectedIndex="{x:Bind Editor.VisibilityIndex, Mode=TwoWay}"
+                        AutomationProperties.Name="Visibility"
+                        AutomationProperties.AutomationId="EditorVisibility">
+                        <ComboBoxItem Content="Default visibility" />
+                        <ComboBoxItem Content="Public" />
+                        <ComboBoxItem Content="Private" />
+                    </ComboBox>
+                </Grid>
 
                 <!-- Color (swatches built in code: the calendar's color, then Google's 11 event colors) -->
                 <StackPanel Spacing="4">
@@ -138,17 +203,17 @@
                 <Border Style="{StaticResource LeafDividerStyle}" AutomationProperties.AutomationId="EditorDivider_Guests" />
 
                 <!-- Location -->
-                <TextBox Header="Location" Text="{x:Bind Editor.Location, Mode=TwoWay}" AutomationProperties.AutomationId="EditorLocation" />
+                <TextBox Header="Location" Text="{x:Bind Editor.Location, Mode=TwoWay}" Visibility="{x:Bind Editor.ShowLocation, Mode=OneWay}" AutomationProperties.AutomationId="EditorLocation" />
 
-                <!-- Video Call (off for new events; Google makes the Meet link on save) -->
-                <Grid ColumnSpacing="8" ColumnDefinitions="*,Auto">
+                <!-- Video Call (new events start from the account's Meet by default; Google makes the Meet link on save) -->
+                <Grid ColumnSpacing="8" ColumnDefinitions="*,Auto" Visibility="{x:Bind Editor.ShowConference, Mode=OneWay}">
                     <TextBlock VerticalAlignment="Center" Text="{x:Bind Editor.ConferenceText, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.AutomationId="EditorConference" />
                     <Button x:Name="AddConferenceButton" Grid.Column="1" Content="Add Google Meet" Click="OnAddConferenceClick" Visibility="{x:Bind Editor.CanAddConference, Mode=OneWay}" AutomationProperties.AutomationId="EditorAddConference" />
                     <Button x:Name="RemoveConferenceButton" Grid.Column="1" Content="Remove" Click="OnRemoveConferenceClick" Visibility="{x:Bind Editor.HasConference, Mode=OneWay}" ToolTipService.ToolTip="Remove video call" AutomationProperties.Name="Remove video call" AutomationProperties.AutomationId="EditorRemoveConference" />
                 </Grid>
 
                 <!-- Guests -->
-                <StackPanel Spacing="6">
+                <StackPanel Spacing="6" Visibility="{x:Bind Editor.ShowGuests, Mode=OneWay}">
                     <Grid ColumnSpacing="6">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -185,6 +250,25 @@
                         Text="Turn on the People API in Google Cloud Console to get suggestions."
                         Visibility="{x:Bind Editor.ShowContactsApiOff, Mode=OneWay}"
                         AutomationProperties.AutomationId="EditorContactsApiOff" />
+
+                    <!-- Room Box (Workspace accounts: rooms you've booked before) -->
+                    <AutoSuggestBox
+                        x:Name="RoomBox"
+                        PlaceholderText="Add a room"
+                        UpdateTextOnSelect="False"
+                        Text="{x:Bind Editor.RoomInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        ItemsSource="{x:Bind Editor.RoomSuggestions, Mode=OneWay}"
+                        Visibility="{x:Bind Editor.ShowRooms, Mode=OneWay}"
+                        TextChanged="OnRoomTextChanged"
+                        QuerySubmitted="OnRoomQuerySubmitted"
+                        AutomationProperties.Name="Add a room"
+                        AutomationProperties.AutomationId="EditorRoomInput">
+                        <AutoSuggestBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:RoomSuggestion">
+                                <TextBlock Text="{x:Bind Display}" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </AutoSuggestBox.ItemTemplate>
+                    </AutoSuggestBox>
                     <ItemsControl ItemsSource="{x:Bind Editor.Guests, Mode=OneWay}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -206,8 +290,15 @@
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock VerticalAlignment="Center" Text="{x:Bind Email}" TextTrimming="CharacterEllipsis" />
-                                        <CheckBox Grid.Column="1" MinWidth="0" Content="Optional" IsChecked="{x:Bind Optional, Mode=TwoWay}" AutomationProperties.AutomationId="{x:Bind OptionalId}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon VerticalAlignment="Center" Glyph="&#xE7BE;" FontSize="16" Visibility="{x:Bind IsRoom}" />
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                Text="{x:Bind DisplayName, Mode=OneWay}"
+                                                TextTrimming="CharacterEllipsis"
+                                                AutomationProperties.AutomationId="{x:Bind GuestId}" />
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="1" MinWidth="0" Content="Optional" IsChecked="{x:Bind Optional, Mode=TwoWay}" Visibility="{x:Bind ShowOptional}" AutomationProperties.AutomationId="{x:Bind OptionalId}" />
                                         <Button Grid.Column="2" Background="Transparent" BorderThickness="0" Command="{x:Bind RemoveCommand}" AutomationProperties.Name="Remove guest" AutomationProperties.AutomationId="{x:Bind RemoveId}">
                                             <FontIcon Glyph="&#xE711;" FontSize="12" />
                                         </Button>

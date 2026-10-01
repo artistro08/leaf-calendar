@@ -108,6 +108,35 @@ public sealed class GoogleServices : IAsyncDisposable
         _log.Info("account.disconnected", $"account={accountId}");
     }
 
+    /// <summary>
+    /// Looks up the Workspace domain (Google's <c>hd</c>) of every account that signed in before Leaf stored it, so
+    /// rooms and event types know which accounts are Workspace ones. A failure is logged with the account ID and
+    /// error type only, and the account is tried again on the next launch.
+    /// </summary>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was canceled.</exception>
+    public async Task RefreshHostedDomainsAsync(CancellationToken ct)
+    {
+        List<Account> unknown;
+        using (var conn = _database.Open())
+        {
+            unknown = [.. AccountStore.GetAll(conn).Where(a => a.HostedDomain is null)];
+        }
+
+        foreach (var account in unknown)
+        {
+            try
+            {
+                var user = await OAuth.GetUserInfoAsync(await AccessTokens.GetAccessTokenAsync(account.Id, ct), ct);
+                using var conn = _database.Open();
+                AccountStore.SetHostedDomain(conn, account.Id, user.Hd ?? "");
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+            {
+                _log.Info("account.domain.failed", $"account={account.Id} error={ex.GetType().Name}");
+            }
+        }
+    }
+
     /// <summary>Stops the polling loop, then disposes the sync engine and access tokens.</summary>
     public async ValueTask DisposeAsync()
     {

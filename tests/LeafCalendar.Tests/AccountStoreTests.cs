@@ -43,4 +43,29 @@ public sealed class AccountStoreTests : IDisposable
 
         Assert.Empty(AccountStore.GetAll(conn));
     }
+
+    [Fact]
+    public void SetHostedDomain_RoundTrips_AndIsWorkspace()
+    {
+        using var conn = _db.Database.Open();
+        AccountStore.Upsert(conn, TestDatabase.SampleAccount);
+
+        // Not Known Yet
+        var unknown = AccountStore.GetAll(conn).Single();
+        Assert.Null(unknown.HostedDomain);
+        Assert.False(AccountStore.IsWorkspace(unknown));
+
+        // Workspace (a later sign-in that doesn't know the domain keeps it)
+        AccountStore.SetHostedDomain(conn, TestDatabase.SampleAccount.Id, "example.com");
+        AccountStore.Upsert(conn, TestDatabase.SampleAccount);
+        var workspace = AccountStore.GetAll(conn).Single();
+        Assert.Equal("example.com", workspace.HostedDomain);
+        Assert.True(AccountStore.IsWorkspace(workspace));
+
+        // Personal
+        AccountStore.Upsert(conn, TestDatabase.SampleAccount with { HostedDomain = "" });
+        var personal = AccountStore.GetAll(conn).Single();
+        Assert.Equal("", personal.HostedDomain);
+        Assert.False(AccountStore.IsWorkspace(personal));
+    }
 }

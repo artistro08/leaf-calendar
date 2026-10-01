@@ -26,6 +26,7 @@ public class EventJsonTests
         """;
 
     static readonly DateTimeOffset Start = new(2026, 10, 1, 18, 0, 0, TimeSpan.Zero);
+    static readonly DateTimeOffset End   = Start.AddHours(1);
 
     static EventDraft Read(string json = Meeting) => EventJson.ReadDraft("acct", "cal", json, Start, Start.AddHours(1), isAllDay: false);
 
@@ -449,5 +450,144 @@ public class EventJsonTests
         var draft = EventJson.ReadDraft("a", "c", """{"id":"x","summary":"S","start":{"dateTime":"2026-10-02T14:00:00Z"},"end":{"dateTime":"2026-10-02T15:00:00Z"},"conferenceData":{"conferenceId":"q"}}""",
             new DateTimeOffset(2026, 10, 2, 14, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 2, 15, 0, 0, TimeSpan.Zero), false);
         Assert.True(draft.HasConference);
+    }
+
+    // =========================================================================
+    // ROOMS
+    // =========================================================================
+
+    static EventDraft SampleDraft() => new() { AccountId = "acct", CalendarId = "cal", Title = "Coffee", Start = Start, End = End, TimeZone = "America/New_York" };
+
+    [Fact]
+    public void BuildCreate_RoomGuest_IsSentAsAResource()
+    {
+        var draft = SampleDraft() with { Guests = [new Guest("c_1@resource.calendar.google.com", IsResource: true)] };
+
+        var body = EventJson.BuildCreate("id1", draft);
+
+        Assert.True((bool)body["attendees"]![0]!["resource"]!);
+    }
+
+    [Fact]
+    public void ReadDraft_ResourceAttendee_IsARoom()
+    {
+        var draft = EventJson.ReadDraft("a", "c", """{"id":"x","attendees":[{"email":"c_1@resource.calendar.google.com","resource":true}]}""", Start, End, false);
+
+        Assert.True(Assert.Single(draft.Guests).IsResource);
+    }
+
+    [Fact]
+    public void ReadDraft_ResourceAddressWithoutTheFlag_IsARoom()
+    {
+        var draft = EventJson.ReadDraft("a", "c", """{"id":"x","attendees":[{"email":"c_1@resource.calendar.google.com"},{"email":"amy@example.com"}]}""", Start, End, false);
+
+        Assert.Equal([true, false], draft.Guests.Select(g => g.IsResource));
+    }
+
+    [Fact]
+    public void BuildPatch_AddedRoom_IsSentAsAResource()
+    {
+        var before = Read();
+        var after  = before with { Guests = [.. before.Guests, new Guest("c_1@resource.calendar.google.com", IsResource: true)] };
+
+        var attendees = (JsonArray)EventJson.BuildPatch(before, after, Meeting)["attendees"]!;
+
+        Assert.True((bool)attendees[^1]!["resource"]!);
+    }
+
+    // =========================================================================
+    // EVENT TYPE, SHOW AS, VISIBILITY, AND TIME ZONE
+    // =========================================================================
+
+    [Fact]
+    public void BuildCreate_FocusTime_HasTypeAndProperties_NoGuestsOrLocation()
+    {
+        var draft = SampleDraft() with { EventType = EventKind.FocusTime, Location = "x", Guests = [new Guest("a@example.com")] };
+
+        var body = EventJson.BuildCreate("id1", draft);
+
+        Assert.Equal("focusTime", (string?)body["eventType"]);
+        Assert.Equal("declineOnlyNewConflictingInvitations", (string?)body["focusTimeProperties"]!["autoDeclineMode"]);
+        Assert.Equal("doNotDisturb", (string?)body["focusTimeProperties"]!["chatStatus"]);
+        Assert.False(body.ContainsKey("attendees"));
+        Assert.False(body.ContainsKey("location"));
+        Assert.False(body.ContainsKey("conferenceData"));
+    }
+
+    [Fact]
+    public void BuildCreate_OutOfOffice_HasTypeAndProperties()
+    {
+        var body = EventJson.BuildCreate("id1", SampleDraft() with { EventType = EventKind.OutOfOffice });
+
+        Assert.Equal("outOfOffice", (string?)body["eventType"]);
+        Assert.Equal("declineOnlyNewConflictingInvitations", (string?)body["outOfOfficeProperties"]!["autoDeclineMode"]);
+    }
+
+    [Fact]
+    public void BuildCreate_FocusTimeOrOutOfOffice_IsAlwaysBusy()
+    {
+        Assert.False(EventJson.BuildCreate("id1", SampleDraft() with { EventType = EventKind.FocusTime, IsFree = true }).ContainsKey("transparency"));
+        Assert.False(EventJson.BuildCreate("id1", SampleDraft() with { EventType = EventKind.OutOfOffice, IsFree = true, HasConference = true }).ContainsKey("transparency"));
+    }
+
+    [Fact]
+    public void BuildCreate_FreeAndPrivate()
+    {
+        var body = EventJson.BuildCreate("id1", SampleDraft() with { IsFree = true, Visibility = "private" });
+
+        Assert.Equal("transparent", (string?)body["transparency"]);
+        Assert.Equal("private", (string?)body["visibility"]);
+    }
+
+    [Fact]
+    public void BuildCreate_TimedEvent_CarriesTheZoneOnBothEnds()
+    {
+        var body = EventJson.BuildCreate("id1", SampleDraft() with { TimeZone = "Asia/Tokyo" });
+
+        Assert.Equal("Asia/Tokyo", (string?)body["start"]!["timeZone"]);
+        Assert.Equal("Asia/Tokyo", (string?)body["end"]!["timeZone"]);
+        Assert.Equal("2026-10-02T03:00:00+09:00", (string?)body["start"]!["dateTime"]);
+    }
+
+    [Fact]
+    public void BuildPatch_ShowAsAndVisibility_OnlyWhenChanged()
+    {
+        var before = SampleDraft();
+
+        Assert.False(EventJson.BuildPatch(before, before).ContainsKey("transparency"));
+        Assert.Equal("transparent", (string?)EventJson.BuildPatch(before, before with { IsFree = true })["transparency"]);
+        Assert.Equal("opaque", (string?)EventJson.BuildPatch(before with { IsFree = true }, before)["transparency"]);
+        Assert.Equal("public", (string?)EventJson.BuildPatch(before, before with { Visibility = "public" })["visibility"]);
+        Assert.False(EventJson.BuildPatch(before with { Visibility = "confidential" }, before with { Visibility = "confidential" }).ContainsKey("visibility"));
+    }
+
+    [Fact]
+    public void BuildPatch_NeverSendsEventType() =>
+        Assert.False(EventJson.BuildPatch(SampleDraft(), SampleDraft() with { EventType = EventKind.FocusTime }).ContainsKey("eventType"));
+
+    [Fact]
+    public void BuildPatch_TimeZoneChanged_SendsBothEndsWithTheZone()
+    {
+        var before = SampleDraft() with { TimeZone = "America/New_York" };
+        var patch  = EventJson.BuildPatch(before, before with { TimeZone = "Asia/Tokyo" });
+
+        Assert.Equal("Asia/Tokyo", (string?)patch["start"]!["timeZone"]);
+        Assert.Equal("Asia/Tokyo", (string?)patch["end"]!["timeZone"]);
+    }
+
+    [Fact]
+    public void ReadDraft_TypeShowAsVisibility()
+    {
+        var draft = EventJson.ReadDraft("a", "c", """{"id":"x","eventType":"outOfOffice","transparency":"transparent","visibility":"private"}""", Start, End, false);
+
+        Assert.Equal((EventKind.OutOfOffice, true, "private"), (draft.EventType, draft.IsFree, draft.Visibility));
+    }
+
+    [Fact]
+    public void ReadDraft_Defaults_AreBusyDefaultVisibilityEvent()
+    {
+        var draft = EventJson.ReadDraft("a", "c", """{"id":"x","eventType":"birthday"}""", Start, End, false);
+
+        Assert.Equal((EventKind.Default, false, "default"), (draft.EventType, draft.IsFree, draft.Visibility));
     }
 }

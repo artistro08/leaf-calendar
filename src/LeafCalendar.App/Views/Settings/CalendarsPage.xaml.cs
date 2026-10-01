@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -35,6 +36,12 @@ public sealed partial class CalendarsPage : Page
 
     /// <summary>x:Bind helper: automation ID of a calendar's show/hide switch.</summary>
     public static string VisibleId(CalendarInfo info) => $"CalendarVisible_{info.Id}";
+
+    /// <summary>x:Bind helper: automation ID of a calendar's "More options" button.</summary>
+    public static string MoreId(CalendarInfo info) => $"CalendarMore_{info.Id}";
+
+    /// <summary>x:Bind helper: the "More options" button's accessible name.</summary>
+    public static string MoreName(string calendar) => $"More options for {calendar}";
 
     /// <summary>x:Bind helper: the color button's accessible name.</summary>
     public static string ColorName(string calendar) => $"Color for {calendar}";
@@ -125,5 +132,108 @@ public sealed partial class CalendarsPage : Page
 
         flyout.Content = new StackPanel { Children = { grid, reset } };
         flyout.ShowAt(button);
+    }
+
+    // =========================================================================
+    // MORE OPTIONS
+    // =========================================================================
+
+    // Rename, order, and default reminders; Move up and Move down are off at the ends of the account's list
+    void OnMoreClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: CalendarRow row } button)
+        {
+            return;
+        }
+
+        var calendar = _context.Calendar;
+        var siblings = _groups.FirstOrDefault(g => g.Calendars.Contains(row))?.Calendars;
+        var index    = siblings?.IndexOf(row) ?? -1;
+        var menu     = new MenuFlyout();
+
+        menu.Items.Add(MenuItem("Rename…", "CalendarMenu_Rename", true, () => calendar.Fire(() => RenameCalendarDialog.RenameAsync(XamlRoot, calendar, row.Info), "calendar.rename.failed")));
+        menu.Items.Add(MenuItem("Move up", "CalendarMenu_MoveUp", index > 0, () => calendar.MoveCalendar(row.Info, -1)));
+        menu.Items.Add(MenuItem("Move down", "CalendarMenu_MoveDown", siblings is not null && index >= 0 && index < siblings.Count - 1, () => calendar.MoveCalendar(row.Info, 1)));
+        menu.Items.Add(MenuItem("Default reminders…", "CalendarMenu_Reminders", true, () => calendar.Fire(() => EditRemindersAsync(row.Info), "calendar.reminders.failed")));
+        menu.ShowAt(button);
+    }
+
+    static MenuFlyoutItem MenuItem(string text, string automationId, bool enabled, Action click)
+    {
+        var item = new MenuFlyoutItem { Text = text, IsEnabled = enabled };
+        AutomationProperties.SetAutomationId(item, automationId);
+        item.Click += (_, _) => click();
+        return item;
+    }
+
+    // Default Reminders Dialog: up to five dropdowns of reminder times, each with a remove button, then "Add reminder"
+    async Task EditRemindersAsync(CalendarInfo info)
+    {
+        var minutes = ReminderTimes.Choices(_context.Calendar.DefaultRemindersOf(info));
+        var labels  = minutes.Select(ReminderTimes.Label).ToList();
+        var boxes   = new List<ComboBox>();
+        var rows    = new StackPanel { Spacing = 4 };
+        var add     = new HyperlinkButton { Content = "Add reminder" };
+        AutomationProperties.SetAutomationId(add, "AddReminderButton");
+
+        // Rows Keep Their Own References; Their IDs Follow Their Place
+        void Renumber()
+        {
+            for (var i = 0; i < boxes.Count; i++)
+            {
+                AutomationProperties.SetAutomationId(boxes[i], string.Create(System.Globalization.CultureInfo.InvariantCulture, $"ReminderRow_{i}"));
+                AutomationProperties.SetName(boxes[i], string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Reminder {i + 1}"));
+            }
+
+            add.IsEnabled = boxes.Count < CalendarEdits.MaxReminders;
+        }
+
+        void AddRow(int value)
+        {
+            var box    = new ComboBox { ItemsSource = labels, SelectedIndex = Math.Max(0, minutes.ToList().IndexOf(value)), HorizontalAlignment = HorizontalAlignment.Stretch };
+            var remove = new Button { Width = 32, Height = 32, Padding = new Thickness(0), Background = LeafBrushes.Transparent, BorderThickness = new Thickness(0), Content = new FontIcon { Glyph = "", FontSize = 12 } };
+            var line   = new Grid { ColumnSpacing = 4, ColumnDefinitions = { new ColumnDefinition(), new ColumnDefinition { Width = GridLength.Auto } } };
+            AutomationProperties.SetName(remove, "Remove reminder");
+            ToolTipService.SetToolTip(remove, "Remove reminder");
+            Grid.SetColumn(remove, 1);
+            line.Children.Add(box);
+            line.Children.Add(remove);
+            remove.Click += (_, _) =>
+            {
+                boxes.Remove(box);
+                rows.Children.Remove(line);
+                Renumber();
+            };
+
+            boxes.Add(box);
+            rows.Children.Add(line);
+            Renumber();
+        }
+
+        foreach (var m in _context.Calendar.DefaultRemindersOf(info).Order().Take(CalendarEdits.MaxReminders))
+        {
+            AddRow(m);
+        }
+
+        add.Click += (_, _) => AddRow(10);
+        Renumber();
+
+        var description = new TextBlock { Text = "Google uses these for new events on this calendar.", TextWrapping = TextWrapping.Wrap };
+        var dialog = new ContentDialog
+        {
+            XamlRoot          = XamlRoot,
+            Title             = "Default reminders",
+            Content           = new StackPanel { Spacing = 8, Children = { description, rows, add } },
+            PrimaryButtonText = "Save",
+            CloseButtonText   = "Cancel",
+            DefaultButton     = ContentDialogButton.Primary,
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        await _context.Calendar.SetCalendarRemindersAsync(info, [.. boxes.Where(b => b.SelectedIndex >= 0).Select(b => minutes[b.SelectedIndex])]);
     }
 }

@@ -44,6 +44,9 @@
                     <Paragraph Margin="0,8,0,0">
                         4. In Credentials, create an OAuth client ID of type Desktop app. Paste its Client ID and Client secret below.
                     </Paragraph>
+                    <Paragraph Margin="0,8,0,0">
+                        Leaf asks Google for your calendars, your contacts and other contacts (read-only), and your Google Workspace directory (directory.readonly, read-only, so coworkers show up as guest suggestions). If your consent screen lists its scopes, add these.
+                    </Paragraph>
                 </RichTextBlock>
                 <!-- /Setup Guide -->
 

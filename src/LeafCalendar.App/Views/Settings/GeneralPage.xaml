@@ -22,6 +22,22 @@
                     <ComboBoxItem Content="Dark" AutomationProperties.AutomationId="ThemeDark" />
                 </ComboBox>
             </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xE740;" Header="Interface scale" Description="Make the sidebar, calendar, and details panel bigger or smaller.">
+                <ComboBox
+                    x:Name="InterfaceScaleBox"
+                    MinWidth="180"
+                    SelectionChanged="OnInterfaceScaleChanged"
+                    AutomationProperties.Name="Interface scale"
+                    AutomationProperties.AutomationId="InterfaceScaleBox" />
+            </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xE8BF;" Header="Expand the all-day section" Description="Show every all-day event when Leaf opens, not just the first few.">
+                <ToggleSwitch
+                    x:Name="AllDayExpandedSwitch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="OnAllDayExpandedToggled"
+                    AutomationProperties.Name="Expand the all-day section"
+                    AutomationProperties.AutomationId="AllDayExpandedSwitch" />
+            </controls:SettingRow>
 
             <!-- Calendar View -->
             <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Calendar view" />
@@ -71,6 +87,14 @@
                     AutomationProperties.Name="Show week numbers"
                     AutomationProperties.AutomationId="WeekNumbersSwitch" />
             </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xE823;" Header="Upcoming meetings" Description="How far ahead the details panel looks when no event is selected.">
+                <ComboBox
+                    x:Name="UpcomingHoursBox"
+                    MinWidth="180"
+                    SelectionChanged="OnUpcomingHoursChanged"
+                    AutomationProperties.Name="Upcoming meetings"
+                    AutomationProperties.AutomationId="UpcomingHoursBox" />
+            </controls:SettingRow>
 
             <!-- Date And Time -->
             <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Date and time" />
@@ -93,6 +117,66 @@
                     Toggled="On24HourToggled"
                     AutomationProperties.Name="Use 24-hour time"
                     AutomationProperties.AutomationId="Clock24Switch" />
+            </controls:SettingRow>
+
+            <!-- Working Hours -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Working hours" />
+            <controls:SettingRow Glyph="&#xE823;" Header="Shade outside working hours" Description="Google doesn't share your working hours with apps, so set them here.">
+                <ToggleSwitch
+                    x:Name="WorkingHoursSwitch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="OnWorkingHoursToggled"
+                    AutomationProperties.Name="Shade outside working hours"
+                    AutomationProperties.AutomationId="WorkingHoursSwitch" />
+            </controls:SettingRow>
+            <!-- The Rows Below Are Off As One While Shading Is Off -->
+            <ContentControl x:Name="WorkingHoursRows" HorizontalContentAlignment="Stretch" IsTabStop="False">
+                <StackPanel Spacing="4">
+                    <controls:SettingRow Header="Start">
+                        <controls:LeafTimePicker
+                            x:Name="WorkingStartPicker"
+                            MinuteIncrement="15"
+                            TimeChanged="OnWorkingStartChanged"
+                            AutomationProperties.Name="Working hours start"
+                            AutomationProperties.AutomationId="WorkingStartPicker" />
+                    </controls:SettingRow>
+                    <controls:SettingRow Header="End">
+                        <StackPanel Spacing="4" HorizontalAlignment="Right">
+                            <controls:LeafTimePicker
+                                x:Name="WorkingEndPicker"
+                                MinuteIncrement="15"
+                                TimeChanged="OnWorkingEndChanged"
+                                AutomationProperties.Name="Working hours end"
+                                AutomationProperties.AutomationId="WorkingEndPicker" />
+                            <TextBlock
+                                x:Name="WorkingHoursError"
+                                Style="{StaticResource CaptionTextBlockStyle}"
+                                Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                Text="Pick an end time after the start time."
+                                Visibility="Collapsed"
+                                AutomationProperties.LiveSetting="Assertive"
+                                AutomationProperties.AutomationId="WorkingHoursError" />
+                        </StackPanel>
+                    </controls:SettingRow>
+                    <controls:SettingRow Header="Work days">
+                        <StackPanel x:Name="WorkDaysPanel" Orientation="Horizontal" Spacing="4" />
+                    </controls:SettingRow>
+                </StackPanel>
+            </ContentControl>
+            <!-- /Working Hours -->
+
+            <!-- Locations -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Locations" />
+            <controls:SettingRow Glyph="&#xE707;" Header="Open locations in">
+                <ComboBox
+                    x:Name="MapProviderBox"
+                    MinWidth="180"
+                    SelectionChanged="OnMapProviderChanged"
+                    AutomationProperties.Name="Open locations in"
+                    AutomationProperties.AutomationId="MapProviderBox">
+                    <ComboBoxItem Content="Google Maps" />
+                    <ComboBoxItem Content="Bing Maps" />
+                </ComboBox>
             </controls:SettingRow>
 
             <!-- Startup (spec 8.1) -->

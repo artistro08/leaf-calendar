@@ -25,6 +25,9 @@ public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials cr
     /// <summary>Read-only access to "other contacts", people the user has emailed (guest autocomplete).</summary>
     public const string OtherContactsScope = "https://www.googleapis.com/auth/contacts.other.readonly";
 
+    /// <summary>Read-only access to your Google Workspace directory (coworkers as guest suggestions; personal accounts get nothing).</summary>
+    public const string DirectoryScope = "https://www.googleapis.com/auth/directory.readonly";
+
     /// <summary>Every scope Leaf requests.</summary>
     public static readonly IReadOnlyList<string> Scopes =
     [
@@ -34,7 +37,7 @@ public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials cr
         CalendarScope,
         ContactsScope,
         OtherContactsScope,
-        "https://www.googleapis.com/auth/directory.readonly",
+        DirectoryScope,
     ];
 
     readonly GoogleEndpoints _endpoints = endpoints ?? GoogleEndpoints.Default;

@@ -2,14 +2,18 @@ using LeafCalendar.Core.Events;
 
 namespace LeafCalendar.Core.Editing;
 
-/// <summary>A guest as the editor shows it. Google owns <see cref="IsSelf"/> and <see cref="IsOrganizer"/>.</summary>
+/// <summary>
+/// A guest as the editor shows it. Google owns <see cref="IsSelf"/> and <see cref="IsOrganizer"/>.
+/// <see cref="IsResource"/> marks a room (Google's <c>resource</c> attendees).
+/// </summary>
 public sealed record Guest(
     string Email,
     bool Optional = false,
     ResponseStatus Response = ResponseStatus.NeedsAction,
     string? Comment = null,
     bool IsSelf = false,
-    bool IsOrganizer = false);
+    bool IsOrganizer = false,
+    bool IsResource = false);
 
 /// <summary>
 /// The fields Leaf's editor changes. Comparing a "before" and an "after" draft gives the patch Leaf sends
@@ -74,4 +78,16 @@ public sealed record EventDraft
 
     /// <summary>The event has a video call from Google (or one is being added); off for new events.</summary>
     public bool HasConference { get; init; }
+
+    /// <summary>
+    /// Focus time, out of office, or an ordinary event. Set only when creating; Google can't change an event's type, so
+    /// a patch never sends it.
+    /// </summary>
+    public EventKind EventType { get; init; } = EventKind.Default;
+
+    /// <summary>Shows as free (Google's <c>transparency: transparent</c>); false shows as busy.</summary>
+    public bool IsFree { get; init; }
+
+    /// <summary>Google's visibility as stored: <c>default</c>, <c>public</c>, <c>private</c>, or <c>confidential</c>.</summary>
+    public string Visibility { get; init; } = "default";
 }

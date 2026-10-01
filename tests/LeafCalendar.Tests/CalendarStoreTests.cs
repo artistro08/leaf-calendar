@@ -60,6 +60,51 @@ public sealed class CalendarStoreTests : IDisposable
     }
 
     [Fact]
+    public void SetSummaryOverride_ShowsTheName_GoogleNameKept()
+    {
+        using var conn = _db.Database.Open();
+        var accountId = TestDatabase.SampleAccount.Id;
+        const string family = "family123@group.calendar.google.com";
+        AccountStore.Upsert(conn, TestDatabase.SampleAccount);
+        CalendarStore.ReplaceForAccount(conn, accountId, Entries("calendar-list.json"));
+
+        CalendarStore.SetSummaryOverride(conn, accountId, family, "Kids");
+        var renamed = CalendarStore.GetAll(conn).Single(c => c.Id == family);
+        Assert.Equal(("Kids", "Family"), (renamed.Summary, renamed.GoogleName));
+
+        CalendarStore.SetSummaryOverride(conn, accountId, family, null);
+        Assert.Equal("Family", CalendarStore.GetAll(conn).Single(c => c.Id == family).Summary);
+    }
+
+    [Fact]
+    public void GetAll_HostileGoogleName_IsCleanedToo()
+    {
+        using var conn = _db.Database.Open();
+        AccountStore.Upsert(conn, TestDatabase.SampleAccount);
+        var hostile = Entries("calendar-list-primary-only.json");
+        hostile[0].Summary         = "Te‮am";
+        hostile[0].SummaryOverride = "Mine";
+
+        CalendarStore.ReplaceForAccount(conn, TestDatabase.SampleAccount.Id, hostile);
+
+        var calendar = Assert.Single(CalendarStore.GetAll(conn));
+        Assert.Equal(("Mine", "Team"), (calendar.Summary, calendar.GoogleName));
+    }
+
+    [Fact]
+    public void SetDefaultReminders_FeedsThePopupDefaults()
+    {
+        using var conn = _db.Database.Open();
+        var accountId = TestDatabase.SampleAccount.Id;
+        AccountStore.Upsert(conn, TestDatabase.SampleAccount);
+        CalendarStore.ReplaceForAccount(conn, accountId, Entries("calendar-list.json"));
+
+        CalendarStore.SetDefaultReminders(conn, accountId, "family123@group.calendar.google.com", """[{"method":"popup","minutes":30}]""");
+
+        Assert.Equal([30], CalendarStore.PopupDefaults(conn)[(accountId, "family123@group.calendar.google.com")]);
+    }
+
+    [Fact]
     public void DeleteAccount_WithCalendars_CascadesToCalendars()
     {
         using var conn = _db.Database.Open();

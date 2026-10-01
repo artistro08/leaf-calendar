@@ -44,7 +44,7 @@ public sealed partial class DetailsPanel : UserControl
         UpcomingList.ItemsSource = vm.Upcoming;
         vm.Upcoming.CollectionChanged += OnUpcomingChanged;
         vm.PropertyChanged            += OnViewModelPropertyChanged;
-        UpdateUpcomingEmpty();
+        ShowUpcomingHeader();
         ShowCurrent();
     }
 
@@ -64,8 +64,13 @@ public sealed partial class DetailsPanel : UserControl
 
     void OnUpcomingChanged(object? sender, NotifyCollectionChangedEventArgs e) => UpdateUpcomingEmpty();
 
-    void UpdateUpcomingEmpty() =>
+    void UpdateUpcomingEmpty()
+    {
         UpcomingEmpty.Visibility = _vm?.Upcoming.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
+        UpcomingEmpty.Text       = _vm?.UpcomingCalendar is null
+            ? string.Create(CultureInfo.InvariantCulture, $"Nothing in the next {_vm?.Settings.UpcomingHours ?? 8} hours.")
+            : "Nothing in the next 30 days.";
+    }
 
     void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -73,6 +78,40 @@ public sealed partial class DetailsPanel : UserControl
         {
             ShowCurrent();
         }
+
+        if (e.PropertyName == nameof(CalendarViewModel.MapButtonText))
+        {
+            ShowMapButton();
+        }
+
+        if (e.PropertyName == nameof(CalendarViewModel.UpcomingCalendar))
+        {
+            ShowUpcomingHeader();
+        }
+    }
+
+    // "Upcoming", or "Upcoming in {calendar}" with the way back to every calendar
+    void ShowUpcomingHeader()
+    {
+        var calendar = _vm?.UpcomingCalendar;
+        UpcomingHeader.Text        = calendar is null ? "Upcoming" : $"Upcoming in {calendar.Summary}";
+        UpcomingShowAll.Visibility = Visible(calendar is not null);
+        UpdateUpcomingEmpty();
+    }
+
+    void OnUpcomingShowAllClick(object sender, RoutedEventArgs e) => _vm?.ShowUpcomingFor(null);
+
+    // The location button names the map service picked in Settings, and its tooltip shows where it goes
+    void ShowMapButton()
+    {
+        if (_vm is not { } vm)
+        {
+            return;
+        }
+
+        var location     = vm.SelectedInfo?.Details.Location;
+        MapsLink.Content = vm.MapButtonText;
+        ToolTipService.SetToolTip(MapsLink, location is { Length: > 0 } ? LinkSafety.DisplayForm(LinkSafety.MapsSearch(location, vm.Settings.MapProvider)) : null);
     }
 
     // The editor wins while it's open; otherwise the selection summary (several events), the selected event, else the upcoming list
@@ -160,7 +199,7 @@ public sealed partial class DetailsPanel : UserControl
         LocationRow.Visibility    = Visible(d.Location is { Length: > 0 });
         ConferenceText.Text       = $"Video call: {call}";
         ConferenceText.Visibility = Visible(d.ConferenceUri is not null);
-        ToolTipService.SetToolTip(MapsLink, d.Location is { Length: > 0 } location ? LinkSafety.DisplayForm(LinkSafety.MapsSearch(location)) : null);
+        ShowMapButton();
 
         // Your Reply
         RsvpRow.Visibility = Visible(info.CanRespond);
