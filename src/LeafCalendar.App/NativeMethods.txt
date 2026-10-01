@@ -21,3 +21,11 @@ GetSystemMetricsForDpi
 FindWindow
 SetProcessInformation
 PROCESS_POWER_THROTTLING_STATE
+SHAppBarMessage
+MonitorFromPoint
+GetMonitorInfo
+GetDpiForMonitor
+GetWindowLongPtr
+SetWindowLongPtr
+SetLayeredWindowAttributes
+ClientToScreen

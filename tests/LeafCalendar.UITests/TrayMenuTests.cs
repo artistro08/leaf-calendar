@@ -1,0 +1,122 @@
+using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Tools;
+using LeafCalendar.UITests.Support;
+
+namespace LeafCalendar.UITests;
+
+public sealed class TrayMenuTests : IDisposable
+{
+    const string MeetLink = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
+
+    readonly FakeGoogleServer _google = new();
+    readonly string _profile = SeededProfile.Create();
+
+    public void Dispose()
+    {
+        LeafApp.DeleteProfile(_profile);
+        _google.Dispose();
+    }
+
+    LeafApp Launch(string now = "2026-10-01T08:00:00-04:00")
+    {
+        var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01 --now {now}");
+        leaf.WaitFor("Event_evt-meeting_202610011800");
+        return leaf;
+    }
+
+    [Fact]
+    public void RightClick_ShowsTheSpecItems()
+    {
+        using var leaf = Launch();
+
+        leaf.RightClickTrayIcon();
+
+        foreach (var id in new[] { "TrayMenuOpen", "TrayMenuNewEvent", "TrayMenuJoin", "TrayMenuSync", "TrayMenuSettings", "TrayMenuQuit" })
+        {
+            Assert.NotNull(leaf.WaitForPopup(id));
+        }
+
+        Assert.Equal("Settings…", leaf.WaitForPopup("TrayMenuSettings").Name);
+    }
+
+    [Fact]
+    public void Quit_EndsLeaf()
+    {
+        using var leaf = Launch();
+
+        leaf.RightClickTrayIcon();
+        leaf.WaitForPopup("TrayMenuQuit").AsMenuItem().Invoke();
+
+        Assert.True(Retry.WhileFalse(() => leaf.App.HasExited, TimeSpan.FromSeconds(15)).Success);
+    }
+
+    [Fact]
+    public void Settings_OpensTheSettingsWindow()
+    {
+        using var leaf = Launch();
+
+        leaf.RightClickTrayIcon();
+        leaf.WaitForPopup("TrayMenuSettings").AsMenuItem().Invoke();
+
+        Assert.NotNull(leaf.WaitInSettings("ThemeComboBox"));
+    }
+
+    [Fact]
+    public void Open_WhileInTheTray_ShowsTheMainWindow()
+    {
+        using var leaf = Launch();
+        leaf.MainWindow.Close();
+        Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
+
+        leaf.RightClickTrayIcon();
+        leaf.WaitForPopup("TrayMenuOpen").AsMenuItem().Invoke();
+
+        Assert.NotNull(leaf.WaitFor("CalendarRoot"));
+    }
+
+    [Fact]
+    public void NewEvent_OpensTheEditor()
+    {
+        using var leaf = Launch();
+
+        leaf.RightClickTrayIcon();
+        leaf.WaitForPopup("TrayMenuNewEvent").AsMenuItem().Invoke();
+
+        Assert.NotNull(leaf.WaitFor("EditorTitle"));
+    }
+
+    [Fact]
+    public void JoinNext_MeetingSoon_OpensMeetWithItsAccount()
+    {
+        using var leaf = Launch("2026-10-01T13:55:00-04:00");
+
+        leaf.RightClickTrayIcon();
+        leaf.WaitForPopup("TrayMenuJoin").AsMenuItem().Invoke();
+
+        Assert.True(Retry.WhileFalse(() => LeafApp.LaunchedLinks(_profile).Contains(MeetLink), TimeSpan.FromSeconds(10)).Success);
+    }
+
+    [Fact]
+    public void JoinNext_NothingSoon_SaysSo()
+    {
+        using var leaf = Launch("2026-10-01T11:00:00-04:00");
+
+        leaf.RightClickTrayIcon();
+        leaf.WaitForPopup("TrayMenuJoin").AsMenuItem().Invoke();
+
+        LeafApp.WaitForNotification(_profile, l => l.StartsWith("show\tnotices\t", StringComparison.Ordinal) && l.Contains("No meeting to join", StringComparison.Ordinal), seconds: 10);
+        Assert.Empty(LeafApp.LaunchedLinks(_profile));
+    }
+
+    [Fact]
+    public void SyncNow_RefreshesTheCalendarList()
+    {
+        using var leaf = Launch();
+        var before = _google.Requests.Count(r => r.Contains("calendarList", StringComparison.Ordinal));
+
+        leaf.RightClickTrayIcon();
+        leaf.WaitForPopup("TrayMenuSync").AsMenuItem().Invoke();
+
+        Assert.True(Retry.WhileFalse(() => _google.Requests.Count(r => r.Contains("calendarList", StringComparison.Ordinal)) > before, TimeSpan.FromSeconds(15)).Success);
+    }
+}

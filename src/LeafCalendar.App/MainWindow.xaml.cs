@@ -166,12 +166,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Applies the app theme to a window's content (<paramref name="root"/>) and caption buttons.</summary>
     internal static void ApplyTheme(AppWindow window, FrameworkElement root, AppTheme theme)
     {
-        root.RequestedTheme = theme switch
-        {
-            AppTheme.Light => ElementTheme.Light,
-            AppTheme.Dark  => ElementTheme.Dark,
-            _              => ElementTheme.Default,
-        };
+        root.RequestedTheme = ElementThemeOf(theme);
 
         window.TitleBar.PreferredTheme = theme switch
         {
@@ -180,6 +175,14 @@ public sealed partial class MainWindow : Window
             _              => TitleBarTheme.UseDefaultAppMode,
         };
     }
+
+    /// <summary>The XAML theme for an app theme (shared by the windows and the tray host).</summary>
+    internal static ElementTheme ElementThemeOf(AppTheme theme) => theme switch
+    {
+        AppTheme.Light => ElementTheme.Light,
+        AppTheme.Dark  => ElementTheme.Dark,
+        _              => ElementTheme.Default,
+    };
 
     // =========================================================================
     // NAVIGATION

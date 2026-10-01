@@ -1,9 +1,11 @@
 using System.Diagnostics.CodeAnalysis;
 using LeafCalendar.App.Interop;
 using LeafCalendar.App.Notifications;
+using LeafCalendar.App.Tray;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.App.Views.Onboarding;
 using LeafCalendar.App.Views.Settings;
+using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Hosting;
 using LeafCalendar.Core.Settings;
@@ -35,6 +37,7 @@ public partial class App : Application
     CalendarViewModel? _calendar;
     SettingsWindow? _hookedSettings;
     TrayIcon? _tray;
+    TrayHost? _host;
     Notifier? _notifier;
     AlertCenter? _alerts;
     SyncEngine? _attachedSync;
@@ -44,6 +47,7 @@ public partial class App : Application
     readonly LocalZoneWatcher _zone = new();
     AppLog? _log;
     bool _trayStarted;
+    bool _quitting;
 
     /// <summary>Loads XAML resources and hooks crash logging.</summary>
     public App()
@@ -153,6 +157,27 @@ public partial class App : Application
         {
             // Any failure here would end the launch, and Leaf is still useful without its icon
             services.Log.Info("tray.create.failed", $"error={ex.GetType().Name}");
+        }
+
+        // Tray Menu (the host is created once and kept hidden; without it the icon still opens the window)
+        try
+        {
+            var host = new TrayHost();
+            host.OpenRequested     += (_, _) => ShowMainWindow();
+            host.NewEventRequested += (_, _) => NewEvent();
+            host.JoinNextRequested += (_, _) => JoinNext();
+            host.SyncRequested     += (_, _) => SyncNow();
+            host.SettingsRequested += (_, _) => OpenSettings(SettingsSection.General);
+            host.QuitRequested     += (_, _) => Quit();
+            _host = host;
+            if (_tray is not null)
+            {
+                _tray.ContextMenuRequested += (_, point) => ShowTrayMenu(point.X, point.Y);
+            }
+        }
+        catch (Exception ex)
+        {
+            services.Log.Info("tray.menu.create.failed", $"error={ex.GetType().Name}");
         }
 
         // Notifications (registered before any click is handled)
@@ -267,7 +292,10 @@ public partial class App : Application
         window.Closed += (_, _) =>
         {
             _window = null;
-            _dispatcher?.TryEnqueue(ReleaseIfHidden);
+            if (!_quitting)
+            {
+                _dispatcher?.TryEnqueue(ReleaseIfHidden);
+            }
         };
         _window = window;
         EfficiencyMode.Set(false);
@@ -337,7 +365,10 @@ public partial class App : Application
             open.Closed    += (_, _) =>
             {
                 _hookedSettings = null;
-                _dispatcher?.TryEnqueue(ReleaseIfHidden);
+                if (!_quitting)
+                {
+                    _dispatcher?.TryEnqueue(ReleaseIfHidden);
+                }
             };
         }
     }
@@ -365,6 +396,116 @@ public partial class App : Application
 
         EfficiencyMode.Set(true);
         MemoryTrimmer.Trim();
+    }
+
+    // =========================================================================
+    // TRAY ACTIONS
+    // =========================================================================
+
+    // Right-click on the icon (raised from the tray window's procedure, so nothing may escape)
+    void ShowTrayMenu(int x, int y)
+    {
+        try
+        {
+            _host?.ShowMenu(x, y, CurrentSettings().Theme);
+        }
+        catch (Exception ex)
+        {
+            _log?.Info("tray.menu.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // New event: the main window's editor, at the next free slot
+    void NewEvent()
+    {
+        ShowMainWindow();
+        _dispatcher?.TryEnqueue(DispatcherQueuePriority.Low, () => _calendar?.BeginCreateNow());
+    }
+
+    // Join next meeting (the tray menu and the join shortcut): the join rule (spec 8.5), else "No meeting to join"
+    void JoinNext()
+    {
+        if (_services is not { } services)
+        {
+            return;
+        }
+
+        try
+        {
+            Uri? link;
+            using (var conn = services.Database.Open())
+            {
+                link = JoinPicker.Find(conn, services.Time.GetUtcNow(), _zone.Zone);
+            }
+
+            if (link is null)
+            {
+                _notifier?.Show(ToastContent.NoMeeting(CurrentSettings().NotificationSound));
+                return;
+            }
+
+            // LaunchAsync re-checks the link and never throws
+            _ = services.LaunchAsync(link);
+        }
+        catch (Exception ex)
+        {
+            // A menu click handler, so nothing may escape; the type only, never content
+            services.Log.Info("tray.join.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // Sync now: calendars and events, the calendar list included
+    async void SyncNow()
+    {
+        // async void: anything that escapes here would end the process
+        try
+        {
+            if (_services?.Google is { } google)
+            {
+                await Task.Run(() => google.Sync.SyncAllAsync(refreshCalendarLists: true, CancellationToken.None));
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.Info("tray.sync.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // Quit: the only way Leaf ends once it's in the tray
+    async void Quit()
+    {
+        if (_quitting)
+        {
+            return;
+        }
+
+        _quitting = true;
+        try
+        {
+            _minuteTimer?.Stop();
+            _alerts?.Dispose();
+            _notifier?.Dispose();
+            _tray?.Dispose();
+            _tray = null;
+            SettingsWindow.Current?.Close();
+            _window?.Close();
+            _host?.Shutdown();
+            _calendar?.Dispose();
+            _calendar = null;
+            if (_services is { } services)
+            {
+                _services = null;
+                await DisposeServicesAsync(services);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.Info("app.quit.failed", $"error={ex.GetType().Name}");
+        }
+        finally
+        {
+            Exit();
+        }
     }
 
     // Nothing to show: the services go, then the app ends

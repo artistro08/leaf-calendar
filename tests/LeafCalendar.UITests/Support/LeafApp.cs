@@ -393,6 +393,27 @@ public sealed class LeafApp : IDisposable
         NativeMethods.PostMessage(hwnd, 0x8001, (nint)((y << 16) | (x & 0xFFFF)), (nint)((1 << 16) | (int)trayEvent));
     }
 
+    /// <summary>Right-clicks the tray icon near the bottom-right corner of the primary screen.</summary>
+    public void RightClickTrayIcon() =>
+        PostTrayMessage(TrayContextMenu, NativeMethods.GetSystemMetrics(NativeMethods.PrimaryScreenWidth) - 100, NativeMethods.GetSystemMetrics(NativeMethods.PrimaryScreenHeight) - 20);
+
+    /// <summary>
+    /// Waits up to 15 s for an element in any of this Leaf's top-level windows or popups (the tray menu and flyout open
+    /// in popups of their own, which aren't always reported as windows).
+    /// </summary>
+    public AutomationElement WaitForPopup(string automationId) =>
+        Retry.WhileNull(() => FindInPopups(automationId), TimeSpan.FromSeconds(15)).Result
+        ?? throw new InvalidOperationException($"Element '{automationId}' didn't appear in any window or popup.");
+
+    /// <summary>True when an element with this ID is currently in one of this Leaf's windows or popups.</summary>
+    public bool PopupExists(string automationId) => FindInPopups(automationId) is not null;
+
+    AutomationElement? FindInPopups(string automationId) =>
+        _automation.GetDesktop()
+            .FindAllChildren(cf => cf.ByProcessId(App.ProcessId))
+            .Select(w => w.Properties.AutomationId.ValueOrDefault == automationId ? w : w.FindFirstDescendant(cf => cf.ByAutomationId(automationId)))
+            .FirstOrDefault(e => e is not null);
+
     /// <summary>Sizes the main window (in screen pixels), so panes overflow and scroll.</summary>
     public void Resize(int width, int height)
     {
@@ -478,6 +499,8 @@ public sealed class LeafApp : IDisposable
         internal const int VirtualScreenTop       = 77;
         internal const int VirtualScreenWidth     = 78;
         internal const int VirtualScreenHeight    = 79;
+        internal const int PrimaryScreenWidth     = 0;
+        internal const int PrimaryScreenHeight    = 1;
 
         [DllImport("user32.dll")]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

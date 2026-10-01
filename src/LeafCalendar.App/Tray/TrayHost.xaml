@@ -1,0 +1,55 @@
+<Window
+    x:Class="LeafCalendar.App.Tray.TrayHost"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Leaf Calendar tray">
+
+    <!-- Invisible Anchor For The Tray Menu -->
+    <Grid x:Name="Root" Background="Transparent">
+
+        <!-- Tray Menu (spec 8.3): every item pins the narrow padding, or the first open is touch-sized -->
+        <Grid x:Name="MenuAnchor">
+            <FlyoutBase.AttachedFlyout>
+                <MenuFlyout x:Name="Menu" ShouldConstrainToRootBounds="False" Closed="OnMenuClosed">
+                    <MenuFlyoutItem Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}" Text="Open Leaf Calendar" Click="OnOpenClick" AutomationProperties.AutomationId="TrayMenuOpen">
+                        <MenuFlyoutItem.Icon>
+                            <FontIcon Glyph="&#xE787;" />
+                        </MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+                    <MenuFlyoutItem Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}" Text="New event" Click="OnNewEventClick" AutomationProperties.AutomationId="TrayMenuNewEvent">
+                        <MenuFlyoutItem.Icon>
+                            <FontIcon Glyph="&#xE710;" />
+                        </MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+                    <MenuFlyoutItem Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}" Text="Join next meeting" Click="OnJoinNextClick" AutomationProperties.AutomationId="TrayMenuJoin">
+                        <MenuFlyoutItem.Icon>
+                            <FontIcon Glyph="&#xE714;" />
+                        </MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+
+                    <MenuFlyoutSeparator />
+
+                    <MenuFlyoutItem Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}" Text="Sync now" Click="OnSyncClick" AutomationProperties.AutomationId="TrayMenuSync">
+                        <MenuFlyoutItem.Icon>
+                            <FontIcon Glyph="&#xE72C;" />
+                        </MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+                    <MenuFlyoutItem Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}" Text="Settings…" Click="OnSettingsClick" AutomationProperties.AutomationId="TrayMenuSettings">
+                        <MenuFlyoutItem.Icon>
+                            <FontIcon Glyph="&#xE713;" />
+                        </MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+
+                    <MenuFlyoutSeparator />
+
+                    <MenuFlyoutItem Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}" Text="Quit" Click="OnQuitClick" AutomationProperties.AutomationId="TrayMenuQuit">
+                        <MenuFlyoutItem.Icon>
+                            <FontIcon Glyph="&#xE7E8;" />
+                        </MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+                </MenuFlyout>
+            </FlyoutBase.AttachedFlyout>
+        </Grid>
+        <!-- /Tray Menu -->
+    </Grid>
+</Window>
