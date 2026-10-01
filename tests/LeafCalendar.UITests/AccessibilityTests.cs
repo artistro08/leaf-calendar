@@ -57,7 +57,7 @@ public sealed class AccessibilityTests : IDisposable
         "Editor"            => ("", OpenEditor, ["EditorTitle", "EditorTimeZoneBox", "DescriptionBold", "DescriptionNumbers", "EditorDescription", "EditorSaveButton"]),
         "SettingsGeneral"   => ("", leaf => OpenSettings(leaf, "General"), ["ThemeComboBox", "HourHeightSlider", "WeekendsSwitch", "WorkingHoursSwitch", "StartupSwitch"]),
         "SettingsCalendars" => ("", leaf => OpenSettings(leaf, "Calendars"), [$"CalendarMore_{Family}"]),
-        "SettingsTimeZones" => ("", leaf => OpenSettings(leaf, "TimeZones"), ["TimeZoneSearch", "ExpanderToggleButton"]),
+        "SettingsTimeZones" => ("", leaf => OpenSettings(leaf, "TimeZones"), ["TimeZoneSearch", "PrimaryZoneExpander"]),
         "SettingsAccounts"  => ("", leaf => OpenSettings(leaf, "Accounts"), ["AddAccountButton", "DefaultCalendarComboBox", "SyncNowButton", "ChangeClientButton"]),
         "SettingsAbout"     => ("", leaf => OpenSettings(leaf, "About"), ["GitHubLink", "OpenLogsButton"]),
 
