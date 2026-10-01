@@ -558,11 +558,17 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         ResetZoneInput();
     }
 
-    /// <summary>Puts the picked zone back in the box (typing without a pick changes nothing).</summary>
-    public void ResetZoneInput()
+    /// <summary>
+    /// Puts the picked zone back in the box (typing without a pick changes nothing). With <paramref name="keepSuggestions"/>
+    /// the list stays: the box loses focus as a suggestion is pressed, before the click picks it.
+    /// </summary>
+    public void ResetZoneInput(bool keepSuggestions = false)
     {
         ZoneInput = TimeZoneText;
-        ZoneSuggestions.Clear();
+        if (!keepSuggestions)
+        {
+            ZoneSuggestions.Clear();
+        }
     }
 
     static TimeZoneInfo? FindZone(string id) => TimeZoneInfo.TryFindSystemTimeZoneById(id, out var zone) ? zone : null;

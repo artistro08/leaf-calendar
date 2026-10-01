@@ -26,6 +26,7 @@ public sealed partial class EventEditorView : UserControl
     readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _suggestTimer;
     CalendarViewModel? _owner;
     bool _endTimeAsked;
+    bool _zoneAsked;
     bool _reminderDropDownOpen;
 
     /// <summary>Creates the editor.</summary>
@@ -62,6 +63,7 @@ public sealed partial class EventEditorView : UserControl
         _owner                = owner;
         Editor                = editor;
         _endTimeAsked         = false;
+        _zoneAsked            = false;
         _reminderDropDownOpen = false;
 
         // A new editor starts at the top
@@ -111,12 +113,17 @@ public sealed partial class EventEditorView : UserControl
         FocusFirst();
     }
 
-    // The end time for "E then U", else the title
+    // The end time for "E then U", the time zone for "E then Z", else the title
     void FocusFirst()
     {
         if (Editor?.FocusEnd == true || _endTimeAsked)
         {
             EndTimePicker.Focus(FocusState.Programmatic);
+        }
+        else if (_zoneAsked && Editor is { ShowTimeZone: true })
+        {
+            TimeZoneBox.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = false });
+            TimeZoneBox.Focus(FocusState.Programmatic);
         }
         else
         {
@@ -135,6 +142,8 @@ public sealed partial class EventEditorView : UserControl
             return;
         }
 
+        // Asked before the editor's first focus lands, that focus goes here instead of the title
+        _zoneAsked = true;
         DispatcherQueue.TryEnqueue(() =>
         {
             TimeZoneBox.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = false });
@@ -356,12 +365,13 @@ public sealed partial class EventEditorView : UserControl
         editor.ResetZoneInput();
     }
 
-    // Leaving the box without a pick shows the event's zone again
+    // Leaving the box without a pick shows the event's zone again. The suggestions stay: pressing one takes focus from
+    // the box first, and its click still has to find it (the next typing replaces them)
     void OnZoneLostFocus(object sender, RoutedEventArgs e)
     {
         if (Editor is { } editor && !TimeZoneBox.IsSuggestionListOpen)
         {
-            editor.ResetZoneInput();
+            editor.ResetZoneInput(keepSuggestions: true);
         }
     }
 
