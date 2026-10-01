@@ -4,6 +4,8 @@ using System.Globalization;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -20,20 +22,8 @@ public sealed partial class CalendarPage
     // The time travel and zone switch bars above the calendar
     TimeTravelBar? _travelBar;
 
-    /// <summary>The interface scale changed (the window recomputes its minimum size and the search icon's place).</summary>
+    /// <summary>The interface scale changed (the window recomputes its minimum size and the toolbar's place).</summary>
     public event EventHandler? ScaleChanged;
-
-    /// <summary>The mini month's "Next month" button (the title bar centers its search icon over it).</summary>
-    public FrameworkElement? MiniMonthNextButton => Sidebar.MiniMonthNextButton;
-
-    /// <summary>
-    /// The Next month button's center, in window DIPs, once the open sidebar has settled; null before it's laid out.
-    /// </summary>
-    /// <remarks>Measured against the sidebar itself (which settles at the window's left edge), so a pane still sliding in doesn't move it.</remarks>
-    public double? MiniMonthNextCenterX =>
-        Sidebar.MiniMonthNextButton is { ActualWidth: > 0 } next
-            ? next.TransformToVisual(Sidebar).TransformPoint(new Windows.Foundation.Point(next.ActualWidth / 2, 0)).X
-            : null;
 
     /// <summary>
     /// With the sidebar closed, starts the period title after <paramref name="right"/> (the title bar search icon's right
@@ -227,10 +217,14 @@ public sealed partial class CalendarPage
     // CHEAT SHEET
     // =========================================================================
 
-    // ?: one sheet at a time (a second dialog while one is open throws in WinUI)
-    void ShowShortcutSheet()
+    // ?
+    void ShowShortcutSheet() => ShowDialog(() => ShortcutSheet.ShowAsync(this, ViewModel.Settings), "shortcuts.sheet.failed");
+
+    // One dialog at a time: a second ContentDialog while one is open throws in WinUI, so nothing opens while ours or
+    // any other (a scope question, the conflict dialog) is up
+    void ShowDialog(Func<Task> show, string eventName)
     {
-        if (_dialogOpen)
+        if (_dialogOpen || IsDialogOpen())
         {
             return;
         }
@@ -240,43 +234,36 @@ public sealed partial class CalendarPage
         {
             try
             {
-                await ShortcutSheet.ShowAsync(XamlRoot, ViewModel.Settings);
+                await show();
             }
             finally
             {
                 _dialogOpen = false;
             }
-        }, "shortcuts.sheet.failed");
+        }, eventName);
     }
+
+    // An open ContentDialog among this window's popups, told by its automation peer's class name (a type test on popup
+    // content fails under Native AOT)
+    bool IsDialogOpen() =>
+        XamlRoot is not null
+        && VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot)
+            .Select(p => p.Child)
+            .Where(child => child is not null)
+            .Any(child => FrameworkElementAutomationPeer.CreatePeerForElement(child)?.GetClassName() == "ContentDialog");
 
     // =========================================================================
     // TIME TRAVEL
     // =========================================================================
 
-    // Z: pick a zone to view the calendar in, for this session (one dialog at a time, shared with the cheat sheet's guard)
-    void StartTimeTravel()
+    // Z: pick a zone to view the calendar in, for this session
+    void StartTimeTravel() => ShowDialog(async () =>
     {
-        if (_dialogOpen)
+        if (await AskTravelZoneAsync() is { } zoneId)
         {
-            return;
+            ViewModel.TravelTo(zoneId);
         }
-
-        _dialogOpen = true;
-        ViewModel.Fire(async () =>
-        {
-            try
-            {
-                if (await AskTravelZoneAsync() is { } zoneId)
-                {
-                    ViewModel.TravelTo(zoneId);
-                }
-            }
-            finally
-            {
-                _dialogOpen = false;
-            }
-        }, "calendar.timetravel.failed");
-    }
+    }, "calendar.timetravel.failed");
 
     // The zone picker ("Go" waits for a picked suggestion). Suggestions go to the box as plain strings (a list of Core
     // records can't be marshaled to WinRT under Native AOT) and come back by matching our own list

@@ -418,10 +418,10 @@ public partial class App : Application
             // Only when a tray setting changed or the day rolled over (other layout changes don't touch the tray)
             _calendar.LayoutChanged += (_, _) =>
             {
-                // The calendars list only changes through Settings › Tray, so its count is enough
+                // The excluded calendars as an order-free hash (the list holds no repeats)
                 var s    = CurrentSettings();
                 var zone = DisplayZone.Resolve(null, s.PrimaryTimeZone, _zone.Zone);
-                var key  = (s.FlyoutDays, s.FlyoutAllDay, s.TrayLookaheadMinutes, s.Use24HourTime, Excluded: s.TrayExcludedCalendars.Count, Zone: s.PrimaryTimeZone, Today: TimeZoneInfo.ConvertTime(_services!.Time.GetUtcNow(), zone).Date);
+                var key  = (s.FlyoutDays, s.FlyoutAllDay, s.TrayLookaheadMinutes, s.Use24HourTime, Excluded: s.TrayExcludedCalendars.Aggregate(0, (hash, c) => hash ^ c.GetHashCode()), Zone: s.PrimaryTimeZone, Today: TimeZoneInfo.ConvertTime(_services!.Time.GetUtcNow(), zone).Date);
                 if (key == _trayKey)
                 {
                     return;

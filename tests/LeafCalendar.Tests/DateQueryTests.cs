@@ -39,6 +39,8 @@ public sealed class DateQueryTests
     [InlineData("13/45")]
     [InlineData("in 99999 days")]
     [InlineData("standup")]
+    [InlineData("in ٣ days")]          // Arabic-Indic digits aren't ASCII digits
+    [InlineData("in ٣٣٣٣ weeks")]
     public void TryParse_Rejects(string text) => Assert.False(DateQuery.TryParse(text, Today, out _));
 
     [Fact]

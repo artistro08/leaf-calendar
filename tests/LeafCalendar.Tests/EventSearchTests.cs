@@ -83,6 +83,54 @@ public sealed class EventSearchTests : IDisposable
     }
 
     [Fact]
+    public void Find_Repeating_MovedInstance_CarriesTheExceptionsIdAndTimes()
+    {
+        // Fri Oct 9's standup moved to 11:00 ET
+        Insert("""{"id":"evt-weekly_20261009T133000Z","status":"confirmed","iCalUID":"evt-weekly@google.com","summary":"Team standup","recurringEventId":"evt-weekly","originalStartTime":{"dateTime":"2026-10-09T09:30:00-04:00"},"start":{"dateTime":"2026-10-09T11:00:00-04:00"},"end":{"dateTime":"2026-10-09T11:30:00-04:00"}}""",
+            Account);
+
+        var hit = Assert.Single(Find("standup"));
+
+        Assert.Equal("evt-weekly_20261009T133000Z", hit.EventId);
+        Assert.Equal(new DateTimeOffset(2026, 10, 9, 15, 0, 0, TimeSpan.Zero), hit.Start);
+        Assert.Equal(new DateTimeOffset(2026, 10, 9, 15, 30, 0, TimeSpan.Zero), hit.End);
+    }
+
+    [Fact]
+    public void Find_AllDaySeries_GivesTheNextDate()
+    {
+        Insert("""{"id":"bday","status":"confirmed","summary":"Birthday party","start":{"date":"2026-03-10"},"end":{"date":"2026-03-11"},"recurrence":["RRULE:FREQ=YEARLY"]}""");
+
+        var hit = Assert.Single(Find("birthday"));
+
+        Assert.True(hit.IsAllDay);
+        Assert.Equal("bday", hit.EventId);
+        Assert.Equal(new DateTimeOffset(2027, 3, 10, 0, 0, 0, TimeSpan.Zero), hit.Start);
+    }
+
+    [Fact]
+    public void Find_Series_ReadBeforeTheRowCap()
+    {
+        // More single matches than the scan reads, all nearer to now than the series start, all in the past
+        using (var conn = _db.Database.Open())
+        using (var tx = conn.BeginTransaction())
+        {
+            for (var i = 0; i < EventSearch.MaxRows; i++)
+            {
+                using var doc = JsonDocument.Parse(Timed($"note-{i}", "Standup notes", "2026-10-06T10:00:00-04:00", "2026-10-06T10:30:00-04:00"));
+                EventStore.Apply(conn, tx, Account, Primary, doc.RootElement);
+            }
+
+            tx.Commit();
+        }
+
+        var first = Find("standup")[0];
+
+        Assert.Equal("evt-weekly", first.EventId);
+        Assert.Equal(new DateTimeOffset(2026, 10, 9, 13, 30, 0, TimeSpan.Zero), first.Start);
+    }
+
+    [Fact]
     public void Find_UpcomingFirstThenPastNewestFirst()
     {
         Insert(Timed("r1", "Review one", "2026-09-01T10:00:00-04:00", "2026-09-01T11:00:00-04:00"));

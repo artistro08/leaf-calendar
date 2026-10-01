@@ -51,9 +51,9 @@ public static partial class DateQuery
         // In N Days Or Weeks
         if (InDays().Match(input) is { Success: true } inDays)
         {
-            var count = int.Parse(inDays.Groups[1].Value, CultureInfo.InvariantCulture);
-            var days  = inDays.Groups[2].Value.StartsWith('w') ? count * 7 : count;
-            if (count is < 1 or > 3660 || today.DayNumber + days > DateOnly.MaxValue.DayNumber)
+            var parsed = int.TryParse(inDays.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var count);
+            var days   = inDays.Groups[2].Value.StartsWith('w') ? count * 7 : count;
+            if (!parsed || count is < 1 or > 3660 ||today.DayNumber + days > DateOnly.MaxValue.DayNumber)
             {
                 return false;
             }
@@ -113,6 +113,7 @@ public static partial class DateQuery
         return null;
     }
 
-    [GeneratedRegex(@"^in (\d{1,4}) (days?|weeks?)$")]
+    // ASCII digits only (\d also matches other scripts' digits)
+    [GeneratedRegex(@"^in ([0-9]{1,4}) (days?|weeks?)$")]
     private static partial Regex InDays();
 }

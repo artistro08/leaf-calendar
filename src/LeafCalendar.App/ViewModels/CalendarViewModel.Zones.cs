@@ -66,11 +66,8 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        // A Pinned Primary Zone Stays; Offer To Switch To Windows' New One
-        if (DisplayZone.ShouldOfferSwitch(Settings.PrimaryTimeZone, Settings.PromptOnZoneChange, _zones.Zone))
-        {
-            ZoneSwitchOffer = _zones.Zone;
-        }
+        // A Pinned Primary Zone Stays; Offer To Switch To Windows' New One (or drop the offer once Windows is back)
+        ZoneSwitchOffer = DisplayZone.ShouldOfferSwitch(Settings.PrimaryTimeZone, Settings.PromptOnZoneChange, _zones.Zone) ? _zones.Zone : null;
 
         if (Zone.Id != before.Id)
         {
@@ -81,6 +78,12 @@ public sealed partial class CalendarViewModel
     /// <summary>Re-sorts and redraws when the zone on screen changed since the views were last drawn (time travel, or the primary zone setting).</summary>
     public void SyncZone()
     {
+        // An Offer Left Over From Before A Settings Change (following Windows again, or the prompt turned off) Goes
+        if (ZoneSwitchOffer is not null && !DisplayZone.ShouldOfferSwitch(Settings.PrimaryTimeZone, Settings.PromptOnZoneChange, _zones.Zone))
+        {
+            ZoneSwitchOffer = null;
+        }
+
         var zone = Zone;
         if (_applied?.Id == zone.Id)
         {

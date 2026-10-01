@@ -5,6 +5,8 @@ using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Windows.UI.ViewManagement;
 
 namespace LeafCalendar.App.Views;
 
@@ -16,11 +18,14 @@ public static class ShortcutSheet
 {
     const double CaptionSize = 12;
 
-    /// <summary>Shows the sheet until it's closed. Built in code from this method's own references (nothing read back).</summary>
-    public static async Task ShowAsync(XamlRoot root, LeafSettings settings)
+    /// <summary>
+    /// Shows the sheet over <paramref name="owner"/>'s window until it's closed, in the theme <paramref name="owner"/>
+    /// shows now. Built in code from this method's own references (nothing read back).
+    /// </summary>
+    public static async Task ShowAsync(FrameworkElement owner, LeafSettings settings)
     {
-        // Theme From The Settings (code-built text takes LeafBrushes, which need it)
-        var dark = settings.Theme == AppTheme.Dark || (settings.Theme == AppTheme.System && Application.Current.RequestedTheme == ApplicationTheme.Dark);
+        // Colors For Code-Built Text: The Owner's Current Theme, Or The System's High Contrast Colors
+        var colors = Colors.For(owner.ActualTheme == ElementTheme.Dark);
 
         // Filter Box Over A Scrolling List
         var filter = new TextBox { PlaceholderText = "Search shortcuts", Margin = new Thickness(0, 0, 0, 12) };
@@ -35,12 +40,12 @@ public static class ShortcutSheet
         content.Children.Add(filter);
         content.Children.Add(scroll);
 
-        filter.TextChanged += (_, _) => Fill(list, filter.Text, settings, dark);
-        Fill(list, "", settings, dark);
+        filter.TextChanged += (_, _) => Fill(list, filter.Text, settings, colors);
+        Fill(list, "", settings, colors);
 
         var dialog = new ContentDialog
         {
-            XamlRoot        = root,
+            XamlRoot        = owner.XamlRoot,
             Title           = "Keyboard shortcuts",
             Content         = content,
             CloseButtonText = "Close",
@@ -52,7 +57,7 @@ public static class ShortcutSheet
     }
 
     // The matching rows by section, then the global shortcuts, then the footnote
-    static void Fill(StackPanel list, string query, LeafSettings settings, bool dark)
+    static void Fill(StackPanel list, string query, LeafSettings settings, Colors colors)
     {
         list.Children.Clear();
 
@@ -68,7 +73,7 @@ public static class ShortcutSheet
             list.Children.Add(Header(section, first: list.Children.Count == 0));
             foreach (var row in rows)
             {
-                list.Children.Add(Row(row.Action, row.Keys, $"ShortcutRow_{IndexOf(row)}", dark));
+                list.Children.Add(Row(row.Action, row.Keys, $"ShortcutRow_{IndexOf(row)}", colors));
             }
         }
 
@@ -85,7 +90,7 @@ public static class ShortcutSheet
             list.Children.Add(Header("Anywhere in Windows", first: list.Children.Count == 0));
             for (var i = 0; i < matches.Count; i++)
             {
-                list.Children.Add(Row(matches[i].Action, matches[i].Keys, $"GlobalShortcutRow_{i}", dark));
+                list.Children.Add(Row(matches[i].Action, matches[i].Keys, $"GlobalShortcutRow_{i}", colors));
             }
         }
 
@@ -94,7 +99,7 @@ public static class ShortcutSheet
         {
             Text         = ShortcutCatalog.Footnote,
             FontSize     = CaptionSize,
-            Foreground   = LeafBrushes.SecondaryText(dark),
+            Foreground   = colors.Secondary,
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0, 16, 0, 0),
         });
@@ -121,7 +126,7 @@ public static class ShortcutSheet
     };
 
     // The action on the left, the keys on the right in a key cap
-    static Grid Row(string action, string keys, string automationId, bool dark)
+    static Grid Row(string action, string keys, string automationId, Colors colors)
     {
         var grid = new Grid { MinHeight = 32, ColumnSpacing = 12 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -133,9 +138,9 @@ public static class ShortcutSheet
 
         var cap = new Border
         {
-            Child             = new TextBlock { Text = keys, FontSize = CaptionSize },
-            Background        = LeafBrushes.Hover(dark),
-            BorderBrush       = LeafBrushes.GridLine(dark),
+            Child             = new TextBlock { Text = keys, FontSize = CaptionSize, Foreground = colors.CapText },
+            Background        = colors.CapFill,
+            BorderBrush       = colors.CapStroke,
             BorderThickness   = new Thickness(1),
             CornerRadius      = new CornerRadius(4),
             Padding           = new Thickness(8, 2, 8, 2),
@@ -145,5 +150,22 @@ public static class ShortcutSheet
         grid.Children.Add(cap);
 
         return grid;
+    }
+
+    /// <summary>The sheet's code-built colors: LeafBrushes per theme, or the system's button colors in high contrast.</summary>
+    sealed record Colors(Brush CapFill, Brush CapStroke, Brush CapText, Brush Secondary)
+    {
+        public static Colors For(bool dark)
+        {
+            if (!new AccessibilitySettings().HighContrast)
+            {
+                return new(LeafBrushes.Hover(dark), LeafBrushes.GridLine(dark), LeafBrushes.PrimaryText(dark), LeafBrushes.SecondaryText(dark));
+            }
+
+            var ui   = new UISettings();
+            var face = new SolidColorBrush(ui.UIElementColor(UIElementType.ButtonFace));
+            var text = new SolidColorBrush(ui.UIElementColor(UIElementType.ButtonText));
+            return new(face, text, text, new SolidColorBrush(ui.UIElementColor(UIElementType.WindowText)));
+        }
     }
 }

@@ -2,8 +2,6 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Events;
-using LeafCalendar.Core.Google;
-using LeafCalendar.Core.Recurrence;
 using LeafCalendar.Core.Tray;
 using LeafCalendar.Core.Views;
 using Microsoft.Data.Sqlite;
@@ -56,7 +54,7 @@ public static partial class EventSearch
     public const int MaxResults = 20;
 
     // ponytail: scans at most this many rows (series first, then nearest to now); an FTS table is the upgrade if people keep years of events
-    const int MaxRows = 3000;
+    internal const int MaxRows = 3000;
 
     // How far either side of now a series is expanded to find its instance
     const int InstanceDays = 366;
@@ -225,38 +223,23 @@ public static partial class EventSearch
     /// </summary>
     static List<Instance> Instances(SqliteConnection conn, Row row, DateOnly today, TimeZoneInfo zone)
     {
-        if (row.StartMs is not { } startMs || row.EndMs is not { } endMs)
-        {
-            return [];
-        }
+        var fromDate = today.AddDays(-InstanceDays);
+        var toDate   = today.AddDays(InstanceDays);
 
-        var start      = DateTimeOffset.FromUnixTimeMilliseconds(startMs);
-        var duration   = DateTimeOffset.FromUnixTimeMilliseconds(endMs) - start;
-        var ev         = JsonSerializer.Deserialize(row.RawJson, GoogleJsonContext.Default.GoogleEvent);
-        var recurrence = ev?.Recurrence ?? [];
-        var fromDate   = today.AddDays(-InstanceDays);
-        var toDate     = today.AddDays(InstanceDays);
-
-        // Series Starts
-        IEnumerable<DateTimeOffset> starts = row.IsAllDay
-            ? RecurrenceExpander.ExpandAllDay(recurrence, DateOnly.FromDateTime(start.UtcDateTime), fromDate, toDate)
-                .Select(d => new DateTimeOffset(d.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero))
-            : RecurrenceExpander.ExpandTimed(recurrence, ev?.Start?.DateTime ?? start, row.TimeZone,
-                OccurrenceQuery.LocalMidnight(fromDate, zone), OccurrenceQuery.LocalMidnight(toDate, zone));
-
-        // Exceptions Replace The Instance That Started At Their Original Start
+        // Exceptions Replace The Instance That Started At Their Original Start (OccurrenceQuery's own expansion skips those)
         var exceptions = conn.Query(null, ExceptionSql, Change.Read, ("$account", row.AccountId), ("$calendar", row.CalendarId), ("$master", row.Id))
             .DistinctBy(e => e.OriginalStartMs)
             .ToDictionary(e => e.OriginalStartMs);
 
-        var result = new List<Instance>();
-        foreach (var s in starts)
+        var series = new OccurrenceQuery.SeriesRow(row.StartMs, row.EndMs, row.IsAllDay, row.TimeZone, row.RawJson);
+        var result = OccurrenceQuery.ExpandMaster(series, fromDate, toDate, OccurrenceQuery.LocalMidnight(fromDate, zone), OccurrenceQuery.LocalMidnight(toDate, zone), exceptions.ContainsKey)
+            .Select(i => new Instance(row.Id, i.Start, i.End))
+            .ToList();
+
+        // Moved Or Edited Instances Carry Their Own ID And Times; Canceled Ones Stay Out
+        foreach (var exception in exceptions.Values)
         {
-            if (!exceptions.TryGetValue(s.ToUnixTimeMilliseconds(), out var exception))
-            {
-                result.Add(new Instance(row.Id, s, s + duration));
-            }
-            else if (exception.Status != "cancelled" && exception.StartMs is { } movedStart && exception.EndMs is { } movedEnd)
+            if (exception.Status != "cancelled" && exception.StartMs is { } movedStart && exception.EndMs is { } movedEnd)
             {
                 result.Add(new Instance(exception.Id, DateTimeOffset.FromUnixTimeMilliseconds(movedStart), DateTimeOffset.FromUnixTimeMilliseconds(movedEnd)));
             }

@@ -49,7 +49,7 @@ public sealed partial class ShortcutsPage : Page
     {
         try
         {
-            await ShortcutSheet.ShowAsync(XamlRoot, _context.Calendar.Settings);
+            await ShortcutSheet.ShowAsync(this, _context.Calendar.Settings);
         }
         catch (Exception ex)
         {
