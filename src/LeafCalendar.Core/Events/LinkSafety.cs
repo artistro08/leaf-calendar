@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace LeafCalendar.Core.Events;
@@ -181,7 +182,10 @@ public static partial class LinkSafety
             && (shownUri.Scheme == Uri.UriSchemeHttps || shownUri.Scheme == Uri.UriSchemeHttp)
             && shownUri.UserInfo.Length == 0
             && TryIdnHost(shownUri, out var shownHost)
-            && string.Equals(shownHost, host, StringComparison.OrdinalIgnoreCase);
+            && string.Equals(shownHost, host, StringComparison.OrdinalIgnoreCase)
+            && Ascii.IsValid(shownUri.Host);
+
+        // A non-ASCII host in the text (a look-alike such as Cyrillic "аpple.com") still gets the note, in ASCII
         return same ? null : host;
     }
 

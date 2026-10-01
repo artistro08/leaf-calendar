@@ -129,6 +129,24 @@ public class DescriptionFormatterTests
         Assert.All(DescriptionFormatter.Format($"<a href=\"{href}\">mail</a>"), r => Assert.Null(r.Link));
     }
 
+    // A mail link whose text is another email address is a disguise, like a web link whose text is another address
+    [Theory]
+    [InlineData("<a href=\"mailto:evil@evil.example\">ceo@bank.example</a>")]
+    [InlineData("<a href=\"mailto:ceo@bank.example.evil.example\">ceo@bank.example</a>")]
+    [InlineData("<a href=\"mailto:ceo@evil.example\">ceo@bank．example</a>")]
+    public void Format_MailtoTextNamesAnotherAddress_IsNotClickable(string html)
+    {
+        Assert.All(DescriptionFormatter.Format(html), r => Assert.Null(r.Link));
+    }
+
+    [Theory]
+    [InlineData("<a href=\"mailto:Sam@Example.com\">sam@example.com</a>")]
+    [InlineData("<a href=\"mailto:sam@example.com?subject=Hi\">Sam</a>")]
+    public void Format_MailtoTextMatchingOrNotAnAddress_StaysClickable(string html)
+    {
+        Assert.NotNull(DescriptionFormatter.Format(html).Single().Link);
+    }
+
     [Fact]
     public void Format_MailtoText_StaysClickable()
     {

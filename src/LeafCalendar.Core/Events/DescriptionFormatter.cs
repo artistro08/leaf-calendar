@@ -317,6 +317,14 @@ public static partial class DescriptionFormatter
     }
 
     // True when the visible text names a web address whose host differs from where the link really goes
+    // True when the text is the mail link's own address (name ignoring case, host compared in ASCII form)
+    static bool SameAddress(Uri target, string shown) =>
+        Uri.TryCreate("mailto:" + shown, UriKind.Absolute, out var shownUri)
+            && string.Equals(Uri.UnescapeDataString(shownUri.UserInfo), Uri.UnescapeDataString(target.UserInfo), StringComparison.OrdinalIgnoreCase)
+            && LinkSafety.TryIdnHost(shownUri, out var shownHost)
+            && LinkSafety.TryIdnHost(target, out var targetHost)
+            && string.Equals(shownHost, targetHost, StringComparison.OrdinalIgnoreCase);
+
     internal static bool DisguisesTarget(Uri target, string visible)
     {
         // Look-alike forms (fullwidth letters, other dots) read as what they look like; text that can't be normalized isn't trusted
@@ -340,10 +348,10 @@ public static partial class DescriptionFormatter
             return false;
         }
 
-        // A mailto link only needs guarding against web-address text (plain "sam@example.com" text is fine)
+        // A mailto link is disguised by web-address text, or by text that's another email address
         if (target.Scheme == Uri.UriSchemeMailto)
         {
-            return web || shown.StartsWith("www.", StringComparison.OrdinalIgnoreCase);
+            return web || shown.StartsWith("www.", StringComparison.OrdinalIgnoreCase) || (shown.Contains('@', StringComparison.Ordinal) && !SameAddress(target, shown));
         }
 
         // Scheme-less text counts as an address when its host part has an interior dot ("bank.example/login")
