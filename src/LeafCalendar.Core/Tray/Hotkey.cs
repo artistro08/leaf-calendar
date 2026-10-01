@@ -120,7 +120,7 @@ public readonly record struct Hotkey(HotkeyModifiers Modifiers, int Key)
     }
 
     // A–Z and 0–9 are their own virtual-key codes; F1–F24 are 0x70–0x87 (F12, 0x7B, is the debugger's)
-    static string? KeyName(int key) => key switch
+    internal static string? KeyName(int key) => key switch
     {
         0x7B                => null,
         >= 0x41 and <= 0x5A => new string((char)key, 1),

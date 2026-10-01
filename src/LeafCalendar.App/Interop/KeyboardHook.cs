@@ -1,0 +1,148 @@
+// Copyright (c) Microsoft Corporation
+// The Microsoft Corporation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
+//
+// Ported from PowerToys: src/common/interop/KeyboardHook.cpp (Start, Close, HookProc) and
+// src/common/ManagedCommon/HotkeySettingsControlHook.cs (https://github.com/microsoft/PowerToys).
+// Leaf changes: C# through CsWin32 without marshaling, so the hook procedure is a static [UnmanagedCallersOnly] function
+// (no delegate for the GC to collect); one instance at a time (there's one shortcut dialog); no exception may leave the
+// hook procedure (a failing callback lets the key through).
+
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using Windows.Win32;
+using Windows.Win32.Foundation;
+using Windows.Win32.UI.WindowsAndMessaging;
+
+namespace LeafCalendar.App.Interop;
+
+/// <summary>A key event from the low-level hook: the message, the virtual-key code, and the sender's extra info.</summary>
+internal readonly record struct KeyboardEvent(uint Message, int Key, nuint ExtraInfo);
+
+/// <summary>
+/// A low-level keyboard hook (<c>WH_KEYBOARD_LL</c>) for the shortcut picker: while <c>isActive</c> says so, every key
+/// that <c>filter</c> doesn't let through goes to the callback and is swallowed, so Windows and other apps never act on
+/// it (Win+letter, Alt+Tab). Runs on the thread that started it (the UI thread), while it pumps messages.
+/// </summary>
+internal static unsafe class KeyboardHook
+{
+    static HHOOK s_hook;
+    static Action<KeyboardEvent>? s_callback;
+    static Func<bool>? s_isActive;
+    static Func<KeyboardEvent, bool>? s_filter;
+
+    /// <summary>Installs the hook (replacing one already installed). False when Windows refused it.</summary>
+    public static bool Start(Action<KeyboardEvent> callback, Func<bool> isActive, Func<KeyboardEvent, bool> filter)
+    {
+        Close();
+        s_callback = callback;
+        s_isActive = isActive;
+        s_filter   = filter;
+
+        // Register Low Level Hook Procedure
+        var module = (HINSTANCE)(nint)PInvoke.GetModuleHandle(default(PCWSTR)).Value;
+        s_hook = PInvoke.SetWindowsHookEx(WINDOWS_HOOK_ID.WH_KEYBOARD_LL, &HookProc, module, 0);
+        return !s_hook.IsNull;
+    }
+
+    /// <summary>Removes the hook (safe to call when none is installed).</summary>
+    public static void Close()
+    {
+        if (!s_hook.IsNull && PInvoke.UnhookWindowsHookEx(s_hook))
+        {
+            s_hook = default;
+        }
+
+        s_callback = null;
+        s_isActive = null;
+        s_filter   = null;
+    }
+
+    /// <summary>True while Windows reports <paramref name="virtualKey"/> held (<c>GetAsyncKeyState</c>).</summary>
+    public static bool IsDown(int virtualKey) => (PInvoke.GetAsyncKeyState(virtualKey) & 0x8000) != 0;
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
+    static LRESULT HookProc(int nCode, WPARAM wParam, LPARAM lParam)
+    {
+        try
+        {
+            if (nCode == (int)PInvoke.HC_ACTION && s_callback is { } callback && s_isActive?.Invoke() == true)
+            {
+                var info = (KBDLLHOOKSTRUCT*)lParam.Value;
+                var ev   = new KeyboardEvent((uint)wParam.Value, (int)info->vkCode, info->dwExtraInfo);
+
+                // Ignore the keyboard hook if the FilterKeyboardEvent returns false.
+                if (s_filter is null || s_filter(ev))
+                {
+                    callback(ev);
+                    return new LRESULT(1);
+                }
+            }
+        }
+#pragma warning disable CA1031 // An exception leaving an unmanaged callback ends the process; the key just goes through
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+        }
+
+        return PInvoke.CallNextHookEx(default, nCode, wParam, lParam);
+    }
+}
+
+/// <summary>
+/// The shortcut picker's hook (PowerToys' <c>HotkeySettingsControlHook</c>): key-downs and key-ups as virtual-key codes,
+/// while <c>isActive</c>, for the keys <c>filter</c> keeps (it gets the key and the sender's extra info).
+/// </summary>
+internal sealed class HotkeySettingsControlHook : IDisposable
+{
+    private const int WmKeyDown = 0x100;
+    private const int WmKeyUp = 0x101;
+    private const int WmSysKeyDown = 0x0104;
+    private const int WmSysKeyUp = 0x0105;
+
+    private readonly Action<int> _keyDown;
+    private readonly Action<int> _keyUp;
+    private readonly Func<bool> _isActive;
+    private readonly Func<int, nuint, bool> _filterKeyboardEvent;
+    private bool disposedValue;
+
+    public HotkeySettingsControlHook(Action<int> keyDown, Action<int> keyUp, Func<bool> isActive, Func<int, nuint, bool> filterAccessibleKeyboardEvents)
+    {
+        _keyDown = keyDown;
+        _keyUp = keyUp;
+        _isActive = isActive;
+        _filterKeyboardEvent = filterAccessibleKeyboardEvents;
+        KeyboardHook.Start(HotkeySettingsHookCallback, IsActive, FilterKeyboardEvents);
+    }
+
+    private bool IsActive() => _isActive();
+
+    private void HotkeySettingsHookCallback(KeyboardEvent ev)
+    {
+        switch (ev.Message)
+        {
+            case WmKeyDown:
+            case WmSysKeyDown:
+                _keyDown(ev.Key);
+                break;
+            case WmKeyUp:
+            case WmSysKeyUp:
+                _keyUp(ev.Key);
+                break;
+        }
+    }
+
+    private bool FilterKeyboardEvents(KeyboardEvent ev) => _filterKeyboardEvent(ev.Key, ev.ExtraInfo);
+
+    public bool GetDisposedState() => disposedValue;
+
+    public void Dispose()
+    {
+        if (!disposedValue)
+        {
+            // Remove the hook
+            KeyboardHook.Close();
+            disposedValue = true;
+        }
+    }
+}

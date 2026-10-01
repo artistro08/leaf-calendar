@@ -31,3 +31,11 @@ SetLayeredWindowAttributes
 ClientToScreen
 RegisterHotKey
 UnregisterHotKey
+SetWindowsHookEx
+UnhookWindowsHookEx
+CallNextHookEx
+KBDLLHOOKSTRUCT
+GetForegroundWindow
+GetAsyncKeyState
+HC_ACTION
+SendInput

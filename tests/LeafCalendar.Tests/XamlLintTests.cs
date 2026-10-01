@@ -32,6 +32,11 @@ public class XamlLintTests
         "Views/SidebarView.xaml|spacing|9,0,4,0 (Grid in CalendarList)",
         "Views/SidebarView.xaml|spacing|0,0,11,0 (ItemsControl in CalendarList)",
 
+        // Ported from PowerToys (ShortcutDialogContentControl's CondensedInfoBarStyle): the InfoBar template binds its own
+        // TemplateSettings.IconElement and Foreground through RelativeSource TemplatedParent, as the stock InfoBar template does
+        "Views/Settings/ShortcutDialogContentControl.xaml|binding|Child",
+        "Views/Settings/ShortcutDialogContentControl.xaml|binding|Value",
+
         // Tray flyout page padding is 20, copied from Sony's flyout (design standard, "Flyout page padding")
         "Tray/TrayHost.xaml|spacing|20,20,20,16 (StackPanel in AgendaPanel)",
 

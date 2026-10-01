@@ -1,3 +1,4 @@
+using FlaUI.Core.AutomationElements;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.UITests.Support;
 
@@ -126,6 +127,54 @@ public sealed class ScreenshotTour : IDisposable
                     settings.CaptureToFile(Path.Combine(folder, $"settings-{page.ToLowerInvariant()}-{theme.ToString().ToLowerInvariant()}-{(width == 0 ? "narrow" : "wide")}.png"));
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// The shortcut picker in light and dark: the Shortcuts page's buttons, then its dialog with the current shortcut
+    /// (valid), Shift+J (invalid), nothing (Esc), and the other shortcut's keys (taken). Set LEAF_SCREENSHOTS to run it.
+    /// </summary>
+    [Fact]
+    public void Capture_ShortcutPicker()
+    {
+        var folder = Environment.GetEnvironmentVariable("LEAF_SCREENSHOTS");
+        if (string.IsNullOrEmpty(folder))
+        {
+            Assert.Skip("Set LEAF_SCREENSHOTS to a folder to capture the shortcut picker.");
+        }
+
+        Directory.CreateDirectory(folder);
+        foreach (var theme in new[] { AppTheme.Light, AppTheme.Dark })
+        {
+            var name    = theme.ToString().ToLowerInvariant();
+            var profile = SeededProfile.Create(new LeafSettings { Theme = theme, JoinShortcut = "Ctrl+Alt+Shift+F9", FlyoutShortcut = "Ctrl+Alt+Shift+F10" });
+            _profiles.Add(profile);
+            using var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+            leaf.WaitFor("SettingsButton");
+            var settings = leaf.OpenSettings("Shortcuts");
+            leaf.MainWindow.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
+            settings.Patterns.Transform.Pattern.Move(40, 40);
+            settings.Patterns.Transform.Pattern.Resize(1100, 800);
+            settings.SetForeground();
+            leaf.WaitInSettings("JoinShortcutButton");
+            Thread.Sleep(600);
+            settings.CaptureToFile(Path.Combine(folder, $"shortcut-button-{name}.png"));
+
+            // The Dialog's States
+            leaf.WaitInSettings("JoinShortcutButton").AsButton().Invoke();
+            leaf.WaitForAnywhere("ShortcutPreview");
+            Thread.Sleep(600);
+            settings.CaptureToFile(Path.Combine(folder, $"shortcut-dialog-valid-{name}.png"));
+            FlaUI.Core.Input.Keyboard.TypeSimultaneously(FlaUI.Core.WindowsAPI.VirtualKeyShort.SHIFT, FlaUI.Core.WindowsAPI.VirtualKeyShort.KEY_J);
+            Thread.Sleep(600);
+            settings.CaptureToFile(Path.Combine(folder, $"shortcut-dialog-invalid-{name}.png"));
+            FlaUI.Core.Input.Keyboard.Type(FlaUI.Core.WindowsAPI.VirtualKeyShort.ESCAPE);
+            Thread.Sleep(600);
+            settings.CaptureToFile(Path.Combine(folder, $"shortcut-dialog-empty-{name}.png"));
+            FlaUI.Core.Input.Keyboard.TypeSimultaneously(FlaUI.Core.WindowsAPI.VirtualKeyShort.CONTROL, FlaUI.Core.WindowsAPI.VirtualKeyShort.ALT, FlaUI.Core.WindowsAPI.VirtualKeyShort.SHIFT, FlaUI.Core.WindowsAPI.VirtualKeyShort.F10);
+            Thread.Sleep(600);
+            settings.CaptureToFile(Path.Combine(folder, $"shortcut-dialog-taken-{name}.png"));
+            leaf.WaitForAnywhere("CloseButton").AsButton().Invoke();
         }
     }
 

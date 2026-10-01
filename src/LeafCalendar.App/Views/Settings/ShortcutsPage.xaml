@@ -2,7 +2,8 @@
     x:Class="LeafCalendar.App.Views.Settings.ShortcutsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:LeafCalendar.App.Controls">
+    xmlns:controls="using:LeafCalendar.App.Controls"
+    xmlns:settings="using:LeafCalendar.App.Views.Settings">
 
     <ScrollViewer x:Name="PageScroll">
         <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
@@ -11,12 +12,8 @@
             <!-- Global Shortcuts (spec 8.6) -->
             <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Global shortcuts" />
             <controls:SettingRow Glyph="&#xE714;" Header="Join meeting" Description="Works anywhere in Windows. Joins the meeting that starts in the next 10 minutes, or the one in progress, with the right Google account.">
-                <Button
-                    x:Name="JoinShortcutButton"
-                    MinWidth="180"
-                    Click="OnJoinShortcutClick"
-                    AutomationProperties.Name="Join meeting"
-                    AutomationProperties.AutomationId="JoinShortcutButton" />
+                <!-- PowerToys' Shortcut Picker (its button's name and automation ID are set in code) -->
+                <settings:ShortcutControl x:Name="JoinShortcutControl" />
             </controls:SettingRow>
             <InfoBar
                 x:Name="JoinShortcutWarning"
@@ -25,12 +22,7 @@
                 AutomationProperties.LiveSetting="Polite"
                 AutomationProperties.AutomationId="JoinShortcutWarning" />
             <controls:SettingRow Glyph="&#xE8A7;" Header="Show or hide the tray flyout" Description="Works anywhere in Windows.">
-                <Button
-                    x:Name="FlyoutShortcutButton"
-                    MinWidth="180"
-                    Click="OnFlyoutShortcutClick"
-                    AutomationProperties.Name="Show or hide the tray flyout"
-                    AutomationProperties.AutomationId="FlyoutShortcutButton" />
+                <settings:ShortcutControl x:Name="FlyoutShortcutControl" />
             </controls:SettingRow>
             <InfoBar
                 x:Name="FlyoutShortcutWarning"

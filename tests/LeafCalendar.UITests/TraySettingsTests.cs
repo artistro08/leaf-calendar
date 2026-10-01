@@ -111,6 +111,59 @@ public sealed class TraySettingsTests : IDisposable
     }
 
     [Fact]
+    public void ShortcutDialog_WarnsLive_EscClears_AndCatchesAWinCombination()
+    {
+        var profile = Profile(new LeafSettings { JoinShortcut = "Ctrl+Alt+Shift+F9", FlyoutShortcut = "Ctrl+Alt+Shift+F10" });
+        using var leaf = Launch(profile);
+        leaf.OpenSettings("Shortcuts");
+        leaf.WaitInSettings("JoinShortcutButton").AsButton().Invoke();
+
+        // Opens On The Current Shortcut
+        Assert.True(Retry.WhileFalse(() => leaf.WaitForAnywhere("ShortcutPreview").Name == "Ctrl+Alt+Shift+F9", TimeSpan.FromSeconds(5)).Success);
+
+        // Shift Alone Isn't Enough: The Warning Says Why And Save Is Off
+        Keyboard.TypeSimultaneously(VirtualKeyShort.SHIFT, VirtualKeyShort.KEY_J);
+        Assert.True(Retry.WhileFalse(() => leaf.WaitForAnywhere("ShortcutPreview").Name == "Shift+J", TimeSpan.FromSeconds(5)).Success);
+        Assert.True(Retry.WhileFalse(() => leaf.AnyTextContains("Invalid shortcut"), TimeSpan.FromSeconds(5)).Success, "The invalid shortcut bar didn't show.");
+        Assert.False(leaf.WaitForAnywhere("PrimaryButton").IsEnabled);
+
+        // The Other Shortcut's Combination Is Taken
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.ALT, VirtualKeyShort.SHIFT, VirtualKeyShort.F10);
+        Assert.True(Retry.WhileFalse(() => leaf.AnyTextContains("already uses Ctrl+Alt+Shift+F10"), TimeSpan.FromSeconds(5)).Success, "The warning didn't name the other shortcut.");
+        Assert.False(leaf.WaitForAnywhere("PrimaryButton").IsEnabled);
+
+        // Esc Clears What Was Pressed; The Dialog Stays
+        Keyboard.Type(VirtualKeyShort.ESCAPE);
+        Assert.True(Retry.WhileFalse(() => leaf.WaitForAnywhere("ShortcutPreview").Name == "No keys", TimeSpan.FromSeconds(5)).Success);
+
+        // A Win Combination Reaches The Dialog, Not Windows, And Saves
+        Keyboard.TypeSimultaneously(VirtualKeyShort.LWIN, VirtualKeyShort.SHIFT, VirtualKeyShort.F7);
+        Assert.True(Retry.WhileFalse(() => leaf.WaitForAnywhere("ShortcutPreview").Name == "Shift+Win+F7", TimeSpan.FromSeconds(5)).Success);
+        Assert.True(Retry.WhileFalse(() => leaf.WaitForAnywhere("PrimaryButton").IsEnabled, TimeSpan.FromSeconds(5)).Success);
+        leaf.WaitForAnywhere("PrimaryButton").AsButton().Invoke();
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("JoinShortcutButton").Properties.HelpText.ValueOrDefault == "Shift+Win+F7", TimeSpan.FromSeconds(5)).Success);
+    }
+
+    [Fact]
+    public void ShortcutDialog_ResetAndTurnOff()
+    {
+        var profile = Profile(new LeafSettings { JoinShortcut = "Ctrl+Alt+Shift+F9", FlyoutShortcut = "Ctrl+Alt+Shift+F10" });
+        using var leaf = Launch(profile);
+        leaf.OpenSettings("Shortcuts");
+
+        // Reset Picks The Default
+        leaf.WaitInSettings("JoinShortcutButton").AsButton().Invoke();
+        leaf.WaitForAnywhere("ShortcutReset").AsButton().Invoke();
+        // (or, where another app holds the default on this PC, the old one comes back with a note)
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("JoinShortcutButton").Properties.HelpText.ValueOrDefault == LeafSettings.DefaultJoinShortcut || leaf.AnyTextContains($"{LeafSettings.DefaultJoinShortcut} was taken by another app"), TimeSpan.FromSeconds(5)).Success);
+
+        // Turning It Off Leaves No Shortcut
+        leaf.WaitInSettings("JoinShortcutButton").AsButton().Invoke();
+        leaf.WaitForAnywhere("ShortcutClear").AsButton().Invoke();
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("JoinShortcutButton").Properties.HelpText.ValueOrDefault == "None", TimeSpan.FromSeconds(5)).Success);
+    }
+
+    [Fact]
     public void Shortcuts_TakenByAnotherApp_ShowTheWarning()
     {
         // This test's own thread takes Ctrl+Alt+Shift+F8 first, like another app would
