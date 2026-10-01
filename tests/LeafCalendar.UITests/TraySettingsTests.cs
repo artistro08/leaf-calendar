@@ -106,6 +106,10 @@ public sealed class TraySettingsTests : IDisposable
         leaf.WaitForAnywhere("PrimaryButton").AsButton().Invoke();
 
         Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("JoinShortcutButton").Properties.HelpText.ValueOrDefault == "Ctrl+Alt+Shift+F7", TimeSpan.FromSeconds(5)).Success);
+
+        // The Shortcuts Register Again Once The Dialog Has Closed (its hook lets go of the keyboard then too)
+        Assert.True(Retry.WhileTrue(() => leaf.AnyTextContains("Activation shortcut"), TimeSpan.FromSeconds(5)).Success, "The dialog didn't close.");
+        Thread.Sleep(300);
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.ALT, VirtualKeyShort.SHIFT, VirtualKeyShort.F7);
         Assert.True(Retry.WhileFalse(() => LeafApp.LaunchedLinks(profile).Contains(MeetLink), TimeSpan.FromSeconds(10)).Success);
     }
@@ -157,7 +161,8 @@ public sealed class TraySettingsTests : IDisposable
         // (or, where another app holds the default on this PC, the old one comes back with a note)
         Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("JoinShortcutButton").Properties.HelpText.ValueOrDefault == LeafSettings.DefaultJoinShortcut || leaf.AnyTextContains($"{LeafSettings.DefaultJoinShortcut} was taken by another app"), TimeSpan.FromSeconds(5)).Success);
 
-        // Turning It Off Leaves No Shortcut
+        // Turning It Off Leaves No Shortcut (once the first dialog is gone: only one can be open)
+        Assert.True(Retry.WhileTrue(() => leaf.AnyTextContains("Activation shortcut"), TimeSpan.FromSeconds(5)).Success, "The first dialog didn't close.");
         leaf.WaitInSettings("JoinShortcutButton").AsButton().Invoke();
         leaf.WaitForAnywhere("ShortcutClear").AsButton().Invoke();
         Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("JoinShortcutButton").Properties.HelpText.ValueOrDefault == "None", TimeSpan.FromSeconds(5)).Success);
