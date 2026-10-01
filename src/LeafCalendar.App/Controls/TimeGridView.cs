@@ -177,7 +177,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
         // Body
         _bodyRepeater.ItemTemplate = new DayColumnFactory(this);
-        _bodyRepeater.ElementPrepared += (_, e) => _columns.Add((DayColumn)e.Element);
+        _bodyRepeater.ElementPrepared += (_, e) =>
+        {
+            _columns.Add((DayColumn)e.Element);
+            ShowNewEventGhost();
+        };
         _bodyRepeater.ElementClearing += (_, e) => _columns.Remove((DayColumn)e.Element);
         _bodyScroll.Content = _bodyRepeater;
         ScrollIndicator.ShowOnHover(_bodyScroll);
@@ -217,6 +221,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _vm.ScrollToTimeRequested += OnScrollToTimeRequested;
         _vm.OverlayChanged        += OnOverlayChanged;
         _vm.ShareChanged          += OnShareChanged;
+        _vm.PropertyChanged       += OnViewModelPropertyChanged;
         ActualThemeChanged        += (_, _) => RenderRealized();
         Loaded                    += (_, _) =>
         {
@@ -312,6 +317,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _vm.ScrollToTimeRequested -= OnScrollToTimeRequested;
         _vm.OverlayChanged        -= OnOverlayChanged;
         _vm.ShareChanged          -= OnShareChanged;
+        _vm.PropertyChanged       -= OnViewModelPropertyChanged;
+        Track(null);
     }
 
     // =========================================================================
@@ -638,7 +645,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
         var maxLanes = _allDayExpanded ? int.MaxValue : MaxCollapsedLanes;
         _allDay.Render(_strip, _firstIndex - count, count * 3, maxLanes);
 
-        var lanes = Math.Min(_allDay.LaneCount, maxLanes);
+        // At Least One Lane: empty, the row is still there to double-click for a new all-day event
+        var lanes = Math.Max(1, Math.Min(_allDay.LaneCount, maxLanes));
         _allDay.Height = lanes * AllDayLaneHeight + 4;
         _allDay.Width  = _strip.Count * ColumnWidth;
         _allDayExpand.Visibility = _allDay.LaneCount > MaxCollapsedLanes ? Visibility.Visible : Visibility.Collapsed;
@@ -871,6 +879,18 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _vm.BeginCreate(start, start + DragMath.DefaultLength, isAllDay: false);
     }
 
+    /// <summary>Double-click on empty space in the all-day row: a new all-day event on that day (nothing while picking times to share).</summary>
+    public void CreateAllDayAt(double x)
+    {
+        if (_vm.IsSharing)
+        {
+            return;
+        }
+
+        var start = new DateTimeOffset(DayAt(x).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        _vm.BeginCreate(start, start.AddDays(1), isAllDay: true);
+    }
+
     /// <summary>Drops a pending or running drag without changing anything (Esc). Returns true when there was one.</summary>
     public bool CancelDrag()
     {
@@ -881,7 +901,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
         _drag = null;
         HideBox();
-        ClearGhosts();
+        ShowNewEventGhost();
         ReleasePointerCaptures();
         return true;
     }
@@ -956,7 +976,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _drag = null;
         HideBox();
         ReleasePointerCapture(e.Pointer);
-        ClearGhosts();
+        ShowNewEventGhost();
         if (!drag.Started)
         {
             return;
@@ -1146,6 +1166,58 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
 
         _allDay.ClearGhost();
+    }
+
+    // =========================================================================
+    // NEW EVENT GHOST
+    // =========================================================================
+
+    // The editor open on a new event (dragged out, double-clicked, or C), whose times the ghost follows
+    EventEditorViewModel? _newEvent;
+
+    void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(CalendarViewModel.Editing))
+        {
+            Track(_vm.Editing is { IsNew: true } editor ? editor : null);
+        }
+    }
+
+    // Follows a new event's editor (or none)
+    void Track(EventEditorViewModel? editor)
+    {
+        _newEvent?.PropertyChanged -= OnNewEventChanged;
+        _newEvent = editor;
+        _newEvent?.PropertyChanged += OnNewEventChanged;
+        ShowNewEventGhost();
+    }
+
+    void OnNewEventChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(EventEditorViewModel.StartDate) or nameof(EventEditorViewModel.StartTime)
+            or nameof(EventEditorViewModel.EndDate) or nameof(EventEditorViewModel.EndTime)
+            or nameof(EventEditorViewModel.IsAllDay) or nameof(EventEditorViewModel.TimeZoneId))
+        {
+            ShowNewEventGhost();
+        }
+    }
+
+    // While the editor is open on a new event, its time range stays drawn on the grid as a ghost (the range you dragged
+    // out, following edits to its times) until it's saved or canceled; otherwise no ghost. A drag in progress draws its own
+    void ShowNewEventGhost()
+    {
+        if (_disposed || _drag is { Started: true })
+        {
+            return;
+        }
+
+        if (_newEvent?.ToDraft() is not { } draft)
+        {
+            ClearGhosts();
+            return;
+        }
+
+        ShowGhost((draft.Start, draft.End, draft.IsAllDay, draft.IsAllDay), duplicate: false);
     }
 
     // Day and minutes past local midnight under the pointer, in the day columns

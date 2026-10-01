@@ -86,6 +86,42 @@ public sealed class DragTests : IDisposable
         Assert.Equal(TimeSpan.FromHours(2), End(write) - Start(write));
     }
 
+    // The dragged range stays drawn as a ghost while the new event's editor is open, then goes with the editor
+    [Fact]
+    public void DragEmptyTime_KeepsTheRangeDrawnWhileTheEditorIsOpen()
+    {
+        using var leaf = Launch();
+        var dentist = leaf.WaitFor(Dentist);
+        var hour    = HourPixels(dentist);
+        var column  = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
+        var x       = column.X + column.Width / 2;
+        var from    = dentist.BoundingRectangle.Y + 4 * hour + hour / 10;
+
+        LeafApp.Drag(new Point(x, from), new Point(x, from + 2 * hour));
+        leaf.WaitFor("EditorTitle");
+
+        var ghost = leaf.WaitFor("Ghost_2026-10-02").BoundingRectangle;
+        Assert.True(Math.Abs(ghost.Top - (dentist.BoundingRectangle.Y + 4 * hour)) <= hour / 4 && ghost.Height >= hour, $"The ghost ({ghost}) isn't over the dragged range.");
+
+        leaf.WaitFor("EditorTitle").Focus();
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("Ghost_2026-10-02"), TimeSpan.FromSeconds(5)).Success, "The ghost stayed after the editor closed.");
+    }
+
+    // Double-clicking empty space in the all-day row opens the editor on a new all-day event that day
+    [Fact]
+    public void DoubleClickEmptyAllDayRow_OpensAllDayEditor()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Dentist);
+        var header = leaf.WaitFor("DayHeader_2026-09-29").BoundingRectangle;
+
+        Mouse.DoubleClick(new Point(header.X + header.Width / 2, header.Bottom + (int)(11 * leaf.Scale)));
+
+        Assert.True(leaf.WaitFor("EditorAllDay").AsCheckBox().IsChecked);
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+    }
+
     // A drag on empty time while an edit hides behind the closed panel starts a new event; only C and E bring the hidden edit back
     [Fact]
     public void DragEmptyTime_WithAHiddenEdit_StartsANewEvent()
