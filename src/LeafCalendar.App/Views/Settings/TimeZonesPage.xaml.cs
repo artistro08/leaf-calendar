@@ -17,6 +17,7 @@ public sealed partial class TimeZonesPage : Page
 {
     readonly ObservableCollection<ZoneRow> _rows = [];
     IReadOnlyList<TimeZoneChoice> _suggestions = [];
+    SettingsContext _context = null!;
     CalendarViewModel _vm = null!;
 
     /// <summary>Creates the page.</summary>
@@ -30,7 +31,8 @@ public sealed partial class TimeZonesPage : Page
     /// <inheritdoc />
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
-        _vm = ((SettingsContext)e.Parameter).Calendar;
+        _context = (SettingsContext)e.Parameter;
+        _vm      = _context.Calendar;
         _rows.Clear();
 
         var now = _vm.Now;
@@ -116,7 +118,7 @@ public sealed partial class TimeZonesPage : Page
         List<ExtraTimeZone> zones = [.. _rows.Select(r => new ExtraTimeZone(r.Id, string.IsNullOrWhiteSpace(r.Label) ? null : r.Label.Trim()))];
         if (!zones.SequenceEqual(_vm.Settings.TimeZones))
         {
-            _vm.Update(s => s with { TimeZones = zones });
+            _context.Save(s => s with { TimeZones = zones });
         }
     }
 

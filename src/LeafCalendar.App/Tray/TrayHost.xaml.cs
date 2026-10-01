@@ -424,7 +424,18 @@ public sealed partial class TrayHost : Window
 
     void OnMenuClosed(object sender, object e) => HideHostIfIdle();
 
-    void OnOpenClick(object sender, RoutedEventArgs e) => OpenRequested?.Invoke(this, EventArgs.Empty);
+    // A click handler, so nothing may escape
+    void OnOpenClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            OpenRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            _log.Info("tray.flyout.click.failed", $"error={ex.GetType().Name}");
+        }
+    }
 
     // A click handler, so nothing may escape
     void OnNewEventClick(object sender, RoutedEventArgs e)
@@ -444,7 +455,18 @@ public sealed partial class TrayHost : Window
 
     void OnSyncClick(object sender, RoutedEventArgs e) => SyncRequested?.Invoke(this, EventArgs.Empty);
 
-    void OnSettingsClick(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke(this, EventArgs.Empty);
+    // A click handler, so nothing may escape
+    void OnSettingsClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SettingsRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            _log.Info("tray.flyout.click.failed", $"error={ex.GetType().Name}");
+        }
+    }
 
     void OnQuitClick(object sender, RoutedEventArgs e) => QuitRequested?.Invoke(this, EventArgs.Empty);
 }

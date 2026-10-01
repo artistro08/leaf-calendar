@@ -689,6 +689,13 @@ public partial class App : Application
             if (occurrence is null)
             {
                 services.Log.Info("notification.event-gone");
+
+                // An Open Click Still Brings The Calendar Forward, Since The Click Should Show Something
+                if (toast.Action == ToastAction.Open)
+                {
+                    ShowMainWindow();
+                }
+
                 return;
             }
 

@@ -38,6 +38,9 @@ public sealed class GoogleServices : IAsyncDisposable
         Loop         = new SyncLoop(Sync.SyncAllAsync, time, log);
     }
 
+    /// <summary>An open "Join now" belonged to an account being disconnected; the argument is its tag, to withdraw from screen.</summary>
+    public event EventHandler<string>? JoinNowWithdrawn;
+
     /// <summary>OAuth calls.</summary>
     public GoogleOAuthClient OAuth { get; }
 
@@ -86,11 +89,20 @@ public sealed class GoogleServices : IAsyncDisposable
         // Its Alerts Go Too, So Adding It Again Starts With A Quiet First Look (after its calendars, so an invite pass
         // running now can't mark them seeded again; one transaction, so a failure can't leave half of it behind)
         using var conn = _database.Open();
+
+        // Its Open "Join now" Notifications Are Withdrawn, Since The Ledger Row Is Their Only Handle (keys read Kind|account|...)
+        var open = AlertLedger.OpenJoinNow(conn).Where(e => e.Key.Split('|').ElementAtOrDefault(1) == accountId).ToList();
+
         using (var tx = conn.BeginTransaction())
         {
             AccountStore.Delete(conn, accountId, tx);
             InviteWatcher.Forget(conn, accountId, tx);
             tx.Commit();
+        }
+
+        foreach (var entry in open)
+        {
+            JoinNowWithdrawn?.Invoke(this, entry.Tag);
         }
 
         _log.Info("account.disconnected", $"account={accountId}");

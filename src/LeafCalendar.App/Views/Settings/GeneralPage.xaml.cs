@@ -85,7 +85,7 @@ public sealed partial class GeneralPage : Page
         if (!_loading && ThemeBox.SelectedIndex >= 0)
         {
             var theme = Themes[ThemeBox.SelectedIndex];
-            Calendar.Update(s => s with { Theme = theme });
+            _context.Save(s => s with { Theme = theme });
         }
     }
 
@@ -104,7 +104,7 @@ public sealed partial class GeneralPage : Page
         }
         else
         {
-            Calendar.Update(s => s with { CustomDayCount = days });
+            _context.Save(s => s with { CustomDayCount = days });
         }
     }
 
@@ -112,7 +112,7 @@ public sealed partial class GeneralPage : Page
     {
         if (!_loading && e.NewValue != Calendar.Settings.HourHeight)
         {
-            Calendar.Update(s => s with { HourHeight = e.NewValue });
+            _context.Save(s => s with { HourHeight = e.NewValue });
         }
     }
 
@@ -137,7 +137,7 @@ public sealed partial class GeneralPage : Page
         if (!_loading)
         {
             var on = WeekNumbersSwitch.IsOn;
-            Calendar.Update(s => s with { ShowWeekNumbers = on });
+            _context.Save(s => s with { ShowWeekNumbers = on });
         }
     }
 
@@ -146,7 +146,7 @@ public sealed partial class GeneralPage : Page
         if (!_loading && WeekStartBox.SelectedIndex >= 0)
         {
             var day = WeekStarts[WeekStartBox.SelectedIndex];
-            Calendar.Update(s => s with { WeekStart = day });
+            _context.Save(s => s with { WeekStart = day });
             Calendar.NavigateTo(Calendar.PeriodStart);
         }
     }
@@ -156,7 +156,7 @@ public sealed partial class GeneralPage : Page
         if (!_loading)
         {
             var on = Clock24Switch.IsOn;
-            Calendar.Update(s => s with { Use24HourTime = on });
+            _context.Save(s => s with { Use24HourTime = on });
         }
     }
 

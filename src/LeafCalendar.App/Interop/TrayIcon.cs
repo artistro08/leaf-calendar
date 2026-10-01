@@ -263,7 +263,7 @@ internal sealed unsafe class TrayIcon : IDisposable
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            s_current?._log.Error("tray.message.failed", ex);
+            s_current?._log.Info("tray.message.failed", $"error={ex.GetType().Name}");
         }
 
         return PInvoke.DefWindowProc(hwnd, message, wParam, lParam);

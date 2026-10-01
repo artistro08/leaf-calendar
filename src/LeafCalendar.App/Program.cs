@@ -61,7 +61,7 @@ public static class Program
         if (started.Kind == ExtendedActivationKind.AppNotification)
         {
             StartArgument = started.Arguments;
-            if (ToastArgs.Parse(started.Arguments)?.Profile is { } profile && LaunchOptions.Parse(["--profile", profile]).Profile == profile)
+            if (ToastArgs.Parse(started.Arguments)?.Profile is { } profile)
             {
                 Options = Options with { Profile = profile };
             }

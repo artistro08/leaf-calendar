@@ -117,9 +117,6 @@ public static class InviteWatcher
     {
         AlertLedger.RemoveForAccount(conn, accountId, tx);
         AlertLedger.DeleteMarksStartingWith(conn, SeededMark + accountId + "|", tx);
-
-        // The Mark Before Per-Calendar Marks (one per account)
-        AlertLedger.DeleteMark(conn, SeededMark + accountId, tx);
     }
 
     static IReadOnlyList<CalendarOccurrence> Upcoming(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone)

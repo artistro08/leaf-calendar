@@ -46,6 +46,25 @@ public sealed class GoogleServicesTests : IDisposable
     }
 
     [Fact]
+    public async Task DisconnectAsync_OpenJoinNow_IsWithdrawnForThatAccountOnly()
+    {
+        _h.Google.On(HttpMethod.Post, RevokeUrl, HttpStatusCode.OK, "{}");
+        await using var services = CreateServices();
+        using (var seed = _h.Db.Database.Open())
+        {
+            AlertLedger.TryAdd(seed, $"JoinNow|{SyncHarness.AccountId}|cal|evt|0", AlertKind.JoinNow, "mine", _time.GetUtcNow().AddHours(1), _time.GetUtcNow());
+            AlertLedger.TryAdd(seed, "JoinNow|other|cal|evt|0", AlertKind.JoinNow, "theirs", _time.GetUtcNow().AddHours(1), _time.GetUtcNow());
+        }
+
+        var withdrawn = new List<string>();
+        services.JoinNowWithdrawn += (_, tag) => withdrawn.Add(tag);
+
+        await services.DisconnectAsync(SyncHarness.AccountId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["mine"], withdrawn);
+    }
+
+    [Fact]
     public async Task DisconnectAsync_RevokeFails_StillRemovesLocally()
     {
         _h.Google.On(HttpMethod.Post, RevokeUrl, HttpStatusCode.ServiceUnavailable, "{}");

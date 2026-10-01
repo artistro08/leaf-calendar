@@ -100,7 +100,7 @@ public sealed partial class AccountsPage : Page
         if (!_loading && DefaultCalendarBox.SelectedIndex >= 0)
         {
             var picked = _refs[DefaultCalendarBox.SelectedIndex];
-            _context.Calendar.Update(s => s with { DefaultCalendar = picked });
+            _context.Save(s => s with { DefaultCalendar = picked });
         }
     }
 

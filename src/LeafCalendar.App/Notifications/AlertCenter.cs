@@ -1,6 +1,7 @@
 using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.Hosting;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Sync;
 
@@ -33,6 +34,7 @@ internal sealed class AlertCenter : IDisposable
     readonly Lock _syncGate = new();
     readonly Lock _inviteGate = new();
     SyncEngine? _sync;
+    GoogleServices? _google;
     bool _disposed;
 
     /// <summary>Wires the scheduler to the notifier and to every source of changed events.</summary>
@@ -264,7 +266,13 @@ internal sealed class AlertCenter : IDisposable
             }
 
             DetachSync();
-            _sync = _services.Google?.Sync;
+            _google = _services.Google;
+            _sync   = _google?.Sync;
+            if (_google is not null)
+            {
+                _google.JoinNowWithdrawn += OnAlertRetracted;
+            }
+
             if (_sync is not null)
             {
                 _sync.DataChanged    += OnSyncDataChanged;
@@ -284,5 +292,12 @@ internal sealed class AlertCenter : IDisposable
         }
 
         _sync = null;
+
+        if (_google is not null)
+        {
+            _google.JoinNowWithdrawn -= OnAlertRetracted;
+        }
+
+        _google = null;
     }
 }

@@ -18,8 +18,8 @@ namespace LeafCalendar.Core.Alerts;
 /// </para>
 /// <para>
 /// A "Join now" stays on screen until clicked, so once its meeting ends, moves, is declined, or is deleted, the pass
-/// raises <see cref="AlertRetracted"/> with its tag and forgets it, so it shows again if the meeting comes back (see
-/// <see cref="WithdrawsStaleJoinNow"/>). A minute before any alert, <see cref="SyncSoon"/> asks for a sync, so a
+/// raises <see cref="AlertRetracted"/> with its tag and forgets it, so it shows again if the meeting comes back.
+/// A minute before any alert, <see cref="SyncSoon"/> asks for a sync, so a
 /// last-minute change on Google is caught first (spec 5.3).
 /// </para>
 /// <para>
@@ -40,12 +40,6 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
 
     /// <summary>How long before an alert the sync is asked for.</summary>
     public static readonly TimeSpan SyncLead = TimeSpan.FromMinutes(1);
-
-    /// <summary>
-    /// Whether a shown "Join now" is withdrawn once its meeting ends, moves, is declined, or is deleted. False keeps it
-    /// on screen until Join or Dismiss (the owner's call is pending; this is the one switch).
-    /// </summary>
-    static bool WithdrawsStaleJoinNow => true;
 
     static readonly TimeSpan PlanSpan   = TimeSpan.FromDays(1);
     static readonly TimeSpan LedgerKeep = TimeSpan.FromDays(2);
@@ -118,6 +112,15 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
         // One Pass At A Time, So A Later Pass's Retract Never Overtakes An Earlier Pass's Show
         lock (_raise)
         {
+            // Disposed: Don't Even Read The Settings
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+            }
+
             // The Settings, Read Once Per Kind
             var isEnabled = IsEnabled;
             var enabled   = Enum.GetValues<AlertKind>().Where(isEnabled).ToHashSet();
@@ -156,7 +159,7 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
                 }
 
                 due       = Due(conn, _plan, enabled, from, now, tz);
-                retracted = WithdrawsStaleJoinNow ? Retract(conn, _plan, now, tz) : [];
+                retracted = Retract(conn, _plan, now, tz);
                 syncSoon  = SyncDue(_plan, enabled, now);
 
                 // Pruned After Retract, so a "Join now" left open (Leaf off for days) is withdrawn before its row, its only handle, goes
@@ -202,7 +205,9 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
         {
             Check();
         }
-        catch (Exception ex) when (ex is SqliteException or JsonException or InvalidOperationException or IOException)
+#pragma warning disable CA1031 // A timer callback that throws ends the process; the pass is reported and retried
+        catch (Exception ex)
+#pragma warning restore CA1031
         {
             Failed?.Invoke(this, ex);
         }
