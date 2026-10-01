@@ -510,6 +510,14 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Shows an event picked outside the window (the tray flyout, a notification): jumps to its day, selects it, and scrolls to it.</summary>
+    public void Reveal(CalendarOccurrence occurrence)
+    {
+        NavigateTo(LocalDate(occurrence.Start));
+        Select(occurrence);
+        ScrollToTimeRequested?.Invoke(this, occurrence.Start);
+    }
+
     // =========================================================================
     // CALENDARS
     // =========================================================================

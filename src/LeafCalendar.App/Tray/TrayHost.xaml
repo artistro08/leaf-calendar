@@ -2,9 +2,10 @@
     x:Class="LeafCalendar.App.Tray.TrayHost"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:LeafCalendar.App.Tray"
     Title="Leaf Calendar tray">
 
-    <!-- Invisible Anchor For The Tray Menu -->
+    <!-- Invisible Anchor For The Tray Menu And The Flyout -->
     <Grid x:Name="Root" Background="Transparent">
 
         <!-- Tray Menu (spec 8.3): every item pins the narrow padding, or the first open is touch-sized -->
@@ -51,5 +52,196 @@
             </FlyoutBase.AttachedFlyout>
         </Grid>
         <!-- /Tray Menu -->
+
+        <!-- Agenda Flyout (spec 8.2) -->
+        <Grid x:Name="AgendaAnchor">
+            <FlyoutBase.AttachedFlyout>
+                <Flyout
+                    x:Name="Agenda"
+                    ShouldConstrainToRootBounds="False"
+                    AreOpenCloseAnimationsEnabled="False"
+                    Opened="OnAgendaOpened"
+                    Closing="OnAgendaClosing"
+                    Closed="OnAgendaClosed">
+
+                    <!-- Bare Presenter, So The Panel Below Is The Whole Visible Flyout -->
+                    <Flyout.FlyoutPresenterStyle>
+                        <Style TargetType="FlyoutPresenter">
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="MinWidth" Value="0" />
+                            <Setter Property="MinHeight" Value="0" />
+                            <Setter Property="MaxWidth" Value="10000" />
+                            <Setter Property="MaxHeight" Value="10000" />
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="BorderThickness" Value="0" />
+                            <Setter Property="IsDefaultShadowEnabled" Value="False" />
+                        </Style>
+                    </Flyout.FlyoutPresenterStyle>
+
+                    <!-- Frame: the panel plus 12 DIPs all round (room for its shadow); its taskbar-side edge is the work
+                         area's edge, where the slide is clipped, so the panel seems to come out from behind the taskbar -->
+                    <Grid x:Name="AgendaFrame" Padding="12">
+                        <Grid.Resources>
+                            <ResourceDictionary>
+                                <ResourceDictionary.ThemeDictionaries>
+                                    <ResourceDictionary x:Key="Light">
+                                        <SolidColorBrush x:Key="LeafFlyoutFooterBrush" Color="#0F000000" />
+                                    </ResourceDictionary>
+                                    <ResourceDictionary x:Key="Dark">
+                                        <SolidColorBrush x:Key="LeafFlyoutFooterBrush" Color="#33000000" />
+                                    </ResourceDictionary>
+                                    <ResourceDictionary x:Key="HighContrast">
+                                        <SolidColorBrush x:Key="LeafFlyoutFooterBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                                    </ResourceDictionary>
+                                </ResourceDictionary.ThemeDictionaries>
+                            </ResourceDictionary>
+                        </Grid.Resources>
+
+                        <!-- Panel -->
+                        <Grid
+                            x:Name="AgendaPanel"
+                            Width="360"
+                            Height="560"
+                            BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Translation="0,0,32"
+                            AutomationProperties.Name="Leaf Calendar agenda"
+                            AutomationProperties.AutomationId="FlyoutRoot">
+                            <Grid.Shadow>
+                                <ThemeShadow />
+                            </Grid.Shadow>
+                            <Grid.RenderTransform>
+                                <TranslateTransform x:Name="PanelShift" />
+                            </Grid.RenderTransform>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- Acrylic Background (stays active, like Windows' own flyouts) -->
+                            <SystemBackdropElement Grid.RowSpan="4" CornerRadius="8">
+                                <SystemBackdropElement.SystemBackdrop>
+                                    <local:ActiveAcrylicBackdrop />
+                                </SystemBackdropElement.SystemBackdrop>
+                            </SystemBackdropElement>
+
+                            <!-- Next Up -->
+                            <StackPanel Padding="20,20,20,16" Spacing="4">
+                                <TextBlock Style="{StaticResource LeafSectionHeaderStyle}" Text="Next" />
+                                <StackPanel x:Name="NextPanel" Spacing="4">
+                                    <TextBlock
+                                        x:Name="NextTitle"
+                                        Style="{StaticResource SubtitleTextBlockStyle}"
+                                        MaxLines="2"
+                                        TextTrimming="CharacterEllipsis"
+                                        TextWrapping="Wrap"
+                                        AutomationProperties.AutomationId="FlyoutNextTitle" />
+                                    <TextBlock x:Name="NextWhen" Style="{StaticResource LeafSecondaryTextStyle}" AutomationProperties.AutomationId="FlyoutNextWhen" />
+                                    <Button
+                                        x:Name="NextJoinButton"
+                                        Margin="0,12,0,0"
+                                        HorizontalAlignment="Stretch"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        Click="OnNextJoinClick"
+                                        AutomationProperties.Name="Join"
+                                        AutomationProperties.AutomationId="FlyoutJoinButton">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon FontSize="14" Glyph="&#xE714;" AutomationProperties.AccessibilityView="Raw" />
+                                            <TextBlock Text="Join" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                                <TextBlock x:Name="NothingNextText" Style="{StaticResource LeafSecondaryTextStyle}" TextWrapping="Wrap" AutomationProperties.AutomationId="FlyoutNothingNext" />
+                            </StackPanel>
+                            <!-- /Next Up -->
+
+                            <!-- Divider -->
+                            <Rectangle Grid.Row="1" Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                            <!-- Agenda (only this part scrolls) -->
+                            <ScrollViewer x:Name="AgendaScroll" Grid.Row="2" AutomationProperties.AutomationId="FlyoutAgenda">
+                                <StackPanel Padding="8,4,8,12">
+                                    <ItemsControl x:Name="AgendaDays">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="local:AgendaDayRow">
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Margin="8,12,8,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="{x:Bind Header}" />
+                                                    <ItemsControl ItemsSource="{x:Bind Items}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="local:AgendaRow">
+                                                                <Grid ColumnSpacing="8">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*" />
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                    </Grid.ColumnDefinitions>
+
+                                                                    <!-- Row: opens the event in the main window -->
+                                                                    <Button
+                                                                        Padding="8,4"
+                                                                        HorizontalAlignment="Stretch"
+                                                                        HorizontalContentAlignment="Stretch"
+                                                                        Style="{StaticResource SubtleButtonStyle}"
+                                                                        Click="{x:Bind Open}"
+                                                                        AutomationProperties.Name="{x:Bind Title}"
+                                                                        AutomationProperties.AutomationId="{x:Bind RowId}">
+                                                                        <Grid ColumnSpacing="12">
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="Auto" />
+                                                                                <ColumnDefinition Width="*" />
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{x:Bind Accent}" />
+                                                                            <StackPanel Grid.Column="1">
+                                                                                <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
+                                                                                <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" Text="{x:Bind When}" />
+                                                                            </StackPanel>
+                                                                        </Grid>
+                                                                    </Button>
+
+                                                                    <!-- Join -->
+                                                                    <Button
+                                                                        Grid.Column="1"
+                                                                        VerticalAlignment="Center"
+                                                                        Content="Join"
+                                                                        Visibility="{x:Bind JoinVisibility}"
+                                                                        Click="{x:Bind Join}"
+                                                                        AutomationProperties.Name="Join"
+                                                                        AutomationProperties.AutomationId="{x:Bind JoinId}" />
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock
+                                        x:Name="AgendaEmpty"
+                                        Margin="8,12"
+                                        Style="{StaticResource LeafSecondaryTextStyle}"
+                                        Text="Nothing coming up."
+                                        AutomationProperties.AutomationId="FlyoutAgendaEmpty" />
+                                </StackPanel>
+                            </ScrollViewer>
+                            <!-- /Agenda -->
+
+                            <!-- Footer -->
+                            <Border Grid.Row="3" Padding="16,12" Background="{ThemeResource LeafFlyoutFooterBrush}" CornerRadius="0,0,8,8">
+                                <Button HorizontalAlignment="Left" Click="OnNewEventClick" AutomationProperties.Name="New event" AutomationProperties.AutomationId="FlyoutNewEvent">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon FontSize="14" Glyph="&#xE710;" AutomationProperties.AccessibilityView="Raw" />
+                                        <TextBlock Text="New event" />
+                                    </StackPanel>
+                                </Button>
+                            </Border>
+                        </Grid>
+                        <!-- /Panel -->
+                    </Grid>
+                </Flyout>
+            </FlyoutBase.AttachedFlyout>
+        </Grid>
+        <!-- /Agenda Flyout -->
     </Grid>
 </Window>

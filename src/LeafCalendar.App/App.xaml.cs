@@ -7,11 +7,13 @@ using LeafCalendar.App.Views.Onboarding;
 using LeafCalendar.App.Views.Settings;
 using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Diagnostics;
+using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Hosting;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Sync;
 using LeafCalendar.Core.Tray;
 using LeafCalendar.Core.Views;
+using Microsoft.Data.Sqlite;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
@@ -151,7 +153,7 @@ public partial class App : Application
         try
         {
             _tray          = new TrayIcon(services.Log);
-            _tray.Invoked += (_, _) => ShowMainWindow();
+            _tray.Invoked += (_, _) => ToggleAgenda();
         }
         catch (Exception ex)
         {
@@ -159,16 +161,20 @@ public partial class App : Application
             services.Log.Info("tray.create.failed", $"error={ex.GetType().Name}");
         }
 
-        // Tray Menu (the host is created once and kept hidden; without it the icon still opens the window)
+        // Tray Menu And Flyout (the host is created once and kept hidden; without it Leaf runs on without them)
         try
         {
             var host = new TrayHost();
-            host.OpenRequested     += (_, _) => ShowMainWindow();
-            host.NewEventRequested += (_, _) => NewEvent();
-            host.JoinNextRequested += (_, _) => JoinNext();
-            host.SyncRequested     += (_, _) => SyncNow();
-            host.SettingsRequested += (_, _) => OpenSettings(SettingsSection.General);
-            host.QuitRequested     += (_, _) => Quit();
+            host.OpenRequested      += (_, _) => ShowMainWindow();
+            host.NewEventRequested  += (_, _) => NewEvent();
+            host.JoinNextRequested  += (_, _) => JoinNext();
+            host.SyncRequested      += (_, _) => SyncNow();
+            host.SettingsRequested  += (_, _) => OpenSettings(SettingsSection.General);
+            host.QuitRequested      += (_, _) => Quit();
+            host.AgendaOpened       += (_, _) => UpdateSyncMode(flyoutOpened: true);
+            host.AgendaClosed       += (_, _) => UpdateSyncMode();
+            host.OpenEventRequested += (_, occurrence) => RevealEvent(occurrence);
+            host.JoinRequested      += (_, occurrence) => JoinEvent(occurrence);
             _host = host;
             if (_tray is not null)
             {
@@ -213,7 +219,11 @@ public partial class App : Application
     }
 
     // Raised on the sync thread
-    void OnSyncDataChanged(object? sender, EventArgs e) => _dispatcher?.TryEnqueue(RefreshTooltip);
+    void OnSyncDataChanged(object? sender, EventArgs e) => _dispatcher?.TryEnqueue(() =>
+    {
+        RefreshTooltip();
+        RefreshAgenda();
+    });
 
     void OnMinute()
     {
@@ -224,6 +234,7 @@ public partial class App : Application
         }
 
         RefreshTooltip();
+        RefreshAgenda();
     }
 
     // "Standup in 12 min" (spec 8.1), within the tray lookahead setting
@@ -237,10 +248,7 @@ public partial class App : Application
         try
         {
             using var conn = services.Database.Open();
-            var settings   = SettingsStore.Load(conn);
-            var now        = services.Time.GetUtcNow();
-            var soon       = TrayAgenda.Load(conn, now, _zone.Zone, 2, includeAllDay: false, settings.Use24HourTime);
-            _tray.SetTooltip(TrayAgenda.Tooltip(TrayAgenda.Next(soon, now, TimeSpan.FromMinutes(settings.TrayLookaheadMinutes))));
+            _tray.SetTooltip(TrayAgenda.Tooltip(LoadNext(conn, SettingsStore.Load(conn), services.Time.GetUtcNow())));
         }
         catch (Exception ex)
         {
@@ -248,6 +256,10 @@ public partial class App : Application
             services.Log.Info("tray.tooltip.failed", $"error={ex.GetType().Name}");
         }
     }
+
+    // The flyout header's and tooltip's next event: timed events within the lookahead (up to 8 hours, so two days)
+    NextUp? LoadNext(SqliteConnection conn, LeafSettings settings, DateTimeOffset now) =>
+        TrayAgenda.Next(TrayAgenda.Load(conn, now, _zone.Zone, 2, includeAllDay: false, settings.Use24HourTime), now, TimeSpan.FromMinutes(settings.TrayLookaheadMinutes));
 
     // The saved settings (the view model may not exist while Leaf is only in the tray)
     LeafSettings CurrentSettings()
@@ -389,13 +401,139 @@ public partial class App : Application
     // 60-second polling, efficiency mode, and a trimmed working set
     void GoToTray()
     {
-        if (_services?.Google is { } google)
+        UpdateSyncMode();
+        MemoryTrimmer.Trim();
+    }
+
+    // =========================================================================
+    // FLYOUT
+    // =========================================================================
+
+    // Left-click or the flyout shortcut (raised from the tray window's procedure, so nothing may escape)
+    void ToggleAgenda()
+    {
+        if (_host is not { } host)
         {
-            google.Loop.Mode = SyncMode.Tray;
+            return;
         }
 
-        EfficiencyMode.Set(true);
-        MemoryTrimmer.Trim();
+        try
+        {
+            if (host.IsAgendaOpen)
+            {
+                host.HideAgenda();
+                return;
+            }
+
+            if (BuildAgenda() is { } model)
+            {
+                host.ShowAgenda(model, _tray?.IconRect(), CurrentSettings().Theme);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.Info("tray.flyout.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // A sync or the minute clock while the flyout is open (nothing may escape either)
+    void RefreshAgenda()
+    {
+        try
+        {
+            if (_host is { IsAgendaOpen: true } host && BuildAgenda() is { } model)
+            {
+                host.UpdateAgenda(model);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.Info("tray.flyout.refresh.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // The agenda (days and all-day per the Tray settings) and its header
+    AgendaModel? BuildAgenda()
+    {
+        if (_services is not { } services)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var conn = services.Database.Open();
+            var settings   = SettingsStore.Load(conn);
+            var now        = services.Time.GetUtcNow();
+            var days       = TrayAgenda.Load(conn, now, _zone.Zone, settings.FlyoutDays, settings.FlyoutAllDay, settings.Use24HourTime);
+            return new AgendaModel(days, LoadNext(conn, settings, now), TrayAgenda.NothingNext(settings.TrayLookaheadMinutes));
+        }
+        catch (Exception ex)
+        {
+            // The type only, never content
+            services.Log.Info("tray.agenda.failed", $"error={ex.GetType().Name}");
+            return null;
+        }
+    }
+
+    // A flyout row or a notification: the main window on that event
+    void RevealEvent(CalendarOccurrence occurrence)
+    {
+        try
+        {
+            ShowMainWindow();
+            _dispatcher?.TryEnqueue(DispatcherQueuePriority.Low, () => _calendar?.Reveal(occurrence));
+        }
+        catch (Exception ex)
+        {
+            // A flyout click handler, so nothing may escape
+            _log?.Info("tray.reveal.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // A Join button: the event's own link, Meet with its account
+    void JoinEvent(CalendarOccurrence occurrence)
+    {
+        if (_services is not { } services)
+        {
+            return;
+        }
+
+        try
+        {
+            Uri? link;
+            using (var conn = services.Database.Open())
+            {
+                link = JoinPicker.MeetingLink(conn, occurrence) is { } meeting ? JoinPicker.JoinLink(conn, new JoinTarget(occurrence, meeting)) : null;
+            }
+
+            // LaunchAsync re-checks the link and never throws
+            if (link is not null)
+            {
+                _ = services.LaunchAsync(link);
+            }
+        }
+        catch (Exception ex)
+        {
+            // A flyout click handler, so nothing may escape; the type only, never content
+            services.Log.Info("tray.join.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // 15 s while a window or the flyout is on screen, 60 s in the tray (spec 5.3); opening the flyout syncs at once
+    void UpdateSyncMode(bool flyoutOpened = false)
+    {
+        var visible = _window is not null || _host?.IsAgendaOpen == true;
+        if (_services?.Google is { } google)
+        {
+            google.Loop.Mode = visible ? SyncMode.Visible : SyncMode.Tray;
+            if (flyoutOpened)
+            {
+                google.Loop.TriggerNow();
+            }
+        }
+
+        EfficiencyMode.Set(!visible && SettingsWindow.Current is null);
     }
 
     // =========================================================================

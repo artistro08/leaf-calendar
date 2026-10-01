@@ -47,15 +47,16 @@ public sealed class TrayTests : IDisposable
     }
 
     [Fact]
-    public void TrayIconClick_WhileInTheTray_OpensTheMainWindow()
+    public void TrayIconClick_OpensTheFlyoutAndAgainClosesIt()
     {
         using var leaf = Launch();
         leaf.WaitFor("CalendarRoot");
-        leaf.MainWindow.Close();
-        Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
 
         leaf.PostTrayMessage(LeafApp.TraySelect);
+        Assert.NotNull(leaf.WaitForPopup("FlyoutRoot"));
 
-        Assert.NotNull(leaf.WaitFor("CalendarRoot"));
+        Thread.Sleep(400);
+        leaf.PostTrayMessage(LeafApp.TraySelect);
+        Assert.True(Retry.WhileTrue(() => leaf.PopupExists("FlyoutRoot"), TimeSpan.FromSeconds(5)).Success);
     }
 }
