@@ -127,7 +127,13 @@
                 <!-- Location And Description -->
                 <TextBox Header="Location" Text="{x:Bind Editor.Location, Mode=TwoWay}" AutomationProperties.AutomationId="EditorLocation" />
                 <TextBox Header="Description" MinHeight="80" AcceptsReturn="True" TextWrapping="Wrap" Text="{x:Bind Editor.Description, Mode=TwoWay}" AutomationProperties.AutomationId="EditorDescription" />
-                <TextBlock Text="{x:Bind Editor.ConferenceText, Mode=OneWay}" Visibility="{x:Bind Editor.HasConference, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.AutomationId="EditorConference" />
+
+                <!-- Video Call (off for new events; Google makes the Meet link on save) -->
+                <Grid ColumnSpacing="8" ColumnDefinitions="*,Auto">
+                    <TextBlock VerticalAlignment="Center" Text="{x:Bind Editor.ConferenceText, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.AutomationId="EditorConference" />
+                    <Button x:Name="AddConferenceButton" Grid.Column="1" Content="Add Google Meet" Click="OnAddConferenceClick" Visibility="{x:Bind Editor.CanAddConference, Mode=OneWay}" AutomationProperties.AutomationId="EditorAddConference" />
+                    <Button x:Name="RemoveConferenceButton" Grid.Column="1" Content="Remove" Click="OnRemoveConferenceClick" Visibility="{x:Bind Editor.HasConference, Mode=OneWay}" ToolTipService.ToolTip="Remove video call" AutomationProperties.Name="Remove video call" AutomationProperties.AutomationId="EditorRemoveConference" />
+                </Grid>
 
                 <!-- Guests -->
                 <StackPanel Spacing="6">
@@ -136,14 +142,35 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBox
+                        <!-- Guest Box (suggests contacts; the box text stays ours on a pick) -->
+                        <AutoSuggestBox
+                            x:Name="GuestBox"
                             Header="Guests"
-                            PlaceholderText="name@example.com"
+                            PlaceholderText="Name or email"
+                            UpdateTextOnSelect="False"
                             Text="{x:Bind Editor.GuestInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                            KeyDown="OnGuestInputKeyDown"
-                            AutomationProperties.AutomationId="EditorGuestInput" />
+                            ItemsSource="{x:Bind Editor.Suggestions, Mode=OneWay}"
+                            TextChanged="OnGuestTextChanged"
+                            QuerySubmitted="OnGuestQuerySubmitted"
+                            AutomationProperties.AutomationId="EditorGuestInput">
+                            <AutoSuggestBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ContactSuggestion">
+                                    <TextBlock Text="{x:Bind Display}" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </AutoSuggestBox.ItemTemplate>
+                        </AutoSuggestBox>
                         <Button Grid.Column="1" VerticalAlignment="Bottom" Content="Add" Click="OnAddGuestClick" AutomationProperties.AutomationId="EditorAddGuest" />
                     </Grid>
+                    <HyperlinkButton
+                        Content="Allow contact suggestions"
+                        Click="OnAllowContactsClick"
+                        Visibility="{x:Bind Editor.ShowAllowContacts, Mode=OneWay}"
+                        AutomationProperties.AutomationId="EditorAllowContacts" />
+                    <TextBlock
+                        Style="{StaticResource LeafSecondaryTextStyle}"
+                        Text="Turn on the People API in Google Cloud Console to get suggestions."
+                        Visibility="{x:Bind Editor.ShowContactsApiOff, Mode=OneWay}"
+                        AutomationProperties.AutomationId="EditorContactsApiOff" />
                     <ItemsControl ItemsSource="{x:Bind Editor.Guests, Mode=OneWay}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>

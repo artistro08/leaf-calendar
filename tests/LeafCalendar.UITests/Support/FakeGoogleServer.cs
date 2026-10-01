@@ -89,6 +89,9 @@ public sealed class FakeGoogleServer : IDisposable
     /// </summary>
     public bool ContactsGranted { get; set; } = true;
 
+    /// <summary>When true, contact searches get Google's "People API is turned off" refusal (<c>403 accessNotConfigured</c>).</summary>
+    public bool PeopleApiDisabled { get; set; }
+
     /// <summary>How many token revocations were requested.</summary>
     public int RevokeCount => Volatile.Read(ref _revokes);
 
@@ -327,6 +330,11 @@ public sealed class FakeGoogleServer : IDisposable
         if (fixture is null)
         {
             return NotFound();
+        }
+
+        if (PeopleApiDisabled)
+        {
+            return (403, Error(403, "accessNotConfigured"), null);
         }
 
         var text    = query.GetValueOrDefault("query") ?? "";
@@ -606,6 +614,7 @@ public sealed class FakeGoogleServer : IDisposable
         200 => "OK",
         204 => "No Content",
         302 => "Found",
+        403 => "Forbidden",
         409 => "Conflict",
         410 => "Gone",
         412 => "Precondition Failed",

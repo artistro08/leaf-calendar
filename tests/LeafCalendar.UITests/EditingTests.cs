@@ -226,7 +226,7 @@ public sealed class EditingTests : IDisposable
         leaf.WaitFor("Event_evt-single_202610011300").Click();
         leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
 
-        leaf.WaitFor("EditorGuestInput").AsTextBox().Text = "sam@example.com";
+        ConferencingAndContactsTests.GuestEdit(leaf).Text = "sam@example.com";
         leaf.WaitFor("EditorAddGuest").AsButton().Invoke();
         leaf.WaitFor("EditorGuestOptional_sam@example.com");
         leaf.WaitFor("EditorSaveQuietButton").AsButton().Invoke();

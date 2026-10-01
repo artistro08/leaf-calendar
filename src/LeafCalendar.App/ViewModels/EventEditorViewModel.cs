@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.People;
 using LeafCalendar.Core.Views;
 
 namespace LeafCalendar.App.ViewModels;
@@ -37,6 +38,19 @@ public sealed partial class GuestRow(Guest guest, Action<GuestRow> remove) : Obs
 
     [RelayCommand]
     void Remove() => remove(this);
+}
+
+/// <summary>A contact suggestion for the guest box (an App type, so WinRT can hold the list).</summary>
+public sealed class ContactSuggestion(string name, string email)
+{
+    /// <summary>Address added as the guest.</summary>
+    public string Email { get; } = email;
+
+    /// <summary>"Name &lt;email&gt;", or the address alone (plain text; Core already removed control characters).</summary>
+    public string Display { get; } = name.Length > 0 ? $"{name} <{email}>" : email;
+
+    /// <summary>The shown text (what a screen reader says for the item).</summary>
+    public override string ToString() => Display;
 }
 
 /// <summary>A weekday toggle for weekly repeats.</summary>
@@ -102,7 +116,7 @@ public sealed partial class ReminderRow(int index, List<string> choices, int cho
 /// choices: 0 none, 1 daily, 2 weekly, 3 monthly, 4 yearly, 5 a rule the editor can't show (kept exactly as it is).
 /// Ends: 0 never, 1 on a date, 2 after a count.
 /// </remarks>
-public sealed partial class EventEditorViewModel : ObservableObject
+public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
 {
     const int MaxReminders = 5;
 
@@ -113,6 +127,7 @@ public sealed partial class EventEditorViewModel : ObservableObject
     readonly string? _loadedLine;
     readonly (DateOnly? StartDay, TimeSpan StartTime, DateOnly? EndDay, TimeSpan EndTime) _loadedWhen;
     readonly int[] _reminderMinutes;
+    readonly LatestSearch<ContactResults> _contactSearch = new();
     bool _ready;
 
     /// <summary>Loads the fields from <paramref name="draft"/>.</summary>
@@ -134,6 +149,7 @@ public sealed partial class EventEditorViewModel : ObservableObject
         ColorId             = draft.ColorId;
         IsAllDay            = draft.IsAllDay;
         UseDefaultReminders = draft.UseDefaultReminders;
+        HasConference       = draft.HasConference;
         Guests              = new ObservableCollection<GuestRow>(draft.Guests.Select(g => new GuestRow(g, RemoveGuest)));
 
         // Reminders (one row per loaded time)
@@ -316,11 +332,100 @@ public sealed partial class EventEditorViewModel : ObservableObject
     /// <summary>The error line shows.</summary>
     public bool HasError => Error is not null;
 
-    /// <summary>The video link (read-only), or empty.</summary>
-    public string ConferenceText => Before.ConferenceUri is { } uri ? $"Video call: {uri.Host}" : "";
+    /// <summary>The event has (or gets on save) a Google video call; off for new events.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConferenceText), nameof(CanAddConference))]
+    public partial bool HasConference { get; set; }
 
-    /// <summary>The video link row shows.</summary>
-    public bool HasConference => Before.ConferenceUri is not null;
+    /// <summary>"No video call", "Video call: {host}" (the event's own), or "Google Meet link is added when you save".</summary>
+    public string ConferenceText => EditorConference.Text(Before.HasConference, HasConference, Before.ConferenceUri);
+
+    /// <summary>"Add Google Meet" shows (no call yet).</summary>
+    public bool CanAddConference => !HasConference;
+
+    // =========================================================================
+    // CONTACT SUGGESTIONS
+    // =========================================================================
+
+    /// <summary>
+    /// Searches the picked calendar's account for the typed text (set by <see cref="CalendarViewModel"/>); null leaves
+    /// suggestions off.
+    /// </summary>
+    public Func<string, CancellationToken, Task<ContactResults>>? SearchContacts { get; set; }
+
+    /// <summary>Contacts matching the typed text (kept only while typing; cleared on pick, empty text, and close).</summary>
+    public ObservableCollection<ContactSuggestion> Suggestions { get; } = [];
+
+    /// <summary>Whether the last search could run, or what the user can fix.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAllowContacts), nameof(ShowContactsApiOff))]
+    public partial ContactAccess ContactsAccess { get; set; } = ContactAccess.Allowed;
+
+    /// <summary>"Allow contact suggestions" shows (the account's sign-in lacks the contacts permission).</summary>
+    public bool ShowAllowContacts => ContactsAccess == ContactAccess.NeedsConsent;
+
+    /// <summary>The "turn on the People API" line shows.</summary>
+    public bool ShowContactsApiOff => ContactsAccess == ContactAccess.ApiDisabled;
+
+    /// <summary>The account suggestions come from (the picked calendar's).</summary>
+    public string ContactsAccountId => CalendarIndex >= 0 && CalendarIndex < Calendars.Count ? Calendars[CalendarIndex].AccountId : Before.AccountId;
+
+    /// <summary>
+    /// Searches contacts for the typed text, replacing <see cref="Suggestions"/>. A newer search cancels this one, and
+    /// a result that arrives late is dropped. The text is never logged.
+    /// </summary>
+    public async Task RefreshSuggestionsAsync()
+    {
+        var text = GuestInput.Trim();
+        if (text.Length == 0 || SearchContacts is not { } search)
+        {
+            ClearSuggestions();
+            return;
+        }
+
+        // Stale (the user kept typing) or closed
+        if (await _contactSearch.RunAsync(ct => search(text, ct)) is not { } results)
+        {
+            return;
+        }
+
+        ContactsAccess = results.Access;
+        Suggestions.Clear();
+        foreach (var contact in results.Contacts)
+        {
+            Suggestions.Add(new ContactSuggestion(contact.Name, contact.Email));
+        }
+    }
+
+    /// <summary>Adds a picked suggestion as a guest and empties the box (which drops the suggestions).</summary>
+    public void PickSuggestion(ContactSuggestion suggestion)
+    {
+        GuestInput = suggestion.Email;
+        AddGuest();
+        GuestInput = "";
+    }
+
+    // Contacts stay in memory only while typing
+    void ClearSuggestions()
+    {
+        _contactSearch.Cancel();
+        Suggestions.Clear();
+    }
+
+    partial void OnGuestInputChanged(string value)
+    {
+        if (value.Trim().Length == 0)
+        {
+            ClearSuggestions();
+        }
+    }
+
+    /// <summary>The editor closed: stops any search and lets go of the suggestions.</summary>
+    public void Dispose()
+    {
+        ClearSuggestions();
+        _contactSearch.Dispose();
+    }
 
     /// <summary>Adds the typed address as a guest; false (with <see cref="Error"/>) when it isn't a valid address.</summary>
     public bool AddGuest()
@@ -398,6 +503,7 @@ public sealed partial class EventEditorViewModel : ObservableObject
             UseDefaultReminders = UseDefaultReminders,
             ReminderMinutes     = UseDefaultReminders || reminders.Order().SequenceEqual(Before.ReminderMinutes.Order()) ? Before.ReminderMinutes : reminders,
             Recurrence          = Recurrence(),
+            HasConference       = HasConference,
         };
     }
 

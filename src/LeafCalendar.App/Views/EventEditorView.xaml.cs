@@ -23,6 +23,7 @@ public sealed partial class EventEditorView : UserControl
         [(null, "Calendar color"), .. EventColors.EventColorNames.Select(c => ((string?)c.Id, c.Name))];
 
     readonly List<(Button Swatch, string? Id)> _swatches = [];
+    readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _suggestTimer;
     CalendarViewModel? _owner;
     bool _endTimeAsked;
     bool _reminderDropDownOpen;
@@ -32,6 +33,12 @@ public sealed partial class EventEditorView : UserControl
     {
         InitializeComponent();
         ScrollIndicator.ShowOnHover(BodyScroll);
+
+        // Contact Search Waits For A Pause In Typing
+        _suggestTimer = DispatcherQueue.CreateTimer();
+        _suggestTimer.Interval    = TimeSpan.FromMilliseconds(250);
+        _suggestTimer.IsRepeating = false;
+        _suggestTimer.Tick       += (_, _) => RefreshSuggestions();
     }
 
     /// <summary>The fields being edited, or null.</summary>
@@ -128,6 +135,7 @@ public sealed partial class EventEditorView : UserControl
     public void Detach()
     {
         _owner = null;
+        _suggestTimer.Stop();
         if (Editor is not { } editor)
         {
             return;
@@ -207,24 +215,84 @@ public sealed partial class EventEditorView : UserControl
             return;
         }
 
-        // Esc in an open dropdown only closes the dropdown
-        if (e.Key == VirtualKey.Escape && !RepeatBox.IsDropDownOpen && !EndsBox.IsDropDownOpen && !CalendarBox.IsDropDownOpen && !_reminderDropDownOpen)
+        // Esc in an open dropdown (or the guest suggestions) only closes it
+        if (e.Key == VirtualKey.Escape && !RepeatBox.IsDropDownOpen && !EndsBox.IsDropDownOpen && !CalendarBox.IsDropDownOpen && !_reminderDropDownOpen && !GuestBox.IsSuggestionListOpen)
         {
             e.Handled = true;
             _owner?.CancelEdit();
         }
     }
 
-    void OnGuestInputKeyDown(object sender, KeyRoutedEventArgs e)
+    // =========================================================================
+    // GUESTS
+    // =========================================================================
+
+    // Only typing searches (not our own text changes, like the box emptying after a pick)
+    void OnGuestTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
-        if (e.Key == VirtualKey.Enter)
+        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
         {
-            e.Handled = true;
-            Editor?.AddGuest();
+            return;
+        }
+
+        _suggestTimer.Stop();
+        _suggestTimer.Start();
+    }
+
+    void RefreshSuggestions()
+    {
+        if (_owner is { } owner && Editor is { } editor)
+        {
+            owner.Fire(editor.RefreshSuggestionsAsync, "contacts.suggest.failed");
         }
     }
 
+    // A picked suggestion (click, or arrows then Enter) adds its address; Enter on typed text adds that. The pick is
+    // found by reference in our own list (never cast back from WinRT). SuggestionChosen isn't used: arrowing through
+    // the list raises it for every row passed.
+    void OnGuestQuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        if (Editor is not { } editor)
+        {
+            return;
+        }
+
+        _suggestTimer.Stop();
+        if (args.ChosenSuggestion is { } chosen && editor.Suggestions.FirstOrDefault(s => ReferenceEquals(s, chosen)) is { } suggestion)
+        {
+            editor.PickSuggestion(suggestion);
+            return;
+        }
+
+        editor.AddGuest();
+    }
+
     void OnAddGuestClick(object sender, RoutedEventArgs e) => Editor?.AddGuest();
+
+    void OnAllowContactsClick(object sender, RoutedEventArgs e)
+    {
+        if (_owner is { } owner && Editor is { } editor)
+        {
+            owner.Fire(() => owner.AllowContactsAsync(editor.ContactsAccountId), "contacts.allow.failed");
+        }
+    }
+
+    // =========================================================================
+    // VIDEO CALL
+    // =========================================================================
+
+    // Focus moves to the button that takes the clicked one's place
+    void OnAddConferenceClick(object sender, RoutedEventArgs e)
+    {
+        Editor?.HasConference = true;
+        DispatcherQueue.TryEnqueue(() => RemoveConferenceButton.Focus(FocusState.Programmatic));
+    }
+
+    void OnRemoveConferenceClick(object sender, RoutedEventArgs e)
+    {
+        Editor?.HasConference = false;
+        DispatcherQueue.TryEnqueue(() => AddConferenceButton.Focus(FocusState.Programmatic));
+    }
 
     void OnAddReminderClick(object sender, RoutedEventArgs e) => Editor?.AddReminder();
 

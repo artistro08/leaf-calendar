@@ -184,6 +184,10 @@ public sealed class LeafApp : IDisposable
             TimeSpan.FromSeconds(15)).Result
         ?? throw new InvalidOperationException($"Element '{automationId}' didn't appear in any window.");
 
+    /// <summary>Every element with this ID in any of the app's windows right now (popups can be separate).</summary>
+    public IReadOnlyList<AutomationElement> FindAllAnywhere(string automationId) =>
+        [.. App.GetAllTopLevelWindows(_automation).SelectMany(w => w.FindAllDescendants(cf => cf.ByAutomationId(automationId)))];
+
     /// <summary>True when an element with this ID is currently in any of the app's windows (dialogs can be separate).</summary>
     public bool ExistsAnywhere(string automationId) =>
         App.GetAllTopLevelWindows(_automation).Any(w => w.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) is not null);

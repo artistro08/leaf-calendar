@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
+using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.People;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Sync;
 using LeafCalendar.Core.Views;
@@ -715,6 +717,53 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     /// <summary>Closes the editor without saving.</summary>
     public void CancelEdit() => Editing = null;
+
+    // A closed editor drops its contact suggestions; a new one searches the account of the calendar it has picked
+    partial void OnEditingChanged(EventEditorViewModel? oldValue, EventEditorViewModel? newValue)
+    {
+        oldValue?.Dispose();
+        newValue?.SearchContacts = (query, ct) => _services.Google is { } google
+            ? google.Contacts.SearchAsync(newValue.ContactsAccountId, query, ct)
+            : Task.FromResult(new ContactResults([], ContactAccess.Allowed));
+    }
+
+    /// <summary>
+    /// Signs the account in again (the Accounts page's sign-in, with its email as the hint) so Google asks for the
+    /// contacts permission, then searches the guest box again.
+    /// </summary>
+    public async Task AllowContactsAsync(string accountId)
+    {
+        if (_services.Google is not { } google)
+        {
+            return;
+        }
+
+        string? email;
+        using (var conn = _services.Database.Open())
+        {
+            email = AccountStore.GetAll(conn).FirstOrDefault(a => a.Id == accountId)?.Email;
+        }
+
+        try
+        {
+            await google.CreateSignIn(_services.OpenSignInPageAsync).RunAsync(email, CancellationToken.None);
+        }
+        catch (SignInException ex)
+        {
+            Editing?.Error = ex.Message;
+            return;
+        }
+        catch (HttpRequestException)
+        {
+            Editing?.Error = "Couldn't reach Google. Check your connection and try again.";
+            return;
+        }
+
+        if (Editing is { } editor)
+        {
+            await editor.RefreshSuggestionsAsync();
+        }
+    }
 
     // Closing the panel only hides an editor; editing again (the toolbar's Edit, a double-click) brings that one back
     bool ReopenHiddenEditor()

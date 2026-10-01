@@ -52,7 +52,7 @@ public sealed class EditorLayoutTests : IDisposable
     {
         using var leaf = Launch();
         EditDentist(leaf);
-        leaf.WaitFor("EditorGuestInput").AsTextBox().Text = "sam@example.com";
+        ConferencingAndContactsTests.GuestEdit(leaf).Text = "sam@example.com";
         leaf.WaitFor("EditorAddGuest").AsButton().Invoke();
         leaf.WaitFor("EditorSaveQuietButton");
 
