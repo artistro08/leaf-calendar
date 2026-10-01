@@ -236,11 +236,24 @@ public sealed class LeafApp : IDisposable
     /// <summary>Screen pixels per DIP on the main window's monitor (1.25 at 125%).</summary>
     public double Scale => NativeMethods.GetDpiForWindow(MainWindow.Properties.NativeWindowHandle.Value) / 96.0;
 
-    /// <summary>Links Leaf opened, oldest first (fake-Google mode records them instead of opening a browser).</summary>
+    /// <summary>
+    /// Links Leaf opened, oldest first (fake-Google mode records them instead of opening a browser). Read again for up
+    /// to a second while Leaf still has the file open for writing.
+    /// </summary>
     public static IReadOnlyList<string> LaunchedLinks(string profile)
     {
         var file = Path.Combine(ProfileFolder(profile), "launched.txt");
-        return File.Exists(file) ? File.ReadAllLines(file) : [];
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return File.Exists(file) ? File.ReadAllLines(file) : [];
+            }
+            catch (IOException) when (attempt < 20)
+            {
+                Thread.Sleep(50);
+            }
+        }
     }
 
     /// <summary>Waits (up to 5 s) until <paramref name="element"/> stops moving on screen, so a navigation's scroll has landed.</summary>
