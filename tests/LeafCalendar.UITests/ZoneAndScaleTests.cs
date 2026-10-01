@@ -188,7 +188,7 @@ public sealed class ZoneAndScaleTests : IDisposable
         Assert.True(client.Contains(leaf.WaitFor("EditorCancelButton").BoundingRectangle), "Cancel is clipped.");
 
         var sidebar = leaf.WaitFor("Sidebar").BoundingRectangle;
-        var days    = leaf.MainWindow.FindAllDescendants().Where(e => e.AutomationId.StartsWith("MiniDay_", StringComparison.Ordinal)).ToList();
+        var days    = leaf.MainWindow.FindAllDescendants().Where(e => (e.Properties.AutomationId.ValueOrDefault ?? "").StartsWith("MiniDay_", StringComparison.Ordinal)).ToList();
         Assert.NotEmpty(days);
         Assert.All(days, d => Assert.True(Rectangle.Inflate(sidebar, 1, 1).Contains(d.BoundingRectangle), $"{d.AutomationId} {d.BoundingRectangle} is outside the sidebar {sidebar}."));
     }

@@ -36,13 +36,16 @@ public sealed class CommandMenuTests : IDisposable
         return box;
     }
 
+    // An element's automation ID, or "" for parts that don't support one (the list's scroll bar pieces)
+    static string Id(AutomationElement e) => e.Properties.AutomationId.ValueOrDefault ?? "";
+
     // The result rows' automation IDs, top to bottom
     static List<string> RowIds(LeafApp leaf) =>
         [.. leaf.WaitForAnywhere("CommandResults")
             .FindAllDescendants()
-            .Where(e => e.AutomationId.StartsWith("CommandResult_", StringComparison.Ordinal) || e.AutomationId.StartsWith("SearchResult_", StringComparison.Ordinal))
+            .Where(e => Id(e).StartsWith("CommandResult_", StringComparison.Ordinal) || Id(e).StartsWith("SearchResult_", StringComparison.Ordinal))
             .OrderBy(e => e.BoundingRectangle.Top)
-            .Select(e => e.AutomationId)];
+            .Select(Id)];
 
     // Waits until the first row is the expected one (typing settles for 120 ms before the search runs)
     static void WaitForFirstRow(LeafApp leaf, string id) =>
@@ -101,8 +104,12 @@ public sealed class CommandMenuTests : IDisposable
         var client     = leaf.ClientBounds;
         Assert.True(Math.Abs((searchBox.Left + searchBox.Right) / 2.0 - (nextBox.Left + nextBox.Right) / 2.0) <= 1,
             $"Search {searchBox} isn't centered over Next month {nextBox}.");
-        Assert.True(searchBox.Left >= sidebarBox.Left + sidebarBox.Width / 2 && searchBox.Right <= sidebarBox.Right,
-            $"Search {searchBox} isn't in the right half of the sidebar {sidebarBox}.");
+        // Inside The Right Half Of The 264 DIP Sidebar Pane (the 32 DIP icon is 4 wider than Next, so it can pass the
+        // sidebar content's 5 DIP right padding by 2, but never the pane)
+        var paneLeft  = leaf.WaitFor("CalendarRoot").BoundingRectangle.Left;
+        var paneRight = paneLeft + 264 * leaf.Scale;
+        Assert.True(searchBox.Left >= paneLeft + 132 * leaf.Scale && searchBox.Right <= paneRight + 1,
+            $"Search {searchBox} isn't in the right half of the sidebar pane ({paneLeft} to {paneRight}; sidebar {sidebarBox}).");
         Assert.True(Math.Abs((searchBox.Top + searchBox.Bottom) / 2.0 - client.Top - 24 * leaf.Scale) <= 3,
             $"Search {searchBox} isn't centered in the 48 DIP title bar (client top {client.Top}).");
 

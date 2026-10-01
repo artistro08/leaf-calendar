@@ -29,7 +29,7 @@ public sealed class ShortcutSheetTests : IDisposable
 
     // The sheet's in-app rows showing now
     static List<AutomationElement> Rows(AutomationElement sheet) =>
-        [.. sheet.FindAllDescendants().Where(e => e.AutomationId.StartsWith("ShortcutRow_", StringComparison.Ordinal))];
+        [.. sheet.FindAllDescendants().Where(e => (e.Properties.AutomationId.ValueOrDefault ?? "").StartsWith("ShortcutRow_", StringComparison.Ordinal))];
 
     [Fact]
     public void QuestionMark_OpensTheSheet_FilterNarrowsIt()
