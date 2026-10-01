@@ -8,31 +8,68 @@ using Windows.Win32.System.Diagnostics.Debug;
 namespace LeafCalendar.App.Interop;
 
 /// <summary>
-/// Writes a small crash dump (threads, stacks, the memory they point to, and the loaded modules; not the whole heap) to the log folder when Detailed logging
-/// is on, so a crash can be traced to the line that caused it. The log keeps at most <see cref="AppLog.MaxDumps"/>.
-/// Managed crashes write one from the App's unhandled-exception handlers; a native crash (an access violation outside
-/// .NET) writes one from the process's unhandled-exception filter. Crashes Windows ends on the spot (fail-fast) can't be
-/// caught here; Windows Error Reporting keeps those.
+/// Crash dumps in the log folder while Detailed logging is on, so a crash can be traced to the line that caused it.
 /// </summary>
 /// <remarks>
-/// A dump holds the stack memory of each thread, which can include bits of what was on screen. It's written only while
-/// Detailed logging is on, and Settings says so.
+/// Three routes, one dump per process at most (<see cref="AppLog.MaxDumps"/> kept in the folder):
+/// <list type="bullet">
+/// <item>Managed crashes: the App's unhandled-exception handlers call <see cref="Write"/>.</item>
+/// <item>Native crashes outside .NET (an access violation): the process's unhandled-exception filter.</item>
+/// <item>Fail-fast crashes (a XAML stowed exception, 0xC000027B, or a fail-fast from .NET) skip both, so Windows Error
+/// Reporting writes those, into the same folder, through <c>WerRegisterAppLocalDump</c>.</item>
+/// </list>
+/// Each dump holds the threads, their stacks, and the loaded modules, not the heap. A stack can still hold bits of what
+/// was on screen, which is why dumps exist only while Detailed logging is on, and turning it off deletes them.
 /// </remarks>
 /// <seealso href="https://learn.microsoft.com/windows/win32/api/minidumpapiset/nf-minidumpapiset-minidumpwritedump"/>
+/// <seealso href="https://learn.microsoft.com/windows/win32/api/werapi/nf-werapi-werregisterapplocaldump"/>
 internal static unsafe class CrashDump
 {
-    static AppLog? _log;
+    // How long a crashing thread waits for the dump writer
+    static readonly TimeSpan WriteTimeout = TimeSpan.FromSeconds(20);
 
-    /// <summary>Hooks the native unhandled-exception filter for <paramref name="log"/> (once; it acts only while Detailed logging is on).</summary>
-    public static void Install(AppLog log)
+    static AppLog? _log;
+    static string? _relativeLogFolder;
+    static int _written;
+
+    /// <summary>
+    /// Hooks the native unhandled-exception filter for <paramref name="log"/> (once) and applies Detailed logging.
+    /// <paramref name="relativeLogFolder"/> is the log folder relative to the package's local folder (for Windows Error Reporting).
+    /// </summary>
+    public static void Install(AppLog log, string relativeLogFolder)
     {
         if (_log is not null)
         {
             return;
         }
 
-        _log = log;
+        _log               = log;
+        _relativeLogFolder = relativeLogFolder;
         PInvoke.SetUnhandledExceptionFilter(&OnNativeCrash);
+        Apply(log.Detailed);
+    }
+
+    /// <summary>
+    /// Follows the Detailed logging switch: on, Windows Error Reporting keeps fail-fast crashes in the log folder; off, it
+    /// stops, and the dumps already there are deleted.
+    /// </summary>
+    public static void Apply(bool detailed)
+    {
+        if (_log is not { } log || _relativeLogFolder is not { } folder)
+        {
+            return;
+        }
+
+        var result = detailed ? PInvoke.WerRegisterAppLocalDump(folder) : PInvoke.WerUnregisterAppLocalDump();
+        if (result.Failed)
+        {
+            log.Info("app.crash.wer", $"detailed={detailed} hresult=0x{(uint)result.Value:X8}");
+        }
+
+        if (!detailed)
+        {
+            log.DeleteDumps();
+        }
     }
 
     /// <summary>Writes a dump of this process now (from a managed crash handler) when Detailed logging is on.</summary>
@@ -61,31 +98,45 @@ internal static unsafe class CrashDump
         return 0;
     }
 
+    // Once per process (the XAML and AppDomain handlers can both report one crash), from a fresh thread, since a
+    // process shouldn't dump the thread that's writing; the crashing thread waits a bounded time
     static void Write(AppLog log, EXCEPTION_POINTERS* exception)
     {
-        if (!log.Detailed)
+        if (!log.Detailed || Interlocked.Exchange(ref _written, 1) == 1)
         {
             return;
         }
 
+        var crashingThread = PInvoke.GetCurrentThreadId();
+        var pointers       = (nint)exception;
+        var writer         = new Thread(() => WriteFrom(log, crashingThread, pointers)) { IsBackground = true };
+        writer.Start();
+        if (!writer.Join(WriteTimeout))
+        {
+            log.Info("app.crash.dump", "failed error=Timeout");
+        }
+    }
+
+    static void WriteFrom(AppLog log, uint crashingThread, nint pointers)
+    {
         try
         {
             var path = log.NextDumpPath();
             using var file = File.Create(path);
             var info = new MINIDUMP_EXCEPTION_INFORMATION
             {
-                ThreadId          = PInvoke.GetCurrentThreadId(),
-                ExceptionPointers = exception,
+                ThreadId          = crashingThread,
+                ExceptionPointers = (EXCEPTION_POINTERS*)pointers,
                 ClientPointers    = false,
             };
 
-            var type = MINIDUMP_TYPE.MiniDumpWithIndirectlyReferencedMemory | MINIDUMP_TYPE.MiniDumpWithThreadInfo | MINIDUMP_TYPE.MiniDumpWithUnloadedModules;
+            var type = MINIDUMP_TYPE.MiniDumpNormal | MINIDUMP_TYPE.MiniDumpWithThreadInfo | MINIDUMP_TYPE.MiniDumpWithUnloadedModules;
             var ok   = PInvoke.MiniDumpWriteDump(
                 PInvoke.GetCurrentProcess(),
                 PInvoke.GetCurrentProcessId(),
                 (HANDLE)file.SafeFileHandle.DangerousGetHandle(),
                 type,
-                exception is null ? null : &info,
+                pointers == 0 ? null : &info,
                 null,
                 null);
             log.Info("app.crash.dump", ok ? $"file={Path.GetFileName(path)}" : $"failed error={Marshal.GetLastPInvokeError()}");

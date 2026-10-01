@@ -68,15 +68,15 @@ public sealed partial class AppLog(string directory, TimeProvider time)
     }
 
     /// <summary>
-    /// A path for a new crash dump in the log folder, after removing the oldest dumps so at most <see cref="MaxDumps"/>
-    /// remain once it's written.
+    /// A path for a new crash dump in the log folder, after removing the oldest dumps (Leaf's and Windows Error
+    /// Reporting's) so at most <see cref="MaxDumps"/> remain once it's written.
     /// </summary>
     public string NextDumpPath()
     {
         lock (_gate)
         {
             System.IO.Directory.CreateDirectory(directory);
-            foreach (var old in new DirectoryInfo(directory).GetFiles("crash-*.dmp").OrderByDescending(f => f.Name, StringComparer.Ordinal).Skip(MaxDumps - 1))
+            foreach (var old in new DirectoryInfo(directory).GetFiles("*.dmp").OrderByDescending(f => f.LastWriteTimeUtc).Skip(MaxDumps - 1))
             {
                 try
                 {
@@ -96,28 +96,64 @@ public sealed partial class AppLog(string directory, TimeProvider time)
         }
     }
 
+    /// <summary>Deletes every crash dump in the log folder (Detailed logging was turned off).</summary>
+    public void DeleteDumps()
+    {
+        lock (_gate)
+        {
+            if (!System.IO.Directory.Exists(directory))
+            {
+                return;
+            }
+
+            foreach (var dump in new DirectoryInfo(directory).GetFiles("*.dmp"))
+            {
+                try
+                {
+                    dump.Delete();
+                }
+                catch (IOException)
+                {
+                    // In use; the next switch-off tries again
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Not ours to delete
+                }
+            }
+        }
+    }
+
     /// <summary>Masks secrets and email addresses in <paramref name="text"/>.</summary>
     public static string Redact(string text) =>
         EmailPattern().Replace(TokenPattern().Replace(text, "[token]"), "[email]");
 
-    // The stack of the exception and each inner one, indented under the crash line (frames come from the code, not the user)
+    // The stack of the exception and each inner one (every one of an AggregateException's), indented under the crash
+    // line (frames come from the code, not the user)
     static List<string> StackLines(Exception exception)
     {
         var lines = new List<string>();
-        for (Exception? e = exception; e is not null; e = e.InnerException)
-        {
-            if (!ReferenceEquals(e, exception))
-            {
-                lines.Add(string.Create(CultureInfo.InvariantCulture, $"  caused by {e.GetType().FullName} hresult=0x{e.HResult:X8}"));
-            }
+        AddStack(lines, exception, top: true);
+        return lines;
+    }
 
-            foreach (var frame in (e.StackTrace ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            {
-                lines.Add("    " + frame);
-            }
+    static void AddStack(List<string> lines, Exception e, bool top)
+    {
+        if (!top)
+        {
+            lines.Add(string.Create(CultureInfo.InvariantCulture, $"  caused by {e.GetType().FullName} hresult=0x{e.HResult:X8}"));
         }
 
-        return lines;
+        foreach (var frame in (e.StackTrace ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            lines.Add("    " + frame);
+        }
+
+        IEnumerable<Exception> inner = e is AggregateException aggregate ? aggregate.InnerExceptions : e.InnerException is { } one ? [one] : [];
+        foreach (var next in inner)
+        {
+            AddStack(lines, next, top: false);
+        }
     }
 
     void Write(string level, string eventName, string? detail, IReadOnlyList<string>? extra = null)

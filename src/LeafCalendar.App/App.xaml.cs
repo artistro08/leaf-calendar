@@ -107,7 +107,7 @@ public partial class App : Application
 
         // Detailed Logging (Settings › About) Starts With The Saved Choice
         _log.Detailed = CurrentSettings().DetailedLogging;
-        CrashDump.Install(_log);
+        CrashDump.Install(_log, Path.GetRelativePath(localFolder, _log.Directory));
         _log.Info("app.start", $"kind={Program.StartKind}");
 
         // Crash Tests: collect constantly, so an object Windows still uses after .NET let go of it fails right away

@@ -127,16 +127,50 @@ public sealed class AppLogTests : IDisposable
     public void NextDumpPath_KeepsRoomForOnlyTheNewestDumps()
     {
         var log = new AppLog(_folder.Path, _time);
-        File.WriteAllText(Path.Combine(_folder.Path, "crash-20260101-000000-000.dmp"), "");
-        File.WriteAllText(Path.Combine(_folder.Path, "crash-20260102-000000-000.dmp"), "");
-        File.WriteAllText(Path.Combine(_folder.Path, "crash-20260103-000000-000.dmp"), "");
+        Dump("crash-20260101-000000-000.dmp", 1);
+        Dump("LeafCalendar.exe.1234.dmp", 2);
+        Dump("crash-20260103-000000-000.dmp", 3);
 
         var next = log.NextDumpPath();
         File.WriteAllText(next, "");
 
         Assert.Equal(
             ["crash-20260103-000000-000.dmp", "crash-20260929-120000-000.dmp"],
-            Directory.GetFiles(_folder.Path, "crash-*.dmp").Select(Path.GetFileName).Order(StringComparer.Ordinal));
+            Directory.GetFiles(_folder.Path, "*.dmp").Select(Path.GetFileName).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void DeleteDumps_RemovesEveryDumpAndKeepsTheLog()
+    {
+        var log = new AppLog(_folder.Path, _time);
+        log.Info("kept");
+        Dump("crash-20260101-000000-000.dmp", 1);
+        Dump("LeafCalendar.exe.1234.dmp", 2);
+
+        log.DeleteDumps();
+
+        Assert.Empty(Directory.GetFiles(_folder.Path, "*.dmp"));
+        Assert.True(File.Exists(log.FilePath));
+    }
+
+    [Fact]
+    public void Crash_AggregateException_WalksEveryInnerException()
+    {
+        var log = new AppLog(_folder.Path, _time);
+
+        log.Crash("app.task.unobserved", new AggregateException(new FormatException(), new TimeoutException()));
+
+        var text = File.ReadAllText(log.FilePath);
+        Assert.Contains("caused by System.FormatException", text, StringComparison.Ordinal);
+        Assert.Contains("caused by System.TimeoutException", text, StringComparison.Ordinal);
+    }
+
+    // A dump file written that many days into 2026
+    void Dump(string name, int day)
+    {
+        var path = Path.Combine(_folder.Path, name);
+        File.WriteAllText(path, "");
+        File.SetLastWriteTimeUtc(path, new DateTime(2026, 1, day, 0, 0, 0, DateTimeKind.Utc));
     }
 
     [Fact]

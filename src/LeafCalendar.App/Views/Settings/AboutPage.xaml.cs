@@ -1,5 +1,6 @@
 using System.Globalization;
 using LeafCalendar.App.Controls;
+using LeafCalendar.App.Interop;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -62,6 +63,7 @@ public sealed partial class AboutPage : Page
 
         var on = DetailedLoggingSwitch.IsOn;
         _context.Save(s => s with { DetailedLogging = on });
+        CrashDump.Apply(_context.Calendar.Settings.DetailedLogging);
         _services.Log.Info("settings.logging.detailed", on ? "on" : "off");
     }
 }
