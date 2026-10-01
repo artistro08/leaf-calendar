@@ -3,6 +3,7 @@ using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Settings;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 
@@ -31,6 +32,9 @@ public sealed partial class AccountsPage : Page
 
     /// <summary>x:Bind helper: failures show as errors, progress as information.</summary>
     public static InfoBarSeverity SeverityFor(bool isError) => isError ? InfoBarSeverity.Error : InfoBarSeverity.Informational;
+
+    /// <summary>x:Bind helper: Narrator interrupts for failures and waits its turn for progress.</summary>
+    public static AutomationLiveSetting LiveFor(bool isError) => isError ? AutomationLiveSetting.Assertive : AutomationLiveSetting.Polite;
 
     /// <summary>Page view model (the window's, see <see cref="SettingsWindow.Accounts"/>).</summary>
     public AccountsViewModel ViewModel { get; private set; } = null!;

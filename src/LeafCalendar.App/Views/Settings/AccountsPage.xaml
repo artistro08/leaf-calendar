@@ -16,7 +16,7 @@
                 Severity="{x:Bind local:AccountsPage.SeverityFor(ViewModel.IsError), Mode=OneWay}"
                 IsOpen="{x:Bind ViewModel.HasMessage, Mode=OneWay}"
                 Message="{x:Bind ViewModel.Message, Mode=OneWay}"
-                AutomationProperties.LiveSetting="Polite"
+                AutomationProperties.LiveSetting="{x:Bind local:AccountsPage.LiveFor(ViewModel.IsError), Mode=OneWay}"
                 AutomationProperties.AutomationId="AccountsMessage" />
 
             <!-- Google Accounts -->

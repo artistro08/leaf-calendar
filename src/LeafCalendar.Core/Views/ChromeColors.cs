@@ -7,7 +7,7 @@ namespace LeafCalendar.Core.Views;
 public static class ChromeColors
 {
     /// <summary>The dark calendar island: LayerFillColorDefault (#3A3A3A at 30%) over dark Mica (#202020).</summary>
-    public const string DarkSurface = "#272727";
+    public const string DarkSurface = "#282828";
 
     /// <summary>The light calendar island: LayerFillColorDefault (#FFFFFF at 50%) over light Mica (#F3F3F3).</summary>
     public const string LightSurface = "#F9F9F9";
@@ -22,7 +22,7 @@ public static class ChromeColors
     public static string SecondaryText(bool dark) => dark ? "#C5FFFFFF" : "#9E000000";
 
     /// <summary>Dimmed text (days outside the month).</summary>
-    public static string DimText(bool dark) => dark ? "#7AFFFFFF" : "#89000000";
+    public static string DimText(bool dark) => dark ? "#82FFFFFF" : "#91000000";
 
     /// <summary>Hour and day divider lines.</summary>
     public static string GridLine(bool dark) => dark ? "#1FFFFFFF" : "#1A000000";

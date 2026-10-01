@@ -59,7 +59,9 @@ public class EventColorsTests
                 var past      = EventColors.Palette(accent, dark, past: true);
                 var secondary = EventColors.Blend("#" + past.SecondaryText[3..], past.Fill, 1 - Convert.ToInt32(past.SecondaryText[1..3], 16) / 255.0);
 
-                Assert.True(Distance(past.Fill, surface) < Distance(current.Fill, surface), $"{accent} dark={dark}: fill not closer to surface");
+                // The fade is clearly visible: fill and accent bar both moved a good way toward the surface (at least 25% of the old distance)
+                Assert.True(Distance(past.Fill, surface) <= Distance(current.Fill, surface) * 0.75, $"{accent} dark={dark}: fill not faded enough");
+                Assert.True(Distance(past.Accent, surface) <= Distance(current.Accent, surface) * 0.75, $"{accent} dark={dark}: accent bar not faded enough");
                 Assert.True(EventColors.ContrastRatio(past.Text, past.Fill) >= 4.5, $"{accent} dark={dark} text");
                 Assert.True(EventColors.ContrastRatio(secondary, past.Fill) >= 4.5, $"{accent} dark={dark} secondary");
             }

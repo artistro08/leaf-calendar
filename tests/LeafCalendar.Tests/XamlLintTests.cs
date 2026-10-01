@@ -18,21 +18,28 @@ public class XamlLintTests
         "MainWindow.xaml|icon-button|OfflineIndicator",
         "MainWindow.xaml|icon-button|DetailsEditButton",
         "MainWindow.xaml|icon-button|DeleteEventButton",
-        "MainWindow.xaml|spacing|0,-6,-8,0",   // Info badge overlaps the corner of its 32 px icon button
-        "MainWindow.xaml|spacing|10,0,10,1",   // Today label sits 1 px high to line up with the caption glyphs (comment above the View menu)
+        "MainWindow.xaml|spacing|0,-6,-8,0 (InfoBadge in ConflictsBadge)",   // Info badge overlaps the corner of its 32 px icon button
+        "MainWindow.xaml|spacing|0,-6,-8,0 (InfoBadge in WaitingBadge)",
+        "MainWindow.xaml|spacing|10,0,10,1 (Button in TodayButton)",   // Today label sits 1 px high to line up with the caption glyphs (comment above the View menu)
+        "Styles/LeafTheme.xaml|spacing|10,0 (Setter in LeafToolbarButtonStyle)",   // Same 10 px sides as the Today button
+        "Styles/LeafTheme.xaml|spacing|9,12,0,4 (Setter in LeafSectionHeaderStyle)",   // 9 on the sidebar's shared left edge (style comment)
 
         // Optical alignment tuned by hand (title bar lift, sidebar glyph centers); see the comments in each file
-        "Views/CalendarPage.xaml|spacing|0,9,0,8",
-        "Views/SidebarView.xaml|spacing|5,48,5,6",
-        "Views/SidebarView.xaml|spacing|9,0,0,0",
-        "Views/SidebarView.xaml|spacing|9,0,4,0",
-        "Views/SidebarView.xaml|spacing|0,0,11,0",
+        "Views/CalendarPage.xaml|spacing|0,9,0,8 (TextBlock in PeriodTitle)",
+        "Views/SidebarView.xaml|spacing|5,48,5,6 (Grid in Self)",
+        "Views/SidebarView.xaml|spacing|9,0,0,0 (TextBlock in MiniMonthTitle)",
+        "Views/SidebarView.xaml|spacing|9,0,4,0 (Grid in CalendarList)",
+        "Views/SidebarView.xaml|spacing|0,0,11,0 (ItemsControl in CalendarList)",
 
-        // A 3 px tall pill: a radius of half its height is a circle end, which is not a corner radius
+        // A 3 px tall pill and a 28 px circle: half the size is a circle end, which is not a corner radius
         "Styles/LeafTheme.xaml|radius|1.5",
+        "Styles/LeafTheme.xaml|radius|14",
 
         // TODO: Task 9 fixes (owned by Track B)
-        "Views/EventEditorView.xaml|spacing|6",
+        "Views/EventEditorView.xaml|spacing|6 (StackPanel in BodyScroll) #1",
+        "Views/EventEditorView.xaml|spacing|6 (StackPanel in BodyScroll) #2",
+        "Views/EventEditorView.xaml|spacing|6 (Grid in BodyScroll) #1",
+        "Views/EventEditorView.xaml|spacing|6 (Grid in BodyScroll) #2",
         "Views/EventEditorView.xaml|icon-button|{x:Bind RemoveId}",
     ];
 
@@ -55,12 +62,12 @@ public class XamlLintTests
         return dir?.FullName ?? throw new InvalidOperationException("LeafCalendar.slnx not found above the test binaries");
     }
 
-    public static TheoryData<string> Files() =>
-    [
-        .. Directory.GetFiles(AppFolder, "*.xaml", SearchOption.AllDirectories)
+    public static TheoryData<string> Files() => [.. AllFiles()];
+
+    static IEnumerable<string> AllFiles() =>
+        Directory.GetFiles(AppFolder, "*.xaml", SearchOption.AllDirectories)
             .Select(f => Path.GetRelativePath(AppFolder, f).Replace('\\', '/'))
-            .Where(f => !f.StartsWith("bin/", StringComparison.Ordinal) && !f.StartsWith("obj/", StringComparison.Ordinal) && !f.StartsWith("AppPackages/", StringComparison.Ordinal)),
-    ];
+            .Where(f => !f.StartsWith("bin/", StringComparison.Ordinal) && !f.StartsWith("obj/", StringComparison.Ordinal) && !f.StartsWith("AppPackages/", StringComparison.Ordinal));
 
     static XDocument Load(string file) => XDocument.Load(Path.Combine(AppFolder, file), LoadOptions.SetLineInfo);
 
@@ -78,13 +85,52 @@ public class XamlLintTests
     [Theory, MemberData(nameof(Files))]
     public void IconOnlyButtons_HaveNameAndTooltip(string file)
     {
+        var styles = Styles();
         var hits = Load(file).Descendants()
-            .Where(e => ButtonTypes.Contains(e.Name.LocalName) && Attr(e, "Content") is null)
-            .Where(e => e.Elements().FirstOrDefault(c => !c.Name.LocalName.Contains('.', StringComparison.Ordinal)) is { } child && IconTypes.Contains(child.Name.LocalName))
+            .Where(e => ButtonTypes.Contains(e.Name.LocalName) && IsIconOnly(e, styles))
             .Where(e => Attr(e, "AutomationProperties.Name") is null || Attr(e, "ToolTipService.ToolTip") is null)
             .Select(e => (e, Attr(e, "AutomationProperties.AutomationId") ?? "(no id)"));
 
         AssertNone(Failures(file, "icon-button", hits));
+    }
+
+    // Every keyed Style in the app, by key (a button's Style can set its Content)
+    static Dictionary<string, XElement> Styles() =>
+        AllFiles().SelectMany(f => Load(f).Descendants().Where(e => e.Name.LocalName == "Style" && e.Attribute(X + "Key") is not null))
+            .GroupBy(s => (string)s.Attribute(X + "Key")!).ToDictionary(g => g.Key, g => g.First());
+
+    // A glyph is text made only of private-use codepoints (Segoe Fluent Icons)
+    static bool IsGlyph(string? text) => !string.IsNullOrWhiteSpace(text) && text.Trim().All(c => c is >= '' and <= '');
+
+    static bool IsIcon(XElement? e) => e is not null && IconTypes.Contains(e.Name.LocalName);
+
+    // Content as an attribute, a Button.Content property element, a direct child, or a Style setter
+    static bool IsIconOnly(XElement button, Dictionary<string, XElement> styles, int depth = 0)
+    {
+        if (Attr(button, "Content") is { } content)
+        {
+            return IsGlyph(content);
+        }
+
+        var propertyElement = button.Elements().FirstOrDefault(c => c.Name.LocalName == button.Name.LocalName + ".Content");
+        if (propertyElement is not null)
+        {
+            return IsIcon(propertyElement.Elements().FirstOrDefault());
+        }
+
+        if (button.Elements().FirstOrDefault(c => !c.Name.LocalName.Contains('.', StringComparison.Ordinal)) is { } child)
+        {
+            return IsIcon(child);
+        }
+
+        var key = Attr(button, "Style") is { } style && style.StartsWith("{StaticResource ", StringComparison.Ordinal) ? style[16..^1].Trim() : null;
+        if (key is null || depth > 0 || !styles.TryGetValue(key, out var found))
+        {
+            return false;
+        }
+
+        var setter = found.Descendants().FirstOrDefault(s => s.Name.LocalName == "Setter" && Attr(s, "Property") == "Content");
+        return setter is not null && (IsGlyph(Attr(setter, "Value")) || IsIcon(setter.Descendants().FirstOrDefault(d => IconTypes.Contains(d.Name.LocalName))));
     }
 
     // Section 1: x:Bind Only (AOT)
@@ -124,23 +170,58 @@ public class XamlLintTests
     [Theory, MemberData(nameof(Files))]
     public void Spacing_UsesTheScale(string file)
     {
-        string[] names = ["Margin", "Padding", "Spacing", "RowSpacing", "ColumnSpacing"];
-        var hits = Load(file).Descendants()
-            .SelectMany(e => e.Attributes().Where(a => names.Contains(a.Name.LocalName)).Select(a => (e, a.Value)))
-            .Where(p => !p.Value.StartsWith('{') && p.Value.Split(',').Any(v => double.TryParse(v.Trim(), System.Globalization.CultureInfo.InvariantCulture, out var n) && !Scale.Contains(Math.Abs(n))))
-            .Select(p => (p.e, p.Value));
+        var hits = Metrics(Load(file), "Margin", "Padding", "Spacing", "RowSpacing", "ColumnSpacing")
+            .Where(p => Numbers(p.Value).Any(n => !Scale.Contains(Math.Abs(n))))
+            .Select(p => (p.Element, Detail: $"{p.Value} ({Context(p.Element)})"))
+            .ToList();
+
+        // Identical findings in one file are told apart by their order in it (#1, #2, ...), so an allowlist entry covers one element
+        hits = [.. hits.GroupBy(h => h.Detail).SelectMany(g => g.Select((h, i) => (h.Element, g.Count() > 1 ? $"{h.Detail} #{i + 1}" : h.Detail)))];
 
         AssertNone(Failures(file, "spacing", hits));
+    }
+
+    // Every value set for one of these properties: attributes, <Setter Property Value>, <Prop.Name> text, and <Thickness>/<CornerRadius> elements
+    static IEnumerable<(XElement Element, string Value)> Metrics(XDocument doc, params string[] names)
+    {
+        foreach (var e in doc.Descendants())
+        {
+            foreach (var a in e.Attributes().Where(a => names.Contains(a.Name.LocalName)))
+            {
+                yield return (e, a.Value);
+            }
+
+            if (e.Name.LocalName == "Setter" && Attr(e, "Property") is { } property && names.Contains(property[(property.LastIndexOf('.') + 1)..]) && Attr(e, "Value") is { } value)
+            {
+                yield return (e, value);
+            }
+
+            var isPropertyElement = e.Name.LocalName.Contains('.', StringComparison.Ordinal) && names.Contains(e.Name.LocalName[(e.Name.LocalName.LastIndexOf('.') + 1)..]);
+            if ((isPropertyElement || e.Name.LocalName is "Thickness" or "CornerRadius") && !e.HasElements && e.Value.Trim().Length > 0)
+            {
+                yield return (e, e.Value.Trim());
+            }
+        }
+    }
+
+    // Numbers in a "8,4" or "8 4" value; theme resources ({...}) and non-numbers give none
+    static IEnumerable<double> Numbers(string value) =>
+        value.StartsWith('{') ? [] : value.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries).Select(v => double.TryParse(v, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : double.NaN).Where(n => !double.IsNaN(n));
+
+    // Names the element for the allowlist: the nearest x:Name or AutomationId up the tree, plus the element's own tag
+    static string Context(XElement e)
+    {
+        var named = e.AncestorsAndSelf().Select(a => (string?)a.Attribute(X + "Name") ?? Attr(a, "AutomationId") ?? Attr(a, "AutomationProperties.AutomationId") ?? (string?)a.Attribute(X + "Key")).FirstOrDefault(n => n is not null);
+        return $"{e.Name.LocalName} in {named ?? "(unnamed)"}";
     }
 
     // Section 3: Corner Radii 4 And 8 (Or Theme Resources); Circles Are Allowlisted
     [Theory, MemberData(nameof(Files))]
     public void CornerRadii_UseTheScale(string file)
     {
-        var hits = Load(file).Descendants()
-            .Where(e => Attr(e, "CornerRadius") is { } v && !v.StartsWith('{'))
-            .Where(e => Attr(e, "CornerRadius")!.Split(',').Any(v => double.TryParse(v.Trim(), System.Globalization.CultureInfo.InvariantCulture, out var n) && !Radii.Contains(n)))
-            .Select(e => (e, Attr(e, "CornerRadius")!));
+        var hits = Metrics(Load(file), "CornerRadius")
+            .Where(p => Numbers(p.Value).Any(n => !Radii.Contains(n)))
+            .Select(p => (p.Element, p.Value));
 
         AssertNone(Failures(file, "radius", hits));
     }
