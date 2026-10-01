@@ -37,7 +37,7 @@ Each rule names where it comes from. **Conflict** marks a rule where the referen
 | Rule | Value | Source |
 | --- | --- | --- |
 | Backdrop, normal windows | `MicaBackdrop` | Leaf `MainWindow.xaml`; MA `MainWindow.xaml`; Layers `SettingsWindow.xaml.cs`; Sony `SettingsWindow.xaml` |
-| Backdrop, light-dismiss surfaces (tray flyout) | Desktop acrylic that stays "active" (`DesktopAcrylicController` with `IsInputActive = true`), inside a `SystemBackdropElement` with `CornerRadius="8"` | Sony `ActiveAcrylicBackdrop.cs`, `FlyoutWindow.xaml`; Layers `ActiveAcrylicBackdrop.cs`; Leaf spec 8.2 |
+| Backdrop, light-dismiss surfaces (tray flyout) | Desktop acrylic that stays "active" (`DesktopAcrylicController` with `IsInputActive = true`), inside a `SystemBackdropElement` with `CornerRadius="8"`, in a stock `Flyout` opened from an invisible host window | Sony `ActiveAcrylicBackdrop.cs`; Layers `ActiveAcrylicBackdrop.cs`, `HudHost.xaml`; Leaf `Tray/TrayHost.xaml` |
 | Title bar | Stock `TitleBar` control, `ExtendsContentIntoTitleBar = true`, `SetTitleBar(AppTitleBar)` | Leaf, Layers, Sony |
 | Title bar height | `AppWindow.TitleBar.PreferredHeightOption = Tall` and `<x:Double x:Key="TitleBarCompactHeight">48</x:Double>`, so caption buttons match the 48 DIP bar | Leaf `MainWindow.xaml(.cs)`; Layers `SettingsWindow.xaml` |
 | Title bar icon | App icon via `TitleBar.IconSource` (`ImageIconSource`) and `AppWindow.SetIcon` (an `.ico`) | Leaf; Layers; Sony `SettingsWindow.xaml.cs` |
@@ -198,7 +198,7 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 | Secondary action | `Button` (default style) | Cancel, Sync now, Disconnect | Leaf `AccountsPage.xaml`; Sony |
 | Title bar icon | `LeafBareIconButtonStyle` 32×32 | Title bar only, no fill ever | Leaf |
 | Icon button elsewhere | `LeafIconButtonStyle` (32, or 28 in the mini month): 83 ms fade to `SubtleFillColorSecondary` | Sidebar, panels | Leaf |
-| Footer / flyout icon button | `SubtleButtonStyle`, 36×36 | Flyout footers | Sony `FooterIconButtonStyle`; MA back button |
+| Footer / flyout icon button | `SubtleButtonStyle`, 36×36 (a footer's text action, like the tray flyout's "New event", is a standard `Button` with a 14 DIP glyph and label on 16,12 footer padding) | Flyout footers | Sony `FooterIconButtonStyle`; MA back button |
 | Link | `HyperlinkButton`, or `Hyperlink` inside a `TextBlock` to sit flush with text | Fixed URLs only | Layers About; Leaf `DetailsPanel.xaml` |
 | Split action | `SplitButton` (main action + menu) | "Join meeting" + copy link | Leaf `DetailsPanel.xaml` |
 | Tiles | `ToggleButton` 48 tall, stretch, `ControlCornerRadius`; label underneath | Quick Settings–style choices in the flyout | Sony `TileButtonStyle` |
@@ -266,7 +266,7 @@ The Windows 11 Settings row, the one pattern for every setting:
 - Content: `Frame` with `Padding="36,24"`. Each page: `ScrollViewer` → `StackPanel MaxWidth="900" Spacing="4"` → page title (`TitleTextBlockStyle`, bottom margin 16) → groups. (Sony `SettingsWindow.xaml`, `AppPage.xaml`.)
 - Groups: a `BodyStrongTextBlockStyle` header with `Margin="0,24,0,8"` (0 top on the first) over a stack of setting rows 4 apart. (Section headers: all three apps; 4 DIP row gap: Windows 11 Settings.)
 - Every change saves immediately. No Save/Apply buttons. (Layers spec "Every change saves immediately"; Sony view model two-way bindings.)
-- Pages for Leaf: General, Calendars, Time zones, Accounts, About (footer). (Brief item 4.)
+- Pages for Leaf: General, Calendars, Time zones, Notifications, Tray, Shortcuts, Accounts, About (footer). (Brief item 4.)
 - About page: app icon (or 32 glyph) + name + version in the first card, then cards for "View on GitHub", privacy, licenses and third-party notices, as fixed URLs. (Sony `AboutPage.xaml`; Layers `AboutPage.xaml` link set.)
 
 > **Conflicts:** pane width is 160 in Layers, 220 in MA, 240 in Sony. **Use 240** (the one with five-plus pages). Layers has no page titles; Sony and MA do. **Show page titles** (Windows Settings does). Sony's card gap is 8; **use 4** to match Windows Settings, with group headers doing the separating.
@@ -382,6 +382,7 @@ Don't change existing work to close these. They're notes for new screens.
 - Theme brushes throughout, per-theme code brushes with the system accent. (`LeafBrushes.cs`)
 - Sentence-case copy, verb buttons, destructive dialog defaults to Close. (`AccountsPage.xaml(.cs)`)
 - AutomationIds everywhere, landmarks, min window size computed from content.
+- Tray flyout: always-active acrylic, 360 × 560, 12 DIPs from the taskbar, slide from the taskbar edge with the Fluent 250/167 ms curves; stock tray menu with narrow padding and 16 DIP icons. (`Tray/TrayHost.xaml`)
 
 **Known gaps (new work should do better, existing screens stay)**
 
@@ -390,7 +391,7 @@ Don't change existing work to close these. They're notes for new screens.
 3. `ScopeDialog` uses "OK" instead of a verb.
 4. `SetupPage` and `AccountsPage` are main-window pages today; the brief moves them to the onboarding and settings windows.
 5. Theme and view options live in the view picker menu; the brief moves the settings ones to Settings › General.
-6. The tray flyout (acrylic, slide from the taskbar edge) isn't built yet; follow Sony's `FlyoutWindow` when it is.
+6. Tray art is a placeholder (the app logo) until Milestone 6.
 
 ---
 

@@ -71,6 +71,8 @@ Leaf Calendar is a fast, low-memory, native Windows 11 desktop calendar with fea
 | Share availability | Google free/busy based, copied as text. Plus a button that opens Google's appointment schedule page. |
 | Search | No search box. Search goes through the command menu. |
 | Tray menu | XAML menu, placement follows taskbar position. |
+| Tray flyout construction | An invisible host window opens a stock `Flyout` holding the acrylic panel (Layers' HUD pattern), so light dismiss, Esc, and focus are stock and Win32 stays on CsWin32 without marshaling (Milestone 4). |
+| Reminder rules | Popup reminders only; all-day events remind only from their own overrides (Google's API doesn't expose all-day defaults); each alert shows once, ever, per event instance (Milestone 4). |
 | Settings | Its own window modeled on the Windows 11 Settings app (Milestone 3 owner redesign). See Section 6.7. |
 | First run | Its own small onboarding window with a line-style `PipsPager` step indicator (Milestone 3 owner redesign). See Section 4.1. |
 | Instances | One Leaf per profile. A second launch brings the running one to the front (Milestone 3 owner request). See Section 6.1. |
@@ -130,7 +132,7 @@ Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manag
 4. Event data kept in a bounded sliding window (Section 6.4). Event visuals recycled.
 5. No WebView2. Event descriptions render with native text controls.
 6. Avatars and images decoded at display size (`DecodePixelWidth`).
-7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64. Measured 2026-09-29 at 78-79 MB private bytes and 11 MB working set (three runs), measured with sync running against the fake Google. Raised 2026-09-29 at the close of Milestone 2 to private bytes ≤ 120 MB (working set unchanged at ≤ 25 MB). Measured at 105-106 MB private bytes and 18 MB working set (three runs). The growth is expected: it's native WinUI memory for the new sidebar (mini month) and the time grid, committed while the window is open and kept after it closes. The managed heap stays at about 2 MB, and clearing the whole window tree on close freed nothing measurable. Measured 2026-09-30 at the close of Milestone 3 (Settings and onboarding windows, event editor, drag, conflict dialog) at 100 MB private bytes and 17 MB working set (three runs), inside the unchanged budget. Measured 2026-09-30 at the close of the second Milestone 3 polish round (contact autocomplete, Meet, undo stack, navigation history) at 98-99 MB private bytes and 17 MB working set (three runs, final build; 100-101 MB and 15-17 MB earlier the same day), inside the unchanged budget.
+7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64. Measured 2026-09-29 at 78-79 MB private bytes and 11 MB working set (three runs), measured with sync running against the fake Google. Raised 2026-09-29 at the close of Milestone 2 to private bytes ≤ 120 MB (working set unchanged at ≤ 25 MB). Measured at 105-106 MB private bytes and 18 MB working set (three runs). The growth is expected: it's native WinUI memory for the new sidebar (mini month) and the time grid, committed while the window is open and kept after it closes. The managed heap stays at about 2 MB, and clearing the whole window tree on close freed nothing measurable. Measured 2026-09-30 at the close of Milestone 3 (Settings and onboarding windows, event editor, drag, conflict dialog) at 100 MB private bytes and 17 MB working set (three runs), inside the unchanged budget. Measured 2026-09-30 at the close of the second Milestone 3 polish round (contact autocomplete, Meet, undo stack, navigation history) at 98-99 MB private bytes and 17 MB working set (three runs, final build; 100-101 MB and 15-17 MB earlier the same day), inside the unchanged budget. <!-- M4 re-measure (tray icon, tray host window, notifications, alert scheduler resident): fill in at the unlock pass, see Task 17 Step 3. -->
 
 ---
 
@@ -329,7 +331,7 @@ Its own window (Milestone 3 owner redesign), modeled on the Windows 11 Settings 
 - One Settings window at a time; opening it again brings it forward.
 - Mica, custom title bar, a left `NavigationView` that collapses when narrow, and pages of Windows-Settings-style setting rows.
 - Opens at 1000 × 720 DIP, resizable, minimum 640 × 500 DIP.
-- Pages in Milestone 3: General, Calendars (color and visibility per calendar, grouped by account), Time zones, Accounts (add, sync now, disconnect with an unsent-changes warning, change OAuth client), About (version and a fixed GitHub link). The remaining Section 9 options arrive in Milestone 5.
+- Pages in Milestone 3: General, Calendars (color and visibility per calendar, grouped by account), Time zones, Accounts (add, sync now, disconnect with an unsent-changes warning, change OAuth client), About (version and a fixed GitHub link). Milestone 4 added Notifications, Tray, and Shortcuts pages (between Time zones and Accounts). The remaining Section 9 options arrive in Milestone 5.
 
 ---
 
@@ -400,7 +402,7 @@ Its own window (Milestone 3 owner redesign), modeled on the Windows 11 Settings 
 ### 8.2 Tray Flyout (Left-Click)
 
 - WinUI window with a desktop acrylic backdrop.
-- **Placement:** Leaf gets the icon rectangle (`Shell_NotifyIconGetRect`) and the taskbar edge (`SHAppBarMessage(ABM_GETTASKBARPOS)`) on the icon's monitor. The flyout opens next to the icon, slides in from the taskbar edge (bottom, top, left, or right), and stays inside that monitor's work area.
+- **Placement:** Leaf gets the icon rectangle (`Shell_NotifyIconGetRect`) and the taskbar edge (`SHAppBarMessage(ABM_GETTASKBARPOS)`) on the icon's monitor. The flyout opens next to the icon, slides in from the taskbar edge (bottom, top, left, or right), and stays inside that monitor's work area. An auto-hidden taskbar is kept clear. When the icon's place is unknown (it's in the overflow), the flyout opens at the far end of the primary taskbar.
 - **Content:**
   - Next event, countdown, and a large Join button.
   - Agenda grouped by day, each meeting with a Join button. The number of days is a setting.
@@ -419,7 +421,7 @@ Its own window (Milestone 3 owner redesign), modeled on the Windows 11 Settings 
 All notifications are Windows App SDK app notifications.
 
 1. **Reminder:** fires at each reminder time (the event's own reminders, else the calendar's Google defaults). Shows title, time, and location, with Join (if the event has a link), Snooze, and Dismiss.
-2. **Persistent "Join now":** fires at start time for events with a meeting link that you haven't declined. Uses `scenario="reminder"`. It always carries a Join button that activates in the background, which Windows requires for the reminder scenario to stay on screen. It stays until you click Join or Dismiss.
+2. **Persistent "Join now":** fires at start time for events with a meeting link that you haven't declined. Uses `scenario="reminder"`. It always carries a Join button that activates in the background, which Windows requires for the reminder scenario to stay on screen. It stays until you click Join or Dismiss, or until the meeting ends, moves, is declined, or is deleted (then Leaf withdraws it).
 3. **New or updated invite:** Yes / No / Maybe buttons in the notification.
 4. **Conflict needs review** and **Sign in again**.
 
@@ -428,12 +430,17 @@ Rules:
 - The scheduler uses `TimeProvider`, so tests can drive it.
 - On resume from sleep, Leaf shows reminders for meetings that are still upcoming or in progress, and skips meetings that are already over.
 - Reminders fire only while Leaf runs, which is why it starts with Windows by default.
+- Each pass looks back one hour: an alert missed while Leaf slept or wasn't running still shows if its meeting isn't over. Per meeting, only the latest alert that came due shows (a "Join now" rather than stale reminders).
+- A "Join now" is withdrawn once its meeting ends, moves, is declined, or is deleted.
+- Invitations: an account's pending invites are recorded quietly when it finishes its first sync; later, a new invite or an organizer's change (Google's `sequence`) notifies once. Yes / No / Maybe email the organizer, and a repeating invite is answered for the series.
+- Toast arguments carry the profile; a running Leaf ignores another profile's notification.
 
 ### 8.5 Join Logic
 
 - A meeting **qualifies** when it has a meeting link, you haven't declined it, and it starts within 10 minutes or is in progress.
 - The join shortcut picks the soonest-starting qualifying meeting that hasn't started yet. If none, it picks the in-progress one.
 - Google Meet links get `authuser=<account email>` and open in the default browser. Other providers open their links as-is; their desktop apps handle them when installed.
+- With several meetings in progress and none about to start, the one that started last is picked. All-day events never qualify.
 - If nothing qualifies, a short notification says "No meeting to join".
 
 ### 8.6 Global Shortcuts (Changeable in Settings)
@@ -444,6 +451,8 @@ Registered with `RegisterHotKey`. If a combination is already taken by another a
 |---|---|
 | `Ctrl+Alt+J` | Join meeting (Section 8.5) |
 | `Ctrl+Alt+K` | Show or hide the tray flyout |
+
+> On keyboard layouts that have an AltGr key (many European layouts), `Ctrl+Alt` is the same as AltGr, so these defaults take over AltGr+J and AltGr+K system-wide. The owner uses a US layout, so the defaults stay; anyone affected can change them in Settings › Shortcuts.
 
 ### 8.7 In-App Shortcuts
 
@@ -664,12 +673,17 @@ Each milestone gets its own implementation plan. Tests are built within each mil
      - The event's own time zone in the editor, and E then Z
      - E then F (participant overlay, with the people overlay)
      - Map provider choice (Google Maps is used until the settings page; Bing Maps arrives with it)
+   - Deferred from Milestone 4:
+     - Settings › Tray "Which calendars appear" (the tray follows the calendars shown in Leaf until then)
+     - Settings › Shortcuts link to the in-app cheat sheet (arrives with the cheat sheet)
 6. **Polish and Store prep:**
    - Visual pass and accessibility pass
    - Store listing requirements
    - Deferred from Milestone 3:
      - Rich description editing (bold, italic, underline, lists); descriptions are edited as plain text
      - Shift+drag box select (Ctrl+click, Shift+click, X, and Ctrl+A select today)
+   - Deferred from Milestone 4:
+     - Tray icon art: monochrome light and dark glyphs (the app logo is a placeholder), and a fixed `NIF_GUID` icon identity once the package is signed
 
 ---
 
