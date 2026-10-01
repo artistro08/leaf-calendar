@@ -323,6 +323,91 @@ public sealed class EditingTests : IDisposable
     }
 
     [Fact]
+    public void ClosingTheDetailsPanel_WhileEditing_KeepsTheEdit()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        leaf.Press(VirtualKeyShort.KEY_E);
+        var title = leaf.WaitFor("EditorTitle").AsTextBox();
+        title.Text += " moved";
+
+        var toggle = leaf.WaitFor("DetailsToggleButton").AsToggleButton();
+        toggle.Toggle();
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(5)).Success);
+        toggle.Toggle();
+
+        Assert.True(Retry.WhileFalse(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(5)).Success);
+        Assert.EndsWith(" moved", leaf.WaitFor("EditorTitle").AsTextBox().Text, StringComparison.Ordinal);
+        Assert.Empty(_google.Writes);
+    }
+
+    [Fact]
+    public void ClosingTheDetailsPanel_WhileEditing_CBringsTheEditBack()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        leaf.Press(VirtualKeyShort.KEY_E);
+        var title = leaf.WaitFor("EditorTitle").AsTextBox();
+        title.Text += " moved";
+
+        leaf.WaitFor("DetailsToggleButton").AsToggleButton().Toggle();
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(5)).Success);
+        leaf.Press(VirtualKeyShort.KEY_C);
+
+        Assert.True(Retry.WhileFalse(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(5)).Success);
+        Assert.Equal("Dentist appointment moved", leaf.WaitFor("EditorTitle").AsTextBox().Text);
+    }
+
+    [Fact]
+    public void SelectingAnotherEvent_WhileEditing_ShowsItsDetails()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        leaf.Press(VirtualKeyShort.KEY_E);
+        leaf.WaitFor("EditorTitle").AsTextBox().Text = "Never saved";
+
+        leaf.WaitFor("Event_evt-meeting_202610011800").Click();
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(5)).Success);
+        Assert.Equal("Design review", leaf.WaitFor("DetailsTitle").Name);
+        Assert.Empty(_google.Writes);
+    }
+
+    [Fact]
+    public void ClickingEmptyTime_WhileEditing_EndsTheEdit()
+    {
+        using var leaf = Launch();
+        var dentist = leaf.WaitFor("Event_evt-single_202610011300");
+        dentist.Click();
+        leaf.Press(VirtualKeyShort.KEY_E);
+        leaf.WaitFor("EditorTitle");
+
+        // Same Day Column, Well Below The Event
+        var box = dentist.BoundingRectangle;
+        Mouse.Click(new Point(box.X + box.Width / 2, box.Bottom + 150));
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("EventEditor") || leaf.Exists("DetailsTitle"), TimeSpan.FromSeconds(5)).Success);
+        Assert.NotNull(leaf.WaitFor("UpcomingHeader"));
+    }
+
+    [Fact]
+    public void ClickingEmptyTime_WhileCreating_EndsTheEdit()
+    {
+        using var leaf = Launch();
+        var dentist = leaf.WaitFor("Event_evt-single_202610011300");
+        leaf.Press(VirtualKeyShort.KEY_C);
+        leaf.WaitFor("EditorTitle").AsTextBox().Text = "Never saved";
+
+        // Same Day Column, Well Below The Event (read after the editor opened the panel and the grid moved)
+        var box = dentist.BoundingRectangle;
+        Mouse.Click(new Point(box.X + box.Width / 2, box.Bottom + 150));
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(5)).Success);
+        Assert.NotNull(leaf.WaitFor("UpcomingHeader"));
+        Assert.Empty(_google.Writes);
+    }
+
+    [Fact]
     public void EditTwice_CalendarPickerKeepsTheEventsCalendar()
     {
         using var leaf = Launch();

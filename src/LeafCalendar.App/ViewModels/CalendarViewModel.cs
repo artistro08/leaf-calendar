@@ -244,6 +244,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>The time grid should scroll this instant into view.</summary>
     public event EventHandler<DateTimeOffset>? ScrollToTimeRequested;
 
+    /// <summary>The details panel should open (C or E brought back an editor hidden by closing the panel).</summary>
+    public event EventHandler? DetailsOpenRequested;
+
     // =========================================================================
     // NAVIGATION
     // =========================================================================
@@ -402,8 +405,22 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     // SELECTION
     // =========================================================================
 
-    /// <summary>Selects an event and loads its details.</summary>
+    /// <summary>
+    /// Selects an event and loads its details. Picking an event other than the one being edited (or any event while
+    /// creating one) ends the edit without saving, like Esc, so the panel shows the picked event's details.
+    /// </summary>
     public void Select(CalendarOccurrence occurrence)
+    {
+        if (Editing is { } editing && editing.Occurrence?.Key != occurrence.Key)
+        {
+            CancelEdit();
+        }
+
+        ShowSelected(occurrence);
+    }
+
+    // Selects and loads without touching the editor (a refresh re-selects the event behind an open editor)
+    void ShowSelected(CalendarOccurrence occurrence)
     {
         try
         {
@@ -439,9 +456,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Clears the selection.</summary>
+    /// <summary>Clears the selection and ends any edit without saving (clicking off shows the upcoming list).</summary>
     public void ClearSelection()
     {
+        // A New Event Has No Selection, So The Edit Ends Before The Nothing-Selected Guard
+        CancelEdit();
+
         if (SelectedInfo is null && _selection.Count == 0)
         {
             return;
@@ -545,7 +565,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             _reselect = null;
             if (Cache.ForDay(reselect.Day).FirstOrDefault(reselect.Match) is { } edited)
             {
-                Select(edited);
+                ShowSelected(edited);
                 return;
             }
         }
@@ -650,6 +670,11 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Opens the editor on the selected event (E; "E then U" focuses the end time).</summary>
     public void BeginEdit(bool focusEnd = false)
     {
+        if (ReopenHiddenEditor())
+        {
+            return;
+        }
+
         if (SelectedInfo is not { CanEdit: true } info)
         {
             return;
@@ -661,6 +686,11 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Opens the editor on a new event in your default calendar (your chosen one, else primary, else the first you can write to).</summary>
     public void BeginCreate(DateTimeOffset start, DateTimeOffset end, bool isAllDay)
     {
+        if (ReopenHiddenEditor())
+        {
+            return;
+        }
+
         if (HomeCalendar() is not { } home)
         {
             Notice = new NoticeInfo("Add a Google account with a calendar you can edit first.", CanUndo: false);
@@ -690,6 +720,18 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     /// <summary>Closes the editor without saving.</summary>
     public void CancelEdit() => Editing = null;
+
+    // Closing the panel only hides an editor; C or E brings that one back instead of starting another
+    bool ReopenHiddenEditor()
+    {
+        if (Editing is null || Settings.DetailsPanelOpen)
+        {
+            return false;
+        }
+
+        DetailsOpenRequested?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
 
     /// <summary>
     /// Saves the editor. A new event gets the birthday rule (spec 7.2). A repeating event asks "this / following / all"
@@ -1321,7 +1363,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         if (_selection.Count == 1)
         {
-            Select(_selection[0]);
+            ShowSelected(_selection[0]);
             return;
         }
 

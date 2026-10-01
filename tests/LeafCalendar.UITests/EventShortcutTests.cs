@@ -1,3 +1,4 @@
+using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
@@ -9,6 +10,7 @@ public sealed class EventShortcutTests : IDisposable
 {
     const string Dentist = "Event_evt-single_202610011300";
     const string Meeting = "Event_evt-meeting_202610011800";
+    const string Weekly = "Event_evt-weekly_202610051330";
     const string MeetJoin = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
 
     readonly FakeGoogleServer _google = new();
@@ -40,14 +42,66 @@ public sealed class EventShortcutTests : IDisposable
     }
 
     [Fact]
-    public void EAlone_OpensTheEditorAfterTheTimeout()
+    public void EAlone_OpensTheEditorAtOnce()
     {
         using var leaf = Launch();
         leaf.WaitFor(Dentist).Click();
 
         leaf.Press(VirtualKeyShort.KEY_E);
 
-        Assert.NotNull(leaf.WaitFor("EditorTitle"));
+        Assert.True(Retry.WhileFalse(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(0.5)).Success);
+
+        // The E itself never lands in the title, and the editor stays once the sequence times out
+        Thread.Sleep(TimeSpan.FromSeconds(2));
+        Assert.Equal("Dentist appointment", leaf.WaitFor("EditorTitle").AsTextBox().Text);
+    }
+
+    [Fact]
+    public void EThenU_FocusesTheEndTime()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Dentist).Click();
+
+        leaf.Press(VirtualKeyShort.KEY_E);
+        Keyboard.Type(VirtualKeyShort.KEY_U);
+
+        var end = leaf.WaitFor("EditorEndTime");
+        Assert.True(Retry.WhileFalse(() => end.FindAllDescendants().Prepend(end).Any(e => e.Properties.HasKeyboardFocus.ValueOrDefault), TimeSpan.FromSeconds(5)).Success);
+        Assert.Equal("Dentist appointment", leaf.WaitFor("EditorTitle").AsTextBox().Text);
+    }
+
+    [Fact]
+    public void EThenT_TypesIntoTheTitle()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Dentist);
+
+        // On the next week, so a T taken as "today" would move the view back
+        leaf.WaitFor("NextButton").AsButton().Invoke();
+        var weekly = leaf.WaitFor(Weekly);
+        LeafApp.WaitUntilStill(weekly);
+        weekly.Click();
+
+        leaf.Press(VirtualKeyShort.KEY_E);
+        Keyboard.Type(VirtualKeyShort.KEY_T);
+
+        var title = leaf.WaitFor("EditorTitle").AsTextBox();
+        Assert.True(Retry.WhileFalse(() => title.Text.EndsWith('t'), TimeSpan.FromSeconds(5)).Success, $"The title is \"{title.Text}\".");
+        Thread.Sleep(TimeSpan.FromSeconds(1));
+        Assert.True(leaf.Exists(Weekly) && !leaf.WaitFor(Weekly).IsOffscreen);
+    }
+
+    [Fact]
+    public void EThenY_OnYourOwnEvent_ClosesTheEditor()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Dentist).Click();
+
+        leaf.Press(VirtualKeyShort.KEY_E);
+        Keyboard.Type(VirtualKeyShort.KEY_Y);
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(5)).Success);
+        Assert.Equal("Dentist appointment", leaf.WaitFor("DetailsTitle").Name);
     }
 
     [Fact]

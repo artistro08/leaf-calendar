@@ -178,7 +178,7 @@
 
                 <!-- Editor -->
                 <!-- Loaded the first time an editor opens -->
-                <local:EventEditorView x:Name="EditorView" x:Load="False" />
+                <local:EventEditorView x:Name="EditorView" x:FieldModifier="internal" x:Load="False" />
             </Grid>
         </ScrollViewer>
     </Grid>

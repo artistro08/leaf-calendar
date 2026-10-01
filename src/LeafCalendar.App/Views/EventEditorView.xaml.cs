@@ -47,26 +47,34 @@ public sealed partial class EventEditorView : UserControl
         Editor = editor;
 
         // Filling the calendar list can write "nothing picked" back through the TwoWay binding; put the pick back
+        // (that write-back isn't the user's, so the editor stays untouched)
         var calendarIndex = editor.CalendarIndex;
+        var untouched     = editor.IsUntouched;
         Bindings.Update();
-        editor.CalendarIndex = calendarIndex;
+        editor.CalendarIndex      = calendarIndex;
         CalendarBox.SelectedIndex = calendarIndex;
+        editor.IsUntouched        = untouched;
 
         editor.PropertyChanged += OnEditorPropertyChanged;
         BuildColors();
 
+        // Focus After The Key That Opened The Editor Is Done (its character never reaches the title); the caret goes
+        // after the title, so a key typed right after an instant E adds to it
         DispatcherQueue.TryEnqueue(() =>
         {
             if (editor.FocusEnd)
             {
                 EndTimePicker.Focus(FocusState.Programmatic);
             }
-            else
+            else if (TitleBox.Focus(FocusState.Programmatic))
             {
-                TitleBox.Focus(FocusState.Programmatic);
+                TitleBox.Select(TitleBox.Text.Length, 0);
             }
         });
     }
+
+    /// <summary>Moves focus to the end time ("E then U" right after an instant E), after any pending title focus.</summary>
+    public void FocusEndTime() => DispatcherQueue.TryEnqueue(() => EndTimePicker.Focus(FocusState.Programmatic));
 
     /// <summary>Lets go of the current editor and empties the calendar picker, so the next editor's pick isn't reset.</summary>
     public void Detach()

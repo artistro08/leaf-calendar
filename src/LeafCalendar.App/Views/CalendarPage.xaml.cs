@@ -54,9 +54,11 @@ public sealed partial class CalendarPage : Page
 
     readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _noticeTimer;
 
-    // "E then ..." sequences; a lone E edits when the 1.5 s timer runs out
+    // "E then ..." sequences; E opens the editor at once on an event you can change, while the second key may still
+    // come for 1.5 s (on an invite a lone E waits for the timer)
     readonly KeySequence _keys = new(TimeProvider.System);
     readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _sequenceTimer;
+    bool _editorFromE;
     CalendarPageArgs _args = null!;
     IDisposable? _view;
     bool _viewIsMonth;
@@ -73,13 +75,14 @@ public sealed partial class CalendarPage : Page
         _noticeTimer.Tick       += (_, _) => ViewModel.DismissNotice();
 
         // A Lone E Edits Once The Sequence Times Out (not while E is still held, and not if an editor opened or
-        // focus moved into a text box or popup meanwhile)
+        // focus moved into a text box or popup meanwhile; an instant E's editor is already open)
         _sequenceTimer = DispatcherQueue.CreateTimer();
         _sequenceTimer.Interval    = KeySequence.Timeout;
         _sequenceTimer.IsRepeating = false;
         _sequenceTimer.Tick       += (_, _) =>
         {
-            var expired = _keys.Expire();
+            _editorFromE = false;
+            var expired  = _keys.Expire();
             if (ViewModel.Editing is null && !Controls.KeyState.IsDown(VirtualKey.E) && !ShortcutsBlocked())
             {
                 Execute(expired);
@@ -106,9 +109,10 @@ public sealed partial class CalendarPage : Page
 
         Sidebar.Attach(ViewModel);
         Details.Attach(ViewModel);
-        ViewModel.PropertyChanged  += OnViewModelPropertyChanged;
-        ViewModel.LayoutChanged    += OnLayoutChanged;
-        ViewModel.CalendarsChanged += OnCalendarsChanged;
+        ViewModel.PropertyChanged      += OnViewModelPropertyChanged;
+        ViewModel.LayoutChanged        += OnLayoutChanged;
+        ViewModel.CalendarsChanged     += OnCalendarsChanged;
+        ViewModel.DetailsOpenRequested += OnDetailsOpenRequested;
 
         // Repeating Events Ask Which Events A Change Applies To
         ViewModel.AskScope = (includeFollowing, includeThis) => ScopeDialog.AskAsync(XamlRoot, includeFollowing, includeThis);
@@ -131,12 +135,14 @@ public sealed partial class CalendarPage : Page
     /// </summary>
     public void Detach()
     {
-        ViewModel.LayoutChanged    -= OnLayoutChanged;
-        ViewModel.CalendarsChanged -= OnCalendarsChanged;
+        ViewModel.LayoutChanged        -= OnLayoutChanged;
+        ViewModel.CalendarsChanged     -= OnCalendarsChanged;
+        ViewModel.DetailsOpenRequested -= OnDetailsOpenRequested;
         ViewModel.AskScope = null;
         _noticeTimer.Stop();
         _sequenceTimer.Stop();
         _keys.Expire();
+        _editorFromE = false;
         Sidebar.Detach();
         Details.Detach();
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
@@ -159,12 +165,6 @@ public sealed partial class CalendarPage : Page
     /// <summary>Shows or hides the details panel (sliding when <paramref name="animate"/>) and remembers the choice.</summary>
     public void SetDetailsOpen(bool open, bool animate)
     {
-        // Closing the panel closes an open editor too (nothing to see, and shortcuts would stay off)
-        if (!open)
-        {
-            ViewModel.CancelEdit();
-        }
-
         SetPaneOpen(DetailsSplit, open, animate);
 
         if (ViewModel.Settings.DetailsPanelOpen != open)
@@ -250,7 +250,9 @@ public sealed partial class CalendarPage : Page
         }
     }
 
-    // A tap on empty calendar space clears the selection (events and chips mark their own taps handled)
+    void OnDetailsOpenRequested(object? sender, EventArgs e) => SetDetailsOpen(true, animate: true);
+
+    // A tap on empty calendar space clears the selection and ends an edit (events and chips mark their own taps handled)
     void OnViewHostTapped(object sender, TappedRoutedEventArgs e) => ViewModel.ClearSelection();
 
     void OnEscapeInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
@@ -269,15 +271,41 @@ public sealed partial class CalendarPage : Page
     /// <summary>
     /// Runs the calendar shortcut for a key press, called by the window so shortcuts work wherever focus is.
     /// Ignored while typing, or while focus is in a flyout, menu, dialog, or the go-to-date picker (a hover tooltip
-    /// never takes focus, so it doesn't block shortcuts). Event shortcuts act on the selection; E starts a 1.5 s
-    /// sequence (spec 8.7). With several events selected, Delete and Ctrl+Shift+Delete act on all of them, while the
-    /// one-event shortcuts (E, E then Y / N / M / E / U, V) show "Select one event" and Ctrl+J joins the next meeting.
+    /// never takes focus, so it doesn't block shortcuts). Event shortcuts act on the selection; E opens the editor at once
+    /// and starts a 1.5 s sequence (spec 8.7): while the editor is untouched, Y / N / M / E close it and reply or email,
+    /// U moves to the end time, and any other key types into the title. With several events selected, Delete and
+    /// Ctrl+Shift+Delete act on all of them, while the one-event shortcuts (E, E then Y / N / M / E / U, V) show "Select one event" and Ctrl+J joins the next meeting.
     /// </summary>
     /// <returns>True when the key was a shortcut and has been handled.</returns>
     public bool HandleShortcut(KeyRoutedEventArgs e)
     {
-        // The Editor Handles Its Own Keys
-        if (ViewModel.Editing is not null)
+        // Second Key After An Instant E (the editor opened but nothing was typed yet)
+        if (_editorFromE && _keys.IsPending && ViewModel.Editing is { IsUntouched: true } && !IsModifier(e.Key))
+        {
+            if (e.KeyStatus.WasKeyDown && e.Key == VirtualKey.E)
+            {
+                return true;
+            }
+
+            var second = _keys.Resolve(e.Key.ToString(), Controls.KeyState.IsDown(VirtualKey.Control), Controls.KeyState.IsDown(VirtualKey.Shift), Controls.KeyState.IsDown(VirtualKey.Menu));
+            _editorFromE = false;
+            _sequenceTimer.Stop();
+            switch (second.Command)
+            {
+                case CalendarCommand.EditDuration:
+                    Details.EditorView?.FocusEndTime();
+                    return true;
+                case CalendarCommand.RsvpYes or CalendarCommand.RsvpNo or CalendarCommand.RsvpMaybe or CalendarCommand.EmailGuests:
+                    ViewModel.CancelEdit();
+                    Execute(second);
+                    return true;
+                default:
+                    return false;                       // typing: the title box gets the key
+            }
+        }
+
+        // A Hidden Editor Doesn't Block Shortcuts (the editor handles its own keys while it shows)
+        if (ViewModel.Editing is not null && IsDetailsOpen)
         {
             return false;
         }
@@ -305,7 +333,22 @@ public sealed partial class CalendarPage : Page
         _sequenceTimer.Stop();
         if (result.Command == CalendarCommand.SequenceStarted)
         {
+            // E Brings Back A Hidden Editor Instead Of Starting Another
+            if (ViewModel.Editing is not null)
+            {
+                _keys.Expire();
+                ViewModel.BeginEdit();
+                return true;
+            }
+
+            // E Edits At Once When The One Selected Event Can Be Changed (an invite waits for the second key)
             _sequenceTimer.Start();
+            if (ViewModel.SelectedInfo is { CanEdit: true })
+            {
+                ViewModel.BeginEdit();
+                _editorFromE = ViewModel.Editing is not null;
+            }
+
             return true;
         }
 
@@ -320,12 +363,12 @@ public sealed partial class CalendarPage : Page
 
     /// <summary>
     /// Goes back or forward through the visited places, under the same rules as the keyboard shortcuts: nothing
-    /// happens while an event is being edited or while focus is in a text box, flyout, menu, or dialog.
+    /// happens while the editor shows or while focus is in a text box, flyout, menu, or dialog.
     /// </summary>
     /// <returns>True when the calendar moved.</returns>
     public bool TryNavigateHistory(bool back)
     {
-        if (ViewModel.Editing is not null || ShortcutsBlocked())
+        if ((ViewModel.Editing is not null && IsDetailsOpen) || ShortcutsBlocked())
         {
             return false;
         }

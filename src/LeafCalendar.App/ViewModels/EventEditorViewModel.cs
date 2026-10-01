@@ -164,6 +164,12 @@ public sealed partial class EventEditorViewModel : ObservableObject
     /// <summary>Focus the end time first ("E then U").</summary>
     public bool FocusEnd { get; }
 
+    /// <summary>
+    /// True until any field changes after load, so a key pressed right after an instant E can still act as the second
+    /// key of "E then ...". The editor view puts it back after its first binding pass, which writes some fields back.
+    /// </summary>
+    public bool IsUntouched { get; set; } = true;
+
     /// <summary>"New event" or "Edit event".</summary>
     public string HeaderText => IsNew ? "New event" : "Edit event";
 
@@ -404,6 +410,18 @@ public sealed partial class EventEditorViewModel : ObservableObject
         _wkst).ToRRule(IsAllDay, _zone);
 
     void RemoveGuest(GuestRow row) => Guests.Remove(row);
+
+    /// <inheritdoc />
+    protected override void OnPropertyChanged(System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+
+        // Any Field Change After Load Counts (an error message isn't a field)
+        if (_ready && e?.PropertyName is not (nameof(Error) or nameof(HasError)))
+        {
+            IsUntouched = false;
+        }
+    }
 
     // =========================================================================
     // END FOLLOWS START
