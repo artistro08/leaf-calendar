@@ -128,6 +128,8 @@ public sealed class ZoneTests : IDisposable
 
         // Pin London (BST, so 9 AM New York is 2 PM)
         leaf.OpenSettings("TimeZones");
+        Assert.StartsWith("Same as Windows", leaf.WaitInSettings("PrimaryZoneSummary").Name, StringComparison.Ordinal);
+        leaf.ExpandInSettings("PrimaryZoneExpander");
         var follow = leaf.WaitInSettings("FollowWindowsZoneSwitch").AsToggleButton();
         Assert.Equal(FlaUI.Core.Definitions.ToggleState.On, follow.ToggleState);
         Assert.False(leaf.WaitInSettings("ZonePromptSwitch").IsEnabled);
@@ -143,6 +145,7 @@ public sealed class ZoneTests : IDisposable
 
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsWhen").Name.Contains("2 PM – 3 PM", StringComparison.Ordinal), Wait).Success,
             $"Details read {leaf.WaitFor("DetailsWhen").Name}.");
+        Assert.Equal("London", leaf.WaitInSettings("PrimaryZoneSummary").Name);
 
         // Following Windows Again Puts It Back
         leaf.WaitInSettings("FollowWindowsZoneSwitch").AsToggleButton().Toggle();

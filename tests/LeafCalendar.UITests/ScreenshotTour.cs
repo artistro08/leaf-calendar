@@ -112,7 +112,8 @@ public sealed class ScreenshotTour : IDisposable
                     settings.Patterns.Transform.Pattern.Move(40, 40);
                     settings.Patterns.Transform.Pattern.Resize(width, 900);
                     Thread.Sleep(600);
-                    foreach (var expander in settings.FindAllDescendants(cf => cf.ByClassName("Expander")))
+                    // Leaf's Expanders All Have "Expander" In Their Automation ID
+                    foreach (var expander in settings.FindAllDescendants().Where(e => e.Properties.AutomationId.ValueOrDefault?.Contains("Expander", StringComparison.Ordinal) == true))
                     {
                         if (expander.Patterns.ExpandCollapse.TryGetPattern(out var pattern) && pattern!.ExpandCollapseState.Value == FlaUI.Core.Definitions.ExpandCollapseState.Collapsed)
                         {
