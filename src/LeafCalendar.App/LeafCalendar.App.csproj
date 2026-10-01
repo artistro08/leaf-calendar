@@ -25,7 +25,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.WindowsAppSDK" />
+        <!-- Windows App SDK Components (no AI libraries) -->
+        <PackageReference Include="Microsoft.WindowsAppSDK.Base" />
+        <PackageReference Include="Microsoft.WindowsAppSDK.DWrite" />
+        <PackageReference Include="Microsoft.WindowsAppSDK.Foundation" />
+        <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" />
+        <PackageReference Include="Microsoft.WindowsAppSDK.Runtime" />
+        <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" />
         <PackageReference Include="CommunityToolkit.Mvvm" />
         <PackageReference Include="Microsoft.Windows.CsWin32" PrivateAssets="all" />
     </ItemGroup>

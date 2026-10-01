@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build-and-test:
@@ -19,3 +20,18 @@ jobs:
 
       # Logic Tests (UI and live tests run locally or by manual trigger)
       - run: dotnet test --project tests/LeafCalendar.Tests/LeafCalendar.Tests.csproj -c Debug --no-build
+
+  # Package Size (manual): Release AOT MSIX, no AI libraries, under budget
+  package:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - run: pwsh tools/publish-aot.ps1
+
+      - run: pwsh tools/check-package.ps1
