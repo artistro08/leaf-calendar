@@ -207,14 +207,14 @@ public sealed partial class DayColumn : Canvas
     /// <summary>Hides the ghost.</summary>
     public void ClearGhost() => _ghost.Visibility = Visibility.Collapsed;
 
-    // Shades the time outside your working hours. The minutes are the wall clock of the zone on screen (ViewModel.Zone),
-    // as the hour lines are, so 9 AM is the 9:00 line whatever zone you're looking in
+    // Shades the time outside your working hours. Your hours (in your own zone) are laid onto the clock on screen
+    // (ViewModel.Zone), so while traveling to Tokyo your 9 to 5 shows where it falls in Tokyo time
     void RenderOffHours()
     {
         var vm    = _owner.ViewModel;
         var hour  = _owner.HourHeight;
         var fill  = LeafBrushes.OffHours(_owner.IsDark);
-        var spans = WorkingHoursMath.OffHours(vm.Settings.WorkingHours, Date.DayOfWeek);
+        var spans = WorkingHoursMath.OffHours(vm.Settings.WorkingHours, Date, vm.UserZone, vm.Zone);
 
         for (var i = 0; i < spans.Count; i++)
         {

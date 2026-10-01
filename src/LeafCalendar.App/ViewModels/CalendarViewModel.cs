@@ -152,7 +152,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         AttachSync();
 
         // Local Edits Reload The Views
-        services.Editor.LocalZoneId = TimeZoneCatalog.IanaId(Zone);
+        services.Editor.LocalZoneId = TimeZoneCatalog.IanaId(UserZone);
         services.Editor.Changed    += OnEditsChanged;
         services.Conflicts.Changed += OnEditsChanged;
         RefreshSyncState();
@@ -951,7 +951,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             return;
         }
 
-        Editing = new EventEditorViewModel(info.Draft, info.Occurrence, WritableCalendars(info.Occurrence), Zone, TimeZoneCatalog.IanaId(Zone), Settings.Use24HourTime, focusEnd);
+        Editing = new EventEditorViewModel(info.Draft, info.Occurrence, WritableCalendars(info.Occurrence), Zone, TimeZoneCatalog.IanaId(UserZone), Settings.Use24HourTime, focusEnd);
     }
 
     /// <summary>Opens the editor on a new event in your default calendar (your chosen one, else primary, else the first you can write to).</summary>
@@ -970,11 +970,11 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             Start      = start,
             End        = end,
             IsAllDay   = isAllDay,
-            TimeZone   = isAllDay ? null : TimeZoneCatalog.IanaId(Zone),
+            TimeZone   = isAllDay ? null : TimeZoneCatalog.IanaId(UserZone),
         };
 
         ClearSelection();
-        Editing = new EventEditorViewModel(draft, null, WritableCalendars(), Zone, TimeZoneCatalog.IanaId(Zone), Settings.Use24HourTime);
+        Editing = new EventEditorViewModel(draft, null, WritableCalendars(), Zone, TimeZoneCatalog.IanaId(UserZone), Settings.Use24HourTime);
     }
 
     /// <summary>A new one-hour event at the picked time, or the next quarter hour (C).</summary>

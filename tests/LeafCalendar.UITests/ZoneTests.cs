@@ -93,7 +93,7 @@ public sealed class ZoneTests : IDisposable
     }
 
     [Fact]
-    public void WhileTraveling_DragCreate_UsesTheTravelZone()
+    public void WhileTraveling_DragCreate_KeepsYourOwnZone()
     {
         using var leaf = Launch();
         TravelToTokyo(leaf);
@@ -115,7 +115,9 @@ public sealed class ZoneTests : IDisposable
         using var body = JsonDocument.Parse(write.Body);
         var start = body.RootElement.GetProperty("start");
         Assert.Equal(new DateTimeOffset(2026, 10, 2, 22, 0, 0, TimeSpan.FromHours(9)), start.GetProperty("dateTime").GetDateTimeOffset());
-        Assert.Equal("Asia/Tokyo", start.GetProperty("timeZone").GetString());
+
+        // Time Travel Is View-Only: The Time Is Picked On The Tokyo Clock But The Event Stays In Your Own Zone
+        Assert.Equal(LeafCalendar.Core.Views.TimeZoneCatalog.IanaId(TimeZoneInfo.Local), start.GetProperty("timeZone").GetString());
     }
 
     [Fact]

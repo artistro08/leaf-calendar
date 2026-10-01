@@ -45,12 +45,13 @@ public static class CalendarEdits
     public static string RemindersPatch(IEnumerable<int> minutes, string? storedJson = null)
     {
         var reminders = new JsonArray();
-        foreach (var m in minutes.Where(m => m is >= 0 and <= MaxMinutes).Distinct().Order().Take(MaxReminders))
+        var others    = OtherReminders(storedJson).ToList();
+        foreach (var m in minutes.Where(m => m is >= 0 and <= MaxMinutes).Distinct().Order().Take(Math.Max(0, MaxReminders - others.Count)))
         {
             reminders.Add((JsonNode)new JsonObject { ["method"] = "popup", ["minutes"] = m });
         }
 
-        foreach (var (method, m) in OtherReminders(storedJson))
+        foreach (var (method, m) in others)
         {
             reminders.Add((JsonNode)new JsonObject { ["method"] = method, ["minutes"] = m });
         }

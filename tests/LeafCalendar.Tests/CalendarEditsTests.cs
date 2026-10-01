@@ -46,6 +46,15 @@ public sealed class CalendarEditsTests
         Assert.Equal("""{"defaultReminders":[{"method":"popup","minutes":30},{"method":"email","minutes":60}]}""", CalendarEdits.RemindersPatch([30], stored));
     }
 
+    [Fact]
+    public void RemindersPatch_PopupsAndEmailsTogetherNeverExceedFive()
+    {
+        const string stored = """[{"method":"email","minutes":60},{"method":"email","minutes":120}]""";
+
+        Assert.Equal("""{"defaultReminders":[{"method":"popup","minutes":1},{"method":"popup","minutes":2},{"method":"popup","minutes":3},{"method":"email","minutes":60},{"method":"email","minutes":120}]}""",
+            CalendarEdits.RemindersPatch([1, 2, 3, 4, 5, 6], stored));
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

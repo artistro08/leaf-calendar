@@ -20,6 +20,9 @@ public sealed partial class CalendarViewModel
     /// </summary>
     public TimeZoneInfo Zone => DisplayZone.Resolve(_travelZoneId, Settings?.PrimaryTimeZone, _zones.Zone);
 
+    /// <summary>Your own zone (primary, else the PC's): where new events and zoneless drags belong, even while time travel is on.</summary>
+    public TimeZoneInfo UserZone => DisplayZone.Resolve(null, Settings?.PrimaryTimeZone, _zones.Zone);
+
     /// <summary>The zone time travel shows (Z), or null when not traveling.</summary>
     public string? TravelZoneId => _travelZoneId;
 
@@ -98,7 +101,7 @@ public sealed partial class CalendarViewModel
     {
         _services.Log.Info("calendar.timezone.changed");
         Cache.Zone                   = Zone;
-        _services.Editor.LocalZoneId = TimeZoneCatalog.IanaId(Zone);
+        _services.Editor.LocalZoneId = TimeZoneCatalog.IanaId(UserZone);
         Today                        = _services.Options.StartDate ?? LocalDate(Now);
         if (SelectedInfo is { } selected)
         {

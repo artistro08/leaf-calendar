@@ -306,7 +306,7 @@ public sealed partial class CalendarViewModel
 
             var busy = answers.SelectMany(a => a.Values).SelectMany(r => r.Busy);
             var free = BusyMath.Subtract(_slots, busy);
-            return AvailabilityText.Format(free, TimeZoneInfo.FindSystemTimeZoneById(_shareZoneId), Settings.Use24HourTime);
+            return AvailabilityText.Format(free, TimeZoneInfo.TryFindSystemTimeZoneById(_shareZoneId, out var shareZone) ? shareZone : Zone, Settings.Use24HourTime);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

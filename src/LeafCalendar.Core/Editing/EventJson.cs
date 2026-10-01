@@ -17,6 +17,9 @@ namespace LeafCalendar.Core.Editing;
 /// <seealso href="https://developers.google.com/workspace/calendar/api/v3/reference/events"/>
 public static class EventJson
 {
+    /// <summary>The zone a repeating timed event falls back to when it has none: your primary zone if set (the editor keeps this in step), else this PC's.</summary>
+    public static string? FallbackZoneId { get; set; }
+
     // Fields Google owns or that belong to the original event; never copied into a new one
     static readonly string[] GoogleOwned =
     [
@@ -585,7 +588,7 @@ public static class EventJson
         return time;
     }
 
-    // Google rejects an offset-only dateTime on a repeating timed event, so fall back to this PC's zone
+    // Google rejects an offset-only dateTime on a repeating timed event, so fall back to the primary zone if set, else this PC's zone
     static string? ZoneFor(EventDraft draft)
     {
         if (draft.TimeZone is not null || draft.IsAllDay || draft.Recurrence.Count == 0)
@@ -593,7 +596,7 @@ public static class EventJson
             return draft.TimeZone;
         }
 
-        var local = TimeZoneInfo.Local;
+        var local = FallbackZoneId is { } fallback && TimeZoneInfo.TryFindSystemTimeZoneById(fallback, out var primary) ? primary : TimeZoneInfo.Local;
         if (local.HasIanaId)
         {
             return local.Id;

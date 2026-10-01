@@ -131,7 +131,6 @@ public sealed partial class CalendarPage : Page
         // Each Track's Own Wiring (Milestone 5)
         AttachNavigate();
         AttachPeople();
-        AttachExtras();
     }
 
     /// <inheritdoc />
@@ -147,7 +146,6 @@ public sealed partial class CalendarPage : Page
         // Each Track's Own Unwiring (the view model outlives the window in tray mode)
         DetachNavigate();
         DetachPeople();
-        DetachExtras();
 
         ViewModel.LayoutChanged        -= OnLayoutChanged;
         ViewModel.CalendarsChanged     -= OnCalendarsChanged;

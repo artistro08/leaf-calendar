@@ -306,7 +306,7 @@ Anyone can send an invite, so event content is treated as hostile.
 - **Time zones:** multiple zone columns on the left edge. Add, rename, and drag to reorder. Search zones by city or abbreviation (NYC, SF, LON).
 - **All-day row:** collapsible. Multi-day events keep their titles visible.
 - **Toggles:** weekends, declined events, week numbers. The week can start on any day.
-- **Current-time line.** Working hours shaded from Google's working hours where available (Google's API doesn't expose them, so Leaf keeps its own, 9 AM–5 PM Monday–Friday by default, in Settings › General).
+- **Current-time line.** Working hours shaded (Leaf's own setting; Google's API doesn't expose them), 9 AM–5 PM Monday–Friday by default.
 - **Zoom:** grid density (hour height). The whole-app interface scale was dropped by the owner in Milestone 5.
 - **Event styles:** focus time, out of office, and birthday events each have a distinct look.
 - **Navigation:** smooth horizontal scrolling (trackpad, `Shift`+wheel, drag). Pagers jump a full period with a slide animation, with the next period preloaded so nothing flashes blank.

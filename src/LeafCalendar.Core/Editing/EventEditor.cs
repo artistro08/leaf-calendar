@@ -92,8 +92,16 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     /// <summary>Raised on the calling thread after each committed edit (the views reload; the app nudges the sync loop).</summary>
     public event EventHandler? Changed;
 
-    /// <summary>The PC's IANA zone, given to events that become timed and have no zone of their own.</summary>
-    public string LocalZoneId { get; set; } = "UTC";
+    /// <summary>Your own IANA zone (primary, else the PC's; never time travel's), given to events that become timed and have no zone of their own.</summary>
+    public string LocalZoneId
+    {
+        get;
+        set
+        {
+            field                   = value;
+            EventJson.FallbackZoneId = value;
+        }
+    } = "UTC";
 
     // Receipts already undone (each works once)
     readonly HashSet<long> _undone = [];
