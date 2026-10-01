@@ -16,6 +16,9 @@ public sealed partial class AccountsPage : Page
     // The Default Calendar Choices, Parallel To The Combo Box Items (index 0 is "your main Google calendar" = null)
     readonly List<CalendarRef?> _refs = [];
 
+    // The Combo Box Labels As Last Filled (an unchanged list isn't refilled, so a sync never closes an open dropdown)
+    readonly List<string> _labels = [];
+
     // True while the combo box is being filled (its change event is ignored)
     bool _loading;
 
@@ -66,16 +69,24 @@ public sealed partial class AccountsPage : Page
             .Where(c => c.AccessRole is "owner" or "writer" && calendar.AccountEmails.ContainsKey(c.AccountId))
             .ToList();
 
+        List<CalendarRef?> refs   = [null, .. writable.Select(c => new CalendarRef(c.AccountId, c.Id))];
+        List<string>       labels = ["Your main Google calendar", .. writable.Select(c => several ? $"{c.Summary} ({calendar.AccountEmails[c.AccountId]})" : c.Summary)];
+
+        // Same Choices As Shown: leave the combo box alone
+        if (refs.SequenceEqual(_refs) && labels.SequenceEqual(_labels, StringComparer.Ordinal))
+        {
+            return;
+        }
+
         _loading = true;
         _refs.Clear();
+        _refs.AddRange(refs);
+        _labels.Clear();
+        _labels.AddRange(labels);
         DefaultCalendarBox.Items.Clear();
-
-        DefaultCalendarBox.Items.Add("Your main Google calendar");
-        _refs.Add(null);
-        foreach (var c in writable)
+        foreach (var label in labels)
         {
-            DefaultCalendarBox.Items.Add(several ? $"{c.Summary} ({calendar.AccountEmails[c.AccountId]})" : c.Summary);
-            _refs.Add(new CalendarRef(c.AccountId, c.Id));
+            DefaultCalendarBox.Items.Add(label);
         }
 
         // A stored default that is gone or read-only shows as the main calendar, matching DefaultCalendar.Pick

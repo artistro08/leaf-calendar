@@ -1351,13 +1351,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         _deletes.RemoveAt(_deletes.Count - 1);
         try
         {
-            switch (_services.Editor.Undo(receipt))
+            switch (_services.Editor.Undo(receipt, out var restored))
             {
                 case UndoResult.Restored:
                     Notice = null;
                     break;
                 case UndoResult.Recreated:
-                    Say(receipt.Items.Count == 1 ? "Event restored" : string.Create(CultureInfo.InvariantCulture, $"{receipt.Items.Count} events restored"), canUndo: false);
+                    Say(restored == 1 ? "Event restored" : string.Create(CultureInfo.InvariantCulture, $"{restored} events restored"), canUndo: false);
                     break;
                 default:
                     Say("Nothing to undo", canUndo: false);
@@ -1366,12 +1366,15 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
         catch (InvalidOperationException ex)
         {
-            // The calendar became read-only: Core's message says so
+            // The calendar became read-only: Core's message says so (the receipt goes back, so undo can be tried again)
+            _deletes.Add(receipt);
             _services.Log.Error("event.undo.failed", ex);
             Say(ex.Message, canUndo: false);
         }
         catch (Exception ex) when (IsEditFailure(ex))
         {
+            // Nothing Was Saved: the receipt goes back, so undo can be tried again
+            _deletes.Add(receipt);
             _services.Log.Error("event.undo.failed", ex);
             Say("Couldn't restore that event.", canUndo: false);
         }

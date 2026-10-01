@@ -77,7 +77,7 @@ public sealed class ConflictResolver(LeafDatabase database, TimeProvider time)
         }
 
         var newId = EventIds.NewId();
-        var body  = EventJson.CloneForCreate(local, newId);
+        var body  = EventJson.WithMeetIfWanted(EventJson.CloneForCreate(local, newId), EventJson.HasMeet(local), newId);
         OutboxStore.Replace(conn, tx, entry with { CalendarId = calendarId, EventId = newId, Operation = OutboxOperation.Create, Payload = body, BaseEtag = null, BeforeJson = "[]", NotBefore = null });
         EventStore.Remove(conn, tx, entry.AccountId, calendarId, entry.EventId);
         EventStore.ApplyJson(conn, tx, entry.AccountId, calendarId, EventJson.AsLocal(body));

@@ -101,6 +101,19 @@ public sealed class ConflictResolverTests : IDisposable
     }
 
     [Fact]
+    public void KeepMine_GoogleDeletedMeetEvent_AsksForANewMeetLink()
+    {
+        const string MineWithMeet = """{"id":"evt-single","etag":"\"1\"","status":"confirmed","summary":"Mine","hangoutLink":"https://meet.google.com/abc-defg-hij","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""";
+
+        _resolver.KeepMine(Conflict(OutboxOperation.Patch, MineWithMeet, null));
+
+        var entry = Assert.Single(Pending());
+        Assert.Contains("\"createRequest\"", entry.Payload!, StringComparison.Ordinal);
+        Assert.Contains("hangoutsMeet", entry.Payload!, StringComparison.Ordinal);
+        Assert.DoesNotContain("abc-defg-hij", entry.Payload!, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void KeepGoogles_AppliesGoogleVersionAndDropsLaterEdits()
     {
         var conflict = Conflict(OutboxOperation.Patch, Mine, Googles);

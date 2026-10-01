@@ -370,13 +370,22 @@ public static class EventJson
         }
 
         // A New Meet Link (the old one went with the delete, and Google may refuse a copied conference ID)
-        var solution = (string?)(source["conferenceData"]?["conferenceSolution"]?["key"]?["type"] as JsonValue);
-        if (solution == "hangoutsMeet" || source["hangoutLink"] is not null)
+        if (HasMeet(source))
         {
             copy["conferenceData"] = MeetRequest(Guid.NewGuid().ToString("N"));
         }
 
         return copy.ToJsonString();
+    }
+
+    /// <summary>Whether the event has a Google Meet call (a Meet conference solution or a <c>hangoutLink</c>).</summary>
+    /// <exception cref="JsonException">The JSON is invalid or not an object.</exception>
+    public static bool HasMeet(string rawJson) => HasMeet(Parse(rawJson));
+
+    static bool HasMeet(JsonObject source)
+    {
+        var solution = (string?)(source["conferenceData"]?["conferenceSolution"]?["key"]?["type"] as JsonValue);
+        return solution == "hangoutsMeet" || source["hangoutLink"] is not null;
     }
 
     /// <summary>Where a series instance was scheduled (its <c>originalStartTime</c>), and whether that is a date.</summary>

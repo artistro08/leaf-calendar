@@ -192,9 +192,16 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     /// ID for an event or a whole series, a restore for one instance or "this and following". Items already back (a refused
     /// delete) are skipped, and a calendar that became read-only refuses. Each receipt works once.
     /// </summary>
-    public UndoResult Undo(DeleteReceipt receipt)
+    public UndoResult Undo(DeleteReceipt receipt) => Undo(receipt, out _);
+
+    /// <summary>
+    /// <see cref="Undo(DeleteReceipt)"/>, also giving how many items actually came back in <paramref name="restored"/>
+    /// (items already back are not counted).
+    /// </summary>
+    public UndoResult Undo(DeleteReceipt receipt, out int restored)
     {
         var result = UndoResult.Nothing;
+        var count  = 0;
         var now    = time.GetUtcNow();
         InTransaction((conn, tx) =>
         {
@@ -216,6 +223,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
                 }
 
                 result = UndoResult.Restored;
+                count  = receipt.Items.Count;
             }
             else
             {
@@ -228,11 +236,13 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
                 }
 
                 result = brought > 0 ? UndoResult.Recreated : UndoResult.Nothing;
+                count  = brought;
             }
 
             _undone.UnionWith(receipt.Seqs);
         });
 
+        restored = count;
         return result;
     }
 
@@ -565,13 +575,17 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         {
             case DeleteKind.Instance:
                 EventStore.Restore(conn, tx, e.AccountId, e.CalendarId, e.EventId, e.BeforeJson ?? "[]");
-                OutboxStore.Add(conn, tx, new OutboxEntry(0, e.AccountId, e.CalendarId, e.EventId, OutboxOperation.Patch, """{"status":"confirmed"}""", null, false, "[]", null, DependsOn: dependsOn));
+                // If-Match On Google's Canceled Copy: a row synced from Google carries its ETag. Deliberate exception: with the
+                // delete still queued or not synced back yet, the row is Leaf's own canceled stub with no ETag, so the patch goes
+                // without If-Match (there is no newer Google change to overwrite, only the day Leaf just canceled)
+                OutboxStore.Add(conn, tx, new OutboxEntry(0, e.AccountId, e.CalendarId, e.EventId, OutboxOperation.Patch, """{"status":"confirmed"}""", current?.Etag, false, "[]", null, DependsOn: dependsOn));
                 break;
 
             case DeleteKind.Following:
                 // Snapshot The Ended Series First, And Keep The Etag The Row Has Now (not the snapshot's)
                 var before = EventStore.Snapshot(conn, tx, e.AccountId, e.CalendarId, e.EventId);
                 var etag   = current!.Etag;
+                // ponytail: later changed days (exceptions) Google dropped when the series ended come back from the snapshot but not at Google, so they show until the next sync removes them; re-send them as exceptions if that's missed
                 EventStore.Restore(conn, tx, e.AccountId, e.CalendarId, e.EventId, e.BeforeJson!);
                 EventStore.SetEtag(conn, tx, e.AccountId, e.CalendarId, e.EventId, etag);
                 var patch = new JsonObject { ["recurrence"] = rows[0]["recurrence"]?.DeepClone() };

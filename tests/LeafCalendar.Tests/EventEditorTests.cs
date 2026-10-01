@@ -311,6 +311,30 @@ public sealed class EventEditorTests : IDisposable
     }
 
     [Fact]
+    public void Undo_AfterSync_RepeatingInstance_RestoreSendsGooglesEtag()
+    {
+        var receipt = _editor.Delete([Occurrence("evt-weekly", Oct9)], EditScope.This, sendUpdates: true);
+        SendAll();
+        Seed("""{"id":"evt-weekly_20261009T133000Z","status":"cancelled","etag":"\"C1\"","recurringEventId":"evt-weekly","originalStartTime":{"dateTime":"2026-10-09T13:30:00Z"}}""");
+
+        _editor.Undo(receipt);
+
+        Assert.Equal("\"C1\"", Assert.Single(Outbox()).BaseEtag);
+    }
+
+    [Fact]
+    public void Undo_AfterSend_ReportsOnlyTheItemsBroughtBack()
+    {
+        var receipt = _editor.Delete([Occurrence("evt-single", Oct1), Occurrence("evt-weekly", Oct9)], EditScope.This, sendUpdates: true);
+        SendAll();
+        Seed("""{"id":"evt-weekly_20261009T133000Z","status":"confirmed","etag":"\"C2\"","recurringEventId":"evt-weekly","originalStartTime":{"dateTime":"2026-10-09T13:30:00Z"},"start":{"dateTime":"2026-10-09T13:30:00Z"},"end":{"dateTime":"2026-10-09T14:30:00Z"}}""");
+
+        Assert.Equal(UndoResult.Recreated, _editor.Undo(receipt, out var restored));
+
+        Assert.Equal(1, restored);
+    }
+
+    [Fact]
     public void Undo_AfterSend_WholeSeries_RecreatesTheSeriesWithCanceledDaysAsExDates()
     {
         _editor.Delete([Occurrence("evt-weekly", Oct12)], EditScope.This, sendUpdates: true);

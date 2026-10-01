@@ -37,6 +37,14 @@ public class EditorConferenceTests
     }
 
     [Fact]
+    public void Text_LookAlikeHost_ShowsTheAsciiForm()
+    {
+        var lookAlike = new Uri("https://zoоm.us/j/123");
+
+        Assert.Equal("Video call: xn--zom-ted.us", EditorConference.Text(hadConference: false, hasConference: false, conferenceUri: lookAlike));
+    }
+
+    [Fact]
     public void Text_LinkOnlyInTheLocation_StillShowsIt()
     {
         var zoom = new Uri("https://us02web.zoom.us/j/123");

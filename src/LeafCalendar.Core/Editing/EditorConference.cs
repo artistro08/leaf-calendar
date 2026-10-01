@@ -1,3 +1,5 @@
+using LeafCalendar.Core.Events;
+
 namespace LeafCalendar.Core.Editing;
 
 /// <summary>The editor's video call line.</summary>
@@ -21,6 +23,12 @@ public static class EditorConference
             return "No video call";
         }
 
-        return conferenceUri is { } uri ? $"Video call: {uri.Host}" : hasConference ? "Video call" : "No video call";
+        // The Host In Its ASCII Form, Like The Details Panel (a look-alike host can't pass for the real one)
+        if (conferenceUri is { } uri)
+        {
+            return LinkSafety.TryIdnHost(uri, out var host) ? $"Video call: {host}" : "Video call";
+        }
+
+        return hasConference ? "Video call" : "No video call";
     }
 }
