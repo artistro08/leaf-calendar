@@ -1,6 +1,8 @@
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
+using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
+using FlaUI.Core.WindowsAPI;
 using LeafCalendar.UITests.Support;
 
 namespace LeafCalendar.UITests;
@@ -45,7 +47,7 @@ public sealed class DetailsActionsTests : IDisposable
 
         // The arrow opens the menu; Copy link puts the address the tooltip shows on the clipboard
         Clipboard.Clear();
-        join.Patterns.ExpandCollapse.Pattern.Expand();
+        leaf.WaitFor("DetailsJoinMenuButton").AsButton().Invoke();
         leaf.WaitForAnywhere("CopyMeetingLinkItem").AsMenuItem().Invoke();
 
         Assert.True(Retry.WhileFalse(() => Clipboard.Text() == "https://meet.google.com/abc-defg-hij", TimeSpan.FromSeconds(5)).Success, $"The clipboard holds \"{Clipboard.Text()}\".");
@@ -59,15 +61,48 @@ public sealed class DetailsActionsTests : IDisposable
         using var leaf = Launch();
         leaf.WaitFor(Meeting).Click();
 
-        var join = leaf.WaitFor("DetailsJoinButton");
-        join.Patterns.ExpandCollapse.Pattern.Expand();
+        // The group is the Join button plus the arrow; the menu's right edge sits on the arrow's
+        var arrow = leaf.WaitFor("DetailsJoinMenuButton");
+        arrow.AsButton().Invoke();
         var item = leaf.WaitForAnywhere("CopyMeetingLinkItem");
 
-        // The menu is the item's parent; its right edge sits on the button's (a few px for the flyout's shadow margin)
         var menu = item.Parent;
         Assert.True(
-            Retry.WhileFalse(() => Math.Abs(menu.BoundingRectangle.Right - join.BoundingRectangle.Right) <= 2, TimeSpan.FromSeconds(5)).Success,
-            $"Menu {menu.BoundingRectangle} vs button {join.BoundingRectangle}.");
+            Retry.WhileFalse(() => Math.Abs(menu.BoundingRectangle.Right - arrow.BoundingRectangle.Right) <= 2, TimeSpan.FromSeconds(5)).Success,
+            $"Menu {menu.BoundingRectangle} vs arrow {arrow.BoundingRectangle}.");
+    }
+
+    [Fact]
+    public void JoinMenu_DownReachesCopyLink_EscClosesAndFocusReturnsToTheArrow()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Meeting).Click();
+
+        var arrow = leaf.WaitFor("DetailsJoinMenuButton");
+        arrow.AsButton().Invoke();
+        var item = leaf.WaitForAnywhere("CopyMeetingLinkItem");
+
+        // Down arrow lands on Copy link (the only item), Esc closes the menu
+        Keyboard.Press(VirtualKeyShort.DOWN);
+        Assert.True(Retry.WhileFalse(() => item.Properties.HasKeyboardFocus.ValueOrDefault, TimeSpan.FromSeconds(5)).Success, "Down didn't reach Copy link.");
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+
+        Assert.True(Retry.WhileTrue(() => leaf.ExistsAnywhere("CopyMeetingLinkItem"), TimeSpan.FromSeconds(5)).Success, "Esc didn't close the menu.");
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsJoinMenuButton").Properties.HasKeyboardFocus.ValueOrDefault, TimeSpan.FromSeconds(5)).Success, "Focus didn't return to the arrow.");
+    }
+
+    [Fact]
+    public void DisabledEditIcon_Hover_ShowsWhy()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Meeting).Click();
+
+        // The invite can't be edited: hovering the disabled icon says why
+        var edit = leaf.WaitFor("DetailsEditButton");
+        Assert.False(edit.IsEnabled);
+        Assert.Equal("You can't edit this event", edit.Properties.HelpText.ValueOrDefault);
+        FlaUI.Core.Input.Mouse.MoveTo(edit.GetClickablePoint());
+        Assert.True(Retry.WhileFalse(() => leaf.ToolTipShows("You can't edit this event"), TimeSpan.FromSeconds(8)).Success, "No tooltip with the reason.");
     }
 
     [Fact]

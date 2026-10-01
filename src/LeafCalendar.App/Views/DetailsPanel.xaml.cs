@@ -23,7 +23,6 @@ public sealed partial class DetailsPanel : UserControl
 {
     CalendarViewModel? _vm;
     string? _shownKey;
-    bool _placingJoinMenu;
 
     /// <summary>Creates the panel.</summary>
     public DetailsPanel()
@@ -152,7 +151,7 @@ public sealed partial class DetailsPanel : UserControl
 
         // Join (it shows where it really goes)
         var call = d.ConferenceUri is { } uri ? LinkSafety.DisplayForm(uri) ?? "" : "";
-        JoinButton.Visibility   = Visible(d.ConferenceUri is not null);
+        JoinGroup.Visibility    = Visible(d.ConferenceUri is not null);
         JoinButton.Content      = JoinLabel(d.ConferenceUri);
         ToolTipService.SetToolTip(JoinButton, $"Join (Ctrl+J)\n{call}");
 
@@ -179,19 +178,12 @@ public sealed partial class DetailsPanel : UserControl
         RenderDescription(info.DescriptionRuns);
     }
 
-    // SplitButton opens its menu left-aligned whatever Placement says; show it again right-aligned (ShowAt on an open
-    // flyout just moves it)
-    void OnJoinMenuOpened(object? sender, object e)
-    {
-        if (_placingJoinMenu)
-        {
-            return;
-        }
+    // The arrow opens the menu once, right-aligned under the whole button group
+    void OnJoinMenuClick(object sender, RoutedEventArgs e) =>
+        JoinMenu.ShowAt(JoinGroup, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedRight });
 
-        _placingJoinMenu = true;
-        JoinMenu.ShowAt(JoinButton, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedRight });
-        _placingJoinMenu = false;
-    }
+    // Esc (or a pick) puts focus back on the arrow
+    void OnJoinMenuClosed(object? sender, object e) => JoinMenuButton.Focus(FocusState.Programmatic);
 
     // What the Join button joins, from the link's host (Core's provider detection)
     static string JoinLabel(Uri? link) => (link is null ? null : LinkSafety.ProviderOf(link)) switch
@@ -325,7 +317,7 @@ public sealed partial class DetailsPanel : UserControl
 
     void OnDeleteClick(object sender, RoutedEventArgs e) => Act(vm => vm.DeleteAsync([.. vm.Selection], sendUpdates: true), "details.delete.failed");
 
-    void OnJoinClick(SplitButton sender, SplitButtonClickEventArgs e) => Act(vm => vm.JoinAsync(vm.SelectedInfo?.Occurrence), "details.join.failed");
+    void OnJoinClick(object sender, RoutedEventArgs e) => Act(vm => vm.JoinAsync(vm.SelectedInfo?.Occurrence), "details.join.failed");
 
     void OnCopyMeetingLinkClick(object sender, RoutedEventArgs e) => _vm?.CopyMeetingLink();
 

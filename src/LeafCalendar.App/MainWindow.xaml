@@ -157,24 +157,31 @@
                             HorizontalAlignment="Right"
                             Orientation="Horizontal"
                             Visibility="Collapsed">
-                            <Button
-                                x:Name="EditEventButton"
-                                Style="{StaticResource LeafBareIconButtonStyle}"
-                                Click="OnEditEventClick"
-                                ToolTipService.ToolTip="Edit event (E)"
-                                AutomationProperties.Name="Edit event"
-                                AutomationProperties.AutomationId="DetailsEditButton">
-                                <FontIcon Glyph="&#xE70F;" FontSize="16" />
-                            </Button>
-                            <Button
-                                x:Name="DeleteEventButton"
-                                Style="{StaticResource LeafBareIconButtonStyle}"
-                                Click="OnDeleteEventClick"
-                                ToolTipService.ToolTip="Delete event (Delete)"
-                                AutomationProperties.Name="Delete event"
-                                AutomationProperties.AutomationId="DeleteEventButton">
-                                <FontIcon Glyph="&#xE74D;" FontSize="16" />
-                            </Button>
+                            <!-- Edit (the wrapper carries the tooltip, since a disabled button shows none) -->
+                            <Border x:Name="EditEventTip" Background="Transparent">
+                                <Button
+                                    x:Name="EditEventButton"
+                                    Style="{StaticResource LeafBareIconButtonStyle}"
+                                    Click="OnEditEventClick"
+                                    AutomationProperties.Name="Edit event"
+                                    AutomationProperties.AutomationId="DetailsEditButton">
+                                    <FontIcon Glyph="&#xE70F;" FontSize="16" />
+                                </Button>
+                            </Border>
+                            <!-- /Edit -->
+
+                            <!-- Delete -->
+                            <Border x:Name="DeleteEventTip" Background="Transparent">
+                                <Button
+                                    x:Name="DeleteEventButton"
+                                    Style="{StaticResource LeafBareIconButtonStyle}"
+                                    Click="OnDeleteEventClick"
+                                    AutomationProperties.Name="Delete event"
+                                    AutomationProperties.AutomationId="DeleteEventButton">
+                                    <FontIcon Glyph="&#xE74D;" FontSize="16" />
+                                </Button>
+                            </Border>
+                            <!-- /Delete -->
                         </StackPanel>
                         <!-- /Event Actions -->
                     </Grid>

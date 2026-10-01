@@ -188,6 +188,12 @@ public sealed class LeafApp : IDisposable
     public IReadOnlyList<AutomationElement> FindAllAnywhere(string automationId) =>
         [.. App.GetAllTopLevelWindows(_automation).SelectMany(w => w.FindAllDescendants(cf => cf.ByAutomationId(automationId)))];
 
+    /// <summary>True when a tooltip showing <paramref name="text"/> is open in any of the app's windows.</summary>
+    public bool ToolTipShows(string text) =>
+        App.GetAllTopLevelWindows(_automation).Any(w => w
+            .FindAllDescendants(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.ToolTip))
+            .Any(t => t.Name == text || t.FindFirstDescendant(cf => cf.ByName(text)) is not null));
+
     /// <summary>True when an element with this ID is currently in any of the app's windows (dialogs can be separate).</summary>
     public bool ExistsAnywhere(string automationId) =>
         App.GetAllTopLevelWindows(_automation).Any(w => w.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) is not null);

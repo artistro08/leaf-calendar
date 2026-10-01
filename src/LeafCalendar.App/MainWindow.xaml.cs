@@ -283,10 +283,12 @@ public sealed partial class MainWindow : Window
     }
 
     // Edit And Delete: shown in the details panel's title bar row while the open panel shows an event or a selection
-    // (not while editing). Edit and Delete stay put, disabled when they can't act: Edit needs one event you can change; Delete is disabled when none of the
-    // selected events can be deleted (the Delete key does nothing then either; a disabled button shows no tooltip, so
-    // the reason goes to its help text); several selected events delete the ones you can change. The title bar only lets clicks through where its buttons are when it computes its regions, so
-    // they're recomputed once the buttons have their new layout.
+    // (not while editing). Both stay put, disabled when they can't act: Edit needs one event you can change; Delete
+    // is disabled when none of the selected events can be deleted (the Delete key does nothing then either); several
+    // selected events delete the ones you can change. A disabled button shows no tooltip, so each button sits in a
+    // wrapper that carries it (the action while enabled, the reason while disabled); the reason is also the help text.
+    // The title bar only lets clicks through where its buttons are when it computes its regions, so they're
+    // recomputed once the buttons have their new layout.
     void UpdateEventActions()
     {
         var several    = _calendar is { Selection.Count: > 1 };
@@ -296,10 +298,15 @@ public sealed partial class MainWindow : Window
         var edit       = !several && canEdit;
         var delete     = _calendar is { CanDeleteSelection: true };
 
+        var editReason   = several ? "Select one event to edit it" : "You can't edit this event";
+        var deleteReason = several ? "You can't delete these events" : "You can't delete this event";
+
         EditEventButton.IsEnabled = edit;
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(EditEventButton, edit ? "" : several ? "Select one event to edit it" : "You can't edit this event");
+        ToolTipService.SetToolTip(EditEventTip, edit ? "Edit event (E)" : editReason);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(EditEventButton, edit ? "" : editReason);
         DeleteEventButton.IsEnabled = delete;
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(DeleteEventButton, delete ? "" : several ? "You can't delete these events" : "You can't delete this event");
+        ToolTipService.SetToolTip(DeleteEventTip, delete ? "Delete event (Delete)" : deleteReason);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(DeleteEventButton, delete ? "" : deleteReason);
         if (EventActions.Visibility == visibility)
         {
             return;

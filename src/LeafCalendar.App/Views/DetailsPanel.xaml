@@ -72,59 +72,46 @@
                     </StackPanel>
                     <TextBlock x:Name="StatusText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.AutomationId="DetailsStatus" />
 
-                    <!-- Join (the whole width; the label names the service, the arrow copies the link. Edit and Delete are
-                         icons in the title bar row, see MainWindow) -->
-                    <SplitButton
-                        x:Name="JoinButton"
-                        HorizontalAlignment="Stretch"
-                        Content="Join meeting"
-                        Click="OnJoinClick"
-                        AutomationProperties.AutomationId="DetailsJoinButton">
-                        <!-- Accent Colors (SplitButton has no accent style of its own) -->
-                        <SplitButton.Resources>
-                            <ResourceDictionary>
-                                <ResourceDictionary.ThemeDictionaries>
-                                    <ResourceDictionary x:Key="Default">
-                                        <StaticResource x:Key="SplitButtonBackground" ResourceKey="AccentFillColorDefaultBrush" />
-                                        <StaticResource x:Key="SplitButtonBackgroundPointerOver" ResourceKey="AccentFillColorSecondaryBrush" />
-                                        <StaticResource x:Key="SplitButtonBackgroundPressed" ResourceKey="AccentFillColorTertiaryBrush" />
-                                        <StaticResource x:Key="SplitButtonForeground" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
-                                        <StaticResource x:Key="SplitButtonForegroundPointerOver" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
-                                        <StaticResource x:Key="SplitButtonForegroundPressed" ResourceKey="TextOnAccentFillColorSecondaryBrush" />
-                                        <StaticResource x:Key="SplitButtonForegroundSecondary" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
-                                        <StaticResource x:Key="SplitButtonForegroundSecondaryPressed" ResourceKey="TextOnAccentFillColorSecondaryBrush" />
-                                        <StaticResource x:Key="SplitButtonBorderBrush" ResourceKey="AccentControlElevationBorderBrush" />
-                                        <StaticResource x:Key="SplitButtonBorderBrushPointerOver" ResourceKey="AccentControlElevationBorderBrush" />
-                                        <StaticResource x:Key="SplitButtonBorderBrushPressed" ResourceKey="ControlFillColorTransparentBrush" />
-                                        <StaticResource x:Key="SplitButtonBorderBrushDivider" ResourceKey="ControlStrokeColorOnAccentTertiaryBrush" />
-                                    </ResourceDictionary>
-                                    <ResourceDictionary x:Key="Light">
-                                        <StaticResource x:Key="SplitButtonBackground" ResourceKey="AccentFillColorDefaultBrush" />
-                                        <StaticResource x:Key="SplitButtonBackgroundPointerOver" ResourceKey="AccentFillColorSecondaryBrush" />
-                                        <StaticResource x:Key="SplitButtonBackgroundPressed" ResourceKey="AccentFillColorTertiaryBrush" />
-                                        <StaticResource x:Key="SplitButtonForeground" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
-                                        <StaticResource x:Key="SplitButtonForegroundPointerOver" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
-                                        <StaticResource x:Key="SplitButtonForegroundPressed" ResourceKey="TextOnAccentFillColorSecondaryBrush" />
-                                        <StaticResource x:Key="SplitButtonForegroundSecondary" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
-                                        <StaticResource x:Key="SplitButtonForegroundSecondaryPressed" ResourceKey="TextOnAccentFillColorSecondaryBrush" />
-                                        <StaticResource x:Key="SplitButtonBorderBrush" ResourceKey="AccentControlElevationBorderBrush" />
-                                        <StaticResource x:Key="SplitButtonBorderBrushPointerOver" ResourceKey="AccentControlElevationBorderBrush" />
-                                        <StaticResource x:Key="SplitButtonBorderBrushPressed" ResourceKey="ControlFillColorTransparentBrush" />
-                                        <StaticResource x:Key="SplitButtonBorderBrushDivider" ResourceKey="ControlStrokeColorOnAccentTertiaryBrush" />
-                                    </ResourceDictionary>
-                                </ResourceDictionary.ThemeDictionaries>
-                            </ResourceDictionary>
-                        </SplitButton.Resources>
-                        <SplitButton.Flyout>
-                            <MenuFlyout x:Name="JoinMenu" Placement="BottomEdgeAlignedRight" Opened="OnJoinMenuOpened">
+                    <!-- Join (the whole width; the label names the service, the arrow opens the menu. Two accent buttons that
+                         read as one split button. Edit and Delete are icons in the title bar row, see MainWindow) -->
+                    <Grid x:Name="JoinGroup" ColumnSpacing="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button
+                            x:Name="JoinButton"
+                            HorizontalAlignment="Stretch"
+                            Style="{StaticResource AccentButtonStyle}"
+                            CornerRadius="4,0,0,4"
+                            Content="Join meeting"
+                            Click="OnJoinClick"
+                            AutomationProperties.AutomationId="DetailsJoinButton" />
+                        <Button
+                            x:Name="JoinMenuButton"
+                            Grid.Column="1"
+                            Width="32"
+                            Padding="0"
+                            Style="{StaticResource AccentButtonStyle}"
+                            CornerRadius="0,4,4,0"
+                            Click="OnJoinMenuClick"
+                            ToolTipService.ToolTip="More join options"
+                            AutomationProperties.Name="More join options"
+                            AutomationProperties.AutomationId="DetailsJoinMenuButton">
+                            <FontIcon Glyph="&#xE70D;" FontSize="12" />
+                        </Button>
+
+                        <!-- Menu (opened by the arrow button, right-aligned under the group) -->
+                        <Grid.Resources>
+                            <MenuFlyout x:Name="JoinMenu" Closed="OnJoinMenuClosed">
                                 <MenuFlyoutItem Text="Copy link" Click="OnCopyMeetingLinkClick" AutomationProperties.AutomationId="CopyMeetingLinkItem">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE8C8;" />
                                     </MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                             </MenuFlyout>
-                        </SplitButton.Flyout>
-                    </SplitButton>
+                        </Grid.Resources>
+                    </Grid>
                     <!-- /Join -->
 
                     <!-- Location -->

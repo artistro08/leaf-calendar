@@ -33,6 +33,23 @@ public sealed class SelectionTests : IDisposable
     }
 
     [Fact]
+    public void SeveralSelected_EditIsDisabledAndSaysWhy()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Dentist);
+        leaf.WaitFor("NextButton").AsButton().Invoke();
+        var monday = leaf.WaitFor("Event_evt-weekly_202610051330");
+        LeafApp.WaitUntilStill(monday);
+        monday.Click();
+        CtrlClick(leaf.WaitFor("Event_evt-weekly_202610091330"));
+        Assert.Equal("2 events selected", leaf.WaitFor("SelectionSummary").Name);
+
+        var edit = leaf.WaitFor("DetailsEditButton");
+        Assert.False(edit.IsEnabled);
+        Assert.Equal("Select one event to edit it", edit.Properties.HelpText.ValueOrDefault);
+    }
+
+    [Fact]
     public void CtrlClickTwoEvents_DeleteRemovesBoth_UndoBringsBothBack()
     {
         using var leaf = Launch();
