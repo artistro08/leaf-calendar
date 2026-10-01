@@ -75,6 +75,16 @@ public sealed class PeopleOverlayTests : IDisposable
     }
 
     // The block sits in the column, its top on the line, an hour tall (± 2 px)
+    // A day's column on screen: it starts where the day's header does, and is as wide as the grid says (the header's
+    // own box is only as wide as its text)
+    static Rectangle Column(LeafApp leaf, string date)
+    {
+        var status = leaf.WaitFor("TimeGrid").Properties.ItemStatus.ValueOrDefault ?? "";
+        var column = status.Split(';').Select(p => p.Split('=')).Where(p => p is ["column", _]).Select(p => double.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture)).Single();
+        var header = leaf.WaitFor($"DayHeader_{date}").BoundingRectangle;
+        return new Rectangle(header.Left, header.Top, (int)Math.Round(column * leaf.Scale), header.Height);
+    }
+
     static void AssertBlockAt(AutomationElement block, Rectangle column, double top, int height)
     {
         var box = block.BoundingRectangle;
@@ -94,8 +104,9 @@ public sealed class PeopleOverlayTests : IDisposable
 
         Assert.NotNull(leaf.WaitFor($"OverlayChip_{Dana}"));
         var block = leaf.WaitFor($"OverlayBlock_{Dana}_0");
-        AssertBlockAt(block, leaf.WaitFor("DayHeader_2026-10-01").BoundingRectangle, LineY(dentist, 11), HourPixels(dentist));
-        Assert.StartsWith($"{Dana} busy 11:00 AM", block.Name, StringComparison.Ordinal);
+        AssertBlockAt(block, Column(leaf, "2026-10-01"), LineY(dentist, 11), HourPixels(dentist));
+        // Named in the zone on screen (Windows' zone), whatever this machine's zone is
+        Assert.StartsWith($"{Dana} busy {TimeZoneInfo.ConvertTime(Et(10, 1, 11), TimeZoneInfo.Local).ToString("h:mm tt", System.Globalization.CultureInfo.GetCultureInfo("en-US"))}", block.Name, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -220,16 +231,16 @@ public sealed class PeopleOverlayTests : IDisposable
 
         Pick(leaf, VirtualKeyShort.KEY_P, Dana);
         var first = leaf.WaitFor($"OverlayBlock_{Dana}_0");
-        var oct1  = leaf.WaitFor("DayHeader_2026-10-01").BoundingRectangle;
+        var oct1  = Column(leaf, "2026-10-01");
         Assert.True(first.BoundingRectangle.Left >= oct1.Left - 1 && first.BoundingRectangle.Right <= oct1.Right + 1);
         var queries = _google.FreeBusyQueries.Count;
 
         leaf.Press(VirtualKeyShort.RIGHT);
 
         // A block shows in the Oct 8 column
-        var oct8 = leaf.WaitFor("DayHeader_2026-10-08");
+        // (the column is measured each try: paging slides the days in)
         Assert.True(Retry.WhileFalse(() => leaf.FindAllAnywhere($"OverlayBlock_{Dana}_1").Concat(leaf.FindAllAnywhere($"OverlayBlock_{Dana}_0"))
-            .Any(b => b.BoundingRectangle.Left >= oct8.BoundingRectangle.Left - 1 && b.BoundingRectangle.Right <= oct8.BoundingRectangle.Right + 1), TimeSpan.FromSeconds(10)).Success,
+            .Any(b => Column(leaf, "2026-10-08") is var oct8 && b.BoundingRectangle.Left >= oct8.Left - 1 && b.BoundingRectangle.Right <= oct8.Right + 1), TimeSpan.FromSeconds(10)).Success,
             "No overlay block shows in the Oct 8 column.");
 
         // Paging asked Google again, for a range covering Oct 8

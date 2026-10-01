@@ -54,6 +54,8 @@ public static class PeoplePickerDialog
         timer.IsRepeating = false;
         timer.Tick       += (_, _) => vm.Fire(SuggestAsync, "people.suggest.failed");
 
+        // The suggestion Up/Down or a click last picked; typing drops it
+        object? chosen = null;
         box.TextChanged += (_, args) =>
         {
             if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
@@ -61,26 +63,34 @@ public static class PeoplePickerDialog
                 return;
             }
 
+            chosen = null;
             timer.Stop();
             timer.Start();
         };
+        box.SuggestionChosen += (_, args) => chosen = args.SelectedItem;
 
-        // A Picked Suggestion (found by reference in our own list) Or Exactly One Valid Address
+        // A Clicked Suggestion Adds Its Person
         box.QuerySubmitted += (_, args) =>
         {
-            timer.Stop();
-            if (args.ChosenSuggestion is { } chosen && suggestions.FindIndex(s => ReferenceEquals(s.View, chosen)) is >= 0 and var index)
+            if (args.ChosenSuggestion is { } clicked)
             {
-                Add(suggestions[index].Person);
+                Submit(clicked);
+            }
+        };
+
+        // Enter: the ContentDialog takes Enter before the box can raise QuerySubmitted, so the box handles it first
+        box.AddHandler(UIElement.PreviewKeyDownEvent, new Microsoft.UI.Xaml.Input.KeyEventHandler((_, args) =>
+        {
+            if (args.Key != Windows.System.VirtualKey.Enter)
+            {
                 return;
             }
 
-            var text = box.Text.Trim();
-            if (CalendarViewModel.IsAddress(text))
-            {
-                Add(new Contact("", text));
-            }
-        };
+            // The box's Text catches up with typing only when its TextChanged runs, which can come after a quick Enter
+            args.Handled = true;
+            var pick = chosen;
+            box.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => Submit(pick));
+        }), handledEventsToo: true);
 
         var result = await dialog.ShowAsync();
         timer.Stop();
@@ -101,8 +111,26 @@ public static class PeoplePickerDialog
             box.IsSuggestionListOpen = suggestions.Count > 0;
         }
 
+        // A picked suggestion (found by reference in our own list), or else exactly one valid address in the box
+        void Submit(object? suggestion)
+        {
+            timer.Stop();
+            if (suggestion is not null && suggestions.FindIndex(s => ReferenceEquals(s.View, suggestion)) is >= 0 and var index)
+            {
+                Add(suggestions[index].Person);
+                return;
+            }
+
+            var text = box.Text.Trim();
+            if (CalendarViewModel.IsAddress(text))
+            {
+                Add(new Contact("", text));
+            }
+        }
+
         void Add(Contact person)
         {
+            chosen = null;
             if (picked.Count >= FreeBusyLookup.MaxPeople || picked.Exists(p => string.Equals(p.Email, person.Email, StringComparison.OrdinalIgnoreCase)))
             {
                 box.Text = "";
@@ -125,10 +153,10 @@ public static class PeoplePickerDialog
                 var row   = new Grid { ColumnSpacing = 8 };
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                AutomationProperties.SetAutomationId(row, $"PickedPerson_{person.Email}");
-                AutomationProperties.SetName(row, label);
-
-                row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+                // The ID goes on the label: a Grid isn't in the automation tree
+                var text = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+                AutomationProperties.SetAutomationId(text, $"PickedPerson_{person.Email}");
+                row.Children.Add(text);
 
                 var remove = new Button
                 {
