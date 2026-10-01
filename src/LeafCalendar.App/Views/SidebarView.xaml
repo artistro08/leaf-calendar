@@ -64,7 +64,8 @@
                     <FontIcon Glyph="&#xE70D;" FontSize="10" />
                 </Button>
             </Grid>
-            <Grid x:Name="MiniMonthDays" />
+            <!-- One Tab Stop For The Days; The Arrow Keys Move Between Them -->
+            <Grid x:Name="MiniMonthDays" TabFocusNavigation="Once" XYFocusKeyboardNavigation="Enabled" />
         </StackPanel>
         <!-- /Mini Month -->
 

@@ -44,6 +44,13 @@ public sealed class Ink : IDisposable
     /// <summary>Captures <paramref name="region"/> (screen pixels).</summary>
     public static Ink Capture(Rectangle region) => new(region);
 
+    /// <summary>The color of one screen pixel (through the same capture).</summary>
+    public static Color PixelAt(int x, int y)
+    {
+        using var ink = Capture(new Rectangle(x, y, 1, 1));
+        return ink._bitmap.GetPixel(0, 0);
+    }
+
     /// <summary>The ink box of the whole region, or of columns [<paramref name="fromX"/>, <paramref name="toX"/>) in screen x; <paramref name="inset"/> pixels at each edge are skipped. Null when there's no ink.</summary>
     public InkBox? Measure(int inset = 0, int? fromX = null, int? toX = null)
     {

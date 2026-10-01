@@ -221,9 +221,14 @@ public sealed partial class TimeGridView : Grid, IDisposable
         Loaded                    += (_, _) =>
         {
             (_root = XamlRoot).Changed += OnXamlRootChanged;
+            LeafBrushes.ContrastChanged += OnContrastChanged;
             FollowBody();
         };
-        Unloaded                  += (_, _) => _root?.Changed -= OnXamlRootChanged;
+        Unloaded                  += (_, _) =>
+        {
+            _root?.Changed -= OnXamlRootChanged;
+            LeafBrushes.ContrastChanged -= OnContrastChanged;
+        };
 
         // Now Line Clock
         _clock = DispatcherQueue.GetForCurrentThread().CreateTimer();
@@ -408,6 +413,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     // A monitor with a different scale changes what a whole pixel is
     void OnXamlRootChanged(XamlRoot sender, XamlRootChangedEventArgs args) => Relayout(force: false);
+
+    // A Contrast Theme Turning On Or Off Redraws With The System's Colors (raised off the UI thread)
+    void OnContrastChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(RenderRealized);
 
     void OnBodyViewChanging(object? sender, ScrollViewerViewChangingEventArgs e)
     {

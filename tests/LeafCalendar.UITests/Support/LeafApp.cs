@@ -198,6 +198,12 @@ public sealed class LeafApp : IDisposable
     public bool ExistsAnywhere(string automationId) =>
         App.GetAllTopLevelWindows(_automation).Any(w => w.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) is not null);
 
+    /// <summary>The element with keyboard focus, or null.</summary>
+    public AutomationElement? Focused() => _automation.FocusedElement();
+
+    /// <summary>Every top-level window of the app (main, settings, onboarding, tray flyout, dialogs), popups included (the tray's aren't always reported as windows).</summary>
+    public Window[] AllWindows() => [.. _automation.GetDesktop().FindAllChildren(cf => cf.ByProcessId(App.ProcessId)).Select(e => e.AsWindow())];
+
     /// <summary>True when an element with this ID is currently in the main window.</summary>
     public bool Exists(string automationId) => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) is not null;
 

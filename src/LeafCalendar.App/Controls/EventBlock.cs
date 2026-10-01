@@ -140,7 +140,7 @@ public sealed partial class EventBlock : Grid
         // Card
         _card.Background      = declined ? LeafBrushes.Transparent : outlined ? LeafBrushes.FromHex("#33" + palette.Fill[1..]) : LeafBrushes.FromHex(palette.Fill);
         _card.BorderBrush     = accent;
-        _card.BorderThickness = new Thickness(selected ? 2 : outlined ? 1 : 0);
+        _card.BorderThickness = LeafBrushes.CardBorder(selected, outlined);
         _accent.Fill          = accent;
         _accent.Visibility    = declined ? Visibility.Collapsed : Visibility.Visible;
 
@@ -176,7 +176,7 @@ public sealed partial class EventBlock : Grid
         // (past cards arrive with a faded palette; their text stays full strength). Selection is published too, for UI tests
         AutomationProperties.SetItemStatus(this, string.Join(';', new[] { past ? "Past" : "", selected ? "Selected" : "" }.Where(s => s.Length > 0)));
 
-        AutomationProperties.SetName(this, $"{occurrence.Title}, {timeText}");
+        AutomationProperties.SetName(this, _owner?.ViewModel.CardName(occurrence, timeText) ?? $"{occurrence.Title}, {timeText}");
         AutomationProperties.SetAutomationId(this, AutomationIdFor(occurrence));
     }
 }

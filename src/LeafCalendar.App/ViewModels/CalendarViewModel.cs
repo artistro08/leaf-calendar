@@ -174,6 +174,29 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>True once <paramref name="o"/> is over (drawn faded).</summary>
     public bool IsPast(CalendarOccurrence o) => o.HasEndedBy(Now, Zone);
 
+    /// <summary>What Narrator reads for an event card: "Title, time, calendar name", then ", past" and ", declined" when they apply (never color alone).</summary>
+    public string CardName(CalendarOccurrence o, string timeText)
+    {
+        var calendar = Calendars.FirstOrDefault(c => c.AccountId == o.AccountId && c.Id == o.CalendarId)?.Summary;
+        var parts    = new List<string> { o.Title, timeText };
+        if (!string.IsNullOrEmpty(calendar))
+        {
+            parts.Add(calendar);
+        }
+
+        if (IsPast(o))
+        {
+            parts.Add("past");
+        }
+
+        if (o.SelfResponse == ResponseStatus.Declined)
+        {
+            parts.Add("declined");
+        }
+
+        return string.Join(", ", parts);
+    }
+
     /// <summary>The user's view settings.</summary>
     public LeafSettings Settings { get; private set; }
 

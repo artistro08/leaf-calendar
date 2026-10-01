@@ -136,6 +136,23 @@ public class ToastContentTests
         Assert.All(actions, a => Assert.Equal("background", (string?)a.Attribute("activationType")));
     }
 
+    // Narrator Reads Every Toast Button: Leaf's Have Text, And Windows Labels Its Own Snooze And Dismiss
+    [Fact]
+    public void EveryToastButton_HasText()
+    {
+        var toasts = new[]
+        {
+            Parse(ToastContent.Reminder(Reminder(Meet), Details(), "Today", "default", sound: true)),
+            Parse(ToastContent.JoinNow(new Alert(AlertKind.JoinNow, Occurrence(), Start, 0, Meet), Details(), "Today", "default", sound: true)),
+            Parse(ToastContent.Invite(Occurrence(), Details(), isUpdate: false, "TAG", "Today", "default", sound: true)),
+        };
+
+        Assert.All(toasts.SelectMany(Actions), a => Assert.True(
+            !string.IsNullOrWhiteSpace((string?)a.Attribute("content"))
+                || (string?)a.Attribute("activationType") == "system" && (string?)a.Attribute("arguments") is "snooze" or "dismiss",
+            $"A toast button has no text: {a}"));
+    }
+
     [Fact]
     public void Invite_New_NoOrganizer()
     {

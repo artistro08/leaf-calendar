@@ -99,8 +99,13 @@ public sealed partial class MonthGridView : Grid, IDisposable
         {
             BuildWeekdayHeader();
             (_root = XamlRoot).Changed += OnXamlRootChanged;
+            LeafBrushes.ContrastChanged += OnContrastChanged;
         };
-        Unloaded              += (_, _) => _root?.Changed -= OnXamlRootChanged;
+        Unloaded              += (_, _) =>
+        {
+            _root?.Changed -= OnXamlRootChanged;
+            LeafBrushes.ContrastChanged -= OnContrastChanged;
+        };
         ActualThemeChanged    += (_, _) =>
         {
             BuildWeekdayHeader();
@@ -226,6 +231,13 @@ public sealed partial class MonthGridView : Grid, IDisposable
 
     // A monitor with a different scale changes what a whole pixel is
     void OnXamlRootChanged(XamlRoot sender, XamlRootChangedEventArgs args) => Relayout(force: false);
+
+    // A Contrast Theme Turning On Or Off Redraws With The System's Colors (raised off the UI thread)
+    void OnContrastChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(() =>
+    {
+        BuildWeekdayHeader();
+        RenderAll();
+    });
 
     void BuildWeekdayHeader()
     {

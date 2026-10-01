@@ -67,7 +67,7 @@ public sealed partial class AllDayCanvas : Canvas
             }
 
             var b       = shown[i];
-            var palette = EventColors.Palette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, vm.IsPast(b.Occurrence));
+            var palette = LeafBrushes.CardPalette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, vm.IsPast(b.Occurrence), vm.IsSelected(b.Occurrence));
             var start   = SpanLayout.CoveredDates(b.Occurrence, vm.Zone).First;
             _shown[chip] = b.Occurrence;
 
@@ -76,14 +76,14 @@ public sealed partial class AllDayCanvas : Canvas
             chip.Height          = TimeGridView.AllDayLaneHeight - 3;
             chip.Background      = LeafBrushes.FromHex(palette.Fill);
             chip.BorderBrush     = LeafBrushes.FromHex(palette.Accent);
-            chip.BorderThickness = new Thickness(vm.IsSelected(b.Occurrence) ? 2 : 0);
+            chip.BorderThickness = LeafBrushes.CardBorder(vm.IsSelected(b.Occurrence));
             text.Text            = (b.ContinuesBefore ? "‹ " : "") + b.Occurrence.Title + (b.ContinuesAfter ? " ›" : "");
             text.Foreground      = LeafBrushes.FromHex(palette.Text);
 
             SetLeft(chip, (first + b.FirstColumn) * width + 2);
             SetTop(chip, b.Lane * TimeGridView.AllDayLaneHeight + 2);
             AutomationProperties.SetAutomationId(chip, string.Create(CultureInfo.InvariantCulture, $"AllDay_{b.Occurrence.EventId}_{start:yyyyMMdd}"));
-            AutomationProperties.SetName(chip, b.Occurrence.Title);
+            AutomationProperties.SetName(chip, vm.CardName(b.Occurrence, "All day"));
 
             // Past Events Fade (still readable)
             var past = vm.IsPast(b.Occurrence);

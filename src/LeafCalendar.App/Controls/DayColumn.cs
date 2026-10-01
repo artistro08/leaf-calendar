@@ -157,7 +157,7 @@ public sealed partial class DayColumn : Canvas
             var usable  = width - 10;
             var colW    = usable / b.ColumnCount;
             var height  = Math.Max(b.EndMinute - b.StartMinute, DayLayout.MinVisualMinutes) / 60 * hour - 2;
-            var palette = EventColors.Palette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, vm.IsPast(b.Occurrence));
+            var palette = LeafBrushes.CardPalette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, vm.IsPast(b.Occurrence), vm.IsSelected(b.Occurrence));
 
             card.Width      = Math.Max(colW - 2, 10);
             card.Height     = height;
@@ -178,6 +178,7 @@ public sealed partial class DayColumn : Canvas
         _nowLine.Visibility = _nowDot.Visibility = isToday ? Visibility.Visible : Visibility.Collapsed;
         if (isToday)
         {
+            _nowLine.Fill = _nowDot.Fill = LeafBrushes.NowLine;
             var now = TimeZoneInfo.ConvertTime(vm.Now, vm.Zone);
             var top = now.TimeOfDay.TotalMinutes / 60 * hour;
             _nowLine.Width = width;

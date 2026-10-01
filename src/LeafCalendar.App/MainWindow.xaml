@@ -69,6 +69,7 @@
                                     Style="{StaticResource LeafBareIconButtonStyle}"
                                     Visibility="Collapsed"
                                     Click="OnConflictsClick"
+                                    AutomationProperties.LiveSetting="Polite"
                                     AutomationProperties.AutomationId="ConflictsButton">
                                     <Grid>
                                         <FontIcon Glyph="&#xE7BA;" FontSize="16" />
@@ -85,6 +86,7 @@
                                     Style="{StaticResource LeafBareIconButtonStyle}"
                                     Visibility="Collapsed"
                                     Click="OnSyncStatusClick"
+                                    AutomationProperties.LiveSetting="Polite"
                                     AutomationProperties.AutomationId="OfflineIndicator">
                                     <FontIcon Glyph="&#xF384;" FontSize="16" />
                                 </Button>
@@ -93,6 +95,7 @@
                                     Style="{StaticResource LeafBareIconButtonStyle}"
                                     Visibility="Collapsed"
                                     Click="OnSyncStatusClick"
+                                    AutomationProperties.LiveSetting="Polite"
                                     AutomationProperties.AutomationId="PendingChangesIndicator">
                                     <Grid>
                                         <FontIcon x:Name="WaitingGlyph" Glyph="&#xE895;" FontSize="16" />

@@ -180,9 +180,10 @@ public sealed partial class WeekRow : Canvas
     {
         var vm       = _owner.ViewModel;
         var o        = b.Occurrence;
-        var palette  = EventColors.Palette(EventColors.ResolveAccent(o.ColorId, o.CalendarColor), dark, vm.IsPast(o));
-        var spanning = SpanLayout.IsSpanning(o);
         var selected = vm.IsSelected(o);
+        var palette  = LeafBrushes.CardPalette(EventColors.ResolveAccent(o.ColorId, o.CalendarColor), dark, vm.IsPast(o), selected);
+        var spanning = SpanLayout.IsSpanning(o);
+        var filled   = spanning || selected && LeafBrushes.HighContrast; // a contrast theme shows selection as the highlight fill
         var first    = SpanLayout.CoveredDates(o, vm.Zone).First;
 
         var text = new TextBlock
@@ -191,7 +192,7 @@ public sealed partial class WeekRow : Canvas
             TextTrimming      = TextTrimming.CharacterEllipsis,
             VerticalAlignment = VerticalAlignment.Center,
             Text              = spanning ? o.Title : $"{TimeLabels.Compact(o.Start, vm.Zone, vm.Settings.Use24HourTime)} {o.Title}",
-            Foreground        = spanning ? LeafBrushes.FromHex(palette.Text) : LeafBrushes.PrimaryText(dark),
+            Foreground        = filled ? LeafBrushes.FromHex(palette.Text) : LeafBrushes.PrimaryText(dark),
             FontWeight        = spanning ? FontWeights.SemiBold : FontWeights.Normal,
             TextDecorations   = o.SelfResponse == ResponseStatus.Declined ? TextDecorations.Strikethrough : TextDecorations.None,
         };
@@ -210,9 +211,9 @@ public sealed partial class WeekRow : Canvas
             Height          = MonthGridView.ChipHeight - 2,
             CornerRadius    = new CornerRadius(4),
             Padding         = new Thickness(6, 0, 6, 0),
-            Background      = spanning ? LeafBrushes.FromHex(palette.Fill) : LeafBrushes.Transparent,
+            Background      = filled ? LeafBrushes.FromHex(palette.Fill) : LeafBrushes.Transparent,
             BorderBrush     = LeafBrushes.FromHex(palette.Accent),
-            BorderThickness = new Thickness(selected ? 2 : 0),
+            BorderThickness = filled ? LeafBrushes.CardBorder(selected) : new Thickness(0),
             Child           = content,
         };
         chip.Tapped += (_, e) =>
@@ -243,7 +244,7 @@ public sealed partial class WeekRow : Canvas
             }
         };
         AutomationProperties.SetAutomationId(chip, string.Create(CultureInfo.InvariantCulture, $"Chip_{o.EventId}_{first:yyyyMMdd}"));
-        AutomationProperties.SetName(chip, o.Title);
+        AutomationProperties.SetName(chip, vm.CardName(o, o.IsAllDay ? "All day" : TimeLabels.Range(o.Start, o.End, vm.Zone, vm.Settings.Use24HourTime)));
 
         // Past Events Fade (still readable)
         var past = vm.IsPast(o);

@@ -34,6 +34,7 @@ public sealed partial class SidebarView : UserControl
     // Calendar List (bound once and kept in step in place; each realized checkbox with the row and color it was painted for)
     readonly ObservableCollection<AccountGroup> _groups = [];
     readonly Dictionary<CheckBox, (CalendarRow Row, string Color)> _painted = [];
+    readonly Dictionary<Microsoft.UI.Xaml.Controls.Primitives.SelectorItem, CalendarRow> _rowItems = [];
     CalendarViewModel? _viewModel;
     DateOnly _miniMonth;
 
@@ -45,7 +46,13 @@ public sealed partial class SidebarView : UserControl
         ScrollIndicator.ShowOnHover(ContentScroll);
         BuildMiniMonth();
         ActualThemeChanged += (_, _) => RenderMiniMonth();
+
+        // A Contrast Theme Turning On Or Off Redraws The Mini Month With The System's Colors (raised off the UI thread)
+        Loaded   += (_, _) => LeafBrushes.ContrastChanged += OnContrastChanged;
+        Unloaded += (_, _) => LeafBrushes.ContrastChanged -= OnContrastChanged;
     }
+
+    void OnContrastChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(RenderMiniMonth);
 
     /// <summary>The share-availability button was clicked.</summary>
     public event EventHandler? ShareAvailabilityRequested;
@@ -115,6 +122,18 @@ public sealed partial class SidebarView : UserControl
             {
                 Paint(box, painted.Row);
             }
+        }
+
+        // A Renamed Calendar's Row Reads Its New Name (and rows whose calendar left are forgotten)
+        foreach (var (item, row) in _rowItems.ToList())
+        {
+            if (!shown.Contains(row))
+            {
+                _rowItems.Remove(item);
+                continue;
+            }
+
+            AutomationProperties.SetName(item, row.Name);
         }
     }
 
@@ -271,9 +290,14 @@ public sealed partial class SidebarView : UserControl
         if (args.InRecycleQueue || args.Item is not CalendarRow row)
         {
             _painted.Remove(box);
+            _rowItems.Remove(args.ItemContainer);
             args.ItemContainer.ContextFlyout = null;
             return;
         }
+
+        // Narrator Reads The Row (the list item Tab lands on) By The Calendar's Name
+        _rowItems[args.ItemContainer] = row;
+        AutomationProperties.SetName(args.ItemContainer, row.Name);
 
         Paint(box, row);
         args.ItemContainer.ContextFlyout = MenuFor(row);

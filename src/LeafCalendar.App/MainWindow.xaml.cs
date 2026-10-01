@@ -671,8 +671,15 @@ public sealed partial class MainWindow : Window
 
     static void SetWords(Button button, string name, string tooltip)
     {
+        var changed = Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button) != name;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, name);
         ToolTipService.SetToolTip(button, tooltip);
+
+        // Narrator Reads A New Status Once It's Done Talking (the buttons are polite live regions)
+        if (changed && button.Visibility == Visibility.Visible)
+        {
+            Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(button)?.RaiseAutomationEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationEvents.LiveRegionChanged);
+        }
     }
 
     // Offline or waiting: try sending now
