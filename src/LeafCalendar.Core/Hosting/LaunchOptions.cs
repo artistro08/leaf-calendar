@@ -128,7 +128,7 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
             backslashes = 0;
 
             // A Space Outside Quotes Ends The Argument
-            if (c is ' ' or '	' && !quoted)
+            if (c is ' ' or '\t' && !quoted)
             {
                 if (started)
                 {

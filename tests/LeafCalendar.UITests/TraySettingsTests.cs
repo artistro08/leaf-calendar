@@ -63,10 +63,11 @@ public sealed class TraySettingsTests : IDisposable
     [Fact]
     public void RemindersOff_NoReminderShows()
     {
+        // 10 seconds before the meeting starts, its reminder (due at 1:50) would show at once if it were on; Join now at 2:00 is the proof the scheduler ran
         var profile = Profile(new LeafSettings { ReminderNotifications = false });
-        using var leaf = Launch(profile, "2026-10-01T13:49:50-04:00");
+        using var leaf = Launch(profile, "2026-10-01T13:59:50-04:00");
 
-        Thread.Sleep(TimeSpan.FromSeconds(30));
+        LeafApp.WaitForNotification(profile, l => l.StartsWith("show	join	", StringComparison.Ordinal), seconds: 30);
 
         Assert.DoesNotContain(LeafApp.NotificationLines(profile), l => l.StartsWith("show\treminders\t", StringComparison.Ordinal));
     }

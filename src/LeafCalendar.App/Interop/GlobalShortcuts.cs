@@ -90,6 +90,9 @@ public sealed class GlobalShortcuts(AppLog log)
         return true;
     }
 
+    /// <summary>False until the tray icon's window exists (without it nothing can be registered).</summary>
+    public bool IsAvailable => !_hwnd.IsNull;
+
     /// <summary>True when the saved combination for <paramref name="action"/> is held by Windows or another app.</summary>
     public bool IsTaken(ShortcutAction action) => _taken.Contains(action);
 

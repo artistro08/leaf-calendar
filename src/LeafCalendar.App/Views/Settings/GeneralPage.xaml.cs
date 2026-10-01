@@ -34,6 +34,9 @@ public sealed partial class GeneralPage : Page
     // True while the startup task's state is being shown
     bool _loadingStartup;
 
+    // Counts startup loads so a slow older one can't overwrite a newer one's result or clear its flag
+    int _startupLoads;
+
     /// <summary>Creates the page.</summary>
     public GeneralPage()
     {
@@ -165,10 +168,16 @@ public sealed partial class GeneralPage : Page
     // decides it for them. Runs unawaited from navigation, so nothing may escape
     async Task LoadStartupAsync()
     {
+        var load = ++_startupLoads;
         _loadingStartup = true;
         try
         {
             var task  = await StartupTask.GetAsync(StartupTaskId);
+            if (load != _startupLoads)
+            {
+                return;
+            }
+
             var state = task.State;
             StartupSwitch.IsOn      = state is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy;
             StartupSwitch.IsEnabled = state is StartupTaskState.Enabled or StartupTaskState.Disabled;
@@ -187,7 +196,10 @@ public sealed partial class GeneralPage : Page
         }
         finally
         {
-            _loadingStartup = false;
+            if (load == _startupLoads)
+            {
+                _loadingStartup = false;
+            }
         }
     }
 
@@ -212,11 +224,15 @@ public sealed partial class GeneralPage : Page
                 task.Disable();
             }
 
-            await LoadStartupAsync();
         }
         catch (Exception ex)
         {
             _context.Services.Log.Info("settings.startup.failed", $"error={ex.GetType().Name}");
+        }
+        finally
+        {
+            // Show what Windows really says, also when the change failed or was refused
+            await LoadStartupAsync();
         }
     }
 }

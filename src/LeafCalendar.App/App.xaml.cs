@@ -49,6 +49,9 @@ public partial class App : Application
     DispatcherQueueTimer? _minuteTimer;
     DispatcherQueueTimer? _probeTimer;
     readonly LocalZoneWatcher _zone = new();
+
+    // The tray settings (and the day) the tooltip and agenda were last refreshed for
+    (int, bool, int, bool, DateTime Today) _trayKey;
     AppLog? _log;
     bool _trayStarted;
     bool _quitting;
@@ -411,8 +414,17 @@ public partial class App : Application
             _calendar.OpenSettings = OpenSettings;
 
             // A Settings Change (the Tray page's days, all-day, lookahead) Shows In The Tray Right Away
+            // Only when a tray setting changed or the day rolled over (other layout changes don't touch the tray)
             _calendar.LayoutChanged += (_, _) =>
             {
+                var s   = CurrentSettings();
+                var key = (s.FlyoutDays, s.FlyoutAllDay, s.TrayLookaheadMinutes, s.Use24HourTime, Today: TimeZoneInfo.ConvertTime(_services!.Time.GetUtcNow(), _zone.Zone).Date);
+                if (key == _trayKey)
+                {
+                    return;
+                }
+
+                _trayKey = key;
                 RefreshTooltip();
                 RefreshAgenda();
             };

@@ -24,6 +24,8 @@ public sealed partial class TrayPage : Page
     public TrayPage()
     {
         InitializeComponent();
+        DaysBox.Maximum  = LeafSettings.MaxFlyoutDays;
+        DaysRow.Description = $"How many days the tray flyout lists, starting today. From 1 to {LeafSettings.MaxFlyoutDays}. It shows the calendars you show in Leaf.";
         ScrollIndicator.ShowOnHover(PageScroll);
     }
 
@@ -55,8 +57,15 @@ public sealed partial class TrayPage : Page
 
     void OnDaysChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
-        if (_loading || double.IsNaN(args.NewValue))
+        if (_loading)
         {
+            return;
+        }
+
+        // A cleared box goes back to the saved value
+        if (double.IsNaN(args.NewValue))
+        {
+            Load();
             return;
         }
 

@@ -388,17 +388,20 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// </summary>
     public void Update(Func<LeafSettings, LeafSettings> change, bool reloadData = false)
     {
+        // Memory takes the new value only after the disk does, so a failed save leaves both as they were
         var before = Settings;
-        Settings = change(Settings).Normalize();
+        var next   = change(Settings).Normalize();
+        using (var conn = _services.Database.Open())
+        {
+            SettingsStore.Save(conn, next);
+        }
+
+        Settings = next;
 
         // A hidden editor keeps its fields, not contact suggestions
         if (before.DetailsPanelOpen && !Settings.DetailsPanelOpen)
         {
             Editing?.ClearSuggestions();
-        }
-        using (var conn = _services.Database.Open())
-        {
-            SettingsStore.Save(conn, Settings);
         }
 
         // Pane Flags Only

@@ -17,6 +17,9 @@ public sealed partial class ShortcutsPage : Page
 {
     SettingsContext _context = null!;
 
+    // Why a shortcut isn't what the user picked (the new one was taken and the old one is back); cleared on the next change
+    readonly Dictionary<ShortcutAction, string> _notes = [];
+
     /// <summary>Creates the page.</summary>
     public ShortcutsPage()
     {
@@ -53,13 +56,19 @@ public sealed partial class ShortcutsPage : Page
     // warning is collapsed when there's nothing to say, so it takes no room between the rows
     void Show(Button button, InfoBar warning, string shortcut, ShortcutAction action)
     {
-        var text  = shortcut.Length == 0 ? "None" : shortcut;
-        var taken = _context.Services.Shortcuts.IsTaken(action);
+        var text      = shortcut.Length == 0 ? "None" : shortcut;
+        var shortcuts = _context.Services.Shortcuts;
         button.Content = text;
         AutomationProperties.SetHelpText(button, text);
-        warning.Message    = $"Another app is using {shortcut}. Pick a different shortcut.";
-        warning.IsOpen     = taken;
-        warning.Visibility = taken ? Visibility.Visible : Visibility.Collapsed;
+
+        // Without the tray icon's window nothing can be registered, which isn't another app's doing
+        var message = !shortcuts.IsAvailable ? "Shortcuts aren't available because the tray icon couldn't start."
+            : _notes.TryGetValue(action, out var note) ? note
+            : shortcuts.IsTaken(action) ? $"Another app is using {shortcut}. Pick a different shortcut."
+            : null;
+        warning.Message    = message ?? string.Empty;
+        warning.IsOpen     = message is not null;
+        warning.Visibility = message is not null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     async void OnJoinShortcutClick(object sender, RoutedEventArgs e) => await ChangeAsync(ShortcutAction.Join, "Join meeting shortcut");
@@ -74,6 +83,7 @@ public sealed partial class ShortcutsPage : Page
         var other     = Shortcut(before, action == ShortcutAction.Join ? ShortcutAction.Flyout : ShortcutAction.Join);
         var otherName = action == ShortcutAction.Join ? "Show or hide the tray flyout" : "Join meeting";
 
+        _notes.Remove(action);
         shortcuts.Suspend();
         try
         {
@@ -110,6 +120,7 @@ public sealed partial class ShortcutsPage : Page
         var previous = Shortcut(before, action);
         if (shortcuts.IsTaken(action) && Shortcut(saved, action) != previous)
         {
+            _notes[action] = $"{Shortcut(saved, action)} was taken by another app, so {(previous.Length == 0 ? "no shortcut" : previous)} is back.";
             _context.Save(s => With(s, action, previous));
             shortcuts.Apply(_context.Calendar.Settings);
         }

@@ -10,12 +10,11 @@
 
             <!-- Flyout -->
             <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Flyout" />
-            <controls:SettingRow Glyph="&#xE787;" Header="Days in the agenda" Description="How many days the tray flyout lists, starting today. From 1 to 14. It shows the calendars you show in Leaf.">
+            <controls:SettingRow x:Name="DaysRow" Glyph="&#xE787;" Header="Days in the agenda">
                 <NumberBox
                     x:Name="DaysBox"
                     MinWidth="180"
                     Minimum="1"
-                    Maximum="14"
                     SpinButtonPlacementMode="Compact"
                     ValueChanged="OnDaysChanged"
                     AutomationProperties.Name="Days in the agenda"
