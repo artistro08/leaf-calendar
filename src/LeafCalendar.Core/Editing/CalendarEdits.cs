@@ -37,8 +37,12 @@ public static class CalendarEdits
     public static string RenamePatch(string? name) =>
         new JsonObject { ["summaryOverride"] = name is null ? null : JsonValue.Create(name) }.ToJsonString();
 
-    /// <summary>The patch that sets the calendar's default reminders: popups only, 0 to 40,320 minutes, no repeats, earliest first, at most five.</summary>
-    public static string RemindersPatch(IEnumerable<int> minutes)
+    /// <summary>
+    /// The patch that sets the calendar's default popup reminders: 0 to 40,320 minutes, no repeats, earliest first, at
+    /// most five. Leaf edits popups only, so the other reminders in <paramref name="storedJson"/> (Google's
+    /// <c>defaultReminders</c> as stored, such as email ones) are sent back unchanged after them; unreadable entries are left out.
+    /// </summary>
+    public static string RemindersPatch(IEnumerable<int> minutes, string? storedJson = null)
     {
         var reminders = new JsonArray();
         foreach (var m in minutes.Where(m => m is >= 0 and <= MaxMinutes).Distinct().Order().Take(MaxReminders))
@@ -46,6 +50,32 @@ public static class CalendarEdits
             reminders.Add((JsonNode)new JsonObject { ["method"] = "popup", ["minutes"] = m });
         }
 
+        foreach (var (method, m) in OtherReminders(storedJson))
+        {
+            reminders.Add((JsonNode)new JsonObject { ["method"] = method, ["minutes"] = m });
+        }
+
         return new JsonObject { ["defaultReminders"] = reminders }.ToJsonString();
+    }
+
+    // The stored reminders that aren't popups, with a known method and minutes in Google's range
+    static IEnumerable<(string Method, int Minutes)> OtherReminders(string? storedJson)
+    {
+        JsonArray? stored;
+        try
+        {
+            stored = string.IsNullOrEmpty(storedJson) ? null : JsonNode.Parse(storedJson) as JsonArray;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            stored = null;
+        }
+
+        return (stored ?? [])
+            .OfType<JsonObject>()
+            .Select(r => (Method: (r["method"] as JsonValue)?.TryGetValue<string>(out var method) == true ? method : null, Minutes: (r["minutes"] as JsonValue)?.TryGetValue<int>(out var m) == true ? m : -1))
+            .Where(r => r.Method is "email" && r.Minutes is >= 0 and <= MaxMinutes)
+            .Select(r => (r.Method!, r.Minutes))
+            .Distinct();
     }
 }

@@ -68,7 +68,7 @@ public sealed partial class DetailsPanel : UserControl
     {
         UpcomingEmpty.Visibility = _vm?.Upcoming.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
         UpcomingEmpty.Text       = _vm?.UpcomingCalendar is null
-            ? string.Create(CultureInfo.InvariantCulture, $"Nothing in the next {_vm?.Settings.UpcomingHours ?? 8} hours.")
+            ? string.Create(CultureInfo.InvariantCulture, $"Nothing in the next {_vm?.UpcomingHours ?? 8} hours.")
             : "Nothing in the next 30 days.";
     }
 
@@ -82,6 +82,11 @@ public sealed partial class DetailsPanel : UserControl
         if (e.PropertyName == nameof(CalendarViewModel.MapButtonText))
         {
             ShowMapButton();
+        }
+
+        if (e.PropertyName == nameof(CalendarViewModel.UpcomingHours))
+        {
+            UpdateUpcomingEmpty();
         }
 
         if (e.PropertyName == nameof(CalendarViewModel.UpcomingCalendar))

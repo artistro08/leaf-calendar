@@ -136,6 +136,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         Cache    = new EventWindowCache(LoadAsync, Zone);
         Cache.Changed += (_, _) =>
         {
+            // The Data Changed: one calendar's upcoming list is read again
+            ForgetCalendarSoon();
             RefreshUpcoming();
             OccurrencesChanged?.Invoke(this, EventArgs.Empty);
         };
@@ -418,6 +420,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         if (before.UpcomingHours != next.UpcomingHours)
         {
             RefreshUpcoming();
+            OnPropertyChanged(nameof(UpcomingHours));
         }
 
         if (before.MainAccountId != next.MainAccountId)
@@ -674,7 +677,14 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         ArgumentNullException.ThrowIfNull(calendar);
 
-        var patch = CalendarEdits.RemindersPatch(minutes);
+        // Google's Email Reminders Ride Along Unchanged (Leaf edits popups only)
+        string? stored;
+        using (var conn = _services.Database.Open())
+        {
+            stored = CalendarStore.DefaultRemindersJson(conn, calendar.AccountId, calendar.Id);
+        }
+
+        var patch = CalendarEdits.RemindersPatch(minutes, stored);
         return PatchCalendarAsync(calendar, patch, "calendar.reminders", "Connect to the internet to change default reminders.", "Google didn't accept those reminders.",
             conn => CalendarStore.SetDefaultReminders(conn, calendar.AccountId, calendar.Id, System.Text.Json.Nodes.JsonNode.Parse(patch)!["defaultReminders"]!.ToJsonString()));
     }
@@ -706,9 +716,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         {
             problem = offline;
         }
-        catch (Exception ex) when (ex is GoogleApiException or AccountNeedsSignInException)
+        catch (GoogleApiException)
         {
             problem = refused;
+        }
+        catch (AccountNeedsSignInException)
+        {
+            problem = "Sign in again to change this calendar.";
         }
 
         _services.Log.Info(logName, $"account={calendar.AccountId} result={(problem is null ? "ok" : "failed")}");
@@ -751,6 +765,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public void ShowUpcomingFor(CalendarInfo? calendar)
     {
         UpcomingCalendar = calendar;
+        ForgetCalendarSoon();
+        Upcoming.Clear();
         if (calendar is not null)
         {
             ClearSelection();
@@ -760,18 +776,35 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         RefreshUpcoming();
     }
 
-    // One calendar's events from now to 30 days out, all-day ones too, each with its day
-    List<UpcomingItem> UpcomingIn(CalendarInfo calendar, DateTimeOffset now)
+    // One calendar's next 31 days, read off the UI thread once, and again only when the data or the day changes (the
+    // minute tick only re-filters); the key says which calendar and day they were read for
+    IReadOnlyList<CalendarOccurrence>? _calendarSoon;
+    (string AccountId, string Id, DateOnly Day)? _calendarSoonKey;
+    int _calendarSoonLoads;
+
+    void ForgetCalendarSoon()
     {
-        IReadOnlyList<CalendarOccurrence> occurrences;
-        using (var conn = _services.Database.Open())
+        _calendarSoon    = null;
+        _calendarSoonKey = null;
+    }
+
+    // One calendar's events from now to 30 days out, all-day ones too, each with its day; null while they're being read
+    List<UpcomingItem>? UpcomingIn(CalendarInfo calendar, DateTimeOffset now)
+    {
+        var key = (calendar.AccountId, calendar.Id, LocalDate(now));
+        if (_calendarSoonKey != key)
         {
-            occurrences = OccurrenceQuery.Load(conn, LocalDate(now), LocalDate(now).AddDays(31), Zone, Settings.ShowDeclined);
+            LoadCalendarSoon(key);
+            return null;
+        }
+
+        if (_calendarSoon is not { } occurrences)
+        {
+            return null;
         }
 
         return [.. occurrences
-            .Where(o => o.AccountId == calendar.AccountId && o.CalendarId == calendar.Id && o.EndIn(Zone) > now && DayOf(o) <= LocalDate(now).AddDays(30))
-            .DistinctBy(o => o.Key)
+            .Where(o => o.EndIn(Zone) > now && DayOf(o) <= LocalDate(now).AddDays(30))
             .OrderBy(o => o.StartIn(Zone))
             .Take(50)
             .Select(o => new UpcomingItem(
@@ -783,6 +816,36 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
                 o.HasConference,
                 Select,
                 occurrence => Fire(() => JoinAsync(occurrence), "calendar.join.failed")))];
+    }
+
+    // Reads the calendar's events for the key on a background thread; a newer read wins
+    void LoadCalendarSoon((string AccountId, string Id, DateOnly Day) key)
+    {
+        var load     = ++_calendarSoonLoads;
+        var zone     = Zone;
+        var declined = Settings.ShowDeclined;
+        _calendarSoonKey = key;
+        _calendarSoon    = null;
+
+        Run(async () =>
+        {
+            var found = await Task.Run(() =>
+            {
+                using var conn = _services.Database.Open();
+                return OccurrenceQuery.Load(conn, key.Day, key.Day.AddDays(31), zone, declined)
+                    .Where(o => o.AccountId == key.AccountId && o.CalendarId == key.Id)
+                    .DistinctBy(o => o.Key)
+                    .ToList();
+            });
+
+            if (load != _calendarSoonLoads)
+            {
+                return;
+            }
+
+            _calendarSoon = found;
+            RefreshUpcoming();
+        }, "calendar.upcoming.failed");
     }
 
     /// <summary>
@@ -1528,6 +1591,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>The details panel's location button: "Open in Google Maps" or "Open in Bing Maps".</summary>
     public string MapButtonText => Settings.MapProvider == MapProvider.Bing ? "Open in Bing Maps" : "Open in Google Maps";
 
+    /// <summary>How many hours ahead the upcoming list looks (the details panel's empty text says so).</summary>
+    public int UpcomingHours => Settings.UpcomingHours;
+
     /// <summary>Opens an email to every other guest, with the title as the subject (E then E).</summary>
     public async Task EmailGuestsAsync()
     {
@@ -1853,6 +1919,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             .Take(20)
             .Select(o => new UpcomingItem(o, o.Title, TimeLabels.Range(o.Start, o.End, Zone, Settings.Use24HourTime), TimeLabels.Relative(o.Start, o.End, now), EventColors.ResolveAccent(o.ColorId, o.CalendarColor), o.HasConference, Select, occurrence => Fire(() => JoinAsync(occurrence), "calendar.join.failed")))
             .ToList();
+
+        // One Calendar's Events Still Being Read: the list waits for them
+        if (items is null)
+        {
+            return;
+        }
 
         Upcoming.Clear();
         foreach (var item in items)

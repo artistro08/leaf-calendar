@@ -102,6 +102,8 @@ public sealed class CalendarStoreTests : IDisposable
         CalendarStore.SetDefaultReminders(conn, accountId, "family123@group.calendar.google.com", """[{"method":"popup","minutes":30}]""");
 
         Assert.Equal([30], CalendarStore.PopupDefaults(conn)[(accountId, "family123@group.calendar.google.com")]);
+        Assert.Equal("""[{"method":"popup","minutes":30}]""", CalendarStore.DefaultRemindersJson(conn, accountId, "family123@group.calendar.google.com"));
+        Assert.Null(CalendarStore.DefaultRemindersJson(conn, accountId, "missing"));
     }
 
     [Fact]

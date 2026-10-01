@@ -123,8 +123,15 @@ public static class EventJson
     // =========================================================================
 
     /// <summary>The body for <c>events.insert</c>.</summary>
+    /// <exception cref="ArgumentException">An all-day focus time or out of office (Google takes these timed only).</exception>
     public static JsonObject BuildCreate(string id, EventDraft draft)
     {
+        ArgumentNullException.ThrowIfNull(draft);
+        if (draft.IsAllDay && draft.EventType is EventKind.FocusTime or EventKind.OutOfOffice)
+        {
+            throw new ArgumentException("Focus time and out of office events must be timed.", nameof(draft));
+        }
+
         var body = new JsonObject
         {
             ["id"]      = id,

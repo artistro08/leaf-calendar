@@ -79,4 +79,15 @@ public sealed class FrequentPeopleTests : IDisposable
     [InlineData("zz", 0)]
     public void Match_PrefixOfANameWordOrTheAddress(string query, int count) =>
         Assert.Equal(count, FrequentPeople.Match([new("Frank Often", "frank@example.com"), new("", "amy@example.com")], query).Count);
+
+    [Fact]
+    public void Load_AnAddressTwiceInOneEvent_CountsOnce()
+    {
+        Insert(With("d", "2026-09-20T10:00:00Z", """{"email":"twice@example.com"},{"email":"TWICE@example.com"},{"email":"once@example.com"}"""));
+        Insert(With("e", "2026-09-19T10:00:00Z", """{"email":"once@example.com"}"""));
+
+        using var conn = _db.Database.Open();
+
+        Assert.Equal(["once@example.com", "twice@example.com"], FrequentPeople.Load(conn, Account, Now).Select(p => p.Email));
+    }
 }

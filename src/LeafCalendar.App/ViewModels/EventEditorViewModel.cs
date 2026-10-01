@@ -241,7 +241,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
 
         // Repeat
         var line  = draft.Recurrence.FirstOrDefault(l => l.StartsWith("RRULE:", StringComparison.Ordinal));
-        var rule  = line is null ? null : RepeatRule.Parse(line, zone);
+        var rule  = line is null ? null : RepeatRule.Parse(line, _eventZone);
         RepeatIndex    = line is null ? 0 : rule is null ? 5 : (int)rule.Frequency + 1;
         HasCustomRule  = RepeatIndex == 5;
         RepeatInterval = rule?.Interval ?? 1;
@@ -940,14 +940,14 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         return [line, .. Before.Recurrence.Where(l => !l.StartsWith("RRULE:", StringComparison.Ordinal))];
     }
 
-    // The RRULE line the repeat fields describe (the week start is kept from Google's rule)
+    // The RRULE line the repeat fields describe, its end date on the event's own zone's clock (the week start is kept from Google's rule)
     string RepeatLine() => new RepeatRule(
         (RepeatFrequency)Math.Clamp(RepeatIndex - 1, 0, 3),
         Math.Max(1, (int)RepeatInterval),
         RepeatIndex == 2 ? [.. Weekdays.Where(w => w.IsOn).Select(w => w.Day)] : null,
         EndsIndex == 1 ? Day(EndsOn) : null,
         EndsIndex == 2 ? Math.Max(1, (int)EndsAfter) : null,
-        _wkst).ToRRule(IsAllDay, _zone);
+        _wkst).ToRRule(IsAllDay, _eventZone);
 
     void RemoveGuest(GuestRow row) => Guests.Remove(row);
 

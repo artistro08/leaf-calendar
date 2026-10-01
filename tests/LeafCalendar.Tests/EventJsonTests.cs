@@ -590,4 +590,10 @@ public class EventJsonTests
 
         Assert.Equal((EventKind.Default, false, "default"), (draft.EventType, draft.IsFree, draft.Visibility));
     }
+
+    [Theory]
+    [InlineData(EventKind.FocusTime)]
+    [InlineData(EventKind.OutOfOffice)]
+    public void BuildCreate_AllDayFocusTimeOrOutOfOffice_IsRefused(EventKind kind) =>
+        Assert.Throws<ArgumentException>(() => EventJson.BuildCreate("id1", SampleDraft() with { EventType = kind, IsAllDay = true }));
 }

@@ -109,7 +109,8 @@ public static class FrequentPeople
                 continue;
             }
 
-            foreach (var (email, name, isRoom, isSelf) in found)
+            // An Address Listed Twice In One Event Counts Once
+            foreach (var (email, name, isRoom, isSelf) in found.DistinctBy(f => f.Item1, StringComparer.OrdinalIgnoreCase))
             {
                 yield return (start, email, name, isRoom, isSelf);
             }

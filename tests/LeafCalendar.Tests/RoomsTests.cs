@@ -36,7 +36,7 @@ public sealed class RoomsTests : IDisposable
     [Fact]
     public void Load_RoomsYouBookedBefore_DistinctAndNamed()
     {
-        // Years Old Bookings Count Too; A Room Is Flagged Or Has Google's Resource Address
+        // Years Old Bookings Count Too; Only Google's Resource Addresses Are Rooms (a flagged outside address is spoofed)
         Insert(With("a", "2024-01-01T10:00:00Z", """{"email":"c_2@resource.calendar.google.com","displayName":"‮Zeta room","resource":true},{"email":"frank@example.com"}"""));
         Insert(With("b", "2026-09-20T10:00:00Z", """{"email":"C_2@resource.calendar.google.com","resource":true},{"email":"c_1boardroom@resource.calendar.google.com"}"""));
         Insert(With("c", "2026-09-21T10:00:00Z", """{"email":"lab@example.com","displayName":"Lab","resource":true},{"email":"bad room@resource.calendar.google.com","resource":true}"""));
@@ -47,7 +47,6 @@ public sealed class RoomsTests : IDisposable
         Assert.Equal(
             [
                 new Room("c_1boardroom", "c_1boardroom@resource.calendar.google.com"),
-                new Room("Lab", "lab@example.com"),
                 new Room("Zeta room", "c_2@resource.calendar.google.com"),
             ],
             rooms);

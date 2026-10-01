@@ -77,4 +77,24 @@ public class RepeatRuleTests
         var again    = RecurrenceExpander.ExpandTimed([written], start, "America/New_York", start, start.AddDays(60));
         Assert.Equal(original, again);
     }
+
+    [Fact]
+    public void RoundTrip_TokyoEventWithAnEndDate_InItsOwnZone_KeepsTheCount()
+    {
+        // Daily at 9 AM Tokyo, ending Oct 5 (Tokyo's end of day is 14:59:59Z): five times
+        var tokyo = TimeZoneInfo.FindSystemTimeZoneById("Asia/Tokyo");
+        var start = new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
+        const string line = "RRULE:FREQ=DAILY;UNTIL=20261005T145959Z";
+
+        // The editor writes the rule in the event's zone, whatever zone is on screen
+        var written = RepeatRule.Parse(line, tokyo)!.ToRRule(isAllDay: false, tokyo);
+        var count   = RecurrenceExpander.ExpandTimed([written], start, "Asia/Tokyo", start, start.AddDays(30)).Count;
+
+        Assert.Equal(line, written);
+        Assert.Equal(5, count);
+
+        // Written in New York's zone, the end would slip a day and add a sixth
+        var shifted = RepeatRule.Parse(line, tokyo)!.ToRRule(isAllDay: false, NewYork);
+        Assert.Equal(6, RecurrenceExpander.ExpandTimed([shifted], start, "Asia/Tokyo", start, start.AddDays(30)).Count);
+    }
 }

@@ -1,3 +1,4 @@
+using LeafCalendar.Core.Editing;
 using Microsoft.Data.Sqlite;
 
 namespace LeafCalendar.Core.People;
@@ -10,7 +11,7 @@ public sealed record Room(string Name, string Email);
 /// </summary>
 /// <remarks>
 /// Listing every room in a Workspace needs an admin-only scope, so Leaf only knows rooms from events. A room is an
-/// attendee Google flags as a <c>resource</c>, or one with Google's resource address. Room names are untrusted text,
+/// attendee with Google's resource address (<c>@resource.calendar.google.com</c>). Room names are untrusted text,
 /// cleaned and capped like contact names. Computed each time and never stored.
 /// </remarks>
 public static class Rooms
@@ -24,7 +25,8 @@ public static class Rooms
         // Only Rows That Mention A Resource Are Parsed
         foreach (var (_, email, name, isRoom, _) in FrequentPeople.Attendees(conn, "AND raw_json LIKE '%resource%'", ("$account", accountId)))
         {
-            if (!isRoom)
+            // Google's Resource Address Is Required: a resource flag on any other address could be spoofed by an invite
+            if (!isRoom || !email.EndsWith(EventJson.RoomDomain, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }

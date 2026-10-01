@@ -37,4 +37,20 @@ public sealed class CalendarEditsTests
     [Fact]
     public void RemindersPatch_None_IsAnEmptyList() =>
         Assert.Equal("""{"defaultReminders":[]}""", CalendarEdits.RemindersPatch([]));
+
+    [Fact]
+    public void RemindersPatch_KeepsGooglesEmailReminders()
+    {
+        const string stored = """[{"method":"email","minutes":60},{"method":"popup","minutes":10},{"method":"sms","minutes":-3}]""";
+
+        Assert.Equal("""{"defaultReminders":[{"method":"popup","minutes":30},{"method":"email","minutes":60}]}""", CalendarEdits.RemindersPatch([30], stored));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not json")]
+    [InlineData("{}")]
+    public void RemindersPatch_UnreadableStored_KeepsNothingExtra(string? stored) =>
+        Assert.Equal("""{"defaultReminders":[{"method":"popup","minutes":5}]}""", CalendarEdits.RemindersPatch([5], stored));
 }

@@ -171,6 +171,15 @@ public static partial class CalendarStore
             ("$account", accountId),
             ("$id", calendarId));
 
+    /// <summary>A calendar's default reminders as stored (Google's <c>defaultReminders</c> JSON array), or null.</summary>
+    public static string? DefaultRemindersJson(SqliteConnection conn, string accountId, string calendarId) =>
+        conn.Query(
+            null,
+            "SELECT default_reminders FROM calendars WHERE account_id = $account AND id = $id;",
+            r => r.GetStringOrNull(0),
+            ("$account", accountId),
+            ("$id", calendarId)).FirstOrDefault();
+
     /// <summary>Stores the account's calendar order (IDs not listed keep their place after the listed ones).</summary>
     public static void Reorder(SqliteConnection conn, string accountId, IReadOnlyList<string> calendarIds)
     {
