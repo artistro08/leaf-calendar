@@ -331,8 +331,14 @@ public sealed class TimeGridTests : IDisposable
         Assert.True(Retry.WhileFalse(() => Rest(leaf).Top > 0, TimeSpan.FromSeconds(5)).Success);
         var top = Rest(leaf).Top;
 
+        // Ctrl stays down until Leaf has read the wheel (it checks the modifier keys when it handles the notch)
         Keyboard.Press(VirtualKeyShort.CONTROL);
-        try { LeafApp.WheelOver(leaf.WaitFor("TimeGrid"), 2); }
+        try
+        {
+            Thread.Sleep(200);
+            LeafApp.WheelOver(leaf.WaitFor("TimeGrid"), 2);
+            Thread.Sleep(300);
+        }
         finally { Keyboard.Release(VirtualKeyShort.CONTROL); }
 
         Assert.True(Retry.WhileFalse(() => card.BoundingRectangle.Height > before + 8, TimeSpan.FromSeconds(3)).Success, "Ctrl+wheel didn't zoom in.");
