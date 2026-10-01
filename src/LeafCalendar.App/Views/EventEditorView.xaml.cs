@@ -379,6 +379,15 @@ public sealed partial class EventEditorView : UserControl
             return;
         }
 
+        // The Arrow (Or Enter) With Nothing Typed Drops Down Every Common Zone
+        if (args.ChosenSuggestion is null && args.QueryText == editor.TimeZoneText)
+        {
+            editor.RefreshZoneSuggestions(DateTimeOffset.UtcNow, all: true);
+            TimeZoneBox.Focus(FocusState.Programmatic);
+            TimeZoneBox.IsSuggestionListOpen = true;
+            return;
+        }
+
         var chosen = args.ChosenSuggestion ?? editor.ZoneSuggestions.FirstOrDefault();
         if (editor.ZoneSuggestions.FirstOrDefault(s => ReferenceEquals(s, chosen)) is { } zone)
         {
@@ -442,6 +451,11 @@ public sealed partial class EventEditorView : UserControl
     // DESCRIPTION
     // =========================================================================
 
+    // The stock text box padding (TextControlThemePadding), and the same with the toolbar row on top: 4 margin, the 32
+    // buttons, then 4 more before the first line
+    static readonly Thickness TextPadding        = new(10, 5, 6, 6);
+    static readonly Thickness ToolbarTextPadding = new(10, 40, 6, 6);
+
     List<(string Text, Uri Link)> _anchors = [];
     bool _descriptionTouched;
     bool _loadingDescription;
@@ -456,6 +470,7 @@ public sealed partial class EventEditorView : UserControl
         _anchors                      = RichDescription.Load(DescriptionBox, DescriptionHtml.Lines(Editor?.Description ?? ""));
         DescriptionBox.IsReadOnly     = tooLong;
         DescriptionToolbar.Visibility = tooLong ? Visibility.Collapsed : Visibility.Visible;
+        DescriptionBox.Padding        = tooLong ? TextPadding : ToolbarTextPadding;
         _descriptionTouched           = false;
         _loadingDescription           = false;
         SyncToolbar();

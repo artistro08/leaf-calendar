@@ -16,7 +16,7 @@ public class EventJsonTests
           "end": { "dateTime": "2026-10-01T15:00:00-04:00", "timeZone": "America/New_York" },
           "organizer": { "email": "boss@example.com" },
           "attendees": [
-            { "email": "boss@example.com", "organizer": true, "responseStatus": "accepted" },
+            { "email": "boss@example.com", "displayName": "Pat Boss", "organizer": true, "responseStatus": "accepted" },
             { "email": "me@example.com", "self": true, "responseStatus": "needsAction" },
             { "email": "you@example.com", "optional": true, "responseStatus": "tentative", "comment": "Late" }
           ],
@@ -44,6 +44,7 @@ public class EventJsonTests
         Assert.Equal([10], draft.ReminderMinutes);
         Assert.Equal(3, draft.Guests.Count);
         Assert.True(draft.Guests[0].IsOrganizer);
+        Assert.Equal("Pat Boss", draft.Guests[0].Name);
         Assert.True(draft.Guests[1].IsSelf);
         Assert.Equal(new Guest("you@example.com", Optional: true, Response: ResponseStatus.Tentative, Comment: "Late"), draft.Guests[2]);
         Assert.Equal(new Uri("https://meet.google.com/abc-defg-hij"), draft.ConferenceUri);

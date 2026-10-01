@@ -71,7 +71,7 @@ public sealed class EditorExtrasTests : IDisposable
         using var leaf = Launch();
         EditDentist(leaf);
 
-        leaf.WaitFor("EditorShowAs").AsComboBox().Select("Free");
+        leaf.WaitFor("EditorShowAs").AsComboBox().Select("Show me as free");
         SaveWithCtrlEnter(leaf);
 
         Assert.Equal("""{"transparency":"transparent"}""", JsonNode.Parse(DentistPatch().Body)!.ToJsonString());
@@ -178,6 +178,30 @@ public sealed class EditorExtrasTests : IDisposable
 
         var body = JsonNode.Parse(_google.WaitForWrite(w => w.Method == "POST" && w.Body.Contains("\"x\"", StringComparison.Ordinal)).Body)!;
         Assert.NotNull(body["conferenceData"]?["createRequest"]);
+    }
+
+    [Fact]
+    public void TimeZoneArrow_ListsZones_AndTakesOnlyAListedOne()
+    {
+        Seed(new LeafSettings { PrimaryTimeZone = "America/New_York" });
+        using var leaf = Launch();
+        EditDentist(leaf);
+        var edit   = ZoneEdit(leaf);
+        var before = edit.Text;
+
+        // The arrow drops down the common zones without typing
+        var arrow = leaf.WaitFor("EditorTimeZoneBox").FindFirstDescendant(cf => cf.ByAutomationId("QueryButton"))
+            ?? throw new InvalidOperationException("The time zone box has no arrow.");
+        arrow.Click();
+        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count > 8, TimeSpan.FromSeconds(10)).Success, $"The arrow listed {Suggestions(leaf).Count} zones.");
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+
+        // Typed text that isn't picked is dropped when focus leaves
+        edit.Click();
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
+        Keyboard.Type("Nowhere at all");
+        leaf.WaitFor("EditorTitle").AsTextBox().Focus();
+        Assert.True(Retry.WhileFalse(() => ZoneEdit(leaf).Text == before, TimeSpan.FromSeconds(5)).Success, $"The box kept \"{ZoneEdit(leaf).Text}\".");
     }
 
     [Fact]

@@ -88,7 +88,8 @@
                             AutomationProperties.AutomationId="EditorEndTime" />
                     </Grid>
 
-                    <!-- Time Zone (the dates and times above are on this zone's clock) -->
+                    <!-- Time Zone (the dates and times above are on this zone's clock). A searchable dropdown: typing filters,
+                         the arrow lists every common zone, and only a zone from the list is taken -->
                     <AutoSuggestBox
                         x:Name="TimeZoneBox"
                         Header="Time zone"
@@ -101,6 +102,9 @@
                         LostFocus="OnZoneLostFocus"
                         AutomationProperties.Name="Time zone"
                         AutomationProperties.AutomationId="EditorTimeZoneBox">
+                        <AutoSuggestBox.QueryIcon>
+                            <FontIcon Glyph="&#xE70D;" FontSize="12" />
+                        </AutoSuggestBox.QueryIcon>
                         <AutoSuggestBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:ZoneSuggestion">
                                 <TextBlock Text="{x:Bind Display}" TextTrimming="CharacterEllipsis" />
@@ -128,30 +132,33 @@
                                 <Ellipse Width="10" Height="10" VerticalAlignment="Center" Fill="{x:Bind local:EventEditorView.Brush(Color)}" />
                                 <StackPanel>
                                     <TextBlock Text="{x:Bind Name}" />
-                                    <TextBlock Text="{x:Bind AccountEmail}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="{x:Bind AccountEmail}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind ShowAccount}" />
                                 </StackPanel>
                             </StackPanel>
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
 
-                <!-- Show As And Visibility (Busy/Free is short; visibility takes the rest so "Default visibility" fits) -->
-                <Grid ColumnSpacing="8" ColumnDefinitions="Auto,*">
+                <!-- Show As And Visibility (the items say what each dropdown is, so there are no labels). Two equal star
+                     columns: a ComboBox sized by its content measures narrower while its list is open, which moved the pair -->
+                <Grid ColumnSpacing="8" ColumnDefinitions="*,*">
                     <ComboBox
                         x:Name="ShowAsBox"
                         HorizontalAlignment="Stretch"
                         SelectedIndex="{x:Bind Editor.ShowAsIndex, Mode=TwoWay}"
                         IsEnabled="{x:Bind Editor.IsOrdinaryType, Mode=OneWay}"
+                        ToolTipService.ToolTip="Show me as"
                         AutomationProperties.Name="Show as"
                         AutomationProperties.AutomationId="EditorShowAs">
-                        <ComboBoxItem Content="Busy" />
-                        <ComboBoxItem Content="Free" />
+                        <ComboBoxItem Content="Show me as busy" />
+                        <ComboBoxItem Content="Show me as free" />
                     </ComboBox>
                     <ComboBox
                         x:Name="VisibilityBox"
                         Grid.Column="1"
                         HorizontalAlignment="Stretch"
                         SelectedIndex="{x:Bind Editor.VisibilityIndex, Mode=TwoWay}"
+                        ToolTipService.ToolTip="Visibility"
                         AutomationProperties.Name="Visibility"
                         AutomationProperties.AutomationId="EditorVisibility">
                         <ComboBoxItem Content="Default visibility" />
@@ -277,7 +284,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:GuestRow">
-                                <!-- Guest Chip -->
+                                <!-- Guest Chip (name, then the address on its own line, then Optional; remove pinned top right) -->
                                 <Border
                                     Padding="8,4,4,4"
                                     CornerRadius="{StaticResource OverlayCornerRadius}"
@@ -288,19 +295,29 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <FontIcon VerticalAlignment="Center" Glyph="&#xE7BE;" FontSize="16" Visibility="{x:Bind IsRoom}" />
+                                        <StackPanel VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <FontIcon VerticalAlignment="Center" Glyph="&#xE7BE;" FontSize="16" Visibility="{x:Bind IsRoom}" />
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    Text="{x:Bind DisplayName, Mode=OneWay}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    AutomationProperties.AutomationId="{x:Bind GuestId}" />
+                                            </StackPanel>
                                             <TextBlock
-                                                VerticalAlignment="Center"
-                                                Text="{x:Bind DisplayName, Mode=OneWay}"
+                                                Style="{StaticResource CaptionTextBlockStyle}"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="{x:Bind Detail}"
                                                 TextTrimming="CharacterEllipsis"
-                                                AutomationProperties.AutomationId="{x:Bind GuestId}" />
+                                                TextWrapping="NoWrap"
+                                                Visibility="{x:Bind ShowDetail}"
+                                                AutomationProperties.AutomationId="{x:Bind DetailId}" />
+                                            <CheckBox MinWidth="0" Content="Optional" IsChecked="{x:Bind Optional, Mode=TwoWay}" Visibility="{x:Bind ShowOptional}" AutomationProperties.AutomationId="{x:Bind OptionalId}" />
                                         </StackPanel>
-                                        <CheckBox Grid.Column="1" MinWidth="0" Content="Optional" IsChecked="{x:Bind Optional, Mode=TwoWay}" Visibility="{x:Bind ShowOptional}" AutomationProperties.AutomationId="{x:Bind OptionalId}" />
                                         <Button
-                                            Grid.Column="2"
+                                            Grid.Column="1"
+                                            VerticalAlignment="Top"
                                             Style="{StaticResource LeafIconButtonStyle}"
                                             Command="{x:Bind RemoveCommand}"
                                             ToolTipService.ToolTip="Remove guest"
@@ -361,87 +378,97 @@
                 <StackPanel Spacing="4">
                     <TextBlock Text="Description" />
 
-                    <!-- Description Toolbar (hidden when the description is read-only) -->
-                    <StackPanel x:Name="DescriptionToolbar" Orientation="Horizontal" Spacing="4">
-                        <ToggleButton
-                            x:Name="BoldButton"
-                            Width="32"
-                            Height="32"
-                            Padding="0"
-                            AllowFocusOnInteraction="False"
-                            Click="OnBoldClick"
-                            ToolTipService.ToolTip="Bold (Ctrl+B)"
-                            AutomationProperties.Name="Bold"
-                            AutomationProperties.AutomationId="DescriptionBold">
-                            <FontIcon Glyph="&#xE8DD;" FontSize="16" />
-                        </ToggleButton>
-                        <ToggleButton
-                            x:Name="ItalicButton"
-                            Width="32"
-                            Height="32"
-                            Padding="0"
-                            AllowFocusOnInteraction="False"
-                            Click="OnItalicClick"
-                            ToolTipService.ToolTip="Italic (Ctrl+I)"
-                            AutomationProperties.Name="Italic"
-                            AutomationProperties.AutomationId="DescriptionItalic">
-                            <FontIcon Glyph="&#xE8DB;" FontSize="16" />
-                        </ToggleButton>
-                        <ToggleButton
-                            x:Name="UnderlineButton"
-                            Width="32"
-                            Height="32"
-                            Padding="0"
-                            AllowFocusOnInteraction="False"
-                            Click="OnUnderlineClick"
-                            ToolTipService.ToolTip="Underline (Ctrl+U)"
-                            AutomationProperties.Name="Underline"
-                            AutomationProperties.AutomationId="DescriptionUnderline">
-                            <FontIcon Glyph="&#xE8DC;" FontSize="16" />
-                        </ToggleButton>
-                        <ToggleButton
-                            x:Name="BulletsButton"
-                            Width="32"
-                            Height="32"
-                            Padding="0"
-                            AllowFocusOnInteraction="False"
-                            Click="OnBulletsClick"
-                            ToolTipService.ToolTip="Bulleted list"
-                            AutomationProperties.Name="Bulleted list"
-                            AutomationProperties.AutomationId="DescriptionBullets">
-                            <FontIcon Glyph="&#xE8FD;" FontSize="16" />
-                        </ToggleButton>
-                        <ToggleButton
-                            x:Name="NumbersButton"
-                            Width="32"
-                            Height="32"
-                            Padding="0"
-                            AllowFocusOnInteraction="False"
-                            Click="OnNumbersClick"
-                            ToolTipService.ToolTip="Numbered list"
-                            AutomationProperties.Name="Numbered list"
-                            AutomationProperties.AutomationId="DescriptionNumbers">
-                            <!-- Segoe Fluent Icons has no numbered list glyph: 1, 2, 3 beside three lines on the 16 DIP grid, 1 px strokes -->
-                            <PathIcon
-                                Width="16"
-                                Height="16"
-                                Data="M2,1 H3 V5 H2 Z M1,6 H4 V7 H1 Z M3,7 H4 V8 H3 Z M1,7.5 H4 V8.5 H1 Z M1,8.5 H2 V10 H1 Z M1,9 H4 V10 H1 Z M1,11 H4 V12 H1 Z M3,12 H4 V15 H3 Z M1.5,12.5 H4 V13.5 H1.5 Z M1,14 H4 V15 H1 Z M6,2.5 H15 V3.5 H6 Z M6,7.5 H15 V8.5 H6 Z M6,12.5 H15 V13.5 H6 Z" />
-                        </ToggleButton>
-                    </StackPanel>
-                    <!-- /Description Toolbar -->
+                    <!-- Description Box (the toolbar is its own row laid over the box, inside its border; the box's top
+                         padding, set in LoadDescription, keeps typed text below the buttons) -->
+                    <Grid>
+                        <RichEditBox
+                            x:Name="DescriptionBox"
+                            MinHeight="112"
+                            TextWrapping="Wrap"
+                            DisabledFormattingAccelerators="None"
+                            ClipboardCopyFormat="PlainText"
+                            AllowDrop="False"
+                            AutomationProperties.Name="Description"
+                            AutomationProperties.AutomationId="EditorDescription"
+                            Paste="OnDescriptionPaste"
+                            TextChanged="OnDescriptionTextChanged"
+                            SelectionChanged="OnDescriptionSelectionChanged" />
 
-                    <RichEditBox
-                        x:Name="DescriptionBox"
-                        MinHeight="80"
-                        TextWrapping="Wrap"
-                        DisabledFormattingAccelerators="None"
-                        ClipboardCopyFormat="PlainText"
-                        AllowDrop="False"
-                        AutomationProperties.Name="Description"
-                        AutomationProperties.AutomationId="EditorDescription"
-                        Paste="OnDescriptionPaste"
-                        TextChanged="OnDescriptionTextChanged"
-                        SelectionChanged="OnDescriptionSelectionChanged" />
+                        <!-- Description Toolbar (hidden when the description is read-only) -->
+                        <StackPanel
+                            x:Name="DescriptionToolbar"
+                            Margin="4,4,4,0"
+                            VerticalAlignment="Top"
+                            Orientation="Horizontal"
+                            Spacing="4">
+                            <ToggleButton
+                                x:Name="BoldButton"
+                                Width="32"
+                                Height="32"
+                                Padding="0"
+                                AllowFocusOnInteraction="False"
+                                Click="OnBoldClick"
+                                ToolTipService.ToolTip="Bold (Ctrl+B)"
+                                AutomationProperties.Name="Bold"
+                                AutomationProperties.AutomationId="DescriptionBold">
+                                <FontIcon Glyph="&#xE8DD;" FontSize="16" />
+                            </ToggleButton>
+                            <ToggleButton
+                                x:Name="ItalicButton"
+                                Width="32"
+                                Height="32"
+                                Padding="0"
+                                AllowFocusOnInteraction="False"
+                                Click="OnItalicClick"
+                                ToolTipService.ToolTip="Italic (Ctrl+I)"
+                                AutomationProperties.Name="Italic"
+                                AutomationProperties.AutomationId="DescriptionItalic">
+                                <FontIcon Glyph="&#xE8DB;" FontSize="16" />
+                            </ToggleButton>
+                            <ToggleButton
+                                x:Name="UnderlineButton"
+                                Width="32"
+                                Height="32"
+                                Padding="0"
+                                AllowFocusOnInteraction="False"
+                                Click="OnUnderlineClick"
+                                ToolTipService.ToolTip="Underline (Ctrl+U)"
+                                AutomationProperties.Name="Underline"
+                                AutomationProperties.AutomationId="DescriptionUnderline">
+                                <FontIcon Glyph="&#xE8DC;" FontSize="16" />
+                            </ToggleButton>
+                            <ToggleButton
+                                x:Name="BulletsButton"
+                                Width="32"
+                                Height="32"
+                                Padding="0"
+                                AllowFocusOnInteraction="False"
+                                Click="OnBulletsClick"
+                                ToolTipService.ToolTip="Bulleted list"
+                                AutomationProperties.Name="Bulleted list"
+                                AutomationProperties.AutomationId="DescriptionBullets">
+                                <FontIcon Glyph="&#xE8FD;" FontSize="16" />
+                            </ToggleButton>
+                            <ToggleButton
+                                x:Name="NumbersButton"
+                                Width="32"
+                                Height="32"
+                                Padding="0"
+                                AllowFocusOnInteraction="False"
+                                Click="OnNumbersClick"
+                                ToolTipService.ToolTip="Numbered list"
+                                AutomationProperties.Name="Numbered list"
+                                AutomationProperties.AutomationId="DescriptionNumbers">
+                                <!-- Segoe Fluent Icons has no numbered list glyph: 1, 2, 3 beside three lines on the 16 DIP grid, 1 px strokes -->
+                                <PathIcon
+                                    Width="16"
+                                    Height="16"
+                                    Data="M2,1 H3 V5 H2 Z M1,6 H4 V7 H1 Z M3,7 H4 V8 H3 Z M1,7.5 H4 V8.5 H1 Z M1,8.5 H2 V10 H1 Z M1,9 H4 V10 H1 Z M1,11 H4 V12 H1 Z M3,12 H4 V15 H3 Z M1.5,12.5 H4 V13.5 H1.5 Z M1,14 H4 V15 H1 Z M6,2.5 H15 V3.5 H6 Z M6,7.5 H15 V8.5 H6 Z M6,12.5 H15 V13.5 H6 Z" />
+                            </ToggleButton>
+                        </StackPanel>
+                        <!-- /Description Toolbar -->
+                    </Grid>
+                    <!-- /Description Box -->
                 </StackPanel>
                 <TextBlock Text="This description is too long to edit in Leaf." Visibility="{x:Bind Editor.DescriptionTooLong}" Style="{StaticResource LeafSecondaryTextStyle}" AutomationProperties.AutomationId="EditorDescriptionTooLong" />
                 <!-- /Description -->

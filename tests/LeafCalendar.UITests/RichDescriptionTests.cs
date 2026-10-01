@@ -73,6 +73,21 @@ public sealed class RichDescriptionTests : IDisposable
     }
 
     [Fact]
+    public void Toolbar_SitsInsideTheBox_AboveTheText()
+    {
+        using var leaf = OpenEditor();
+        var box      = FocusDescription(leaf);
+        var bounds   = box.BoundingRectangle;
+        var bold     = leaf.WaitFor("DescriptionBold").BoundingRectangle;
+        var numbers  = leaf.WaitFor("DescriptionNumbers").BoundingRectangle;
+        var firstTop = box.Patterns.Text.Pattern.DocumentRange.GetBoundingRectangles().Min(r => r.Top);
+
+        // The buttons are laid over the box's top row, inside its border; the first line of text starts below them
+        Assert.True(bounds.Contains(bold) && bounds.Contains(numbers), $"The toolbar ({bold}, {numbers}) isn't inside the box ({bounds}).");
+        Assert.True(firstTop >= bold.Bottom, $"The text starts at {firstTop}, under the toolbar (bottom {bold.Bottom}).");
+    }
+
+    [Fact]
     public void BoldButton_ThenType_SavesBoldText()
     {
         using var leaf = OpenEditor();

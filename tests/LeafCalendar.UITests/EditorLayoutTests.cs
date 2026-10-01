@@ -117,6 +117,46 @@ public sealed class EditorLayoutTests : IDisposable
     }
 
     [Fact]
+    public void ShowAsAndVisibility_DontMove_WhenEitherOpens()
+    {
+        using var leaf = Launch();
+        EditDentist(leaf);
+        var showAs     = leaf.WaitFor("EditorShowAs").AsComboBox();
+        var visibility = leaf.WaitFor("EditorVisibility").AsComboBox();
+        var before     = (showAs.BoundingRectangle, visibility.BoundingRectangle);
+
+        // Opening (and closing) either dropdown leaves both where they were
+        foreach (var box in new[] { showAs, visibility, showAs })
+        {
+            box.Expand();
+            Thread.Sleep(500);
+            Assert.Equal(before, (showAs.BoundingRectangle, visibility.BoundingRectangle));
+            box.Collapse();
+            Thread.Sleep(300);
+            Assert.Equal(before, (showAs.BoundingRectangle, visibility.BoundingRectangle));
+        }
+
+        // The pair shares the row evenly
+        Assert.True(Math.Abs(before.Item1.Width - before.Item2.Width) <= 1, $"Show as is {before.Item1.Width} wide, visibility {before.Item2.Width}.");
+    }
+
+    [Fact]
+    public void CalendarPicker_OneAccount_HidesTheEmail()
+    {
+        using var leaf = Launch();
+        EditDentist(leaf);
+        var box = leaf.WaitFor("EditorCalendar").AsComboBox();
+        box.Expand();
+        Thread.Sleep(500);
+
+        // One line per calendar: its name (a primary calendar's name is the address itself, so count the lines)
+        var lines = box.Items.Select(i => string.Join(" | ", i.FindAllDescendants(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.Text)).Select(t => t.Name))).ToList();
+        box.Collapse();
+        Assert.NotEmpty(lines);
+        Assert.All(lines, line => Assert.DoesNotContain(" | ", line, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Header_FollowsTheTitleForANewEvent()
     {
         using var leaf = Launch();
