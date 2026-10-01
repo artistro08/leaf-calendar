@@ -20,6 +20,9 @@ public sealed partial class CalendarPage
     // The time travel and zone switch bars above the calendar
     TimeTravelBar? _travelBar;
 
+    /// <summary>The command menu opened (true) or closed (false); the window dims behind it while it's open.</summary>
+    public event EventHandler<bool>? CommandMenuShown;
+
     /// <summary>
     /// The Next month button's center, in window DIPs, once the open sidebar has settled; null before it's laid out.
     /// </summary>
@@ -99,10 +102,16 @@ public sealed partial class CalendarPage
             var style  = new Style(typeof(FlyoutPresenter));
             style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(0)));
             style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(8)));
-            style.Setters.Add(new Setter(FrameworkElement.MaxWidthProperty, 600d));
+            style.Setters.Add(new Setter(FrameworkElement.MaxWidthProperty, 640d));
 
+            // The window dims behind the menu while it's open (closed by Esc, a pick, or a click outside it)
             var flyout = new Flyout { Content = menu, FlyoutPresenterStyle = style };
-            flyout.Opened += (_, _) => menu.FocusBox();
+            flyout.Opened += (_, _) =>
+            {
+                menu.FocusBox();
+                CommandMenuShown?.Invoke(this, true);
+            };
+            flyout.Closed += (_, _) => CommandMenuShown?.Invoke(this, false);
 
             (_commandFlyout, _commandMenu) = (flyout, menu);
         }

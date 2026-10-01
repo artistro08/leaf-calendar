@@ -222,6 +222,45 @@ public sealed class CommandMenuTests : IDisposable
     }
 
     [Fact]
+    public void Dim_ShowsWhileOpen_GoneAfterEscAndAfterAPick()
+    {
+        using var leaf = Launch();
+        Assert.False(leaf.Exists("CommandMenuDim"));
+
+        // Open, Then Esc
+        OpenMenu(leaf);
+        Assert.NotNull(leaf.WaitFor("CommandMenuDim"));
+        Keyboard.Type(VirtualKeyShort.ESCAPE);
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("CommandMenuDim"), Wait).Success, "The dim stayed after Esc.");
+
+        // Open, Then Pick A Row (the date)
+        OpenMenu(leaf);
+        Assert.NotNull(leaf.WaitFor("CommandMenuDim"));
+        Keyboard.Type("today");
+        WaitForFirstRow(leaf, "CommandResult_date");
+        Keyboard.Type(VirtualKeyShort.RETURN);
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("CommandMenuDim"), Wait).Success, "The dim stayed after a pick.");
+    }
+
+    [Fact]
+    public void Headers_AreSkippedByTheArrowKeys()
+    {
+        using var leaf = Launch();
+        OpenMenu(leaf);
+
+        // A Date, Then Actions: Down From The Date Lands On The First Action, Not The "Actions" Header
+        Keyboard.Type("today");
+        WaitForFirstRow(leaf, "CommandResult_date");
+        Assert.True(leaf.ExistsAnywhere("CommandHeader_actions"));
+        Keyboard.Type(VirtualKeyShort.DOWN);
+
+        var results = leaf.WaitForAnywhere("CommandResults");
+        var second  = RowIds(leaf)[1];
+        Assert.True(Retry.WhileFalse(() => results.Patterns.Selection.Pattern.Selection.Value is [var selected]
+            && selected.FindFirstDescendant(cf => cf.ByAutomationId(second)) is not null, Wait).Success, $"Down didn't select {second}.");
+    }
+
+    [Fact]
     public void ArrowKeys_MoveTheSelection_FocusStaysInTheBox()
     {
         using var leaf = Launch();

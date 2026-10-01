@@ -209,5 +209,20 @@
             <!-- /Toolbar -->
         </TitleBar>
         <!-- /Title Bar -->
+
+        <!-- Command Menu Dim (over the whole window, title bar row included, while the command menu is open; it fades in
+             and out, and the menu's own light dismiss closes it on a click here) -->
+        <Border
+            x:Name="CommandMenuDim"
+            Grid.RowSpan="2"
+            Background="{ThemeResource SmokeFillColorDefaultBrush}"
+            Opacity="0"
+            Visibility="Collapsed"
+            AutomationProperties.Name="Command menu backdrop"
+            AutomationProperties.AutomationId="CommandMenuDim">
+            <Border.OpacityTransition>
+                <ScalarTransition Duration="0:0:0.167" />
+            </Border.OpacityTransition>
+        </Border>
     </Grid>
 </Window>

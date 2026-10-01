@@ -3,106 +3,226 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:LeafCalendar.App.Views"
-    Width="560"
+    Width="640"
     AutomationProperties.Name="Command menu"
     AutomationProperties.AutomationId="CommandMenu">
 
-    <!-- Command Menu (search box, divider, results or the empty line) -->
+    <UserControl.Resources>
+        <!-- Key Chip (a shortcut key, PowerToys Command Palette style; radius 4 and Caption per the design standard) -->
+        <Style x:Key="CommandKeyChipStyle" TargetType="Border">
+            <Setter Property="MinWidth" Value="20" />
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{ThemeResource ControlFillColorSecondaryBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource DividerStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style x:Key="CommandKeyTextStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+        </Style>
+    </UserControl.Resources>
+
+    <!-- Command Menu (search row, divider, results or the empty state, footer); transparent, so the flyout's acrylic shows -->
     <StackPanel>
-        <!-- Search Box (Alt+Enter jumps to the selected event; WinUI routes it as a system key, so it's an accelerator) -->
-        <TextBox
-            x:Name="CommandSearchBox"
-            Margin="12"
-            PlaceholderText="Search events, or type a command or a date"
-            TextChanged="OnTextChanged"
-            PreviewKeyDown="OnSearchKeyDown"
-            AutomationProperties.Name="Search"
-            AutomationProperties.AutomationId="CommandSearchBox">
-            <TextBox.KeyboardAccelerators>
-                <KeyboardAccelerator Key="Enter" Modifiers="Menu" Invoked="OnJumpInvoked" />
-            </TextBox.KeyboardAccelerators>
-        </TextBox>
+        <!-- Search Row (a leading search glyph, then a borderless box) -->
+        <Grid Padding="16,12" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <FontIcon
+                VerticalAlignment="Center"
+                FontSize="16"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Glyph="&#xE721;"
+                AutomationProperties.AccessibilityView="Raw" />
+
+            <!-- Search Box (Alt+Enter jumps to the selected event; WinUI routes it as a system key, so it's an accelerator) -->
+            <TextBox
+                x:Name="CommandSearchBox"
+                Grid.Column="1"
+                MinHeight="32"
+                VerticalAlignment="Center"
+                Background="Transparent"
+                BorderThickness="0"
+                FontSize="16"
+                PlaceholderForeground="{ThemeResource TextFillColorTertiaryBrush}"
+                PlaceholderText="Search events, or type a command or a date"
+                TextChanged="OnTextChanged"
+                PreviewKeyDown="OnSearchKeyDown"
+                KeyboardAcceleratorPlacementMode="Hidden"
+                AutomationProperties.Name="Search"
+                AutomationProperties.AutomationId="CommandSearchBox">
+                <TextBox.Resources>
+                    <!-- No fill and no focus underline: the row is the field -->
+                    <SolidColorBrush x:Key="TextControlBackground" Color="Transparent" />
+                    <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="Transparent" />
+                    <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="Transparent" />
+                    <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="Transparent" />
+                    <Thickness x:Key="TextControlBorderThemeThicknessFocused">0</Thickness>
+                </TextBox.Resources>
+                <TextBox.KeyboardAccelerators>
+                    <KeyboardAccelerator Key="Enter" Modifiers="Menu" Invoked="OnJumpInvoked" />
+                </TextBox.KeyboardAccelerators>
+            </TextBox>
+        </Grid>
+        <!-- /Search Row -->
 
         <!-- Divider -->
         <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
 
         <!-- Results (the list doesn't scroll itself, so the scroller is ours and its indicator shows on hover) -->
-        <ScrollViewer x:Name="ResultsScroll" MaxHeight="400">
+        <ScrollViewer x:Name="ResultsScroll" MaxHeight="384">
             <ListView
                 x:Name="CommandResults"
-                Padding="4"
+                Padding="8"
                 SelectionMode="Single"
                 IsItemClickEnabled="True"
                 IsTabStop="False"
                 ScrollViewer.VerticalScrollMode="Disabled"
                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
                 ItemClick="OnItemClick"
+                SelectionChanged="OnSelectionChanged"
                 ContainerContentChanging="OnRowChanging"
                 AutomationProperties.Name="Results"
                 AutomationProperties.AutomationId="CommandResults">
+                <ListView.Resources>
+                    <!-- A plain rounded fill marks the selection, without the stock accent pill -->
+                    <x:Boolean x:Key="ListViewItemSelectionIndicatorVisualEnabled">False</x:Boolean>
+                </ListView.Resources>
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="AllowFocusOnInteraction" Value="False" />
+                        <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
+                    </Style>
+                </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
-                    <!-- Result Row -->
+                    <!-- Result Row Or Section Header (the container's height is set per kind in code: 44 or 28) -->
                     <DataTemplate x:DataType="local:CommandRow">
-                        <Grid
-                            MinHeight="40"
-                            Padding="8,4"
-                            ColumnSpacing="12"
-                            AutomationProperties.Name="{x:Bind Title}"
-                            AutomationProperties.AutomationId="{x:Bind AutomationId}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="16" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <!-- Event Color, Or The Action's Glyph -->
-                            <Border
-                                Width="12"
-                                Height="12"
-                                CornerRadius="4"
-                                Background="{x:Bind local:CommandMenu.Brush(Color)}"
-                                Visibility="{x:Bind EventVisibility}" />
-                            <FontIcon
-                                FontSize="16"
-                                Glyph="{x:Bind Glyph}"
-                                Visibility="{x:Bind ActionVisibility}"
-                                AutomationProperties.AccessibilityView="Raw" />
-
-                            <!-- Title And Detail -->
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
-                                <TextBlock
-                                    Style="{StaticResource CaptionTextBlockStyle}"
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                    Text="{x:Bind Detail}"
-                                    TextTrimming="CharacterEllipsis"
-                                    Visibility="{x:Bind DetailVisibility}" />
-                            </StackPanel>
-
-                            <!-- Shortcut -->
+                        <Grid AutomationProperties.Name="{x:Bind Title}" AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                            <!-- Section Header -->
                             <TextBlock
-                                Grid.Column="2"
-                                VerticalAlignment="Center"
+                                Margin="0,0,0,4"
+                                VerticalAlignment="Bottom"
                                 Style="{StaticResource CaptionTextBlockStyle}"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="{x:Bind Keys}" />
+                                Text="{x:Bind Title}"
+                                Visibility="{x:Bind HeaderVisibility}" />
+
+                            <!-- Row -->
+                            <Grid ColumnSpacing="12" Visibility="{x:Bind RowVisibility}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="28" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Event Color, Or The Action's Glyph -->
+                                <Border
+                                    Width="16"
+                                    Height="16"
+                                    CornerRadius="4"
+                                    Background="{x:Bind local:CommandMenu.Brush(Color)}"
+                                    Visibility="{x:Bind EventVisibility}" />
+                                <FontIcon
+                                    FontSize="20"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Glyph="{x:Bind Glyph}"
+                                    Visibility="{x:Bind ActionVisibility}"
+                                    AutomationProperties.AccessibilityView="Raw" />
+
+                                <!-- Title And Detail, Side By Side -->
+                                <Grid Grid.Column="1" VerticalAlignment="Center" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{x:Bind Title}" MaxLines="1" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="{x:Bind Detail}"
+                                        MaxLines="1"
+                                        TextTrimming="CharacterEllipsis"
+                                        Visibility="{x:Bind DetailVisibility}" />
+                                </Grid>
+
+                                <!-- Shortcut -->
+                                <Border Grid.Column="2" Style="{StaticResource CommandKeyChipStyle}" Visibility="{x:Bind KeysVisibility}">
+                                    <TextBlock Style="{StaticResource CommandKeyTextStyle}" Text="{x:Bind Keys}" />
+                                </Border>
+                            </Grid>
+                            <!-- /Row -->
                         </Grid>
                     </DataTemplate>
-                    <!-- /Result Row -->
                 </ListView.ItemTemplate>
             </ListView>
         </ScrollViewer>
         <!-- /Results -->
 
         <!-- Nothing Found -->
-        <TextBlock
-            x:Name="CommandEmpty"
-            Margin="16,12"
-            Style="{StaticResource CaptionTextBlockStyle}"
-            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-            Text="No events or actions match."
-            Visibility="Collapsed"
-            AutomationProperties.AutomationId="CommandEmpty" />
+        <StackPanel x:Name="CommandEmptyPanel" Padding="24" Spacing="8" Visibility="Collapsed">
+            <FontIcon
+                FontSize="24"
+                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                Glyph="&#xE721;"
+                AutomationProperties.AccessibilityView="Raw" />
+            <TextBlock
+                HorizontalAlignment="Center"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Text="No events or actions match."
+                AutomationProperties.AutomationId="CommandEmpty" />
+        </StackPanel>
+
+        <!-- Footer (hints only: what the selected row is, and what Enter and Alt+Enter do) -->
+        <Border
+            x:Name="CommandFooter"
+            MinHeight="40"
+            Padding="16,4,8,4"
+            Background="{ThemeResource LeafFlyoutFooterBrush}"
+            BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+            BorderThickness="0,1,0,0">
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    x:Name="FooterKind"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    AutomationProperties.AutomationId="CommandFooterKind" />
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
+                    <!-- Open: Enter -->
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" Text="Open" />
+                        <Border Style="{StaticResource CommandKeyChipStyle}">
+                            <TextBlock Style="{StaticResource CommandKeyTextStyle}" Text="Enter" />
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Go To Event: Alt+Enter (event rows only) -->
+                    <StackPanel x:Name="FooterJump" Orientation="Horizontal" Spacing="4" Visibility="Collapsed">
+                        <TextBlock VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" Text="Go to event" />
+                        <Border Style="{StaticResource CommandKeyChipStyle}">
+                            <TextBlock Style="{StaticResource CommandKeyTextStyle}" Text="Alt" />
+                        </Border>
+                        <Border Style="{StaticResource CommandKeyChipStyle}">
+                            <TextBlock Style="{StaticResource CommandKeyTextStyle}" Text="Enter" />
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+        <!-- /Footer -->
     </StackPanel>
     <!-- /Command Menu -->
 </UserControl>

@@ -81,22 +81,6 @@
                     <!-- Frame: the panel plus 12 DIPs all round (room for its shadow); its taskbar-side edge is the work
                          area's edge, where the slide is clipped, so the panel seems to come out from behind the taskbar -->
                     <Grid x:Name="AgendaFrame" Padding="12">
-                        <Grid.Resources>
-                            <ResourceDictionary>
-                                <ResourceDictionary.ThemeDictionaries>
-                                    <ResourceDictionary x:Key="Light">
-                                        <SolidColorBrush x:Key="LeafFlyoutFooterBrush" Color="#0F000000" />
-                                    </ResourceDictionary>
-                                    <ResourceDictionary x:Key="Dark">
-                                        <SolidColorBrush x:Key="LeafFlyoutFooterBrush" Color="#33000000" />
-                                    </ResourceDictionary>
-                                    <ResourceDictionary x:Key="HighContrast">
-                                        <SolidColorBrush x:Key="LeafFlyoutFooterBrush" Color="{ThemeResource SystemColorWindowColor}" />
-                                    </ResourceDictionary>
-                                </ResourceDictionary.ThemeDictionaries>
-                            </ResourceDictionary>
-                        </Grid.Resources>
-
                         <!-- Panel -->
                         <Grid
                             x:Name="AgendaPanel"
