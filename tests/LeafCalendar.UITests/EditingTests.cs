@@ -269,7 +269,7 @@ public sealed class EditingTests : IDisposable
         Assert.True(leaf.WaitFor("EditorDescription").Patterns.Value.Pattern.IsReadOnly.Value);
 
         leaf.WaitFor("EditorTitle").AsTextBox().Text = "Long lunch";
-        leaf.WaitFor("EditorSaveQuietButton").AsButton().Invoke();
+        leaf.WaitFor("EditorSaveButton").AsButton().Invoke();
 
         var write = _google.WaitForWrite(w => w.Method == "PATCH" && w.Path.EndsWith("/events/evt-lunch", StringComparison.Ordinal));
         Assert.Contains("Long lunch", write.Body, StringComparison.Ordinal);
