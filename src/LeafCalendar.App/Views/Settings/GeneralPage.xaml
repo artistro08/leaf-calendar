@@ -5,7 +5,7 @@
     xmlns:controls="using:LeafCalendar.App.Controls">
 
     <ScrollViewer x:Name="PageScroll">
-        <StackPanel MaxWidth="900" Spacing="4">
+        <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
             <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="General" />
 
             <!-- Appearance -->

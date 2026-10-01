@@ -6,7 +6,7 @@
     xmlns:vm="using:LeafCalendar.App.ViewModels">
 
     <ScrollViewer x:Name="PageScroll">
-        <StackPanel MaxWidth="900" Spacing="4">
+        <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
             <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Time zones" />
 
             <!-- Primary Time Zone (Windows' zone by default, or one Leaf keeps when you travel) -->

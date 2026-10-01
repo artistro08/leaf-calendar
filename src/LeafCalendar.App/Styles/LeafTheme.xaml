@@ -196,6 +196,13 @@
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
+    <!-- Settings Page Column (inside the page's full-width ScrollViewer: the content inset, capped at 1000 and centered past that, like Windows Settings) -->
+    <Style x:Key="LeafSettingsPagePanelStyle" TargetType="StackPanel">
+        <Setter Property="MaxWidth" Value="1072" />
+        <Setter Property="Padding" Value="36,24" />
+        <Setter Property="Spacing" Value="4" />
+    </Style>
+
     <!-- Settings Page Title -->
     <Style x:Key="LeafSettingsPageTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource TitleTextBlockStyle}">
         <Setter Property="Margin" Value="0,0,0,16" />

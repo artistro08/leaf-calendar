@@ -38,9 +38,9 @@ public sealed record SettingsContext(LeafServices Services, CalendarViewModel Ca
 }
 
 /// <summary>
-/// The Settings window, modeled on the Windows 11 Settings app: Mica, a stock title bar with the app icon and a pane
-/// toggle, and a stock left <see cref="NavigationView"/> (240 wide, collapsing when the window is narrow) over a frame
-/// of setting pages: General, Calendars, Time zones, Notifications, Tray, Shortcuts, Accounts, and About at the bottom
+/// The Settings window, modeled on the Windows 11 Settings app: Mica, a stock title bar with the app icon, a back
+/// button on sub-pages and the stock hamburger, and a stock left <see cref="NavigationView"/> (240 wide, collapsing when
+/// the window is narrow) over a frame of setting pages (each fills the window, its column capped and centered): General, Calendars, Time zones, Notifications, Tray, Shortcuts, Accounts, and About at the bottom
 /// of the pane. There's one at a time: <see cref="Open"/> brings the open one forward. It opens at 1000 × 720 DIPs,
 /// centered on the monitor under the cursor, and stays open when the main window closes (Leaf lives in the tray). Every
 /// change saves immediately through the shared view model.
@@ -69,7 +69,7 @@ public sealed partial class SettingsWindow : Window
         // Pages (items from concrete lists: CsWinRT's AOT mode can't cast the native MenuItems vector)
         _pages =
         [
-            (SettingsSection.General, NavItem("General", 0xE771, "SettingsNav_General"), typeof(GeneralPage)),
+            (SettingsSection.General, NavItem("General", 0xE713,"SettingsNav_General"), typeof(GeneralPage)),
             (SettingsSection.Calendars, NavItem("Calendars", 0xE787, "SettingsNav_Calendars"), typeof(CalendarsPage)),
             (SettingsSection.TimeZones, NavItem("Time zones", 0xE774, "SettingsNav_TimeZones"), typeof(TimeZonesPage)),
             (SettingsSection.Notifications, NavItem("Notifications", 0xEA8F, "SettingsNav_Notifications"), typeof(NotificationsPage)),
@@ -148,7 +148,8 @@ public sealed partial class SettingsWindow : Window
         _shown        = section;
         _inClientForm = false;
         ContentFrame.Navigate(page.Page, _context, transition);
-        Navigation.SelectedItem = page.Item;
+        Navigation.SelectedItem         = page.Item;
+        AppTitleBar.IsBackButtonVisible = false;
     }
 
     /// <summary>
@@ -163,6 +164,7 @@ public sealed partial class SettingsWindow : Window
         _shown        = null;
         _inClientForm = true;
         ContentFrame.Navigate(typeof(ClientPage), _context, new SlideNavigationTransitionInfo { Effect = SlideNavigationTransitionEffect.FromRight });
+        AppTitleBar.IsBackButtonVisible = true;
     }
 
     /// <summary>Applies the app theme to the content and caption buttons.</summary>
@@ -201,6 +203,9 @@ public sealed partial class SettingsWindow : Window
     }
 
     void OnPaneToggleRequested(TitleBar sender, object args) => Navigation.IsPaneOpen = !Navigation.IsPaneOpen;
+
+    // Only sub-pages show the back button; the OAuth client form goes back to Accounts (sliding back, like Cancel)
+    void OnBackRequested(TitleBar sender, object args) => Show(SettingsSection.Accounts);
 
     // Compared by reference: type tests on items read back from WinRT fail under Native AOT
     void OnSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)

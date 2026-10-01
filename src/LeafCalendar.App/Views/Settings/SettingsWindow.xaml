@@ -14,18 +14,18 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Title Bar (the pane toggle opens and closes the navigation pane; same bare toggle as the main window) -->
+        <!-- Title Bar (the stock back button on sub-pages, then the stock hamburger that opens and closes the navigation pane) -->
         <TitleBar
             x:Name="AppTitleBar"
             Title="Settings"
             IsBackButtonVisible="False"
             IsPaneToggleButtonVisible="True"
+            BackRequested="OnBackRequested"
             PaneToggleRequested="OnPaneToggleRequested"
             AutomationProperties.AutomationId="SettingsTitleBar">
             <TitleBar.Resources>
                 <x:Double x:Key="TitleBarCompactHeight">48</x:Double>
                 <x:Double x:Key="TitleBarMinDragRegionWidth">8</x:Double>
-                <StaticResource x:Key="TitleBarPaneToggleButtonStyle" ResourceKey="LeafTitleBarPaneToggleButtonStyle" />
             </TitleBar.Resources>
             <TitleBar.IconSource>
                 <ImageIconSource ImageSource="ms-appx:///Assets/Square44x44Logo.png" />
@@ -45,7 +45,8 @@
             SelectionChanged="OnSelectionChanged"
             ItemInvoked="OnItemInvoked"
             AutomationProperties.AutomationId="SettingsNavigation">
-            <Frame x:Name="ContentFrame" Padding="36,24" />
+            <!-- Each page insets its own content, so its scroll bar sits at the window's right edge -->
+            <Frame x:Name="ContentFrame" />
         </NavigationView>
         <!-- /Navigation -->
     </Grid>

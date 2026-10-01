@@ -6,7 +6,7 @@
     xmlns:local="using:LeafCalendar.App.Views.Settings">
 
     <ScrollViewer x:Name="PageScroll">
-        <StackPanel MaxWidth="900" Spacing="4">
+        <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
             <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Tray" />
 
             <!-- Flyout -->
