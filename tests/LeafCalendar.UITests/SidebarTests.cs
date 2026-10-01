@@ -302,6 +302,21 @@ public sealed class SidebarTests : IDisposable
         Assert.True(Distance(detailsOpen, Panel(details, 1)) > 120, $"The details glyph's panel is {detailsOpen} open and {Panel(details, 1)} closed.");
     }
 
+    static readonly string[] ReadingOrder = ["Sidebar", "ViewHost", "DetailsPanel"];
+
+    // Narrator and Tab meet the parts left to right: the sidebar, the calendar, then the details panel
+    [Fact]
+    public void Parts_AreInReadingOrder()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor($"CalendarToggle_{FamilyId}");
+
+        var ids   = leaf.WaitFor("CalendarRoot").FindAllDescendants().Select(e => e.Properties.AutomationId.ValueOrDefault ?? "").ToList();
+        var order = ReadingOrder.Select(id => ids.IndexOf(id)).ToList();
+
+        Assert.True(order.All(i => i >= 0) && order[0] < order[1] && order[1] < order[2], $"Order: {string.Join(", ", order)}.");
+    }
+
     // The time grid's vertical offset, from the state it publishes when it comes to rest
     static string Top(AutomationElement grid) =>
         (grid.Properties.ItemStatus.ValueOrDefault ?? "").Split(';').FirstOrDefault(p => p.StartsWith("top=", StringComparison.Ordinal)) ?? "";

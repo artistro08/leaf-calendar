@@ -32,6 +32,16 @@
          The page runs under the title bar, so the top 48 px of each part sits in the title bar row. -->
     <Grid x:Name="Root" Background="Transparent" AutomationProperties.Name="Calendar" AutomationProperties.AutomationId="CalendarRoot">
 
+        <!-- Sidebar Pane (first, so Tab and Narrator go sidebar, calendar, details; drawn over the island) -->
+        <local:SidebarView
+            x:Name="Sidebar"
+            Canvas.ZIndex="2"
+            Width="264"
+            HorizontalAlignment="Left"
+            AutomationProperties.Name="Sidebar"
+            AutomationProperties.LandmarkType="Navigation"
+            AutomationProperties.AutomationId="Sidebar" />
+
         <!-- Island Fill (the island's color; its edges follow the panes as they slide) -->
         <Border x:Name="IslandFill" Background="{ThemeResource LayerFillColorDefaultBrush}" />
 
@@ -125,17 +135,8 @@
         </Grid>
         <!-- /Island Area -->
 
-        <!-- Sidebar Pane -->
-        <local:SidebarView
-            x:Name="Sidebar"
-            Width="264"
-            HorizontalAlignment="Left"
-            AutomationProperties.Name="Sidebar"
-            AutomationProperties.LandmarkType="Navigation"
-            AutomationProperties.AutomationId="Sidebar" />
-
         <!-- Details Pane (the details panel, or the share slots while sharing availability) -->
-        <Grid x:Name="DetailsPane" Width="320" HorizontalAlignment="Right">
+        <Grid x:Name="DetailsPane" Canvas.ZIndex="2" Width="320" HorizontalAlignment="Right">
             <local:DetailsPanel x:Name="Details" />
         </Grid>
         <!-- /Details Pane -->

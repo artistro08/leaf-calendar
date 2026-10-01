@@ -2,14 +2,12 @@ using System.Numerics;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Hosting;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Animation;
 
 namespace LeafCalendar.App.Views;
 
 /// <summary>
-/// The side panes' slide. Each pane lies over the page and slides in or out on the compositor's own thread (an
-/// independent transform animation; the island's fill edge is a composition animation on the same timing), so it
+/// The side panes' slide. Each pane lies over the page and slides in or out on the compositor's own thread (one
+/// composition animation on the island fill's edge, which the pane's translation and the island's clip follow), so it
 /// starts on the next frame and stays smooth however busy the UI thread gets. The island never
 /// slides: it takes its final size the moment a pane opens or closes, so the day columns, the scroll position, and
 /// the right edge (with the toolbar over it) stay put. Its fill grows or shrinks with the sliding pane's edge, and
@@ -31,11 +29,9 @@ public sealed partial class CalendarPage
     InsetClip? _islandClip;
     CubicBezierEasingFunction? _paneEasing;
 
-    // The panes' slide transforms (kept: reading RenderTransform back fails its cast under Native AOT), and their slides
-    readonly TranslateTransform _sidebarShift = new();
-    readonly TranslateTransform _detailsShift = new();
-    Storyboard? _sidebarStory;
-    Storyboard? _detailsStory;
+    // Each slide's number: only the latest one for a pane may collapse it when it ends
+    int _sidebarSlide;
+    int _detailsSlide;
 
     /// <summary>True when the sidebar takes up room (from the moment it starts to open until it starts to close).</summary>
     public bool IsSidebarOpen => _sidebarOpen;
@@ -86,9 +82,7 @@ public sealed partial class CalendarPage
         IslandArea.Margin = new Thickness(_sidebarOpen ? SidebarWidth : 0, 0, _detailsOpen ? DetailsWidth : 0, 0);
 
         var pane     = sidebar ? (UIElement)Sidebar : DetailsPane;
-        var shift    = sidebar ? _sidebarShift : _detailsShift;
         var width    = (float)(sidebar ? SidebarWidth : DetailsWidth);
-        var paneTo   = open ? 0 : sidebar ? -width : width;
         var fillTo   = open ? width : 0;
         var inset    = sidebar ? "LeftInset" : "RightInset";
         var duration = open ? PaneOpenDuration : PaneCloseDuration;
@@ -99,61 +93,44 @@ public sealed partial class CalendarPage
             return;
         }
 
-        // No Slide (the first layout, or animations turned off in Windows)
-        (sidebar ? _sidebarStory : _detailsStory)?.Stop();
-        pane.Visibility = Visibility.Visible;
-        if (!animate || !new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
-        {
-            _fillClip!.StopAnimation(inset);
-            _islandClip!.StopAnimation(inset);
-            shift.X = paneTo;
-            SetInset(_fillClip, sidebar, fillTo);
-            SetInset(_islandClip, sidebar, 0);
-            pane.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
-            return;
-        }
-
-        // Pane Slide (an independent animation, run by the compositor; from where it is now, so a toggle mid-slide turns around)
-        var slide = new DoubleAnimationUsingKeyFrames();
-        slide.KeyFrames.Add(new SplineDoubleKeyFrame
-        {
-            KeyTime   = duration,
-            KeySpline = new KeySpline { ControlPoint1 = new Windows.Foundation.Point(0, 0.35), ControlPoint2 = new Windows.Foundation.Point(0.15, 1) },
-            Value     = paneTo,
-        });
-        Storyboard.SetTarget(slide, shift);
-        Storyboard.SetTargetProperty(slide, "X");
-
-        var story = new Storyboard { Children = { slide } };
-        story.Completed += (_, _) =>
-        {
-            shift.X = paneTo;
-            if (!open && !(sidebar ? _sidebarOpen : _detailsOpen))
-            {
-                pane.Visibility = Visibility.Collapsed;
-            }
-        };
-
-        if (sidebar)
-        {
-            _sidebarStory = story;
-        }
-        else
-        {
-            _detailsStory = story;
-        }
-
-        story.Begin();
-
-        // Island Fill Edge (the same timing and curve, from where it is now)
+        // One Driver: the fill's edge. The pane rides on it (its edge is the fill's edge) and the island's clip follows it,
+        // all in the compositor's same frame, so nothing shows between them, and a toggle mid-slide turns around from
+        // wherever the edge is now
         var compositor = _fillClip!.Compositor;
-        _fillClip.StartAnimation(inset, Slide(compositor, fillTo, duration));
+        var visual     = ElementCompositionPreview.GetElementVisual(pane);
+        var ride       = compositor.CreateExpressionAnimation(sidebar ? "fill.LeftInset - width" : "width - fill.RightInset");
+        ride.SetReferenceParameter("fill", _fillClip);
+        ride.SetScalarParameter("width", width);
+        visual.StartAnimation("Translation.X", ride);
 
-        // The Island Shows Only Inside The Fill's Edge (closing: the space it already fills shows as the pane leaves it)
         var follow = compositor.CreateExpressionAnimation($"Max(fill.{inset} - room, 0)");
         follow.SetReferenceParameter("fill", _fillClip);
         follow.SetScalarParameter("room", open ? width : 0);
         _islandClip!.StartAnimation(inset, follow);
+
+        pane.Visibility = Visibility.Visible;
+        var slide = sidebar ? ++_sidebarSlide : ++_detailsSlide;
+
+        // No Slide (the first layout, or animations turned off in Windows): the edge jumps there
+        if (!animate || !new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
+        {
+            _fillClip.StopAnimation(inset);
+            SetInset(_fillClip, sidebar, fillTo);
+            pane.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+            return;
+        }
+
+        // Slide The Edge (a closed pane is collapsed once its own slide ends, so its controls leave the tab order)
+        var batch = compositor.CreateScopedBatch(CompositionBatchTypes.Animation);
+        _fillClip.StartAnimation(inset, Slide(compositor, fillTo, duration));
+        batch.End();
+        batch.Completed += (_, _) =>
+        {
+            if (!open && slide == (sidebar ? _sidebarSlide : _detailsSlide))
+            {
+                pane.Visibility = Visibility.Collapsed;
+            }
+        };
     }
     ScalarKeyFrameAnimation Slide(Compositor compositor, float to, TimeSpan duration)
     {
