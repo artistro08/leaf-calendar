@@ -99,7 +99,7 @@ public sealed partial class ShortcutsPage : Page
         shortcuts.Suspend();
         try
         {
-            var picked = await ShortcutDialog.AskAsync(XamlRoot, title, hotkey =>
+            var picked = await ShortcutDialog.AskAsync(this, title, hotkey =>
                 hotkey.ToString() == other ? $"“{otherName}” already uses {hotkey}."
                 : !shortcuts.IsFree(hotkey) ? $"Windows or another app is using {hotkey}. Try a different one."
                 : null);

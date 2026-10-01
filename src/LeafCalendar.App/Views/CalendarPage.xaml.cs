@@ -119,7 +119,7 @@ public sealed partial class CalendarPage : Page
         ViewModel.DetailsOpenRequested += OnDetailsOpenRequested;
 
         // Repeating Events Ask Which Events A Change Applies To
-        ViewModel.AskScope = (includeFollowing, includeThis) => ScopeDialog.AskAsync(XamlRoot, includeFollowing, includeThis);
+        ViewModel.AskScope = (includeFollowing, includeThis) => ScopeDialog.AskAsync(this, includeFollowing, includeThis);
 
         PeriodTitle.Text = ViewModel.PeriodTitle;
         SetSidebarOpen(ViewModel.Settings.SidebarOpen, animate: false);

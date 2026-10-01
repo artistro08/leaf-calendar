@@ -520,7 +520,7 @@ public sealed partial class MainWindow : Window
             var box = new NumberBox { Minimum = 1, Maximum = 31, Value = _calendar.Settings.CustomDayCount, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline };
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(box, "CustomDaysBox");
 
-            var dialog = new ContentDialog { XamlRoot = RootGrid.XamlRoot, Title = "Number of days", Content = box, PrimaryButtonText = "Show", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary };
+            var dialog = new ContentDialog { XamlRoot = RootGrid.XamlRoot, RequestedTheme = RootGrid.ActualTheme, Title = "Number of days", Content = box, PrimaryButtonText = "Show", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary };
             if (await dialog.ShowAsync() == ContentDialogResult.Primary && !double.IsNaN(box.Value))
             {
                 _calendar.SetMode(CalendarViewMode.Days, (int)box.Value);

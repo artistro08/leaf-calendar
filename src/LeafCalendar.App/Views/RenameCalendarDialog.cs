@@ -13,7 +13,7 @@ public static class RenameCalendarDialog
     /// Shows the dialog with the current name filled in. <c>Ok</c> is false when canceled; <c>Text</c> is what was
     /// typed (empty means Google's name). The caller checks whether it differs from the name shown.
     /// </summary>
-    public static async Task<(bool Ok, string? Text)> ShowAsync(XamlRoot root, CalendarInfo calendar)
+    public static async Task<(bool Ok, string? Text)> ShowAsync(FrameworkElement owner, CalendarInfo calendar)
     {
         ArgumentNullException.ThrowIfNull(calendar);
 
@@ -38,7 +38,8 @@ public static class RenameCalendarDialog
 
         var dialog = new ContentDialog
         {
-            XamlRoot          = root,
+            XamlRoot          = owner.XamlRoot,
+            RequestedTheme    = owner.ActualTheme,
             Title             = "Rename calendar",
             Content           = new StackPanel { Spacing = 8, Children = { box, hint } },
             PrimaryButtonText = "Rename",
@@ -54,11 +55,11 @@ public static class RenameCalendarDialog
     /// The whole "Rename…" step: asks, then renames on Google only when the text changed (the name shown may be a
     /// cleaned or shortened copy of Google's, which must not be written back unasked).
     /// </summary>
-    public static async Task RenameAsync(XamlRoot root, ViewModels.CalendarViewModel calendars, CalendarInfo calendar)
+    public static async Task RenameAsync(FrameworkElement owner, ViewModels.CalendarViewModel calendars, CalendarInfo calendar)
     {
         ArgumentNullException.ThrowIfNull(calendars);
 
-        var (ok, text) = await ShowAsync(root, calendar);
+        var (ok, text) = await ShowAsync(owner, calendar);
         if (ok && text != calendar.Summary)
         {
             await calendars.RenameCalendarAsync(calendar, text);

@@ -257,6 +257,7 @@ public sealed partial class CalendarPage
         var dialog = new ContentDialog
         {
             XamlRoot               = XamlRoot,
+            RequestedTheme         = ActualTheme,
             Title                  = "Time travel",
             Content                = box,
             PrimaryButtonText      = "Go",

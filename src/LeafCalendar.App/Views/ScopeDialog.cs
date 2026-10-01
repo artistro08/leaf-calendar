@@ -12,7 +12,7 @@ public static class ScopeDialog
     /// Shows the question; null when canceled. <paramref name="includeFollowing"/> offers "This and following events"
     /// (replies don't), and <paramref name="includeThis"/> offers "This event" (a repeat change doesn't).
     /// </summary>
-    public static async Task<EditScope?> AskAsync(XamlRoot root, bool includeFollowing, bool includeThis = true, string title = "Change repeating event")
+    public static async Task<EditScope?> AskAsync(FrameworkElement owner, bool includeFollowing, bool includeThis = true, string title = "Change repeating event")
     {
         var thisOne   = new RadioButton { Content = "This event", GroupName = "Scope", IsChecked = includeThis, Visibility = includeThis ? Visibility.Visible : Visibility.Collapsed };
         var following = new RadioButton { Content = "This and following events", GroupName = "Scope", IsChecked = !includeThis && includeFollowing, Visibility = includeFollowing ? Visibility.Visible : Visibility.Collapsed };
@@ -28,7 +28,8 @@ public static class ScopeDialog
 
         var dialog = new ContentDialog
         {
-            XamlRoot          = root,
+            XamlRoot          = owner.XamlRoot,
+            RequestedTheme    = owner.ActualTheme,
             Title             = title,
             Content           = choices,
             PrimaryButtonText = "OK",

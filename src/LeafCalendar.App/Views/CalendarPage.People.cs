@@ -80,7 +80,7 @@ public sealed partial class CalendarPage
     void PickPeople(string title, string primaryText, bool meetWith) =>
         ViewModel.Fire(async () =>
         {
-            if (await PeoplePickerDialog.ShowAsync(XamlRoot, ViewModel, title, primaryText) is { Count: > 0 } picked)
+            if (await PeoplePickerDialog.ShowAsync(this, ViewModel, title, primaryText) is { Count: > 0 } picked)
             {
                 await ViewModel.ShowOverlayAsync(picked, meetWith);
             }

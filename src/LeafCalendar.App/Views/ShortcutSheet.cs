@@ -46,11 +46,15 @@ public static class ShortcutSheet
         var dialog = new ContentDialog
         {
             XamlRoot        = owner.XamlRoot,
+            RequestedTheme  = owner.ActualTheme,
             Title           = "Keyboard shortcuts",
             Content         = content,
             CloseButtonText = "Close",
         };
         AutomationProperties.SetAutomationId(dialog, "ShortcutSheet");
+
+        // A dialog is at most 548 wide (500 inside its padding), which cut the 560 content's key caps off: make room
+        dialog.Resources["ContentDialogMaxWidth"] = 640d;
         dialog.Opened += (_, _) => filter.Focus(FocusState.Programmatic);
 
         await dialog.ShowAsync();

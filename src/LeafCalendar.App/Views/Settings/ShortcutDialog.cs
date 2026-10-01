@@ -16,7 +16,7 @@ namespace LeafCalendar.App.Views.Settings;
 internal static class ShortcutDialog
 {
     /// <summary>Shows the dialog.</summary>
-    public static async Task<Hotkey?> AskAsync(XamlRoot root, string title, Func<Hotkey, string?> problem)
+    public static async Task<Hotkey?> AskAsync(FrameworkElement owner, string title, Func<Hotkey, string?> problem)
     {
         Hotkey? picked = null;
 
@@ -34,7 +34,8 @@ internal static class ShortcutDialog
 
         var dialog = new ContentDialog
         {
-            XamlRoot               = root,
+            XamlRoot               = owner.XamlRoot,
+            RequestedTheme         = owner.ActualTheme,
             Title                  = title,
             Content                = content,
             PrimaryButtonText      = "Save",

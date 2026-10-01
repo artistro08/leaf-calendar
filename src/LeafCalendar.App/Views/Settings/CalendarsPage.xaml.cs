@@ -151,7 +151,7 @@ public sealed partial class CalendarsPage : Page
         var index    = siblings?.IndexOf(row) ?? -1;
         var menu     = new MenuFlyout();
 
-        menu.Items.Add(MenuItem("Rename…", "CalendarMenu_Rename", true, () => calendar.Fire(() => RenameCalendarDialog.RenameAsync(XamlRoot, calendar, row.Info), "calendar.rename.failed")));
+        menu.Items.Add(MenuItem("Rename…", "CalendarMenu_Rename", true, () => calendar.Fire(() => RenameCalendarDialog.RenameAsync(this, calendar, row.Info), "calendar.rename.failed")));
         menu.Items.Add(MenuItem("Move up", "CalendarMenu_MoveUp", index > 0, () => calendar.MoveCalendar(row.Info, -1)));
         menu.Items.Add(MenuItem("Move down", "CalendarMenu_MoveDown", siblings is not null && index >= 0 && index < siblings.Count - 1, () => calendar.MoveCalendar(row.Info, 1)));
         menu.Items.Add(MenuItem("Default reminders…", "CalendarMenu_Reminders", true, () => calendar.Fire(() => EditRemindersAsync(row.Info), "calendar.reminders.failed")));
@@ -222,6 +222,7 @@ public sealed partial class CalendarsPage : Page
         var dialog = new ContentDialog
         {
             XamlRoot          = XamlRoot,
+            RequestedTheme    = ActualTheme,
             Title             = "Default reminders",
             Content           = new StackPanel { Spacing = 8, Children = { description, rows, add } },
             PrimaryButtonText = "Save",

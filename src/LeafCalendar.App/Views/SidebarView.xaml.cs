@@ -291,7 +291,7 @@ public sealed partial class SidebarView : UserControl
         {
             if (_viewModel is { } vm)
             {
-                vm.Fire(() => RenameCalendarDialog.RenameAsync(XamlRoot, vm, row.Info), "calendar.rename.failed");
+                vm.Fire(() => RenameCalendarDialog.RenameAsync(this, vm, row.Info), "calendar.rename.failed");
             }
         }));
         menu.Items.Add(MenuItem("Show upcoming events", "", "CalendarMenu_Upcoming", () => _viewModel?.ShowUpcomingFor(row.Info)));

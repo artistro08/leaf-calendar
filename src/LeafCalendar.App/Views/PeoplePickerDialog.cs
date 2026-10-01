@@ -17,7 +17,7 @@ public static class PeoplePickerDialog
     /// Shows the picker; the picked people, or null when canceled. A suggestion adds its person, and Enter on text that
     /// is exactly one valid address adds that address. The primary button needs 1 to <see cref="FreeBusyLookup.MaxPeople"/> people.
     /// </summary>
-    public static async Task<IReadOnlyList<Contact>?> ShowAsync(XamlRoot root, CalendarViewModel vm, string title, string primaryText)
+    public static async Task<IReadOnlyList<Contact>?> ShowAsync(FrameworkElement owner, CalendarViewModel vm, string title, string primaryText)
     {
         var picked      = new List<Contact>();
         var suggestions = new List<(ContactSuggestion View, Contact Person)>();
@@ -37,7 +37,8 @@ public static class PeoplePickerDialog
 
         var dialog = new ContentDialog
         {
-            XamlRoot                 = root,
+            XamlRoot                 = owner.XamlRoot,
+            RequestedTheme           = owner.ActualTheme,
             Title                    = title,
             Content                  = layout,
             PrimaryButtonText        = primaryText,
@@ -49,7 +50,7 @@ public static class PeoplePickerDialog
         dialog.Opened += (_, _) => hint.Foreground = LeafBrushes.SecondaryText(dialog.ActualTheme == ElementTheme.Dark);
 
         // Suggestions Wait Until Typing Pauses
-        var timer = root.Content.DispatcherQueue.CreateTimer();
+        var timer = owner.DispatcherQueue.CreateTimer();
         timer.Interval    = TimeSpan.FromMilliseconds(250);
         timer.IsRepeating = false;
         timer.Tick       += (_, _) => vm.Fire(SuggestAsync, "people.suggest.failed");
