@@ -18,6 +18,9 @@ public sealed partial class DayColumn : Canvas
 {
     static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
 
+    // The app's icon button look, read once (as SidebarView reads its day styles)
+    static readonly Lazy<Style> IconButtonStyle = new(() => (Style)Application.Current.Resources["LeafIconButtonStyle"]);
+
     readonly TimeGridView _owner;
     readonly Action<CalendarOccurrence> _select;
     readonly Rectangle[] _hourLines = new Rectangle[24];
@@ -105,7 +108,6 @@ public sealed partial class DayColumn : Canvas
     /// <summary>Repaints for the current size, theme, data, and selection.</summary>
     public void Render()
     {
-        var vm     = _owner.ViewModel;
         var dark   = _owner.IsDark;
         var width  = _owner.ColumnWidth;
         var hour   = _owner.HourHeight;
@@ -130,6 +132,19 @@ public sealed partial class DayColumn : Canvas
         RenderOffHours();
         RenderOverlay();
         RenderSlots();
+        RenderEventsAndNow();
+    }
+
+    /// <summary>
+    /// Repaints the events (past ones fade) and the now line: what the time grid's minute clock redraws. The shading,
+    /// overlay, and slot layers only change with their own data, so the clock leaves them alone.
+    /// </summary>
+    public void RenderEventsAndNow()
+    {
+        var vm    = _owner.ViewModel;
+        var dark  = _owner.IsDark;
+        var width = _owner.ColumnWidth;
+        var hour  = _owner.HourHeight;
 
         // Events (drawn at the same minimum length DayLayout uses for overlap, so short events never collide)
         var blocks = DayLayout.Layout(Date, vm.Cache.ForDay(Date), vm.Zone);
@@ -341,12 +356,11 @@ public sealed partial class DayColumn : Canvas
                 var index  = _slotRemoves.Count;
                 var remove = new Button
                 {
-                    Content         = new FontIcon { Glyph = "", FontSize = 10 },
-                    Width           = 20,
-                    Height          = 20,
-                    Padding         = new Thickness(0),
-                    Background      = LeafBrushes.Transparent,
-                    BorderThickness = new Thickness(0),
+                    Content = new FontIcon { Glyph = "", FontSize = 10 },
+                    Width   = 20,
+                    Height  = 20,
+                    Padding = new Thickness(0),
+                    Style   = IconButtonStyle.Value,
                 };
                 AutomationProperties.SetName(remove, "Remove this time");
                 ToolTipService.SetToolTip(remove, "Remove this time");

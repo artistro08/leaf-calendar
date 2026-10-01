@@ -42,7 +42,8 @@ public static class PeoplePickerDialog
             Content                  = layout,
             PrimaryButtonText        = primaryText,
             CloseButtonText          = "Cancel",
-            DefaultButton            = ContentDialogButton.Primary,
+            // No default button: Enter in the box adds the typed person, and never closes the dialog
+            DefaultButton            = ContentDialogButton.None,
             IsPrimaryButtonEnabled   = false,
         };
         dialog.Opened += (_, _) => hint.Foreground = LeafBrushes.SecondaryText(dialog.ActualTheme == ElementTheme.Dark);

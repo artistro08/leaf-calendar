@@ -5,6 +5,7 @@ using FlaUI.Core.Capturing;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
+using LeafCalendar.Core.Settings;
 using LeafCalendar.UITests.Support;
 
 namespace LeafCalendar.UITests;
@@ -12,7 +13,7 @@ namespace LeafCalendar.UITests;
 public sealed class TimeGridTests : IDisposable
 {
     readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -110,6 +111,10 @@ public sealed class TimeGridTests : IDisposable
     [Fact]
     public void HorizontalScroll_HeaderMovesWithBodyEveryFrame()
     {
+        // No working-hours shading: at this height the sampled body rows fall after 5 PM, and the shading's edges (on the
+        // column lines, but differing between weekdays and weekends) shouldn't decide a test about divider lines
+        LeafApp.DeleteProfile(_profile);
+        _profile = SeededProfile.Create(new LeafSettings { WorkingHours = new WorkingHours { Enabled = false } });
         using var leaf = Launch();
         leaf.WaitFor("Event_evt-single_202610011300");
         leaf.Resize(1600, 900);

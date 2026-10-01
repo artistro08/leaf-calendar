@@ -49,13 +49,13 @@ public sealed partial class CalendarViewModel
     /// </summary>
     public async Task ShowOverlayAsync(IReadOnlyList<Contact> people, bool meetWith)
     {
-        // Colors Cycle; A Blank Name Shows The Address
+        // Colors Cycle; A Blank Name Shows The Address; Nobody Counts As Free Until Google Says So
         _people = [.. people
             .Select(p => (Email: p.Email.Trim(), Name: DisplayText.Clean(p.Name, 100)))
             .Where(p => IsAddress(p.Email))
             .DistinctBy(p => p.Email, StringComparer.OrdinalIgnoreCase)
             .Take(FreeBusyLookup.MaxPeople)
-            .Select((p, i) => new OverlayPerson(p.Email, p.Name.Length > 0 ? p.Name : p.Email, i % PersonColors, PersonBusyState.Known))];
+            .Select((p, i) => new OverlayPerson(p.Email, p.Name.Length > 0 ? p.Name : p.Email, i % PersonColors, PersonBusyState.Unknown))];
 
         _blocks.Clear();
         _meetWith = meetWith && _people.Count > 0;
@@ -99,7 +99,9 @@ public sealed partial class CalendarViewModel
 
     /// <summary>
     /// Looks up busy times for the visible period plus a week on each side, unless they're already loaded. A failure
-    /// says so and keeps the blocks already shown.
+    /// says so and keeps the blocks already shown, but anyone with nothing loaded for these days shows "No free/busy
+    /// info" (never free). A lookup that finishes after a newer one started, or after paging moved past what it
+    /// covers, is dropped.
     /// </summary>
     public async Task RefreshOverlayAsync()
     {
@@ -108,15 +110,14 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        // The Visible Period, A Week Each Side
-        var from = OccurrenceQuery.LocalMidnight(PeriodStart.AddDays(-7), Zone);
-        var to   = OccurrenceQuery.LocalMidnight(PeriodStart.AddDays(VisibleColumns + 7), Zone);
-        if (_loaded is { } loaded && loaded.From <= from && loaded.To >= to)
+        var (from, to) = OverlayRange();
+        if (Covers(_loaded, from, to))
         {
             return;
         }
 
-        var version = _overlayVersion;
+        // Every Refresh Bumps The Version, So Only The Newest Lookup Lands
+        var version = ++_overlayVersion;
         IReadOnlyList<PersonBusy> found;
         try
         {
@@ -125,12 +126,22 @@ public sealed partial class CalendarViewModel
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _services.Log.Info("freebusy.lookup.failed", $"account={account} status={Status(ex)}");
+
+            // Nothing Loaded For These Days: No Free/Busy Info, Never Free
+            var (failFrom, failTo) = OverlayRange();
+            if (version == _overlayVersion && !Covers(_loaded, failFrom, failTo))
+            {
+                _people = [.. _people.Select(p => p with { State = PersonBusyState.Unknown })];
+                OverlayChanged?.Invoke(this, EventArgs.Empty);
+            }
+
             ShowMessage("Couldn't get busy times. Check your connection.");
             return;
         }
 
-        // Someone Changed Who Is Overlaid Meanwhile
-        if (version != _overlayVersion)
+        // Someone Changed Who Is Overlaid, A Newer Lookup Started, Or Paging Moved Past This One
+        var (nowFrom, nowTo) = OverlayRange();
+        if (version != _overlayVersion || !Covers((from, to), nowFrom, nowTo))
         {
             return;
         }
@@ -140,6 +151,13 @@ public sealed partial class CalendarViewModel
         _loaded = (from, to);
         OverlayChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    // The visible period, a week each side
+    (DateTimeOffset From, DateTimeOffset To) OverlayRange() =>
+        (OccurrenceQuery.LocalMidnight(PeriodStart.AddDays(-7), Zone), OccurrenceQuery.LocalMidnight(PeriodStart.AddDays(VisibleColumns + 7), Zone));
+
+    static bool Covers((DateTimeOffset From, DateTimeOffset To)? range, DateTimeOffset from, DateTimeOffset to) =>
+        range is { } r && r.From <= from && r.To >= to;
 
     /// <summary>In Meet with mode, adds every overlaid person as a guest of the new event being edited.</summary>
     public void AddOverlayGuests()

@@ -51,6 +51,20 @@ public sealed class AvailabilityTextTests
         Assert.Equal("Sun Nov 1: 12–3 AM ET", AvailabilityText.Format([range], NewYork, use24Hour: false));
     }
 
+    // A stretch ending at midnight says so plainly: "12 AM" never shares the start's AM, and 24-hour reads "24:00"
+    [Fact]
+    public void Format_EndsAtMidnight_CarriesBothHalves() =>
+        Assert.Equal("Thu Oct 1: 9 AM–12 AM ET", AvailabilityText.Format([new(Et(10, 1, 9, 0, 9, 0).Start, Et(10, 2, 0, 0, 0, 0).Start)], NewYork, use24Hour: false));
+
+    [Fact]
+    public void Format_EndsAtMidnight_24Hour_Is2400() =>
+        Assert.Equal("Thu Oct 1: 21:00–24:00 ET", AvailabilityText.Format([new(Et(10, 1, 21, 0, 21, 0).Start, Et(10, 2, 0, 0, 0, 0).Start)], NewYork, use24Hour: true));
+
+    [Fact]
+    public void Format_CrossesMidnight_24Hour_SplitsAt2400() =>
+        Assert.Equal("Thu Oct 1: 23:00–24:00 Tokyo time\r\nFri Oct 2: 00:00–01:00 Tokyo time",
+            AvailabilityText.Format([Et(10, 1, 10, 0, 12, 0)], Tokyo, use24Hour: true));
+
     [Fact]
     public void Format_Nothing_IsEmpty() => Assert.Equal("", AvailabilityText.Format([], NewYork, false));
 

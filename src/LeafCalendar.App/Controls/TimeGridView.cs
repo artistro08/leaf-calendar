@@ -655,7 +655,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     {
         foreach (var column in _columns.Where(c => c.Date == _vm.Today))
         {
-            column.Render();
+            column.RenderEventsAndNow();
         }
     }
 

@@ -110,6 +110,46 @@ public sealed class PeopleOverlayTests : IDisposable
         Assert.False(leaf.Exists($"OverlayBlock_{Nobody}_0"));
     }
 
+    // Offline, a busy person is never drawn as free: the chip says there's no info, and no block shows
+    [Fact]
+    public void Offline_BusyPersonIsNeverShownFree()
+    {
+        _google.Busy[Dana] = [(Et(10, 1, 11), Et(10, 1, 12))];
+        using var leaf = Launch();
+        leaf.WaitFor(Dentist);
+        _google.Offline = true;
+
+        Pick(leaf, VirtualKeyShort.KEY_P, Dana);
+
+        var chip = leaf.WaitFor($"OverlayChip_{Dana}");
+        Assert.True(Retry.WhileFalse(() => chip.Name.Contains("No free/busy info", StringComparison.Ordinal), TimeSpan.FromSeconds(10)).Success, $"The chip reads \"{chip.Name}\".");
+        Assert.False(leaf.Exists($"OverlayBlock_{Dana}_0"));
+        Assert.True(leaf.AnyTextContains("Couldn't get busy times. Check your connection."), "The notice didn't say why.");
+    }
+
+    // Enter adds the typed person and keeps the picker open (it has no default button)
+    [Fact]
+    public void Picker_EnterAddsAndNeverCloses()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Dentist);
+        leaf.Press(VirtualKeyShort.KEY_P);
+
+        foreach (var address in new[] { Dana, Sam })
+        {
+            var edit = PickerEdit(leaf);
+            edit.Focus();
+            Keyboard.Type(address);
+            Keyboard.Press(VirtualKeyShort.RETURN);
+            Assert.NotNull(leaf.WaitForAnywhere($"PickedPerson_{address}"));
+        }
+
+        Keyboard.Press(VirtualKeyShort.RETURN);
+        Thread.Sleep(500);
+        Assert.True(leaf.ExistsAnywhere("PeoplePickerBox"), "Enter closed the picker.");
+        Assert.False(leaf.Exists($"OverlayChip_{Dana}"));
+    }
+
     [Fact]
     public void SharedWithDetails_ShowsTheirTitles()
     {

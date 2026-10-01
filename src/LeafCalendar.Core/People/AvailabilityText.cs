@@ -84,15 +84,17 @@ public static class AvailabilityText
         return Labels.TryGetValue(iana, out var label) ? label : $"{TimeZoneCatalog.CityFor(iana)} time";
     }
 
-    // "10–11 AM", "11 AM–1 PM", "10:30–11 AM", or "10:00–11:00"
+    // "10–11 AM", "11 AM–1 PM", "10:30–11 AM", or "10:00–11:00". A piece ending at the next midnight reads "9 AM–12 AM"
+    // (its 12 AM is never folded into the start's AM) or "21:00–24:00"
     static string Range(DateTime start, DateTime end, bool use24Hour)
     {
+        var endsAtMidnight = end.Date > start.Date;
         if (use24Hour)
         {
-            return $"{start.ToString("HH:mm", English)}–{end.ToString("HH:mm", English)}";
+            return $"{start.ToString("HH:mm", English)}–{(endsAtMidnight ? "24:00" : end.ToString("HH:mm", English))}";
         }
 
-        var sameHalf = start.Hour < 12 == end.Hour < 12;
+        var sameHalf = !endsAtMidnight && start.Hour < 12 == end.Hour < 12;
         return $"{Clock(start, withMeridiem: !sameHalf)}–{Clock(end, withMeridiem: true)}";
     }
 
