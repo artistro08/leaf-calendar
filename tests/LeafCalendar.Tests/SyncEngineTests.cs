@@ -411,4 +411,43 @@ public sealed class SyncEngineTests : IDisposable
 
         Assert.False(_h.Engine.IsOffline);
     }
+
+    [Fact]
+    public async Task SyncAllAsync_Conflict_RaisesConflictsFound()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _h.RouteStandardGoogle();
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        using (var conn = _h.Db.Database.Open())
+        {
+            OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Primary, "evt-single", OutboxOperation.Patch, """{"summary":"Mine"}""", "\"3181161784712000\"", false, EventStore.Snapshot(conn, null, Account, Primary, "evt-single"), null));
+        }
+
+        _h.Google.On(HttpMethod.Patch, SyncHarness.PrimaryEventsUrl + "/evt-single", HttpStatusCode.PreconditionFailed, "{}");
+        _h.Google.On(HttpMethod.Get, SyncHarness.PrimaryEventsUrl + "/evt-single", HttpStatusCode.OK, """{"id":"evt-single","etag":"\"G9\"","status":"confirmed","summary":"Google's","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""");
+        var found = new List<int>();
+        _h.Engine.ConflictsFound += (_, count) => found.Add(count);
+
+        await _h.Engine.SyncAllAsync(ct);
+        await _h.Engine.SyncAllAsync(ct);
+
+        Assert.Equal([1], found);
+    }
+
+    [Fact]
+    public async Task SyncAllAsync_RefreshTokenRevoked_RaisesSignInNeededOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _h.Google.On(r => r.Form("refresh_token") == "1//revoked", _ => FakeHttpHandler.Json(HttpStatusCode.BadRequest, Fixture.Read("error-invalid-grant.json")));
+        _h.RouteStandardGoogle();
+        _h.Tokens.SetRefreshToken(Account, "1//revoked");
+        var engine  = _h.NewEngine();
+        var signIns = new List<string>();
+        engine.SignInNeeded += (_, account) => signIns.Add(account);
+
+        await engine.SyncAllAsync(ct);
+        await engine.SyncAllAsync(ct);
+
+        Assert.Equal([Account], signIns);
+    }
 }
