@@ -26,122 +26,118 @@
         <KeyboardAccelerator Key="Escape" Invoked="OnEscapeInvoked" />
     </Page.KeyboardAccelerators>
 
-    <!-- Three parts: the sidebar and the details panel are the panes of two nested inline SplitViews
-         (WinUI's own slide), on the window's Mica; the calendar island fills the space between them.
+    <!-- Three parts: the sidebar and the details panel on the window's Mica, and the calendar island between them.
+         The panes lie over the page and slide by composition. The island takes its final size the moment a pane
+         opens or closes and never slides; its fill and clip follow the sliding panes' edges (CalendarPage.Panes.cs).
          The page runs under the title bar, so the top 48 px of each part sits in the title bar row. -->
-    <Grid x:Name="Root" AutomationProperties.Name="Calendar" AutomationProperties.AutomationId="CalendarRoot">
+    <Grid x:Name="Root" Background="Transparent" AutomationProperties.Name="Calendar" AutomationProperties.AutomationId="CalendarRoot">
+
+        <!-- Island Fill (the island's color; its edges follow the panes as they slide) -->
+        <Border x:Name="IslandFill" Background="{ThemeResource LayerFillColorDefaultBrush}" />
+
+        <!-- Island Area (its margins leave room for the open panes) -->
+        <Grid x:Name="IslandArea">
+            <!-- Island (flat, top to bottom; its fill against the Mica is the only edge) -->
+            <Grid
+                x:Name="Island"
+                Background="Transparent"
+                SizeChanged="OnIslandSizeChanged">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="49" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Period Title (under the title bar's drag area; the toolbar floats over the right end; the left inset is CalendarPage.TitleInset, set in code) -->
+                <TextBlock
+                    x:Name="PeriodTitle"
+                    Margin="0,9,0,8"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    FontSize="22"
+                    FontWeight="Bold"
+                    TextTrimming="CharacterEllipsis"
+                    AutomationProperties.AutomationId="PeriodTitle" />
+
+                <!-- Island Bars (time travel, people overlay; each track adds its own bar from code) -->
+                <StackPanel x:Name="IslandBars" Grid.Row="1" />
+
+                <!-- View -->
+                <Grid
+                    x:Name="ViewHost"
+                    Grid.Row="2"
+                    Tapped="OnViewHostTapped"
+                    AutomationProperties.Name="Calendar view"
+                    AutomationProperties.LandmarkType="Main"
+                    AutomationProperties.AutomationId="ViewHost" />
+
+                <!-- Floating Cards (share availability: bottom right, over the view) -->
+                <Grid
+                    x:Name="FloatingCards"
+                    Grid.Row="2"
+                    Margin="0,0,16,16"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom" />
+
+                <!-- Notice ("Event deleted · Undo"; solid so the grid never shows through) -->
+                <InfoBar
+                    x:Name="NoticeBar"
+                    Grid.Row="2"
+                    Margin="0,0,0,16"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Bottom"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    IsClosable="True"
+                    Closed="OnNoticeClosed"
+                    AutomationProperties.LiveSetting="Polite"
+                    AutomationProperties.AutomationId="NoticeBar">
+                    <InfoBar.ActionButton>
+                        <Button
+                            x:Name="UndoButton"
+                            Content="Undo"
+                            Click="OnUndoClick"
+                            AutomationProperties.AutomationId="UndoButton" />
+                    </InfoBar.ActionButton>
+                </InfoBar>
+                <!-- /Notice -->
+            </Grid>
+            <!-- /Island -->
+
+            <!-- Empty State -->
+            <StackPanel
+                x:Name="EmptyState"
+                Spacing="12"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Visibility="Collapsed"
+                AutomationProperties.Name="No calendars yet"
+                AutomationProperties.AutomationId="EmptyState">
+                <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="No calendars yet" HorizontalAlignment="Center" />
+                <TextBlock Text="Add a Google account to see your events here." Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
+                <Button
+                    Style="{StaticResource AccentButtonStyle}"
+                    Content="Add a Google account"
+                    HorizontalAlignment="Center"
+                    Click="OnAddAccountClick"
+                    AutomationProperties.AutomationId="EmptyAddAccountButton" />
+            </StackPanel>
+            <!-- /Empty State -->
+        </Grid>
+        <!-- /Island Area -->
 
         <!-- Sidebar Pane -->
-        <SplitView
-            x:Name="SidebarSplit"
-            DisplayMode="Inline"
-            PanePlacement="Left"
-            OpenPaneLength="264"
-            PaneBackground="Transparent"
-            BorderThickness="0">
-            <SplitView.Pane>
-                <local:SidebarView
-                    x:Name="Sidebar"
-                    AutomationProperties.Name="Sidebar"
-                    AutomationProperties.LandmarkType="Navigation"
-                    AutomationProperties.AutomationId="Sidebar" />
-            </SplitView.Pane>
+        <local:SidebarView
+            x:Name="Sidebar"
+            Width="264"
+            HorizontalAlignment="Left"
+            AutomationProperties.Name="Sidebar"
+            AutomationProperties.LandmarkType="Navigation"
+            AutomationProperties.AutomationId="Sidebar" />
 
-            <!-- Details Pane -->
-            <SplitView
-                x:Name="DetailsSplit"
-                DisplayMode="Inline"
-                PanePlacement="Right"
-                OpenPaneLength="320"
-                PaneBackground="Transparent"
-                BorderThickness="0"
-                SizeChanged="OnDetailsSplitSizeChanged">
-                <SplitView.Pane>
-                    <local:DetailsPanel x:Name="Details" />
-                </SplitView.Pane>
-
-                <Grid>
-                    <!-- Island (flat, top to bottom; its fill against the Mica is the only edge) -->
-                    <Grid
-                        x:Name="Island"
-                        Background="{ThemeResource LayerFillColorDefaultBrush}"
-                        SizeChanged="OnIslandSizeChanged">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="49" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-
-                        <!-- Period Title (under the title bar's drag area; the toolbar floats over the right end; the left inset is CalendarPage.TitleInset, set in code) -->
-                        <TextBlock
-                            x:Name="PeriodTitle"
-                            Margin="0,9,0,8"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Center"
-                            FontSize="22"
-                            FontWeight="Bold"
-                            TextTrimming="CharacterEllipsis"
-                            AutomationProperties.AutomationId="PeriodTitle" />
-
-                        <!-- Island Bars (time travel, people overlay, share availability; each track adds its own bar from code) -->
-                        <StackPanel x:Name="IslandBars" Grid.Row="1" />
-
-                        <!-- View -->
-                        <Grid
-                            x:Name="ViewHost"
-                            Grid.Row="2"
-                            Tapped="OnViewHostTapped"
-                            AutomationProperties.Name="Calendar view"
-                            AutomationProperties.LandmarkType="Main"
-                            AutomationProperties.AutomationId="ViewHost" />
-
-                        <!-- Notice ("Event deleted · Undo"; solid so the grid never shows through) -->
-                        <InfoBar
-                            x:Name="NoticeBar"
-                            Grid.Row="2"
-                            Margin="0,0,0,16"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Bottom"
-                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                            IsClosable="True"
-                            Closed="OnNoticeClosed"
-                            AutomationProperties.LiveSetting="Polite"
-                            AutomationProperties.AutomationId="NoticeBar">
-                            <InfoBar.ActionButton>
-                                <Button
-                                    x:Name="UndoButton"
-                                    Content="Undo"
-                                    Click="OnUndoClick"
-                                    AutomationProperties.AutomationId="UndoButton" />
-                            </InfoBar.ActionButton>
-                        </InfoBar>
-                        <!-- /Notice -->
-                    </Grid>
-                    <!-- /Island -->
-
-                    <!-- Empty State -->
-                    <StackPanel
-                        x:Name="EmptyState"
-                        Spacing="12"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Visibility="Collapsed"
-                        AutomationProperties.Name="No calendars yet"
-                        AutomationProperties.AutomationId="EmptyState">
-                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="No calendars yet" HorizontalAlignment="Center" />
-                        <TextBlock Text="Add a Google account to see your events here." Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
-                        <Button
-                            Style="{StaticResource AccentButtonStyle}"
-                            Content="Add a Google account"
-                            HorizontalAlignment="Center"
-                            Click="OnAddAccountClick"
-                            AutomationProperties.AutomationId="EmptyAddAccountButton" />
-                    </StackPanel>
-                    <!-- /Empty State -->
-                </Grid>
-            </SplitView>
-            <!-- /Details Pane -->
-        </SplitView>
-        <!-- /Sidebar Pane -->
+        <!-- Details Pane (the details panel, or the share slots while sharing availability) -->
+        <Grid x:Name="DetailsPane" Width="320" HorizontalAlignment="Right">
+            <local:DetailsPanel x:Name="Details" />
+        </Grid>
+        <!-- /Details Pane -->
     </Grid>
 </Page>

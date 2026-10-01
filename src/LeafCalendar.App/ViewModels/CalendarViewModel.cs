@@ -428,12 +428,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         // Memory takes the new value only after the disk does, so a failed save leaves both as they were
         var before = Settings;
         var next   = change(Settings).Normalize();
-        using (var conn = _services.Database.Open())
+        lock (_settingsWrite)
         {
+            using var conn = _services.Database.Open();
             SettingsStore.Save(conn, next);
+            Settings = next;
         }
 
-        Settings = next;
         if (before.MapProvider != next.MapProvider)
         {
             OnPropertyChanged(nameof(MapButtonText));
@@ -471,6 +472,56 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         if (reloadData)
         {
             Run(RefreshAsync);
+        }
+    }
+
+    /// <summary>
+    /// Remembers something nothing has to relayout for: a pane opening or closing (the page has already moved it) or
+    /// a window's size on close. Memory changes at once. In the background (the pane toggles), the database write runs
+    /// off the UI thread: a synchronous write here waited on a sync that held the database, and the pane's slide waited
+    /// with it. Either way the disk gets the latest settings, in order with every other save.
+    /// </summary>
+    public void Remember(Func<LeafSettings, LeafSettings> change, bool inBackground = true)
+    {
+        var before = Settings;
+        Settings   = change(Settings).Normalize();
+
+        // A hidden editor keeps its fields, not contact suggestions
+        if (before.DetailsPanelOpen && !Settings.DetailsPanelOpen)
+        {
+            Editing?.ClearSuggestions();
+        }
+
+        if (inBackground)
+        {
+            _ = Task.Run(SaveLatestQuietly);
+            return;
+        }
+
+        SaveLatestQuietly();
+    }
+
+    void SaveLatestQuietly()
+    {
+        try
+        {
+            SaveLatestSettings();
+        }
+        catch (Exception ex)
+        {
+            _services.Log.Error("settings.remember.save-failed", ex);
+        }
+    }
+    // Every settings write goes through here, one at a time, and writes what's in memory when its turn comes, so an
+    // older snapshot never lands after a newer one
+    readonly Lock _settingsWrite = new();
+
+    void SaveLatestSettings()
+    {
+        lock (_settingsWrite)
+        {
+            using var conn = _services.Database.Open();
+            SettingsStore.Save(conn, Settings);
         }
     }
 

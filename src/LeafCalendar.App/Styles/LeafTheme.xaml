@@ -149,13 +149,9 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
+                    <!-- The sidebar glyph: its left panel filled while the sidebar is open -->
                     <Border Background="Transparent" CornerRadius="{TemplateBinding CornerRadius}">
-                        <FontIcon
-                            Glyph="&#xE90D;"
-                            FontSize="16"
-                            FlowDirection="RightToLeft"
-                            MirroredWhenRightToLeft="True"
-                            Foreground="{TemplateBinding Foreground}" />
+                        <controls:PaneGlyph Pane="Sidebar" Foreground="{TemplateBinding Foreground}" />
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
