@@ -124,8 +124,9 @@
             <!-- The Rows Below Are Off As One While Shading Is Off -->
             <ContentControl x:Name="WorkingHoursRows" HorizontalContentAlignment="Stretch" IsTabStop="False">
                 <StackPanel Spacing="4">
+                    <!-- Stock Time Pickers At Their Full 242 DIP Width, So Hour, Minute, And AM/PM Each Get Room -->
                     <controls:SettingRow Header="Start">
-                        <controls:LeafTimePicker
+                        <TimePicker
                             x:Name="WorkingStartPicker"
                             MinuteIncrement="15"
                             TimeChanged="OnWorkingStartChanged"
@@ -133,8 +134,8 @@
                             AutomationProperties.AutomationId="WorkingStartPicker" />
                     </controls:SettingRow>
                     <controls:SettingRow Header="End">
-                        <StackPanel Spacing="4" HorizontalAlignment="Right">
-                            <controls:LeafTimePicker
+                        <StackPanel Spacing="8" HorizontalAlignment="Right">
+                            <TimePicker
                                 x:Name="WorkingEndPicker"
                                 MinuteIncrement="15"
                                 TimeChanged="OnWorkingEndChanged"
@@ -150,8 +151,19 @@
                                 AutomationProperties.AutomationId="WorkingHoursError" />
                         </StackPanel>
                     </controls:SettingRow>
+                    <!-- Work Days (a dropdown of checkboxes, one per day in the week's order; the button says which) -->
                     <controls:SettingRow Header="Work days">
-                        <StackPanel x:Name="WorkDaysPanel" Orientation="Horizontal" Spacing="4" />
+                        <DropDownButton
+                            x:Name="WorkDaysButton"
+                            MinWidth="180"
+                            AutomationProperties.Name="Work days"
+                            AutomationProperties.AutomationId="WorkDaysButton">
+                            <DropDownButton.Flyout>
+                                <Flyout Placement="BottomEdgeAlignedRight">
+                                    <StackPanel x:Name="WorkDaysPanel" MinWidth="160" Spacing="4" />
+                                </Flyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
                     </controls:SettingRow>
                 </StackPanel>
             </ContentControl>
