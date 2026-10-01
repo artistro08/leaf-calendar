@@ -7,7 +7,7 @@
     xmlns:local="using:LeafCalendar.App.Views.Settings">
 
     <ScrollViewer x:Name="PageScroll">
-        <StackPanel MaxWidth="900" Spacing="4">
+        <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
             <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Accounts" />
 
             <!-- Status -->
@@ -26,20 +26,55 @@
                 Margin="0,0,0,8"
                 Text="No accounts yet. Add your Google account to see your calendars."
                 Visibility="{x:Bind ViewModel.HasNoAccounts, Mode=OneWay}" />
-            <controls:PinnedItemsControl ItemsSource="{x:Bind ViewModel.Accounts}" IsTabStop="False" AutomationProperties.AutomationId="AccountsList">
+            <!-- One Expander Per Account (its options inside, like Windows' accounts) -->
+            <controls:PinnedItemsControl x:Name="AccountList" IsTabStop="False" AutomationProperties.AutomationId="AccountsList">
                 <controls:PinnedItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <StackPanel Spacing="4" />
                     </ItemsPanelTemplate>
                 </controls:PinnedItemsControl.ItemsPanel>
                 <controls:PinnedItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:AccountRow">
-                        <controls:SettingRow Glyph="&#xE77B;" Header="{x:Bind Email}" Description="{x:Bind Summary}">
-                            <Button Content="Disconnect" Tag="{x:Bind Id}" Click="OnDisconnectClick" />
-                        </controls:SettingRow>
+                    <DataTemplate x:DataType="vm:AccountSettingsRow">
+                        <Expander
+                            Style="{StaticResource LeafSettingExpanderStyle}"
+                            IsExpanded="{x:Bind IsExpanded, Mode=TwoWay}"
+                            AutomationProperties.Name="{x:Bind Email}"
+                            AutomationProperties.AutomationId="{x:Bind ExpanderId}">
+                            <Expander.Header>
+                                <controls:SettingRow
+                                    Style="{StaticResource LeafExpanderHeaderRowStyle}"
+                                    Glyph="&#xE77B;"
+                                    Header="{x:Bind Email}"
+                                    Description="{x:Bind Summary}" />
+                            </Expander.Header>
+                            <StackPanel>
+                                <controls:SettingRow
+                                    Style="{StaticResource LeafExpanderItemRowStyle}"
+                                    BorderThickness="0"
+                                    Header="Google Meet by default"
+                                    Description="Add a Google Meet link to new events in this account.">
+                                    <ToggleSwitch
+                                        Style="{StaticResource LeafCardToggleSwitchStyle}"
+                                        IsOn="{x:Bind IsOn, Mode=TwoWay}"
+                                        AutomationProperties.Name="Google Meet by default"
+                                        AutomationProperties.AutomationId="{x:Bind SwitchId}" />
+                                </controls:SettingRow>
+                                <controls:SettingRow
+                                    Style="{StaticResource LeafExpanderItemRowStyle}"
+                                    Header="Disconnect"
+                                    Description="Sign out and remove this account's calendars from this PC. Your Google Calendar isn't changed.">
+                                    <Button
+                                        Content="Disconnect"
+                                        Tag="{x:Bind AccountId}"
+                                        Click="OnDisconnectClick"
+                                        AutomationProperties.AutomationId="{x:Bind DisconnectId}" />
+                                </controls:SettingRow>
+                            </StackPanel>
+                        </Expander>
                     </DataTemplate>
                 </controls:PinnedItemsControl.ItemTemplate>
             </controls:PinnedItemsControl>
+            <!-- /One Expander Per Account -->
             <controls:SettingRow Glyph="&#xE8FA;" Header="Add a Google account" Description="Sign in with Google in your browser. Leaf then syncs its calendars.">
                 <StackPanel Orientation="Horizontal" Spacing="12">
                     <ProgressRing Width="20" Height="20" IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
@@ -58,28 +93,6 @@
                     AutomationProperties.Name="Main account"
                     AutomationProperties.AutomationId="MainAccountBox" />
             </controls:SettingRow>
-
-            <!-- Video Calls -->
-            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Video calls" />
-            <controls:PinnedItemsControl x:Name="MeetList" IsTabStop="False" AutomationProperties.AutomationId="MeetByDefaultList">
-                <controls:PinnedItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel Spacing="4" />
-                    </ItemsPanelTemplate>
-                </controls:PinnedItemsControl.ItemsPanel>
-                <controls:PinnedItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:MeetDefaultRow">
-                        <controls:SettingRow Glyph="&#xE714;" Header="{x:Bind Email}" Description="Add a Google Meet link to new events.">
-                            <ToggleSwitch
-                                Style="{StaticResource LeafCardToggleSwitchStyle}"
-                                IsOn="{x:Bind IsOn, Mode=TwoWay}"
-                                AutomationProperties.Name="{x:Bind Email}"
-                                AutomationProperties.AutomationId="{x:Bind SwitchId}" />
-                        </controls:SettingRow>
-                    </DataTemplate>
-                </controls:PinnedItemsControl.ItemTemplate>
-            </controls:PinnedItemsControl>
-            <!-- /Video Calls -->
 
             <!-- New Events -->
             <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="New events" />

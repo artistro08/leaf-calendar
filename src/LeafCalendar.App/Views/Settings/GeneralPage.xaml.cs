@@ -2,6 +2,7 @@ using System.Globalization;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Settings;
+using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -26,8 +27,8 @@ public sealed partial class GeneralPage : Page
 
     static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
 
-    // Work Day Toggles, Each With Its Own Day (never read back from the button)
-    readonly List<(ToggleButton Button, DayOfWeek Day)> _workDays = [];
+    // Work Day Checkboxes In The Dropdown, Each With Its Own Day (never read back from the box)
+    readonly List<(CheckBox Box, DayOfWeek Day)> _workDays = [];
 
     // The startup task declared in Package.appxmanifest
     const string StartupTaskId = "LeafCalendarStartup";
@@ -133,7 +134,7 @@ public sealed partial class GeneralPage : Page
     // WORKING HOURS
     // =========================================================================
 
-    // The switch, the two times, and a toggle per weekday in the week's own order (the rows are off while the switch is)
+    // The switch, the two times, and a checkbox per weekday in the week's own order (the rows are off while the switch is)
     void LoadWorkingHours(WorkingHours hours, DayOfWeek weekStart, bool use24Hour)
     {
         WorkingHoursSwitch.IsOn            = hours.Enabled;
@@ -144,7 +145,7 @@ public sealed partial class GeneralPage : Page
         WorkingEndPicker.Time              = TimeSpan.FromMinutes(hours.EndMinute);
         WorkingHoursError.Visibility       = Visibility.Collapsed;
 
-        // Day Toggles (rebuilt only when the week's first day changed)
+        // Day Checkboxes (rebuilt only when the week's first day changed)
         if (_workDays.Count == 0 || _workDays[0].Day != weekStart)
         {
             WorkDaysPanel.Children.Clear();
@@ -152,19 +153,20 @@ public sealed partial class GeneralPage : Page
             for (var i = 0; i < 7; i++)
             {
                 var day    = (DayOfWeek)(((int)weekStart + i) % 7);
-                var toggle = new ToggleButton { MinWidth = 40, Width = 40, Padding = new Thickness(0), Content = English.DateTimeFormat.GetAbbreviatedDayName(day) };
-                AutomationProperties.SetName(toggle, English.DateTimeFormat.GetDayName(day));
-                AutomationProperties.SetAutomationId(toggle, $"WorkingDay_{day}");
-                toggle.Click += (_, _) => OnWorkDayClick();
-                WorkDaysPanel.Children.Add(toggle);
-                _workDays.Add((toggle, day));
+                var box = new CheckBox { Content = English.DateTimeFormat.GetDayName(day) };
+                AutomationProperties.SetAutomationId(box, $"WorkingDay_{day}");
+                box.Click += (_, _) => OnWorkDayClick();
+                WorkDaysPanel.Children.Add(box);
+                _workDays.Add((box, day));
             }
         }
 
-        foreach (var (button, day) in _workDays)
+        foreach (var (box, day) in _workDays)
         {
-            button.IsChecked = hours.Days.Contains(day);
+            box.IsChecked = hours.Days.Contains(day);
         }
+
+        ShowWorkDays(WorkingHoursMath.DaysLabel(hours.Days, weekStart));
     }
 
     void OnWorkingHoursToggled(object sender, RoutedEventArgs e)
@@ -209,6 +211,13 @@ public sealed partial class GeneralPage : Page
         _context.Save(s => s with { WorkingHours = s.WorkingHours with { StartMinute = start, EndMinute = end } });
     }
 
+    // The button says which days (screen readers hear it after the name, as help text)
+    void ShowWorkDays(string label)
+    {
+        WorkDaysButton.Content = label;
+        AutomationProperties.SetHelpText(WorkDaysButton, label);
+    }
+
     void OnWorkDayClick()
     {
         if (_loading)
@@ -216,7 +225,8 @@ public sealed partial class GeneralPage : Page
             return;
         }
 
-        List<DayOfWeek> days = [.. _workDays.Where(d => d.Button.IsChecked == true).Select(d => d.Day)];
+        List<DayOfWeek> days = [.. _workDays.Where(d => d.Box.IsChecked == true).Select(d => d.Day)];
+        ShowWorkDays(WorkingHoursMath.DaysLabel(days, _workDays[0].Day));
         _context.Save(s => s with { WorkingHours = s.WorkingHours with { Days = days } });
     }
 

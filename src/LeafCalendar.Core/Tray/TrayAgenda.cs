@@ -39,16 +39,13 @@ public static class TrayAgenda
     const int MaxTitle = 200;
 
     /// <summary>
-    /// The agenda for <paramref name="days"/> days from today (local to <paramref name="zone"/>), leaving out the
-    /// calendars in <paramref name="excluded"/> (Settings › Tray).
+    /// The agenda for <paramref name="days"/> days from today (local to <paramref name="zone"/>), from the calendars
+    /// shown in Leaf (a calendar hidden there is left out here too).
     /// </summary>
-    public static IReadOnlyList<AgendaDay> Load(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone, int days, bool includeAllDay, bool use24Hour, IReadOnlyCollection<CalendarRef>? excluded = null)
+    public static IReadOnlyList<AgendaDay> Load(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone, int days, bool includeAllDay, bool use24Hour)
     {
         var today       = LocalDate(now, zone);
-        var skip        = excluded is { Count: > 0 } ? excluded.ToHashSet() : null;
-        var occurrences = OccurrenceQuery.Load(conn, today.AddDays(-1), today.AddDays(days), zone, includeDeclined: false)
-            .Where(o => skip is null || !skip.Contains(new CalendarRef(o.AccountId, o.CalendarId)))
-            .ToList();
+        var occurrences = OccurrenceQuery.Load(conn, today.AddDays(-1), today.AddDays(days), zone, includeDeclined: false);
         var links       = new Dictionary<(string, string, string), Uri?>();
         var result      = new List<AgendaDay>();
 

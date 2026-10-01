@@ -37,3 +37,11 @@ GetCurrentProcessId
 GetCurrentThreadId
 WerRegisterAppLocalDump
 WerUnregisterAppLocalDump
+SetWindowsHookEx
+UnhookWindowsHookEx
+CallNextHookEx
+KBDLLHOOKSTRUCT
+GetForegroundWindow
+GetAsyncKeyState
+HC_ACTION
+SendInput

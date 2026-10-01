@@ -65,9 +65,15 @@ public sealed partial class TimeZonesPage : Page
         PrimaryZoneBox.Text          = s.PrimaryTimeZone is { } id ? TimeZoneCatalog.CityFor(id) : "";
         ZonePromptSwitch.IsOn        = s.PromptOnZoneChange;
         UpdatePrimaryState();
+        UpdatePrimarySummary();
 
         _loading = false;
     }
+
+    // The expander's summary: the saved zone's city, or Windows' with a note that Leaf follows it
+    void UpdatePrimarySummary() => PrimaryZoneSummary.Text = _vm.Settings.PrimaryTimeZone is { } id
+        ? TimeZoneCatalog.CityFor(id)
+        : $"Same as Windows ({TimeZoneCatalog.CityFor(_vm.UserZone.Id)})";
 
     void UpdatePrimaryState()
     {
@@ -83,6 +89,7 @@ public sealed partial class TimeZonesPage : Page
         {
             PrimaryZoneBox.Text = "";
             _context.Save(s => s with { PrimaryTimeZone = null });
+            UpdatePrimarySummary();
         }
     }
 
@@ -102,6 +109,7 @@ public sealed partial class TimeZonesPage : Page
         {
             _context.Save(s => s with { PrimaryTimeZone = choice.Id });
             sender.Text = choice.City;
+            UpdatePrimarySummary();
         }
     }
 

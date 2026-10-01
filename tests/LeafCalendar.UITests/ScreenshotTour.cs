@@ -1,3 +1,4 @@
+using FlaUI.Core.AutomationElements;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.UITests.Support;
 
@@ -7,6 +8,10 @@ public sealed class ScreenshotTour : IDisposable
 {
     readonly FakeGoogleServer _google = new();
     readonly List<string> _profiles = [];
+
+    // Settings Pages And Window Widths For Capture_SettingsPages (0 is the minimum)
+    static readonly string[] SettingsPages  = ["General", "Calendars", "TimeZones", "Notifications", "Tray", "Shortcuts", "Accounts", "About"];
+    static readonly int[]    SettingsWidths = [0, 1500];
 
     public void Dispose()
     {
@@ -71,6 +76,117 @@ public sealed class ScreenshotTour : IDisposable
         }
 
         Assert.True(failed.Count == 0, string.Join(Environment.NewLine, failed));
+    }
+
+    /// <summary>
+    /// Every Settings page in light and dark, with the Settings window at its 640 DIP minimum and wide (1500 px), so the
+    /// capped, centered column and the pane's collapse both show. Set LEAF_SCREENSHOTS to run it (LEAF_SCREENS narrows
+    /// the pages, such as "General,TimeZones"). Expanders on the page are opened first, so their rows show.
+    /// </summary>
+    [Fact]
+    public void Capture_SettingsPages()
+    {
+        var folder = Environment.GetEnvironmentVariable("LEAF_SCREENSHOTS");
+        if (string.IsNullOrEmpty(folder))
+        {
+            Assert.Skip("Set LEAF_SCREENSHOTS to a folder to capture the Settings pages.");
+        }
+
+        var only  = Environment.GetEnvironmentVariable("LEAF_SCREENS")?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var pages = SettingsPages.Where(p => only is null || only.Contains(p, StringComparer.OrdinalIgnoreCase));
+
+        Directory.CreateDirectory(folder);
+        foreach (var theme in new[] { AppTheme.Light, AppTheme.Dark })
+        {
+            var profile = SeededProfile.Create(new LeafSettings { Theme = theme });
+            _profiles.Add(profile);
+            using var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+            leaf.WaitFor("SettingsButton");
+            foreach (var page in pages)
+            {
+                // The Main Window Minimized, So Only Settings Shows In The Shot
+                var settings = leaf.OpenSettings(page);
+                leaf.MainWindow.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
+                foreach (var width in SettingsWidths)
+                {
+                    // 0 Asks For The Minimum (the window clamps it)
+                    settings.Patterns.Transform.Pattern.Move(40, 40);
+                    settings.Patterns.Transform.Pattern.Resize(width, 900);
+                    Thread.Sleep(600);
+                    // The Expanders Open, So Their Rows Show
+                    if (page == "TimeZones")
+                    {
+                        leaf.ExpandInSettings("PrimaryZoneExpander");
+                    }
+                    else if (page == "Accounts")
+                    {
+                        leaf.ExpandInSettings($"AccountExpander_{SeededProfile.AccountId}");
+                    }
+
+                    // Only Settings In The Shot (the main window minimized again: opening Settings can bring it back)
+                    leaf.MainWindow.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
+                    settings.SetForeground();
+                    Thread.Sleep(400);
+                    settings.CaptureToFile(Path.Combine(folder, $"settings-{page.ToLowerInvariant()}-{theme.ToString().ToLowerInvariant()}-{(width == 0 ? "narrow" : "wide")}.png"));
+
+                    // General's Working Hours, Further Down
+                    if (page == "General")
+                    {
+                        leaf.WaitInSettings("WorkDaysButton").Patterns.ScrollItem.Pattern.ScrollIntoView();
+                        Thread.Sleep(400);
+                        settings.CaptureToFile(Path.Combine(folder, $"settings-general-workinghours-{theme.ToString().ToLowerInvariant()}-{(width == 0 ? "narrow" : "wide")}.png"));
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The shortcut picker in light and dark: the Shortcuts page's buttons, then its dialog with the current shortcut
+    /// (valid), Shift+J (invalid), nothing (Esc), and the other shortcut's keys (taken). Set LEAF_SCREENSHOTS to run it.
+    /// </summary>
+    [Fact]
+    public void Capture_ShortcutPicker()
+    {
+        var folder = Environment.GetEnvironmentVariable("LEAF_SCREENSHOTS");
+        if (string.IsNullOrEmpty(folder))
+        {
+            Assert.Skip("Set LEAF_SCREENSHOTS to a folder to capture the shortcut picker.");
+        }
+
+        Directory.CreateDirectory(folder);
+        foreach (var theme in new[] { AppTheme.Light, AppTheme.Dark })
+        {
+            var name    = theme.ToString().ToLowerInvariant();
+            var profile = SeededProfile.Create(new LeafSettings { Theme = theme, JoinShortcut = "Ctrl+Alt+Shift+F9", FlyoutShortcut = "Ctrl+Alt+Shift+F10" });
+            _profiles.Add(profile);
+            using var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+            leaf.WaitFor("SettingsButton");
+            var settings = leaf.OpenSettings("Shortcuts");
+            leaf.MainWindow.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
+            settings.Patterns.Transform.Pattern.Move(40, 40);
+            settings.Patterns.Transform.Pattern.Resize(1100, 800);
+            settings.SetForeground();
+            leaf.WaitInSettings("JoinShortcutButton");
+            Thread.Sleep(600);
+            settings.CaptureToFile(Path.Combine(folder, $"shortcut-button-{name}.png"));
+
+            // The Dialog's States
+            leaf.WaitInSettings("JoinShortcutButton").AsButton().Invoke();
+            leaf.WaitForAnywhere("ShortcutPreview");
+            Thread.Sleep(600);
+            settings.CaptureToFile(Path.Combine(folder, $"shortcut-dialog-valid-{name}.png"));
+            FlaUI.Core.Input.Keyboard.TypeSimultaneously(FlaUI.Core.WindowsAPI.VirtualKeyShort.SHIFT, FlaUI.Core.WindowsAPI.VirtualKeyShort.KEY_J);
+            Thread.Sleep(600);
+            settings.CaptureToFile(Path.Combine(folder, $"shortcut-dialog-invalid-{name}.png"));
+            FlaUI.Core.Input.Keyboard.Type(FlaUI.Core.WindowsAPI.VirtualKeyShort.ESCAPE);
+            Thread.Sleep(600);
+            settings.CaptureToFile(Path.Combine(folder, $"shortcut-dialog-empty-{name}.png"));
+            FlaUI.Core.Input.Keyboard.TypeSimultaneously(FlaUI.Core.WindowsAPI.VirtualKeyShort.CONTROL, FlaUI.Core.WindowsAPI.VirtualKeyShort.ALT, FlaUI.Core.WindowsAPI.VirtualKeyShort.SHIFT, FlaUI.Core.WindowsAPI.VirtualKeyShort.F10);
+            Thread.Sleep(600);
+            settings.CaptureToFile(Path.Combine(folder, $"shortcut-dialog-taken-{name}.png"));
+            leaf.WaitForAnywhere("CloseButton").AsButton().Invoke();
+        }
     }
 
     // Sizes The Window (screen pixels) At LEAF_SCREENS_X From The Left (default 40), So A Window Pinned On Top Elsewhere Stays Out Of The Shots

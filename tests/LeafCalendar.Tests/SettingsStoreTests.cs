@@ -33,7 +33,6 @@ public sealed class SettingsStoreTests : IDisposable
             WorkingHours          = new WorkingHours { Enabled = false, StartMinute = 8 * 60, EndMinute = 18 * 60, Days = [DayOfWeek.Sunday, DayOfWeek.Wednesday] },
             MapProvider           = MapProvider.Bing,
             MeetByDefaultAccounts = ["acct1"],
-            TrayExcludedCalendars = [new CalendarRef("acct1", "cal1")],
         };
 
         SettingsStore.Save(conn, saved);
@@ -45,7 +44,6 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal([DayOfWeek.Sunday, DayOfWeek.Wednesday], loaded.WorkingHours.Days);
         Assert.Equal(MapProvider.Bing, loaded.MapProvider);
         Assert.Equal(["acct1"], loaded.MeetByDefaultAccounts);
-        Assert.Equal([new CalendarRef("acct1", "cal1")], loaded.TrayExcludedCalendars);
     }
 
     [Fact]

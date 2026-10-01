@@ -198,9 +198,6 @@ public sealed record LeafSettings
     /// <summary>Accounts whose new events get a Google Meet link by default.</summary>
     public IReadOnlyList<string> MeetByDefaultAccounts { get; init; } = [];
 
-    /// <summary>Calendars left out of the tray flyout and tooltip (the rest follow what's shown in Leaf).</summary>
-    public IReadOnlyList<CalendarRef> TrayExcludedCalendars { get; init; } = [];
-
     /// <summary>Detailed logging (Settings › About): a breadcrumb trail and crash dumps in the log folder. Off by default.</summary>
     public bool DetailedLogging { get; init; }
 
@@ -219,7 +216,8 @@ public sealed record LeafSettings
     /// An upcoming lookahead that isn't one of <see cref="UpcomingChoices"/> becomes 8 hours.
     /// A primary time zone this PC doesn't know becomes null (follow Windows).
     /// A blank main account becomes null.
-    /// Blank and repeated Meet-by-default accounts and tray-excluded calendars are dropped.
+    /// Blank and repeated Meet-by-default accounts are dropped. (The old tray-excluded calendars are no longer read: the
+    /// tray follows what's shown in Leaf, so a saved row that still has them loads without them.)
     /// A list whose contents didn't change keeps its instance, so normalizing twice gives an equal record.
     /// </remarks>
     public LeafSettings Normalize()
@@ -258,20 +256,18 @@ public sealed record LeafSettings
             PrimaryTimeZone       = PrimaryTimeZone is { } z && TimeZoneInfo.TryFindSystemTimeZoneById(z, out _) ? z : null,
             MainAccountId         = string.IsNullOrWhiteSpace(MainAccountId) ? null : MainAccountId,
             MeetByDefaultAccounts = Keep(MeetByDefaultAccounts, [.. (MeetByDefaultAccounts ?? []).Where(a => !string.IsNullOrWhiteSpace(a)).Distinct(StringComparer.Ordinal)]),
-            TrayExcludedCalendars = Keep(TrayExcludedCalendars, [.. (TrayExcludedCalendars ?? []).Where(c => c is not null && !string.IsNullOrWhiteSpace(c.AccountId) && !string.IsNullOrWhiteSpace(c.CalendarId)).Distinct()]),
         };
     }
 
     /// <summary>
     /// Returns a copy without the per-account choices of accounts no longer connected (the main account, Meet by
-    /// default, and tray-excluded calendars), so adding the same Google account again starts fresh. Equal to this
+    /// default), so adding the same Google account again starts fresh. Equal to this
     /// record when every account they name is still in <paramref name="accountIds"/>.
     /// </summary>
     public LeafSettings ForAccounts(IReadOnlyCollection<string> accountIds) => this with
     {
         MainAccountId         = MainAccountId is { } main && accountIds.Contains(main) ? main : null,
         MeetByDefaultAccounts = Keep(MeetByDefaultAccounts, [.. MeetByDefaultAccounts.Where(accountIds.Contains)]),
-        TrayExcludedCalendars = Keep(TrayExcludedCalendars, [.. TrayExcludedCalendars.Where(c => accountIds.Contains(c.AccountId))]),
     };
 
     // Records compare lists by reference, so an unchanged list keeps its instance and a normalized copy still equals the original

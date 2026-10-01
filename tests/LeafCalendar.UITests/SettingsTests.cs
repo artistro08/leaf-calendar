@@ -184,6 +184,33 @@ public sealed class SettingsTests : IDisposable
     }
 
     [Fact]
+    public void ChangeOAuthClient_TitleBarBack_ReturnsToAccounts()
+    {
+        using var leaf = Launch();
+        var settings = leaf.OpenSettings("Accounts");
+
+        // A Root Page Has No Back Button
+        leaf.WaitInSettings("AddAccountButton");
+        Assert.Null(BackButton(settings));
+
+        // The Client Form Has One, Left Of The Hamburger, And It Goes Back
+        leaf.WaitInSettings("ChangeClientButton").AsButton().Invoke();
+        leaf.WaitInSettings("SettingsClientIdBox");
+        var back = Retry.WhileNull(() => BackButton(settings), TimeSpan.FromSeconds(5)).Result
+            ?? throw new InvalidOperationException("The title bar has no back button on the client form.");
+        var toggle = leaf.WaitInSettings("PART_PaneToggleButton");
+        Assert.True(back.BoundingRectangle.Right <= toggle.BoundingRectangle.Left, "The back button isn't left of the hamburger.");
+        back.AsButton().Invoke();
+
+        Assert.NotNull(leaf.WaitInSettings("AddAccountButton"));
+        Assert.True(Retry.WhileFalse(() => BackButton(settings) is null, TimeSpan.FromSeconds(5)).Success);
+    }
+
+    // The stock TitleBar's back button, while it shows
+    static AutomationElement? BackButton(AutomationElement settings) =>
+        settings.FindFirstDescendant(cf => cf.ByAutomationId("SettingsTitleBar"))?.FindFirstDescendant(cf => cf.ByAutomationId("PART_BackButton"));
+
+    [Fact]
     public void Disconnect_WithUnsentChanges_WarnsTheyWillBeLost()
     {
         using var leaf = Launch();
@@ -198,8 +225,8 @@ public sealed class SettingsTests : IDisposable
         // Wait for the outbox entry (it may only be written once the 6 s undo window ends)
         Assert.True(Retry.WhileFalse(() => UnsentChanges() > 0, TimeSpan.FromSeconds(15)).Success);
 
-        var settings = leaf.OpenSettings("Accounts");
-        Retry.WhileNull(() => settings.FindFirstDescendant(cf => cf.ByName("Disconnect")), TimeSpan.FromSeconds(15)).Result!.AsButton().Invoke();
+        leaf.OpenSettings("Accounts");
+        leaf.PressDisconnectInSettings();
 
         Assert.True(Retry.WhileFalse(() => leaf.AnyTextContains("hasn't reached Google yet, and it will be lost."), TimeSpan.FromSeconds(10)).Success);
         leaf.WaitForAnywhere("CloseButton").AsButton().Invoke();

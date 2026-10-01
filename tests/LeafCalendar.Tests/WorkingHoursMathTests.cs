@@ -13,6 +13,18 @@ public sealed class WorkingHoursMathTests
     static readonly DateOnly Saturday = new(2026, 10, 3);
 
     [Fact]
+    public void DaysLabel_NamesTheCommonSetsAndListsTheRestInWeekOrder()
+    {
+        DayOfWeek[] weekdays = [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday];
+
+        Assert.Equal("Weekdays", WorkingHoursMath.DaysLabel(weekdays, DayOfWeek.Sunday));
+        Assert.Equal("Every day", WorkingHoursMath.DaysLabel(Enum.GetValues<DayOfWeek>(), DayOfWeek.Monday));
+        Assert.Equal("No days", WorkingHoursMath.DaysLabel([], DayOfWeek.Sunday));
+        Assert.Equal("Sun, Fri", WorkingHoursMath.DaysLabel([DayOfWeek.Friday, DayOfWeek.Sunday], DayOfWeek.Sunday));
+        Assert.Equal("Fri, Sun", WorkingHoursMath.DaysLabel([DayOfWeek.Friday, DayOfWeek.Sunday], DayOfWeek.Monday));
+    }
+
+    [Fact]
     public void Workday_ShadesBeforeAndAfter() =>
         Assert.Equal([(0, 540), (1020, 1440)], WorkingHoursMath.OffHours(new WorkingHours(), Thursday, NewYork, NewYork));
 

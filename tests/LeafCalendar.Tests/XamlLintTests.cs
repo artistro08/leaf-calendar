@@ -23,6 +23,7 @@ public class XamlLintTests
         "MainWindow.xaml|spacing|10,0,10,1 (Button in TodayButton)",   // Today label sits 1 px high to line up with the caption glyphs (comment above the View menu)
         "Styles/LeafTheme.xaml|spacing|10,0 (Setter in LeafToolbarButtonStyle)",   // Same 10 px sides as the Today button
         "Styles/LeafTheme.xaml|spacing|9,12,0,4 (Setter in LeafSectionHeaderStyle)",   // 9 on the sidebar's shared left edge (style comment)
+        "Styles/LeafTheme.xaml|spacing|48,12,60,12 (Setter in LeafExpanderItemRowStyle)",   // 60 lines child controls up with the expander header's, left of the stock chevron column (20 + 32 + 8)
 
         // Optical alignment tuned by hand (title bar lift, sidebar glyph centers); see the comments in each file
         "Views/CalendarPage.xaml|spacing|0,9,0,8 (TextBlock in PeriodTitle)",
@@ -30,6 +31,11 @@ public class XamlLintTests
         "Views/SidebarView.xaml|spacing|9,0,0,0 (TextBlock in MiniMonthTitle)",
         "Views/SidebarView.xaml|spacing|9,0,4,0 (Grid in CalendarList)",
         "Views/SidebarView.xaml|spacing|0,0,11,0 (PinnedItemsControl in CalendarList)",
+
+        // Ported from PowerToys (ShortcutDialogContentControl's CondensedInfoBarStyle): the InfoBar template binds its own
+        // TemplateSettings.IconElement and Foreground through RelativeSource TemplatedParent, as the stock InfoBar template does
+        "Views/Settings/ShortcutDialogContentControl.xaml|binding|Child",
+        "Views/Settings/ShortcutDialogContentControl.xaml|binding|Value",
 
         // Tray flyout page padding is 20, copied from Sony's flyout (design standard, "Flyout page padding")
         "Tray/TrayHost.xaml|spacing|20,20,20,16 (StackPanel in AgendaPanel)",

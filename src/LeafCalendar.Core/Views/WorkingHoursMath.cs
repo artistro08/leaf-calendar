@@ -7,6 +7,35 @@ namespace LeafCalendar.Core.Views;
 public static class WorkingHoursMath
 {
     /// <summary>
+    /// The work days in a few words, for Settings › General's work days button: "Weekdays", "Every day", "No days", or
+    /// the short names in the week's order from <paramref name="weekStart"/> ("Sun, Fri").
+    /// </summary>
+    public static string DaysLabel(IReadOnlyCollection<DayOfWeek> days, DayOfWeek weekStart)
+    {
+        var set = days.ToHashSet();
+        if (set.Count == 0)
+        {
+            return "No days";
+        }
+
+        if (set.Count == 7)
+        {
+            return "Every day";
+        }
+
+        if (set.Count == 5 && !set.Contains(DayOfWeek.Saturday) && !set.Contains(DayOfWeek.Sunday))
+        {
+            return "Weekdays";
+        }
+
+        var names = System.Globalization.CultureInfo.GetCultureInfo("en-US").DateTimeFormat;
+        return string.Join(", ", Enumerable.Range(0, 7)
+            .Select(i => (DayOfWeek)(((int)weekStart + i) % 7))
+            .Where(set.Contains)
+            .Select(names.GetAbbreviatedDayName));
+    }
+
+    /// <summary>
     /// Nothing when shading is off. Your working hours (in <paramref name="userZone"/>) are laid onto the day drawn in
     /// <paramref name="displayZone"/>, so while time traveling to Tokyo your 9 to 5 shows where it falls in Tokyo time;
     /// a working day can split across the drawn day's midnight. Everything else is shaded.

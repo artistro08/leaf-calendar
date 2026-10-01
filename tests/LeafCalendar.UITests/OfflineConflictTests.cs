@@ -126,10 +126,8 @@ public sealed class OfflineConflictTests : IDisposable
         _google.Offline = true;
         leaf.Press(VirtualKeyShort.DELETE);
 
-        var settings = leaf.OpenSettings("Accounts");
-        var disconnect = Retry.WhileNull(() => settings.FindFirstDescendant(cf => cf.ByName("Disconnect")), TimeSpan.FromSeconds(15)).Result
-            ?? throw new InvalidOperationException("'Disconnect' didn't appear in Settings.");
-        disconnect.AsButton().Invoke();
+        leaf.OpenSettings("Accounts");
+        leaf.PressDisconnectInSettings();
 
         Assert.True(Retry.WhileFalse(() => leaf.AnyTextContains("1 change you made here hasn't reached Google yet, and it will be lost."), TimeSpan.FromSeconds(10)).Success);
         leaf.WaitForAnywhere("CloseButton").AsButton().Invoke();

@@ -196,6 +196,13 @@
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
+    <!-- Settings Page Column (inside the page's full-width ScrollViewer: the content inset, capped at 1000 and centered past that, like Windows Settings) -->
+    <Style x:Key="LeafSettingsPagePanelStyle" TargetType="StackPanel">
+        <Setter Property="MaxWidth" Value="1072" />
+        <Setter Property="Padding" Value="36,24" />
+        <Setter Property="Spacing" Value="4" />
+    </Style>
+
     <!-- Settings Page Title -->
     <Style x:Key="LeafSettingsPageTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource TitleTextBlockStyle}">
         <Setter Property="Margin" Value="0,0,0,16" />
@@ -216,7 +223,7 @@
     </Style>
 
     <!-- Setting Row (the Windows 11 Settings card: optional 16 px icon, header and description on the left, the control on the right) -->
-    <Style TargetType="controls:SettingRow">
+    <Style x:Key="LeafSettingRowStyle" TargetType="controls:SettingRow">
         <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
@@ -270,7 +277,36 @@
             </Setter.Value>
         </Setter>
     </Style>
+    <Style TargetType="controls:SettingRow" BasedOn="{StaticResource LeafSettingRowStyle}" />
     <!-- /Setting Row -->
+
+    <!--
+        Setting Expander (the Windows 11 Settings expander card, a stock Expander): the header is a SettingRow without
+        its card (LeafExpanderHeaderRowStyle; its content is the summary on the right), and the child rows inside are
+        LeafExpanderItemRowStyle, divided by a line, their text lined up with the header's and their controls with the
+        header's summary (left of the 60 DIP chevron column). The first child row sets BorderThickness="0".
+    -->
+    <Style x:Key="LeafSettingExpanderStyle" TargetType="Expander">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="MinHeight" Value="68" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
+    </Style>
+    <Style x:Key="LeafExpanderHeaderRowStyle" TargetType="controls:SettingRow" BasedOn="{StaticResource LeafSettingRowStyle}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0,16" />
+        <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style x:Key="LeafExpanderItemRowStyle" TargetType="controls:SettingRow" BasedOn="{StaticResource LeafSettingRowStyle}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0,1,0,0" />
+        <Setter Property="CornerRadius" Value="0" />
+        <Setter Property="Padding" Value="48,12,60,12" />
+        <Setter Property="MinHeight" Value="48" />
+    </Style>
+    <!-- /Setting Expander -->
 
     <!--
         Step Pips: the onboarding PipsPager's pips drawn as 24 x 3 rounded lines, 8 apart (each sits in a 32 x 16 box).

@@ -6,38 +6,64 @@
     xmlns:vm="using:LeafCalendar.App.ViewModels">
 
     <ScrollViewer x:Name="PageScroll">
-        <StackPanel MaxWidth="900" Spacing="4">
+        <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
             <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Time zones" />
 
-            <!-- Primary Time Zone (Windows' zone by default, or one Leaf keeps when you travel) -->
-            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Primary time zone" />
-            <controls:SettingRow Glyph="&#xE909;" Header="Use Windows time zone" Description="Leaf follows your PC's time zone, so your calendar changes when you travel.">
-                <ToggleSwitch
-                    x:Name="FollowWindowsZoneSwitch"
-                    Style="{StaticResource LeafCardToggleSwitchStyle}"
-                    Toggled="OnFollowWindowsToggled"
-                    AutomationProperties.Name="Use Windows time zone"
-                    AutomationProperties.AutomationId="FollowWindowsZoneSwitch" />
-            </controls:SettingRow>
-            <controls:SettingRow Glyph="&#xE774;" Header="Leaf's time zone" Description="Your calendar shows this time zone.">
-                <AutoSuggestBox
-                    x:Name="PrimaryZoneBox"
-                    Width="320"
-                    PlaceholderText="Search a city or zone (Tokyo, NYC, UTC)"
-                    QueryIcon="Find"
-                    TextChanged="OnPrimaryTextChanged"
-                    SuggestionChosen="OnPrimaryChosen"
-                    AutomationProperties.Name="Leaf's time zone"
-                    AutomationProperties.AutomationId="PrimaryZoneBox" />
-            </controls:SettingRow>
-            <controls:SettingRow Glyph="&#xE7E7;" Header="Ask when my PC's time zone changes" Description="Leaf offers to switch when you travel.">
-                <ToggleSwitch
-                    x:Name="ZonePromptSwitch"
-                    Style="{StaticResource LeafCardToggleSwitchStyle}"
-                    Toggled="OnZonePromptToggled"
-                    AutomationProperties.Name="Ask when my PC's time zone changes"
-                    AutomationProperties.AutomationId="ZonePromptSwitch" />
-            </controls:SettingRow>
+            <!-- Primary Time Zone (one expander, like Windows' "Time zone": Windows' zone by default, or one Leaf keeps when you travel) -->
+            <Expander
+                x:Name="PrimaryZoneExpander"
+                Style="{StaticResource LeafSettingExpanderStyle}"
+                AutomationProperties.Name="Primary time zone"
+                AutomationProperties.AutomationId="PrimaryZoneExpander">
+                <Expander.Header>
+                    <controls:SettingRow
+                        Style="{StaticResource LeafExpanderHeaderRowStyle}"
+                        Glyph="&#xE774;"
+                        Header="Primary time zone"
+                        Description="Your calendar shows this time zone.">
+                        <TextBlock
+                            x:Name="PrimaryZoneSummary"
+                            Style="{StaticResource LeafSecondaryTextStyle}"
+                            AutomationProperties.AutomationId="PrimaryZoneSummary" />
+                    </controls:SettingRow>
+                </Expander.Header>
+                <StackPanel>
+                    <controls:SettingRow
+                        Style="{StaticResource LeafExpanderItemRowStyle}"
+                        BorderThickness="0"
+                        Header="Use Windows time zone"
+                        Description="Leaf follows your PC's time zone, so your calendar changes when you travel.">
+                        <ToggleSwitch
+                            x:Name="FollowWindowsZoneSwitch"
+                            Style="{StaticResource LeafCardToggleSwitchStyle}"
+                            Toggled="OnFollowWindowsToggled"
+                            AutomationProperties.Name="Use Windows time zone"
+                            AutomationProperties.AutomationId="FollowWindowsZoneSwitch" />
+                    </controls:SettingRow>
+                    <controls:SettingRow Style="{StaticResource LeafExpanderItemRowStyle}" Header="Leaf's time zone">
+                        <AutoSuggestBox
+                            x:Name="PrimaryZoneBox"
+                            Width="320"
+                            PlaceholderText="Search a city or zone (Tokyo, NYC, UTC)"
+                            QueryIcon="Find"
+                            TextChanged="OnPrimaryTextChanged"
+                            SuggestionChosen="OnPrimaryChosen"
+                            AutomationProperties.Name="Leaf's time zone"
+                            AutomationProperties.AutomationId="PrimaryZoneBox" />
+                    </controls:SettingRow>
+                    <controls:SettingRow
+                        Style="{StaticResource LeafExpanderItemRowStyle}"
+                        Header="Ask when my PC's time zone changes"
+                        Description="Leaf offers to switch when you travel.">
+                        <ToggleSwitch
+                            x:Name="ZonePromptSwitch"
+                            Style="{StaticResource LeafCardToggleSwitchStyle}"
+                            Toggled="OnZonePromptToggled"
+                            AutomationProperties.Name="Ask when my PC's time zone changes"
+                            AutomationProperties.AutomationId="ZonePromptSwitch" />
+                    </controls:SettingRow>
+                </StackPanel>
+            </Expander>
             <!-- /Primary Time Zone -->
 
             <!-- Add -->

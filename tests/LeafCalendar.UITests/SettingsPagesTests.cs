@@ -79,8 +79,10 @@ public sealed class SettingsPagesTests : IDisposable
             leaf.WaitInSettings("MapProviderBox").AsComboBox().Select("Bing Maps");
             PickTime(leaf, "WorkingStartPicker", "8", "00", "AM");
             PickTime(leaf, "WorkingEndPicker", "4", "00", "PM");
-            leaf.WaitInSettings("WorkingDay_Friday").AsToggleButton().Toggle();
-            Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("WorkingDay_Friday").AsToggleButton().ToggleState == ToggleState.Off, TimeSpan.FromSeconds(5)).Success);
+            leaf.WaitInSettings("WorkDaysButton").AsButton().Invoke();
+            leaf.WaitForAnywhere("WorkingDay_Friday").AsCheckBox().Toggle();
+            Assert.True(Retry.WhileFalse(() => leaf.WaitForAnywhere("WorkingDay_Friday").AsCheckBox().ToggleState == ToggleState.Off, TimeSpan.FromSeconds(5)).Success);
+            Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("WorkDaysButton").Properties.HelpText.ValueOrDefault == "Mon, Tue, Wed, Thu", TimeSpan.FromSeconds(5)).Success, "The work days button doesn't list the days.");
         }
 
         using var relaunched = Launch();
@@ -90,8 +92,9 @@ public sealed class SettingsPagesTests : IDisposable
         Assert.Equal("Bing Maps", Selected(relaunched, "MapProviderBox"));
         Assert.Contains("8", TimeOf(relaunched, "WorkingStartPicker"), StringComparison.Ordinal);
         Assert.Contains("4", TimeOf(relaunched, "WorkingEndPicker"), StringComparison.Ordinal);
-        Assert.Equal(ToggleState.Off, relaunched.WaitInSettings("WorkingDay_Friday").AsToggleButton().ToggleState);
-        Assert.Equal(ToggleState.On, relaunched.WaitInSettings("WorkingDay_Monday").AsToggleButton().ToggleState);
+        relaunched.WaitInSettings("WorkDaysButton").AsButton().Invoke();
+        Assert.Equal(ToggleState.Off, relaunched.WaitForAnywhere("WorkingDay_Friday").AsCheckBox().ToggleState);
+        Assert.Equal(ToggleState.On, relaunched.WaitForAnywhere("WorkingDay_Monday").AsCheckBox().ToggleState);
     }
 
     [Fact]
@@ -123,10 +126,7 @@ public sealed class SettingsPagesTests : IDisposable
 
         Assert.True(Retry.WhileTrue(() => leaf.WaitInSettings("WorkingStartPicker").IsEnabled, TimeSpan.FromSeconds(5)).Success, "The start picker stayed on.");
         Assert.False(leaf.WaitInSettings("WorkingEndPicker").IsEnabled);
-        foreach (var day in Enum.GetValues<DayOfWeek>())
-        {
-            Assert.False(leaf.WaitInSettings($"WorkingDay_{day}").IsEnabled, $"{day} stayed on.");
-        }
+        Assert.False(leaf.WaitInSettings("WorkDaysButton").IsEnabled, "The work days button stayed on.");
 
         // No shading in the grid (Task 9 draws OffHours_* while it's on)
         Assert.True(
@@ -179,6 +179,8 @@ public sealed class SettingsPagesTests : IDisposable
         using var leaf = Launch();
         leaf.OpenSettings("Accounts");
 
+        // The Switch Is Inside The Account's Expander
+        leaf.ExpandInSettings($"AccountExpander_{SeededProfile.AccountId}");
         var meet = leaf.WaitInSettings($"MeetByDefault_{SeededProfile.AccountId}").AsToggleButton();
         Assert.Equal(ToggleState.Off, meet.ToggleState);
         meet.Toggle();
