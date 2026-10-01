@@ -67,13 +67,14 @@
         <!-- /Mini Month -->
 
         <!-- Calendars (the only part that scrolls; the right margin keeps the rows clear of the scroll indicator). The list is
-             kept in step with the calendars in place, never rebuilt: only an account or calendar that comes or goes animates
+             kept in step with the calendars in place, never rebuilt: only a calendar that comes or goes animates
              (it fades in or out and the rows below slide), and nothing else on the list moves. -->
         <ScrollViewer x:Name="ContentScroll" Grid.Row="1" Margin="0,4,0,0" AutomationProperties.AutomationId="SidebarScroll">
             <ItemsControl x:Name="CalendarList" Margin="0,0,11,0" AutomationProperties.AutomationId="CalendarList">
+                <!-- Accounts only slide when the rows above them grow or shrink: an add or delete transition here played on
+                     every launch (each account group scaled in), which read as the whole list moving on its own -->
                 <ItemsControl.ItemContainerTransitions>
                     <TransitionCollection>
-                        <AddDeleteThemeTransition />
                         <RepositionThemeTransition />
                     </TransitionCollection>
                 </ItemsControl.ItemContainerTransitions>

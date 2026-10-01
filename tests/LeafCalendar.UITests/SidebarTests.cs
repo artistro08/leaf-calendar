@@ -48,7 +48,9 @@ public sealed class SidebarTests : IDisposable
     public void Content_SharesOneLeftEdge()
     {
         using var leaf = Launch();
-        var box = leaf.WaitFor($"CalendarToggle_{FamilyId}").BoundingRectangle;
+        var toggle = leaf.WaitFor($"CalendarToggle_{FamilyId}");
+        LeafApp.WaitUntilStill(toggle);
+        var box = toggle.BoundingRectangle;
 
         // The settings glyph starts 8 DIPs in on its button (a mini-month day button is 28 DIPs wide)
         var inset = 8 * leaf.WaitFor("MiniDay_2026-10-01").BoundingRectangle.Width / 28.0;
@@ -134,9 +136,10 @@ public sealed class SidebarTests : IDisposable
         Assert.False(leaf.Exists($"CalendarColor_{FamilyId}"));
     }
 
-    // Each calendar row's checkbox, by automation ID, with its UI Automation runtime ID (a rebuilt row gets a new one)
+    // Each calendar row's checkbox, by automation ID, with its UI Automation runtime ID (a rebuilt row gets a new one).
+    // Found under the scroll viewer: the list itself (an ItemsControl) isn't in the automation tree.
     static Dictionary<string, string> RowElements(LeafApp leaf) =>
-        leaf.WaitFor("CalendarList")
+        leaf.WaitFor("SidebarScroll")
             .FindAllDescendants(cf => cf.ByControlType(ControlType.CheckBox))
             .ToDictionary(r => r.AutomationId, r => string.Join(".", r.Properties.RuntimeId.Value));
 
@@ -150,18 +153,35 @@ public sealed class SidebarTests : IDisposable
         Thread.Sleep(1500);
     }
 
+    // The list is already there at a later launch: it appears where it stays, with no add or slide animation
+    [Fact]
+    public void Relaunch_ListAppearsWithoutMoving()
+    {
+        using (var first = Launch())
+        {
+            first.WaitFor($"CalendarToggle_{FamilyId}");
+        }
+
+        using var leaf = Launch();
+        var toggle = leaf.WaitFor($"CalendarToggle_{FamilyId}");
+        var shown  = toggle.BoundingRectangle;
+        Thread.Sleep(1000);
+
+        Assert.Equal(shown, toggle.BoundingRectangle);
+    }
+
     [Fact]
     public void UncheckCalendar_KeepsEveryRowInPlace()
     {
         using var leaf = Launch();
         leaf.WaitFor($"CalendarToggle_{FamilyId}");
-        var rows   = leaf.WaitFor("CalendarList").FindAllDescendants(cf => cf.ByControlType(ControlType.CheckBox));
+        var rows   = leaf.WaitFor("SidebarScroll").FindAllDescendants(cf => cf.ByControlType(ControlType.CheckBox));
         var before = rows.Select(r => string.Join(".", r.Properties.RuntimeId.Value)).ToList();
 
         rows[1].AsCheckBox().Toggle();
         Thread.Sleep(1000);
 
-        var after = leaf.WaitFor("CalendarList").FindAllDescendants(cf => cf.ByControlType(ControlType.CheckBox)).Select(r => string.Join(".", r.Properties.RuntimeId.Value)).ToList();
+        var after = leaf.WaitFor("SidebarScroll").FindAllDescendants(cf => cf.ByControlType(ControlType.CheckBox)).Select(r => string.Join(".", r.Properties.RuntimeId.Value)).ToList();
         Assert.Equal(before, after);
         Assert.False(rows[1].AsCheckBox().IsChecked);
     }
@@ -196,11 +216,13 @@ public sealed class SidebarTests : IDisposable
         Assert.Equal(before, RowElements(leaf));
     }
 
+    // Measured from the page's corner: the sidebar pane runs down the page's left edge, while the Sidebar element's own
+    // automation box only covers what it draws (inside its padding)
     [Fact]
     public void SettingsButton_SitsAsFarFromTheBottomAsFromTheLeft()
     {
         using var leaf = Launch();
-        var sidebar = leaf.WaitFor("Sidebar").BoundingRectangle;
+        var sidebar = leaf.WaitFor("CalendarRoot").BoundingRectangle;
         var glyph   = leaf.WaitFor("SettingsButton").BoundingRectangle;
         var fromLeft   = glyph.X + glyph.Width / 2.0 - sidebar.X;
         var fromBottom = sidebar.Bottom - (glyph.Y + glyph.Height / 2.0);
