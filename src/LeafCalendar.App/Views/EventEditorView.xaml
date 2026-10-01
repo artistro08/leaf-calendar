@@ -44,7 +44,7 @@
 
                 <!-- When -->
                 <CheckBox Content="All day" IsChecked="{x:Bind Editor.IsAllDay, Mode=TwoWay}" IsEnabled="{x:Bind Editor.IsOrdinaryType, Mode=OneWay}" AutomationProperties.AutomationId="EditorAllDay" />
-                <StackPanel Spacing="6">
+                <StackPanel Spacing="8">
                     <!-- Starts -->
                     <Grid ColumnSpacing="8" ColumnDefinitions="*,132">
                         <CalendarDatePicker
@@ -213,8 +213,8 @@
                 </Grid>
 
                 <!-- Guests -->
-                <StackPanel Spacing="6" Visibility="{x:Bind Editor.ShowGuests, Mode=OneWay}">
-                    <Grid ColumnSpacing="6">
+                <StackPanel Spacing="8" Visibility="{x:Bind Editor.ShowGuests, Mode=OneWay}">
+                    <Grid ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -284,7 +284,7 @@
                                     Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                     BorderThickness="1">
-                                    <Grid ColumnSpacing="6">
+                                    <Grid ColumnSpacing="8">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
@@ -299,7 +299,13 @@
                                                 AutomationProperties.AutomationId="{x:Bind GuestId}" />
                                         </StackPanel>
                                         <CheckBox Grid.Column="1" MinWidth="0" Content="Optional" IsChecked="{x:Bind Optional, Mode=TwoWay}" Visibility="{x:Bind ShowOptional}" AutomationProperties.AutomationId="{x:Bind OptionalId}" />
-                                        <Button Grid.Column="2" Background="Transparent" BorderThickness="0" Command="{x:Bind RemoveCommand}" AutomationProperties.Name="Remove guest" AutomationProperties.AutomationId="{x:Bind RemoveId}">
+                                        <Button
+                                            Grid.Column="2"
+                                            Style="{StaticResource LeafIconButtonStyle}"
+                                            Command="{x:Bind RemoveCommand}"
+                                            ToolTipService.ToolTip="Remove guest"
+                                            AutomationProperties.Name="Remove guest"
+                                            AutomationProperties.AutomationId="{x:Bind RemoveId}">
                                             <FontIcon Glyph="&#xE711;" FontSize="12" />
                                         </Button>
                                     </Grid>

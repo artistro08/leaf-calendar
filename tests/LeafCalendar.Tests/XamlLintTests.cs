@@ -37,13 +37,6 @@ public class XamlLintTests
         // A 3 px tall pill and a 28 px circle: half the size is a circle end, which is not a corner radius
         "Styles/LeafTheme.xaml|radius|1.5",
         "Styles/LeafTheme.xaml|radius|14",
-
-        // TODO: Task 9 fixes (owned by Track B)
-        "Views/EventEditorView.xaml|spacing|6 (StackPanel in BodyScroll) #1",
-        "Views/EventEditorView.xaml|spacing|6 (StackPanel in BodyScroll) #2",
-        "Views/EventEditorView.xaml|spacing|6 (Grid in BodyScroll) #1",
-        "Views/EventEditorView.xaml|spacing|6 (Grid in BodyScroll) #2",
-        "Views/EventEditorView.xaml|icon-button|{x:Bind RemoveId}",
     ];
 
     static readonly string[] ButtonTypes = ["Button", "ToggleButton", "HyperlinkButton", "RepeatButton", "AppBarButton", "AppBarToggleButton", "DropDownButton", "SplitButton"];
