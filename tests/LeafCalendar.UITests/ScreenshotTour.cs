@@ -8,6 +8,10 @@ public sealed class ScreenshotTour : IDisposable
     readonly FakeGoogleServer _google = new();
     readonly List<string> _profiles = [];
 
+    // Settings Pages And Window Widths For Capture_SettingsPages (0 is the minimum)
+    static readonly string[] SettingsPages  = ["General", "Calendars", "TimeZones", "Notifications", "Tray", "Shortcuts", "Accounts", "About"];
+    static readonly int[]    SettingsWidths = [0, 1500];
+
     public void Dispose()
     {
         foreach (var profile in _profiles)
@@ -71,6 +75,57 @@ public sealed class ScreenshotTour : IDisposable
         }
 
         Assert.True(failed.Count == 0, string.Join(Environment.NewLine, failed));
+    }
+
+    /// <summary>
+    /// Every Settings page in light and dark, with the Settings window at its 640 DIP minimum and wide (1500 px), so the
+    /// capped, centered column and the pane's collapse both show. Set LEAF_SCREENSHOTS to run it (LEAF_SCREENS narrows
+    /// the pages, such as "General,TimeZones"). Expanders on the page are opened first, so their rows show.
+    /// </summary>
+    [Fact]
+    public void Capture_SettingsPages()
+    {
+        var folder = Environment.GetEnvironmentVariable("LEAF_SCREENSHOTS");
+        if (string.IsNullOrEmpty(folder))
+        {
+            Assert.Skip("Set LEAF_SCREENSHOTS to a folder to capture the Settings pages.");
+        }
+
+        var only  = Environment.GetEnvironmentVariable("LEAF_SCREENS")?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var pages = SettingsPages.Where(p => only is null || only.Contains(p, StringComparer.OrdinalIgnoreCase));
+
+        Directory.CreateDirectory(folder);
+        foreach (var theme in new[] { AppTheme.Light, AppTheme.Dark })
+        {
+            var profile = SeededProfile.Create(new LeafSettings { Theme = theme });
+            _profiles.Add(profile);
+            using var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+            leaf.WaitFor("SettingsButton");
+            foreach (var page in pages)
+            {
+                // The Main Window Minimized, So Only Settings Shows In The Shot
+                var settings = leaf.OpenSettings(page);
+                leaf.MainWindow.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
+                foreach (var width in SettingsWidths)
+                {
+                    // 0 Asks For The Minimum (the window clamps it)
+                    settings.Patterns.Transform.Pattern.Move(40, 40);
+                    settings.Patterns.Transform.Pattern.Resize(width, 900);
+                    Thread.Sleep(600);
+                    foreach (var expander in settings.FindAllDescendants(cf => cf.ByClassName("Expander")))
+                    {
+                        if (expander.Patterns.ExpandCollapse.TryGetPattern(out var pattern) && pattern!.ExpandCollapseState.Value == FlaUI.Core.Definitions.ExpandCollapseState.Collapsed)
+                        {
+                            pattern.Expand();
+                        }
+                    }
+
+                    settings.SetForeground();
+                    Thread.Sleep(400);
+                    settings.CaptureToFile(Path.Combine(folder, $"settings-{page.ToLowerInvariant()}-{theme.ToString().ToLowerInvariant()}-{(width == 0 ? "narrow" : "wide")}.png"));
+                }
+            }
+        }
     }
 
     // Sizes The Window (screen pixels) At LEAF_SCREENS_X From The Left (default 40), So A Window Pinned On Top Elsewhere Stays Out Of The Shots
