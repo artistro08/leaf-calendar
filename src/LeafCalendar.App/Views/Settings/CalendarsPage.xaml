@@ -22,7 +22,7 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:AccountGroup">
                         <StackPanel Spacing="4">
-                            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="{x:Bind Email}" />
+                            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="{x:Bind Email, Mode=OneWay}" />
                             <ItemsControl ItemsSource="{x:Bind Calendars}" IsTabStop="False">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>

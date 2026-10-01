@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Data;
@@ -17,13 +18,15 @@ namespace LeafCalendar.App.Views.Settings;
 public sealed partial class CalendarsPage : Page
 {
     SettingsContext _context = null!;
-    List<AccountGroup> _groups = [];
+    readonly ObservableCollection<AccountGroup> _groups = [];
     Flyout? _colorFlyout;
+    CalendarRow? _colorRow;
 
     /// <summary>Creates the page.</summary>
     public CalendarsPage()
     {
         InitializeComponent();
+        GroupList.ItemsSource = _groups;
         ScrollIndicator.ShowOnHover(PageScroll);
     }
 
@@ -55,20 +58,18 @@ public sealed partial class CalendarsPage : Page
 
     void OnCalendarsChanged(object? sender, EventArgs e) => Rebuild();
 
-    // Same accounts and calendars in the same order: update the rows in place, so focus and an open flyout stay put.
-    // Otherwise (a sync added or removed one, or they were reordered) build the list again.
+    // Rows are matched by calendar ID and updated in place, so focus and an open flyout stay put; only calendars that
+    // came or went are added or removed. A color flyout whose calendar went away closes.
     void Rebuild()
     {
         var groups = _context.Calendar.CalendarGroups();
         EmptyText.Visibility = groups.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        if (AccountGroup.UpdateInPlace(_groups, groups))
-        {
-            return;
-        }
+        AccountGroup.Sync(_groups, groups);
 
-        _colorFlyout?.Hide();
-        _groups               = groups;
-        GroupList.ItemsSource = groups;
+        if (_colorRow is not null && !_groups.Any(g => g.Calendars.Contains(_colorRow)))
+        {
+            _colorFlyout?.Hide();
+        }
     }
 
     // Only a real change counts: the switch also raises Toggled when the list is rebuilt
@@ -92,6 +93,7 @@ public sealed partial class CalendarsPage : Page
         var grid     = new VariableSizedWrapGrid { Orientation = Orientation.Horizontal, MaximumRowsOrColumns = 6, ItemWidth = 32, ItemHeight = 32 };
         var flyout   = new Flyout();
         _colorFlyout = flyout;
+        _colorRow    = row;
         foreach (var hex in EventColors.CalendarPalette)
         {
             var swatch = new Button

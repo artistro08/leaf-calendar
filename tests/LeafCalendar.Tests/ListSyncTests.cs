@@ -74,6 +74,30 @@ public class ListSyncTests
     }
 
     [Fact]
+    public void Reversed_OnlyMovesRows_AndUpdatesEveryOne()
+    {
+        var (shown, changes, original) = Shown("a", "b", "c", "d");
+
+        Sync(shown, Fresh("d", "c", "b", "a"));
+
+        Assert.NotEmpty(changes);
+        Assert.All(changes, c => Assert.Equal(NotifyCollectionChangedAction.Move, c));
+        Assert.Equal([original[3], original[2], original[1], original[0]], shown);
+        Assert.All(shown, r => Assert.Equal(1, r.Item.Version));
+    }
+
+    [Fact]
+    public void MovedRow_GetsItsDataUpdated()
+    {
+        var (shown, _, original) = Shown("a", "b");
+
+        Sync(shown, Fresh("b", "a"));
+
+        Assert.Same(original[1], shown[0]);
+        Assert.Equal(1, shown[0].Item.Version);
+    }
+
+    [Fact]
     public void AddRemoveAndMoveTogether_EndsInTheFreshOrder()
     {
         var (shown, _, original) = Shown("a", "b", "c", "d");

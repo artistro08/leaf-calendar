@@ -100,10 +100,15 @@ public sealed partial class SidebarView : UserControl
 
         AccountGroup.Sync(_groups, _viewModel.CalendarGroups());
 
-        // Repaint Checkboxes Whose Calendar Changed Color
+        // Forget Checkboxes Whose Calendar Left (a removed calendar or account), Repaint Those Whose Color Changed
+        var shown = _groups.SelectMany(g => g.Calendars).ToHashSet();
         foreach (var (box, painted) in _painted.ToList())
         {
-            if (!string.Equals(painted.Row.Color, painted.Color, StringComparison.OrdinalIgnoreCase))
+            if (!shown.Contains(painted.Row))
+            {
+                _painted.Remove(box);
+            }
+            else if (!string.Equals(painted.Row.Color, painted.Color, StringComparison.OrdinalIgnoreCase))
             {
                 Paint(box, painted.Row);
             }

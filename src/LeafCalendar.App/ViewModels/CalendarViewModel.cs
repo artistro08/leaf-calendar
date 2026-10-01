@@ -502,7 +502,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public List<AccountGroup> CalendarGroups() =>
         [.. Calendars
             .GroupBy(c => c.AccountId)
-            .Select((g, i) => new AccountGroup(AccountEmails.GetValueOrDefault(g.Key, g.Key), g.Select(c => new CalendarRow(c))) { ShowDivider = i > 0 })];
+            .Select((g, i) => new AccountGroup(g.Key, AccountEmails.GetValueOrDefault(g.Key, g.Key), g.Select(c => new CalendarRow(c))) { ShowDivider = i > 0 })];
 
     /// <summary>Saves the order of an account's calendars.</summary>
     public void ReorderCalendars(string accountId, IReadOnlyList<string> calendarIds)
@@ -1535,10 +1535,15 @@ public sealed partial class CalendarRow : ObservableObject
 }
 
 /// <summary>An account's calendars in the sidebar.</summary>
-public sealed partial class AccountGroup(string email, IEnumerable<CalendarRow> calendars) : ObservableObject
+public sealed partial class AccountGroup(string accountId, string email, IEnumerable<CalendarRow> calendars) : ObservableObject
 {
-    /// <summary>Account email (header).</summary>
-    public string Email { get; } = email;
+    /// <summary>Google account ID (stable: the list matches groups by it).</summary>
+    public string AccountId { get; } = accountId;
+
+    /// <summary>Account email (header; the account ID until the email is known).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DividerId))]
+    public partial string Email { get; set; } = email;
 
     /// <summary>Calendars in Leaf's order (drag to reorder).</summary>
     public ObservableCollection<CalendarRow> Calendars { get; } = new(calendars);
@@ -1551,48 +1556,22 @@ public sealed partial class AccountGroup(string email, IEnumerable<CalendarRow> 
     public string DividerId => $"AccountDivider_{Email}";
 
     /// <summary>
-    /// Updates the shown rows from a freshly built list when nothing moved.
-    /// </summary>
-    /// <remarks>
-    /// When both lists have the same accounts and calendars in the same order, each shown row takes the fresh row's
-    /// <see cref="CalendarRow.Info"/> (name, color, visibility), so the rows stay put with their focus and any open
-    /// flyout. Otherwise nothing changes and the caller rebuilds.
-    /// </remarks>
-    /// <param name="shown">The groups on screen.</param>
-    /// <param name="fresh">The groups just built by <see cref="CalendarViewModel.CalendarGroups"/>.</param>
-    /// <returns>True when the rows were updated in place.</returns>
-    public static bool UpdateInPlace(List<AccountGroup> shown, List<AccountGroup> fresh)
-    {
-        var same = shown.Count == fresh.Count
-            && shown.Zip(fresh).All(p => p.First.Email == p.Second.Email
-                && p.First.Calendars.Select(c => (c.Info.AccountId, c.Info.Id)).SequenceEqual(p.Second.Calendars.Select(c => (c.Info.AccountId, c.Info.Id))));
-        if (!same)
-        {
-            return false;
-        }
-
-        foreach (var (row, freshRow) in shown.SelectMany(g => g.Calendars).Zip(fresh.SelectMany(g => g.Calendars)))
-        {
-            row.Info = freshRow.Info;
-        }
-
-        return true;
-    }
-
-    /// <summary>
     /// Brings the shown groups in line with a freshly built list without rebuilding them.
     /// </summary>
     /// <remarks>
-    /// Accounts are matched by email and calendars by ID (<see cref="ListSync"/>). Kept rows take the fresh
-    /// <see cref="CalendarRow.Info"/>; only calendars or accounts that came or went are inserted or removed, so a
+    /// Accounts and calendars are matched by ID (<see cref="ListSync"/>). Kept groups take the fresh email and kept rows
+    /// the fresh <see cref="CalendarRow.Info"/>; only calendars or accounts that came or went are inserted or removed, so a
     /// list control animates just those rows and leaves the rest alone. Dividers follow the new first account.
     /// </remarks>
-    /// <param name="shown">The groups the sidebar is bound to (changed in place).</param>
+    /// <param name="shown">The groups the list is bound to (changed in place).</param>
     /// <param name="fresh">The groups just built by <see cref="CalendarViewModel.CalendarGroups"/>.</param>
     public static void Sync(ObservableCollection<AccountGroup> shown, List<AccountGroup> fresh)
     {
-        ListSync.Apply(shown, fresh, g => g.Email, (group, from) =>
-            ListSync.Apply(group.Calendars, from.Calendars, r => r.Info.Id, (row, freshRow) => row.Info = freshRow.Info));
+        ListSync.Apply(shown, fresh, g => g.AccountId, (group, from) =>
+        {
+            group.Email = from.Email;
+            ListSync.Apply(group.Calendars, from.Calendars, r => r.Info.Id, (row, freshRow) => row.Info = freshRow.Info);
+        });
 
         for (var i = 0; i < shown.Count; i++)
         {
