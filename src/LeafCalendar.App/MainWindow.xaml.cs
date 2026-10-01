@@ -124,6 +124,7 @@ public sealed partial class MainWindow : Window
         AppTitleBar.RenderTransform = _titleBarLift;
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         ToolbarHost.SizeChanged += (_, _) => UpdateTitleBarLayout(animate: false);
+        SearchButton.LayoutUpdated += (_, _) => FollowSearchAnchor();
         RootGrid.Loaded += (_, _) =>
         {
             ApplyMinimumSize();
@@ -220,9 +221,6 @@ public sealed partial class MainWindow : Window
 
         if (page is not null)
         {
-            // The Search Icon Follows The Mini Month's Next Button Once It's Laid Out (and when the scale moves it)
-            page.SearchAnchorMoved += (_, _) => PlaceSearchButton();
-
             // The Interface Scale Changes The Minimum Size And The Panes' Widths
             page.ScaleChanged += (_, _) =>
             {
@@ -330,6 +328,44 @@ public sealed partial class MainWindow : Window
         SearchButton.Margin = new Thickness(left, 0, 0, 0);
         SearchButton.UpdateLayout();
         AppTitleBar.RecomputeDragRegions();
+    }
+
+    // Where the search icon and the toolbar host were when the icon's click-through hole was last punched, and where
+    // its anchor was (window DIPs)
+    (double Button, double Host, double Anchor, bool Open)? _searchSpot;
+
+    // After any layout pass: the Next month button, the toolbar host, or the icon itself can move without a size change
+    // (the sidebar settling or rescaling, the app icon and title appearing). Re-place the icon and re-punch its
+    // click-through hole. The title bar also re-punches its holes on its own when its content moves, from where the icon
+    // was before the new margin landed, so the hole is punched again once that layout pass is over; a stale hole
+    // leaves the icon in the drag region, where a click does nothing. Nothing happens unless something actually moved.
+    void FollowSearchAnchor()
+    {
+        if (ContentFrame.Content is not CalendarPage page || RootGrid.XamlRoot is null || SearchButton.ActualWidth <= 0)
+        {
+            return;
+        }
+
+        var spot = (
+            SearchButton.TransformToVisual(RootGrid).TransformPoint(default).X,
+            ToolbarHost.TransformToVisual(RootGrid).TransformPoint(default).X,
+            page.MiniMonthNextCenterX ?? -1,
+            page.IsSidebarOpen);
+        if (spot == _searchSpot)
+        {
+            return;
+        }
+
+        _searchSpot = spot;
+        PlaceSearchButton();
+        AppTitleBar.RecomputeDragRegions();
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            if (AppTitleBar.IsLoaded)
+            {
+                AppTitleBar.RecomputeDragRegions();
+            }
+        });
     }
 
     // Edit And Delete: shown in the details panel's title bar row while the open panel shows an event or a selection

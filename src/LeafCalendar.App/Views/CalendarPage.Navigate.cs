@@ -24,12 +24,6 @@ public sealed partial class CalendarPage
     public event EventHandler? ScaleChanged;
 
     /// <summary>
-    /// The mini month's Next month button was laid out or moved (the sidebar resized with the interface scale), so the
-    /// title bar's search icon, centered over it, moves too.
-    /// </summary>
-    public event EventHandler? SearchAnchorMoved;
-
-    /// <summary>
     /// The Next month button's center, in window DIPs, once the open sidebar has settled; null before it's laid out.
     /// </summary>
     /// <remarks>Measured against the sidebar itself (which settles at the window's left edge), so a pane still sliding in doesn't move it.</remarks>
@@ -62,10 +56,6 @@ public sealed partial class CalendarPage
         ViewModel.PropertyChanged += OnNavigatePropertyChanged;
         ViewModel.LayoutChanged   += OnNavigateLayoutChanged;
         ApplyScale();
-
-        // The Search Anchor: The Next Button's Own Layout, And The Sidebar Growing Or Shrinking With The Scale
-        Sidebar.MiniMonthNextButton.SizeChanged += (_, _) => SearchAnchorMoved?.Invoke(this, EventArgs.Empty);
-        Sidebar.SizeChanged                     += (_, _) => SearchAnchorMoved?.Invoke(this, EventArgs.Empty);
     }
 
     // Called from Detach: undo everything AttachNavigate wired to the long-lived view model (the menu holds it too)
