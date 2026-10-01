@@ -60,6 +60,7 @@ public sealed partial class SettingsWindow : Window
     AccountsViewModel? _accounts;
     SettingsSection? _shown;
     bool _inClientForm;
+    double _minimumScale;
 
     SettingsWindow(LeafServices services, CalendarViewModel calendar)
     {
@@ -80,6 +81,9 @@ public sealed partial class SettingsWindow : Window
         ];
         Navigation.MenuItemsSource       = _pages.Where(p => p.Section != SettingsSection.About).Select(p => (object)p.Item).ToList();
         Navigation.FooterMenuItemsSource = _pages.Where(p => p.Section == SettingsSection.About).Select(p => (object)p.Item).ToList();
+
+        // Breadcrumb: the pane's layout changes as the window is resized
+        Navigation.DisplayModeChanged += (_, args) => services.Log.Trace("settings.pane", args.DisplayMode.ToString());
 
         // Window Presenter (ours, kept, so its minimum size can be set without casting AppWindow.Presenter)
         AppWindow.SetPresenter(_presenter);
@@ -145,6 +149,7 @@ public sealed partial class SettingsWindow : Window
         var transition = _inClientForm
             ? new SlideNavigationTransitionInfo { Effect = SlideNavigationTransitionEffect.FromLeft }
             : _shown is null ? (NavigationTransitionInfo)new SuppressNavigationTransitionInfo() : new DrillInNavigationTransitionInfo();
+        _context.Services.Log.Trace("settings.page", section.ToString());
         _shown        = section;
         _inClientForm = false;
         ContentFrame.Navigate(page.Page, _context, transition);
@@ -183,7 +188,19 @@ public sealed partial class SettingsWindow : Window
     // Centered on the monitor under the cursor at the opening size, with the minimum from that monitor's scale
     void Place() => SetMinimumSize(WindowPlacement.CenterOnCursorMonitor(AppWindow, OpenWidth, OpenHeight));
 
-    void ApplyMinimumSize() => SetMinimumSize(RootGrid.XamlRoot?.RasterizationScale ?? 1);
+    // XamlRoot.Changed fires for every step of a resize drag, but the minimum only changes with the scale; it's set only
+    // when the scale moves, so the presenter isn't rewritten from inside the window's own sizing loop
+    void ApplyMinimumSize()
+    {
+        var scale = RootGrid.XamlRoot?.RasterizationScale ?? 1;
+        if (scale == _minimumScale)
+        {
+            return;
+        }
+
+        _minimumScale = scale;
+        SetMinimumSize(scale);
+    }
 
     // The minimum is the content's, in DIPs; the presenter takes the whole window in screen pixels, frame included
     void SetMinimumSize(double scale)
