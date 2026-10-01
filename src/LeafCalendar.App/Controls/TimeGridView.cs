@@ -82,6 +82,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
     int _reportedIndex = -1;
     double _wheelTarget = double.NaN;
 
+    // Ctrl+wheel deltas waiting to add up to a whole notch
+    readonly WheelNotches _zoomNotches = new();
+
     // The day a navigation is scrolling to. Until the body lands there, offsets it passes on the way (an
     // animation's frames, or a clamp to a stale extent right after the columns change width) are ignored
     // instead of being taken as the new first day
@@ -561,16 +564,24 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // Ctrl+Wheel Zooms The Hours (the ScrollViewer never sees it, so the grid doesn't scroll)
     void OnBodyWheel(object sender, PointerRoutedEventArgs e) => TryZoom(e);
 
-    // One notch is one Ctrl+= / Ctrl+- step; the settings keep the height inside its limits
+    // Each full notch (smooth wheels send pieces) is one Ctrl+= / Ctrl+- step; the settings keep the height inside
+    // its limits. A tilt wheel isn't a zoom: it scrolls sideways as usual
     bool TryZoom(PointerRoutedEventArgs e)
     {
-        if ((e.KeyModifiers & Windows.System.VirtualKeyModifiers.Control) == 0)
+        var point = e.GetCurrentPoint(this).Properties;
+        if ((e.KeyModifiers & Windows.System.VirtualKeyModifiers.Control) == 0 || point.IsHorizontalMouseWheel)
         {
             return false;
         }
 
-        _vm.ZoomBy(e.GetCurrentPoint(this).Properties.MouseWheelDelta > 0 ? 8 : -8);
+        // A zero delta adds nothing
         e.Handled = true;
+        var notches = _zoomNotches.Add(point.MouseWheelDelta);
+        if (notches != 0)
+        {
+            _vm.ZoomBy(notches * 8);
+        }
+
         return true;
     }
 

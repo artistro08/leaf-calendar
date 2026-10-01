@@ -37,4 +37,23 @@ public class CalendarOccurrenceTests
         Assert.False(o.HasEndedBy(Local(1, 23, 59), NewYork));
         Assert.True(o.HasEndedBy(Local(2, 0), NewYork));
     }
+
+    [Fact]
+    public void HasEndedBy_MultiDayAllDayEvent_EndsAfterItsLastDate()
+    {
+        var o = AllDay(new DateOnly(2026, 10, 1), 3);
+
+        Assert.False(o.HasEndedBy(Local(3, 23, 59), NewYork));
+        Assert.True(o.HasEndedBy(Local(4, 0), NewYork));
+    }
+
+    // Nov 1, 2026 is the day New York falls back, so the day ends at midnight EST (05:00Z), not EDT
+    [Fact]
+    public void HasEndedBy_AllDayEventOnFallBackDay_EndsAtMidnightStandardTime()
+    {
+        var o = AllDay(new DateOnly(2026, 11, 1), 1);
+
+        Assert.False(o.HasEndedBy(new DateTimeOffset(2026, 11, 2, 4, 59, 0, TimeSpan.Zero), NewYork));
+        Assert.True(o.HasEndedBy(new DateTimeOffset(2026, 11, 2, 5, 0, 0, TimeSpan.Zero), NewYork));
+    }
 }

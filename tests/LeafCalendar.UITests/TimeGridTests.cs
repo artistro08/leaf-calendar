@@ -200,7 +200,8 @@ public sealed class TimeGridTests : IDisposable
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ViewModeButton").Name.Contains("Day", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success);
     }
 
-    // The owner saw the next day through the see-through details pane in Day view
+    // The owner saw the next day through the see-through details pane in Day view. Checked while the pane slides
+    // open, at rest, and while Day view scrolls to the next day and back (one capture is one frame)
     [Fact]
     public void DayView_DetailsPanel_DoesNotShowTheNextDay()
     {
@@ -215,7 +216,10 @@ public sealed class TimeGridTests : IDisposable
         using var leaf = Launch();
         leaf.WaitFor("Event_evt-single_202610011300");
         SwitchToDayView(leaf);
-        leaf.WaitFor("UpcomingHeader");
+
+        // Close The Pane (it opens by default), So Its Slide Can Be Watched
+        leaf.WaitFor("DetailsToggleButton").AsToggleButton().Toggle();
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("UpcomingHeader"), TimeSpan.FromSeconds(5)).Success);
 
         // Sample The Event's Fill On Its Own Day
         leaf.WaitFor("NextButton").AsButton().Invoke();
@@ -229,27 +233,68 @@ public sealed class TimeGridTests : IDisposable
             fill = shot.Bitmap.GetPixel(0, 0);
         }
 
-        // Back To Oct 1: nothing of it may show in the details pane at the same height
         leaf.WaitFor("PreviousButton").AsButton().Invoke();
         Assert.True(Retry.WhileFalse(() => Rest(leaf).First == "2026-10-01", TimeSpan.FromSeconds(10)).Success);
+
+        // Where The Pane Will Be (320 wide at the window's right), At The Event's Height
+        var root   = leaf.WaitFor("CalendarRoot").BoundingRectangle;
+        var scale  = leaf.WaitFor("DetailsToggleButton").BoundingRectangle.Width / 32.0;
+        var width  = (int)Math.Round(320 * scale);
+        var region = new Rectangle(root.Right - width, box.Y, width, box.Height);
+
+        // Mid-Slide: the pane opening
+        leaf.WaitFor("DetailsToggleButton").AsToggleButton().Toggle();
+        AssertNoFill(Frames(region), fill, "while the pane opens");
+
+        // At Rest
+        leaf.WaitFor("UpcomingHeader");
         Thread.Sleep(300);
-        var pane   = leaf.WaitFor("DetailsPanel").BoundingRectangle;
-        var region = new Rectangle(pane.X, box.Y, pane.Width, box.Height);
-        using var capture = Capture.Rectangle(region);
-        var bleeding = 0;
-        for (var x = 0; x < capture.Bitmap.Width; x++)
+        AssertNoFill(Frames(region, 1), fill, "at rest");
+
+        // Mid-Scroll: to the next day and back
+        leaf.WaitFor("NextButton").AsButton().Invoke();
+        AssertNoFill(Frames(region), fill, "while scrolling to Oct 2");
+        Assert.True(Retry.WhileFalse(() => Rest(leaf).First == "2026-10-02", TimeSpan.FromSeconds(10)).Success);
+        leaf.WaitFor("PreviousButton").AsButton().Invoke();
+        AssertNoFill(Frames(region), fill, "while scrolling back to Oct 1");
+    }
+
+    // Back-to-back captures of the region (scanned afterward, so the frames stay close together)
+    static List<Bitmap> Frames(Rectangle region, int count = 20) =>
+        [.. Enumerable.Range(0, count).Select(_ =>
         {
-            for (var y = 0; y < capture.Bitmap.Height; y++)
+            using var shot = Capture.Rectangle(region);
+            return new Bitmap(shot.Bitmap);
+        })];
+
+    // No pixel within 12 (per RGB channel) of the event's fill, in any frame
+    static void AssertNoFill(List<Bitmap> frames, Color fill, string when)
+    {
+        try
+        {
+            for (var i = 0; i < frames.Count; i++)
             {
-                var c = capture.Bitmap.GetPixel(x, y);
-                if (Math.Abs(c.R - fill.R) <= 12 && Math.Abs(c.G - fill.G) <= 12 && Math.Abs(c.B - fill.B) <= 12)
+                var frame    = frames[i];
+                var bleeding = 0;
+                for (var x = 0; x < frame.Width; x++)
                 {
-                    bleeding++;
+                    for (var y = 0; y < frame.Height; y++)
+                    {
+                        var c = frame.GetPixel(x, y);
+                        if (Math.Abs(c.R - fill.R) <= 12 && Math.Abs(c.G - fill.G) <= 12 && Math.Abs(c.B - fill.B) <= 12)
+                        {
+                            bleeding++;
+                        }
+                    }
                 }
+
+                Assert.True(bleeding == 0, $"{bleeding} pixels of the next day's event ({fill}) show in the details pane {when} (frame {i + 1} of {frames.Count}).");
             }
         }
-
-        Assert.True(bleeding == 0, $"{bleeding} pixels of the next day's event ({fill}) show in the details pane {region}.");
+        finally
+        {
+            frames.ForEach(f => f.Dispose());
+        }
     }
 
     [Fact]
@@ -283,23 +328,31 @@ public sealed class TimeGridTests : IDisposable
         using var leaf = Launch();
         var card   = leaf.WaitFor("Event_evt-single_202610011300");
         var before = card.BoundingRectangle.Height;
+        Assert.True(Retry.WhileFalse(() => Rest(leaf).Top > 0, TimeSpan.FromSeconds(5)).Success);
+        var top = Rest(leaf).Top;
 
         Keyboard.Press(VirtualKeyShort.CONTROL);
         try { LeafApp.WheelOver(leaf.WaitFor("TimeGrid"), 2); }
         finally { Keyboard.Release(VirtualKeyShort.CONTROL); }
 
         Assert.True(Retry.WhileFalse(() => card.BoundingRectangle.Height > before + 8, TimeSpan.FromSeconds(3)).Success, "Ctrl+wheel didn't zoom in.");
+
+        // The Same Scroll Offset (scrolling up two notches would have moved it about 96 px)
+        Thread.Sleep(500);
+        Assert.True(Math.Abs(Rest(leaf).Top - top) < 0.5, $"Ctrl+wheel scrolled the grid from {top} to {Rest(leaf).Top}.");
     }
 
     [Fact]
     public void PastEvents_AreFaded_FutureOnesAreNot()
     {
-        // The test clock is 8:00 local on Oct 1
-        var start = new DateTime(2026, 10, 1, 6, 0, 0);
-        _google.AddEvent("leaf.tester@gmail.com", Seed("evt-past", start, start.AddHours(1)));
+        // The test clock is 8:00 on the PC's clock on Oct 1, so both events are seeded in the PC's zone
+        var past  = new DateTime(2026, 10, 1, 6, 0, 0);
+        var later = new DateTime(2026, 10, 1, 10, 0, 0);
+        _google.AddEvent("leaf.tester@gmail.com", Seed("evt-past", past, past.AddHours(1)));
+        _google.AddEvent("leaf.tester@gmail.com", Seed("evt-later", later, later.AddHours(1)));
         using var leaf = Launch();
 
-        Assert.Equal("Past", leaf.WaitFor(EventId("evt-past", start)).Properties.ItemStatus.ValueOrDefault);
-        Assert.Equal("", leaf.WaitFor("Event_evt-single_202610011300").Properties.ItemStatus.ValueOrDefault ?? "");
+        Assert.Equal("Past", leaf.WaitFor(EventId("evt-past", past)).Properties.ItemStatus.ValueOrDefault);
+        Assert.Equal("", leaf.WaitFor(EventId("evt-later", later)).Properties.ItemStatus.ValueOrDefault ?? "");
     }
 }

@@ -88,30 +88,97 @@ public sealed class CalendarShellTests : IDisposable
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ViewModeButton").Name.Contains("Week", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success);
     }
 
-    // The owner thought the title bar icons sat off the caption buttons' line. Text buttons (Today, the view menu)
-    // are left out: their ink is letters with descenders, not a glyph
+    // The owner thought the title bar icons sat off the caption buttons' line. Every title bar button's ink is
+    // measured against the Close glyph's: icons whole, text buttons by their first capital only (T, W: no descender,
+    // so the ink box runs from the cap top to the baseline), and the view menu's chevron on its own. The measurements
+    // go to the test output, and an 8x zoom of the title bar with a red line at the Close glyph's center is saved to
+    // TestOutput/title-bar-ink-8x.png next to the test binaries, for the owner
     [Fact]
     public void TitleBarGlyphs_ShareTheCaptionButtonsInkCenter()
     {
         using var leaf = Launch();
         leaf.WaitFor("Event_evt-single_202610011300");
+        var scale  = leaf.Scale;
+        var client = leaf.ClientBounds;
+        var row    = (int)Math.Round(48 * scale);
+        var inset  = (int)Math.Ceiling(3 * scale);
+        var log    = TestContext.Current.TestOutputHelper;
+
+        // Caption Buttons: the three glyphs in the client area's top-right 3 x 46 (Minimize, Maximize, Close)
+        var captionWidth = (int)Math.Round(3 * 46 * scale);
+        InkBox close;
+        using (var caption = Ink.Capture(new Rectangle(client.Right - captionWidth, client.Top, captionWidth, row)))
+        {
+            var runs = caption.Runs();
+            Assert.True(runs.Count >= 3, $"Expected the three caption glyphs, found {runs.Count} ink runs.");
+            var names = new[] { "Minimize", "Maximize", "Close" };
+            var boxes = runs.TakeLast(3).Select((r, i) => Required(caption.Measure(fromX: r.From, toX: r.To), names[i])).ToList();
+            for (var i = 0; i < boxes.Count; i++)
+            {
+                log?.WriteLine($"{names[i]}: {boxes[i]}");
+            }
+
+            close = boxes[2];
+        }
+
+        Assert.True(Math.Abs(close.Width - 10 * scale) <= 1.5 * scale, $"The Close glyph should be about {10 * scale:0.0} px wide, measured {close}.");
+
+        // Title Bar Buttons (Today and the view menu by ID, in case their control types aren't Button)
         var titleBar = leaf.WaitFor("AppTitleBar");
-        var scale    = leaf.WaitFor("DetailsToggleButton").BoundingRectangle.Width / 32.0;
-
-        // The Close Caption Button: the title bar's top-right 46 x 48
-        var bar     = titleBar.BoundingRectangle;
-        var close   = new Rectangle(bar.Right - (int)Math.Round(46 * scale), bar.Top, (int)Math.Round(46 * scale), (int)Math.Round(48 * scale));
-        var caption = LeafApp.InkCenterY(close);
-        Assert.False(double.IsNaN(caption), "No ink in the Close caption button.");
-
-        var glyphs = titleBar.FindAllDescendants(cf => cf.ByControlType(ControlType.Button))
+        var buttons  = titleBar.FindAllDescendants(cf => cf.ByControlType(ControlType.Button))
             .Where(b => !b.IsOffscreen && b.AutomationId is not ("TodayButton" or "ViewModeButton"))
             .ToList();
-        Assert.NotEmpty(glyphs);
-        Assert.All(glyphs, b =>
+        Assert.NotEmpty(buttons);
+
+        var measured = new List<(string Name, InkBox Box)>();
+        foreach (var button in buttons)
         {
-            var center = LeafApp.InkCenterY(b.BoundingRectangle);
-            Assert.True(Math.Abs(center - caption) <= 1, $"{b.AutomationId} ink center {center}, the caption buttons' {caption}.");
-        });
+            using var ink = Ink.Capture(button.BoundingRectangle);
+            measured.Add((button.AutomationId, Required(ink.Measure(inset), button.AutomationId)));
+        }
+
+        using (var today = Ink.Capture(leaf.WaitFor("TodayButton").BoundingRectangle))
+        {
+            measured.Add(("TodayButton (T)", FirstLetter(today, inset, scale, "TodayButton")));
+        }
+
+        using (var menu = Ink.Capture(leaf.WaitFor("ViewModeButton").BoundingRectangle))
+        {
+            var chevron = menu.Runs(inset)[^1];
+            measured.Add(("ViewModeButton (W)", FirstLetter(menu, inset, scale, "ViewModeButton")));
+            measured.Add(("ViewModeButton (chevron)", Required(menu.Measure(inset, chevron.From, chevron.To), "ViewModeButton chevron")));
+        }
+
+        // Record For The Owner
+        foreach (var (name, box) in measured)
+        {
+            log?.WriteLine($"{name}: {box}, {box.CenterY - close.CenterY:+0.00;-0.00;0} px from Close");
+        }
+
+        using (var bar = Ink.Capture(new Rectangle(client.Left, client.Top, client.Width, row)))
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "TestOutput", "title-bar-ink-8x.png");
+            bar.SaveZoomed(path, 8, close.CenterY);
+            log?.WriteLine($"Zoomed title bar: {path}");
+        }
+
+        // Each Ink Center On The Close Glyph's (half a screen pixel)
+        Assert.All(measured, m => Assert.True(
+            Math.Abs(m.Box.CenterY - close.CenterY) <= 0.5,
+            $"{m.Name} ink {m.Box}; Close {close}."));
+    }
+
+    // A text button's first capital: the ink in the first 5 DIP from where its text starts (inside the letter,
+    // short of the next one)
+    static InkBox FirstLetter(Ink ink, int inset, double scale, string name)
+    {
+        var start = ink.Runs(inset)[0].From;
+        return Required(ink.Measure(inset, start, start + (int)Math.Round(5 * scale)), name);
+    }
+
+    static InkBox Required(InkBox? box, string name)
+    {
+        Assert.True(box.HasValue, $"No ink found for {name}.");
+        return box.Value;
     }
 }

@@ -202,18 +202,29 @@ public sealed class LeafApp : IDisposable
 
     /// <summary>
     /// The screen y of the vertical center of the ink in <paramref name="region"/>: halfway between the top and bottom
-    /// rows holding a pixel whose lightness differs from the region's top-left pixel by more than 0.2 (NaN when there's none).
+    /// ink rows (see <see cref="Ink"/>), or NaN when there's none.
     /// </summary>
     public static double InkCenterY(Rectangle region)
     {
-        using var shot       = FlaUI.Core.Capturing.Capture.Rectangle(region);
-        var background       = shot.Bitmap.GetPixel(0, 0).GetBrightness();
-        var rows             = Enumerable.Range(0, shot.Bitmap.Height)
-            .Where(y => Enumerable.Range(0, shot.Bitmap.Width).Any(x => Math.Abs(shot.Bitmap.GetPixel(x, y).GetBrightness() - background) > 0.2f))
-            .ToList();
-
-        return rows.Count == 0 ? double.NaN : region.Y + (rows[0] + rows[^1] + 1) / 2.0;
+        using var ink = Ink.Capture(region);
+        return ink.Measure()?.CenterY ?? double.NaN;
     }
+
+    /// <summary>The main window's client area in screen pixels.</summary>
+    public Rectangle ClientBounds
+    {
+        get
+        {
+            var hwnd   = MainWindow.Properties.NativeWindowHandle.Value;
+            var corner = new NativeMethods.PointStruct();
+            NativeMethods.GetClientRect(hwnd, out var client);
+            NativeMethods.ClientToScreen(hwnd, ref corner);
+            return new Rectangle(corner.X, corner.Y, client.Right - client.Left, client.Bottom - client.Top);
+        }
+    }
+
+    /// <summary>Screen pixels per DIP on the main window's monitor (1.25 at 125%).</summary>
+    public double Scale => NativeMethods.GetDpiForWindow(MainWindow.Properties.NativeWindowHandle.Value) / 96.0;
 
     /// <summary>Links Leaf opened, oldest first (fake-Google mode records them instead of opening a browser).</summary>
     public static IReadOnlyList<string> LaunchedLinks(string profile)
@@ -397,6 +408,36 @@ public sealed class LeafApp : IDisposable
         [DllImport("user32.dll")]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         internal static extern nint GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetClientRect(nint hwnd, out RectStruct rect);
+
+        [DllImport("user32.dll")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ClientToScreen(nint hwnd, ref PointStruct point);
+
+        [DllImport("user32.dll")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        internal static extern uint GetDpiForWindow(nint hwnd);
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct RectStruct
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct PointStruct
+        {
+            public int X;
+            public int Y;
+        }
 
         [DllImport("ntdll.dll")]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
