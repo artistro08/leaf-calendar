@@ -540,7 +540,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public List<AccountGroup> CalendarGroups() =>
         [.. Calendars
             .GroupBy(c => c.AccountId)
-            .Select((g, i) => new AccountGroup(g.Key, AccountEmails.GetValueOrDefault(g.Key, g.Key), g.Select(c => new CalendarRow(c))) { ShowDivider = i > 0 })];
+            .Select(g => new AccountGroup(g.Key, AccountEmails.GetValueOrDefault(g.Key, g.Key), g.Select(c => new CalendarRow(c))))];
 
     /// <summary>Saves the order of an account's calendars.</summary>
     public void ReorderCalendars(string accountId, IReadOnlyList<string> calendarIds)
@@ -1670,18 +1670,10 @@ public sealed partial class AccountGroup(string accountId, string email, IEnumer
 
     /// <summary>Account email (header; the account ID until the email is known).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(DividerId))]
     public partial string Email { get; set; } = email;
 
     /// <summary>Calendars in Leaf's order (drag to reorder).</summary>
     public ObservableCollection<CalendarRow> Calendars { get; } = new(calendars);
-
-    /// <summary>True for every account but the first: a line above its header separates it from the one before.</summary>
-    [ObservableProperty]
-    public partial bool ShowDivider { get; set; }
-
-    /// <summary>Automation ID of the line above the header.</summary>
-    public string DividerId => $"AccountDivider_{Email}";
 
     /// <summary>
     /// Brings the shown groups in line with a freshly built list without rebuilding them.
@@ -1689,7 +1681,7 @@ public sealed partial class AccountGroup(string accountId, string email, IEnumer
     /// <remarks>
     /// Accounts and calendars are matched by ID (<see cref="ListSync"/>). Kept groups take the fresh email and kept rows
     /// the fresh <see cref="CalendarRow.Info"/>; only calendars or accounts that came or went are inserted or removed, so a
-    /// list control animates just those rows and leaves the rest alone. Dividers follow the new first account.
+    /// list control animates just those rows and leaves the rest alone.
     /// </remarks>
     /// <param name="shown">The groups the list is bound to (changed in place).</param>
     /// <param name="fresh">The groups just built by <see cref="CalendarViewModel.CalendarGroups"/>.</param>
@@ -1700,11 +1692,6 @@ public sealed partial class AccountGroup(string accountId, string email, IEnumer
             group.Email = from.Email;
             ListSync.Apply(group.Calendars, from.Calendars, r => r.Info.Id, (row, freshRow) => row.Info = freshRow.Info);
         });
-
-        for (var i = 0; i < shown.Count; i++)
-        {
-            shown[i].ShowDivider = i > 0;
-        }
     }
 }
 

@@ -167,19 +167,6 @@ public sealed class SidebarTests : IDisposable
     }
 
     [Fact]
-    public void CalendarList_HasADividerUnderTheMiniMonth_AndNoneAboveTheFirstAccount()
-    {
-        using var leaf = Launch();
-        leaf.WaitFor($"CalendarToggle_{FamilyId}");
-
-        var divider = leaf.WaitFor("SidebarDivider").BoundingRectangle;
-        Assert.True(divider.Top >= leaf.WaitFor("MiniMonth").BoundingRectangle.Bottom, "The divider overlaps the mini month.");
-        var header = leaf.MainWindow.FindAllDescendants(cf => cf.ByName(SeededProfile.Email)).Where(e => e.ControlType == ControlType.Text).MinBy(e => e.BoundingRectangle.Top)!;
-        Assert.True(divider.Bottom <= header.BoundingRectangle.Top, "The divider isn't above the calendar list.");
-        Assert.False(leaf.Exists($"AccountDivider_{SeededProfile.Email}"));
-    }
-
-    [Fact]
     public void BackgroundSync_WithNoCalendarChanges_KeepsEveryRow()
     {
         using var leaf = Launch();
