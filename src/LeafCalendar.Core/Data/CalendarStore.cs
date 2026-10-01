@@ -9,7 +9,8 @@ namespace LeafCalendar.Core.Data;
 /// <summary>
 /// A stored calendar. <see cref="SyncToken"/> is null until the first full sync finishes.
 /// <see cref="Hidden"/> is Google's flag; <see cref="LeafHidden"/> and <see cref="LeafColor"/> are
-/// Leaf's own display choices, kept locally and never sent to Google.
+/// Leaf's own display choices, kept locally and never sent to Google. <see cref="Summary"/> is the name shown (your
+/// rename, else the owner's name) and <see cref="GoogleName"/> the owner's name; both are cleaned.
 /// </summary>
 public sealed record CalendarInfo(
     string AccountId,
@@ -22,7 +23,8 @@ public sealed record CalendarInfo(
     string? SyncToken,
     bool LeafHidden,
     string? LeafColor,
-    int SortOrder)
+    int SortOrder,
+    string GoogleName = "")
 {
     /// <summary>Fallback when Google gives no color.</summary>
     public const string DefaultColor = "#4285F4";
@@ -42,7 +44,7 @@ public static partial class CalendarStore
 
     const string SelectColumns = """
         SELECT c.account_id, c.id, COALESCE(c.summary_override, c.summary), c.background_color, c.access_role,
-               c.is_primary, c.hidden, c.sync_token, COALESCE(c.leaf_hidden, c.hidden), c.leaf_color, c.sort_order
+               c.is_primary, c.hidden, c.sync_token, COALESCE(c.leaf_hidden, c.hidden), c.leaf_color, c.sort_order, c.summary
         FROM calendars c
         """;
 
@@ -151,6 +153,24 @@ public static partial class CalendarStore
             ("$id", calendarId));
     }
 
+    /// <summary>Mirrors a rename Google accepted (null: Google's name again). The next calendar-list sync writes the same value.</summary>
+    public static void SetSummaryOverride(SqliteConnection conn, string accountId, string calendarId, string? name) =>
+        conn.Execute(
+            null,
+            "UPDATE calendars SET summary_override = $name WHERE account_id = $account AND id = $id;",
+            ("$name", name),
+            ("$account", accountId),
+            ("$id", calendarId));
+
+    /// <summary>Mirrors default reminders Google accepted: its <c>defaultReminders</c> JSON array, as the calendar-list sync stores it.</summary>
+    public static void SetDefaultReminders(SqliteConnection conn, string accountId, string calendarId, string json) =>
+        conn.Execute(
+            null,
+            "UPDATE calendars SET default_reminders = $reminders WHERE account_id = $account AND id = $id;",
+            ("$reminders", json),
+            ("$account", accountId),
+            ("$id", calendarId));
+
     /// <summary>Stores the account's calendar order (IDs not listed keep their place after the listed ones).</summary>
     public static void Reorder(SqliteConnection conn, string accountId, IReadOnlyList<string> calendarIds)
     {
@@ -216,7 +236,8 @@ public static partial class CalendarStore
         r.GetStringOrNull(7),
         r.GetBoolean(8),
         r.GetStringOrNull(9),
-        r.GetInt32(10));
+        r.GetInt32(10),
+        DisplayText.Clean(r.GetString(11), MaxNameLength));
 
     [GeneratedRegex("^#[0-9A-Fa-f]{6}$")]
     private static partial Regex HexColor();

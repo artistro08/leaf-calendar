@@ -145,9 +145,9 @@
                                                         IsChecked="{x:Bind IsVisible, Mode=OneWay}"
                                                         Click="OnVisibilityClick"
                                                         Tag="{x:Bind}"
-                                                        AutomationProperties.Name="{x:Bind Name}"
+                                                        AutomationProperties.Name="{x:Bind Name, Mode=OneWay}"
                                                         AutomationProperties.AutomationId="{x:Bind local:SidebarView.ToggleId(Info)}">
-                                                        <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{x:Bind Name, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
                                                     </CheckBox>
                                                 </Grid>
                                             </DataTemplate>

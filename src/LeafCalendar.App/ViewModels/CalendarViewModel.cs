@@ -5,6 +5,7 @@ using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.Google;
 using LeafCalendar.Core.People;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Sync;
@@ -545,7 +546,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Shows an event picked outside the window (the tray flyout, a notification): jumps to its day, selects it, and scrolls to it.</summary>
     public void Reveal(CalendarOccurrence occurrence)
     {
-        NavigateTo(LocalDate(occurrence.Start));
+        // An All-Day Event's Own Date (its UTC midnight would be the day before west of UTC), As The Views Draw It
+        NavigateTo(DayOf(occurrence));
         Select(occurrence);
         ScrollToTimeRequested?.Invoke(this, occurrence.Start);
     }
@@ -607,6 +609,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
         Editing?.AccountsChanged();
 
+        // The Upcoming List's Calendar Takes Its New Name (or goes, with its calendar)
+        if (UpcomingCalendar is { } upcoming)
+        {
+            UpcomingCalendar = Calendars.FirstOrDefault(c => c.AccountId == upcoming.AccountId && c.Id == upcoming.Id);
+        }
+
         // A Disconnected Account's Choices Go With It (main account, Meet by default, tray-excluded calendars)
         var pruned = Settings.ForAccounts([.. AccountEmails.Keys]);
         if (pruned != Settings)
@@ -616,6 +624,149 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
         CalendarsChanged?.Invoke(this, EventArgs.Empty);
         Run(RefreshAsync);
+    }
+
+    // =========================================================================
+    // CALENDAR MANAGEMENT
+    // =========================================================================
+
+    /// <summary>The calendar the upcoming list is limited to (its next 30 days), or null for every calendar.</summary>
+    [ObservableProperty]
+    public partial CalendarInfo? UpcomingCalendar { get; private set; }
+
+    /// <summary>
+    /// Renames a calendar on Google (blank, or nothing but hidden characters, goes back to Google's name), then shows the
+    /// name Google accepted. It needs a connection: offline or refused, it says so and changes nothing. The log carries
+    /// the account and the result, never the name.
+    /// </summary>
+    /// <returns>True when Google took the new name.</returns>
+    public Task<bool> RenameCalendarAsync(CalendarInfo calendar, string? text)
+    {
+        ArgumentNullException.ThrowIfNull(calendar);
+
+        var name = CalendarEdits.CleanName(text);
+        return PatchCalendarAsync(calendar, CalendarEdits.RenamePatch(name), "calendar.rename", "Connect to the internet to rename a calendar.", "Google didn't accept that name.",
+            conn => CalendarStore.SetSummaryOverride(conn, calendar.AccountId, calendar.Id, name));
+    }
+
+    /// <summary>
+    /// Sets a calendar's default reminders on Google (popups, at most five), then mirrors them locally, so reminders
+    /// follow from the alert planner's next pass. Like a rename, it needs a connection and isn't queued.
+    /// </summary>
+    /// <returns>True when Google took them.</returns>
+    public Task<bool> SetCalendarRemindersAsync(CalendarInfo calendar, IReadOnlyList<int> minutes)
+    {
+        ArgumentNullException.ThrowIfNull(calendar);
+
+        var patch = CalendarEdits.RemindersPatch(minutes);
+        return PatchCalendarAsync(calendar, patch, "calendar.reminders", "Connect to the internet to change default reminders.", "Google didn't accept those reminders.",
+            conn => CalendarStore.SetDefaultReminders(conn, calendar.AccountId, calendar.Id, System.Text.Json.Nodes.JsonNode.Parse(patch)!["defaultReminders"]!.ToJsonString()));
+    }
+
+    /// <summary>A calendar's default popup reminders, in minutes, as Google last gave them.</summary>
+    public IReadOnlyList<int> DefaultRemindersOf(CalendarInfo calendar)
+    {
+        ArgumentNullException.ThrowIfNull(calendar);
+
+        using var conn = _services.Database.Open();
+        return CalendarStore.PopupDefaults(conn).GetValueOrDefault((calendar.AccountId, calendar.Id)) ?? [];
+    }
+
+    // Sends a calendar-list change; only after Google accepts it is the local copy changed
+    async Task<bool> PatchCalendarAsync(CalendarInfo calendar, string patch, string logName, string offline, string refused, Action<Microsoft.Data.Sqlite.SqliteConnection> mirror)
+    {
+        if (_services.Google is not { } google || IsOffline)
+        {
+            Say(offline, canUndo: false);
+            return false;
+        }
+
+        string? problem = null;
+        try
+        {
+            await google.Calendar.PatchCalendarListAsync(calendar.AccountId, calendar.Id, patch, _life.Token);
+        }
+        catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !_life.IsCancellationRequested))
+        {
+            problem = offline;
+        }
+        catch (Exception ex) when (ex is GoogleApiException or AccountNeedsSignInException)
+        {
+            problem = refused;
+        }
+
+        _services.Log.Info(logName, $"account={calendar.AccountId} result={(problem is null ? "ok" : "failed")}");
+        if (problem is not null)
+        {
+            Say(problem, canUndo: false);
+            return false;
+        }
+
+        using (var conn = _services.Database.Open())
+        {
+            mirror(conn);
+        }
+
+        ReloadCalendars();
+        return true;
+    }
+
+    /// <summary>Moves a calendar up (-1) or down (+1) among its account's calendars (Leaf's order only).</summary>
+    public void MoveCalendar(CalendarInfo calendar, int delta)
+    {
+        ArgumentNullException.ThrowIfNull(calendar);
+
+        var ids   = Calendars.Where(c => c.AccountId == calendar.AccountId).Select(c => c.Id).ToList();
+        var index = ids.IndexOf(calendar.Id);
+        var to    = index + delta;
+        if (index < 0 || to < 0 || to >= ids.Count)
+        {
+            return;
+        }
+
+        (ids[index], ids[to]) = (ids[to], ids[index]);
+        ReorderCalendars(calendar.AccountId, ids);
+    }
+
+    /// <summary>
+    /// Limits the upcoming list to one calendar's next 30 days (at most 50 events) and shows it in the details panel, or
+    /// (null) goes back to every calendar.
+    /// </summary>
+    public void ShowUpcomingFor(CalendarInfo? calendar)
+    {
+        UpcomingCalendar = calendar;
+        if (calendar is not null)
+        {
+            ClearSelection();
+            DetailsOpenRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        RefreshUpcoming();
+    }
+
+    // One calendar's events from now to 30 days out, all-day ones too, each with its day
+    List<UpcomingItem> UpcomingIn(CalendarInfo calendar, DateTimeOffset now)
+    {
+        IReadOnlyList<CalendarOccurrence> occurrences;
+        using (var conn = _services.Database.Open())
+        {
+            occurrences = OccurrenceQuery.Load(conn, LocalDate(now), LocalDate(now).AddDays(31), Zone, Settings.ShowDeclined);
+        }
+
+        return [.. occurrences
+            .Where(o => o.AccountId == calendar.AccountId && o.CalendarId == calendar.Id && o.EndIn(Zone) > now && DayOf(o) <= LocalDate(now).AddDays(30))
+            .DistinctBy(o => o.Key)
+            .OrderBy(o => o.StartIn(Zone))
+            .Take(50)
+            .Select(o => new UpcomingItem(
+                o,
+                o.Title,
+                DayOf(o).ToString("ddd, MMM d", CultureInfo.GetCultureInfo("en-US")) + (o.IsAllDay ? "" : $" · {TimeLabels.Range(o.Start, o.End, Zone, Settings.Use24HourTime)}"),
+                o.IsAllDay ? "All day" : TimeLabels.Relative(o.Start, o.End, now),
+                EventColors.ResolveAccent(o.ColorId, o.CalendarColor),
+                o.HasConference,
+                Select,
+                occurrence => Fire(() => JoinAsync(occurrence), "calendar.join.failed")))];
     }
 
     /// <summary>
@@ -1678,11 +1829,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     void RefreshUpcoming()
     {
         var now   = Now;
-        var until = now + UpcomingWindow;
-        var items = Enumerable.Range(0, 2)
+        var items = UpcomingCalendar is { } calendar ? UpcomingIn(calendar, now) : Enumerable.Range(0, 2)
             .SelectMany(i => Cache.ForDay(LocalDate(now).AddDays(i)))
             .DistinctBy(o => o.Key)
-            .Where(o => !o.IsAllDay && o.End > now && o.Start < until)
+            .Where(o => !o.IsAllDay && o.End > now && o.Start < now + UpcomingWindow)
             .OrderBy(o => o.Start)
             .Take(20)
             .Select(o => new UpcomingItem(o, o.Title, TimeLabels.Range(o.Start, o.End, Zone, Settings.Use24HourTime), TimeLabels.Relative(o.Start, o.End, now), EventColors.ResolveAccent(o.ColorId, o.CalendarColor), o.HasConference, Select, occurrence => Fire(() => JoinAsync(occurrence), "calendar.join.failed")))

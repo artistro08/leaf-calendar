@@ -24,7 +24,22 @@
 
                         <!-- Upcoming -->
                         <StackPanel x:Name="UpcomingView" Spacing="8">
-                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Upcoming" AutomationProperties.AutomationId="UpcomingHeader" />
+                            <Grid ColumnSpacing="8" ColumnDefinitions="*,Auto">
+                                <TextBlock
+                                    x:Name="UpcomingHeader"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource BodyStrongTextBlockStyle}"
+                                    Text="Upcoming"
+                                    TextTrimming="CharacterEllipsis"
+                                    AutomationProperties.AutomationId="UpcomingHeader" />
+                                <HyperlinkButton
+                                    x:Name="UpcomingShowAll"
+                                    Grid.Column="1"
+                                    Content="Show all calendars"
+                                    Click="OnUpcomingShowAllClick"
+                                    Visibility="Collapsed"
+                                    AutomationProperties.AutomationId="UpcomingShowAll" />
+                            </Grid>
                             <TextBlock x:Name="UpcomingEmpty" Text="Nothing in the next 8 hours." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                             <ItemsControl x:Name="UpcomingList" AutomationProperties.Name="Upcoming events" AutomationProperties.AutomationId="UpcomingList">
                                 <ItemsControl.ItemTemplate>

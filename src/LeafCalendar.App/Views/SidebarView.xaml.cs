@@ -271,10 +271,40 @@ public sealed partial class SidebarView : UserControl
         if (args.InRecycleQueue || args.Item is not CalendarRow row)
         {
             _painted.Remove(box);
+            args.ItemContainer.ContextFlyout = null;
             return;
         }
 
         Paint(box, row);
+        args.ItemContainer.ContextFlyout = MenuFor(row);
+    }
+
+    // =========================================================================
+    // CALENDAR MENU
+    // =========================================================================
+
+    // The right-click menu of one row; the row is captured here, so nothing is read back from the item
+    MenuFlyout MenuFor(CalendarRow row)
+    {
+        var menu = new MenuFlyout();
+        menu.Items.Add(MenuItem("Rename…", "", "CalendarMenu_Rename", () =>
+        {
+            if (_viewModel is { } vm)
+            {
+                vm.Fire(() => RenameCalendarDialog.RenameAsync(XamlRoot, vm, row.Info), "calendar.rename.failed");
+            }
+        }));
+        menu.Items.Add(MenuItem("Show upcoming events", "", "CalendarMenu_Upcoming", () => _viewModel?.ShowUpcomingFor(row.Info)));
+        menu.Items.Add(MenuItem("Change color…", "", "CalendarMenu_Color", () => _viewModel?.OpenSettings?.Invoke(SettingsSection.Calendars)));
+        return menu;
+    }
+
+    static MenuFlyoutItem MenuItem(string text, string glyph, string automationId, Action click)
+    {
+        var item = new MenuFlyoutItem { Text = text, Icon = new FontIcon { Glyph = glyph } };
+        AutomationProperties.SetAutomationId(item, automationId);
+        item.Click += (_, _) => click();
+        return item;
     }
 
     void Paint(CheckBox box, CalendarRow row)
