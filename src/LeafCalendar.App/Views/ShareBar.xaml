@@ -6,46 +6,17 @@
     AutomationProperties.AutomationId="ShareBar"
     AutomationProperties.Name="Share availability">
 
-    <!-- Share Bar: pick times on the grid, then copy the free ones as text. Two rows, so nothing clips at the
-         minimum window: the hint and the booking-pages link, then the choices on the left and the buttons on the right -->
-    <Border
-        Margin="16,0,16,8"
-        Padding="12,8"
-        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-        BorderThickness="1"
-        CornerRadius="8">
-        <Grid ColumnSpacing="12" RowSpacing="8">
+    <!-- Share Card: floats in the calendar view's bottom-right corner while you pick times (the times themselves are
+         listed in the right panel). The zone and the calendars on the first row, Cancel and Copy on the second -->
+    <Border x:Name="Card" Padding="16" Style="{StaticResource LeafFloatingCardStyle}">
+        <Grid RowSpacing="12">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
-            <!-- Hint And Booking Pages (their own row across the bar, so the link doesn't widen the buttons' column) -->
-            <Grid Grid.ColumnSpan="2" ColumnSpacing="12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <TextBlock
-                    VerticalAlignment="Center"
-                    Style="{StaticResource CaptionTextBlockStyle}"
-                    Text="Drag on the calendar to pick times. Leaf leaves out the busy ones."
-                    TextWrapping="Wrap" />
-                <HyperlinkButton
-                    Grid.Column="1"
-                    Content="Manage Google booking pages"
-                    Click="OnBookingPagesClick"
-                    AutomationProperties.AutomationId="BookingPagesLink" />
-            </Grid>
 
             <!-- Zone And Calendars -->
-            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="8">
                 <ComboBox
                     x:Name="ShareZoneBox"
                     MinWidth="180"
@@ -64,7 +35,6 @@
             <!-- Cancel And Copy (the one accent on the surface) -->
             <StackPanel
                 Grid.Row="1"
-                Grid.Column="1"
                 HorizontalAlignment="Right"
                 Orientation="Horizontal"
                 Spacing="8">
@@ -82,5 +52,5 @@
             </StackPanel>
         </Grid>
     </Border>
-    <!-- /Share Bar -->
+    <!-- /Share Card -->
 </UserControl>

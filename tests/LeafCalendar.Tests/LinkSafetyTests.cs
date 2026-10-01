@@ -228,15 +228,6 @@ public class LinkSafetyTests
         Assert.Null(LinkSafety.DisplayForm(new Uri("https://a․b.com/")));
 
     [Fact]
-    public void BookingPages_IsHttpsGoogleWithTheAccount()
-    {
-        var uri = LinkSafety.BookingPages("leaf.tester@gmail.com");
-
-        Assert.Equal("https://calendar.google.com/calendar/appointments?authuser=leaf.tester%40gmail.com", uri.AbsoluteUri);
-        Assert.True(LinkSafety.CanLaunch(uri));
-    }
-
-    [Fact]
     public void MapsSearch_Bing() =>
         Assert.Equal("https://www.bing.com/maps?q=Room%204", LinkSafety.MapsSearch("Room 4", MapProvider.Bing).AbsoluteUri);
 

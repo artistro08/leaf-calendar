@@ -1,5 +1,4 @@
 using LeafCalendar.App.ViewModels;
-using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Tray;
 using LeafCalendar.Core.Views;
@@ -10,8 +9,9 @@ using Microsoft.UI.Xaml.Controls;
 namespace LeafCalendar.App.Views;
 
 /// <summary>
-/// The bar above the calendar while you share availability (S): the zone the text is written in, which calendars'
-/// busy times count, a link to Google's booking pages, Cancel, and Copy. Hidden when not sharing.
+/// The card in the calendar view's bottom-right corner while you share availability (S): the zone the text is written in,
+/// which calendars' busy times count, Cancel, and Copy (which copies, stops sharing, and says so in the notice). The picked
+/// times are listed in the right panel (<see cref="ShareSlotsPanel"/>). Hidden when not sharing.
 /// </summary>
 public sealed partial class ShareBar : UserControl
 {
@@ -92,14 +92,11 @@ public sealed partial class ShareBar : UserControl
         _vm.ShareZoneId = _zoneIds[index];
     }
 
-    void OnBookingPagesClick(object sender, RoutedEventArgs e)
+    /// <summary>While a time is being dragged out, the card fades and lets the pointer through, so it never hides the slot under it.</summary>
+    public void SetDragging(bool dragging)
     {
-        if (_vm is not { } vm || vm.PeopleAccountId() is not { } account || !vm.AccountEmails.TryGetValue(account, out var email))
-        {
-            return;
-        }
-
-        vm.Fire(() => vm.OpenLinkAsync(LinkSafety.BookingPages(email)), "share.booking.failed");
+        Opacity          = dragging ? 0.2 : 1;
+        IsHitTestVisible = !dragging;
     }
 
     void OnCancelClick(object sender, RoutedEventArgs e) => _vm?.StopSharing();

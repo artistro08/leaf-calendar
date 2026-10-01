@@ -37,6 +37,10 @@ public sealed partial class TimeGridView : Grid, IDisposable
     /// <summary>All-day lane height.</summary>
     public const double AllDayLaneHeight = 22;
 
+    /// <summary>The all-day row's height with nothing in it: room to double-click, and a multiple of 4 so the grid under it
+    /// stays on whole pixels at 125% and 150%.</summary>
+    public const double EmptyAllDayHeight = 24;
+
     /// <summary>Lanes shown before "expand".</summary>
     public const int MaxCollapsedLanes = 3;
 
@@ -645,9 +649,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
         var maxLanes = _allDayExpanded ? int.MaxValue : MaxCollapsedLanes;
         _allDay.Render(_strip, _firstIndex - count, count * 3, maxLanes);
 
-        // At Least One Lane: empty, the row is still there to double-click for a new all-day event
-        var lanes = Math.Max(1, Math.Min(_allDay.LaneCount, maxLanes));
-        _allDay.Height = lanes * AllDayLaneHeight + 4;
+        var lanes = Math.Min(_allDay.LaneCount, maxLanes);
+        // Never Shorter Than EmptyAllDayHeight: empty, the row is still there to double-click for a new all-day event
+        _allDay.Height = Math.Max(EmptyAllDayHeight, lanes * AllDayLaneHeight + 4);
         _allDay.Width  = _strip.Count * ColumnWidth;
         _allDayExpand.Visibility = _allDay.LaneCount > MaxCollapsedLanes ? Visibility.Visible : Visibility.Collapsed;
         Corner.Height = DayHeaderHeight + _allDay.Height;
@@ -900,6 +904,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
 
         _drag = null;
+        _vm.IsPickingTime = false;
         HideBox();
         ShowNewEventGhost();
         ReleasePointerCaptures();
@@ -936,6 +941,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
             }
 
             drag.Started = true;
+            _vm.IsPickingTime = drag.Kind == DragKind.Create && _vm.IsSharing;
         }
 
         // Box: drawn from the press to the pointer (ponytail: selection applies on release, not live; live highlighting re-renders every move)
@@ -974,6 +980,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
 
         _drag = null;
+        _vm.IsPickingTime = false;
         HideBox();
         ReleasePointerCapture(e.Pointer);
         ShowNewEventGhost();

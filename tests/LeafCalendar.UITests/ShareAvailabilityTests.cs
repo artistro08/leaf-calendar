@@ -121,6 +121,10 @@ public sealed class ShareAvailabilityTests : IDisposable
 
         Assert.Equal("Thu Oct 1: 11 AM–12 PM ET", Copy(leaf));
 
+        // Copy Ends Sharing, So Pick Again
+        StartSharing(leaf);
+        DragHours(leaf, 10, 12);
+        leaf.WaitFor("ShareSlot_0");
         leaf.WaitFor("ShareCalendarsButton").Click();
         leaf.WaitForAnywhere($"ShareCalendar_{Family}").Click();
 
@@ -168,16 +172,73 @@ public sealed class ShareAvailabilityTests : IDisposable
         Assert.NotNull(leaf.WaitFor("ShareBar"));
     }
 
+    // Copy copies, ends sharing (the card and the slots go), and says so in the notice like a delete does; the card has
+    // no booking pages link
     [Fact]
-    public void BookingPagesLink_OpensGoogle()
+    public void Copy_StopsSharing_AndSaysSo()
+    {
+        using var leaf = Launch();
+        StartSharing(leaf);
+        Assert.False(leaf.Exists("BookingPagesLink"));
+        DragHours(leaf, 9, 12);
+        leaf.WaitFor("ShareSlot_0");
+
+        Assert.Equal("Thu Oct 1: 10 AM–12 PM ET", Copy(leaf));
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareBar") || leaf.Exists("ShareSlot_0"), TimeSpan.FromSeconds(5)).Success, "Sharing didn't stop.");
+        Assert.True(NoticeSays(leaf, "Availability copied"), "The notice didn't say the availability was copied.");
+    }
+
+    // The card floats in the calendar view's bottom-right corner, over the calendar
+    [Fact]
+    public void Card_FloatsInTheViewsBottomRight()
     {
         using var leaf = Launch();
         StartSharing(leaf);
 
-        leaf.WaitFor("BookingPagesLink").Click();
+        var card = leaf.WaitFor("ShareBar").BoundingRectangle;
+        var view = leaf.WaitFor("ViewHost").BoundingRectangle;
+        var gap  = 24 * leaf.Scale;
+        Assert.True(card.Right <= view.Right && view.Right - card.Right <= gap && card.Bottom <= view.Bottom && view.Bottom - card.Bottom <= gap,
+            $"The card ({card}) isn't in the view's ({view}) bottom-right corner.");
+    }
 
-        const string link = "https://calendar.google.com/calendar/appointments?authuser=leaf.tester%40gmail.com";
-        Assert.True(Retry.WhileFalse(() => LeafApp.LaunchedLinks(_profile).Contains(link), TimeSpan.FromSeconds(10)).Success, $"Launched: {string.Join(" | ", LeafApp.LaunchedLinks(_profile))}");
+    // While sharing, the right panel lists the picked times; a later end time there grows the grid's slot and changes the copy
+    [Fact]
+    public void RightPanel_EditsASlot()
+    {
+        using var leaf = Launch();
+        StartSharing(leaf);
+        DragHours(leaf, 10, 11);
+        Assert.NotNull(leaf.WaitFor("SharePanelSlot_0"));
+        var slot = leaf.WaitFor("ShareSlot_0").BoundingRectangle;
+
+        // End: 11:00 to 11:05 AM (the picker's minute field, one step on, then accept)
+        leaf.WaitFor("SharePanelEnd_0").Click();
+        var minutes = leaf.WaitForPopup("MinuteLoopingSelector");
+        minutes.Focus();
+        Keyboard.Press(VirtualKeyShort.DOWN);
+        Thread.Sleep(300);
+        leaf.WaitForPopup("AcceptButton").AsButton().Invoke();
+
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ShareSlot_0").BoundingRectangle.Height > slot.Height, TimeSpan.FromSeconds(5)).Success, "The grid's slot didn't grow.");
+        Assert.Equal("Thu Oct 1: 10–11:05 AM ET", Copy(leaf));
+    }
+
+    // S starts sharing while a new, untouched event's editor is open, when focus isn't in a text box
+    [Fact]
+    public void S_WithAnUntouchedNewEditor_StartsSharing()
+    {
+        using var leaf = Launch();
+        var dentist = leaf.WaitFor(Dentist);
+        var column  = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
+        Mouse.DoubleClick(new Point(column.X + column.Width / 2, dentist.BoundingRectangle.Y + 3 * HourPixels(dentist)));
+        leaf.WaitFor("EditorAllDay").Focus();
+
+        Keyboard.Press(VirtualKeyShort.KEY_S);
+
+        Assert.NotNull(leaf.WaitFor("ShareBar"));
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(5)).Success, "The empty editor stayed open.");
     }
 
     [Fact]

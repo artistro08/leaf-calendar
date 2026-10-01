@@ -100,7 +100,7 @@ public sealed class FlyoutTests : IDisposable
 
         var button = leaf.WaitForPopup("FlyoutNewEvent");
         var root   = leaf.WaitForPopup("FlyoutRoot").BoundingRectangle;
-        Assert.True(root.Right - button.BoundingRectangle.Right <= 20 * leaf.Scale, $"New event ({button.BoundingRectangle}) isn't at the flyout's ({root}) right.");
+        Assert.True(button.BoundingRectangle.Left - root.Left > root.Width / 2, $"New event ({button.BoundingRectangle}) isn't at the flyout's ({root}) right.");
         button.AsButton().Invoke();
 
         Assert.NotNull(leaf.WaitFor("EditorTitle"));

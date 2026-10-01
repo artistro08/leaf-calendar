@@ -332,6 +332,15 @@ public sealed partial class CalendarPage : Page
             }
         }
 
+        // S Over A New, Untouched Event Shares Availability Instead (the empty editor closes; typing in a box stays typing)
+        if (e.Key == VirtualKey.S && ViewModel.Editing is { IsNew: true } fresh && IsUntouched(fresh) && !ShortcutsBlocked()
+            && !Controls.KeyState.IsDown(VirtualKey.Control) && !Controls.KeyState.IsDown(VirtualKey.Shift) && !Controls.KeyState.IsDown(VirtualKey.Menu))
+        {
+            ViewModel.CancelEdit();
+            StartShareAvailability();
+            return true;
+        }
+
         // A Hidden Editor Doesn't Block Shortcuts (the editor handles its own keys while it shows)
         if (ViewModel.Editing is not null && IsDetailsOpen)
         {
@@ -438,6 +447,10 @@ public sealed partial class CalendarPage : Page
         var focused = FocusManager.GetFocusedElement(XamlRoot);
         return focused is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox or CalendarView || IsInOpenPopup(focused);
     }
+
+    // Nothing typed or added yet: no title, place, notes, or guests
+    static bool IsUntouched(EventEditorViewModel editor) =>
+        string.IsNullOrEmpty(editor.Title) && string.IsNullOrEmpty(editor.Location) && string.IsNullOrEmpty(editor.Description) && !editor.HasGuests;
 
     static bool IsModifier(VirtualKey key) => key is VirtualKey.Control or VirtualKey.LeftControl or VirtualKey.RightControl
         or VirtualKey.Shift or VirtualKey.LeftShift or VirtualKey.RightShift
