@@ -502,7 +502,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public List<AccountGroup> CalendarGroups() =>
         [.. Calendars
             .GroupBy(c => c.AccountId)
-            .Select(g => new AccountGroup(AccountEmails.GetValueOrDefault(g.Key, g.Key), g.Select(c => new CalendarRow(c))))];
+            .Select((g, i) => new AccountGroup(AccountEmails.GetValueOrDefault(g.Key, g.Key), g.Select(c => new CalendarRow(c))) { ShowDivider = i > 0 })];
 
     /// <summary>Saves the order of an account's calendars.</summary>
     public void ReorderCalendars(string accountId, IReadOnlyList<string> calendarIds)
@@ -1535,13 +1535,70 @@ public sealed partial class CalendarRow : ObservableObject
 }
 
 /// <summary>An account's calendars in the sidebar.</summary>
-public sealed class AccountGroup(string email, IEnumerable<CalendarRow> calendars)
+public sealed partial class AccountGroup(string email, IEnumerable<CalendarRow> calendars) : ObservableObject
 {
     /// <summary>Account email (header).</summary>
     public string Email { get; } = email;
 
     /// <summary>Calendars in Leaf's order (drag to reorder).</summary>
     public ObservableCollection<CalendarRow> Calendars { get; } = new(calendars);
+
+    /// <summary>True for every account but the first: a line above its header separates it from the one before.</summary>
+    [ObservableProperty]
+    public partial bool ShowDivider { get; set; }
+
+    /// <summary>Automation ID of the line above the header.</summary>
+    public string DividerId => $"AccountDivider_{Email}";
+
+    /// <summary>
+    /// Updates the shown rows from a freshly built list when nothing moved.
+    /// </summary>
+    /// <remarks>
+    /// When both lists have the same accounts and calendars in the same order, each shown row takes the fresh row's
+    /// <see cref="CalendarRow.Info"/> (name, color, visibility), so the rows stay put with their focus and any open
+    /// flyout. Otherwise nothing changes and the caller rebuilds.
+    /// </remarks>
+    /// <param name="shown">The groups on screen.</param>
+    /// <param name="fresh">The groups just built by <see cref="CalendarViewModel.CalendarGroups"/>.</param>
+    /// <returns>True when the rows were updated in place.</returns>
+    public static bool UpdateInPlace(List<AccountGroup> shown, List<AccountGroup> fresh)
+    {
+        var same = shown.Count == fresh.Count
+            && shown.Zip(fresh).All(p => p.First.Email == p.Second.Email
+                && p.First.Calendars.Select(c => (c.Info.AccountId, c.Info.Id)).SequenceEqual(p.Second.Calendars.Select(c => (c.Info.AccountId, c.Info.Id))));
+        if (!same)
+        {
+            return false;
+        }
+
+        foreach (var (row, freshRow) in shown.SelectMany(g => g.Calendars).Zip(fresh.SelectMany(g => g.Calendars)))
+        {
+            row.Info = freshRow.Info;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Brings the shown groups in line with a freshly built list without rebuilding them.
+    /// </summary>
+    /// <remarks>
+    /// Accounts are matched by email and calendars by ID (<see cref="ListSync"/>). Kept rows take the fresh
+    /// <see cref="CalendarRow.Info"/>; only calendars or accounts that came or went are inserted or removed, so a
+    /// list control animates just those rows and leaves the rest alone. Dividers follow the new first account.
+    /// </remarks>
+    /// <param name="shown">The groups the sidebar is bound to (changed in place).</param>
+    /// <param name="fresh">The groups just built by <see cref="CalendarViewModel.CalendarGroups"/>.</param>
+    public static void Sync(ObservableCollection<AccountGroup> shown, List<AccountGroup> fresh)
+    {
+        ListSync.Apply(shown, fresh, g => g.Email, (group, from) =>
+            ListSync.Apply(group.Calendars, from.Calendars, r => r.Info.Id, (row, freshRow) => row.Info = freshRow.Info));
+
+        for (var i = 0; i < shown.Count; i++)
+        {
+            shown[i].ShowDivider = i > 0;
+        }
+    }
 }
 
 /// <summary>An extra time zone in the time-zone panel.</summary>

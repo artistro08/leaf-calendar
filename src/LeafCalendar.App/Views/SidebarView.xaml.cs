@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Data;
@@ -29,6 +30,10 @@ public sealed partial class SidebarView : UserControl
     readonly Border[] _dayBands = new Border[42];
     readonly Style _dayStyle   = (Style)Application.Current.Resources["LeafMiniDayButtonStyle"];
     readonly Style _todayStyle = (Style)Application.Current.Resources["LeafMiniTodayButtonStyle"];
+
+    // Calendar List (bound once and kept in step in place; each realized checkbox with the row and color it was painted for)
+    readonly ObservableCollection<AccountGroup> _groups = [];
+    readonly Dictionary<CheckBox, (CalendarRow Row, string Color)> _painted = [];
     CalendarViewModel? _viewModel;
     DateOnly _miniMonth;
 
@@ -36,6 +41,7 @@ public sealed partial class SidebarView : UserControl
     public SidebarView()
     {
         InitializeComponent();
+        CalendarList.ItemsSource = _groups;
         ScrollIndicator.ShowOnHover(ContentScroll);
         BuildMiniMonth();
         ActualThemeChanged += (_, _) => RenderMiniMonth();
@@ -53,7 +59,7 @@ public sealed partial class SidebarView : UserControl
         _viewModel.PropertyChanged  += OnViewModelPropertyChanged;
         _viewModel.LayoutChanged    += OnLayoutChanged;
 
-        Rebuild();
+        UpdateCalendarList();
         ShowMonthOf(ViewNavigator.MiniMonthAnchor(_viewModel.Mode, _viewModel.PeriodStart, _viewModel.VisibleColumns, _viewModel.Today));
     }
 
@@ -70,7 +76,7 @@ public sealed partial class SidebarView : UserControl
         _viewModel = null;
     }
 
-    void OnCalendarsChanged(object? sender, EventArgs e) => Rebuild();
+    void OnCalendarsChanged(object? sender, EventArgs e) => UpdateCalendarList();
 
     // A new day, week start, or time zone moves today's circle and the weekday names
     void OnLayoutChanged(object? sender, EventArgs e) => RenderMiniMonth();
@@ -83,14 +89,25 @@ public sealed partial class SidebarView : UserControl
         }
     }
 
-    void Rebuild()
+    // Every change lands here (a sync, a checkbox, a color, a reorder, an account added or removed). Rows are matched by
+    // calendar ID and updated in place, so a checkbox only checks or unchecks, and only calendars that came or went animate.
+    void UpdateCalendarList()
     {
         if (_viewModel is null)
         {
             return;
         }
 
-        CalendarList.ItemsSource = _viewModel.CalendarGroups();
+        AccountGroup.Sync(_groups, _viewModel.CalendarGroups());
+
+        // Repaint Checkboxes Whose Calendar Changed Color
+        foreach (var (box, painted) in _painted.ToList())
+        {
+            if (!string.Equals(painted.Row.Color, painted.Color, StringComparison.OrdinalIgnoreCase))
+            {
+                Paint(box, painted.Row);
+            }
+        }
     }
 
     // =========================================================================
@@ -235,13 +252,26 @@ public sealed partial class SidebarView : UserControl
 
     // Color Each Checkbox With Its Calendar's Color: only the 20 px box's own fill and stroke. Setting the
     // CheckBox's Background paints its whole 32 px-tall root grid, which bled past the box when unchecked.
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822", Justification = "XAML event handlers must be instance methods.")]
     void OnCalendarRowChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
-        if (args.Item is not CalendarRow row || args.ItemContainer.ContentTemplateRoot is not Grid { Children: [CheckBox box, ..] })
+        if (args.ItemContainer.ContentTemplateRoot is not Grid { Children: [CheckBox box, ..] })
         {
             return;
         }
+
+        // A recycled row no longer belongs to its calendar
+        if (args.InRecycleQueue || args.Item is not CalendarRow row)
+        {
+            _painted.Remove(box);
+            return;
+        }
+
+        Paint(box, row);
+    }
+
+    void Paint(CheckBox box, CalendarRow row)
+    {
+        _painted[box] = (row, row.Color);
 
         // Hover and press lighten the color like Fluent's accent (90% and 80%), so the row hover shows on a checked box too
         var brush   = LeafBrushes.FromHex(row.Color);

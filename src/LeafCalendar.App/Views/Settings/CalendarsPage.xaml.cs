@@ -61,13 +61,8 @@ public sealed partial class CalendarsPage : Page
     {
         var groups = _context.Calendar.CalendarGroups();
         EmptyText.Visibility = groups.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        if (SameLayout(_groups, groups))
+        if (AccountGroup.UpdateInPlace(_groups, groups))
         {
-            foreach (var (row, fresh) in _groups.SelectMany(g => g.Calendars).Zip(groups.SelectMany(g => g.Calendars)))
-            {
-                row.Info = fresh.Info;
-            }
-
             return;
         }
 
@@ -75,11 +70,6 @@ public sealed partial class CalendarsPage : Page
         _groups               = groups;
         GroupList.ItemsSource = groups;
     }
-
-    static bool SameLayout(List<AccountGroup> shown, List<AccountGroup> fresh) =>
-        shown.Count == fresh.Count
-        && shown.Zip(fresh).All(p => p.First.Email == p.Second.Email
-            && p.First.Calendars.Select(c => (c.Info.AccountId, c.Info.Id)).SequenceEqual(p.Second.Calendars.Select(c => (c.Info.AccountId, c.Info.Id))));
 
     // Only a real change counts: the switch also raises Toggled when the list is rebuilt
     void OnVisibleToggled(object sender, RoutedEventArgs e)

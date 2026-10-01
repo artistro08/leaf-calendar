@@ -66,12 +66,39 @@
         </StackPanel>
         <!-- /Mini Month -->
 
-        <!-- Calendars (the only part that scrolls; the right margin keeps the rows clear of the scroll indicator) -->
-        <ScrollViewer x:Name="ContentScroll" Grid.Row="1" Margin="0,4,0,0" AutomationProperties.AutomationId="SidebarScroll">
+        <!-- Divider (a 1 px line between the mini month and the calendars, on the rows' 9 px left edge; named so UI tests can find it) -->
+        <Border
+            x:Name="SidebarDivider"
+            Grid.Row="1"
+            Height="1"
+            Margin="9,0,4,0"
+            VerticalAlignment="Top"
+            Background="{ThemeResource DividerStrokeColorDefaultBrush}"
+            AutomationProperties.Name="Divider"
+            AutomationProperties.AutomationId="SidebarDivider" />
+
+        <!-- Calendars (the only part that scrolls; the right margin keeps the rows clear of the scroll indicator). The list is
+             kept in step with the calendars in place, never rebuilt: only an account or calendar that comes or goes animates
+             (it fades in or out and the rows below slide), and nothing else on the list moves. -->
+        <ScrollViewer x:Name="ContentScroll" Grid.Row="1" Margin="0,8,0,0" AutomationProperties.AutomationId="SidebarScroll">
             <ItemsControl x:Name="CalendarList" Margin="0,0,11,0" AutomationProperties.AutomationId="CalendarList">
+                <ItemsControl.ItemContainerTransitions>
+                    <TransitionCollection>
+                        <AddDeleteThemeTransition />
+                        <RepositionThemeTransition />
+                    </TransitionCollection>
+                </ItemsControl.ItemContainerTransitions>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:AccountGroup">
                         <StackPanel>
+                            <!-- Account Divider (above every account but the first) -->
+                            <Border
+                                Height="1"
+                                Margin="9,8,4,0"
+                                Background="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                Visibility="{x:Bind ShowDivider, Mode=OneWay}"
+                                AutomationProperties.Name="Divider"
+                                AutomationProperties.AutomationId="{x:Bind DividerId}" />
                             <TextBlock Style="{StaticResource LeafSectionHeaderStyle}" Text="{x:Bind Email}" TextTrimming="CharacterEllipsis" />
                             <ListView
                                 ItemsSource="{x:Bind Calendars}"
@@ -84,6 +111,13 @@
                                 DragItemsCompleted="OnCalendarsReordered"
                                 ContainerContentChanging="OnCalendarRowChanging"
                                 Tag="{x:Bind Email}">
+                                <!-- Only rows that come or go animate (fade, and the rows below slide); no entrance slide when the list updates -->
+                                <ListView.ItemContainerTransitions>
+                                    <TransitionCollection>
+                                        <AddDeleteThemeTransition />
+                                        <ReorderThemeTransition />
+                                    </TransitionCollection>
+                                </ListView.ItemContainerTransitions>
                                 <!-- The row draws its own hover (it fades), so the item's built-in one is off -->
                                 <ListView.Resources>
                                     <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />

@@ -13,6 +13,9 @@ public static class SeededProfile
     /// <summary>The fixture account (<c>userinfo.json</c>).</summary>
     public const string AccountId = "109876543210";
 
+    /// <summary>The fixture account's email.</summary>
+    public const string Email = "leaf.tester@gmail.com";
+
     /// <summary>Creates the profile and returns its name. Clean it up with <see cref="LeafApp.DeleteProfile"/>.</summary>
     public static string Create()
     {
@@ -28,7 +31,7 @@ public static class SeededProfile
         database.Migrate();
         using (var conn = database.Open())
         {
-            AccountStore.Upsert(conn, new Account(AccountId, "leaf.tester@gmail.com", "Leaf Tester", null, AccountStatus.Ok));
+            AccountStore.Upsert(conn, new Account(AccountId, Email, "Leaf Tester", null, AccountStatus.Ok));
         }
 
         SqliteConnection.ClearAllPools();

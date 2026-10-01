@@ -134,6 +134,81 @@ public sealed class SidebarTests : IDisposable
         Assert.False(leaf.Exists($"CalendarColor_{FamilyId}"));
     }
 
+    // Each calendar row's checkbox, by automation ID, with its UI Automation runtime ID (a rebuilt row gets a new one)
+    static Dictionary<string, string> RowElements(LeafApp leaf) =>
+        leaf.WaitFor("CalendarList")
+            .FindAllDescendants(cf => cf.ByControlType(ControlType.CheckBox))
+            .ToDictionary(r => r.AutomationId, r => string.Join(".", r.Properties.RuntimeId.Value));
+
+    // Runs "Sync now" from Settings › Accounts and waits until Leaf has fetched the calendar list again and had time to show it
+    void SyncNow(LeafApp leaf)
+    {
+        var lists = _google.Requests.Count(r => r.Contains("/calendarList", StringComparison.Ordinal));
+        leaf.OpenSettings("Accounts");
+        leaf.WaitInSettings("SyncNowButton").AsButton().Invoke();
+        Assert.True(Retry.WhileFalse(() => _google.Requests.Count(r => r.Contains("/calendarList", StringComparison.Ordinal)) > lists, TimeSpan.FromSeconds(15)).Success);
+        Thread.Sleep(1500);
+    }
+
+    [Fact]
+    public void UncheckCalendar_KeepsEveryRowInPlace()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor($"CalendarToggle_{FamilyId}");
+        var rows   = leaf.WaitFor("CalendarList").FindAllDescendants(cf => cf.ByControlType(ControlType.CheckBox));
+        var before = rows.Select(r => string.Join(".", r.Properties.RuntimeId.Value)).ToList();
+
+        rows[1].AsCheckBox().Toggle();
+        Thread.Sleep(1000);
+
+        var after = leaf.WaitFor("CalendarList").FindAllDescendants(cf => cf.ByControlType(ControlType.CheckBox)).Select(r => string.Join(".", r.Properties.RuntimeId.Value)).ToList();
+        Assert.Equal(before, after);
+        Assert.False(rows[1].AsCheckBox().IsChecked);
+    }
+
+    [Fact]
+    public void CalendarList_HasADividerUnderTheMiniMonth_AndNoneAboveTheFirstAccount()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor($"CalendarToggle_{FamilyId}");
+
+        var divider = leaf.WaitFor("SidebarDivider").BoundingRectangle;
+        Assert.True(divider.Top >= leaf.WaitFor("MiniMonth").BoundingRectangle.Bottom, "The divider overlaps the mini month.");
+        var header = leaf.MainWindow.FindAllDescendants(cf => cf.ByName(SeededProfile.Email)).Where(e => e.ControlType == ControlType.Text).MinBy(e => e.BoundingRectangle.Top)!;
+        Assert.True(divider.Bottom <= header.BoundingRectangle.Top, "The divider isn't above the calendar list.");
+        Assert.False(leaf.Exists($"AccountDivider_{SeededProfile.Email}"));
+    }
+
+    [Fact]
+    public void BackgroundSync_WithNoCalendarChanges_KeepsEveryRow()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor($"CalendarToggle_{FamilyId}");
+        var before = RowElements(leaf);
+
+        SyncNow(leaf);
+
+        Assert.Equal(before, RowElements(leaf));
+    }
+
+    [Fact]
+    public void CalendarRemovedOnGoogle_RemovesOnlyItsRow()
+    {
+        _google.ManyCalendars = true;
+        using var leaf = Launch();
+        leaf.WaitFor($"CalendarToggle_{FamilyId}");
+        leaf.WaitFor("CalendarToggle_church@group.calendar.google.com");
+        var before = RowElements(leaf);
+        Assert.True(before.Count > 2, $"Only {before.Count} rows to compare.");
+
+        _google.DroppedCalendarId = FamilyId;
+        SyncNow(leaf);
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists($"CalendarToggle_{FamilyId}"), TimeSpan.FromSeconds(10)).Success, "The removed calendar is still listed.");
+        before.Remove($"CalendarToggle_{FamilyId}");
+        Assert.Equal(before, RowElements(leaf));
+    }
+
     [Fact]
     public void SettingsButton_SitsAsFarFromTheBottomAsFromTheLeft()
     {

@@ -77,6 +77,9 @@ public sealed class FakeGoogleServer : IDisposable
     /// <summary>A calendar served as read-only (<c>accessRole: reader</c>), or null (set before launching).</summary>
     public string? ReadOnlyCalendarId { get; set; }
 
+    /// <summary>A calendar left out of the calendar list, as if it was deleted or unsubscribed on Google, or null.</summary>
+    public string? DroppedCalendarId { get; set; }
+
     /// <summary>When true, every connection is dropped without an answer (Leaf sees a network failure).</summary>
     public bool Offline { get; set; }
 
@@ -234,7 +237,13 @@ public sealed class FakeGoogleServer : IDisposable
         // Calendar List
         if (method == "GET" && path == "/calendar/v3/users/me/calendarList")
         {
-            var list = JsonNode.Parse(Read(ManyCalendars ? "calendar-list-many.json" : "calendar-list.json"))!;
+            var list  = JsonNode.Parse(Read(ManyCalendars ? "calendar-list-many.json" : "calendar-list.json"))!;
+            var items = list["items"]!.AsArray();
+            foreach (var item in items.OfType<JsonObject>().Where(c => (string?)c["id"] == DroppedCalendarId).ToList())
+            {
+                items.Remove(item);
+            }
+
             foreach (var item in list["items"]!.AsArray().OfType<JsonObject>().Where(c => (string?)c["id"] == ReadOnlyCalendarId))
             {
                 item["accessRole"] = "reader";
