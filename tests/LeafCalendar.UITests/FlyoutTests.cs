@@ -43,6 +43,18 @@ public sealed class FlyoutTests : IDisposable
     }
 
     [Fact]
+    public void NextHeader_SharesTheTitlesLeftEdge()
+    {
+        using var leaf = Launch();
+
+        leaf.PostTrayMessage(LeafApp.TraySelect);
+
+        var header = leaf.WaitForPopup("FlyoutNextHeader").BoundingRectangle;
+        var title  = leaf.WaitForPopup("FlyoutNextTitle").BoundingRectangle;
+        Assert.True(Math.Abs(header.Left - title.Left) <= 1, $"\"Next\" starts at {header.Left}, the title at {title.Left}.");
+    }
+
+    [Fact]
     public void JoinButton_OpensMeetWithItsAccount()
     {
         using var leaf = Launch();

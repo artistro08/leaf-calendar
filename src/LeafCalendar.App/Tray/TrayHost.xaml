@@ -130,7 +130,12 @@
 
                             <!-- Next Up -->
                             <StackPanel Padding="20,20,20,16" Spacing="4">
-                                <TextBlock Style="{StaticResource LeafSectionHeaderStyle}" Text="Next" />
+                                <!-- (the style's 9 DIP inset lines up with sidebar rows; here the header sits on the title's edge) -->
+                                <TextBlock
+                                    Margin="0"
+                                    Style="{StaticResource LeafSectionHeaderStyle}"
+                                    Text="Next"
+                                    AutomationProperties.AutomationId="FlyoutNextHeader" />
                                 <StackPanel x:Name="NextPanel" Spacing="4">
                                     <TextBlock
                                         x:Name="NextTitle"
