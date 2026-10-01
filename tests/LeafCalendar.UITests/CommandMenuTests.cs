@@ -85,20 +85,24 @@ public sealed class CommandMenuTests : IDisposable
     }
 
     [Fact]
-    public void SearchIcon_StartsTheSidebarsTitleBarRow_AndOpensTheMenu()
+    public void SearchIcon_IsCenteredOverTheNextMonthButton_AndOpensTheMenu()
     {
         using var leaf = Launch();
         var search  = leaf.WaitFor("SearchButton");
-        var toggle  = leaf.WaitFor("AppTitleBar").FindFirstDescendant(cf => cf.ByAutomationId("PART_PaneToggleButton"))!;
+        var next    = leaf.WaitFor("MiniMonthNext");
         var sidebar = leaf.WaitFor("Sidebar");
         LeafApp.WaitUntilStill(sidebar);
+        LeafApp.WaitUntilStill(next);
 
-        // Right After The Pane Toggle, Before The App Title, Over The Sidebar's Left Half
-        var searchBox = search.BoundingRectangle;
-        var client    = leaf.ClientBounds;
-        Assert.True(searchBox.Left >= toggle.BoundingRectangle.Right, $"Search {searchBox} overlaps the pane toggle {toggle.BoundingRectangle}.");
-        Assert.True(searchBox.Left - toggle.BoundingRectangle.Right <= 8 * leaf.Scale + 1, $"Search {searchBox} isn't next to the pane toggle {toggle.BoundingRectangle}.");
-        Assert.True(searchBox.Right <= sidebar.BoundingRectangle.Left + sidebar.BoundingRectangle.Width / 2, $"Search {searchBox} isn't at the start of the sidebar's row {sidebar.BoundingRectangle}.");
+        // At The Right End Of The Sidebar's Title Bar Row, Centered Over Next Month
+        var searchBox  = search.BoundingRectangle;
+        var nextBox    = next.BoundingRectangle;
+        var sidebarBox = sidebar.BoundingRectangle;
+        var client     = leaf.ClientBounds;
+        Assert.True(Math.Abs((searchBox.Left + searchBox.Right) / 2.0 - (nextBox.Left + nextBox.Right) / 2.0) <= 1,
+            $"Search {searchBox} isn't centered over Next month {nextBox}.");
+        Assert.True(searchBox.Left >= sidebarBox.Left + sidebarBox.Width / 2 && searchBox.Right <= sidebarBox.Right,
+            $"Search {searchBox} isn't in the right half of the sidebar {sidebarBox}.");
         Assert.True(Math.Abs((searchBox.Top + searchBox.Bottom) / 2.0 - client.Top - 24 * leaf.Scale) <= 3,
             $"Search {searchBox} isn't centered in the 48 DIP title bar (client top {client.Top}).");
 

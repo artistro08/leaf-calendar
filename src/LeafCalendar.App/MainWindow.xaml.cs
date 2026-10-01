@@ -124,7 +124,6 @@ public sealed partial class MainWindow : Window
         AppTitleBar.RenderTransform = _titleBarLift;
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         ToolbarHost.SizeChanged += (_, _) => UpdateTitleBarLayout(animate: false);
-        SearchButton.SizeChanged += (_, _) => KeepTitleClearOfSearch();
         RootGrid.Loaded += (_, _) =>
         {
             ApplyMinimumSize();
@@ -221,6 +220,9 @@ public sealed partial class MainWindow : Window
 
         if (page is not null)
         {
+            // The Search Icon Follows The Mini Month's Next Button Once It's Laid Out (and when the scale moves it)
+            page.SearchAnchorMoved += (_, _) => PlaceSearchButton();
+
             // The Interface Scale Changes The Minimum Size And The Panes' Widths
             page.ScaleChanged += (_, _) =>
             {
@@ -256,8 +258,8 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        // The Period Title Stays Clear Of The Search Icon (Back appearing moves it), Even When Nothing Else Changed
-        KeepTitleClearOfSearch();
+        // The Search Icon Moves With The Toolbar Host's Left Edge (the app title or Back appearing), Even When Nothing Else Changed
+        PlaceSearchButton();
 
         // Target: The Toolbar Inset In From The Island's Right Edge, Or From The Caption Buttons
         var scale   = RootGrid.XamlRoot.RasterizationScale;
@@ -305,14 +307,29 @@ public sealed partial class MainWindow : Window
         AppTitleBar.RecomputeDragRegions();
     }
 
-    // The search icon sits in the title bar's left header, so with the sidebar closed the period title (under the title
-    // bar) moves right of it
-    void KeepTitleClearOfSearch()
+    // The search icon: centered over the mini month's Next month button while the sidebar is open, else 8 after the
+    // title bar's left items (and the period title moves clear of it). Only the button takes clicks.
+    void PlaceSearchButton()
     {
-        if (ContentFrame.Content is CalendarPage page && SearchButton.ActualWidth > 0)
+        if (ContentFrame.Content is not CalendarPage page || RootGrid.XamlRoot is null)
         {
-            page.KeepTitleClearOf(SearchButton.TransformToVisual(RootGrid).TransformPoint(new Windows.Foundation.Point(SearchButton.ActualWidth, 0)).X);
+            return;
         }
+
+        var scale = RootGrid.XamlRoot.RasterizationScale;
+        var hostX = ToolbarHost.TransformToVisual(RootGrid).TransformPoint(default).X;
+        var left  = page.IsSidebarOpen && page.MiniMonthNextCenterX is { } center ? center - hostX - SearchButton.Width / 2 : 8;
+        left      = Math.Max(8, Math.Round(left * scale) / scale);
+
+        page.KeepTitleClearOf(hostX + left + SearchButton.Width);
+        if (SearchButton.Margin.Left == left)
+        {
+            return;
+        }
+
+        SearchButton.Margin = new Thickness(left, 0, 0, 0);
+        SearchButton.UpdateLayout();
+        AppTitleBar.RecomputeDragRegions();
     }
 
     // Edit And Delete: shown in the details panel's title bar row while the open panel shows an event or a selection
