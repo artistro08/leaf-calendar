@@ -138,7 +138,7 @@ Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manag
 4. Event data kept in a bounded sliding window (Section 6.4). Event visuals recycled.
 5. No WebView2. Event descriptions render with native text controls.
 6. Avatars and images decoded at display size (`DecodePixelWidth`).
-7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64. Measured 2026-09-29 at 78-79 MB private bytes and 11 MB working set (three runs), measured with sync running against the fake Google. Raised 2026-09-29 at the close of Milestone 2 to private bytes ≤ 120 MB (working set unchanged at ≤ 25 MB). Measured at 105-106 MB private bytes and 18 MB working set (three runs). The growth is expected: it's native WinUI memory for the new sidebar (mini month) and the time grid, committed while the window is open and kept after it closes. The managed heap stays at about 2 MB, and clearing the whole window tree on close freed nothing measurable. Measured 2026-09-30 at the close of Milestone 3 (Settings and onboarding windows, event editor, drag, conflict dialog) at 100 MB private bytes and 17 MB working set (three runs), inside the unchanged budget. Measured 2026-09-30 at the close of the second Milestone 3 polish round (contact autocomplete, Meet, undo stack, navigation history) at 98-99 MB private bytes and 17 MB working set (three runs, final build; 100-101 MB and 15-17 MB earlier the same day), inside the unchanged budget. Measured 2026-10-01 at the close of Milestone 4 (tray icon, tray host window, notifications, alert scheduler resident) at 100-101 MB private bytes and 17-20 MB working set (three runs), inside the unchanged budget. Measured 2026-10-01 at the close of Milestone 5 (command menu, people overlay, share availability, settings pages) at 100-101 MB private bytes and 21-22 MB working set (three runs), inside the unchanged budget.
+7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64. Measured 2026-09-29 at 78-79 MB private bytes and 11 MB working set (three runs), measured with sync running against the fake Google. Raised 2026-09-29 at the close of Milestone 2 to private bytes ≤ 120 MB (working set unchanged at ≤ 25 MB). Measured at 105-106 MB private bytes and 18 MB working set (three runs). The growth is expected: it's native WinUI memory for the new sidebar (mini month) and the time grid, committed while the window is open and kept after it closes. The managed heap stays at about 2 MB, and clearing the whole window tree on close freed nothing measurable. Measured 2026-09-30 at the close of Milestone 3 (Settings and onboarding windows, event editor, drag, conflict dialog) at 100 MB private bytes and 17 MB working set (three runs), inside the unchanged budget. Measured 2026-09-30 at the close of the second Milestone 3 polish round (contact autocomplete, Meet, undo stack, navigation history) at 98-99 MB private bytes and 17 MB working set (three runs, final build; 100-101 MB and 15-17 MB earlier the same day), inside the unchanged budget. Measured 2026-10-01 at the close of Milestone 4 (tray icon, tray host window, notifications, alert scheduler resident) at 100-101 MB private bytes and 17-20 MB working set (three runs), inside the unchanged budget. Measured 2026-10-01 at the close of Milestone 5 (command menu, people overlay, share availability, settings pages) at 100-101 MB private bytes and 21-22 MB working set (three runs), inside the unchanged budget. Measured 2026-10-01 at the close of Milestone 6 (rich description editor, box select, contrast-theme brushes, AI libraries removed) at 99-100 MB private bytes and 20-22 MB working set (three runs), inside the unchanged budget.
 
 ---
 
@@ -187,7 +187,7 @@ Built in Milestone 3 (owner redesign) as its own onboarding window, shown instea
 Anyone can send an invite, so event content is treated as hostile.
 
 - **Launching links:** only `https` URLs and an allowlist of meeting app schemes (`zoommtg`, `zoomus`, `msteams`, `webex`) can be launched. Anything else (`file`, `ms-msdt`, `javascript`, custom schemes) is blocked. `mailto` links (description links and "Email guests") open the mail app. Every launch goes through one checked path.
-- **Descriptions:** Google's HTML subset is parsed into native text runs (bold, italic, underline, lists, line breaks, links). No scripts, no remote images, no embedded browser. Only `https` and `mailto` links are clickable.
+- **Descriptions:** Google's HTML subset is parsed into native text runs (bold, italic, underline, lists, line breaks, links). No scripts, no remote images, no embedded browser. Only `https` and `mailto` links are clickable. Edited in place with bold, italic, underline, and bullet or numbered lists (Milestone 6). Saving writes only those tags and allowlisted links back to Google, with all text encoded; an untouched description is never rewritten. Paste is plain text.
 - **Meeting link detection:** URL parsing through `Uri`, host matched against a known list (Meet, Zoom, Teams, Webex, Around, Whereby, BlueJeans, Doxy.me), never by substring.
 
 ### 4.6 Logging
@@ -362,7 +362,7 @@ Its own window (Milestone 3 owner redesign), modeled on the Windows 11 Settings 
   - Optional-guest toggle.
   - Meeting rooms and resources (Workspace accounts).
 - Location, opened in Google Maps or Bing Maps (setting).
-- Description with bold, italic, underline, links, and lists.
+- Description with bold, italic, underline, links, and lists. Links are kept but not edited in the editor (Milestone 6).
 - Conferencing: auto Google Meet (default per account, or none). Pasted Zoom, Teams, Webex, and other links are detected. Built in the Milestone 3 polish: Add Google Meet / Remove in the editor, off for new events. Per-account default in Settings › Accounts (Milestone 5).
 - Reminders: calendar defaults or custom.
 - Event type: Event, Focus time, Out of office. The last two need Workspace accounts and are hidden otherwise. Chosen only when creating (Google can't change it later), on a Workspace account's primary calendar.
@@ -371,7 +371,7 @@ Its own window (Milestone 3 owner redesign), modeled on the Windows 11 Settings 
 ### 7.3 Editing
 
 - Drag to move, drag edges to resize, `Alt`+drag to duplicate. Drag an all-day event into a timed slot to convert it.
-- Multi-select with `Ctrl`+click or `Shift`+drag box, then bulk move, delete, or recolor.
+- Multi-select with `Ctrl`+click or `Shift`+drag box (box select built in Milestone 6: the time grid selects timed events under the box; the month view selects every event on the covered days; Ctrl adds to the selection), then bulk move, delete, or recolor.
 - `Ctrl+C`, `Ctrl+X`, `Ctrl+V` copy, cut, and paste events. `Delete` removes them.
 - Repeating events ask: this event, this and following, or all events.
 - Guests are emailed about drags and deletes (Delete); Ctrl+Shift+Delete deletes without emailing.
@@ -465,7 +465,7 @@ Registered with `RegisterHotKey`. If a combination is already taken by another a
 
 ### 8.7 In-App Shortcuts
 
-`?` opens a searchable cheat sheet. Key sequences like `E` then `Y` time out after 1.5 seconds. The cheat sheet leaves out Shift+drag until box select is built (Milestone 6).
+`?` opens a searchable cheat sheet. Key sequences like `E` then `Y` time out after 1.5 seconds. The cheat sheet lists Shift+drag (box select, Milestone 6).
 
 **Navigation**
 
@@ -623,6 +623,8 @@ Tests are written alongside each feature, test first: write the failing test, th
 - **Memory budget:** launches the Release AOT package, sends it to tray-only, waits, reads private working set and private bytes, and fails over budget.
 - **Log redaction:** scans all logs produced during the test run for tokens, secrets, and event content.
 - **Link safety:** blocked schemes and look-alike hosts.
+- **Package size:** `tools/check-package.ps1` fails on Windows App SDK AI/ML/Search/Widgets files or an MSIX over budget (manual CI job).
+- **Accessibility and design lint:** `XamlLintTests` and `ChromeColorsTests` in the logic tests; `AccessibilityTests` in the UI tests.
 
 ---
 
@@ -635,6 +637,7 @@ Tests are written alongside each feature, test first: write the failing test, th
 - GitHub Actions on the private repository:
   - Every push: build plus logic tests.
   - UI tests and live tests: run locally or by manual workflow trigger, since Windows runners cost double minutes on private repositories.
+  - Manual workflow trigger: Release AOT publish plus the package check.
 
 ---
 
@@ -687,11 +690,11 @@ Each milestone gets its own implementation plan. Tests are built within each mil
      - Settings › Tray "Which calendars appear" (the tray follows the calendars shown in Leaf until then)
      - Settings › Shortcuts link to the in-app cheat sheet (arrives with the cheat sheet)
 6. **Polish and Store prep:**
-   - Visual pass and accessibility pass
-   - Store listing requirements
-   - Deferred from Milestone 3:
-     - Rich description editing (bold, italic, underline, lists); descriptions are edited as plain text
-     - Shift+drag box select (Ctrl+click, Shift+click, X, and Ctrl+A select today)
+   - Visual pass and accessibility pass. Built in Milestone 6.
+   - Store listing requirements. Parked by the owner in Milestone 6 (icon, Partner Center identity, privacy URL, and support contact to come).
+   - Deferred from Milestone 3 (built in Milestone 6):
+     - Rich description editing (bold, italic, underline, lists). Built in Milestone 6.
+     - Shift+drag box select (Ctrl+click, Shift+click, X, and Ctrl+A select today). Built in Milestone 6.
    - Deferred from Milestone 4:
      - Tray icon art: monochrome light and dark glyphs (the app logo is a placeholder), and a fixed `NIF_GUID` icon identity once the package is signed
 
@@ -701,7 +704,7 @@ Each milestone gets its own implementation plan. Tests are built within each mil
 
 - **Recurrence library churn:** `Meziantou.Framework.Scheduling` shipped 4 versions in 3 weeks. Pin the exact version, and re-run the recurrence tests plus the AOT publish before any upgrade.
 - **Hostile recurrence rules:** invites come from anyone, so a rule like `FREQ=SECONDLY` or one that never matches must not freeze Leaf. The expander caps its work, and tests cover both cases.
-- **Package size:** the self-contained MSIX is about 50 MB, and about 40 MB of that is Windows App SDK AI libraries (`onnxruntime.dll`, `DirectML.dll`). Trim them in Milestone 6.
+- **Package size:** the self-contained MSIX was about 56 MB, about 40 MB of it Windows App SDK AI libraries. Milestone 6 references the Windows App SDK component packages without AI, ML, Search, and Widgets; the MSIX is now 31.8 MB (`tools/check-package.ps1`).
 - **AOT publish PATH:** the AOT link step needs `%ProgramFiles(x86)%\Microsoft Visual Studio\Installer` on `PATH` (it calls `vswhere.exe` by bare name).
 - **Tray-only memory of the real app:** sets the memory budget.
 - **FlaUI with the XAML `TitleBar`:** caption buttons may lack AutomationIds (microsoft-ui-xaml#9178). Tests target Leaf's own controls.
