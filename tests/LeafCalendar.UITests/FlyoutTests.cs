@@ -91,13 +91,17 @@ public sealed class FlyoutTests : IDisposable
         Assert.True(Retry.WhileTrue(() => leaf.PopupExists("FlyoutRoot"), TimeSpan.FromSeconds(5)).Success);
     }
 
+    // New event sits at the footer's right end (16 in, like its left padding)
     [Fact]
     public void NewEvent_OpensTheEditor()
     {
         using var leaf = Launch();
         leaf.PostTrayMessage(LeafApp.TraySelect);
 
-        leaf.WaitForPopup("FlyoutNewEvent").AsButton().Invoke();
+        var button = leaf.WaitForPopup("FlyoutNewEvent");
+        var root   = leaf.WaitForPopup("FlyoutRoot").BoundingRectangle;
+        Assert.True(root.Right - button.BoundingRectangle.Right <= 20 * leaf.Scale, $"New event ({button.BoundingRectangle}) isn't at the flyout's ({root}) right.");
+        button.AsButton().Invoke();
 
         Assert.NotNull(leaf.WaitFor("EditorTitle"));
     }
