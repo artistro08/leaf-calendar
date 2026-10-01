@@ -82,6 +82,7 @@ public sealed partial class EventEditorView : UserControl
         CalendarBox.SelectedIndex = calendarIndex;
 
         editor.PropertyChanged += OnEditorPropertyChanged;
+        LeafBrushes.ContrastChanged += OnContrastChanged;
         BuildColors();
         LoadDescription();
 
@@ -176,6 +177,7 @@ public sealed partial class EventEditorView : UserControl
 
         // x:Bind skips a null Editor, so the calendar list is let go by hand (with Editor null nothing is written back)
         editor.PropertyChanged -= OnEditorPropertyChanged;
+        LeafBrushes.ContrastChanged -= OnContrastChanged;
         Editor = null;
         CalendarBox.ItemsSource = null;
     }
@@ -238,6 +240,15 @@ public sealed partial class EventEditorView : UserControl
 
         PaintSwatches();
     }
+
+    // A Contrast Theme Turning On Or Off Re-Rings The Swatches (raised off the UI thread)
+    void OnContrastChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(() =>
+    {
+        if (Editor is not null)
+        {
+            BuildColors();
+        }
+    });
 
     void PaintSwatches()
     {
@@ -469,6 +480,12 @@ public sealed partial class EventEditorView : UserControl
     // focus (in a list it would nest it). AltGr (Ctrl+Alt) still types.
     bool DescriptionKey(VirtualKey key)
     {
+        // A Read-Only Description Takes No Shortcuts (they would edit it)
+        if (DescriptionBox.IsReadOnly)
+        {
+            return false;
+        }
+
         var ctrl  = KeyState.IsDown(VirtualKey.Control);
         var shift = KeyState.IsDown(VirtualKey.Shift);
 

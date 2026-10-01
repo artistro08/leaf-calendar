@@ -284,6 +284,33 @@ public sealed class EditingTests : IDisposable
         Assert.DoesNotContain("description", write.Body, StringComparison.Ordinal);
     }
 
+    // A Read-Only Description With A Link Survives A List Shortcut And A Click Inside The Link (both used to crash)
+    [Fact]
+    public void Edit_DescriptionTooLongWithLink_ShortcutAndClickChangeNothing()
+    {
+        _google.AddEvent(SeededProfile.Email, new JsonObject
+        {
+            ["id"]          = "evt-lunch",
+            ["summary"]     = "Team lunch",
+            ["description"] = "<a href=\"https://example.com/menu\">menu</a> " + new string('x', 20_000),
+            ["start"]       = new JsonObject { ["dateTime"] = "2026-10-01T16:00:00Z" },
+            ["end"]         = new JsonObject { ["dateTime"] = "2026-10-01T17:00:00Z" },
+        });
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-lunch_202610011600").Click();
+        leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
+
+        var description = leaf.WaitFor("EditorDescription");
+        var before      = description.Patterns.Text.Pattern.DocumentRange.GetText(-1);
+        description.Focus();
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.SHIFT, VirtualKeyShort.KEY_L);
+        var box = description.BoundingRectangle;
+        Mouse.Click(new System.Drawing.Point(box.Left + 12, box.Top + 12));
+        Thread.Sleep(300);
+
+        Assert.Equal(before, leaf.WaitFor("EditorDescription").Patterns.Text.Pattern.DocumentRange.GetText(-1));
+    }
+
     [Fact]
     public void AddGuest_SaveWithoutEmailing_SendsAttendeesQuietly()
     {

@@ -27,6 +27,9 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 [IO.Compression.ZipFile]::ExtractToDirectory($msix.FullName, $layout)
 
 $existing = Get-AppxPackage LeafCalendar
+if ($existing -and -not $existing.IsDevelopmentMode) {
+    throw 'Leaf is installed from a package; uninstall it from Settings > Apps first.'
+}
 if ($existing -and $existing.InstallLocation -ne $layout) {
     Write-Warning "Replacing Leaf Calendar registered from $($existing.InstallLocation). Your accounts and settings are kept."
     Remove-AppxPackage $existing.PackageFullName -PreserveApplicationData

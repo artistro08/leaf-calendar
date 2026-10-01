@@ -87,7 +87,7 @@ public static class LeafBrushes
     // =========================================================================
 
     static readonly AccessibilitySettings Accessibility = new();
-    static readonly UISettings System = new();
+    static readonly UISettings UiColors = new();
     static readonly Dictionary<UIElementType, SolidColorBrush> SystemCache = [];
     static volatile bool _systemStale;
     static bool _wasHighContrast = Accessibility.HighContrast;
@@ -101,7 +101,7 @@ public static class LeafBrushes
     // The System Brushes Are Read Again (on the UI thread, at the next use) When The Contrast Theme Or Its Colors Change.
     // UISettings.ColorValuesChanged, not AccessibilitySettings.HighContrastChanged: that one needs a CoreWindow, and
     // subscribing to it from a desktop app throws (it crashed Leaf at startup).
-    static LeafBrushes() => System.ColorValuesChanged += (_, _) =>
+    static LeafBrushes() => UiColors.ColorValuesChanged += (_, _) =>
     {
         var now = Accessibility.HighContrast;
         if (!now && !_wasHighContrast)
@@ -124,8 +124,8 @@ public static class LeafBrushes
     // A Contrast Card: The Window Color With A Text-Colored Bar And Border, Or The Highlight Pair When Selected
     static EventPalette HighContrastPalette(bool selected)
     {
-        var fill = Hex(System.UIElementColor(selected ? UIElementType.Highlight : UIElementType.Window));
-        var text = Hex(System.UIElementColor(selected ? UIElementType.HighlightText : UIElementType.WindowText));
+        var fill = Hex(UiColors.UIElementColor(selected ? UIElementType.Highlight : UIElementType.Window));
+        var text = Hex(UiColors.UIElementColor(selected ? UIElementType.HighlightText : UIElementType.WindowText));
 
         return new EventPalette(text, fill, text, "#FF" + text[1..]);
     }
@@ -141,7 +141,7 @@ public static class LeafBrushes
 
         if (!SystemCache.TryGetValue(type, out var brush))
         {
-            brush             = new SolidColorBrush(System.UIElementColor(type));
+            brush             = new SolidColorBrush(UiColors.UIElementColor(type));
             SystemCache[type] = brush;
         }
 

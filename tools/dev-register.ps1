@@ -17,6 +17,9 @@ if (-not $manifest) { throw 'AppxManifest.xml not found under bin/x64/Debug. Che
 
 # Register
 $existing = Get-AppxPackage LeafCalendar
+if ($existing -and -not $existing.IsDevelopmentMode) {
+    throw 'Leaf is installed from a package; uninstall it from Settings > Apps first.'
+}
 if ($existing -and $existing.InstallLocation -ne $manifest.DirectoryName) {
     Write-Warning "Replacing Leaf Calendar registered from $($existing.InstallLocation). Your accounts and settings are kept."
     Remove-AppxPackage $existing.PackageFullName -PreserveApplicationData

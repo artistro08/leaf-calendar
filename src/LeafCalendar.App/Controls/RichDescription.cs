@@ -20,6 +20,7 @@ internal static class RichDescription
         var document = box.Document;
         var anchors  = new List<(string Text, Uri Link)>();
         var accent   = Accent(box);
+        _loadedAccent = accent;
         document.SetText(TextSetOptions.None, string.Join("\r", lines.Select(l => string.Concat(l.Runs.Select(r => r.Text)))));
 
         // Nothing Carries Over From The Last Description (bold, link color, or a list on the first paragraph)
@@ -136,6 +137,11 @@ internal static class RichDescription
     /// </summary>
     public static void PlainInsertion(RichEditBox box)
     {
+        if (box.IsReadOnly)
+        {
+            return;
+        }
+
         if (box.Document.Selection.Length == 0)
         {
             Untint(box, box.Document.Selection);
@@ -145,6 +151,11 @@ internal static class RichDescription
     /// <summary>Gives a link-tinted range (text pasted at a link, or the caret) the default format, keeping bold, italic, and underline.</summary>
     public static void Untint(RichEditBox box, ITextRange range)
     {
+        if (box.IsReadOnly)
+        {
+            return;
+        }
+
         var current = range.CharacterFormat;
         if (SlotOf(current.ForegroundColor) is null)
         {
@@ -161,6 +172,11 @@ internal static class RichDescription
     /// <summary>Re-tints every link for the box's current theme (each keeps its slot).</summary>
     public static void Recolor(RichEditBox box)
     {
+        if (box.IsReadOnly)
+        {
+            return;
+        }
+
         var document = box.Document;
         var accent   = Accent(box);
         document.GetText(TextGetOptions.None, out var all);
@@ -176,14 +192,20 @@ internal static class RichDescription
 
             at = Math.Max(range.EndPosition, at + 1);
         }
+
+        _loadedAccent = accent;
     }
 
     // The accent for the box's theme
     static (byte R, byte G, byte B) Accent(RichEditBox box) => FromColor(LeafBrushes.Accent(box.ActualTheme == ElementTheme.Dark).Color);
 
-    // A link's slot from its color, in either theme's tint (a theme change may not have re-tinted it yet)
+    // The accent the links were last tinted from (a contrast-theme switch mid-edit changes the live accent under them)
+    static (byte R, byte G, byte B)? _loadedAccent;
+
+    // A link's slot from its color, in the tint it was loaded with or either theme's current tint (a theme change may not have re-tinted it yet)
     static int? SlotOf(Color color) =>
-        DescriptionAnchors.SlotOf(FromColor(color), FromColor(LeafBrushes.Accent(true).Color))
+        (_loadedAccent is { } loaded ? DescriptionAnchors.SlotOf(FromColor(color), loaded) : null)
+        ?? DescriptionAnchors.SlotOf(FromColor(color), FromColor(LeafBrushes.Accent(true).Color))
         ?? DescriptionAnchors.SlotOf(FromColor(color), FromColor(LeafBrushes.Accent(false).Color));
 
     static (byte R, byte G, byte B) FromColor(Color color) => (color.R, color.G, color.B);
