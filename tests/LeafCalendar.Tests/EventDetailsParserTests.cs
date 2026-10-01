@@ -44,6 +44,20 @@ public class EventDetailsParserTests
         Assert.Null(EventDetailsParser.Parse("""{"id":"a","location":"https://meet.google.com.evil.example/abc"}""").ConferenceUri);
     }
 
+    [Theory]
+    [InlineData("""{"id":"a"}""", "default")]
+    [InlineData("""{"id":"a","visibility":"default"}""", "default")]
+    [InlineData("""{"id":"a","visibility":"public"}""", "public")]
+    [InlineData("""{"id":"a","visibility":"private"}""", "private")]
+    [InlineData("""{"id":"a","visibility":"confidential"}""", "confidential")]
+    [InlineData("""{"id":"a","visibility":"bogus"}""", "default")]
+    [InlineData("""{"id":"a","visibility":"PRIVATE"}""", "default")]
+    [InlineData("""{"id":"a","visibility":7}""", "default")]
+    public void Parse_Visibility_DefaultsAndKnownValues(string json, string expected)
+    {
+        Assert.Equal(expected, EventDetailsParser.Parse(json).Visibility);
+    }
+
     [Fact]
     public void Parse_MinimalEvent_UsesDefaults()
     {

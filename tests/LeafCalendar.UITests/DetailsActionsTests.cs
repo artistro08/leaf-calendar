@@ -54,6 +54,23 @@ public sealed class DetailsActionsTests : IDisposable
     }
 
     [Fact]
+    public void JoinMenu_CopyLink_LinesUpWithTheButtonsRightEdge()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Meeting).Click();
+
+        var join = leaf.WaitFor("DetailsJoinButton");
+        join.Patterns.ExpandCollapse.Pattern.Expand();
+        var item = leaf.WaitForAnywhere("CopyMeetingLinkItem");
+
+        // The menu is the item's parent; its right edge sits on the button's (a few px for the flyout's shadow margin)
+        var menu = item.Parent;
+        Assert.True(
+            Retry.WhileFalse(() => Math.Abs(menu.BoundingRectangle.Right - join.BoundingRectangle.Right) <= 2, TimeSpan.FromSeconds(5)).Success,
+            $"Menu {menu.BoundingRectangle} vs button {join.BoundingRectangle}.");
+    }
+
+    [Fact]
     public void UpcomingJoin_OpensMeet()
     {
         using var leaf = Launch();

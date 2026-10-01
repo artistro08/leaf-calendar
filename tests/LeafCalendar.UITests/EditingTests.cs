@@ -293,15 +293,17 @@ public sealed class EditingTests : IDisposable
         Assert.NotNull(leaf.WaitFor("UndoButton"));
     }
 
-    // Regression guard: may already pass before the editor exists (no Edit button at all)
     [Fact]
-    public void InviteYouCantEdit_HasNoEditButton()
+    public void InviteYouCantEdit_ShowsEditDisabled()
     {
         using var leaf = Launch();
         leaf.WaitFor("Event_evt-meeting_202610011800").Click();
-
         leaf.WaitFor("DetailsTitle");
-        Assert.False(leaf.Exists("DetailsEditButton"));
+
+        // Edit stays in its place, disabled; a changeable event enables it again
+        Assert.False(leaf.WaitFor("DetailsEditButton").IsEnabled);
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsEditButton").IsEnabled, TimeSpan.FromSeconds(5)).Success);
     }
 
     [Fact]

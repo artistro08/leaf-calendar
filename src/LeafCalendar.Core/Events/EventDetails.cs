@@ -39,6 +39,7 @@ public enum ResponseStatus
 /// What Leaf shows about one event, read from Google's stored JSON. Everything here comes from people
 /// who can send you invites, so it is displayed as plain text only.
 /// </summary>
+/// <param name="Visibility">Google's event visibility: <c>default</c>, <c>public</c>, <c>private</c>, or <c>confidential</c>. Anything else reads as <c>default</c>.</param>
 public sealed record EventDetails(
     string Title,
     string? Location,
@@ -49,4 +50,5 @@ public sealed record EventDetails(
     Uri? ConferenceUri,
     bool IsFree,
     int GuestCount,
-    string? OrganizerEmail);
+    string? OrganizerEmail,
+    string Visibility = "default");

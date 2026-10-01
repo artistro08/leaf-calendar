@@ -35,6 +35,24 @@ public sealed class DetailsPanelTests : IDisposable
     }
 
     [Fact]
+    public void Details_ShowBusyAndVisibility()
+    {
+        _google.EditOnGoogle(SeededProfile.Email, "evt-single", e =>
+        {
+            e["transparency"] = "transparent";
+            e["visibility"]   = "private";
+        });
+        using var leaf = Launch();
+
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsStatus").Name == "Free · Private", TimeSpan.FromSeconds(5)).Success, $"Status says \"{leaf.WaitFor("DetailsStatus").Name}\".");
+
+        // Another Event Keeps Google's Defaults
+        leaf.WaitFor("Event_evt-meeting_202610011800").Click();
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsStatus").Name == "Busy · Default visibility", TimeSpan.FromSeconds(5)).Success, $"Status says \"{leaf.WaitFor("DetailsStatus").Name}\".");
+    }
+
+    [Fact]
     public void ClickEmptyGridSpace_ClearsSelection()
     {
         using var leaf = Launch();

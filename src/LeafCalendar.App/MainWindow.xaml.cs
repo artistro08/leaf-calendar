@@ -283,7 +283,7 @@ public sealed partial class MainWindow : Window
     }
 
     // Edit And Delete: shown in the details panel's title bar row while the open panel shows an event or a selection
-    // (not while editing). Edit shows only for one event you can change. Delete stays put, disabled when none of the
+    // (not while editing). Edit and Delete stay put, disabled when they can't act: Edit needs one event you can change; Delete is disabled when none of the
     // selected events can be deleted (the Delete key does nothing then either; a disabled button shows no tooltip, so
     // the reason goes to its help text); several selected events delete the ones you can change. The title bar only lets clicks through where its buttons are when it computes its regions, so
     // they're recomputed once the buttons have their new layout.
@@ -293,18 +293,19 @@ public sealed partial class MainWindow : Window
         var canEdit    = _calendar?.SelectedInfo is { CanEdit: true };
         var show       = ContentFrame.Content is CalendarPage { IsDetailsOpen: true } && _calendar is { Editing: null } && (several || _calendar.SelectedInfo is not null);
         var visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        var edit       = !several && canEdit ? Visibility.Visible : Visibility.Collapsed;
+        var edit       = !several && canEdit;
         var delete     = _calendar is { CanDeleteSelection: true };
 
+        EditEventButton.IsEnabled = edit;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(EditEventButton, edit ? "" : several ? "Select one event to edit it" : "You can't edit this event");
         DeleteEventButton.IsEnabled = delete;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(DeleteEventButton, delete ? "" : several ? "You can't delete these events" : "You can't delete this event");
-        if (EventActions.Visibility == visibility && EditEventButton.Visibility == edit)
+        if (EventActions.Visibility == visibility)
         {
             return;
         }
 
-        EventActions.Visibility    = visibility;
-        EditEventButton.Visibility = edit;
+        EventActions.Visibility = visibility;
         EventActions.UpdateLayout();
         AppTitleBar.RecomputeDragRegions();
     }

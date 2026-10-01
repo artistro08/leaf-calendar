@@ -39,7 +39,17 @@ public sealed record SelectedEventInfo(
     EventDraft Draft,
     IReadOnlyList<DescriptionRun> DescriptionRuns,
     bool CanEdit,
-    bool CanRespond);
+    bool CanRespond)
+{
+    /// <summary>"Busy · Default visibility": whether the event blocks your time, and who can see it (confidential shows as Private).</summary>
+    public string StatusText => $"{(Details.IsFree ? "Free" : "Busy")} · {Details.Visibility switch
+    {
+        "public"       => "Public",
+        "private"      => "Private",
+        "confidential" => "Private",
+        _              => "Default visibility",
+    }}";
+}
 
 /// <summary>A guest in the details panel: address and a summary such as "Maybe · Optional · “Late”".</summary>
 public sealed record GuestItem(string Email, string Detail);

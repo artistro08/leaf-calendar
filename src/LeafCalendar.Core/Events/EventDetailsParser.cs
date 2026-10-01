@@ -35,7 +35,8 @@ public static partial class EventDetailsParser
             ConferenceUri(root, includeDescription),
             String(root, "transparency") == "transparent",
             Get(root, "attendees") is { ValueKind: JsonValueKind.Array } guests ? guests.GetArrayLength() : 0,
-            Get(root, "organizer") is { } organizer ? String(organizer, "email") : null);
+            Get(root, "organizer") is { } organizer ? String(organizer, "email") : null,
+            VisibilityOf(String(root, "visibility")));
     }
 
     /// <summary>
@@ -58,6 +59,9 @@ public static partial class EventDetailsParser
 
         return text.Length > MaxDescriptionLength ? text[..MaxDescriptionLength] + "…" : text;
     }
+
+    // Only Google's documented values pass; anything else (including other casing) is the default
+    static string VisibilityOf(string? value) => value is "public" or "private" or "confidential" ? value : "default";
 
     static EventKind KindOf(string? eventType) => eventType switch
     {

@@ -70,6 +70,7 @@
                         <Ellipse x:Name="CalendarDot" Width="10" Height="10" VerticalAlignment="Center" />
                         <TextBlock x:Name="CalendarText" AutomationProperties.AutomationId="DetailsCalendar" />
                     </StackPanel>
+                    <TextBlock x:Name="StatusText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.AutomationId="DetailsStatus" />
 
                     <!-- Join (the whole width; the label names the service, the arrow copies the link. Edit and Delete are
                          icons in the title bar row, see MainWindow) -->
@@ -115,7 +116,7 @@
                             </ResourceDictionary>
                         </SplitButton.Resources>
                         <SplitButton.Flyout>
-                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <MenuFlyout x:Name="JoinMenu" Placement="BottomEdgeAlignedRight" Opened="OnJoinMenuOpened">
                                 <MenuFlyoutItem Text="Copy link" Click="OnCopyMeetingLinkClick" AutomationProperties.AutomationId="CopyMeetingLinkItem">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE8C8;" />

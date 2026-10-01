@@ -7,6 +7,7 @@ using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
 
@@ -22,6 +23,7 @@ public sealed partial class DetailsPanel : UserControl
 {
     CalendarViewModel? _vm;
     string? _shownKey;
+    bool _placingJoinMenu;
 
     /// <summary>Creates the panel.</summary>
     public DetailsPanel()
@@ -145,6 +147,7 @@ public sealed partial class DetailsPanel : UserControl
         TitleText.Text    = d.Title;
         WhenText.Text     = info.When;
         CalendarText.Text = info.CalendarName;
+        StatusText.Text   = info.StatusText;
         CalendarDot.Fill  = LeafBrushes.FromHex(info.CalendarColor);
 
         // Join (it shows where it really goes)
@@ -174,6 +177,20 @@ public sealed partial class DetailsPanel : UserControl
         GuestList.ItemsSource = guests.Select(g => new GuestItem(g.Email, GuestDetail(g))).ToList();
 
         RenderDescription(info.DescriptionRuns);
+    }
+
+    // SplitButton opens its menu left-aligned whatever Placement says; show it again right-aligned (ShowAt on an open
+    // flyout just moves it)
+    void OnJoinMenuOpened(object? sender, object e)
+    {
+        if (_placingJoinMenu)
+        {
+            return;
+        }
+
+        _placingJoinMenu = true;
+        JoinMenu.ShowAt(JoinButton, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedRight });
+        _placingJoinMenu = false;
     }
 
     // What the Join button joins, from the link's host (Core's provider detection)
