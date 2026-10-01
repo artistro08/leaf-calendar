@@ -351,8 +351,92 @@
                 <!-- Divider -->
                 <Border Style="{StaticResource LeafDividerStyle}" AutomationProperties.AutomationId="EditorDivider_Description" />
 
-                <!-- Description -->
-                <TextBox Header="Description" MinHeight="80" AcceptsReturn="True" TextWrapping="Wrap" Text="{x:Bind Editor.Description, Mode=TwoWay}" IsReadOnly="{x:Bind Editor.DescriptionTooLong}" AutomationProperties.AutomationId="EditorDescription" />
+                <!-- Description (filled and read back in code: see LoadDescription and CommitDescription) -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Description" />
+
+                    <!-- Description Toolbar (hidden when the description is read-only) -->
+                    <StackPanel x:Name="DescriptionToolbar" Orientation="Horizontal" Spacing="4">
+                        <ToggleButton
+                            x:Name="BoldButton"
+                            Width="32"
+                            Height="32"
+                            Padding="0"
+                            AllowFocusOnInteraction="False"
+                            Click="OnBoldClick"
+                            ToolTipService.ToolTip="Bold (Ctrl+B)"
+                            AutomationProperties.Name="Bold"
+                            AutomationProperties.AutomationId="DescriptionBold">
+                            <FontIcon Glyph="&#xE8DD;" FontSize="16" />
+                        </ToggleButton>
+                        <ToggleButton
+                            x:Name="ItalicButton"
+                            Width="32"
+                            Height="32"
+                            Padding="0"
+                            AllowFocusOnInteraction="False"
+                            Click="OnItalicClick"
+                            ToolTipService.ToolTip="Italic (Ctrl+I)"
+                            AutomationProperties.Name="Italic"
+                            AutomationProperties.AutomationId="DescriptionItalic">
+                            <FontIcon Glyph="&#xE8DB;" FontSize="16" />
+                        </ToggleButton>
+                        <ToggleButton
+                            x:Name="UnderlineButton"
+                            Width="32"
+                            Height="32"
+                            Padding="0"
+                            AllowFocusOnInteraction="False"
+                            Click="OnUnderlineClick"
+                            ToolTipService.ToolTip="Underline (Ctrl+U)"
+                            AutomationProperties.Name="Underline"
+                            AutomationProperties.AutomationId="DescriptionUnderline">
+                            <FontIcon Glyph="&#xE8DC;" FontSize="16" />
+                        </ToggleButton>
+                        <ToggleButton
+                            x:Name="BulletsButton"
+                            Width="32"
+                            Height="32"
+                            Padding="0"
+                            AllowFocusOnInteraction="False"
+                            Click="OnBulletsClick"
+                            ToolTipService.ToolTip="Bulleted list"
+                            AutomationProperties.Name="Bulleted list"
+                            AutomationProperties.AutomationId="DescriptionBullets">
+                            <FontIcon Glyph="&#xE8FD;" FontSize="16" />
+                        </ToggleButton>
+                        <ToggleButton
+                            x:Name="NumbersButton"
+                            Width="32"
+                            Height="32"
+                            Padding="0"
+                            AllowFocusOnInteraction="False"
+                            Click="OnNumbersClick"
+                            ToolTipService.ToolTip="Numbered list"
+                            AutomationProperties.Name="Numbered list"
+                            AutomationProperties.AutomationId="DescriptionNumbers">
+                            <!-- Segoe Fluent Icons has no numbered list glyph: 1, 2, 3 beside three lines on the 16 DIP grid, 1 px strokes -->
+                            <PathIcon
+                                Width="16"
+                                Height="16"
+                                Data="M2,1 H3 V5 H2 Z M1,6 H4 V7 H1 Z M3,7 H4 V8 H3 Z M1,7.5 H4 V8.5 H1 Z M1,8.5 H2 V10 H1 Z M1,9 H4 V10 H1 Z M1,11 H4 V12 H1 Z M3,12 H4 V15 H3 Z M1.5,12.5 H4 V13.5 H1.5 Z M1,14 H4 V15 H1 Z M6,2.5 H15 V3.5 H6 Z M6,7.5 H15 V8.5 H6 Z M6,12.5 H15 V13.5 H6 Z" />
+                        </ToggleButton>
+                    </StackPanel>
+                    <!-- /Description Toolbar -->
+
+                    <RichEditBox
+                        x:Name="DescriptionBox"
+                        MinHeight="80"
+                        TextWrapping="Wrap"
+                        DisabledFormattingAccelerators="None"
+                        ClipboardCopyFormat="PlainText"
+                        AllowDrop="False"
+                        AutomationProperties.Name="Description"
+                        AutomationProperties.AutomationId="EditorDescription"
+                        Paste="OnDescriptionPaste"
+                        TextChanged="OnDescriptionTextChanged"
+                        SelectionChanged="OnDescriptionSelectionChanged" />
+                </StackPanel>
                 <TextBlock Text="This description is too long to edit in Leaf." Visibility="{x:Bind Editor.DescriptionTooLong}" Style="{StaticResource LeafSecondaryTextStyle}" AutomationProperties.AutomationId="EditorDescriptionTooLong" />
                 <!-- /Description -->
 

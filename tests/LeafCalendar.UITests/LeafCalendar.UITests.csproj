@@ -4,10 +4,15 @@
         <TargetPlatformMinVersion>10.0.22000.0</TargetPlatformMinVersion>
         <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>
+
+        <!-- WinForms only for the drag source in Support/DragSource.cs (its names would clash with FlaUI's, so no global usings) -->
+        <UseWindowsForms>true</UseWindowsForms>
     </PropertyGroup>
 
     <ItemGroup>
         <Using Include="Xunit" />
+        <Using Remove="System.Windows.Forms" />
+        <Using Remove="System.Drawing" />
     </ItemGroup>
 
     <ItemGroup>

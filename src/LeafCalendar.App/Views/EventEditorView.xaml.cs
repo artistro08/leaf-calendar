@@ -2,12 +2,15 @@ using System.ComponentModel;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Views;
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.System;
 
 namespace LeafCalendar.App.Views;
@@ -40,6 +43,8 @@ public sealed partial class EventEditorView : UserControl
         _suggestTimer.Interval    = TimeSpan.FromMilliseconds(250);
         _suggestTimer.IsRepeating = false;
         _suggestTimer.Tick       += (_, _) => RefreshSuggestions();
+
+        ActualThemeChanged += OnThemeChanged;
     }
 
     /// <summary>The fields being edited, or null.</summary>
@@ -78,6 +83,7 @@ public sealed partial class EventEditorView : UserControl
 
         editor.PropertyChanged += OnEditorPropertyChanged;
         BuildColors();
+        LoadDescription();
 
         // Focus After The Key That Opened The Editor Is Done (its character never reaches the title), or once the
         // editor first loads (a focus call before then fails)
@@ -250,6 +256,13 @@ public sealed partial class EventEditorView : UserControl
             return;
         }
 
+        // Description Keys (only what Leaf saves gets through)
+        if (DescriptionBox.FocusState != FocusState.Unfocused && DescriptionKey(e.Key))
+        {
+            e.Handled = true;
+            return;
+        }
+
         // Esc in an open dropdown (or the guest suggestions) only closes it
         if (e.Key == VirtualKey.Escape && !RepeatBox.IsDropDownOpen && !EndsBox.IsDropDownOpen && !CalendarBox.IsDropDownOpen && !_reminderDropDownOpen && !GuestBox.IsSuggestionListOpen && !RoomBox.IsSuggestionListOpen
             && !TimeZoneBox.IsSuggestionListOpen && !EventTypeBox.IsDropDownOpen && !ShowAsBox.IsDropDownOpen && !VisibilityBox.IsDropDownOpen)
@@ -407,9 +420,172 @@ public sealed partial class EventEditorView : UserControl
 
     void Save(bool sendUpdates)
     {
+        CommitDescription();
         if (_owner is { } owner)
         {
             owner.Fire(() => owner.SaveEditorAsync(sendUpdates), "event.save.failed");
         }
+    }
+
+    // =========================================================================
+    // DESCRIPTION
+    // =========================================================================
+
+    List<(string Text, Uri Link)> _anchors = [];
+    bool _descriptionTouched;
+    bool _loadingDescription;
+
+    // Loads the editor's description into the box; a description Leaf had to cut short is read-only with no toolbar
+    void LoadDescription()
+    {
+        var tooLong = Editor?.DescriptionTooLong == true;
+
+        _loadingDescription           = true;
+        DescriptionBox.IsReadOnly     = false;
+        _anchors                      = RichDescription.Load(DescriptionBox, DescriptionHtml.Lines(Editor?.Description ?? ""));
+        DescriptionBox.IsReadOnly     = tooLong;
+        DescriptionToolbar.Visibility = tooLong ? Visibility.Collapsed : Visibility.Visible;
+        _descriptionTouched           = false;
+        _loadingDescription           = false;
+        SyncToolbar();
+    }
+
+    // Before saving: only a description the user changed is read back (an untouched one is never rewritten)
+    void CommitDescription()
+    {
+        if (!_descriptionTouched || Editor is not { DescriptionTooLong: false } editor)
+        {
+            return;
+        }
+
+        editor.Description = DescriptionHtml.Write(RichDescription.Read(DescriptionBox, _anchors));
+    }
+
+    void OnDescriptionTextChanged(object sender, RoutedEventArgs e) => _descriptionTouched |= !_loadingDescription;
+
+    // A key in the description, seen before the box: true when it's handled here. RichEdit's own Ctrl shortcuts (align,
+    // all caps, sub/superscript, line spacing, other list styles) make formatting Leaf can't save, so only bold, italic,
+    // underline, undo, redo, select all, copy, cut, and paste get through; Ctrl+Shift+L is the bulleted list. Tab moves
+    // focus (in a list it would nest it). AltGr (Ctrl+Alt) still types.
+    bool DescriptionKey(VirtualKey key)
+    {
+        var ctrl  = KeyState.IsDown(VirtualKey.Control);
+        var shift = KeyState.IsDown(VirtualKey.Shift);
+
+        if (key == VirtualKey.Tab && !ctrl)
+        {
+            FocusManager.TryMoveFocus(shift ? FocusNavigationDirection.Previous : FocusNavigationDirection.Next, new FindNextElementOptions { SearchRoot = XamlRoot.Content });
+            return true;
+        }
+
+        if (!ctrl || KeyState.IsDown(VirtualKey.Menu) || !IsCharacterKey(key))
+        {
+            return false;
+        }
+
+        if (shift && key == VirtualKey.L)
+        {
+            List(MarkerType.Bullet);
+            return true;
+        }
+
+        if (!shift && key is VirtualKey.B or VirtualKey.I or VirtualKey.U)
+        {
+            _descriptionTouched = true;
+            return false;
+        }
+
+        return !(shift ? key is VirtualKey.Z or VirtualKey.V : key is VirtualKey.Z or VirtualKey.Y or VirtualKey.A or VirtualKey.C or VirtualKey.X or VirtualKey.V);
+    }
+
+    // Space, letters, digits, and symbol keys (the ones a Ctrl shortcut uses)
+    static bool IsCharacterKey(VirtualKey key) => (int)key is 0x20 or (>= 0x30 and <= 0x39) or (>= 0x41 and <= 0x5A) or (>= 0x60 and <= 0x6F) or (>= 0xBA and <= 0xC0) or (>= 0xDB and <= 0xDF) or 0xE2;
+
+    // Links keep their own tint in the new theme
+    void OnThemeChanged(FrameworkElement sender, object args)
+    {
+        _loadingDescription = true;
+        RichDescription.Recolor(DescriptionBox);
+        _loadingDescription = false;
+    }
+
+    void OnBoldClick(object sender, RoutedEventArgs e) => Format(f => f.Bold = FormatEffect.Toggle);
+
+    void OnItalicClick(object sender, RoutedEventArgs e) => Format(f => f.Italic = FormatEffect.Toggle);
+
+    void OnUnderlineClick(object sender, RoutedEventArgs e) =>
+        Format(f => f.Underline = f.Underline == UnderlineType.None ? UnderlineType.Single : UnderlineType.None);
+
+    void OnBulletsClick(object sender, RoutedEventArgs e) => List(MarkerType.Bullet);
+
+    void OnNumbersClick(object sender, RoutedEventArgs e) => List(MarkerType.Arabic);
+
+    // Applies a character format to the selection, marks the description changed, and returns focus to the box
+    void Format(Action<ITextCharacterFormat> change)
+    {
+        change(DescriptionBox.Document.Selection.CharacterFormat);
+        _descriptionTouched = true;
+        DescriptionBox.Focus(FocusState.Programmatic);
+        SyncToolbar();
+    }
+
+    // Toggles the selected paragraphs in or out of a list of this kind
+    void List(MarkerType kind)
+    {
+        var paragraph = DescriptionBox.Document.Selection.ParagraphFormat;
+        RichDescription.SetList(paragraph, paragraph.ListType == kind ? MarkerType.None : kind);
+        _descriptionTouched = true;
+        DescriptionBox.Focus(FocusState.Programmatic);
+        SyncToolbar();
+    }
+
+    // Typing at a link's edge is plain text, then the toolbar shows the caret's format
+    void OnDescriptionSelectionChanged(object sender, RoutedEventArgs e)
+    {
+        RichDescription.PlainInsertion(DescriptionBox);
+        SyncToolbar();
+    }
+
+    // Toolbar toggles show the selection's format
+    void SyncToolbar()
+    {
+        var format = DescriptionBox.Document.Selection.CharacterFormat;
+        var list   = DescriptionBox.Document.Selection.ParagraphFormat.ListType;
+
+        BoldButton.IsChecked      = format.Bold == FormatEffect.On;
+        ItalicButton.IsChecked    = format.Italic == FormatEffect.On;
+        UnderlineButton.IsChecked = format.Underline != UnderlineType.None;
+        BulletsButton.IsChecked   = list == MarkerType.Bullet;
+        NumbersButton.IsChecked   = list is not (MarkerType.None or MarkerType.Undefined or MarkerType.Bullet);
+    }
+
+    // Paste is always plain text: no pictures, objects, or foreign formatting (Review Focus 3)
+    void OnDescriptionPaste(object sender, TextControlPasteEventArgs e)
+    {
+        e.Handled = true;
+        _owner?.Fire(PastePlainTextAsync, "editor.paste.failed");
+    }
+
+    // The text lands only in the editor it was pasted into (the panel may have moved on while the clipboard was read)
+    async Task PastePlainTextAsync()
+    {
+        var editor  = Editor;
+        var content = Clipboard.GetContent();
+        if (editor is null || DescriptionBox.IsReadOnly || !content.Contains(StandardDataFormats.Text))
+        {
+            return;
+        }
+
+        var text = (await content.GetTextAsync()).Replace("\r\n", "\r", StringComparison.Ordinal).Replace('\n', '\r');
+        if (!ReferenceEquals(Editor, editor) || DescriptionBox.IsReadOnly)
+        {
+            return;
+        }
+
+        var selection = DescriptionBox.Document.Selection;
+        selection.SetText(TextSetOptions.None, text);
+        RichDescription.Untint(DescriptionBox, selection);
+        selection.Collapse(false);
+        _descriptionTouched = true;
     }
 }

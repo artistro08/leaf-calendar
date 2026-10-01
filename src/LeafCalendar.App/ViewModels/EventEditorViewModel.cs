@@ -334,7 +334,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string Location { get; set; }
 
-    /// <summary>Description (plain text).</summary>
+    /// <summary>Description as Leaf-normalized HTML (the view reads and writes it through <c>RichDescription</c>).</summary>
     [ObservableProperty]
     public partial string Description { get; set; }
 
