@@ -374,6 +374,22 @@ public sealed class EditingTests : IDisposable
     }
 
     [Fact]
+    public void SelectingAnotherEvent_RightAfterE_StaysOnItsDetails()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        leaf.Press(VirtualKeyShort.KEY_E);
+        leaf.WaitFor("EventEditor");
+
+        // Within the 1.5 s "E then ..." window, then past it: the timer mustn't open an editor again
+        leaf.WaitFor("Event_evt-meeting_202610011800").Click();
+        Thread.Sleep(TimeSpan.FromSeconds(2));
+
+        Assert.False(leaf.Exists("EventEditor"));
+        Assert.Equal("Design review", leaf.WaitFor("DetailsTitle").Name);
+    }
+
+    [Fact]
     public void ClickingEmptyTime_WhileEditing_EndsTheEdit()
     {
         using var leaf = Launch();

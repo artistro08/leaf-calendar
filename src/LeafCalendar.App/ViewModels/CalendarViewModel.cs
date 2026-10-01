@@ -244,7 +244,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>The time grid should scroll this instant into view.</summary>
     public event EventHandler<DateTimeOffset>? ScrollToTimeRequested;
 
-    /// <summary>The details panel should open (C or E brought back an editor hidden by closing the panel).</summary>
+    /// <summary>The details panel should open (editing again brought back an editor hidden by closing the panel).</summary>
     public event EventHandler? DetailsOpenRequested;
 
     // =========================================================================
@@ -686,11 +686,6 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Opens the editor on a new event in your default calendar (your chosen one, else primary, else the first you can write to).</summary>
     public void BeginCreate(DateTimeOffset start, DateTimeOffset end, bool isAllDay)
     {
-        if (ReopenHiddenEditor())
-        {
-            return;
-        }
-
         if (HomeCalendar() is not { } home)
         {
             Notice = new NoticeInfo("Add a Google account with a calendar you can edit first.", CanUndo: false);
@@ -721,7 +716,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Closes the editor without saving.</summary>
     public void CancelEdit() => Editing = null;
 
-    // Closing the panel only hides an editor; C or E brings that one back instead of starting another
+    // Closing the panel only hides an editor; editing again (the toolbar's Edit, a double-click) brings that one back
     bool ReopenHiddenEditor()
     {
         if (Editing is null || Settings.DetailsPanelOpen)
@@ -848,9 +843,11 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>The event under the mouse (X adds it to or takes it out of the selection), or null.</summary>
     public CalendarOccurrence? PointerEvent { get; set; }
 
-    /// <summary>Adds an event to the selection, or takes it out (Ctrl+click, Shift+click).</summary>
+    /// <summary>Adds an event to the selection, or takes it out (Ctrl+click, Shift+click), ending any edit like a plain click does.</summary>
     public void ToggleSelect(CalendarOccurrence occurrence)
     {
+        CancelEdit();
+
         var index = _selection.FindIndex(s => s.Key == occurrence.Key);
         if (index >= 0)
         {

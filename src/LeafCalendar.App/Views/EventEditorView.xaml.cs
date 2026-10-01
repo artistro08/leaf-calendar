@@ -24,6 +24,7 @@ public sealed partial class EventEditorView : UserControl
 
     readonly List<(Button Swatch, string? Id)> _swatches = [];
     CalendarViewModel? _owner;
+    bool _endTimeAsked;
 
     /// <summary>Creates the editor.</summary>
     public EventEditorView() => InitializeComponent();
@@ -43,38 +44,72 @@ public sealed partial class EventEditorView : UserControl
         }
 
         Detach();
-        _owner = owner;
-        Editor = editor;
+        _owner        = owner;
+        Editor        = editor;
+        _endTimeAsked = false;
 
         // Filling the calendar list can write "nothing picked" back through the TwoWay binding; put the pick back
-        // (that write-back isn't the user's, so the editor stays untouched)
         var calendarIndex = editor.CalendarIndex;
-        var untouched     = editor.IsUntouched;
         Bindings.Update();
-        editor.CalendarIndex      = calendarIndex;
+        editor.CalendarIndex = calendarIndex;
         CalendarBox.SelectedIndex = calendarIndex;
-        editor.IsUntouched        = untouched;
 
         editor.PropertyChanged += OnEditorPropertyChanged;
         BuildColors();
 
-        // Focus After The Key That Opened The Editor Is Done (its character never reaches the title); the caret goes
-        // after the title, so a key typed right after an instant E adds to it
-        DispatcherQueue.TryEnqueue(() =>
+        // Focus After The Key That Opened The Editor Is Done (its character never reaches the title), or once the
+        // editor first loads (a focus call before then fails)
+        if (TitleBox.IsLoaded)
         {
-            if (editor.FocusEnd)
-            {
-                EndTimePicker.Focus(FocusState.Programmatic);
-            }
-            else if (TitleBox.Focus(FocusState.Programmatic))
-            {
-                TitleBox.Select(TitleBox.Text.Length, 0);
-            }
-        });
+            DispatcherQueue.TryEnqueue(FocusFirst);
+        }
+        else
+        {
+            TitleBox.Loaded -= OnTitleLoaded;
+            TitleBox.Loaded += OnTitleLoaded;
+        }
+    }
+
+    /// <summary>
+    /// Focuses the title now with the caret at the end, so the key being pressed (the first one typed after an instant E)
+    /// lands there. Returns false when the title can't take focus yet.
+    /// </summary>
+    public bool FocusTitleNow()
+    {
+        if (!TitleBox.Focus(FocusState.Programmatic))
+        {
+            return false;
+        }
+
+        TitleBox.Select(TitleBox.Text.Length, 0);
+        return true;
+    }
+
+    void OnTitleLoaded(object sender, RoutedEventArgs e)
+    {
+        TitleBox.Loaded -= OnTitleLoaded;
+        FocusFirst();
+    }
+
+    // The end time for "E then U", else the title
+    void FocusFirst()
+    {
+        if (Editor?.FocusEnd == true || _endTimeAsked)
+        {
+            EndTimePicker.Focus(FocusState.Programmatic);
+        }
+        else
+        {
+            FocusTitleNow();
+        }
     }
 
     /// <summary>Moves focus to the end time ("E then U" right after an instant E), after any pending title focus.</summary>
-    public void FocusEndTime() => DispatcherQueue.TryEnqueue(() => EndTimePicker.Focus(FocusState.Programmatic));
+    public void FocusEndTime()
+    {
+        _endTimeAsked = true;
+        DispatcherQueue.TryEnqueue(() => EndTimePicker.Focus(FocusState.Programmatic));
+    }
 
     /// <summary>Lets go of the current editor and empties the calendar picker, so the next editor's pick isn't reset.</summary>
     public void Detach()

@@ -81,13 +81,17 @@ public sealed partial class CalendarPage : Page
         _sequenceTimer.IsRepeating = false;
         _sequenceTimer.Tick       += (_, _) =>
         {
+            var instant  = _editorFromE;
             _editorFromE = false;
             var expired  = _keys.Expire();
-            if (ViewModel.Editing is null && !Controls.KeyState.IsDown(VirtualKey.E) && !ShortcutsBlocked())
+            if (!instant && ViewModel.Editing is null && !Controls.KeyState.IsDown(VirtualKey.E) && !ShortcutsBlocked())
             {
                 Execute(expired);
             }
         };
+
+        // A Click In The Details Panel Means The Instant E's Editor Is In Use (later keys are typing, not a second key)
+        Details.AddHandler(PointerPressedEvent, new PointerEventHandler((_, _) => _editorFromE = false), handledEventsToo: true);
     }
 
     /// <summary>The page's view model.</summary>
@@ -236,6 +240,14 @@ public sealed partial class CalendarPage : Page
             return;
         }
 
+        // An Edit Ended (Cancel, Esc, Another Event) Ends A Waiting "E Then ..." Too, So The Timer Can't Reopen It
+        if (e.PropertyName == nameof(CalendarViewModel.Editing) && ViewModel.Editing is null && _editorFromE)
+        {
+            _editorFromE = false;
+            _sequenceTimer.Stop();
+            _keys.Expire();
+        }
+
         if (e.PropertyName == nameof(CalendarViewModel.Editing) && ViewModel.Editing is not null && !ViewModel.Settings.DetailsPanelOpen)
         {
             SetDetailsOpen(true, animate: true);
@@ -280,7 +292,7 @@ public sealed partial class CalendarPage : Page
     public bool HandleShortcut(KeyRoutedEventArgs e)
     {
         // Second Key After An Instant E (the editor opened but nothing was typed yet)
-        if (_editorFromE && _keys.IsPending && ViewModel.Editing is { IsUntouched: true } && !IsModifier(e.Key))
+        if (_editorFromE && _keys.IsPending && ViewModel.Editing is not null && !IsModifier(e.Key))
         {
             if (e.KeyStatus.WasKeyDown && e.Key == VirtualKey.E)
             {
@@ -300,7 +312,9 @@ public sealed partial class CalendarPage : Page
                     Execute(second);
                     return true;
                 default:
-                    return false;                       // typing: the title box gets the key
+                    // Typing: the title box gets the key, even if its own focus hasn't landed yet
+                    Details.EditorView?.FocusTitleNow();
+                    return false;
             }
         }
 
@@ -337,7 +351,7 @@ public sealed partial class CalendarPage : Page
             if (ViewModel.Editing is not null)
             {
                 _keys.Expire();
-                ViewModel.BeginEdit();
+                SetDetailsOpen(true, animate: true);
                 return true;
             }
 
@@ -355,6 +369,13 @@ public sealed partial class CalendarPage : Page
         if (result.Command == CalendarCommand.None)
         {
             return false;
+        }
+
+        // C Brings Back A Hidden Editor Too (a drag or double-click on empty time starts a new event instead)
+        if (result.Command == CalendarCommand.CreateEvent && ViewModel.Editing is not null)
+        {
+            SetDetailsOpen(true, animate: true);
+            return true;
         }
 
         Execute(result);

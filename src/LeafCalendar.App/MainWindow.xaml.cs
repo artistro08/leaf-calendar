@@ -414,7 +414,14 @@ public sealed partial class MainWindow : Window
     {
         if (ContentFrame.Content is CalendarPage page)
         {
-            page.SetDetailsOpen(DetailsToggle.IsChecked == true, animate: true);
+            var open = DetailsToggle.IsChecked == true;
+            page.SetDetailsOpen(open, animate: true);
+
+            // Focus Leaves The Closed Panel (a hidden editor's title box would take C and E as typing)
+            if (!open)
+            {
+                DetailsToggle.Focus(FocusState.Programmatic);
+            }
         }
     }
 
