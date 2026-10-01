@@ -166,7 +166,7 @@ public sealed partial class GeneralPage : Page
             box.IsChecked = hours.Days.Contains(day);
         }
 
-        WorkDaysButton.Content = WorkingHoursMath.DaysLabel(hours.Days, weekStart);
+        ShowWorkDays(WorkingHoursMath.DaysLabel(hours.Days, weekStart));
     }
 
     void OnWorkingHoursToggled(object sender, RoutedEventArgs e)
@@ -211,6 +211,13 @@ public sealed partial class GeneralPage : Page
         _context.Save(s => s with { WorkingHours = s.WorkingHours with { StartMinute = start, EndMinute = end } });
     }
 
+    // The button says which days (screen readers hear it after the name, as help text)
+    void ShowWorkDays(string label)
+    {
+        WorkDaysButton.Content = label;
+        AutomationProperties.SetHelpText(WorkDaysButton, label);
+    }
+
     void OnWorkDayClick()
     {
         if (_loading)
@@ -219,7 +226,7 @@ public sealed partial class GeneralPage : Page
         }
 
         List<DayOfWeek> days = [.. _workDays.Where(d => d.Box.IsChecked == true).Select(d => d.Day)];
-        WorkDaysButton.Content = WorkingHoursMath.DaysLabel(days, _workDays[0].Day);
+        ShowWorkDays(WorkingHoursMath.DaysLabel(days, _workDays[0].Day));
         _context.Save(s => s with { WorkingHours = s.WorkingHours with { Days = days } });
     }
 

@@ -82,7 +82,7 @@ public sealed class SettingsPagesTests : IDisposable
             leaf.WaitInSettings("WorkDaysButton").AsButton().Invoke();
             leaf.WaitForAnywhere("WorkingDay_Friday").AsCheckBox().Toggle();
             Assert.True(Retry.WhileFalse(() => leaf.WaitForAnywhere("WorkingDay_Friday").AsCheckBox().ToggleState == ToggleState.Off, TimeSpan.FromSeconds(5)).Success);
-            Assert.True(Retry.WhileFalse(() => leaf.AnyTextContains("Mon, Tue, Wed, Thu"), TimeSpan.FromSeconds(5)).Success, "The work days button doesn't list the days.");
+            Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("WorkDaysButton").Properties.HelpText.ValueOrDefault == "Mon, Tue, Wed, Thu", TimeSpan.FromSeconds(5)).Success, "The work days button doesn't list the days.");
         }
 
         using var relaunched = Launch();
