@@ -62,6 +62,84 @@ public sealed class AppLogTests : IDisposable
     }
 
     [Fact]
+    public void Info_ThirdMegabyte_KeepsTwoBackupsAndDropsTheOldest()
+    {
+        var log = new AppLog(_folder.Path, _time);
+        File.WriteAllText(log.FilePath + ".2", "oldest");
+        File.WriteAllText(log.FilePath + ".1", "older");
+        File.WriteAllText(log.FilePath, new string('x', 1_000_001));
+
+        log.Info("after.roll");
+
+        Assert.Equal("older", File.ReadAllText(log.FilePath + ".2"));
+        Assert.StartsWith("xxx", File.ReadAllText(log.FilePath + ".1"), StringComparison.Ordinal);
+        Assert.False(File.Exists(log.FilePath + ".3"));
+    }
+
+    [Fact]
+    public void Trace_DetailedOff_WritesNothing_On_WritesTheBreadcrumb()
+    {
+        var log = new AppLog(_folder.Path, _time);
+
+        log.Trace("command", "Today");
+        Assert.False(File.Exists(log.FilePath));
+
+        log.Detailed = true;
+        log.Trace("command", "Today");
+        Assert.EndsWith("TRACE command Today", File.ReadAllLines(log.FilePath).Single(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Crash_Exception_WritesTypeAndStackWithoutTheMessage_EvenWithDetailedOff()
+    {
+        var log = new AppLog(_folder.Path, _time);
+        Exception thrown;
+        try
+        {
+            throw new InvalidOperationException("Dinner with me@example.com", new FormatException("Planning notes"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            thrown = ex;
+        }
+
+        log.Crash("app.unhandled", thrown);
+
+        var text = File.ReadAllText(log.FilePath);
+        Assert.Contains("CRASH app.unhandled error=System.InvalidOperationException hresult=0x80131509", text, StringComparison.Ordinal);
+        Assert.Contains("caused by System.FormatException", text, StringComparison.Ordinal);
+        Assert.Contains("    at LeafCalendar.Tests.AppLogTests.Crash_Exception", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Dinner", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Planning", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Crash_FrameworkMessage_IsKeptAndRedacted()
+    {
+        var log = new AppLog(_folder.Path, _time);
+
+        log.Crash("app.unhandled", new InvalidOperationException("x"), "Layout cycle detected for me@example.com");
+
+        Assert.Contains("message=Layout cycle detected for [email]", File.ReadAllText(log.FilePath), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NextDumpPath_KeepsRoomForOnlyTheNewestDumps()
+    {
+        var log = new AppLog(_folder.Path, _time);
+        File.WriteAllText(Path.Combine(_folder.Path, "crash-20260101-000000-000.dmp"), "");
+        File.WriteAllText(Path.Combine(_folder.Path, "crash-20260102-000000-000.dmp"), "");
+        File.WriteAllText(Path.Combine(_folder.Path, "crash-20260103-000000-000.dmp"), "");
+
+        var next = log.NextDumpPath();
+        File.WriteAllText(next, "");
+
+        Assert.Equal(
+            ["crash-20260103-000000-000.dmp", "crash-20260929-120000-000.dmp"],
+            Directory.GetFiles(_folder.Path, "crash-*.dmp").Select(Path.GetFileName).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
     public void Info_DetailWithNewlines_ReplacesWithSpaces()
     {
         var log = new AppLog(_folder.Path, _time);

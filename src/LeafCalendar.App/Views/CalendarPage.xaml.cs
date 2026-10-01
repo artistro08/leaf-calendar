@@ -460,6 +460,7 @@ public sealed partial class CalendarPage : Page
     void Execute(ShortcutResult result)
     {
         var vm = ViewModel;
+        vm.Trace("command", result.Command.ToString());
 
         // One-Event Shortcuts With Several Selected: say why nothing happens
         if (vm.Selection.Count > 1 && result.Command is CalendarCommand.EditEvent or CalendarCommand.EditDuration

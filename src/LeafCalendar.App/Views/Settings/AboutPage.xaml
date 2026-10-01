@@ -55,6 +55,14 @@
                     Click="OnOpenLogsClick"
                     AutomationProperties.AutomationId="OpenLogsButton" />
             </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xEBE8;" Header="Detailed logging" Description="Record the steps before a problem, with crash details, so it can be traced. Crash files can include bits of what was on screen. Turn it off when you're done.">
+                <ToggleSwitch
+                    x:Name="DetailedLoggingSwitch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="OnDetailedLoggingToggled"
+                    AutomationProperties.Name="Detailed logging"
+                    AutomationProperties.AutomationId="DetailedLoggingSwitch" />
+            </controls:SettingRow>
         </StackPanel>
     </ScrollViewer>
 </Page>

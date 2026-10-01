@@ -434,6 +434,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
 
         Settings = next;
+        _services.Log.Detailed = next.DetailedLogging;
         if (before.MapProvider != next.MapProvider)
         {
             OnPropertyChanged(nameof(MapButtonText));
@@ -1786,6 +1787,21 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     /// <summary>Logs a failure a view caught (internal IDs only).</summary>
     public void LogError(string eventName, Exception exception) => _services.Log.Error(eventName, exception);
+
+    /// <summary>A breadcrumb for Detailed logging (internal names only, never event content).</summary>
+    public void Trace(string eventName, string? detail = null) => _services.Log.Trace(eventName, detail);
+
+    /// <inheritdoc />
+    protected override void OnPropertyChanged(System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        // Breadcrumbs: where you went, what you picked, and the editor opening or closing (property names only)
+        if (e.PropertyName is nameof(PeriodStart) or nameof(SelectedInfo) or nameof(Selection) or nameof(Editing))
+        {
+            _services?.Log.Trace("vm.changed", e.PropertyName);
+        }
+
+        base.OnPropertyChanged(e);
+    }
 
     // "This event" for single events; otherwise the page's dialog (null means the user canceled)
     async Task<EditScope?> ScopeForAsync(IReadOnlyList<CalendarOccurrence> items, bool includeFollowing, bool includeThis = true)

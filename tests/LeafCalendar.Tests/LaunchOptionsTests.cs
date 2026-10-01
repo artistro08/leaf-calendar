@@ -129,6 +129,13 @@ public class LaunchOptionsTests
     }
 
     [Fact]
+    public void Parse_GcStress_OnlyWithFakeGoogle()
+    {
+        Assert.True(LaunchOptions.Parse(["--profile", "uitest-a", "--fake-google", "http://127.0.0.1:5000/", "--gc-stress"]).GcStress);
+        Assert.False(LaunchOptions.Parse(["--gc-stress"]).GcStress);
+    }
+
+    [Fact]
     public void Parse_ToastActionOnARealProfile_IsIgnored()
     {
         Assert.Null(LaunchOptions.Parse(["--toast-action", "action=ReviewConflicts;profile=default"]).ToastAction);
