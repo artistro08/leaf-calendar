@@ -92,14 +92,16 @@ public sealed class EditorExtrasTests : IDisposable
     [Fact]
     public void TimeZoneTokyo_KeepsTheClock_AndShowsYourTime()
     {
+        // Leaf shows Eastern time, the dentist's own zone, whatever this PC's zone is
+        Seed(new LeafSettings { PrimaryTimeZone = "America/New_York" });
         using var leaf = Launch();
         EditDentist(leaf);
         Assert.False(leaf.Exists("EditorLocalTimeText"), "The 'In your time' line shows for an event in the zone on screen.");
 
-        // Pick Tokyo
+        // Pick Tokyo (click into the box the way a person does, then replace its text)
         var edit = ZoneEdit(leaf);
-        edit.Text = "";
-        edit.Focus();
+        edit.Click();
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("Tokyo");
         var tokyo = Retry.WhileNull(() => Suggestions(leaf).FirstOrDefault(s => (s.Properties.Name.ValueOrDefault ?? "").StartsWith("Tokyo (", StringComparison.Ordinal)), TimeSpan.FromSeconds(10)).Result
             ?? throw new InvalidOperationException("Tokyo wasn't suggested.");

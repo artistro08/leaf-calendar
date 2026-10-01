@@ -167,6 +167,7 @@ public sealed class CalendarManageTests : IDisposable
 
         // West of UTC the holiday's UTC midnight is Oct 11 local time; the view still lands on Oct 12
         Assert.NotNull(leaf.WaitFor("DayHeader_2026-10-12"));
-        Assert.False(leaf.Exists("DayHeader_2026-10-11"));
+        // (neighboring days are built offscreen, so the check is the day the grid shows first)
+        Assert.True(Retry.WhileFalse(() => (leaf.WaitFor("TimeGrid").Properties.ItemStatus.ValueOrDefault ?? "").StartsWith("first=2026-10-12;", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success, "The day view doesn't show Oct 12 first.");
     }
 }
