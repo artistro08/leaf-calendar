@@ -9,17 +9,33 @@ namespace LeafCalendar.App.ViewModels;
 /// <summary>One row in the accounts list.</summary>
 public sealed record AccountRow(string Id, string Email, string Summary);
 
-/// <summary>An account's "Add a Google Meet link to new events" switch (Settings › Accounts › Video calls).</summary>
-public sealed partial class MeetDefaultRow(string accountId, string email, bool isOn, Action<string, bool> toggled) : ObservableObject
+/// <summary>
+/// One Google account's expander in Settings › Accounts: the email and its calendar and event counts in the header, and
+/// inside, its "Add a Google Meet link to new events" switch and Disconnect.
+/// </summary>
+public sealed partial class AccountSettingsRow(string accountId, string email, string summary, bool isOn, bool isExpanded, Action<string, bool> toggled) : ObservableObject
 {
     /// <summary>Google account ID.</summary>
     public string AccountId { get; } = accountId;
 
-    /// <summary>The account's email (the row's header).</summary>
+    /// <summary>The account's email (the header).</summary>
     public string Email { get; } = email;
 
-    /// <summary>Automation ID of the switch.</summary>
+    /// <summary>"3 calendars · 120 events", or "Needs sign-in" (under the email).</summary>
+    public string Summary { get; } = summary;
+
+    /// <summary>Automation ID of the expander.</summary>
+    public string ExpanderId => $"AccountExpander_{AccountId}";
+
+    /// <summary>Automation ID of the Meet switch.</summary>
     public string SwitchId => $"MeetByDefault_{AccountId}";
+
+    /// <summary>Automation ID of the Disconnect button.</summary>
+    public string DisconnectId => $"Disconnect_{AccountId}";
+
+    /// <summary>The expander is open (kept when the list is rebuilt after a sync).</summary>
+    [ObservableProperty]
+    public partial bool IsExpanded { get; set; } = isExpanded;
 
     /// <summary>New events in this account get a Meet link.</summary>
     [ObservableProperty]
@@ -98,11 +114,12 @@ public sealed partial class AccountsViewModel : ObservableObject
     public partial bool HasNoAccounts { get; set; }
 
     /// <summary>
-    /// One Meet-by-default switch per account, on for the accounts in <paramref name="meetAccounts"/>; a toggle calls
-    /// <paramref name="toggled"/> with the account and its new state.
+    /// One expander row per account: its Meet switch is on for the accounts in <paramref name="meetAccounts"/> (a toggle
+    /// calls <paramref name="toggled"/> with the account and its new state), and it starts open for the accounts in
+    /// <paramref name="expanded"/>.
     /// </summary>
-    public List<MeetDefaultRow> MeetRows(IReadOnlyList<string> meetAccounts, Action<string, bool> toggled) =>
-        [.. Accounts.Select(a => new MeetDefaultRow(a.Id, a.Email, meetAccounts.Contains(a.Id), toggled))];
+    public List<AccountSettingsRow> AccountRows(IReadOnlyList<string> meetAccounts, IReadOnlySet<string> expanded, Action<string, bool> toggled) =>
+        [.. Accounts.Select(a => new AccountSettingsRow(a.Id, a.Email, a.Summary, meetAccounts.Contains(a.Id), expanded.Contains(a.Id), toggled))];
 
     /// <summary>Edits of an account Google doesn't have yet (disconnecting would lose them).</summary>
     public int UnsentFor(string accountId) => _services.Conflicts.UnsentFor(accountId);

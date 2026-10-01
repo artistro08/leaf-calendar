@@ -179,6 +179,8 @@ public sealed class SettingsPagesTests : IDisposable
         using var leaf = Launch();
         leaf.OpenSettings("Accounts");
 
+        // The Switch Is Inside The Account's Expander
+        leaf.ExpandInSettings($"AccountExpander_{SeededProfile.AccountId}");
         var meet = leaf.WaitInSettings($"MeetByDefault_{SeededProfile.AccountId}").AsToggleButton();
         Assert.Equal(ToggleState.Off, meet.ToggleState);
         meet.Toggle();

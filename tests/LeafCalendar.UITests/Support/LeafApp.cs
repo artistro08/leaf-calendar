@@ -90,6 +90,30 @@ public sealed class LeafApp : IDisposable
         Retry.WhileNull(() => SettingsWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)), TimeSpan.FromSeconds(15)).Result
         ?? throw new InvalidOperationException($"Element '{automationId}' didn't appear in Settings.");
 
+    /// <summary>Opens a Settings expander (an account, the primary time zone) by automation ID, so its rows show.</summary>
+    public void ExpandInSettings(string automationId)
+    {
+        var pattern = WaitInSettings(automationId).Patterns.ExpandCollapse.Pattern;
+        if (pattern.ExpandCollapseState.Value != ExpandCollapseState.Expanded)
+        {
+            pattern.Expand();
+        }
+    }
+
+    /// <summary>In Settings › Accounts, opens the first account's expander and presses its Disconnect button.</summary>
+    public void PressDisconnectInSettings()
+    {
+        var expander = Retry.WhileNull(
+                () => SettingsWindow.FindAllDescendants().FirstOrDefault(e => e.Properties.AutomationId.ValueOrDefault?.StartsWith("AccountExpander_", StringComparison.Ordinal) == true),
+                TimeSpan.FromSeconds(15)).Result
+            ?? throw new InvalidOperationException("No account expander appeared in Settings.");
+        expander.Patterns.ExpandCollapse.Pattern.Expand();
+
+        var button = Retry.WhileNull(() => expander.FindFirstDescendant(cf => cf.ByName("Disconnect").And(cf.ByControlType(ControlType.Button))), TimeSpan.FromSeconds(5)).Result
+            ?? throw new InvalidOperationException("The account expander has no Disconnect button.");
+        button.AsButton().Invoke();
+    }
+
     Window? TopLevelWindow(string title, TimeSpan timeout) =>
         Retry.WhileNull(() => App.GetAllTopLevelWindows(_automation).FirstOrDefault(w => NameOf(w) == title), timeout).Result;
 

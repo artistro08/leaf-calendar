@@ -225,8 +225,8 @@ public sealed class SettingsTests : IDisposable
         // Wait for the outbox entry (it may only be written once the 6 s undo window ends)
         Assert.True(Retry.WhileFalse(() => UnsentChanges() > 0, TimeSpan.FromSeconds(15)).Success);
 
-        var settings = leaf.OpenSettings("Accounts");
-        Retry.WhileNull(() => settings.FindFirstDescendant(cf => cf.ByName("Disconnect")), TimeSpan.FromSeconds(15)).Result!.AsButton().Invoke();
+        leaf.OpenSettings("Accounts");
+        leaf.PressDisconnectInSettings();
 
         Assert.True(Retry.WhileFalse(() => leaf.AnyTextContains("hasn't reached Google yet, and it will be lost."), TimeSpan.FromSeconds(10)).Success);
         leaf.WaitForAnywhere("CloseButton").AsButton().Invoke();

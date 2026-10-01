@@ -31,7 +31,7 @@ public sealed class AccountFlowTests : IDisposable
     // Disconnect the only account and confirm
     static void Disconnect(LeafApp leaf)
     {
-        WaitForNameInSettings(leaf, "Disconnect").AsButton().Invoke();
+        leaf.PressDisconnectInSettings();
         leaf.WaitForAnywhere("PrimaryButton").AsButton().Invoke();
     }
 

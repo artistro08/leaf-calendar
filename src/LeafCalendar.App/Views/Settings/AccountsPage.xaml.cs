@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.Globalization;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
@@ -10,8 +11,8 @@ using Microsoft.UI.Xaml.Navigation;
 namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
-/// Settings › Accounts: the Google accounts (add, disconnect), the main account, the default calendar, Meet by default
-/// per account, Sync now, and the OAuth client.
+/// Settings › Accounts: an expander per Google account (Meet by default and Disconnect inside), adding one, the main
+/// account, the default calendar, Sync now, and the OAuth client.
 /// </summary>
 public sealed partial class AccountsPage : Page
 {
@@ -25,6 +26,12 @@ public sealed partial class AccountsPage : Page
 
     // The Main Account Choices, Parallel To Its Combo Box Items
     readonly List<string> _accountIds = [];
+
+    // The Account Expanders On Screen
+    List<AccountSettingsRow> _accountRows = [];
+
+    // True while a rebuild after an account list change waits for the dispatcher (a refresh changes the list once per account)
+    bool _accountsPending;
 
     // True while a combo box is being filled (its change event is ignored)
     bool _loading;
@@ -61,12 +68,33 @@ public sealed partial class AccountsPage : Page
 
         Bindings.Update();
         _context.Window.CalendarsChanged += OnCalendarsChanged;
+        ViewModel.Accounts.CollectionChanged += OnAccountsChanged;
         LoadDefaultCalendar();
         LoadAccountChoices();
     }
 
     /// <inheritdoc />
-    protected override void OnNavigatedFrom(NavigationEventArgs e) => _context.Window.CalendarsChanged -= OnCalendarsChanged;
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        _context.Window.CalendarsChanged     -= OnCalendarsChanged;
+        ViewModel.Accounts.CollectionChanged -= OnAccountsChanged;
+    }
+
+    // An add, sync, or disconnect refreshed the accounts: rebuild once, after the refresh is done
+    void OnAccountsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (_accountsPending)
+        {
+            return;
+        }
+
+        _accountsPending = true;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _accountsPending = false;
+            LoadAccountChoices();
+        });
+    }
 
     void OnCalendarsChanged(object? sender, EventArgs e)
     {
@@ -78,7 +106,7 @@ public sealed partial class AccountsPage : Page
     // MAIN ACCOUNT AND MEET BY DEFAULT
     // =========================================================================
 
-    // The main account (the first account when none is set; off with only one) and a Meet switch per account
+    // The main account (the first account when none is set; off with only one) and an expander per account
     void LoadAccountChoices()
     {
         var settings = _context.Calendar.Settings;
@@ -97,7 +125,10 @@ public sealed partial class AccountsPage : Page
         MainAccountBox.IsEnabled     = accounts.Count > 1;
         _loading = false;
 
-        MeetList.ItemsSource = ViewModel.MeetRows(settings.MeetByDefaultAccounts, OnMeetToggled);
+        // The Account Expanders (rebuilt with fresh counts; the open ones stay open)
+        var expanded = _accountRows.Where(r => r.IsExpanded).Select(r => r.AccountId).ToHashSet(StringComparer.Ordinal);
+        _accountRows            = ViewModel.AccountRows(settings.MeetByDefaultAccounts, expanded, OnMeetToggled);
+        AccountList.ItemsSource = _accountRows;
     }
 
     void OnMainAccountChanged(object sender, SelectionChangedEventArgs e)
