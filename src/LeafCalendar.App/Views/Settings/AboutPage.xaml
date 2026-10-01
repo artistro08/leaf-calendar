@@ -46,6 +46,15 @@
                     Click="OnGitHubClick"
                     AutomationProperties.AutomationId="GitHubLink" />
             </controls:SettingRow>
+
+            <!-- Troubleshooting -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Troubleshooting" />
+            <controls:SettingRow Glyph="&#xE9F9;" Header="Logs" Description="Leaf's log never includes your events, guests, or searches.">
+                <Button
+                    Content="Open log folder"
+                    Click="OnOpenLogsClick"
+                    AutomationProperties.AutomationId="OpenLogsButton" />
+            </controls:SettingRow>
         </StackPanel>
     </ScrollViewer>
 </Page>

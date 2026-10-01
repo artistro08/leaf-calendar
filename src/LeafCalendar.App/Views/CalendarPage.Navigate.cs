@@ -1,33 +1,305 @@
 // Track A (Milestone 5 Tasks 3-5) owns this file: the command menu, the cheat sheet, time travel, and interface scale.
-// Empty hooks until the owning track fills them in; the owner deletes this line once every method uses the page
-#pragma warning disable CA1822 // Mark members as static
+using System.ComponentModel;
+using System.Globalization;
+using LeafCalendar.App.ViewModels;
+using LeafCalendar.Core.Views;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 
 namespace LeafCalendar.App.Views;
 
 public sealed partial class CalendarPage
 {
-    // Called once when the page opens (Task 3 fills it in)
+    // The command menu, built on first use and kept for the page's life
+    Flyout? _commandFlyout;
+    CommandMenu? _commandMenu;
+    bool _dialogOpen;
+
+    // The time travel and zone switch bars above the calendar
+    TimeTravelBar? _travelBar;
+
+    /// <summary>The interface scale changed (the window recomputes its minimum size and the toolbar's place).</summary>
+    public event EventHandler? ScaleChanged;
+
+    /// <summary>
+    /// With the sidebar closed, starts the period title after <paramref name="right"/> (the title bar search icon's right
+    /// edge, in window DIPs), so the icon never covers it. With the sidebar open the title keeps its place.
+    /// </summary>
+    public void KeepTitleClearOf(double right)
+    {
+        if (IsSidebarOpen)
+        {
+            return;
+        }
+
+        // The search glyph's ink ends 8 in from its button's edge; the title starts the usual inset after it
+        var left = Math.Max(PaneToggleClearance + TitleInset, right - 8 + TitleInset);
+        PeriodTitle.Margin = new Thickness(left, PeriodTitle.Margin.Top, 0, PeriodTitle.Margin.Bottom);
+    }
+
+    // Called once when the page opens: the zone bars, and the interface scale
     void AttachNavigate()
     {
+        _travelBar = new TimeTravelBar(ViewModel);
+        IslandBars.Children.Add(_travelBar);
+        ViewModel.PropertyChanged += OnNavigatePropertyChanged;
+        ViewModel.LayoutChanged   += OnNavigateLayoutChanged;
+        ApplyScale();
     }
 
-    // Called from Detach: undo everything AttachNavigate wired to the long-lived view model (Task 3)
+    // Called from Detach: undo everything AttachNavigate wired to the long-lived view model (the menu holds it too)
     void DetachNavigate()
     {
+        ViewModel.PropertyChanged -= OnNavigatePropertyChanged;
+        ViewModel.LayoutChanged   -= OnNavigateLayoutChanged;
+        if (_travelBar is not null)
+        {
+            IslandBars.Children.Remove(_travelBar);
+            _travelBar = null;
+        }
+
+        _commandFlyout?.Hide();
+        _commandFlyout = null;
+        _commandMenu   = null;
     }
 
-    // Ctrl+K, Ctrl+F, /, and the title bar's search icon (Task 3)
+    void OnNavigatePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(CalendarViewModel.TravelZoneId) or nameof(CalendarViewModel.ZoneSwitchOffer))
+        {
+            _travelBar?.Update(ViewModel);
+        }
+    }
+
+    // Settings changes raise LayoutChanged: the zone on screen and the scale may have moved (SyncZone is a no-op when
+    // the zone stayed, so its own LayoutChanged can't loop)
+    void OnNavigateLayoutChanged(object? sender, EventArgs e)
+    {
+        ViewModel.SyncZone();
+        ApplyScale();
+        _travelBar?.Update(ViewModel);
+    }
+
+    // =========================================================================
+    // INTERFACE SCALE
+    // =========================================================================
+
+    // Interface Scale (Settings › General): the panes grow with their content; the title bar stays 48 DIPs
+    void ApplyScale()
+    {
+        var scale = ViewModel.Settings.InterfaceScale;
+        if (ViewScale.Scale == scale && SidebarSplit.OpenPaneLength == SidebarWidth * scale)
+        {
+            return;
+        }
+
+        ViewScale.Scale             = scale;
+        Sidebar.BodyScale.Scale     = scale;
+        Details.BodyScale.Scale     = scale;
+        SidebarSplit.OpenPaneLength = SidebarWidth * scale;
+        DetailsSplit.OpenPaneLength = DetailsWidth * scale;
+        ScaleChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    // =========================================================================
+    // COMMAND MENU
+    // =========================================================================
+
+    // Ctrl+K, Ctrl+F, /, and the title bar's search icon: the menu opens empty, under the title bar, with focus in its box
     void OpenCommandMenu()
     {
+        if (_commandFlyout is null || _commandMenu is null)
+        {
+            var menu   = new CommandMenu(ViewModel, RunCommandRow);
+            var style  = new Style(typeof(FlyoutPresenter));
+            style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(0)));
+            style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(8)));
+            style.Setters.Add(new Setter(FrameworkElement.MaxWidthProperty, 600d));
+
+            var flyout = new Flyout { Content = menu, FlyoutPresenterStyle = style };
+            flyout.Opened += (_, _) => menu.FocusBox();
+
+            (_commandFlyout, _commandMenu) = (flyout, menu);
+        }
+
+        _commandMenu.Reset();
+        _commandFlyout.ShowAt(Root, new FlyoutShowOptions
+        {
+            Position  = new Windows.Foundation.Point(Root.ActualWidth / 2, 56),
+            Placement = FlyoutPlacementMode.Bottom,
+            ShowMode  = FlyoutShowMode.Standard,
+        });
     }
 
-    // ? (Task 4)
-    void ShowShortcutSheet()
+    // Runs the picked row (the menu closes first, so focus is back on the calendar for what the row opens)
+    void RunCommandRow(CommandRow row, bool jump)
     {
+        _commandFlyout?.Hide();
+
+        switch (row.Kind)
+        {
+            case CommandRowKind.Event when row.Hit is { } hit:
+                ViewModel.OpenSearchHit(hit, jump);
+                break;
+
+            case CommandRowKind.Date when row.Date is { } date:
+                ViewModel.NavigateTo(date);
+                break;
+
+            case CommandRowKind.Action when row.Item is { } item:
+                if (item.Command != Core.Views.CalendarCommand.None)
+                {
+                    RunCommand(item.Command, item.Days);
+                }
+                else
+                {
+                    RunAction(item.Id);
+                }
+
+                break;
+        }
     }
 
-    // Z (Task 5)
-    void StartTimeTravel()
+    // Actions with no shortcut, by ID; an unknown ID does nothing
+    void RunAction(string id)
     {
+        var vm = ViewModel;
+        switch (id)
+        {
+            case "toggle-week-numbers":
+                vm.Update(s => s with { ShowWeekNumbers = !s.ShowWeekNumbers });
+                return;
+
+            case "toggle-24-hour":
+                vm.Update(s => s with { Use24HourTime = !s.Use24HourTime });
+                return;
+
+            case "toggle-working-hours":
+                vm.Update(s => s with { WorkingHours = s.WorkingHours with { Enabled = !s.WorkingHours.Enabled } });
+                return;
+
+            case "sync":
+                vm.Fire(vm.RefreshAsync);
+                return;
+        }
+
+        // Interface Scale
+        if (id.StartsWith("scale-", StringComparison.Ordinal) && int.TryParse(id[6..], NumberStyles.None, CultureInfo.InvariantCulture, out var percent))
+        {
+            vm.Update(s => s with { InterfaceScale = percent / 100.0 });
+            return;
+        }
+
+        // Settings Pages
+        SettingsSection? section = id switch
+        {
+            "settings-general"       => SettingsSection.General,
+            "settings-calendars"     => SettingsSection.Calendars,
+            "settings-time-zones"    => SettingsSection.TimeZones,
+            "settings-notifications" => SettingsSection.Notifications,
+            "settings-tray"          => SettingsSection.Tray,
+            "settings-shortcuts"     => SettingsSection.Shortcuts,
+            "settings-accounts"      => SettingsSection.Accounts,
+            "settings-about"         => SettingsSection.About,
+            _                        => null,
+        };
+        if (section is { } page)
+        {
+            vm.OpenSettings?.Invoke(page);
+        }
+    }
+
+    // =========================================================================
+    // CHEAT SHEET
+    // =========================================================================
+
+    // ?
+    void ShowShortcutSheet() => ShowDialog(() => ShortcutSheet.ShowAsync(this, ViewModel.Settings), "shortcuts.sheet.failed");
+
+    // One dialog at a time: our own flag covers Leaf's sheet and time travel; any other dialog already open (a scope
+    // question, the conflict dialog) makes WinUI refuse a second one, which is noted by type and otherwise ignored
+    void ShowDialog(Func<Task> show, string eventName)
+    {
+        if (_dialogOpen)
+        {
+            return;
+        }
+
+        _dialogOpen = true;
+        ViewModel.Fire(async () =>
+        {
+            try
+            {
+                await show();
+            }
+            catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException)
+            {
+                ViewModel.LogInfo(eventName, $"error={ex.GetType().Name}");
+            }
+            finally
+            {
+                _dialogOpen = false;
+            }
+        }, eventName);
+    }
+
+    // =========================================================================
+    // TIME TRAVEL
+    // =========================================================================
+
+    // Z: pick a zone to view the calendar in, for this session
+    void StartTimeTravel() => ShowDialog(async () =>
+    {
+        if (await AskTravelZoneAsync() is { } zoneId)
+        {
+            ViewModel.TravelTo(zoneId);
+        }
+    }, "calendar.timetravel.failed");
+
+    // The zone picker ("Go" waits for a picked suggestion). Suggestions go to the box as plain strings (a list of Core
+    // records can't be marshaled to WinRT under Native AOT) and come back by matching our own list
+    async Task<string?> AskTravelZoneAsync()
+    {
+        IReadOnlyList<TimeZoneChoice> suggestions = [];
+        TimeZoneChoice? picked = null;
+
+        var box = new AutoSuggestBox { PlaceholderText = "Search a city or zone (Tokyo, NYC, UTC)", Width = 360 };
+        AutomationProperties.SetName(box, "Time zone");
+        AutomationProperties.SetAutomationId(box, "TimeTravelBox");
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot               = XamlRoot,
+            Title                  = "Time travel",
+            Content                = box,
+            PrimaryButtonText      = "Go",
+            CloseButtonText        = "Cancel",
+            DefaultButton          = ContentDialogButton.Primary,
+            IsPrimaryButtonEnabled = false,
+        };
+
+        // Typing Again Drops The Pick
+        box.TextChanged += (sender, args) =>
+        {
+            if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
+            {
+                return;
+            }
+
+            picked                        = null;
+            dialog.IsPrimaryButtonEnabled = false;
+            suggestions                   = TimeZoneCatalog.Search(sender.Text, ViewModel.Now);
+            sender.ItemsSource            = suggestions.Select(c => c.ToString()).ToList();
+        };
+        box.SuggestionChosen += (_, args) =>
+        {
+            picked                        = args.SelectedItem is string text ? suggestions.FirstOrDefault(c => c.ToString() == text) : null;
+            dialog.IsPrimaryButtonEnabled = picked is not null;
+        };
+        dialog.Opened += (_, _) => box.Focus(FocusState.Programmatic);
+
+        return await dialog.ShowAsync() == ContentDialogResult.Primary ? picked?.Id : null;
     }
 }

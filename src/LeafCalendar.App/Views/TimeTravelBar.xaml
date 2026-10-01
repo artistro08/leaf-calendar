@@ -1,0 +1,51 @@
+<UserControl
+    x:Class="LeafCalendar.App.Views.TimeTravelBar"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Zone Bars (above the calendar; both closed until there's something to say) -->
+    <StackPanel>
+        <!-- Time Travel ("Viewing your calendar in Tokyo time (UTC+9)." · Return) -->
+        <InfoBar
+            x:Name="TravelBar"
+            Margin="16,0,16,8"
+            Severity="Informational"
+            IsClosable="False"
+            IsOpen="False"
+            AutomationProperties.LiveSetting="Polite"
+            AutomationProperties.AutomationId="TimeTravelBar">
+            <InfoBar.ActionButton>
+                <Button
+                    Content="Return"
+                    Click="OnReturnClick"
+                    AutomationProperties.AutomationId="TimeTravelReturn" />
+            </InfoBar.ActionButton>
+        </InfoBar>
+
+        <!-- Zone Switch Offer (Windows moved to another zone while Leaf's primary zone is pinned) -->
+        <InfoBar
+            x:Name="ZoneSwitchBar"
+            Margin="16,0,16,8"
+            Severity="Informational"
+            IsClosable="False"
+            IsOpen="False"
+            AutomationProperties.LiveSetting="Polite"
+            AutomationProperties.AutomationId="ZoneSwitchBar">
+            <InfoBar.Content>
+                <StackPanel Margin="0,0,0,12" Orientation="Horizontal" Spacing="8">
+                    <Button
+                        Style="{StaticResource AccentButtonStyle}"
+                        Content="Switch"
+                        Click="OnSwitchClick"
+                        AutomationProperties.AutomationId="ZoneSwitchYes" />
+                    <Button
+                        x:Name="KeepButton"
+                        Click="OnKeepClick"
+                        AutomationProperties.AutomationId="ZoneSwitchNo" />
+                </StackPanel>
+            </InfoBar.Content>
+        </InfoBar>
+        <!-- /Zone Switch Offer -->
+    </StackPanel>
+    <!-- /Zone Bars -->
+</UserControl>

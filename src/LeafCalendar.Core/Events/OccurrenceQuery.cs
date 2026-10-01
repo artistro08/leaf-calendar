@@ -67,12 +67,9 @@ public static class OccurrenceQuery
             if (row.IsMaster)
             {
                 var details = EventDetailsParser.Parse(row.RawJson, includeDescription: false);
-                foreach (var (start, end) in ExpandMaster(row, fromDate, toDate, from, to))
+                foreach (var (start, end) in ExpandMaster(row.Series, fromDate, toDate, from, to, ms => replaced.Contains((row.AccountId, row.CalendarId, row.Id, ms))))
                 {
-                    if (!replaced.Contains((row.AccountId, row.CalendarId, row.Id, start.ToUnixTimeMilliseconds())))
-                    {
-                        result.Add(Create(row, details, start, end, recurringEventId: row.Id));
-                    }
+                    result.Add(Create(row, details, start, end, recurringEventId: row.Id));
                 }
 
                 continue;
@@ -113,7 +110,16 @@ public static class OccurrenceQuery
         return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(local, zone), TimeSpan.Zero);
     }
 
-    static IEnumerable<(DateTimeOffset Start, DateTimeOffset End)> ExpandMaster(Row row, DateOnly fromDate, DateOnly toDate, DateTimeOffset from, DateTimeOffset to)
+    /// <summary>
+    /// A series' instances overlapping local days <c>[fromDate, toDate)</c> (<paramref name="from"/> and <paramref name="to"/>
+    /// are those days' local midnights), skipping each instance whose start (Unix ms) <paramref name="isReplaced"/> says an
+    /// exception row replaces. All-day instances are UTC midnights; timed series expand in their own zone.
+    /// </summary>
+    internal static IEnumerable<(DateTimeOffset Start, DateTimeOffset End)> ExpandMaster(
+        SeriesRow row, DateOnly fromDate, DateOnly toDate, DateTimeOffset from, DateTimeOffset to, Func<long, bool> isReplaced) =>
+        Expand(row, fromDate, toDate, from, to).Where(i => !isReplaced(i.Start.ToUnixTimeMilliseconds()));
+
+    static IEnumerable<(DateTimeOffset Start, DateTimeOffset End)> Expand(SeriesRow row, DateOnly fromDate, DateOnly toDate, DateTimeOffset from, DateTimeOffset to)
     {
         if (row.StartMs is not { } startMs || row.EndMs is not { } endMs)
         {
@@ -174,6 +180,9 @@ public static class OccurrenceQuery
         details.IsFree,
         details.ConferenceUri is not null);
 
+    /// <summary>The stored fields a repeating series is expanded from (its first instance's times, zone, and raw JSON).</summary>
+    internal sealed record SeriesRow(long? StartMs, long? EndMs, bool IsAllDay, string? TimeZone, string RawJson);
+
     sealed record Row(
         string AccountId,
         string CalendarId,
@@ -190,6 +199,9 @@ public static class OccurrenceQuery
         string RawJson,
         string CalendarColor)
     {
+        /// <summary>What expanding the series needs.</summary>
+        public SeriesRow Series => new(StartMs, EndMs, IsAllDay, TimeZone, RawJson);
+
         public static Row Read(SqliteDataReader r) => new(
             r.GetString(0),
             r.GetString(1),

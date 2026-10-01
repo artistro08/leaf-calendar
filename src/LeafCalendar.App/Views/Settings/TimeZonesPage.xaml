@@ -9,8 +9,39 @@
         <StackPanel MaxWidth="900" Spacing="4">
             <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Time zones" />
 
+            <!-- Primary Time Zone (Windows' zone by default, or one Leaf keeps when you travel) -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Primary time zone" />
+            <controls:SettingRow Glyph="&#xE909;" Header="Use Windows time zone" Description="Leaf follows your PC's time zone, so your calendar changes when you travel.">
+                <ToggleSwitch
+                    x:Name="FollowWindowsZoneSwitch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="OnFollowWindowsToggled"
+                    AutomationProperties.Name="Use Windows time zone"
+                    AutomationProperties.AutomationId="FollowWindowsZoneSwitch" />
+            </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xE774;" Header="Leaf's time zone" Description="Your calendar shows this time zone.">
+                <AutoSuggestBox
+                    x:Name="PrimaryZoneBox"
+                    Width="280"
+                    PlaceholderText="Search a city or zone (Tokyo, NYC, UTC)"
+                    QueryIcon="Find"
+                    TextChanged="OnPrimaryTextChanged"
+                    SuggestionChosen="OnPrimaryChosen"
+                    AutomationProperties.Name="Leaf's time zone"
+                    AutomationProperties.AutomationId="PrimaryZoneBox" />
+            </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xE7E7;" Header="Ask when my PC's time zone changes" Description="Leaf offers to switch when you travel.">
+                <ToggleSwitch
+                    x:Name="ZonePromptSwitch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="OnZonePromptToggled"
+                    AutomationProperties.Name="Ask when my PC's time zone changes"
+                    AutomationProperties.AutomationId="ZonePromptSwitch" />
+            </controls:SettingRow>
+            <!-- /Primary Time Zone -->
+
             <!-- Add -->
-            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Extra time zones" />
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Extra time zones" />
             <controls:SettingRow
                 Glyph="&#xE774;"
                 Header="Add a time zone"

@@ -24,6 +24,7 @@
             IsBackButtonVisible="False"
             IsPaneToggleButtonVisible="False"
             PaneToggleRequested="OnPaneToggleRequested"
+            BackRequested="OnBackRequested"
             AutomationProperties.AutomationId="AppTitleBar">
             <TitleBar.Resources>
                 <x:Double x:Key="TitleBarCompactHeight">48</x:Double>
@@ -34,6 +35,20 @@
             <TitleBar.IconSource>
                 <ImageIconSource ImageSource="ms-appx:///Assets/Square44x44Logo.png" />
             </TitleBar.IconSource>
+
+            <!-- Search (opens the command menu): the first thing in the left sidebar's title bar row, right after the
+                 pane toggle, as the edit and delete icons start the details panel's row -->
+            <TitleBar.LeftHeader>
+                <Button
+                    x:Name="SearchButton"
+                    Style="{StaticResource LeafBareIconButtonStyle}"
+                    Click="OnSearchClick"
+                    ToolTipService.ToolTip="Search (Ctrl+K)"
+                    AutomationProperties.Name="Search"
+                    AutomationProperties.AutomationId="SearchButton">
+                    <FontIcon Glyph="&#xE721;" FontSize="16" />
+                </Button>
+            </TitleBar.LeftHeader>
 
             <!-- Toolbar (only its buttons take clicks; the space around them drags the window) -->
             <TitleBar.Content>

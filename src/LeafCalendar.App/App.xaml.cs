@@ -51,7 +51,7 @@ public partial class App : Application
     readonly LocalZoneWatcher _zone = new();
 
     // The tray settings (and the day) the tooltip and agenda were last refreshed for
-    (int, bool, int, bool, DateTime Today) _trayKey;
+    (int, bool, int, bool, int Excluded, string? Zone, DateTime Today) _trayKey;
     AppLog? _log;
     bool _trayStarted;
     bool _quitting;
@@ -224,6 +224,7 @@ public partial class App : Application
         _notifier          = new Notifier(services);
         _notifier.Invoked += (_, argument) => _dispatcher.TryEnqueue(() => HandleToast(argument));
         _notifier.Register();
+        // ponytail: all-day reminders count from the PC zone's midnight; pass the primary zone into AlertCenter if a pinned-zone user notices
         _alerts = new AlertCenter(services, _notifier, () => _zone.Zone);
         _alerts.Start();
 
@@ -294,7 +295,7 @@ public partial class App : Application
 
     // The flyout header's and tooltip's next event: timed events within the lookahead (its own two days, so a one-day agenda still sees past midnight)
     NextUp? LoadNext(SqliteConnection conn, LeafSettings settings, DateTimeOffset now) =>
-        TrayAgenda.Next(TrayAgenda.Load(conn, now, _zone.Zone, TrayAgenda.NextDays, includeAllDay: false, settings.Use24HourTime), now, TimeSpan.FromMinutes(settings.TrayLookaheadMinutes));
+        TrayAgenda.Next(TrayAgenda.Load(conn, now, DisplayZone.Resolve(null, settings.PrimaryTimeZone, _zone.Zone), TrayAgenda.NextDays, includeAllDay: false, settings.Use24HourTime, settings.TrayExcludedCalendars), now, TimeSpan.FromMinutes(settings.TrayLookaheadMinutes));
 
     // The saved settings (the view model may not exist while Leaf is only in the tray)
     LeafSettings CurrentSettings()
@@ -413,12 +414,14 @@ public partial class App : Application
             _calendar              = new CalendarViewModel(_services!, _dispatcher!);
             _calendar.OpenSettings = OpenSettings;
 
-            // A Settings Change (the Tray page's days, all-day, lookahead) Shows In The Tray Right Away
+            // A Settings Change (the Tray page's days, all-day, lookahead, calendars; the primary zone) Shows In The Tray Right Away
             // Only when a tray setting changed or the day rolled over (other layout changes don't touch the tray)
             _calendar.LayoutChanged += (_, _) =>
             {
-                var s   = CurrentSettings();
-                var key = (s.FlyoutDays, s.FlyoutAllDay, s.TrayLookaheadMinutes, s.Use24HourTime, Today: TimeZoneInfo.ConvertTime(_services!.Time.GetUtcNow(), _zone.Zone).Date);
+                // The excluded calendars as an order-free hash (the list holds no repeats)
+                var s    = CurrentSettings();
+                var zone = DisplayZone.Resolve(null, s.PrimaryTimeZone, _zone.Zone);
+                var key  = (s.FlyoutDays, s.FlyoutAllDay, s.TrayLookaheadMinutes, s.Use24HourTime, Excluded: s.TrayExcludedCalendars.Aggregate(0, (hash, c) => hash ^ c.GetHashCode()), Zone: s.PrimaryTimeZone, Today: TimeZoneInfo.ConvertTime(_services!.Time.GetUtcNow(), zone).Date);
                 if (key == _trayKey)
                 {
                     return;
@@ -538,7 +541,7 @@ public partial class App : Application
             using var conn = services.Database.Open();
             var settings   = SettingsStore.Load(conn);
             var now        = services.Time.GetUtcNow();
-            var days       = TrayAgenda.Load(conn, now, _zone.Zone, settings.FlyoutDays, settings.FlyoutAllDay, settings.Use24HourTime);
+            var days       = TrayAgenda.Load(conn, now, DisplayZone.Resolve(null, settings.PrimaryTimeZone, _zone.Zone), settings.FlyoutDays, settings.FlyoutAllDay, settings.Use24HourTime, settings.TrayExcludedCalendars);
             return new AgendaModel(days, LoadNext(conn, settings, now), TrayAgenda.NothingNext(settings.TrayLookaheadMinutes));
         }
         catch (Exception ex)

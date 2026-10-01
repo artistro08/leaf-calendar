@@ -10,13 +10,18 @@ using Microsoft.UI.Xaml.Navigation;
 namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
-/// Settings › Time zones: adds, renames, reorders (drag), and removes the extra time-zone columns (up to four). Changes
-/// save immediately and the grid follows. The "+" in the grid's corner opens this page.
+/// Settings › Time zones: Leaf's primary time zone (Windows' by default, or a zone Leaf keeps, with an offer to switch
+/// when Windows' zone changes), then the extra time-zone columns (up to four), added, renamed, reordered (drag), and
+/// removed. Changes save immediately and the grid follows. The "+" in the grid's corner opens this page.
 /// </summary>
 public sealed partial class TimeZonesPage : Page
 {
     readonly ObservableCollection<ZoneRow> _rows = [];
     IReadOnlyList<TimeZoneChoice> _suggestions = [];
+    IReadOnlyList<TimeZoneChoice> _primarySuggestions = [];
+
+    // True while the saved values are being shown (the switches' Toggled events are ignored meanwhile)
+    bool _loading;
     SettingsContext _context = null!;
     CalendarViewModel _vm = null!;
 
@@ -43,7 +48,75 @@ public sealed partial class TimeZonesPage : Page
         }
 
         UpdateState();
+        ShowPrimary();
     }
+
+    // =========================================================================
+    // PRIMARY TIME ZONE
+    // =========================================================================
+
+    // The saved choice: following Windows (the box and prompt are off), or the pinned zone's city in the box
+    void ShowPrimary()
+    {
+        var s    = _vm.Settings;
+        _loading = true;
+
+        FollowWindowsZoneSwitch.IsOn = s.PrimaryTimeZone is null;
+        PrimaryZoneBox.Text          = s.PrimaryTimeZone is { } id ? TimeZoneCatalog.CityFor(id) : "";
+        ZonePromptSwitch.IsOn        = s.PromptOnZoneChange;
+        UpdatePrimaryState();
+
+        _loading = false;
+    }
+
+    void UpdatePrimaryState()
+    {
+        PrimaryZoneBox.IsEnabled   = !FollowWindowsZoneSwitch.IsOn;
+        ZonePromptSwitch.IsEnabled = !FollowWindowsZoneSwitch.IsOn;
+    }
+
+    // On: follow Windows again. Off: nothing changes until a zone is picked
+    void OnFollowWindowsToggled(object sender, RoutedEventArgs e)
+    {
+        UpdatePrimaryState();
+        if (!_loading && FollowWindowsZoneSwitch.IsOn && _vm.Settings.PrimaryTimeZone is not null)
+        {
+            PrimaryZoneBox.Text = "";
+            _context.Save(s => s with { PrimaryTimeZone = null });
+        }
+    }
+
+    void OnPrimaryTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+        {
+            _primarySuggestions = TimeZoneCatalog.Search(sender.Text, _vm.Now);
+            sender.ItemsSource  = _primarySuggestions.Select(c => c.ToString()).ToList();
+        }
+    }
+
+    // A pick pins the zone (matched against our own list, never read back as a Core record)
+    void OnPrimaryChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
+    {
+        if (args.SelectedItem is string text && _primarySuggestions.FirstOrDefault(c => c.ToString() == text) is { } choice)
+        {
+            _context.Save(s => s with { PrimaryTimeZone = choice.Id });
+            sender.Text = choice.City;
+        }
+    }
+
+    void OnZonePromptToggled(object sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+        {
+            var on = ZonePromptSwitch.IsOn;
+            _context.Save(s => s with { PromptOnZoneChange = on });
+        }
+    }
+
+    // =========================================================================
+    // EXTRA TIME ZONES
+    // =========================================================================
 
     // Suggestions go to the box as plain strings: a list of Core records can't be marshaled to WinRT under Native AOT
     void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)

@@ -38,6 +38,15 @@
                 IsClosable="False"
                 AutomationProperties.LiveSetting="Polite"
                 AutomationProperties.AutomationId="FlyoutShortcutWarning" />
+
+            <!-- In-App Shortcuts (spec 8.7) -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="In-app shortcuts" />
+            <controls:SettingRow Glyph="&#xE765;" Header="Keyboard shortcuts" Description="See every shortcut you can use in Leaf. Press ? in the main window to open this list.">
+                <Button
+                    Content="Show shortcuts"
+                    Click="OnShowCheatSheetClick"
+                    AutomationProperties.AutomationId="ShowCheatSheetButton" />
+            </controls:SettingRow>
         </StackPanel>
     </ScrollViewer>
 </Page>
