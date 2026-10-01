@@ -149,6 +149,60 @@ public class LiveEditTests
         }
     }
 
+    // Ruling R15: a late undo never sends the old conference ID; a deleted event that had Meet comes back with a new link
+    [Fact]
+    public async Task LateUndo_OfAMeetEvent_ComesBackWithANewMeetLink()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var live = LiveAccount.TryLoad();
+        if (live is null)
+        {
+            Assert.Skip(SkipReason);
+            return;
+        }
+
+        var google     = new LiveGoogle(live);
+        var calendarId = await google.CreateTestCalendarAsync(ct);
+        try
+        {
+            await Sync(live, google, ct);
+            var editor = Editor(live);
+            var start  = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(2).AddHours(15), TimeSpan.Zero);
+
+            // Create With Meet
+            var id = editor.Create(new EventDraft { AccountId = live.AccountId, CalendarId = calendarId, Title = "Leaf live late undo", Start = start, End = start.AddHours(1), TimeZone = "America/New_York", HasConference = true }, sendUpdates: false);
+            await Sync(live, google, ct);
+            var oldLink = (string?)(await google.GetEventAsync(calendarId, id, ct))!["hangoutLink"];
+            Assert.StartsWith("https://meet.google.com/", oldLink, StringComparison.Ordinal);
+
+            // Delete, Past The Undo Window, Sent
+            var receipt = editor.Delete([Stored(live, calendarId, id)], EditScope.This, sendUpdates: false);
+            await Task.Delay(EventEditor.UndoWindow + TimeSpan.FromSeconds(1), ct);
+            await Sync(live, google, ct);
+            Assert.Equal("cancelled", (string?)(await google.GetEventAsync(calendarId, id, ct))?["status"] ?? "cancelled");
+
+            // Late Undo: a quiet copy with a new ID
+            Assert.Equal(UndoResult.Recreated, editor.Undo(receipt));
+            string copyId;
+            using (var conn = live.Database.Open())
+            {
+                copyId = OutboxStore.Pending(conn, live.AccountId).Single(e => e.Operation == OutboxOperation.Create).EventId;
+            }
+
+            await Sync(live, google, ct);
+            var copy = (await google.GetEventAsync(calendarId, copyId, ct))!;
+            Assert.NotEqual(id, copyId);
+            Assert.Equal("Leaf live late undo", (string?)copy["summary"]);
+            var newLink = (string?)copy["hangoutLink"];
+            Assert.StartsWith("https://meet.google.com/", newLink, StringComparison.Ordinal);
+            Assert.NotEqual(oldLink, newLink);
+        }
+        finally
+        {
+            await Cleanup(google, calendarId);
+        }
+    }
+
     [Fact]
     public async Task StaleEtag_BecomesConflict_KeepMineWins()
     {
