@@ -504,7 +504,17 @@ public partial class App : Application
         try
         {
             ShowMainWindow();
-            _dispatcher?.TryEnqueue(DispatcherQueuePriority.Low, () => _calendar?.Reveal(occurrence));
+            _dispatcher?.TryEnqueue(DispatcherQueuePriority.Low, () =>
+            {
+                try
+                {
+                    _calendar?.Reveal(occurrence);
+                }
+                catch (Exception ex)
+                {
+                    _log?.Info("tray.reveal.failed", $"error={ex.GetType().Name}");
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -529,11 +539,16 @@ public partial class App : Application
                 link = JoinPicker.MeetingLink(conn, occurrence) is { } meeting ? JoinPicker.JoinLink(conn, new JoinTarget(occurrence, meeting)) : null;
             }
 
-            // LaunchAsync re-checks the link and never throws
-            if (link is not null)
+            // The Meeting Lost Its Link Since The Flyout Drew It: say so in the log and show the agenda as it is now
+            if (link is null)
             {
-                _ = services.LaunchAsync(link);
+                services.Log.Info("tray.join.no-link");
+                RefreshAgenda();
+                return;
             }
+
+            // LaunchAsync re-checks the link and never throws
+            _ = services.LaunchAsync(link);
         }
         catch (Exception ex)
         {
@@ -545,17 +560,25 @@ public partial class App : Application
     // 15 s while a window or the flyout is on screen, 60 s in the tray (spec 5.3); opening the flyout syncs at once
     void UpdateSyncMode(bool flyoutOpened = false)
     {
-        var visible = _window is not null || _host?.IsAgendaOpen == true;
-        if (_services?.Google is { } google)
+        // Runs from the flyout's open and close events, so nothing may escape
+        try
         {
-            google.Loop.Mode = visible ? SyncMode.Visible : SyncMode.Tray;
-            if (flyoutOpened)
+            var visible = _window is not null || _host?.IsAgendaOpen == true;
+            if (_services?.Google is { } google)
             {
-                google.Loop.TriggerNow();
+                google.Loop.Mode = visible ? SyncMode.Visible : SyncMode.Tray;
+                if (flyoutOpened)
+                {
+                    google.Loop.TriggerNow();
+                }
             }
-        }
 
-        EfficiencyMode.Set(!visible && SettingsWindow.Current is null);
+            EfficiencyMode.Set(!visible && SettingsWindow.Current is null);
+        }
+        catch (Exception ex)
+        {
+            _log?.Info("tray.syncmode.failed", $"error={ex.GetType().Name}");
+        }
     }
 
     // =========================================================================

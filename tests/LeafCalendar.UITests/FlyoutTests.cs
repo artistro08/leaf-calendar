@@ -38,8 +38,8 @@ public sealed class FlyoutTests : IDisposable
         Assert.Equal("Design review", leaf.WaitForPopup("FlyoutNextTitle").Name);
         Assert.Matches(@" · in (9|10) min$", leaf.WaitForPopup("FlyoutNextWhen").Name);
         Assert.NotNull(leaf.WaitForPopup("FlyoutJoinButton"));
-        Assert.NotNull(leaf.WaitForPopup("FlyoutEvent_evt-meeting"));
-        Assert.NotNull(leaf.WaitForPopup("FlyoutJoin_evt-meeting"));
+        Assert.NotNull(leaf.WaitForPopup("FlyoutEvent_evt-meeting_202610011800"));
+        Assert.NotNull(leaf.WaitForPopup("FlyoutJoin_evt-meeting_202610011800"));
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class FlyoutTests : IDisposable
         Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
 
         leaf.PostTrayMessage(LeafApp.TraySelect);
-        leaf.WaitForPopup("FlyoutEvent_evt-meeting").AsButton().Invoke();
+        leaf.WaitForPopup("FlyoutEvent_evt-meeting_202610011800").AsButton().Invoke();
 
         Assert.True(Retry.WhileFalse(() => leaf.Exists("DetailsTitle") && leaf.WaitFor("DetailsTitle").Name == "Design review", TimeSpan.FromSeconds(15)).Success);
     }
@@ -88,6 +88,26 @@ public sealed class FlyoutTests : IDisposable
         leaf.WaitForPopup("FlyoutNewEvent").AsButton().Invoke();
 
         Assert.NotNull(leaf.WaitFor("EditorTitle"));
+    }
+
+    [Fact]
+    public void HostileTitle_ShowsAsPlainClippedText()
+    {
+        // Markup, quotes, an ampersand, line breaks, and 5,000 more characters
+        var hostile = "</TextBlock><Button Content=\"x\"/> & \"quoted\"\r\nsecond line\n" + new string('A', 5000);
+        _google.EditOnGoogle("leaf.tester@gmail.com", "evt-meeting", e => e["summary"] = hostile);
+        using var leaf = Launch();
+
+        leaf.PostTrayMessage(LeafApp.TraySelect);
+
+        foreach (var id in new[] { "FlyoutNextTitle", "FlyoutEvent_evt-meeting_202610011800" })
+        {
+            var name = leaf.WaitForPopup(id).Name;
+            Assert.StartsWith("</TextBlock><Button Content=\"x\"/> & \"quoted\" second line", name, StringComparison.Ordinal);
+            Assert.DoesNotContain('\n', name);
+            Assert.DoesNotContain('\r', name);
+            Assert.True(name.Length <= 201, $"Title wasn't clipped: {name.Length} characters");
+        }
     }
 
     [Fact]

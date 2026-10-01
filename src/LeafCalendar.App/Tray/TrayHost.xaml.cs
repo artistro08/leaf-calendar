@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.Interop;
 using LeafCalendar.Core.Diagnostics;
@@ -150,6 +151,7 @@ public sealed partial class TrayHost : Window
             _edge                      = screen.Edge;
             AgendaPanel.Width          = panel.Width / screen.Scale;
             AgendaPanel.Height         = panel.Height / screen.Scale;
+            Root.RequestedTheme        = MainWindow.ElementThemeOf(theme);
             AgendaFrame.RequestedTheme = MainWindow.ElementThemeOf(theme);
             UpdateAgenda(model);
 
@@ -281,25 +283,34 @@ public sealed partial class TrayHost : Window
     // FLYOUT
     // =========================================================================
 
+    // Row IDs carry the instance's start like the main view's (FlyoutEvent_{id}_{UTC yyyyMMddHHmm}), so a series' rows differ
     AgendaRow Row(AgendaItem item)
     {
-        var o = item.Occurrence;
+        var o     = item.Occurrence;
+        var start = o.Start.UtcDateTime.ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture);
         return new AgendaRow(
             item.Title,
             item.When,
             LeafBrushes.FromHex(EventColors.ResolveAccent(o.ColorId, o.CalendarColor)),
             item.Link is null ? Visibility.Collapsed : Visibility.Visible,
-            $"FlyoutEvent_{o.EventId}",
-            $"FlyoutJoin_{o.EventId}",
+            $"FlyoutEvent_{o.EventId}_{start}",
+            $"FlyoutJoin_{o.EventId}_{start}",
             () => Request(OpenEventRequested, o),
             () => Request(JoinRequested, o));
     }
 
-    // Closes the flyout, then hands the event to the App
+    // Closes the flyout, then hands the event to the App (a click handler, so nothing may escape)
     void Request(EventHandler<CalendarOccurrence>? handler, CalendarOccurrence occurrence)
     {
-        HideAgenda();
-        handler?.Invoke(this, occurrence);
+        try
+        {
+            HideAgenda();
+            handler?.Invoke(this, occurrence);
+        }
+        catch (Exception ex)
+        {
+            _log.Info("tray.flyout.click.failed", $"error={ex.GetType().Name}");
+        }
     }
 
     void OnNextJoinClick(object sender, RoutedEventArgs e)
@@ -337,6 +348,10 @@ public sealed partial class TrayHost : Window
     {
         _agendaClosedAt = Environment.TickCount64;
         _exitFinished   = false;
+
+        // Closed Rows Hold No Events Or Brushes Until The Next Open
+        AgendaDays.ItemsSource = null;
+        _model                 = null;
         HideHostIfIdle();
         AgendaClosed?.Invoke(this, EventArgs.Empty);
     }
@@ -411,10 +426,18 @@ public sealed partial class TrayHost : Window
 
     void OnOpenClick(object sender, RoutedEventArgs e) => OpenRequested?.Invoke(this, EventArgs.Empty);
 
+    // A click handler, so nothing may escape
     void OnNewEventClick(object sender, RoutedEventArgs e)
     {
-        HideAgenda();
-        NewEventRequested?.Invoke(this, EventArgs.Empty);
+        try
+        {
+            HideAgenda();
+            NewEventRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            _log.Info("tray.flyout.click.failed", $"error={ex.GetType().Name}");
+        }
     }
 
     void OnJoinNextClick(object sender, RoutedEventArgs e) => JoinNextRequested?.Invoke(this, EventArgs.Empty);
