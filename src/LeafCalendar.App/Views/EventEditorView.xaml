@@ -7,11 +7,6 @@
     AutomationProperties.Name="Event editor"
     AutomationProperties.AutomationId="EventEditor">
 
-    <UserControl.Resources>
-        <!-- Lets the time pickers shrink to share a row with the dates -->
-        <x:Double x:Key="TimePickerThemeMinWidth">0</x:Double>
-    </UserControl.Resources>
-
     <!-- Ctrl+Enter saves, Ctrl+Shift+Enter saves without emailing, Esc cancels (see OnPreviewKeyDown) -->
     <Grid RowDefinitions="*,Auto" PreviewKeyDown="OnPreviewKeyDown">
 
@@ -204,14 +199,15 @@
                                             SelectedIndex="{x:Bind ChoiceIndex, Mode=TwoWay}"
                                             DropDownOpened="OnReminderDropDownOpened"
                                             DropDownClosed="OnReminderDropDownClosed"
-                                            AutomationProperties.Name="Reminder time"
+                                            AutomationProperties.Name="{x:Bind AccessibleName, Mode=OneWay}"
                                             AutomationProperties.AutomationId="{x:Bind AutomationId, Mode=OneWay}" />
                                         <Button
                                             Grid.Column="1"
                                             Style="{StaticResource LeafIconButtonStyle}"
                                             Command="{x:Bind RemoveCommand}"
                                             ToolTipService.ToolTip="Remove reminder"
-                                            AutomationProperties.Name="Remove reminder">
+                                            AutomationProperties.Name="Remove reminder"
+                                            AutomationProperties.AutomationId="{x:Bind RemoveId, Mode=OneWay}">
                                             <FontIcon Glyph="&#xE711;" FontSize="12" />
                                         </Button>
                                     </Grid>

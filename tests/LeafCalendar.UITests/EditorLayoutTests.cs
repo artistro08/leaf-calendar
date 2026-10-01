@@ -3,7 +3,10 @@ using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
+using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Settings;
 using LeafCalendar.UITests.Support;
+using Microsoft.Data.Sqlite;
 
 namespace LeafCalendar.UITests;
 
@@ -69,9 +72,24 @@ public sealed class EditorLayoutTests : IDisposable
         Assert.True(panel.Contains(leaf.WaitFor("EditorCancelButton").BoundingRectangle), "Cancel left the panel after scrolling.");
     }
 
-    [Fact]
-    public void StartDateAndTime_ShareOneRow_AndFit()
+    // Saves the clock setting into the profile before launch
+    void UseClock(bool use24Hour)
     {
+        var database = new LeafDatabase(Path.Combine(LeafApp.ProfileFolder(_profile), "leaf.db"));
+        using (var conn = database.Open())
+        {
+            SettingsStore.Save(conn, SettingsStore.Load(conn) with { Use24HourTime = use24Hour });
+        }
+
+        SqliteConnection.ClearAllPools();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void StartDateAndTime_ShareOneRow_AndFit(bool use24Hour)
+    {
+        UseClock(use24Hour);
         using var leaf = Launch();
         EditDentist(leaf);
         var panel = leaf.WaitFor("DetailsPanel").BoundingRectangle;

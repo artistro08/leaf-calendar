@@ -52,9 +52,10 @@ public sealed partial class EventEditorView : UserControl
         }
 
         Detach();
-        _owner        = owner;
-        Editor        = editor;
-        _endTimeAsked = false;
+        _owner                = owner;
+        Editor                = editor;
+        _endTimeAsked         = false;
+        _reminderDropDownOpen = false;
 
         // A new editor starts at the top
         ScrollIndicator.Hide(BodyScroll);

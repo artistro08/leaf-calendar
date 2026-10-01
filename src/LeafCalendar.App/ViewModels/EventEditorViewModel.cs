@@ -57,10 +57,10 @@ public sealed partial class WeekdayToggle(DayOfWeek day, bool isOn) : Observable
 }
 
 /// <summary>A custom reminder: a dropdown of times and a remove button.</summary>
-public sealed partial class ReminderRow(int index, IReadOnlyList<string> choices, int choiceIndex, Action<ReminderRow> remove) : ObservableObject
+public sealed partial class ReminderRow(int index, List<string> choices, int choiceIndex, Action<ReminderRow> remove) : ObservableObject
 {
-    /// <summary>The times to pick from (shared by every row).</summary>
-    public IReadOnlyList<string> Choices { get; } = choices;
+    /// <summary>The times to pick from (shared by every row; a concrete list so WinRT can hold it under AOT).</summary>
+    public List<string> Choices { get; } = choices;
 
     /// <summary>The picked time's position in <see cref="Choices"/>.</summary>
     [ObservableProperty]
@@ -68,11 +68,17 @@ public sealed partial class ReminderRow(int index, IReadOnlyList<string> choices
 
     /// <summary>The row's position (renumbered when a row above is removed).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(AutomationId))]
+    [NotifyPropertyChangedFor(nameof(AutomationId), nameof(RemoveId), nameof(AccessibleName))]
     public partial int Index { get; set; } = index;
 
     /// <summary>Automation ID of the dropdown.</summary>
     public string AutomationId => string.Create(CultureInfo.InvariantCulture, $"EditorReminder_{Index}");
+
+    /// <summary>Automation ID of the remove button.</summary>
+    public string RemoveId => string.Create(CultureInfo.InvariantCulture, $"EditorReminderRemove_{Index}");
+
+    /// <summary>What a screen reader calls the dropdown ("Reminder 1", under the "Reminder" heading).</summary>
+    public string AccessibleName => string.Create(CultureInfo.InvariantCulture, $"Reminder {Index + 1}");
 
     // A dropdown swapping its list writes "nothing picked" back; keep the pick
     partial void OnChoiceIndexChanged(int oldValue, int newValue)
@@ -182,7 +188,7 @@ public sealed partial class EventEditorViewModel : ObservableObject
     public bool FocusEnd { get; }
 
     /// <summary>A new event's typed title (else "New event"), or "Edit event".</summary>
-    public string HeaderText => !IsNew ? "Edit event" : Title.Trim() is { Length: > 0 } title ? title : "New event";
+    public string HeaderText => EditorHeader.Text(IsNew, Title);
 
     /// <summary>The event loaded with a repeat rule the editor can't show ("Custom rule (kept as is)" is offered only then).</summary>
     public bool HasCustomRule { get; }
@@ -200,7 +206,7 @@ public sealed partial class EventEditorViewModel : ObservableObject
     public ObservableCollection<WeekdayToggle> Weekdays { get; }
 
     /// <summary>The reminder times every dropdown offers ("At start", "10 min", ...).</summary>
-    public IReadOnlyList<string> ReminderChoices { get; }
+    public List<string> ReminderChoices { get; }
 
     /// <summary>Custom popup reminders, one dropdown each.</summary>
     public ObservableCollection<ReminderRow> ReminderRows { get; }
