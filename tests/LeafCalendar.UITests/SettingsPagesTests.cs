@@ -146,7 +146,7 @@ public sealed class SettingsPagesTests : IDisposable
         leaf.WaitInSettings("UpcomingHoursBox").AsComboBox().Select("Next 2 hours");
 
         Assert.True(Retry.WhileTrue(() => list.FindFirstDescendant(cf => cf.ByName("Design review")) is not null, TimeSpan.FromSeconds(10)).Success, "The design review is still listed.");
-        Assert.NotNull(list.FindFirstDescendant(cf => cf.ByName("Dentist appointment")));
+        Assert.True(Retry.WhileFalse(() => list.FindFirstDescendant(cf => cf.ByName("Dentist appointment")) is not null, TimeSpan.FromSeconds(10)).Success, "The dentist dropped off the list.");
     }
 
     [Fact]
