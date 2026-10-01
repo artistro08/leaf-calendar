@@ -25,6 +25,43 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void PowerSettings_RoundTrip()
+    {
+        using var conn = _db.Database.Open();
+        var saved = new LeafSettings
+        {
+            WorkingHours          = new WorkingHours { Enabled = false, StartMinute = 8 * 60, EndMinute = 18 * 60, Days = [DayOfWeek.Sunday, DayOfWeek.Wednesday] },
+            MapProvider           = MapProvider.Bing,
+            MeetByDefaultAccounts = ["acct1"],
+            TrayExcludedCalendars = [new CalendarRef("acct1", "cal1")],
+        };
+
+        SettingsStore.Save(conn, saved);
+        var loaded = SettingsStore.Load(conn);
+
+        Assert.False(loaded.WorkingHours.Enabled);
+        Assert.Equal(8 * 60, loaded.WorkingHours.StartMinute);
+        Assert.Equal(18 * 60, loaded.WorkingHours.EndMinute);
+        Assert.Equal([DayOfWeek.Sunday, DayOfWeek.Wednesday], loaded.WorkingHours.Days);
+        Assert.Equal(MapProvider.Bing, loaded.MapProvider);
+        Assert.Equal(["acct1"], loaded.MeetByDefaultAccounts);
+        Assert.Equal([new CalendarRef("acct1", "cal1")], loaded.TrayExcludedCalendars);
+    }
+
+    [Fact]
+    public void UnknownMapProvider_FallsBackToGoogle_KeepingOtherSettings()
+    {
+        using var conn = _db.Database.Open();
+        SettingsStore.Save(conn, new LeafSettings { ShowDeclined = true, MapProvider = MapProvider.Bing });
+        conn.Execute(null, "UPDATE settings SET value = replace(value, 'Bing', 'Waze') WHERE key = 'app';");
+
+        var loaded = SettingsStore.Load(conn);
+
+        Assert.Equal(MapProvider.Google, loaded.MapProvider);
+        Assert.True(loaded.ShowDeclined);
+    }
+
+    [Fact]
     public void DefaultCalendar_RoundTrips()
     {
         using var conn = _db.Database.Open();

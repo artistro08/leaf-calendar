@@ -429,6 +429,12 @@ public sealed partial class CalendarPage : Page
             return;
         }
 
+        // The Editor Handles Its Own Keys While It Shows, So Menu Commands Wait Too
+        if (ViewModel.Editing is not null && IsDetailsOpen)
+        {
+            return;
+        }
+
         Execute(new ShortcutResult(command, days));
     }
 

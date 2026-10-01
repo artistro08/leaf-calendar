@@ -140,10 +140,13 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
     /// <summary>Most IDs Google takes in one free/busy query.</summary>
     public const int MaxFreeBusyIds = 50;
 
+    /// <summary>Most busy ranges kept per calendar (the rest of a huge answer is dropped).</summary>
+    public const int MaxBusyPerCalendar = 500;
+
     /// <summary>
     /// Busy times for calendars or people (a person's ID is their email) over <c>[from, to)</c>. An ID Google has no
     /// answer for (not found, outside your domain, not shared) comes back with an <see cref="FreeBusyResult.Error"/>,
-    /// never as free.
+    /// never as free. The error is only a flag ("error" or "missing"); Google's own text is never kept.
     /// </summary>
     /// <exception cref="ArgumentException">No IDs, or more than <see cref="MaxFreeBusyIds"/>.</exception>
     /// <exception cref="GoogleApiException">Google refused the query.</exception>
@@ -170,9 +173,12 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
 
         // Answer (an ID left out counts as an error, never as free)
         var answer = await response.Content.ReadFromJsonAsync(GoogleJsonContext.Default.FreeBusyResponse, ct);
-        var found  = answer?.Calendars ?? [];
+        var found  = new Dictionary<string, FreeBusyCalendar>(answer?.Calendars ?? [], StringComparer.OrdinalIgnoreCase);
         return ids.Distinct(StringComparer.Ordinal).ToDictionary(id => id, id => found.TryGetValue(id, out var c)
-            ? new FreeBusyResult([.. (c.Busy ?? []).Where(b => b.End > b.Start).Select(b => new BusyRange(b.Start, b.End))], c.Errors?.FirstOrDefault()?.Reason)
+            ? new FreeBusyResult(
+                [.. (c.Busy ?? []).Where(b => b.End > b.Start && b.End > from && b.Start < to).Take(MaxBusyPerCalendar)
+                    .Select(b => new BusyRange(b.Start < from ? from : b.Start, b.End > to ? to : b.End))],
+                c.Errors is { Count: > 0 } ? "error" : null)
             : new FreeBusyResult([], "missing"), StringComparer.Ordinal);
     }
 

@@ -39,6 +39,7 @@ public sealed record ExtraTimeZone(string Id, string? Label);
 public sealed record CalendarRef(string AccountId, string CalendarId);
 
 /// <summary>Which map site "Open in maps" uses (Settings › General).</summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(MapProviderConverter))]
 public enum MapProvider
 {
     /// <summary>Google Maps.</summary>
@@ -68,6 +69,7 @@ public sealed record WorkingHours
     public int EndMinute { get; init; } = 17 * 60;
 
     /// <summary>Days you work.</summary>
+    // TODO: An unknown day name (DayOfWeek is a BCL enum, so it can't carry a lenient converter, and a list element has no safe fallback) still resets all settings to defaults.
     public IReadOnlyList<DayOfWeek> Days { get; init; } = Weekdays;
 }
 
@@ -310,4 +312,16 @@ public sealed record LeafSettings
         var trimmed = label?.Trim();
         return string.IsNullOrEmpty(trimmed) ? null : trimmed[..Math.Min(trimmed.Length, MaxLabelLength)];
     }
+}
+
+/// <summary>Reads a map provider by name; a name this build doesn't know (say, from a newer version) becomes Google instead of resetting every setting.</summary>
+sealed class MapProviderConverter : System.Text.Json.Serialization.JsonConverter<MapProvider>
+{
+    public override MapProvider Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options) =>
+        reader.TokenType == System.Text.Json.JsonTokenType.String && Enum.TryParse<MapProvider>(reader.GetString(), true, out var value) && Enum.IsDefined(value)
+            ? value
+            : MapProvider.Google;
+
+    public override void Write(System.Text.Json.Utf8JsonWriter writer, MapProvider value, System.Text.Json.JsonSerializerOptions options) =>
+        writer.WriteStringValue(value.ToString());
 }

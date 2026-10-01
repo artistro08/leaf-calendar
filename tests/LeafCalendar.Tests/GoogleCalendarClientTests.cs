@@ -257,7 +257,25 @@ public class GoogleCalendarClientTests : IDisposable
         Assert.Contains("\"items\":[{\"id\":\"dana@example.com\"},{\"id\":\"nobody@example.org\"}]", body, StringComparison.Ordinal);
         Assert.Equal([new BusyRange(new(2026, 10, 1, 15, 0, 0, TimeSpan.Zero), new(2026, 10, 1, 16, 0, 0, TimeSpan.Zero))], result["dana@example.com"].Busy);
         Assert.Null(result["dana@example.com"].Error);
-        Assert.Equal("notFound", result["nobody@example.org"].Error);
+        Assert.Equal("error", result["nobody@example.org"].Error);
+    }
+
+    [Fact]
+    public async Task QueryFreeBusy_MatchesIdsIgnoringCase_ClipsToWindow_AndCapsCount()
+    {
+        var client = SignedIn();
+        var many   = string.Join(',', Enumerable.Range(0, 600).Select(i => $"{{\"start\":\"2026-10-01T{i / 60:00}:{i % 60:00}:00Z\",\"end\":\"2026-10-01T{i / 60:00}:{i % 60:00}:30Z\"}}"));
+        _google.Respond(HttpMethod.Post, "freeBusy", 200, "{\"calendars\":{"
+            + "\"Dana@Example.com\":{\"busy\":[{\"start\":\"2026-09-30T20:00:00Z\",\"end\":\"2026-10-01T02:00:00Z\"},{\"start\":\"2026-10-03T00:00:00Z\",\"end\":\"2026-10-03T01:00:00Z\"}]},"
+            + "\"big@example.com\":{\"busy\":[" + many + "]}}}");
+
+        var result = await client.QueryFreeBusyAsync(Account, ["dana@example.com", "big@example.com"],
+            new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 2, 0, 0, 0, TimeSpan.Zero),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal([new BusyRange(new(2026, 10, 1, 0, 0, 0, TimeSpan.Zero), new(2026, 10, 1, 2, 0, 0, TimeSpan.Zero))], result["dana@example.com"].Busy);
+        Assert.Null(result["dana@example.com"].Error);
+        Assert.Equal(GoogleCalendarClient.MaxBusyPerCalendar, result["big@example.com"].Busy.Count);
     }
 
     [Fact]

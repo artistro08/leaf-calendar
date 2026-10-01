@@ -589,7 +589,14 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         var pruned = Settings.ForAccounts([.. AccountEmails.Keys]);
         if (pruned != Settings)
         {
-            Update(_ => pruned);
+            try
+            {
+                Update(_ => pruned);
+            }
+            catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or InvalidOperationException)
+            {
+                _services.Log.Error("calendar.prune.failed", ex);
+            }
         }
 
         CalendarsChanged?.Invoke(this, EventArgs.Empty);
