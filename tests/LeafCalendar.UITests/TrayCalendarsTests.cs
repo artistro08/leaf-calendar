@@ -6,7 +6,7 @@ using LeafCalendar.UITests.Support;
 
 namespace LeafCalendar.UITests;
 
-public sealed class TraySettingsCalendarsTests : IDisposable
+public sealed class TrayCalendarsTests : IDisposable
 {
     const string FamilyId = "family123@group.calendar.google.com";
 
@@ -36,7 +36,7 @@ public sealed class TraySettingsCalendarsTests : IDisposable
     }
 
     [Fact]
-    public void UncheckingACalendar_RemovesItFromTheFlyout()
+    public void HidingACalendar_RemovesItFromTheFlyout()
     {
         using var leaf = Launch();
 
@@ -44,13 +44,16 @@ public sealed class TraySettingsCalendarsTests : IDisposable
         leaf.PostTrayMessage(LeafApp.TraySelect);
         Assert.NotNull(leaf.WaitForPopup("FlyoutEvent_evt-family-today_202610011900"));
 
-        // Uncheck The Family Calendar (Settings takes focus, which closes the flyout)
-        leaf.OpenSettings("Tray");
+        // Settings › Tray Has No Calendar Choice Of Its Own (Settings takes focus, which closes the flyout)
+        var settings = leaf.OpenSettings("Tray");
         Assert.True(Retry.WhileTrue(() => leaf.PopupExists("FlyoutRoot"), TimeSpan.FromSeconds(5)).Success, "The flyout didn't close.");
-        var box = leaf.WaitInSettings($"TrayCalendar_{FamilyId}").AsCheckBox();
-        Assert.Equal(ToggleState.On, box.ToggleState);
-        box.Toggle();
-        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings($"TrayCalendar_{FamilyId}").AsCheckBox().ToggleState == ToggleState.Off, TimeSpan.FromSeconds(5)).Success);
+        leaf.WaitInSettings("LookaheadComboBox");
+        Assert.Null(settings.FindFirstDescendant(cf => cf.ByAutomationId("TrayCalendarList")));
+
+        // Hide The Family Calendar In Leaf
+        leaf.OpenSettings("Calendars");
+        leaf.WaitInSettings($"CalendarVisible_{FamilyId}").AsToggleButton().Toggle();
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor($"CalendarToggle_{FamilyId}").AsCheckBox().ToggleState == ToggleState.Off, TimeSpan.FromSeconds(5)).Success);
 
         // Gone From The Flyout; The Primary Calendar's Events Stay
         leaf.PostTrayMessage(LeafApp.TraySelect);

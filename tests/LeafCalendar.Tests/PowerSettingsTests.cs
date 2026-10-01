@@ -20,7 +20,6 @@ public sealed class PowerSettingsTests
         Assert.True(s.PromptOnZoneChange);
         Assert.Null(s.MainAccountId);
         Assert.Empty(s.MeetByDefaultAccounts);
-        Assert.Empty(s.TrayExcludedCalendars);
     }
 
     [Fact]
@@ -64,12 +63,10 @@ public sealed class PowerSettingsTests
         {
             MainAccountId         = "  ",
             MeetByDefaultAccounts = ["a", "a", " ", "b"],
-            TrayExcludedCalendars = [new("a", "x"), new("a", "x"), new("", "y")],
         }.Normalize();
 
         Assert.Null(s.MainAccountId);
         Assert.Equal(["a", "b"], s.MeetByDefaultAccounts);
-        Assert.Equal([new CalendarRef("a", "x")], s.TrayExcludedCalendars);
     }
 
     [Fact]
@@ -80,7 +77,6 @@ public sealed class PowerSettingsTests
         {
             TimeZones             = [new("Asia/Tokyo", "HQ")],
             MeetByDefaultAccounts = ["a"],
-            TrayExcludedCalendars = [new("a", "x")],
         }.Normalize();
 
         Assert.Equal(s, s.Normalize());
@@ -94,22 +90,32 @@ public sealed class PowerSettingsTests
         {
             MainAccountId         = "gone",
             MeetByDefaultAccounts = ["gone", "kept"],
-            TrayExcludedCalendars = [new("gone", "x"), new("kept", "y")],
         };
 
         var pruned = s.ForAccounts(["kept"]);
 
         Assert.Null(pruned.MainAccountId);
         Assert.Equal(["kept"], pruned.MeetByDefaultAccounts);
-        Assert.Equal([new CalendarRef("kept", "y")], pruned.TrayExcludedCalendars);
     }
 
     [Fact]
     public void ForAccounts_AllStillConnected_IsEqual()
     {
-        var s = new LeafSettings { MainAccountId = "a", MeetByDefaultAccounts = ["a"], TrayExcludedCalendars = [new("a", "x")] };
+        var s = new LeafSettings { MainAccountId = "a", MeetByDefaultAccounts = ["a"] };
 
         Assert.Equal(s, s.ForAccounts(["a", "b"]));
+    }
+
+    [Fact]
+    public void SavedWithTrayExcludedCalendars_LoadsWithoutThem()
+    {
+        // Settings › Tray's calendar choice is gone (the tray follows what's shown in Leaf): an older row that has it still loads
+        var json = """{"flyoutDays":5,"trayExcludedCalendars":[{"accountId":"a","calendarId":"x"}],"meetByDefaultAccounts":["a"]}""";
+        var s    = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
+
+        Assert.Equal(5, s.FlyoutDays);
+        Assert.Equal(["a"], s.MeetByDefaultAccounts);
+        Assert.DoesNotContain("trayExcluded", System.Text.Json.JsonSerializer.Serialize(s, LeafJsonContext.Default.LeafSettings), StringComparison.Ordinal);
     }
 
     [Fact]
