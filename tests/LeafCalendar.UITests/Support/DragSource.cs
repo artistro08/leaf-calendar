@@ -10,19 +10,20 @@ namespace LeafCalendar.UITests.Support;
 /// </summary>
 static class DragSource
 {
-    /// <summary>Drops <paramref name="data"/> at <paramref name="point"/> (screen pixels).</summary>
-    public static void DropAt(System.Drawing.Point point, System.Windows.Forms.DataObject data)
+    /// <summary>Drops <paramref name="data"/> at <paramref name="point"/> (screen pixels) and returns what the target took (None when it refused).</summary>
+    public static System.Windows.Forms.DragDropEffects DropAt(System.Drawing.Point point, System.Windows.Forms.DataObject data)
     {
         Mouse.MoveTo(point);
         Thread.Sleep(100);
 
         ExceptionDispatchInfo? failure = null;
+        var effect = System.Windows.Forms.DragDropEffects.None;
         var thread = new Thread(() =>
         {
             try
             {
                 using var source = new System.Windows.Forms.Control();
-                source.DoDragDrop(data, System.Windows.Forms.DragDropEffects.Copy | System.Windows.Forms.DragDropEffects.Move | System.Windows.Forms.DragDropEffects.Link);
+                effect = source.DoDragDrop(data, System.Windows.Forms.DragDropEffects.Copy | System.Windows.Forms.DragDropEffects.Move | System.Windows.Forms.DragDropEffects.Link);
             }
             catch (InvalidOperationException ex)
             {
@@ -34,5 +35,6 @@ static class DragSource
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(10)), "The drag never finished.");
         failure?.Throw();
+        return effect;
     }
 }

@@ -343,4 +343,15 @@ public partial class DescriptionHtmlTests
         Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), stopwatch.Elapsed.ToString());
         Assert.True(output.Length < 200_000);
     }
+
+    // RTF Field Syntax In A Description Is Plain Text: Every Character Reaches The Editor (no field, no hidden link target)
+    [Fact]
+    public void Lines_RtfFieldText_KeepsEveryCharacter()
+    {
+        const string rtf = """{\rtf1{\field{\*\fldinst HYPERLINK "https://x"}{\fldrslt Click}}}""";
+
+        var text = string.Concat(DescriptionHtml.Lines(rtf).SelectMany(l => l.Runs).Select(r => r.Text));
+
+        Assert.Equal(rtf, text);
+    }
 }

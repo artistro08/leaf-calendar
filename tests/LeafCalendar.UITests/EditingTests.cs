@@ -266,7 +266,15 @@ public sealed class EditingTests : IDisposable
         leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
 
         Assert.Equal("This description is too long to edit in Leaf.", leaf.WaitFor("EditorDescriptionTooLong").Name);
-        Assert.True(leaf.WaitFor("EditorDescription").Patterns.Value.Pattern.IsReadOnly.Value);
+
+        // Typing Changes Nothing (the description is a RichEditBox, which has no Value pattern to ask; its text is checked instead)
+        var description = leaf.WaitFor("EditorDescription");
+        var before      = description.Patterns.Text.Pattern.DocumentRange.GetText(-1);
+        description.Focus();
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.END);
+        Keyboard.Type("yz");
+        Thread.Sleep(300);
+        Assert.Equal(before, description.Patterns.Text.Pattern.DocumentRange.GetText(-1));
 
         leaf.WaitFor("EditorTitle").AsTextBox().Text = "Long lunch";
         leaf.WaitFor("EditorSaveButton").AsButton().Invoke();

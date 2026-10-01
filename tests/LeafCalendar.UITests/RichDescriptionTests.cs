@@ -142,7 +142,9 @@ public sealed class RichDescriptionTests : IDisposable
         Assert.DoesNotContain("tracker", write.Body, StringComparison.Ordinal);
     }
 
-    // Dropping Rich Text Or A File On The Description Does Nothing
+    // Dropping Rich Text Or A File On The Description Does Nothing: The Box Refuses It (DoDragDrop reports no effect) And Its Text
+    // Is Unchanged. ponytail: no Leaf control accepts an outside drop, so there is no positive control proving delivery; the
+    // title TextBox refused this source too (2026-10-01). If a drop target is ever added, drop there first as the control.
     [Fact]
     public void DropRichTextOrFile_ChangesNothing()
     {
@@ -160,12 +162,12 @@ public sealed class RichDescriptionTests : IDisposable
             var rich = new System.Windows.Forms.DataObject();
             rich.SetData(System.Windows.Forms.DataFormats.Html, "<b>Dropped</b>");
             rich.SetText("Dropped");
-            DragSource.DropAt(center, rich);
+            Assert.Equal(System.Windows.Forms.DragDropEffects.None, DragSource.DropAt(center, rich));
 
             // A File
             var files = new System.Windows.Forms.DataObject();
             files.SetFileDropList([file]);
-            DragSource.DropAt(center, files);
+            Assert.Equal(System.Windows.Forms.DragDropEffects.None, DragSource.DropAt(center, files));
         }
         finally
         {
@@ -173,22 +175,49 @@ public sealed class RichDescriptionTests : IDisposable
         }
 
         Assert.Equal(before, box.Patterns.Text.Pattern.DocumentRange.GetText(-1));
+
         leaf.WaitFor("EditorTitle").AsTextBox().Text = "Planning v2";
         leaf.WaitFor("EditorSaveButton").AsButton().Invoke();
         Assert.DoesNotContain("description", RichPatch().Body, StringComparison.Ordinal);
     }
 
-    // An RTF Field In A Description Is Literal Text, Never A Link
+    // An RTF Field In A Description Is Literal Text, Never A Link: Every Character Of It Comes Back On Save. (Checked through
+    // the save, not UIA: RichEdit's text pattern reads `HYPERLINK "url" text` out as just "text", though the box holds it all.)
     [Fact]
-    public void RtfFieldDescription_ShowsAsLiteralText()
+    public void RtfFieldDescription_StaysLiteralText()
     {
-        _google.EditOnGoogle(SeededProfile.Email, Rich, e => e["description"] = """{\rtf1{\field{\*\fldinst HYPERLINK "https://x"}{\fldrslt Click}}}""");
+        _google.EditOnGoogle(SeededProfile.Email, Rich, e => e["description"] = """{\rtf1{\field{\*\fldinst HYPERLINK "https://x.example"}{\fldrslt Click}}}""");
         using var leaf = OpenEditor();
-        var text = FocusDescription(leaf).Patterns.Text.Pattern.DocumentRange.GetText(-1);
+        var box = FocusDescription(leaf);
+        Assert.Contains(@"{\rtf1", box.Patterns.Text.Pattern.DocumentRange.GetText(-1), StringComparison.Ordinal);
 
-        Assert.Contains(@"{\rtf1", text, StringComparison.Ordinal);
-        Assert.Contains("fldinst HYPERLINK", text, StringComparison.Ordinal);
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.END);
+        Keyboard.Type("!");
+        leaf.WaitFor("EditorSaveButton").AsButton().Invoke();
+
+        var description = SentDescription(RichPatch());
+        Assert.StartsWith(@"{\rtf1{\field{\*\fldinst HYPERLINK ", description, StringComparison.Ordinal);
+        Assert.Contains("https://x.example", description, StringComparison.Ordinal);
+        Assert.EndsWith(@"{\fldrslt Click}}}!", description, StringComparison.Ordinal);
         Assert.Empty(LeafApp.LaunchedLinks(_profile));
+    }
+
+    // Pasted Friendly-Link Syntax (HYPERLINK "url" text) Is Literal Text Too, And Saved Whole
+    [Fact]
+    public void PasteFriendlyLinkSyntax_IsSavedWhole()
+    {
+        using var leaf = OpenEditor();
+        Clipboard.SetHtml("HYPERLINK \"https://x.example\" Click", plainText: "HYPERLINK \"https://x.example\" Click");
+        FocusDescription(leaf);
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.END);
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_V);
+        Thread.Sleep(500);
+        leaf.WaitFor("EditorSaveButton").AsButton().Invoke();
+
+        var description = SentDescription(RichPatch());
+        Assert.Contains("HYPERLINK ", description, StringComparison.Ordinal);
+        Assert.Contains("https://x.example", description, StringComparison.Ordinal);
+        Assert.EndsWith(" Click", description, StringComparison.Ordinal);
     }
 
     // Ctrl+Enter Saves From The Description, It Doesn't Add A Line
