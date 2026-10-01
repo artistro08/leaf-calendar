@@ -22,7 +22,7 @@
             <controls:SettingRow Glyph="&#xE774;" Header="Leaf's time zone" Description="Your calendar shows this time zone.">
                 <AutoSuggestBox
                     x:Name="PrimaryZoneBox"
-                    Width="280"
+                    Width="320"
                     PlaceholderText="Search a city or zone (Tokyo, NYC, UTC)"
                     QueryIcon="Find"
                     TextChanged="OnPrimaryTextChanged"
@@ -48,7 +48,7 @@
                 Description="Columns show left to right in this order, next to your PC's time zone. Drag to reorder.">
                 <AutoSuggestBox
                     x:Name="Search"
-                    Width="280"
+                    Width="320"
                     PlaceholderText="Add a city or zone (Tokyo, NYC, UTC)"
                     QueryIcon="Add"
                     TextChanged="OnSearchTextChanged"

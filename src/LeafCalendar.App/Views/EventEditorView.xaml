@@ -135,8 +135,8 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
 
-                <!-- Show As And Visibility -->
-                <Grid ColumnSpacing="8" ColumnDefinitions="*,*">
+                <!-- Show As And Visibility (Busy/Free is short; visibility takes the rest so "Default visibility" fits) -->
+                <Grid ColumnSpacing="8" ColumnDefinitions="Auto,*">
                     <ComboBox
                         x:Name="ShowAsBox"
                         HorizontalAlignment="Stretch"

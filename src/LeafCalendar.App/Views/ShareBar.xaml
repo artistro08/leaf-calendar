@@ -25,19 +25,24 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <!-- Hint -->
-            <TextBlock
-                VerticalAlignment="Center"
-                Style="{StaticResource CaptionTextBlockStyle}"
-                Text="Drag on the calendar to pick times. Leaf leaves out the busy ones."
-                TextWrapping="Wrap" />
+            <!-- Hint And Booking Pages (their own row across the bar, so the link doesn't widen the buttons' column) -->
+            <Grid Grid.ColumnSpan="2" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-            <!-- Booking Pages -->
-            <HyperlinkButton
-                Grid.Column="1"
-                Content="Manage Google booking pages"
-                Click="OnBookingPagesClick"
-                AutomationProperties.AutomationId="BookingPagesLink" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    Text="Drag on the calendar to pick times. Leaf leaves out the busy ones."
+                    TextWrapping="Wrap" />
+                <HyperlinkButton
+                    Grid.Column="1"
+                    Content="Manage Google booking pages"
+                    Click="OnBookingPagesClick"
+                    AutomationProperties.AutomationId="BookingPagesLink" />
+            </Grid>
 
             <!-- Zone And Calendars -->
             <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
