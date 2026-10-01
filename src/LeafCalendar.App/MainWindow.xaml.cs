@@ -26,9 +26,9 @@ namespace LeafCalendar.App;
 /// frame runs under the title bar, so the sidebars and the calendar island reach the top edge; the
 /// title bar stays transparent and only its buttons take clicks. The pane toggle shows only on the
 /// calendar. Settings and accounts live in their own window (<see cref="SettingsWindow"/>), which
-/// shares the calendar view model, so its changes show here right away.
+/// shares the App's calendar view model, so its changes show here right away; it stays open when this window closes.
 /// </summary>
-[SuppressMessage("Design", "CA1001", Justification = "Windows aren't disposable; the view model is disposed when the window closes.")]
+[SuppressMessage("Design", "CA1001", Justification = "Windows aren't disposable; the App owns the view model.")]
 public sealed partial class MainWindow : Window
 {
     // Title Bar Toolbar Slide (the island's right edge moves with the details pane, so the toolbar follows it
@@ -56,7 +56,7 @@ public sealed partial class MainWindow : Window
     readonly TranslateTransform _titleBarLift = new();
     readonly TranslateTransform _toolbarShift = new();
     readonly OverlappedPresenter _presenter = OverlappedPresenter.Create();
-    CalendarViewModel? _calendar;
+    readonly CalendarViewModel _calendar;
 
     // Changes waiting (online) show only once they've waited this long
     static readonly TimeSpan WaitingDelay = TimeSpan.FromSeconds(2);
@@ -65,10 +65,11 @@ public sealed partial class MainWindow : Window
     Storyboard? _toolbarSlide;
     (double Right, bool Sidebar, bool Calendar)? _titleBarLayout;
 
-    /// <summary>Creates the window. <see cref="App"/> owns the services.</summary>
-    public MainWindow(LeafServices services)
+    /// <summary>Creates the window on the App's calendar view model (Settings shares it). <see cref="App"/> owns both.</summary>
+    public MainWindow(LeafServices services, CalendarViewModel calendar)
     {
         _services = services;
+        _calendar = calendar;
         InitializeComponent();
         _appIcon = AppTitleBar.IconSource;
 
@@ -136,12 +137,12 @@ public sealed partial class MainWindow : Window
         Activated += OnActivated;
         Closed    += (_, _) =>
         {
-            // Settings Closes With The Main Window (it runs on the same services)
-            SettingsWindow.Current?.Close();
-
-            // Closing doesn't navigate, so release the page's views here
+            // Closing doesn't navigate, so release the page's views here; the view model is the App's (Settings may
+            // still be open on it, and Leaf stays in the tray)
             (ContentFrame.Content as CalendarPage)?.Detach();
-            _calendar?.Dispose();
+            _waitingTimer.Stop();
+            _calendar.LayoutChanged   -= OnCalendarLayoutChanged;
+            _calendar.PropertyChanged -= OnCalendarPropertyChanged;
         };
 
         ShowCalendar();
@@ -186,23 +187,21 @@ public sealed partial class MainWindow : Window
 
     void ShowCalendar()
     {
-        if (_calendar is null)
-        {
-            _calendar = new CalendarViewModel(_services, DispatcherQueue);
-            _calendar.OpenSettings     = section => SettingsWindow.Open(_services, _calendar, section);
-            _calendar.LayoutChanged   += (_, _) =>
-            {
-                SyncMenu();
-                ApplyTheme(_calendar.Settings.Theme);
-            };
-            _calendar.PropertyChanged += OnCalendarPropertyChanged;
-            ApplyTheme(_calendar.Settings.Theme);
-        }
+        // Listen While Open (the App set the view model's OpenSettings)
+        _calendar.LayoutChanged   += OnCalendarLayoutChanged;
+        _calendar.PropertyChanged += OnCalendarPropertyChanged;
+        ApplyTheme(_calendar.Settings.Theme);
 
         ShowSyncState();
 
         ContentFrame.Navigate(typeof(CalendarPage), new CalendarPageArgs(_calendar, ToggleTheme));
         ContentFrame.BackStack.Clear();
+    }
+
+    void OnCalendarLayoutChanged(object? sender, EventArgs e)
+    {
+        SyncMenu();
+        ApplyTheme(_calendar.Settings.Theme);
     }
 
     void OnNavigated(object sender, NavigationEventArgs e)

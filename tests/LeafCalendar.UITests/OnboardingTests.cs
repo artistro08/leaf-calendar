@@ -338,7 +338,8 @@ public sealed class OnboardingTests : IDisposable
             Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Set up Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
 
             // Next launch skips onboarding
-            leaf.MainWindow.Close();
+            // (closing the window leaves Leaf in the tray, so end this one first)
+            leaf.App.Kill();
             Assert.True(Retry.WhileFalse(() => leaf.App.HasExited, TimeSpan.FromSeconds(15)).Success);
             using var relaunched = Launch(profile);
             Assert.NotNull(relaunched.WaitFor("CalendarRoot"));

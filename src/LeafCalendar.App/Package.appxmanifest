@@ -2,8 +2,9 @@
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap rescap">
+  IgnorableNamespaces="uap uap5 rescap">
 
   <Identity Name="LeafCalendar" Publisher="CN=Artistro08" Version="0.1.0.0" />
 
@@ -32,6 +33,13 @@
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>
+
+      <Extensions>
+        <!-- Starts With Windows (spec 8.1), on by default; Settings › General turns it off -->
+        <uap5:Extension Category="windows.startupTask">
+          <uap5:StartupTask TaskId="LeafCalendarStartup" Enabled="true" DisplayName="Leaf Calendar" />
+        </uap5:Extension>
+      </Extensions>
     </Application>
   </Applications>
 

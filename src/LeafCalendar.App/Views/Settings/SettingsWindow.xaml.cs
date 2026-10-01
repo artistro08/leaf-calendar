@@ -25,7 +25,7 @@ public sealed record SettingsContext(LeafServices Services, CalendarViewModel Ca
 /// toggle, and a stock left <see cref="NavigationView"/> (240 wide, collapsing when the window is narrow) over a frame
 /// of setting pages: General, Calendars, Time zones, Accounts, and About at the bottom of the pane. There's one at a
 /// time: <see cref="Open"/> brings the open one forward. It opens at 1000 × 720 DIPs, centered on the monitor under
-/// the cursor, and closes with the main window. Every change saves immediately through the shared view model.
+/// the cursor, and stays open when the main window closes (Leaf lives in the tray). Every change saves immediately through the shared view model.
 /// </summary>
 [SuppressMessage("Design", "CA1001", Justification = "Windows aren't disposable.")]
 public sealed partial class SettingsWindow : Window

@@ -8,9 +8,13 @@ using Windows.Win32.System.Com;
 
 namespace LeafCalendar.App;
 
+/// <summary>A later launch handed to the running Leaf: how it was started, and its arguments when it has any.</summary>
+internal sealed record Activation(ExtendedActivationKind Kind, string? Arguments);
+
 /// <summary>
 /// Entry point. Leaf runs once per profile: a second launch with the same profile hands its activation to the running
-/// Leaf (which comes to the front) and exits. Its other arguments are ignored.
+/// Leaf and exits. How this process was started (a plain launch, Windows' sign-in startup task, or a notification) is
+/// kept for the App.
 /// </summary>
 public static class Program
 {
@@ -19,8 +23,14 @@ public static class Program
 
     // Redirected Activations: one can arrive before the app is ready for it, so it waits here until the app is
     static readonly Lock ActivationGate = new();
-    static Action? _onActivated;
-    static bool _activationPending;
+    static readonly List<Activation> Pending = [];
+    static Action<Activation>? _onActivated;
+
+    /// <summary>This launch's options.</summary>
+    internal static LaunchOptions Options { get; private set; } = LaunchOptions.Parse([]);
+
+    /// <summary>How Windows started this process.</summary>
+    internal static ExtendedActivationKind StartKind { get; private set; } = ExtendedActivationKind.Launch;
 
     /// <summary>Redirects to the running Leaf for this profile, or starts the app.</summary>
     [STAThread]
@@ -28,17 +38,21 @@ public static class Program
     {
         WinRT.ComWrappersSupport.InitializeComWrappers();
 
+        // How This Launch Started
+        var activation = AppInstance.GetCurrent().GetActivatedEventArgs();
+        StartKind = activation.Kind;
+        Options   = LaunchOptions.Parse(args);
+
         // Single Instance Per Profile (the key ignores case, like Windows' profile folders; UI tests' parallel uitest-* profiles stay independent)
-        var options = LaunchOptions.Parse(args);
-        var main    = AppInstance.FindOrRegisterForKey("LeafCalendar-" + options.Profile.ToLowerInvariant());
+        var main = AppInstance.FindOrRegisterForKey("LeafCalendar-" + Options.Profile.ToLowerInvariant());
         if (!main.IsCurrent)
         {
-            RedirectTo(main);
+            RedirectTo(main, activation);
             return;
         }
 
         // Listen Right Away, So A Redirect That Arrives While The App Starts Isn't Lost
-        main.Activated += (_, _) => OnRedirected();
+        main.Activated += (_, e) => OnRedirected(Read(e));
 
         Application.Start(p =>
         {
@@ -49,48 +63,50 @@ public static class Program
 
     /// <summary>
     /// Runs <paramref name="onActivated"/> for every later launch of this profile (on the launch's thread; marshal to
-    /// the UI yourself), and once now if one already arrived while the app was starting.
+    /// the UI yourself), and now for any that arrived while the app was starting.
     /// </summary>
-    internal static void HandleActivations(Action onActivated)
+    internal static void HandleActivations(Action<Activation> onActivated)
     {
-        bool pending;
+        Activation[] pending;
         lock (ActivationGate)
         {
-            _onActivated       = onActivated;
-            pending            = _activationPending;
-            _activationPending = false;
+            _onActivated = onActivated;
+            pending      = [.. Pending];
+            Pending.Clear();
         }
 
-        if (pending)
+        foreach (var activation in pending)
         {
-            onActivated();
+            onActivated(activation);
         }
     }
 
-    static void OnRedirected()
+    static void OnRedirected(Activation activation)
     {
-        Action? handler;
+        Action<Activation>? handler;
         lock (ActivationGate)
         {
             handler = _onActivated;
             if (handler is null)
             {
-                _activationPending = true;
+                Pending.Add(activation);
             }
         }
 
-        handler?.Invoke();
+        handler?.Invoke(activation);
     }
+
+    // What a redirected activation carries
+    static Activation Read(AppActivationArguments args) => new(args.Kind, null);
 
     // Microsoft's documented pattern: redirect on a background thread while this STA thread waits with COM pumping,
     // so the redirect can't deadlock it. The wait is bounded: a running Leaf that never answers doesn't keep this
     // process around; it just exits.
-    static unsafe void RedirectTo(AppInstance main)
+    static unsafe void RedirectTo(AppInstance main, AppActivationArguments args)
     {
         // This process was just launched by the user, so it may hand the foreground to the running Leaf
         PInvoke.AllowSetForegroundWindow(main.ProcessId);
 
-        var args     = AppInstance.GetCurrent().GetActivatedEventArgs();
         var redirect = Task.Run(() => main.RedirectActivationToAsync(args).AsTask().Wait());
         var handle   = (HANDLE)((IAsyncResult)redirect).AsyncWaitHandle.SafeWaitHandle.DangerousGetHandle();
 

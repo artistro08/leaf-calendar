@@ -334,6 +334,45 @@ public sealed class LeafApp : IDisposable
         NativeMethods.GetForegroundWindow() == MainWindow.Properties.NativeWindowHandle.Value
         && MainWindow.Patterns.Window.Pattern.WindowVisualState.Value != WindowVisualState.Minimized;
 
+    /// <summary>The tray icon's "clicked" event (<c>NIN_SELECT</c>).</summary>
+    public const uint TraySelect = 0x0400;
+
+    /// <summary>The tray icon's "right-clicked" event (<c>WM_CONTEXTMENU</c>).</summary>
+    public const uint TrayContextMenu = 0x007B;
+
+    /// <summary>The hidden window that owns this Leaf's tray icon, or 0 when there's none.</summary>
+    public nint TrayWindow()
+    {
+        var hwnd = nint.Zero;
+        while ((hwnd = NativeMethods.FindWindowEx(nint.Zero, hwnd, "LeafCalendarTray", null)) != nint.Zero)
+        {
+            _ = NativeMethods.GetWindowThreadProcessId(hwnd, out var processId);
+            if (processId == App.ProcessId)
+            {
+                return hwnd;
+            }
+        }
+
+        return nint.Zero;
+    }
+
+    /// <summary>
+    /// Sends the tray icon an event the way the shell does with <c>NOTIFYICON_VERSION_4</c>: the event in lParam's low
+    /// word, the icon ID (1) in its high word, and the anchor point in wParam. The tray area itself isn't driven, since
+    /// Windows may keep the icon in the overflow.
+    /// </summary>
+    public void PostTrayMessage(uint trayEvent, int x = 0, int y = 0)
+    {
+        var hwnd = nint.Zero;
+        Retry.WhileTrue(() => (hwnd = TrayWindow()) == nint.Zero, TimeSpan.FromSeconds(10));
+        if (hwnd == nint.Zero)
+        {
+            throw new InvalidOperationException("Leaf's tray icon window didn't appear.");
+        }
+
+        NativeMethods.PostMessage(hwnd, 0x8001, (nint)((y << 16) | (x & 0xFFFF)), (nint)((1 << 16) | (int)trayEvent));
+    }
+
     /// <summary>Sizes the main window (in screen pixels), so panes overflow and scroll.</summary>
     public void Resize(int width, int height)
     {
@@ -437,10 +476,23 @@ public sealed class LeafApp : IDisposable
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool GetClientRect(nint hwnd, out RectStruct rect);
 
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        internal static extern nint FindWindowEx(nint parent, nint childAfter, string className, string? windowName);
+
+        [DllImport("user32.dll")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        internal static extern uint GetWindowThreadProcessId(nint hwnd, out int processId);
+
         [DllImport("user32.dll")]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool ClientToScreen(nint hwnd, ref PointStruct point);
+
+        [DllImport("user32.dll")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool PostMessage(nint hwnd, uint message, nint wParam, nint lParam);
 
         [DllImport("user32.dll")]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

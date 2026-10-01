@@ -152,7 +152,7 @@ public sealed class SettingsTests : IDisposable
     }
 
     [Fact]
-    public void ClosingMainWindow_ClosesSettings()
+    public void ClosingMainWindow_LeavesSettingsOpenAndLeafRunning()
     {
         using var leaf = Launch();
         leaf.OpenSettings("About");
@@ -160,7 +160,9 @@ public sealed class SettingsTests : IDisposable
 
         leaf.MainWindow.Close();
 
-        Assert.True(Retry.WhileFalse(() => leaf.App.HasExited, TimeSpan.FromSeconds(15)).Success);
+        Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
+        Assert.NotNull(leaf.WaitInSettings("AboutVersion"));
+        Assert.False(leaf.App.HasExited);
     }
 
     [Fact]

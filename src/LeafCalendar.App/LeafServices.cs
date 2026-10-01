@@ -27,6 +27,7 @@ public sealed class LeafServices : IAsyncDisposable
     public LeafServices(LaunchOptions options, string localFolder)
     {
         Options  = options;
+        Time     = options.Now is { } now ? new ShiftedTimeProvider(TimeProvider.System, now) : TimeProvider.System;
         Paths    = new LeafPaths(localFolder, options.Profile);
         Log      = new AppLog(Paths.LogDirectory, Time);
         Database = new LeafDatabase(Paths.DatabasePath);
@@ -58,8 +59,8 @@ public sealed class LeafServices : IAsyncDisposable
     /// <summary>Profile folders.</summary>
     public LeafPaths Paths { get; }
 
-    /// <summary>Clock.</summary>
-    public TimeProvider Time { get; } = TimeProvider.System;
+    /// <summary>Clock (in fake-Google mode, <c>--now</c> starts it at a chosen instant).</summary>
+    public TimeProvider Time { get; }
 
     /// <summary>Log.</summary>
     public AppLog Log { get; }

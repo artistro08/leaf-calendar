@@ -7,3 +7,17 @@ INFINITE
 SetForegroundWindow
 GetCursorPos
 GetDpiForWindow
+Shell_NotifyIcon
+Shell_NotifyIconGetRect
+GetModuleHandle
+RegisterClassEx
+CreateWindowEx
+DestroyWindow
+DefWindowProc
+RegisterWindowMessage
+CreateIconFromResourceEx
+DestroyIcon
+GetSystemMetricsForDpi
+FindWindow
+SetProcessInformation
+PROCESS_POWER_THROTTLING_STATE
