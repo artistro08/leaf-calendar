@@ -28,8 +28,8 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $existing = Get-AppxPackage LeafCalendar
 if ($existing -and $existing.InstallLocation -ne $layout) {
-    Write-Warning "Replacing Leaf Calendar registered from $($existing.InstallLocation). Local cache will be cleared."
-    Remove-AppxPackage $existing.PackageFullName
+    Write-Warning "Replacing Leaf Calendar registered from $($existing.InstallLocation). Your accounts and settings are kept."
+    Remove-AppxPackage $existing.PackageFullName -PreserveApplicationData
 }
 Add-AppxPackage -Register (Join-Path $layout 'AppxManifest.xml') -ForceApplicationShutdown
 Write-Host "Registered AOT build from $layout"
