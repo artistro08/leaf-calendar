@@ -171,6 +171,14 @@ public sealed partial class CalendarPage : Page
     {
         SetPaneOpen(DetailsSplit, open, animate);
 
+        // Closing Ends An E Sequence (the next key is a shortcut again, not typing into the hidden editor's title)
+        if (!open)
+        {
+            _editorFromE = false;
+            _sequenceTimer.Stop();
+            _keys.Expire();
+        }
+
         if (ViewModel.Settings.DetailsPanelOpen != open)
         {
             ViewModel.Update(s => s with { DetailsPanelOpen = open });
