@@ -136,7 +136,7 @@ public sealed class EditorLayoutTests : IDisposable
             Assert.Equal(before, (showAs.BoundingRectangle, visibility.BoundingRectangle));
         }
 
-        // The pair shares the row evenly
+        // The pair is the same width (each a full row)
         Assert.True(Math.Abs(before.Item1.Width - before.Item2.Width) <= 1, $"Show as is {before.Item1.Width} wide, visibility {before.Item2.Width}.");
     }
 

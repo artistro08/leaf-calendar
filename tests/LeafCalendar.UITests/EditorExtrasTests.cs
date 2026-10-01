@@ -189,11 +189,17 @@ public sealed class EditorExtrasTests : IDisposable
         var edit   = ZoneEdit(leaf);
         var before = edit.Text;
 
-        // The arrow drops down the common zones without typing
-        var arrow = leaf.WaitFor("EditorTimeZoneBox").FindFirstDescendant(cf => cf.ByAutomationId("QueryButton"))
-            ?? throw new InvalidOperationException("The time zone box has no arrow.");
-        arrow.Click();
-        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count > 8, TimeSpan.FromSeconds(10)).Success, $"The arrow listed {Suggestions(leaf).Count} zones.");
+        // The arrow (the input row's right end; UI Automation doesn't list it) drops down the common zones without typing
+        var box = edit.BoundingRectangle;
+        Mouse.Click(new System.Drawing.Point(box.Right - (int)(14 * leaf.Scale), box.Bottom - (int)(16 * leaf.Scale)));
+        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count > 3, TimeSpan.FromSeconds(10)).Success, $"The arrow listed {Suggestions(leaf).Count} zones.");
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count == 0, TimeSpan.FromSeconds(5)).Success, "Esc left the zone list open.");
+
+        // Alt+Down does the same from the keyboard
+        edit.Focus();
+        Keyboard.TypeSimultaneously(VirtualKeyShort.ALT, VirtualKeyShort.DOWN);
+        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count > 3, TimeSpan.FromSeconds(10)).Success, $"Alt+Down listed {Suggestions(leaf).Count} zones.");
         Keyboard.Press(VirtualKeyShort.ESCAPE);
 
         // Typed text that isn't picked is dropped when focus leaves

@@ -100,6 +100,7 @@
                         TextChanged="OnZoneTextChanged"
                         QuerySubmitted="OnZoneQuerySubmitted"
                         LostFocus="OnZoneLostFocus"
+                        PreviewKeyDown="OnZoneKeyDown"
                         AutomationProperties.Name="Time zone"
                         AutomationProperties.AutomationId="EditorTimeZoneBox">
                         <AutoSuggestBox.QueryIcon>
@@ -139,9 +140,10 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
 
-                <!-- Show As And Visibility (the items say what each dropdown is, so there are no labels). Two equal star
-                     columns: a ComboBox sized by its content measures narrower while its list is open, which moved the pair -->
-                <Grid ColumnSpacing="8" ColumnDefinitions="*,*">
+                <!-- Show As And Visibility (the items say what each dropdown is, so there are no labels). Each stretches the
+                     full width on its own row: a ComboBox sized by its content measures narrower while its list is open,
+                     which moved the pair, and side by side "Show me as busy" doesn't fit the 320 panel -->
+                <Grid RowSpacing="8" RowDefinitions="Auto,Auto">
                     <ComboBox
                         x:Name="ShowAsBox"
                         HorizontalAlignment="Stretch"
@@ -155,7 +157,7 @@
                     </ComboBox>
                     <ComboBox
                         x:Name="VisibilityBox"
-                        Grid.Column="1"
+                        Grid.Row="1"
                         HorizontalAlignment="Stretch"
                         SelectedIndex="{x:Bind Editor.VisibilityIndex, Mode=TwoWay}"
                         ToolTipService.ToolTip="Visibility"

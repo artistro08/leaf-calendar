@@ -77,14 +77,17 @@ public sealed class RichDescriptionTests : IDisposable
     {
         using var leaf = OpenEditor();
         var box      = FocusDescription(leaf);
-        var bounds   = box.BoundingRectangle;
         var bold     = leaf.WaitFor("DescriptionBold").BoundingRectangle;
         var numbers  = leaf.WaitFor("DescriptionNumbers").BoundingRectangle;
-        var firstTop = box.Patterns.Text.Pattern.DocumentRange.GetBoundingRectangles().Min(r => r.Top);
+        var text     = box.Patterns.Text.Pattern.DocumentRange.GetBoundingRectangles();
+        var firstTop = text.Min(r => r.Top);
 
-        // The buttons are laid over the box's top row, inside its border; the first line of text starts below them
-        Assert.True(bounds.Contains(bold) && bounds.Contains(numbers), $"The toolbar ({bold}, {numbers}) isn't inside the box ({bounds}).");
-        Assert.True(firstTop >= bold.Bottom, $"The text starts at {firstTop}, under the toolbar (bottom {bold.Bottom}).");
+        // The buttons are one row laid over the box (the box's own bounds read empty through UI Automation, so the text
+        // shows it): the first line starts just under them, not under a gap, border, and padding as a row above the box
+        // would leave, and the row starts at the text's left edge
+        Assert.Equal(bold.Top, numbers.Top);
+        Assert.True(firstTop >= bold.Bottom && firstTop - bold.Bottom <= 7 * leaf.Scale, $"The text starts at {firstTop}; the toolbar ends at {bold.Bottom}.");
+        Assert.True(Math.Abs(bold.Left - text.Min(r => r.Left)) <= 8 * leaf.Scale, $"The toolbar starts at {bold.Left}, the text at {text.Min(r => r.Left)}.");
     }
 
     [Fact]

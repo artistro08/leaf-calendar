@@ -382,9 +382,7 @@ public sealed partial class EventEditorView : UserControl
         // The Arrow (Or Enter) With Nothing Typed Drops Down Every Common Zone
         if (args.ChosenSuggestion is null && args.QueryText == editor.TimeZoneText)
         {
-            editor.RefreshZoneSuggestions(DateTimeOffset.UtcNow, all: true);
-            TimeZoneBox.Focus(FocusState.Programmatic);
-            TimeZoneBox.IsSuggestionListOpen = true;
+            ShowAllZones(editor);
             return;
         }
 
@@ -396,6 +394,27 @@ public sealed partial class EventEditorView : UserControl
         }
 
         editor.ResetZoneInput();
+    }
+
+    // Alt+Down or F4 drops the list down, like a ComboBox (the arrow button isn't reachable by keyboard)
+    void OnZoneKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        var altDown = e.Key == VirtualKey.Down && KeyState.IsDown(VirtualKey.Menu);
+        if (Editor is not { } editor || !(altDown || e.Key == VirtualKey.F4))
+        {
+            return;
+        }
+
+        e.Handled = true;
+        ShowAllZones(editor);
+    }
+
+    void ShowAllZones(EventEditorViewModel editor)
+    {
+        // Opened after the box is done with the submit (it closes its list as the query goes through)
+        editor.RefreshZoneSuggestions(DateTimeOffset.UtcNow, all: true);
+        TimeZoneBox.Focus(FocusState.Programmatic);
+        DispatcherQueue.TryEnqueue(() => TimeZoneBox.IsSuggestionListOpen = ReferenceEquals(Editor, editor) && editor.ZoneSuggestions.Count > 0);
     }
 
     // Leaving the box without a pick shows the event's zone again. The suggestions stay: pressing one takes focus from
