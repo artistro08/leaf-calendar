@@ -204,10 +204,15 @@ public sealed partial class GeneralPage : Page
         var end   = (int)WorkingEndPicker.Time.TotalMinutes;
         if (end <= start)
         {
+            // Put back after the picker finishes its own change: set inside TimeChanged, the picker overwrites it
             WorkingHoursError.Visibility = Visibility.Visible;
-            _loading = true;
-            (isStart ? WorkingStartPicker : WorkingEndPicker).Time = before;
-            _loading = false;
+            var picker = isStart ? WorkingStartPicker : WorkingEndPicker;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                _loading    = true;
+                picker.Time = before;
+                _loading    = false;
+            });
             return;
         }
 

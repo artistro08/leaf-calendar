@@ -32,20 +32,37 @@ public sealed class SettingsPagesTests : IDisposable
 
     static bool IsOn(LeafApp leaf, string id) => leaf.WaitInSettings(id).AsToggleButton().ToggleState == ToggleState.On;
 
-    // The picker's shown time ("9:00 AM"): its button reads the hour, minute, and period
+    // The picker's shown time ("9:00 PM"): its button's name carries it, wrapped in left-to-right marks
     static string TimeOf(LeafApp leaf, string id) =>
-        string.Join(" ", leaf.WaitInSettings(id).FindAllDescendants(cf => cf.ByControlType(ControlType.Text)).Select(t => t.Name).Where(n => n.Length > 0));
+        (PickerButton(leaf, id).Name ?? "").Replace("‎", "", StringComparison.Ordinal);
+
+    // The selected item of a time picker flyout's looping column
+    static string? SelectedIn(AutomationElement column) =>
+        column.FindAllChildren().FirstOrDefault(e => e.Patterns.SelectionItem.PatternOrDefault?.IsSelected.ValueOrDefault == true)?.Name;
+
+    // A time picker is a group around one button
+    static AutomationElement PickerButton(LeafApp leaf, string id) =>
+        Retry.WhileNull(() => leaf.WaitInSettings(id).FindFirstDescendant(cf => cf.ByControlType(ControlType.Button)), TimeSpan.FromSeconds(5)).Result
+        ?? throw new InvalidOperationException($"{id} has no button inside.");
 
     // Opens a time picker, picks an hour, minute, and period in its flyout, and accepts
     static void PickTime(LeafApp leaf, string id, string hour, string minute, string period)
     {
-        leaf.WaitInSettings(id).Click();
+        // Invoke the picker's button (the working-hours rows sit below the fold, where a mouse click can't reach)
+        PickerButton(leaf, id).AsButton().Invoke();
+        // Each looping column takes a click on the value (selecting an item through automation doesn't move the column)
         foreach (var (selector, value) in new[] { ("HourLoopingSelector", hour), ("MinuteLoopingSelector", minute), ("PeriodLoopingSelector", period) })
         {
-            var item = Retry.WhileNull(() => leaf.WaitForAnywhere(selector).FindFirstDescendant(cf => cf.ByName(value)), TimeSpan.FromSeconds(10)).Result
-                ?? throw new InvalidOperationException($"'{value}' isn't in {selector}.");
-            item.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
-            item.Patterns.SelectionItem.Pattern.Select();
+            var column = leaf.WaitForAnywhere(selector);
+            if (SelectedIn(column) == value)
+            {
+                continue;
+            }
+
+            var item   = column.FindAllChildren().FirstOrDefault(e => e.Name == value && !e.IsOffscreen)
+                ?? throw new InvalidOperationException($"'{value}' isn't showing in {selector}.");
+            item.Click();
+            Assert.True(Retry.WhileFalse(() => SelectedIn(column) == value, TimeSpan.FromSeconds(5)).Success, $"{selector} shows {SelectedIn(column)}, not {value}.");
         }
 
         leaf.WaitForAnywhere("AcceptButton").AsButton().Invoke();
