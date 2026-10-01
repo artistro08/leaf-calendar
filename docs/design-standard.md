@@ -378,6 +378,7 @@ From the brief (item 5), with the reference apps filling in how it looks:
 - Never color alone: calendar color plus name, status dot plus text. (MA rule; Layers status row.)
 - Contrast themes keep borders and hover visible (see Color). Text sizes follow the system text scale; don't hard-code heights that clip text in chrome.
 - Minimum sizes keep everything visible and unclipped at every DPI. (Leaf `MinimumWidth` comment; MA rule.)
+- The logic tests lint every XAML file (`XamlLintTests`) and check code-built colors for 4.5:1 (`ChromeColorsTests`); `AccessibilityTests` audits names and Tab reachability on every screen.
 
 ---
 
@@ -396,15 +397,16 @@ Don't change existing work to close these. They're notes for new screens.
 - AutomationIds everywhere, landmarks, min window size computed from content.
 - Tray flyout: always-active acrylic, 360 × 560, 12 DIPs from the taskbar, slide from the taskbar edge with the Fluent 250/167 ms curves; stock tray menu with narrow padding and 16 DIP icons. (`Tray/TrayHost.xaml`)
 - Command menu, cheat sheet, island bars.
+- Contrast themes: every code-built brush and event card comes from the system's contrast colors (`LeafBrushes.HighContrast`, `CardPalette`), and the calendar redraws when a contrast theme turns on or off. (`Controls/LeafBrushes.cs`)
+- Narrator names on every screen, event cards read "title, time, calendar" (plus past or declined), the sync status announces itself, and the mini month is one Tab stop with arrow keys inside. (`AccessibilityTests`)
 
 **Known gaps (new work should do better, existing screens stay)**
 
 1. No remembered window placement; MA restores size, position and maximized state and falls back to 1280 × 820.
-2. Contrast-theme overrides exist only in `DetailsPanel.xaml`; new brush overrides need `HighContrast` entries.
-3. `ScopeDialog` uses "OK" instead of a verb.
-4. `SetupPage` and `AccountsPage` are main-window pages today; the brief moves them to the onboarding and settings windows.
-5. Theme and view options live in the view picker menu; the brief moves the settings ones to Settings › General.
-6. Tray art is a placeholder (the app logo) until Milestone 6.
+2. `ScopeDialog` uses "OK" instead of a verb.
+3. `SetupPage` and `AccountsPage` are main-window pages today; the brief moves them to the onboarding and settings windows.
+4. Theme and view options live in the view picker menu; the brief moves the settings ones to Settings › General.
+5. Tray art is a placeholder (the app logo) until Milestone 6.
 
 ---
 

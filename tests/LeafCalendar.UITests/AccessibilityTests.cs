@@ -39,7 +39,7 @@ public sealed class AccessibilityTests : IDisposable
         "CommandMenu", "CheatSheet", "ShareBar", "PeoplePicker", "OverlayBar", "TimeTravelBar", "RenameDialog", "RemindersDialog", "RoomInput",
 
         // Milestone 6
-        "BoxSelect",
+        "BoxSelect", "RichEditor", "PastCards",
     ];
 
     /// <summary>The screens as theory rows.</summary>
@@ -80,7 +80,9 @@ public sealed class AccessibilityTests : IDisposable
         "RoomInput"       => ("", leaf => OpenRoomInput(leaf, google), ["EditorGuestInput", "EditorRoomInput"]),
 
         // Milestone 6
-        "BoxSelect" => ("", OpenBoxSelect, ["SelectionDeleteButton"]),
+        "BoxSelect"  => ("", OpenBoxSelect, ["SelectionDeleteButton"]),
+        "PastCards"  => ("--start-date 2026-10-02", leaf => leaf.WaitFor(Dentist), ["TodayButton", "NextButton"]),
+        "RichEditor" => ("", OpenRichEditor, ["DescriptionBold", "DescriptionItalic", "DescriptionUnderline", "DescriptionBullets", "DescriptionNumbers", "EditorDescription"]),
 
         _ => throw new ArgumentOutOfRangeException(nameof(name)),
     };
@@ -200,6 +202,25 @@ public sealed class AccessibilityTests : IDisposable
         leaf.WaitFor("SelectionSummary");
     }
 
+    // The Rich Event's Editor, With A Numbered List Typed Under Its Description (the toolbar and list drawing in view)
+    static void OpenRichEditor(LeafApp leaf)
+    {
+        leaf.WaitFor("Event_evt-rich_202610011400").Click();
+        leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
+        var title = leaf.WaitFor("EditorTitle");
+        Retry.WhileFalse(() => title.Properties.HasKeyboardFocus.ValueOrDefault, Wait);
+
+        var box = leaf.WaitFor("EditorDescription");
+        box.Focus();
+        Retry.WhileFalse(() => box.Properties.HasKeyboardFocus.ValueOrDefault, Wait);
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.END);
+        Keyboard.Type(VirtualKeyShort.ENTER);
+        leaf.WaitFor("DescriptionNumbers").Click();
+        Keyboard.Type("First");
+        Keyboard.Type(VirtualKeyShort.ENTER);
+        Keyboard.Type("Second");
+    }
+
     /// <summary>
     /// Launches Leaf on <paramref name="profile"/> and opens a screen. <paramref name="sized"/> runs between launch and
     /// opening (the tour sizes the window there). The room row needs the workspace domain before launch.
@@ -210,6 +231,18 @@ public sealed class AccessibilityTests : IDisposable
         if (name == "RoomInput")
         {
             google.HostedDomain = "example.com";
+        }
+
+        // The Rich Event (10-11 AM New York, Oct 1) Is Seeded Once Per Fake Google
+        if (name == "RichEditor" && google.EventOnGoogle(SeededProfile.Email, "evt-rich") is null)
+        {
+            google.AddEvent(SeededProfile.Email, System.Text.Json.Nodes.JsonNode.Parse("""
+                {
+                  "id": "evt-rich", "status": "confirmed", "summary": "Planning",
+                  "description": "<b>Bold</b> <i>italic</i> <u>underlined</u><ul><li>Bullet one</li><li>Bullet two</li></ul><a href=\"https://example.com/doc\">Doc</a>",
+                  "start": { "dateTime": "2026-10-01T10:00:00-04:00" }, "end": { "dateTime": "2026-10-01T11:00:00-04:00" }
+                }
+                """)!.AsObject());
         }
 
         var leaf = LeafApp.Launch(profile, $"--fake-google {google.BaseUri} --start-date 2026-10-01 {extra}".Trim());
