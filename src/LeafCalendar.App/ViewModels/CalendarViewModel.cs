@@ -96,9 +96,6 @@ public enum SettingsSection
 /// </remarks>
 public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 {
-    /// <summary>How far ahead the upcoming list looks.</summary>
-    public static readonly TimeSpan UpcomingWindow = TimeSpan.FromHours(8);
-
     readonly LeafServices _services;
     readonly DispatcherQueue _dispatcher;
     readonly DispatcherQueueTimer _minuteTimer;
@@ -203,7 +200,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         _workspace    = [.. accounts.Where(AccountStore.IsWorkspace).Select(a => a.Id)];
     }
 
-    /// <summary>Events in the next <see cref="UpcomingWindow"/>.</summary>
+    /// <summary>Events in the next <see cref="LeafSettings.UpcomingHours"/> hours (or one calendar's next 30 days, see <see cref="UpcomingCalendar"/>).</summary>
     public ObservableCollection<UpcomingItem> Upcoming { get; } = [];
 
     /// <summary>Current view mode.</summary>
@@ -417,6 +414,17 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(MapButtonText));
         }
 
+        // A New Lookahead Or Main Account Shows Right Away
+        if (before.UpcomingHours != next.UpcomingHours)
+        {
+            RefreshUpcoming();
+        }
+
+        if (before.MainAccountId != next.MainAccountId)
+        {
+            CalendarsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         // A hidden editor keeps its fields, not contact suggestions
         if (before.DetailsPanelOpen && !Settings.DetailsPanelOpen)
         {
@@ -578,10 +586,11 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         ReloadCalendars();
     }
 
-    /// <summary>The calendars grouped by account (in Leaf's order), for the sidebar and Settings › Calendars.</summary>
+    /// <summary>The calendars grouped by account (the main account first, then in Leaf's order), for the sidebar and Settings › Calendars.</summary>
     public List<AccountGroup> CalendarGroups() =>
         [.. Calendars
             .GroupBy(c => c.AccountId)
+            .OrderBy(g => g.Key == Settings.MainAccountId ? 0 : 1)
             .Select(g => new AccountGroup(g.Key, AccountEmails.GetValueOrDefault(g.Key, g.Key), g.Select(c => new CalendarRow(c))))];
 
     /// <summary>Saves the order of an account's calendars.</summary>
@@ -1832,7 +1841,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         var items = UpcomingCalendar is { } calendar ? UpcomingIn(calendar, now) : Enumerable.Range(0, 2)
             .SelectMany(i => Cache.ForDay(LocalDate(now).AddDays(i)))
             .DistinctBy(o => o.Key)
-            .Where(o => !o.IsAllDay && o.End > now && o.Start < now + UpcomingWindow)
+            .Where(o => !o.IsAllDay && o.End > now && o.Start < now + TimeSpan.FromHours(Settings.UpcomingHours))
             .OrderBy(o => o.Start)
             .Take(20)
             .Select(o => new UpcomingItem(o, o.Title, TimeLabels.Range(o.Start, o.End, Zone, Settings.Use24HourTime), TimeLabels.Relative(o.Start, o.End, now), EventColors.ResolveAccent(o.ColorId, o.CalendarColor), o.HasConference, Select, occurrence => Fire(() => JoinAsync(occurrence), "calendar.join.failed")))

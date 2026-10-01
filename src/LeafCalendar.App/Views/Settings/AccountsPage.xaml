@@ -50,6 +50,36 @@
                         AutomationProperties.AutomationId="AddAccountButton" />
                 </StackPanel>
             </controls:SettingRow>
+            <controls:SettingRow Glyph="&#xE77B;" Header="Main account" Description="Listed first, and used to look up people's free/busy times.">
+                <ComboBox
+                    x:Name="MainAccountBox"
+                    MinWidth="180"
+                    SelectionChanged="OnMainAccountChanged"
+                    AutomationProperties.Name="Main account"
+                    AutomationProperties.AutomationId="MainAccountBox" />
+            </controls:SettingRow>
+
+            <!-- Video Calls -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Video calls" />
+            <ItemsControl x:Name="MeetList" IsTabStop="False" AutomationProperties.AutomationId="MeetByDefaultList">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="4" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:MeetDefaultRow">
+                        <controls:SettingRow Glyph="&#xE714;" Header="{x:Bind Email}" Description="Add a Google Meet link to new events.">
+                            <ToggleSwitch
+                                Style="{StaticResource LeafCardToggleSwitchStyle}"
+                                IsOn="{x:Bind IsOn, Mode=TwoWay}"
+                                AutomationProperties.Name="{x:Bind Email}"
+                                AutomationProperties.AutomationId="{x:Bind SwitchId}" />
+                        </controls:SettingRow>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <!-- /Video Calls -->
 
             <!-- New Events -->
             <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="New events" />

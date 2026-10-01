@@ -68,7 +68,7 @@ public sealed partial class DetailsPanel : UserControl
     {
         UpcomingEmpty.Visibility = _vm?.Upcoming.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
         UpcomingEmpty.Text       = _vm?.UpcomingCalendar is null
-            ? string.Create(CultureInfo.InvariantCulture, $"Nothing in the next {CalendarViewModel.UpcomingWindow.TotalHours:0} hours.")
+            ? string.Create(CultureInfo.InvariantCulture, $"Nothing in the next {_vm?.Settings.UpcomingHours ?? 8} hours.")
             : "Nothing in the next 30 days.";
     }
 

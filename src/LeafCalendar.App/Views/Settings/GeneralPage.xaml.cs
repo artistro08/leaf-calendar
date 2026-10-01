@@ -1,7 +1,9 @@
+using System.Globalization;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Settings;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Navigation;
@@ -10,15 +12,22 @@ using Windows.ApplicationModel;
 namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
-/// Settings › General: theme, the calendar view options, date and time, and starting with Windows. Every change saves
+/// Settings › General: theme and interface scale, the calendar view options, date and time, working hours, the map
+/// site for locations, and starting with Windows. Every change saves
 /// right away through the shared calendar view model, so the main window follows it; changes made elsewhere (the view
 /// menu, shortcuts) show here too. Starting with Windows is the package's startup task, whose state Windows owns.
 /// </summary>
 public sealed partial class GeneralPage : Page
 {
     // Combo Box Order (matches the items in the XAML)
-    static readonly AppTheme[] Themes      = [AppTheme.System, AppTheme.Light, AppTheme.Dark];
-    static readonly DayOfWeek[] WeekStarts = [DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Saturday];
+    static readonly AppTheme[] Themes        = [AppTheme.System, AppTheme.Light, AppTheme.Dark];
+    static readonly DayOfWeek[] WeekStarts   = [DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Saturday];
+    static readonly MapProvider[] MapSources = [MapProvider.Google, MapProvider.Bing];
+
+    static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
+
+    // Work Day Toggles, Each With Its Own Day (never read back from the button)
+    readonly List<(ToggleButton Button, DayOfWeek Day)> _workDays = [];
 
     // The startup task declared in Package.appxmanifest
     const string StartupTaskId = "LeafCalendarStartup";
@@ -44,6 +53,10 @@ public sealed partial class GeneralPage : Page
         ScrollIndicator.ShowOnHover(PageScroll);
         HourHeightSlider.Minimum = LeafSettings.MinHourHeight;
         HourHeightSlider.Maximum = LeafSettings.MaxHourHeight;
+
+        // Choices Built From The Settings' Own Lists ("80%", "Next 2 hours")
+        InterfaceScaleBox.ItemsSource = LeafSettings.ScaleChoices.Select(s => s.ToString("0%", English)).ToList();
+        UpcomingHoursBox.ItemsSource  = LeafSettings.UpcomingChoices.Select(h => string.Create(English, $"Next {h} hours")).ToList();
     }
 
     CalendarViewModel Calendar => _context.Calendar;
@@ -77,7 +90,140 @@ public sealed partial class GeneralPage : Page
         WeekStartBox.SelectedIndex = Array.IndexOf(WeekStarts, s.WeekStart);
         Clock24Switch.IsOn         = s.Use24HourTime;
 
+        // Milestone 5 Settings
+        InterfaceScaleBox.SelectedIndex = LeafSettings.ScaleChoices.ToList().IndexOf(s.InterfaceScale);
+        AllDayExpandedSwitch.IsOn       = s.AllDayExpanded;
+        UpcomingHoursBox.SelectedIndex  = LeafSettings.UpcomingChoices.ToList().IndexOf(s.UpcomingHours);
+        MapProviderBox.SelectedIndex    = Array.IndexOf(MapSources, s.MapProvider);
+        LoadWorkingHours(s.WorkingHours, s.WeekStart, s.Use24HourTime);
+
         _loading = false;
+    }
+
+    // =========================================================================
+    // APPEARANCE, UPCOMING, AND LOCATIONS
+    // =========================================================================
+
+    void OnInterfaceScaleChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_loading && InterfaceScaleBox.SelectedIndex >= 0)
+        {
+            var scale = LeafSettings.ScaleChoices[InterfaceScaleBox.SelectedIndex];
+            _context.Save(s => s with { InterfaceScale = scale });
+        }
+    }
+
+    void OnAllDayExpandedToggled(object sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+        {
+            var on = AllDayExpandedSwitch.IsOn;
+            _context.Save(s => s with { AllDayExpanded = on });
+        }
+    }
+
+    void OnUpcomingHoursChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_loading && UpcomingHoursBox.SelectedIndex >= 0)
+        {
+            var hours = LeafSettings.UpcomingChoices[UpcomingHoursBox.SelectedIndex];
+            _context.Save(s => s with { UpcomingHours = hours });
+        }
+    }
+
+    void OnMapProviderChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_loading && MapProviderBox.SelectedIndex >= 0)
+        {
+            var provider = MapSources[MapProviderBox.SelectedIndex];
+            _context.Save(s => s with { MapProvider = provider });
+        }
+    }
+
+    // =========================================================================
+    // WORKING HOURS
+    // =========================================================================
+
+    // The switch, the two times, and a toggle per weekday in the week's own order (the rows are off while the switch is)
+    void LoadWorkingHours(WorkingHours hours, DayOfWeek weekStart, bool use24Hour)
+    {
+        WorkingHoursSwitch.IsOn            = hours.Enabled;
+        WorkingHoursRows.IsEnabled         = hours.Enabled;
+        WorkingStartPicker.ClockIdentifier = use24Hour ? "24HourClock" : "12HourClock";
+        WorkingEndPicker.ClockIdentifier   = WorkingStartPicker.ClockIdentifier;
+        WorkingStartPicker.Time            = TimeSpan.FromMinutes(hours.StartMinute);
+        WorkingEndPicker.Time              = TimeSpan.FromMinutes(hours.EndMinute);
+        WorkingHoursError.Visibility       = Visibility.Collapsed;
+
+        // Day Toggles (rebuilt only when the week's first day changed)
+        if (_workDays.Count == 0 || _workDays[0].Day != weekStart)
+        {
+            WorkDaysPanel.Children.Clear();
+            _workDays.Clear();
+            for (var i = 0; i < 7; i++)
+            {
+                var day    = (DayOfWeek)(((int)weekStart + i) % 7);
+                var toggle = new ToggleButton { MinWidth = 40, Width = 40, Padding = new Thickness(0), Content = English.DateTimeFormat.GetAbbreviatedDayName(day) };
+                AutomationProperties.SetName(toggle, English.DateTimeFormat.GetDayName(day));
+                AutomationProperties.SetAutomationId(toggle, $"WorkingDay_{day}");
+                toggle.Click += (_, _) => OnWorkDayClick();
+                WorkDaysPanel.Children.Add(toggle);
+                _workDays.Add((toggle, day));
+            }
+        }
+
+        foreach (var (button, day) in _workDays)
+        {
+            button.IsChecked = hours.Days.Contains(day);
+        }
+    }
+
+    void OnWorkingHoursToggled(object sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+        {
+            var on = WorkingHoursSwitch.IsOn;
+            WorkingHoursRows.IsEnabled = on;
+            _context.Save(s => s with { WorkingHours = s.WorkingHours with { Enabled = on } });
+        }
+    }
+
+    void OnWorkingStartChanged(object? sender, TimePickerValueChangedEventArgs e) => SaveHours(e.OldTime, isStart: true);
+
+    void OnWorkingEndChanged(object? sender, TimePickerValueChangedEventArgs e) => SaveHours(e.OldTime, isStart: false);
+
+    // An end that isn't after the start is refused: the line says why, the picker goes back, and nothing is saved
+    void SaveHours(TimeSpan before, bool isStart)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        var start = (int)WorkingStartPicker.Time.TotalMinutes;
+        var end   = (int)WorkingEndPicker.Time.TotalMinutes;
+        if (end <= start)
+        {
+            WorkingHoursError.Visibility = Visibility.Visible;
+            _loading = true;
+            (isStart ? WorkingStartPicker : WorkingEndPicker).Time = before;
+            _loading = false;
+            return;
+        }
+
+        WorkingHoursError.Visibility = Visibility.Collapsed;
+        _context.Save(s => s with { WorkingHours = s.WorkingHours with { StartMinute = start, EndMinute = end } });
+    }
+
+    void OnWorkDayClick()
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        List<DayOfWeek> days = [.. _workDays.Where(d => d.Button.IsChecked == true).Select(d => d.Day)];
+        _context.Save(s => s with { WorkingHours = s.WorkingHours with { Days = days } });
     }
 
     void OnThemeChanged(object sender, SelectionChangedEventArgs e)

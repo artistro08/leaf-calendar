@@ -9,7 +9,10 @@ using Microsoft.UI.Xaml.Navigation;
 
 namespace LeafCalendar.App.Views.Settings;
 
-/// <summary>Settings › Accounts: the Google accounts (add, disconnect), the default calendar, Sync now, and the OAuth client.</summary>
+/// <summary>
+/// Settings › Accounts: the Google accounts (add, disconnect), the main account, the default calendar, Meet by default
+/// per account, Sync now, and the OAuth client.
+/// </summary>
 public sealed partial class AccountsPage : Page
 {
     SettingsContext _context = null!;
@@ -20,7 +23,10 @@ public sealed partial class AccountsPage : Page
     // The Combo Box Labels As Last Filled (an unchanged list isn't refilled, so a sync never closes an open dropdown)
     readonly List<string> _labels = [];
 
-    // True while the combo box is being filled (its change event is ignored)
+    // The Main Account Choices, Parallel To Its Combo Box Items
+    readonly List<string> _accountIds = [];
+
+    // True while a combo box is being filled (its change event is ignored)
     bool _loading;
 
     /// <summary>Creates the page.</summary>
@@ -56,12 +62,55 @@ public sealed partial class AccountsPage : Page
         Bindings.Update();
         _context.Window.CalendarsChanged += OnCalendarsChanged;
         LoadDefaultCalendar();
+        LoadAccountChoices();
     }
 
     /// <inheritdoc />
     protected override void OnNavigatedFrom(NavigationEventArgs e) => _context.Window.CalendarsChanged -= OnCalendarsChanged;
 
-    void OnCalendarsChanged(object? sender, EventArgs e) => LoadDefaultCalendar();
+    void OnCalendarsChanged(object? sender, EventArgs e)
+    {
+        LoadDefaultCalendar();
+        LoadAccountChoices();
+    }
+
+    // =========================================================================
+    // MAIN ACCOUNT AND MEET BY DEFAULT
+    // =========================================================================
+
+    // The main account (the first account when none is set; off with only one) and a Meet switch per account
+    void LoadAccountChoices()
+    {
+        var settings = _context.Calendar.Settings;
+        var accounts = ViewModel.Accounts.ToList();
+
+        _loading = true;
+        _accountIds.Clear();
+        _accountIds.AddRange(accounts.Select(a => a.Id));
+        MainAccountBox.Items.Clear();
+        foreach (var account in accounts)
+        {
+            MainAccountBox.Items.Add(account.Email);
+        }
+
+        MainAccountBox.SelectedIndex = accounts.Count == 0 ? -1 : Math.Max(_accountIds.IndexOf(settings.MainAccountId ?? ""), 0);
+        MainAccountBox.IsEnabled     = accounts.Count > 1;
+        _loading = false;
+
+        MeetList.ItemsSource = ViewModel.MeetRows(settings.MeetByDefaultAccounts, OnMeetToggled);
+    }
+
+    void OnMainAccountChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_loading && MainAccountBox.SelectedIndex >= 0)
+        {
+            var id = _accountIds[MainAccountBox.SelectedIndex];
+            _context.Save(s => s with { MainAccountId = id });
+        }
+    }
+
+    void OnMeetToggled(string accountId, bool on) =>
+        _context.Save(s => s with { MeetByDefaultAccounts = on ? [.. s.MeetByDefaultAccounts.Append(accountId).Distinct()] : [.. s.MeetByDefaultAccounts.Where(a => a != accountId)] });
 
     // Fill The Default Calendar Choices: your main Google calendar, then every calendar you can write to
     void LoadDefaultCalendar()

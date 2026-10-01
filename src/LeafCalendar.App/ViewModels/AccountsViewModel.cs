@@ -9,6 +9,25 @@ namespace LeafCalendar.App.ViewModels;
 /// <summary>One row in the accounts list.</summary>
 public sealed record AccountRow(string Id, string Email, string Summary);
 
+/// <summary>An account's "Add a Google Meet link to new events" switch (Settings › Accounts › Video calls).</summary>
+public sealed partial class MeetDefaultRow(string accountId, string email, bool isOn, Action<string, bool> toggled) : ObservableObject
+{
+    /// <summary>Google account ID.</summary>
+    public string AccountId { get; } = accountId;
+
+    /// <summary>The account's email (the row's header).</summary>
+    public string Email { get; } = email;
+
+    /// <summary>Automation ID of the switch.</summary>
+    public string SwitchId => $"MeetByDefault_{AccountId}";
+
+    /// <summary>New events in this account get a Meet link.</summary>
+    [ObservableProperty]
+    public partial bool IsOn { get; set; } = isOn;
+
+    partial void OnIsOnChanged(bool value) => toggled(AccountId, value);
+}
+
 /// <summary>Settings › Accounts: add, sync, and disconnect Google accounts, and show the OAuth client.</summary>
 public sealed partial class AccountsViewModel : ObservableObject
 {
@@ -77,6 +96,13 @@ public sealed partial class AccountsViewModel : ObservableObject
     /// <summary>True when no account is connected.</summary>
     [ObservableProperty]
     public partial bool HasNoAccounts { get; set; }
+
+    /// <summary>
+    /// One Meet-by-default switch per account, on for the accounts in <paramref name="meetAccounts"/>; a toggle calls
+    /// <paramref name="toggled"/> with the account and its new state.
+    /// </summary>
+    public List<MeetDefaultRow> MeetRows(IReadOnlyList<string> meetAccounts, Action<string, bool> toggled) =>
+        [.. Accounts.Select(a => new MeetDefaultRow(a.Id, a.Email, meetAccounts.Contains(a.Id), toggled))];
 
     /// <summary>Edits of an account Google doesn't have yet (disconnecting would lose them).</summary>
     public int UnsentFor(string accountId) => _services.Conflicts.UnsentFor(accountId);
