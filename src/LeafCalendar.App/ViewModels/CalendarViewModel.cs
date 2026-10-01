@@ -411,6 +411,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
 
         Settings = next;
+        if (before.MapProvider != next.MapProvider)
+        {
+            OnPropertyChanged(nameof(MapButtonText));
+        }
 
         // A hidden editor keeps its fields, not contact suggestions
         if (before.DetailsPanelOpen && !Settings.DetailsPanelOpen)
@@ -777,6 +781,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         var now    = Now;
 
         newValue.IsWorkspaceAccount = IsWorkspace;
+        newValue.MeetByDefault      = id => Settings.MeetByDefaultAccounts.Contains(id);
         newValue.LocalPeople        = (account, query) =>
         {
             if (!people.TryGetValue(account, out var load))
@@ -1236,7 +1241,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     IReadOnlyList<CalendarChoice> WritableCalendars(CalendarOccurrence? source = null) =>
         [.. Calendars
             .Where(c => (c.AccessRole is "owner" or "writer" || (c.AccountId == source?.AccountId && c.Id == source.CalendarId)) && AccountEmails.ContainsKey(c.AccountId))
-            .Select(c => new CalendarChoice(c.AccountId, c.Id, c.Summary, AccountEmails[c.AccountId], c.DisplayColor))];
+            .Select(c => new CalendarChoice(c.AccountId, c.Id, c.Summary, AccountEmails[c.AccountId], c.DisplayColor, c.IsPrimary))];
 
     /// <summary>
     /// Deletes events you can change (asking about repeating ones), then shows "Event deleted · Undo". The delete
@@ -1344,14 +1349,17 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Opens a description link (checked against the allowlist again).</summary>
     public Task OpenLinkAsync(Uri link) => _services.LaunchAsync(link);
 
-    /// <summary>Opens the selected event's location in Google Maps.</summary>
+    /// <summary>Opens the selected event's location in the map service picked in Settings › General.</summary>
     public async Task OpenLocationAsync()
     {
         if (SelectedInfo?.Details.Location is { Length: > 0 } location)
         {
-            await _services.LaunchAsync(LinkSafety.MapsSearch(location));
+            await _services.LaunchAsync(LinkSafety.MapsSearch(location, Settings.MapProvider));
         }
     }
+
+    /// <summary>The details panel's location button: "Open in Google Maps" or "Open in Bing Maps".</summary>
+    public string MapButtonText => Settings.MapProvider == MapProvider.Bing ? "Open in Bing Maps" : "Open in Google Maps";
 
     /// <summary>Opens an email to every other guest, with the title as the subject (E then E).</summary>
     public async Task EmailGuestsAsync()

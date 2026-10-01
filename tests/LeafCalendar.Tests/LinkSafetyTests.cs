@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.Settings;
 
 namespace LeafCalendar.Tests;
 
@@ -234,4 +235,12 @@ public class LinkSafetyTests
         Assert.Equal("https://calendar.google.com/calendar/appointments?authuser=leaf.tester%40gmail.com", uri.AbsoluteUri);
         Assert.True(LinkSafety.CanLaunch(uri));
     }
+
+    [Fact]
+    public void MapsSearch_Bing() =>
+        Assert.Equal("https://www.bing.com/maps?q=Room%204", LinkSafety.MapsSearch("Room 4", MapProvider.Bing).AbsoluteUri);
+
+    [Fact]
+    public void MapsSearch_GoogleStaysTheDefault() =>
+        Assert.StartsWith("https://www.google.com/maps/search/", LinkSafety.MapsSearch("Room 4").AbsoluteUri, StringComparison.Ordinal);
 }

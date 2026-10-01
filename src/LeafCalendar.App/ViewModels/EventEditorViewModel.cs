@@ -11,8 +11,8 @@ using CalendarRooms = LeafCalendar.Core.People.Rooms;
 
 namespace LeafCalendar.App.ViewModels;
 
-/// <summary>A calendar in the editor's picker (an App type, so WinRT can hold the list).</summary>
-public sealed record CalendarChoice(string AccountId, string CalendarId, string Name, string AccountEmail, string Color)
+/// <summary>A calendar in the editor's picker (an App type, so WinRT can hold the list). <see cref="IsPrimary"/> marks the account's main calendar.</summary>
+public sealed record CalendarChoice(string AccountId, string CalendarId, string Name, string AccountEmail, string Color, bool IsPrimary = false)
 {
     /// <summary>The name (what a screen reader says for the picker's item).</summary>
     public override string ToString() => Name;
@@ -66,6 +66,19 @@ public sealed class ContactSuggestion(string name, string email)
 
     /// <summary>"Name &lt;email&gt;", or the address alone (plain text; Core already removed control characters).</summary>
     public string Display { get; } = name.Length > 0 ? $"{name} <{email}>" : email;
+
+    /// <summary>The shown text (what a screen reader says for the item).</summary>
+    public override string ToString() => Display;
+}
+
+/// <summary>A time zone suggestion for the editor's zone box (an App type, so WinRT can hold the list).</summary>
+public sealed class ZoneSuggestion(TimeZoneChoice choice)
+{
+    /// <summary>IANA ID.</summary>
+    public string Id { get; } = choice.Id;
+
+    /// <summary>"Tokyo (UTC+9 · Tokyo Standard Time)".</summary>
+    public string Display { get; } = choice.ToString();
 
     /// <summary>The shown text (what a screen reader says for the item).</summary>
     public override string ToString() => Display;
@@ -143,7 +156,7 @@ public sealed partial class ReminderRow(int index, List<string> choices, int cho
 /// <see cref="EventDraft"/>; comparing it with <see cref="Before"/> gives the patch, so untouched fields are never sent.
 /// </summary>
 /// <remarks>
-/// Times are shown in the calendar's zone. An all-day event shows its last day (Google stores the day after). Repeat
+/// Times are shown on the event's own zone's clock (<see cref="TimeZoneId"/>). An all-day event shows its last day (Google stores the day after). Repeat
 /// choices: 0 none, 1 daily, 2 weekly, 3 monthly, 4 yearly, 5 a rule the editor can't show (kept exactly as it is).
 /// Ends: 0 never, 1 on a date, 2 after a count.
 /// </remarks>
@@ -151,18 +164,31 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
 {
     const int MaxReminders = 5;
 
+    // Google's visibility values, in the dropdown's order
+    static readonly string[] VisibilityValues = ["default", "public", "private"];
+
+    static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
+
     readonly TimeZoneInfo _zone;
     readonly string _localZoneId;
     readonly bool _use24Hour;
     readonly DayOfWeek? _wkst;
     readonly string? _loadedLine;
     readonly (DateOnly? StartDay, TimeSpan StartTime, DateOnly? EndDay, TimeSpan EndTime) _loadedWhen;
+    readonly string _loadedZoneId;
+    readonly int _loadedVisibility;
     readonly int[] _reminderMinutes;
     readonly LatestSearch<ContactResults> _contactSearch = new();
+    TimeZoneInfo _eventZone;
     string? _searchedAccount;
     bool _ready;
+    bool _conferenceTouched;
+    bool _applyingMeetDefault;
 
-    /// <summary>Loads the fields from <paramref name="draft"/>.</summary>
+    /// <summary>
+    /// Loads the fields from <paramref name="draft"/>. <paramref name="zone"/> is the zone on screen and
+    /// <paramref name="localZoneId"/> its IANA ID; the dates and times show in the event's own zone (else that one).
+    /// </summary>
     public EventEditorViewModel(EventDraft draft, CalendarOccurrence? occurrence, IReadOnlyList<CalendarChoice> calendars, TimeZoneInfo zone, string localZoneId, bool use24Hour, bool focusEnd = false)
     {
         Before       = draft;
@@ -171,6 +197,16 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         _zone        = zone;
         _localZoneId = localZoneId;
         _use24Hour   = use24Hour;
+
+        // The Event's Own Zone (one this PC doesn't know shows in the zone on screen)
+        TimeZoneId    = draft.TimeZone is { } own && TimeZoneCatalog.IsKnown(own) ? own : localZoneId;
+        _eventZone    = FindZone(TimeZoneId) ?? zone;
+        _loadedZoneId = TimeZoneId;
+
+        // Show As And Visibility (confidential reads as Private)
+        ShowAsIndex       = draft.IsFree ? 1 : 0;
+        VisibilityIndex   = draft.Visibility switch { "public" => 1, "private" or "confidential" => 2, _ => 0 };
+        _loadedVisibility = VisibilityIndex;
 
         // Fields
         Calendars           = new ObservableCollection<CalendarChoice>(calendars);
@@ -193,9 +229,10 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
             AddReminder(minutes);
         }
 
-        // When (an all-day event shows its last day, inclusive)
-        var start = draft.IsAllDay ? draft.Start.UtcDateTime : TimeZoneInfo.ConvertTime(draft.Start, zone).DateTime;
-        var end   = draft.IsAllDay ? draft.End.UtcDateTime.AddDays(-1) : TimeZoneInfo.ConvertTime(draft.End, zone).DateTime;
+        // When (an all-day event shows its last day, inclusive; a timed one shows its own zone's clock)
+        var start = draft.IsAllDay ? draft.Start.UtcDateTime : TimeZoneInfo.ConvertTime(draft.Start, _eventZone).DateTime;
+        var end   = draft.IsAllDay ? draft.End.UtcDateTime.AddDays(-1) : TimeZoneInfo.ConvertTime(draft.End, _eventZone).DateTime;
+        ZoneInput = TimeZoneText;
         StartDate = Picker(start);
         StartTime = start.TimeOfDay;
         EndDate   = Picker(end);
@@ -266,23 +303,27 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
 
     /// <summary>All-day event.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowTimes))]
+    [NotifyPropertyChangedFor(nameof(ShowTimes), nameof(ShowTimeZone), nameof(ShowLocalTime), nameof(LocalTimeText))]
     public partial bool IsAllDay { get; set; }
 
     /// <summary>First day.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LocalTimeText))]
     public partial DateTimeOffset? StartDate { get; set; }
 
     /// <summary>Start time (timed events).</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LocalTimeText))]
     public partial TimeSpan StartTime { get; set; }
 
     /// <summary>Last day (all-day) or the end's day.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LocalTimeText))]
     public partial DateTimeOffset? EndDate { get; set; }
 
     /// <summary>End time (timed events).</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LocalTimeText))]
     public partial TimeSpan EndTime { get; set; }
 
     /// <summary>Picked calendar.</summary>
@@ -382,6 +423,190 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     public bool CanAddConference => !HasConference;
 
     // =========================================================================
+    // EVENT TYPE, SHOW AS, AND VISIBILITY
+    // =========================================================================
+
+    /// <summary>0 Event, 1 Focus time, 2 Out of office (new events on a Workspace account's main calendar only).</summary>
+    [ObservableProperty]
+    public partial int EventTypeIndex { get; set; }
+
+    /// <summary>
+    /// The event type dropdown shows: a new timed event on a Workspace account's primary calendar (Google can't change an
+    /// event's type later).
+    /// </summary>
+    public bool ShowEventType => IsNew && !IsAllDay && SelectedCalendar is { IsPrimary: true } calendar && IsWorkspaceAccount?.Invoke(calendar.AccountId) == true;
+
+    /// <summary>The type the event is saved as: the picked one for a new event (when offered), else the loaded one.</summary>
+    public EventKind EffectiveType => !IsNew
+        ? Before.EventType
+        : ShowEventType ? EventTypeIndex switch { 1 => EventKind.FocusTime, 2 => EventKind.OutOfOffice, _ => EventKind.Default } : EventKind.Default;
+
+    /// <summary>Guests (and rooms) show: focus time and out of office have none.</summary>
+    public bool ShowGuests => EffectiveType == EventKind.Default;
+
+    /// <summary>The location shows (not for focus time or out of office).</summary>
+    public bool ShowLocation => EffectiveType == EventKind.Default;
+
+    /// <summary>The video call row shows (not for focus time or out of office).</summary>
+    public bool ShowConference => EffectiveType == EventKind.Default;
+
+    /// <summary>Show as and All day can change (focus time and out of office are always busy and timed).</summary>
+    public bool IsOrdinaryType => EffectiveType == EventKind.Default;
+
+    /// <summary>0 Busy, 1 Free.</summary>
+    [ObservableProperty]
+    public partial int ShowAsIndex { get; set; }
+
+    /// <summary>0 Default visibility, 1 Public, 2 Private. A loaded event keeps Google's own value until this changes.</summary>
+    [ObservableProperty]
+    public partial int VisibilityIndex { get; set; }
+
+    // The picked calendar, or null while the list is swapped
+    CalendarChoice? SelectedCalendar => CalendarIndex >= 0 && CalendarIndex < Calendars.Count ? Calendars[CalendarIndex] : null;
+
+    // A type picked with no title names the event; a type other than Event is busy
+    partial void OnEventTypeIndexChanged(int value)
+    {
+        if (value > 0 && string.IsNullOrWhiteSpace(Title))
+        {
+            Title = value == 1 ? "Focus time" : "Out of office";
+        }
+
+        TypeInputsChanged();
+    }
+
+    // Everything that hangs on the event type (the rows it hides, the locked switches)
+    void TypeInputsChanged()
+    {
+        if (!IsOrdinaryType)
+        {
+            ShowAsIndex = 0;
+        }
+
+        OnPropertyChanged(nameof(ShowEventType));
+        OnPropertyChanged(nameof(EffectiveType));
+        OnPropertyChanged(nameof(ShowGuests));
+        OnPropertyChanged(nameof(ShowLocation));
+        OnPropertyChanged(nameof(ShowConference));
+        OnPropertyChanged(nameof(IsOrdinaryType));
+        OnPropertyChanged(nameof(ShowRooms));
+    }
+
+    // =========================================================================
+    // TIME ZONE
+    // =========================================================================
+
+    /// <summary>The event's IANA zone; its dates and times show on this zone's clock.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TimeZoneText), nameof(LocalTimeText), nameof(ShowLocalTime))]
+    public partial string TimeZoneId { get; set; }
+
+    /// <summary>"Tokyo (UTC+9)".</summary>
+    public string TimeZoneText => $"{TimeZoneCatalog.CityFor(TimeZoneId)} ({TimeZoneCatalog.OffsetLabel(_eventZone.GetUtcOffset(Before.Start))})";
+
+    /// <summary>The zone box's text (the picked zone, or what's being typed).</summary>
+    [ObservableProperty]
+    public partial string ZoneInput { get; set; } = "";
+
+    /// <summary>Zones matching the typed text.</summary>
+    public ObservableCollection<ZoneSuggestion> ZoneSuggestions { get; } = [];
+
+    /// <summary>The zone box shows (timed events).</summary>
+    public bool ShowTimeZone => !IsAllDay;
+
+    /// <summary>The "In your time" line shows: a timed event whose zone isn't the one on screen.</summary>
+    public bool ShowLocalTime => !IsAllDay && TimeZoneCatalog.IanaId(_eventZone) != TimeZoneCatalog.IanaId(_zone);
+
+    /// <summary>"In your time: Wed, Sep 30, 8:00 PM–9:00 PM": the event's times on the screen's clock, or empty.</summary>
+    public string LocalTimeText
+    {
+        get
+        {
+            if (!ShowLocalTime || Day(StartDate) is not { } startDay)
+            {
+                return "";
+            }
+
+            var start = TimeZoneInfo.ConvertTime(EditorTimes.ToInstant(startDay, StartTime, _eventZone), _zone);
+            var end   = TimeZoneInfo.ConvertTime(EditorTimes.ToInstant(Day(EndDate) ?? startDay, EndTime, _eventZone), _zone);
+            var clock = _use24Hour ? "HH:mm" : "h:mm tt";
+            return $"In your time: {start.ToString("ddd, MMM d", English)}, {start.ToString(clock, English)}–{end.ToString(clock, English)}";
+        }
+    }
+
+    /// <summary>Lists the zones matching the typed text.</summary>
+    public void RefreshZoneSuggestions(DateTimeOffset now)
+    {
+        ZoneSuggestions.Clear();
+        foreach (var choice in TimeZoneCatalog.Search(ZoneInput, now, 8))
+        {
+            ZoneSuggestions.Add(new ZoneSuggestion(choice));
+        }
+    }
+
+    /// <summary>Makes a picked zone the event's own: the clock fields stay, so the event moves to that clock.</summary>
+    public void PickZone(ZoneSuggestion zone)
+    {
+        ArgumentNullException.ThrowIfNull(zone);
+
+        if (FindZone(zone.Id) is { } picked)
+        {
+            _eventZone = picked;
+            TimeZoneId = zone.Id;
+        }
+
+        ResetZoneInput();
+    }
+
+    /// <summary>Puts the picked zone back in the box (typing without a pick changes nothing).</summary>
+    public void ResetZoneInput()
+    {
+        ZoneInput = TimeZoneText;
+        ZoneSuggestions.Clear();
+    }
+
+    static TimeZoneInfo? FindZone(string id) => TimeZoneInfo.TryFindSystemTimeZoneById(id, out var zone) ? zone : null;
+
+    // =========================================================================
+    // MEET BY DEFAULT
+    // =========================================================================
+
+    /// <summary>
+    /// Whether an account adds Google Meet to new events (set by <see cref="CalendarViewModel"/>). A new event starts
+    /// from its account's choice, and follows the picked calendar's account until the call buttons are used.
+    /// </summary>
+    public Func<string, bool>? MeetByDefault
+    {
+        get;
+        set
+        {
+            field = value;
+            ApplyMeetDefault();
+        }
+    }
+
+    void ApplyMeetDefault()
+    {
+        if (!IsNew || _conferenceTouched || MeetByDefault is not { } meet)
+        {
+            return;
+        }
+
+        _applyingMeetDefault = true;
+        HasConference        = meet(ContactsAccountId);
+        _applyingMeetDefault = false;
+    }
+
+    // The call buttons were used: the account's default no longer applies
+    partial void OnHasConferenceChanged(bool value)
+    {
+        if (_ready && !_applyingMeetDefault)
+        {
+            _conferenceTouched = true;
+        }
+    }
+
+    // =========================================================================
     // CONTACT SUGGESTIONS
     // =========================================================================
 
@@ -474,7 +699,8 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     // Another account's contacts: what the last account allowed no longer counts (and its rooms are its own)
     partial void OnCalendarIndexChanged(int value)
     {
-        OnPropertyChanged(nameof(ShowRooms));
+        TypeInputsChanged();
+        ApplyMeetDefault();
         if (_ready && Rooms.Count > 0)
         {
             Rooms = [];
@@ -521,7 +747,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         set
         {
             field = value;
-            OnPropertyChanged(nameof(ShowRooms));
+            TypeInputsChanged();
         }
     }
 
@@ -531,11 +757,11 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     /// <summary>The picked calendar's account's rooms (empty until loaded).</summary>
     public IReadOnlyList<Room> Rooms { get; private set; } = [];
 
-    /// <summary>The room box shows (a Workspace account's calendar is picked).</summary>
-    public bool ShowRooms => IsWorkspaceAccount?.Invoke(ContactsAccountId) == true;
+    /// <summary>The room box shows (a Workspace account's calendar is picked, and the event takes guests).</summary>
+    public bool ShowRooms => ShowGuests && IsWorkspaceAccount?.Invoke(ContactsAccountId) == true;
 
     /// <summary>Leaf learned which accounts are Workspace ones (an older account's first lookup): the rows that depend on it update.</summary>
-    public void AccountsChanged() => OnPropertyChanged(nameof(ShowRooms));
+    public void AccountsChanged() => TypeInputsChanged();
 
     /// <summary>The room name being typed.</summary>
     [ObservableProperty]
@@ -656,14 +882,17 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         var startDay = Day(StartDate) ?? DateOnly.FromDateTime(Before.Start.UtcDateTime);
         var endDay   = Day(EndDate) ?? startDay;
 
-        // Untouched times keep the loaded instants and zone exactly (no round trip through the pickers)
-        var untouched = IsAllDay == Before.IsAllDay && (Day(StartDate), StartTime, Day(EndDate), EndTime) == _loadedWhen;
+        // Untouched times keep the loaded instants and zone exactly (no round trip through the pickers); another zone keeps
+        // the clock and moves the instants
+        var zoneChanged = !IsAllDay && TimeZoneId != _loadedZoneId;
+        var untouched   = !zoneChanged && IsAllDay == Before.IsAllDay && (Day(StartDate), StartTime, Day(EndDate), EndTime) == _loadedWhen;
         var (start, end) = untouched
             ? (Before.Start, Before.End)
             : IsAllDay
                 ? (Midnight(startDay), Midnight(endDay.AddDays(1)))
-                : (DragMath.ToInstant(startDay.ToDateTime(TimeOnly.FromTimeSpan(StartTime)), _zone), DragMath.ToInstant(endDay.ToDateTime(TimeOnly.FromTimeSpan(EndTime)), _zone));
+                : (EditorTimes.ToInstant(startDay, StartTime, _eventZone), EditorTimes.ToInstant(endDay, EndTime, _eventZone));
         var reminders = ReminderRows.Select(r => _reminderMinutes[r.ChoiceIndex]).Distinct().ToList();
+        var kind      = EffectiveType;
 
         return Before with
         {
@@ -673,7 +902,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
             Start               = start,
             End                 = end,
             IsAllDay            = IsAllDay,
-            TimeZone            = untouched || IsAllDay ? Before.TimeZone : Before.TimeZone ?? _localZoneId,
+            TimeZone            = zoneChanged ? TimeZoneId : untouched || IsAllDay ? Before.TimeZone : Before.TimeZone ?? TimeZoneId,
             Location            = Location,
             Description         = Description,
             ColorId             = ColorId,
@@ -682,6 +911,9 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
             ReminderMinutes     = UseDefaultReminders || reminders.Order().SequenceEqual(Before.ReminderMinutes.Order()) ? Before.ReminderMinutes : reminders,
             Recurrence          = Recurrence(),
             HasConference       = HasConference,
+            EventType           = kind,
+            IsFree              = kind == EventKind.Default ? ShowAsIndex == 1 : !IsNew && Before.IsFree,
+            Visibility          = VisibilityIndex == _loadedVisibility ? Before.Visibility : VisibilityValues[Math.Clamp(VisibilityIndex, 0, 2)],
         };
     }
 
@@ -777,6 +1009,9 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     // An all-day event turned timed would run midnight to midnight; give it 9 to 10 instead
     partial void OnIsAllDayChanged(bool value)
     {
+        // The Event Type Is Offered For Timed Events Only
+        TypeInputsChanged();
+
         if (!_ready || value || StartTime != TimeSpan.Zero || EndTime != TimeSpan.Zero)
         {
             return;

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using LeafCalendar.Core.Settings;
 
 namespace LeafCalendar.Core.Events;
 
@@ -274,9 +275,10 @@ public static partial class LinkSafety
             && !email.Any(c => char.IsControl(c) || char.IsWhiteSpace(c) || ",;<>()[]?&%=#\"'\\".Contains(c, StringComparison.Ordinal));
     }
 
-    /// <summary>A Google Maps search for a location. The Bing Maps choice (spec 9) arrives with the settings page in Milestone 5.</summary>
-    public static Uri MapsSearch(string location) =>
-        new("https://www.google.com/maps/search/?api=1&query=" + Uri.EscapeDataString(location));
+    /// <summary>A map search for a location, in Google Maps or Bing Maps (Settings › General). The location is escaped, so it never changes the address.</summary>
+    public static Uri MapsSearch(string location, MapProvider provider = MapProvider.Google) => provider == MapProvider.Bing
+        ? new("https://www.bing.com/maps?q=" + Uri.EscapeDataString(location))
+        : new("https://www.google.com/maps/search/?api=1&query=" + Uri.EscapeDataString(location));
 
     /// <summary>Google Calendar's appointment schedule (booking pages) for an account; Google has no API for them.</summary>
     public static Uri BookingPages(string accountEmail) =>

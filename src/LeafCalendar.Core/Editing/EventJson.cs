@@ -70,6 +70,9 @@ public static class EventJson
             Recurrence          = seriesRecurrence ?? Lines(root),
             ConferenceUri       = details.ConferenceUri,
             HasConference       = Get(root, "conferenceData") is { ValueKind: JsonValueKind.Object },
+            EventType           = details.Kind is EventKind.FocusTime or EventKind.OutOfOffice ? details.Kind : EventKind.Default,
+            IsFree              = Str(root, "transparency") == "transparent",
+            Visibility          = Str(root, "visibility") ?? "default",
         };
     }
 
@@ -165,6 +168,37 @@ public static class EventJson
             body["conferenceData"] = MeetRequest(id);
         }
 
+        // Show As And Visibility
+        if (draft.IsFree)
+        {
+            body["transparency"] = "transparent";
+        }
+
+        if (draft.Visibility != "default")
+        {
+            body["visibility"] = draft.Visibility;
+        }
+
+        // Focus Time And Out Of Office: no guests, place, or call, and always busy (Google requires it)
+        if (draft.EventType is EventKind.FocusTime or EventKind.OutOfOffice)
+        {
+            body.Remove("attendees");
+            body.Remove("location");
+            body.Remove("conferenceData");
+            body.Remove("transparency");
+
+            if (draft.EventType == EventKind.FocusTime)
+            {
+                body["eventType"]           = "focusTime";
+                body["focusTimeProperties"] = new JsonObject { ["autoDeclineMode"] = "declineOnlyNewConflictingInvitations", ["chatStatus"] = "doNotDisturb" };
+            }
+            else
+            {
+                body["eventType"]             = "outOfOffice";
+                body["outOfOfficeProperties"] = new JsonObject { ["autoDeclineMode"] = "declineOnlyNewConflictingInvitations" };
+            }
+        }
+
         return body;
     }
 
@@ -239,6 +273,17 @@ public static class EventJson
         if (before.HasConference != after.HasConference)
         {
             patch["conferenceData"] = after.HasConference ? MeetRequest(Guid.NewGuid().ToString("N")) : null;
+        }
+
+        // Show As And Visibility (the event type is never sent: Google can't change it)
+        if (before.IsFree != after.IsFree)
+        {
+            patch["transparency"] = after.IsFree ? "transparent" : "opaque";
+        }
+
+        if (before.Visibility != after.Visibility)
+        {
+            patch["visibility"] = after.Visibility;
         }
 
         return patch;

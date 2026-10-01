@@ -78,4 +78,16 @@ public sealed record EventDraft
 
     /// <summary>The event has a video call from Google (or one is being added); off for new events.</summary>
     public bool HasConference { get; init; }
+
+    /// <summary>
+    /// Focus time, out of office, or an ordinary event. Set only when creating; Google can't change an event's type, so
+    /// a patch never sends it.
+    /// </summary>
+    public EventKind EventType { get; init; } = EventKind.Default;
+
+    /// <summary>Shows as free (Google's <c>transparency: transparent</c>); false shows as busy.</summary>
+    public bool IsFree { get; init; }
+
+    /// <summary>Google's visibility as stored: <c>default</c>, <c>public</c>, <c>private</c>, or <c>confidential</c>.</summary>
+    public string Visibility { get; init; } = "default";
 }

@@ -124,6 +124,24 @@ public sealed partial class EventEditorView : UserControl
         }
     }
 
+    /// <summary>
+    /// Focuses the time zone box ("E then Z"), after any pending title focus. An all-day event has no zone box, so nothing
+    /// happens; the caller has already said why.
+    /// </summary>
+    public void FocusTimeZone()
+    {
+        if (Editor is not { ShowTimeZone: true })
+        {
+            return;
+        }
+
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            TimeZoneBox.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = false });
+            TimeZoneBox.Focus(FocusState.Programmatic);
+        });
+    }
+
     /// <summary>Moves focus to the end time ("E then U" right after an instant E), after any pending title focus.</summary>
     public void FocusEndTime()
     {
@@ -224,7 +242,8 @@ public sealed partial class EventEditorView : UserControl
         }
 
         // Esc in an open dropdown (or the guest suggestions) only closes it
-        if (e.Key == VirtualKey.Escape && !RepeatBox.IsDropDownOpen && !EndsBox.IsDropDownOpen && !CalendarBox.IsDropDownOpen && !_reminderDropDownOpen && !GuestBox.IsSuggestionListOpen && !RoomBox.IsSuggestionListOpen)
+        if (e.Key == VirtualKey.Escape && !RepeatBox.IsDropDownOpen && !EndsBox.IsDropDownOpen && !CalendarBox.IsDropDownOpen && !_reminderDropDownOpen && !GuestBox.IsSuggestionListOpen && !RoomBox.IsSuggestionListOpen
+            && !TimeZoneBox.IsSuggestionListOpen && !EventTypeBox.IsDropDownOpen && !ShowAsBox.IsDropDownOpen && !VisibilityBox.IsDropDownOpen)
         {
             e.Handled = true;
             _owner?.CancelEdit();
@@ -303,6 +322,46 @@ public sealed partial class EventEditorView : UserControl
         if (_owner is { } owner && Editor is { } editor)
         {
             owner.Fire(() => owner.AllowContactsAsync(editor.ContactsAccountId), "contacts.allow.failed");
+        }
+    }
+
+    // =========================================================================
+    // TIME ZONE
+    // =========================================================================
+
+    // Typing lists matching zones (the catalog is local, so right away)
+    void OnZoneTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput && Editor is { } editor)
+        {
+            editor.RefreshZoneSuggestions(DateTimeOffset.UtcNow);
+        }
+    }
+
+    // A picked zone (or the first match for Enter on typed text) is found by reference in our own list
+    void OnZoneQuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        if (Editor is not { } editor)
+        {
+            return;
+        }
+
+        var chosen = args.ChosenSuggestion ?? editor.ZoneSuggestions.FirstOrDefault();
+        if (editor.ZoneSuggestions.FirstOrDefault(s => ReferenceEquals(s, chosen)) is { } zone)
+        {
+            editor.PickZone(zone);
+            return;
+        }
+
+        editor.ResetZoneInput();
+    }
+
+    // Leaving the box without a pick shows the event's zone again
+    void OnZoneLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (Editor is { } editor && !TimeZoneBox.IsSuggestionListOpen)
+        {
+            editor.ResetZoneInput();
         }
     }
 

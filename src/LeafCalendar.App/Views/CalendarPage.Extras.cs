@@ -6,18 +6,30 @@ namespace LeafCalendar.App.Views;
 
 public sealed partial class CalendarPage
 {
-    // Called once when the page opens (Task 11 fills it in)
+    // Called once when the page opens (Task 12 fills it in)
     void AttachExtras()
     {
     }
 
-    // Called from Detach: undo everything AttachExtras wired to the long-lived view model (Task 11)
+    // Called from Detach: undo everything AttachExtras wired to the long-lived view model (Task 12)
     void DetachExtras()
     {
     }
 
-    // E then Z (Task 11)
+    // E then Z (spec 8.7): open the editor on the event's time zone
     void EditTimeZone()
     {
+        if (ViewModel.SelectedInfo is { Occurrence.IsAllDay: true })
+        {
+            ViewModel.ShowMessage("All-day events don't have a time zone");
+            return;
+        }
+
+        if (ViewModel.Editing is null)
+        {
+            ViewModel.BeginEdit();
+        }
+
+        DispatcherQueue.TryEnqueue(() => Details.EditorView?.FocusTimeZone());
     }
 }

@@ -73,6 +73,24 @@ public sealed partial class DetailsPanel : UserControl
         {
             ShowCurrent();
         }
+
+        if (e.PropertyName == nameof(CalendarViewModel.MapButtonText))
+        {
+            ShowMapButton();
+        }
+    }
+
+    // The location button names the map service picked in Settings, and its tooltip shows where it goes
+    void ShowMapButton()
+    {
+        if (_vm is not { } vm)
+        {
+            return;
+        }
+
+        var location     = vm.SelectedInfo?.Details.Location;
+        MapsLink.Content = vm.MapButtonText;
+        ToolTipService.SetToolTip(MapsLink, location is { Length: > 0 } ? LinkSafety.DisplayForm(LinkSafety.MapsSearch(location, vm.Settings.MapProvider)) : null);
     }
 
     // The editor wins while it's open; otherwise the selection summary (several events), the selected event, else the upcoming list
@@ -160,7 +178,7 @@ public sealed partial class DetailsPanel : UserControl
         LocationRow.Visibility    = Visible(d.Location is { Length: > 0 });
         ConferenceText.Text       = $"Video call: {call}";
         ConferenceText.Visibility = Visible(d.ConferenceUri is not null);
-        ToolTipService.SetToolTip(MapsLink, d.Location is { Length: > 0 } location ? LinkSafety.DisplayForm(LinkSafety.MapsSearch(location)) : null);
+        ShowMapButton();
 
         // Your Reply
         RsvpRow.Visibility = Visible(info.CanRespond);
