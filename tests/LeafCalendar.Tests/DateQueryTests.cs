@@ -1,0 +1,50 @@
+using LeafCalendar.Core.Search;
+
+namespace LeafCalendar.Tests;
+
+public sealed class DateQueryTests
+{
+    static readonly DateOnly Today = new(2026, 10, 1); // a Thursday
+
+    [Theory]
+    [InlineData("today", 2026, 10, 1)]
+    [InlineData("Tomorrow", 2026, 10, 2)]
+    [InlineData("yesterday", 2026, 9, 30)]
+    [InlineData("fri", 2026, 10, 2)]
+    [InlineData("friday", 2026, 10, 2)]
+    [InlineData("thu", 2026, 10, 1)]
+    [InlineData("next thu", 2026, 10, 8)]
+    [InlineData("next friday", 2026, 10, 9)]
+    [InlineData("2026-10-12", 2026, 10, 12)]
+    [InlineData("10/12", 2026, 10, 12)]
+    [InlineData("10/12/2027", 2027, 10, 12)]
+    [InlineData("oct 12", 2026, 10, 12)]
+    [InlineData("October 12", 2026, 10, 12)]
+    [InlineData("12 oct", 2026, 10, 12)]
+    [InlineData("oct 12 2027", 2027, 10, 12)]
+    [InlineData("jan 5", 2027, 1, 5)]   // more than 2 months back this year means next year
+    [InlineData("sep 15", 2026, 9, 15)] // recent past stays this year
+    [InlineData("in 3 days", 2026, 10, 4)]
+    [InlineData("in 2 weeks", 2026, 10, 15)]
+    public void TryParse_Understands(string text, int y, int m, int d)
+    {
+        Assert.True(DateQuery.TryParse(text, Today, out var date));
+        Assert.Equal(new DateOnly(y, m, d), date);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("hello")]
+    [InlineData("feb 30")]
+    [InlineData("13/45")]
+    [InlineData("in 99999 days")]
+    [InlineData("standup")]
+    public void TryParse_Rejects(string text) => Assert.False(DateQuery.TryParse(text, Today, out _));
+
+    [Fact]
+    public void Label_AddsTheYearOnlyWhenItDiffers()
+    {
+        Assert.Equal("Mon, Oct 12", DateQuery.Label(new DateOnly(2026, 10, 12), Today));
+        Assert.Equal("Tue, Jan 5, 2027", DateQuery.Label(new DateOnly(2027, 1, 5), Today));
+    }
+}
