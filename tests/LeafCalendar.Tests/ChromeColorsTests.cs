@@ -37,6 +37,18 @@ public class ChromeColorsTests
         }
     }
 
+    // Overlay Titles Can Sit On Off-Hours Shading Too
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Text_OnOffHours_MeetsAA(bool dark)
+    {
+        var surface = ChromeColors.Surface(dark);
+        var fill    = Flatten(ChromeColors.OffHours(dark), surface);
+        var ratio   = EventColors.ContrastRatio(Flatten(ChromeColors.PrimaryText(dark), fill), fill);
+        Assert.True(ratio >= 4.5, $"primary text on off-hours {fill}: {ratio:0.00}:1");
+    }
+
     [Fact]
     public void Person_IndexesWrap() => Assert.Equal(ChromeColors.Person(0, dark: false), ChromeColors.Person(ChromeColors.PersonCount, dark: false));
 }

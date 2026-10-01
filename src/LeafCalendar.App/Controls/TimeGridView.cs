@@ -74,6 +74,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
     readonly HashSet<DayHeaderCell> _headers = [];
     DayStrip _strip = null!;
     bool _allDayExpanded;
+
+    // The all-day default last seen in the settings: a change there applies, while your chevron clicks stay otherwise
+    bool _allDayDefault;
     bool _disposed;
     bool _initialized;
     bool _following;
@@ -105,6 +108,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
     {
         _vm     = vm;
         _allDay = new AllDayCanvas(this);
+
+        // The All-Day Row Starts As Settings Say (expanded or three lanes)
+        _allDayExpanded = _allDayDefault = vm.Settings.AllDayExpanded;
         _gutter = new TimeZoneGutter(this);
         AutomationProperties.SetAutomationId(this, "TimeGrid");
         AutomationProperties.SetName(this, "Time grid");
@@ -680,6 +686,12 @@ public sealed partial class TimeGridView : Grid, IDisposable
         if (_disposed)
         {
             return;
+        }
+
+        // The All-Day Default Changed In Settings
+        if (_vm.Settings.AllDayExpanded != _allDayDefault)
+        {
+            _allDayExpanded = _allDayDefault = _vm.Settings.AllDayExpanded;
         }
 
         if (_strip.SkipsWeekends == _vm.Settings.ShowWeekends)

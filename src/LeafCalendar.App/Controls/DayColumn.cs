@@ -28,6 +28,8 @@ public sealed partial class DayColumn : Canvas
     readonly List<EventBlock> _blocks = [];
     readonly Border _ghost = new() { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
     readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 2, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+    readonly Canvas _offHours = new() { IsHitTestVisible = false };
+    readonly List<Border> _offHourBlocks = [];
     readonly Canvas _overlay = new() { IsHitTestVisible = false };
     readonly List<(Border Block, TextBlock Title)> _overlayBlocks = [];
     readonly Canvas _slots = new() { IsHitTestVisible = false };
@@ -41,6 +43,10 @@ public sealed partial class DayColumn : Canvas
     {
         _owner  = owner;
         _select = o => KeyState.SelectClicked(_owner.ViewModel, o);
+
+        // Off-Hours Shading (behind everything, even the hour lines)
+        Children.Add(_offHours);
+
         for (var h = 0; h < 24; h++)
         {
             Children.Add(_hourLines[h] = new Rectangle { Height = 1, IsHitTestVisible = false });
@@ -121,6 +127,7 @@ public sealed partial class DayColumn : Canvas
         _divider.Height = Height;
         _divider.Fill   = LeafBrushes.GridLine(dark);
 
+        RenderOffHours();
         RenderOverlay();
         RenderSlots();
 
@@ -184,6 +191,40 @@ public sealed partial class DayColumn : Canvas
 
     /// <summary>Hides the ghost.</summary>
     public void ClearGhost() => _ghost.Visibility = Visibility.Collapsed;
+
+    // Shades the time outside your working hours. The minutes are the wall clock of the zone on screen (ViewModel.Zone),
+    // as the hour lines are, so 9 AM is the 9:00 line whatever zone you're looking in
+    void RenderOffHours()
+    {
+        var vm    = _owner.ViewModel;
+        var hour  = _owner.HourHeight;
+        var fill  = LeafBrushes.OffHours(_owner.IsDark);
+        var spans = WorkingHoursMath.OffHours(vm.Settings.WorkingHours, Date.DayOfWeek);
+
+        for (var i = 0; i < spans.Count; i++)
+        {
+            if (i == _offHourBlocks.Count)
+            {
+                var block = new Border();
+                _offHourBlocks.Add(block);
+                _offHours.Children.Add(block);
+            }
+
+            var (start, end) = spans[i];
+            var shade        = _offHourBlocks[i];
+            shade.Visibility = Visibility.Visible;
+            shade.Background = fill;
+            shade.Width      = _owner.ColumnWidth;
+            shade.Height     = (end - start) / 60.0 * hour;
+            SetTop(shade, start / 60.0 * hour);
+            AutomationProperties.SetAutomationId(shade, string.Create(CultureInfo.InvariantCulture, $"OffHours_{Date:yyyy-MM-dd}_{i}"));
+        }
+
+        for (var i = spans.Count; i < _offHourBlocks.Count; i++)
+        {
+            _offHourBlocks[i].Visibility = Visibility.Collapsed;
+        }
+    }
 
     /// <summary>
     /// Draws the overlaid people's busy stretches that fall on this day, under the events. Each block's number counts

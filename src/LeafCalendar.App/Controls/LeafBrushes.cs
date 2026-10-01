@@ -77,6 +77,9 @@ public static class LeafBrushes
     /// <summary>An overlaid person's busy-block fill (their color at 20%); none in a contrast theme, where the edge carries it.</summary>
     public static SolidColorBrush PersonFill(int index, bool dark) => IsHighContrast ? Transparent : FromHex(ChromeColors.PersonFill(index, dark));
 
+    /// <summary>The tint outside your working hours; none in a contrast theme, where a tint would cut contrast.</summary>
+    public static SolidColorBrush OffHours(bool dark) => IsHighContrast ? Transparent : FromHex(ChromeColors.OffHours(dark));
+
     // Contrast Themes Use The System's Own Colors Instead Of Tints
     static readonly Windows.UI.ViewManagement.AccessibilitySettings Accessibility = new();
 
