@@ -9,6 +9,7 @@ namespace LeafCalendar.UITests;
 public sealed class WorkingHoursTests : IDisposable
 {
     const string Dentist = "Event_evt-single_202610011300";
+    const string Meeting = "Event_evt-meeting_202610011800";
 
     readonly FakeGoogleServer _google = new();
     string? _profile;
@@ -28,15 +29,24 @@ public sealed class WorkingHoursTests : IDisposable
     {
         _profile = SeededProfile.Create(settings);
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
-        leaf.WaitFor(Dentist);
+        var dentist = leaf.WaitFor(Dentist);
         leaf.Resize(1400, 1200);
         return leaf;
     }
 
-    // The dentist runs 9-10 AM Eastern: its card (an hour less 2 px, 1 px below the 9:00 line) measures the grid
-    static int HourPixels(AutomationElement dentist) => dentist.BoundingRectangle.Height + 2;
+    // The dentist runs 9-10 AM Eastern and the design review starts at 2 PM: each card starts 1 px below its hour line,
+    // so the five hours between them measure the grid
+    // A wall-clock hour line in the zone on screen (Windows' zone): working hours are local, the events are Eastern
+    static double LineY(LeafApp leaf, int hour)
+    {
+        var dentist = leaf.WaitFor(Dentist).BoundingRectangle.Top - 1;
+        var hourPx  = (leaf.WaitFor(Meeting).BoundingRectangle.Top - 1 - dentist) / 5.0;
+        return dentist + (hour - DentistLocalHour) * hourPx;
+    }
 
-    static double LineY(AutomationElement dentist, int hour) => dentist.BoundingRectangle.Top - 1 + (hour - 9) * HourPixels(dentist);
+    static readonly int DentistLocalHour = TimeZoneInfo.ConvertTime(
+        new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time").GetUtcOffset(new DateTime(2026, 10, 1, 9, 0, 0))),
+        TimeZoneInfo.Local).Hour;
 
     static void AssertNear(double actual, double expected, string what) =>
         Assert.True(Math.Abs(actual - expected) <= 2, $"{what} is at {actual}, expected {expected} (± 2 px).");
@@ -49,8 +59,8 @@ public sealed class WorkingHoursTests : IDisposable
         LeafApp.WaitUntilStill(dentist);
 
         // Midnight to 9 AM ends on the 9:00 line; 5 PM to midnight starts on the 17:00 line
-        AssertNear(leaf.WaitFor("OffHours_2026-10-01_0").BoundingRectangle.Bottom, LineY(dentist, 9), "The morning shade's bottom");
-        AssertNear(leaf.WaitFor("OffHours_2026-10-01_1").BoundingRectangle.Top, LineY(dentist, 17), "The evening shade's top");
+        AssertNear(leaf.WaitFor("OffHours_2026-10-01_0").BoundingRectangle.Bottom, LineY(leaf, 9), "The morning shade's bottom");
+        AssertNear(leaf.WaitFor("OffHours_2026-10-01_1").BoundingRectangle.Top, LineY(leaf, 17), "The evening shade's top");
 
         // Nothing shades the working day itself
         Assert.False(leaf.Exists("OffHours_2026-10-01_2"));
@@ -65,7 +75,7 @@ public sealed class WorkingHoursTests : IDisposable
 
         // One shade covers Saturday through the working hours
         var shade = leaf.WaitFor("OffHours_2026-10-03_0").BoundingRectangle;
-        Assert.True(shade.Top <= LineY(dentist, 8) && shade.Bottom >= LineY(dentist, 12), $"Saturday's shade {shade} doesn't cover 8 AM to noon.");
+        Assert.True(shade.Top <= LineY(leaf, 8) && shade.Bottom >= LineY(leaf, 12), $"Saturday's shade {shade} doesn't cover 8 AM to noon.");
         Assert.False(leaf.Exists("OffHours_2026-10-03_1"));
     }
 
@@ -73,7 +83,7 @@ public sealed class WorkingHoursTests : IDisposable
     public void Disabled_NoShading()
     {
         using var leaf = Launch(new LeafSettings { WorkingHours = new WorkingHours { Enabled = false } });
-        leaf.WaitFor(Dentist);
+        var dentist = leaf.WaitFor(Dentist);
 
         Assert.Empty(leaf.MainWindow.FindAllDescendants(cf => cf.ByAutomationId("OffHours_2026-10-01_0").Or(cf.ByAutomationId("OffHours_2026-10-03_0"))));
         Assert.DoesNotContain(leaf.MainWindow.FindAllDescendants(), e => (e.Properties.AutomationId.ValueOrDefault ?? "").StartsWith("OffHours_", StringComparison.Ordinal));
@@ -87,8 +97,8 @@ public sealed class WorkingHoursTests : IDisposable
         var dentist = leaf.WaitFor(Dentist);
         LeafApp.WaitUntilStill(dentist);
 
-        AssertNear(leaf.WaitFor("OffHours_2026-10-01_0").BoundingRectangle.Bottom, LineY(dentist, 8), "The morning shade's bottom");
-        AssertNear(leaf.WaitFor("OffHours_2026-10-01_1").BoundingRectangle.Top, LineY(dentist, 16), "The evening shade's top");
+        AssertNear(leaf.WaitFor("OffHours_2026-10-01_0").BoundingRectangle.Bottom, LineY(leaf, 8), "The morning shade's bottom");
+        AssertNear(leaf.WaitFor("OffHours_2026-10-01_1").BoundingRectangle.Top, LineY(leaf, 16), "The evening shade's top");
     }
 
     [Fact]

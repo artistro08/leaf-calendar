@@ -233,6 +233,9 @@ public sealed partial class DayColumn : Canvas
             shade.Height     = (end - start) / 60.0 * hour;
             SetTop(shade, start / 60.0 * hour);
             AutomationProperties.SetAutomationId(shade, string.Create(CultureInfo.InvariantCulture, $"OffHours_{Date:yyyy-MM-dd}_{i}"));
+
+            // A Border is in the automation tree only with a name
+            AutomationProperties.SetName(shade, "Outside working hours");
         }
 
         for (var i = spans.Count; i < _offHourBlocks.Count; i++)
