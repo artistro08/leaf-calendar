@@ -173,8 +173,8 @@ public sealed partial class EventBlock : Grid
         _icon.Foreground = textBrush ?? accent;
 
         // Past Events Fade (still readable)
-        // (past cards arrive with a faded palette; their text stays full strength)
-        AutomationProperties.SetItemStatus(this, past ? "Past" : "");
+        // (past cards arrive with a faded palette; their text stays full strength). Selection is published too, for UI tests
+        AutomationProperties.SetItemStatus(this, string.Join(';', new[] { past ? "Past" : "", selected ? "Selected" : "" }.Where(s => s.Length > 0)));
 
         AutomationProperties.SetName(this, $"{occurrence.Title}, {timeText}");
         AutomationProperties.SetAutomationId(this, AutomationIdFor(occurrence));

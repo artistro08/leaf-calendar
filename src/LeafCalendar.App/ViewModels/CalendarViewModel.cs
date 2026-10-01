@@ -1273,6 +1273,32 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Shift+drag box: selects exactly <paramref name="hits"/>, or adds them when <paramref name="add"/> (Ctrl held too).
+    /// Ends any edit, like Ctrl+click does. An empty box that doesn't add clears the selection, like clicking empty space.
+    /// </summary>
+    public void SelectBox(IReadOnlyList<CalendarOccurrence> hits, bool add)
+    {
+        ArgumentNullException.ThrowIfNull(hits);
+
+        CancelEdit();
+
+        if (!add)
+        {
+            _selection.Clear();
+        }
+
+        foreach (var hit in hits.Where(h => !_selection.Exists(s => s.Key == h.Key)))
+        {
+            _selection.Add(hit);
+        }
+
+        PublishSelection();
+    }
+
+    /// <summary>Every event on these days (the month view's box, and the time grid's candidates).</summary>
+    public IReadOnlyList<CalendarOccurrence> OnDays(IEnumerable<DateOnly> days) => [.. days.SelectMany(Cache.ForDay).DistinctBy(o => o.Key)];
+
+    /// <summary>
     /// Copies the selection (Ctrl+C). The copies keep the events' data, so a cut event can still be pasted. The Windows
     /// clipboard gets a readable summary (one line per event) plus Leaf's marker; the events themselves stay in Leaf.
     /// Leaf's copies change only once the clipboard took the new content.

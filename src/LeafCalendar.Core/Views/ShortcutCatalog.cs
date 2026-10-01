@@ -3,10 +3,7 @@ namespace LeafCalendar.Core.Views;
 /// <summary>One cheat-sheet row: its section, the keys as the spec writes them, the action, and the command it runs (if any).</summary>
 public sealed record ShortcutRow(string Section, string Keys, string Action, CalendarCommand Command = CalendarCommand.None);
 
-/// <summary>
-/// The in-app shortcut cheat sheet (spec 8.7), copied verbatim in spec order. "Shift+drag · Box select" is left out
-/// until Milestone 6 builds it, because a sheet mustn't list a key that does nothing.
-/// </summary>
+/// <summary>The in-app shortcut cheat sheet (spec 8.7), copied verbatim in spec order.</summary>
 public static class ShortcutCatalog
 {
     /// <summary>The section headings, in spec order.</summary>
@@ -58,9 +55,10 @@ public static class ShortcutCatalog
         new("Events", "Ctrl+J", "Join selected or next meeting", CalendarCommand.JoinMeeting),
         new("Events", "V", "Open meeting link in browser", CalendarCommand.OpenMeetingLink),
 
-        // Selection (Shift+drag box select waits for Milestone 6)
+        // Selection
         new("Selection", "X", "Select / deselect", CalendarCommand.ToggleSelect),
         new("Selection", "Ctrl+A", "Select all visible", CalendarCommand.SelectAll),
+        new("Selection", "Shift+drag", "Box select"),
         new("Selection", "Ctrl+click", "Add to / remove from selection"),
         new("Selection", "Ctrl+C / Ctrl+X / Ctrl+V", "Copy / cut / paste events", CalendarCommand.Copy),
         new("Selection", "Alt+drag", "Duplicate"),
