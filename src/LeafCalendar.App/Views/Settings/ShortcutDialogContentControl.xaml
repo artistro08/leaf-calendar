@@ -6,7 +6,8 @@
     Ported from PowerToys: src/settings-ui/Settings.UI/SettingsXAML/Controls/ShortcutControl/ShortcutDialogContentControl.xaml
     (https://github.com/microsoft/PowerToys). Leaf changes: strings inline (Leaf has no resource files); the key caps are
     added in code instead of an ItemsControl (Native AOT); x:Bind to this control's properties instead of converters; the
-    tip is a TextBlock with bold runs instead of a toolkit MarkdownTextBlock; no "ignore conflicts" bar (Leaf has no
+    tip is a TextBlock with bold runs instead of a toolkit MarkdownTextBlock, and its text gives Leaf's rule (Windows key,
+    Ctrl, or Alt, since Shift alone isn't enough, ending with a letter, a number, or an F key); no "ignore conflicts" bar (Leaf has no
     conflict-ignore setting); automation IDs for the UI tests and live regions on the InfoBars.
 -->
 <UserControl

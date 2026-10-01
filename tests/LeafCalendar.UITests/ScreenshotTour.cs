@@ -113,18 +113,29 @@ public sealed class ScreenshotTour : IDisposable
                     settings.Patterns.Transform.Pattern.Move(40, 40);
                     settings.Patterns.Transform.Pattern.Resize(width, 900);
                     Thread.Sleep(600);
-                    // Leaf's Expanders All Have "Expander" In Their Automation ID
-                    foreach (var expander in settings.FindAllDescendants().Where(e => e.Properties.AutomationId.ValueOrDefault?.Contains("Expander", StringComparison.Ordinal) == true))
+                    // The Expanders Open, So Their Rows Show
+                    if (page == "TimeZones")
                     {
-                        if (expander.Patterns.ExpandCollapse.TryGetPattern(out var pattern) && pattern!.ExpandCollapseState.Value == FlaUI.Core.Definitions.ExpandCollapseState.Collapsed)
-                        {
-                            pattern.Expand();
-                        }
+                        leaf.ExpandInSettings("PrimaryZoneExpander");
+                    }
+                    else if (page == "Accounts")
+                    {
+                        leaf.ExpandInSettings($"AccountExpander_{SeededProfile.AccountId}");
                     }
 
+                    // Only Settings In The Shot (the main window minimized again: opening Settings can bring it back)
+                    leaf.MainWindow.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
                     settings.SetForeground();
                     Thread.Sleep(400);
                     settings.CaptureToFile(Path.Combine(folder, $"settings-{page.ToLowerInvariant()}-{theme.ToString().ToLowerInvariant()}-{(width == 0 ? "narrow" : "wide")}.png"));
+
+                    // General's Working Hours, Further Down
+                    if (page == "General")
+                    {
+                        leaf.WaitInSettings("WorkDaysButton").Patterns.ScrollItem.Pattern.ScrollIntoView();
+                        Thread.Sleep(400);
+                        settings.CaptureToFile(Path.Combine(folder, $"settings-general-workinghours-{theme.ToString().ToLowerInvariant()}-{(width == 0 ? "narrow" : "wide")}.png"));
+                    }
                 }
             }
         }

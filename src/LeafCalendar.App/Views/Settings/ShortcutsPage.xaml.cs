@@ -38,6 +38,7 @@ public sealed partial class ShortcutsPage : Page
         _context = (SettingsContext)e.Parameter;
         _context.Window.SettingsChanged     += OnChanged;
         _context.Services.Shortcuts.Changed += OnChanged;
+        _context.Window.Closed              += OnWindowClosed;
         Load();
     }
 
@@ -46,6 +47,15 @@ public sealed partial class ShortcutsPage : Page
     {
         _context.Window.SettingsChanged     -= OnChanged;
         _context.Services.Shortcuts.Changed -= OnChanged;
+        _context.Window.Closed              -= OnWindowClosed;
+    }
+
+    // Settings Closed With A Shortcut Dialog Open: close it, which lets go of the keyboard and registers Leaf's shortcuts again
+    void OnWindowClosed(object sender, WindowEventArgs args)
+    {
+        _context.Window.Closed -= OnWindowClosed;
+        JoinShortcutControl.CloseDialog();
+        FlyoutShortcutControl.CloseDialog();
     }
 
     void OnChanged(object? sender, EventArgs e) => Load();

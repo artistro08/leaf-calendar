@@ -149,6 +149,31 @@ public sealed class TraySettingsTests : IDisposable
     }
 
     [Fact]
+    public void ShortcutDialog_SettingsClosedWhileOpen_ShortcutsComeBack()
+    {
+        var profile = Profile(new LeafSettings { JoinShortcut = "Ctrl+Alt+Shift+F9", FlyoutShortcut = "Ctrl+Alt+Shift+F10" });
+        using var leaf = Launch(profile, "2026-10-01T13:55:00-04:00");
+        leaf.OpenSettings("Shortcuts");
+
+        // Close Settings With The Dialog Open (Leaf's shortcuts are let go while it listens)
+        leaf.WaitInSettings("JoinShortcutButton").AsButton().Invoke();
+        leaf.WaitForAnywhere("ShortcutPreview");
+        leaf.SettingsWindow.Close();
+        Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Settings") > 0, TimeSpan.FromSeconds(10)).Success, "Settings didn't close.");
+
+        // The Global Shortcut Works Again
+        Thread.Sleep(300);
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.ALT, VirtualKeyShort.SHIFT, VirtualKeyShort.F9);
+        Assert.True(Retry.WhileFalse(() => LeafApp.LaunchedLinks(profile).Contains(MeetLink), TimeSpan.FromSeconds(10)).Success, "The join shortcut didn't come back.");
+
+        // And The Picker Opens Again In A New Settings Window
+        leaf.OpenSettings("Shortcuts");
+        leaf.WaitInSettings("JoinShortcutButton").AsButton().Invoke();
+        Assert.True(Retry.WhileFalse(() => leaf.WaitForAnywhere("ShortcutPreview").Name == "Ctrl+Alt+Shift+F9", TimeSpan.FromSeconds(5)).Success, "The picker didn't open again.");
+        leaf.WaitForAnywhere("CloseButton").AsButton().Invoke();
+    }
+
+    [Fact]
     public void ShortcutDialog_ResetAndTurnOff()
     {
         var profile = Profile(new LeafSettings { JoinShortcut = "Ctrl+Alt+Shift+F9", FlyoutShortcut = "Ctrl+Alt+Shift+F10" });

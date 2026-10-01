@@ -30,11 +30,16 @@ internal static unsafe class KeyboardHook
     static Action<KeyboardEvent>? s_callback;
     static Func<bool>? s_isActive;
     static Func<KeyboardEvent, bool>? s_filter;
+    static int s_generation;
+
+    /// <summary>Counts Start calls, so an owner closes only the hook it started.</summary>
+    public static int Generation => s_generation;
 
     /// <summary>Installs the hook (replacing one already installed). False when Windows refused it.</summary>
     public static bool Start(Action<KeyboardEvent> callback, Func<bool> isActive, Func<KeyboardEvent, bool> filter)
     {
         Close();
+        s_generation++;
         s_callback = callback;
         s_isActive = isActive;
         s_filter   = filter;
@@ -56,6 +61,15 @@ internal static unsafe class KeyboardHook
         s_callback = null;
         s_isActive = null;
         s_filter   = null;
+    }
+
+    /// <summary>Removes the hook only if it's still the one from <paramref name="generation"/> (a newer one stays).</summary>
+    public static void Close(int generation)
+    {
+        if (generation == s_generation)
+        {
+            Close();
+        }
     }
 
     /// <summary>True while Windows reports <paramref name="virtualKey"/> held (<c>GetAsyncKeyState</c>).</summary>
@@ -104,6 +118,7 @@ internal sealed class HotkeySettingsControlHook : IDisposable
     private readonly Action<int> _keyUp;
     private readonly Func<bool> _isActive;
     private readonly Func<int, nuint, bool> _filterKeyboardEvent;
+    private readonly int _generation;
     private bool disposedValue;
 
     public HotkeySettingsControlHook(Action<int> keyDown, Action<int> keyUp, Func<bool> isActive, Func<int, nuint, bool> filterAccessibleKeyboardEvents)
@@ -112,8 +127,12 @@ internal sealed class HotkeySettingsControlHook : IDisposable
         _keyUp = keyUp;
         _isActive = isActive;
         _filterKeyboardEvent = filterAccessibleKeyboardEvents;
-        KeyboardHook.Start(HotkeySettingsHookCallback, IsActive, FilterKeyboardEvents);
+        IsHooked = KeyboardHook.Start(HotkeySettingsHookCallback, IsActive, FilterKeyboardEvents);
+        _generation = KeyboardHook.Generation;
     }
+
+    /// <summary>False when Windows refused the hook (the dialog then can't listen for keys).</summary>
+    public bool IsHooked { get; }
 
     private bool IsActive() => _isActive();
 
@@ -140,8 +159,9 @@ internal sealed class HotkeySettingsControlHook : IDisposable
     {
         if (!disposedValue)
         {
-            // Remove the hook
-            KeyboardHook.Close();
+            // Remove the hook. KeyboardHook is static with one hook at a time: a newer instance's Start already closed this one's,
+            // so Dispose closes only the hook this instance started, never a newer one (whatever order they're disposed in)
+            KeyboardHook.Close(_generation);
             disposedValue = true;
         }
     }

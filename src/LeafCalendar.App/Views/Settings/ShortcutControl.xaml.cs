@@ -45,6 +45,8 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
     private HotkeySettingsControlHook? hook;
     private bool _isActive;
     private bool _hasConflict;
+    private bool _dialogOpen;
+    private bool _hookFailed;
     private nint _window;
 
     [ThreadStatic]
@@ -61,6 +63,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
 
         c.ResetClick += C_ResetClick;
         c.ClearClick += C_ClearClick;
+        Unloaded += ShortcutControl_Unloaded;
 
         // We create the Dialog in C# because doing it in XAML is giving WinUI/XAML Island bugs when using dark theme.
         shortcutDialog = new ContentDialog
@@ -409,6 +412,13 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
         hook?.Dispose();
         hook = new HotkeySettingsControlHook(Hotkey_KeyDown, Hotkey_KeyUp, Hotkey_IsActive, FilterAccessibleKeyboardEvents);
         _isActive = true;
+
+        // Leaf: Windows refused the hook, so nothing can be pressed: close, and say so once the dialog is gone
+        if (!hook.IsHooked)
+        {
+            _hookFailed = true;
+            shortcutDialog.Hide();
+        }
     }
 
     private async void OpenDialogButton_Click(object sender, RoutedEventArgs e)
@@ -419,6 +429,8 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
         }
 
         _isDialogOpen = true;
+        _dialogOpen   = true;
+        _hookFailed   = false;
         try
         {
             List<object> newKeys = HotkeySettings?.GetKeysList() ?? [];
@@ -452,13 +464,74 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
         }
         finally
         {
-            // Leaf: the hook never outlives the dialog
-            _isActive = false;
-            hook?.Dispose();
-            hook = null;
-            _isDialogOpen = false;
-            DialogClosed?.Invoke(this, EventArgs.Empty);
+            EndDialog();
         }
+
+        // Leaf: the hook failed (PowerToys shows its keyboard-hook error the same way, once the picker is closed)
+        if (_hookFailed && XamlRoot is { } root)
+        {
+            try
+            {
+                await new ContentDialog
+                {
+                    XamlRoot = root,
+                    RequestedTheme = ActualTheme,
+                    Title = "Activation shortcut",
+                    Content = "Leaf couldn't listen to the keyboard, so the shortcut can't be changed right now. Try again.",
+                    CloseButtonText = "OK",
+                }.ShowAsync();
+            }
+            catch (Exception)
+            {
+                // async void: nothing may escape
+            }
+        }
+    }
+
+    /// <summary>
+    /// Closes the dialog without saving and lets go of the keyboard (Leaf: the Settings window closed, or the page
+    /// unloaded, while it was open).
+    /// </summary>
+    public void CloseDialog()
+    {
+        if (!_dialogOpen)
+        {
+            return;
+        }
+
+        try
+        {
+            shortcutDialog.Hide();
+        }
+        catch (Exception)
+        {
+            // The window is already going away; the cleanup below still runs
+        }
+
+        EndDialog();
+    }
+
+    // Leaf: everything a closed dialog must undo, once, whichever way it closed (the hook goes, and DialogClosed lets the
+    // page register Leaf's shortcuts again); ShowAsync may never return when the window closes under it
+    private void EndDialog()
+    {
+        if (!_dialogOpen)
+        {
+            return;
+        }
+
+        _dialogOpen = false;
+        _isActive = false;
+        hook?.Dispose();
+        hook = null;
+        _isDialogOpen = false;
+        DialogClosed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void ShortcutControl_Unloaded(object sender, RoutedEventArgs e)
+    {
+        CloseDialog();
+        Dispose();
     }
 
     private void C_ResetClick(object sender, RoutedEventArgs e)
@@ -524,7 +597,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
             PreviewKeysControl.Children.Clear();
             foreach (var key in keys)
             {
-                PreviewKeysControl.Children.Add(new KeyVisual
+                var keyVisual = new KeyVisual
                 {
                     MinWidth = 36,
                     Padding = new Thickness(8, 8, 8, 8),
@@ -535,7 +608,9 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
                     RenderKeyAsGlyph = true,
                     State = _hasConflict ? KeyVisualState.Warning : KeyVisualState.Normal,
                     Style = (Style)Application.Current.Resources["AccentKeyVisualStyle"],
-                });
+                };
+                AutomationProperties.SetAccessibilityView(keyVisual, AccessibilityView.Raw);
+                PreviewKeysControl.Children.Add(keyVisual);
             }
 
             AutomationProperties.SetHelpText(EditButton, HotkeySettings!.ToHotkey()?.ToString() ?? HotkeySettings.ToString());

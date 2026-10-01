@@ -11,6 +11,7 @@ using LeafCalendar.App.Controls;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 
 namespace LeafCalendar.App.Views.Settings;
@@ -126,7 +127,7 @@ public sealed partial class ShortcutDialogContentControl : UserControl
         KeysControl.Children.Clear();
         foreach (var key in _keys ?? [])
         {
-            KeysControl.Children.Add(new KeyVisual
+            var keyVisual = new KeyVisual
             {
                 Padding          = new Thickness(20, 16, 20, 16),
                 Content          = key,
@@ -137,7 +138,9 @@ public sealed partial class ShortcutDialogContentControl : UserControl
                 RenderKeyAsGlyph = true,
                 State            = IsError ? KeyVisualState.Error : KeyVisualState.Normal,
                 Style            = (Style)Application.Current.Resources["AccentKeyVisualStyle"],
-            });
+            };
+            AutomationProperties.SetAccessibilityView(keyVisual, AccessibilityView.Raw);
+            KeysControl.Children.Add(keyVisual);
         }
 
         ClearBtn.Visibility = _keys is { Count: > 0 } ? Visibility.Visible : Visibility.Collapsed;

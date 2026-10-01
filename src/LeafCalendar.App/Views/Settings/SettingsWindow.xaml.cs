@@ -69,7 +69,7 @@ public sealed partial class SettingsWindow : Window
         // Pages (items from concrete lists: CsWinRT's AOT mode can't cast the native MenuItems vector)
         _pages =
         [
-            (SettingsSection.General, NavItem("General", 0xE713,"SettingsNav_General"), typeof(GeneralPage)),
+            (SettingsSection.General, NavItem("General", 0xE713, "SettingsNav_General"), typeof(GeneralPage)),
             (SettingsSection.Calendars, NavItem("Calendars", 0xE787, "SettingsNav_Calendars"), typeof(CalendarsPage)),
             (SettingsSection.TimeZones, NavItem("Time zones", 0xE774, "SettingsNav_TimeZones"), typeof(TimeZonesPage)),
             (SettingsSection.Notifications, NavItem("Notifications", 0xEA8F, "SettingsNav_Notifications"), typeof(NotificationsPage)),
