@@ -98,6 +98,9 @@ public sealed class TraySettingsTests : IDisposable
         leaf.OpenSettings("Shortcuts");
 
         leaf.WaitInSettings("JoinShortcutButton").AsButton().Invoke();
+
+        // Keys reach the dialog only once it's open (Invoke returns before it shows)
+        leaf.WaitForAnywhere("ShortcutPreview");
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.ALT, VirtualKeyShort.SHIFT, VirtualKeyShort.F7);
         Assert.True(Retry.WhileFalse(() => leaf.WaitForAnywhere("ShortcutPreview").Name == "Ctrl+Alt+Shift+F7", TimeSpan.FromSeconds(5)).Success);
         leaf.WaitForAnywhere("PrimaryButton").AsButton().Invoke();
