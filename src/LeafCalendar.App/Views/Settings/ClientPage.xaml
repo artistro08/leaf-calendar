@@ -36,6 +36,7 @@
                 IsClosable="False"
                 IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
                 Message="{x:Bind ViewModel.Error, Mode=OneWay}"
+                AutomationProperties.LiveSetting="Assertive"
                 AutomationProperties.AutomationId="SettingsClientError" />
 
             <!-- Actions -->

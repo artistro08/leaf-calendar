@@ -13,6 +13,9 @@ public sealed record EventPalette(string Accent, string Fill, string Text, strin
 /// </summary>
 public static partial class EventColors
 {
+    /// <summary>Faded past cards, at the lowest opacity that keeps their text at 4.5:1 on every Google color.</summary>
+    public const double PastOpacity = 0.9;
+
     const string DarkSurface  = "#202020";
     const string LightSurface = "#FFFFFF";
     const string DarkText     = "#1A1A1A";
@@ -68,7 +71,7 @@ public static partial class EventColors
         var fill   = Blend(accent, dark ? DarkSurface : LightSurface, dark ? 0.62 : 0.78);
         var text   = ContrastRatio(LightText, fill) >= ContrastRatio(DarkText, fill) ? LightText : DarkText;
 
-        return new EventPalette(accent, fill, text, (text == LightText ? "#D9" : "#B3") + text[1..]);
+        return new EventPalette(accent, fill, text, (text == LightText ? "#F2" : "#D9") + text[1..]);
     }
 
     /// <summary>Mixes two colors; <paramref name="backgroundAmount"/> 0 is all foreground, 1 all background.</summary>

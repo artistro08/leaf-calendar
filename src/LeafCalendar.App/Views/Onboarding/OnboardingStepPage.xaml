@@ -67,6 +67,7 @@
                     IsOpen="{x:Bind ViewModel.Client.HasError, Mode=OneWay}"
                     Message="{x:Bind ViewModel.Client.Error, Mode=OneWay}"
                     x:Name="ClientError"
+                    AutomationProperties.LiveSetting="Assertive"
                     AutomationProperties.AutomationId="SetupError" />
             </StackPanel>
             <!-- /Google Cloud OAuth Client -->
@@ -93,6 +94,7 @@
                     IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
                     Message="{x:Bind ViewModel.Error, Mode=OneWay}"
                     x:Name="SignInError"
+                    AutomationProperties.LiveSetting="Assertive"
                     AutomationProperties.AutomationId="OnboardingSignInError" />
             </StackPanel>
             <!-- /Sign In -->
@@ -118,6 +120,7 @@
                     IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
                     Message="{x:Bind ViewModel.Error, Mode=OneWay}"
                     x:Name="SyncError"
+                    AutomationProperties.LiveSetting="Assertive"
                     AutomationProperties.AutomationId="OnboardingSyncError" />
             </StackPanel>
             <!-- /Syncing -->

@@ -1,4 +1,5 @@
 using System.Globalization;
+using LeafCalendar.Core.Views;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
@@ -34,31 +35,31 @@ public static class LeafBrushes
     }
 
     /// <summary>Hour and day divider lines.</summary>
-    public static SolidColorBrush GridLine(bool dark) => FromHex(dark ? "#1FFFFFFF" : "#1A000000");
+    public static SolidColorBrush GridLine(bool dark) => FromHex(ChromeColors.GridLine(dark));
 
     /// <summary>Half-hour lines.</summary>
-    public static SolidColorBrush HalfHourLine(bool dark) => FromHex(dark ? "#0DFFFFFF" : "#0A000000");
+    public static SolidColorBrush HalfHourLine(bool dark) => FromHex(ChromeColors.HalfHourLine(dark));
 
     /// <summary>Weekend column tint.</summary>
-    public static SolidColorBrush WeekendFill(bool dark) => FromHex(dark ? "#08FFFFFF" : "#06000000");
+    public static SolidColorBrush WeekendFill(bool dark) => FromHex(ChromeColors.WeekendFill(dark));
 
     /// <summary>Secondary text (hour labels, weekday names).</summary>
-    public static SolidColorBrush SecondaryText(bool dark) => FromHex(dark ? "#C5FFFFFF" : "#9E000000");
+    public static SolidColorBrush SecondaryText(bool dark) => FromHex(ChromeColors.SecondaryText(dark));
 
     /// <summary>Hover fill for rows (the theme's SubtleFillColorSecondary).</summary>
-    public static SolidColorBrush Hover(bool dark) => FromHex(dark ? "#0FFFFFFF" : "#09000000");
+    public static SolidColorBrush Hover(bool dark) => FromHex(ChromeColors.Hover(dark));
 
     /// <summary>Opaque fill for the time grid's drag ghost (the theme's SolidBackgroundFillColorTertiary), so a card under it doesn't show through.</summary>
-    public static SolidColorBrush GhostFill(bool dark) => FromHex(dark ? "#282828" : "#F9F9F9");
+    public static SolidColorBrush GhostFill(bool dark) => FromHex(ChromeColors.GhostFill(dark));
 
     /// <summary>Primary text.</summary>
-    public static SolidColorBrush PrimaryText(bool dark) => FromHex(dark ? "#FFFFFFFF" : "#E4000000");
+    public static SolidColorBrush PrimaryText(bool dark) => FromHex(ChromeColors.PrimaryText(dark));
 
     /// <summary>Differing fields in the conflict dialog (the theme's SystemFillColorCautionBackground).</summary>
-    public static SolidColorBrush CautionBackground(bool dark) => FromHex(dark ? "#433519" : "#FFF4CE");
+    public static SolidColorBrush CautionBackground(bool dark) => FromHex(ChromeColors.CautionBackground(dark));
 
     /// <summary>Days outside the focused month.</summary>
-    public static SolidColorBrush DimText(bool dark) => FromHex(dark ? "#5DFFFFFF" : "#5C000000");
+    public static SolidColorBrush DimText(bool dark) => FromHex(ChromeColors.DimText(dark));
 
     /// <summary>
     /// The accent fill for a theme (what AccentFillColorDefaultBrush resolves to: the system accent's
@@ -68,7 +69,7 @@ public static class LeafBrushes
     public static SolidColorBrush Accent(bool dark) => dark ? AccentDark.Value : AccentLight.Value;
 
     /// <summary>Text on <see cref="Accent"/> (TextOnAccentFillColorPrimary: black in dark, white in light).</summary>
-    public static SolidColorBrush OnAccent(bool dark) => FromHex(dark ? "#FF000000" : "#FFFFFFFF");
+    public static SolidColorBrush OnAccent(bool dark) => FromHex(ChromeColors.OnAccent(dark));
 
     // ponytail: read once; an accent color change while Leaf runs shows after a restart
     static readonly Lazy<SolidColorBrush> AccentDark  = new(() => new SolidColorBrush(new Windows.UI.ViewManagement.UISettings().GetColorValue(Windows.UI.ViewManagement.UIColorType.AccentLight2)));

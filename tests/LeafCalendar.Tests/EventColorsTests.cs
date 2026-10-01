@@ -41,4 +41,26 @@ public class EventColorsTests
     {
         Assert.Equal(21, EventColors.ContrastRatio("#000000", "#FFFFFF"), 1);
     }
+
+    // Past Events Fade, But Their Text Still Meets 4.5:1 (title and time) On Every Google Color, Both Themes
+    [Fact]
+    public void PastCards_FadedText_MeetsAA()
+    {
+        foreach (var dark in new[] { true, false })
+        {
+            var surface = ChromeColors.Surface(dark);
+            foreach (var accent in EventColors.CalendarPalette.Concat(EventColors.EventColorNames.Select(c => EventColors.ResolveAccent(c.Id, "#039BE5"))))
+            {
+                var palette   = EventColors.Palette(accent, dark);
+                var secondary = EventColors.Blend("#" + palette.SecondaryText[3..], palette.Fill, 1 - Convert.ToInt32(palette.SecondaryText[1..3], 16) / 255.0);
+                var fill      = EventColors.Blend(palette.Fill, surface, 1 - EventColors.PastOpacity);
+
+                foreach (var text in new[] { palette.Text, secondary })
+                {
+                    var faded = EventColors.Blend(text, surface, 1 - EventColors.PastOpacity);
+                    Assert.True(EventColors.ContrastRatio(faded, fill) >= 4.5, $"{accent} dark={dark} text={text}");
+                }
+            }
+        }
+    }
 }

@@ -173,7 +173,7 @@ public sealed partial class EventBlock : Grid
         _icon.Foreground = textBrush ?? accent;
 
         // Past Events Fade (still readable)
-        _card.Opacity = past ? 0.55 : 1;
+        _card.Opacity = past ? EventColors.PastOpacity : 1;
         AutomationProperties.SetItemStatus(this, past ? "Past" : "");
 
         AutomationProperties.SetName(this, $"{occurrence.Title}, {timeText}");

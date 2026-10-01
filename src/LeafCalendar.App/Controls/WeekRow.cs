@@ -246,7 +246,7 @@ public sealed partial class WeekRow : Canvas
 
         // Past Events Fade (still readable)
         var past = vm.IsPast(o);
-        chip.Opacity = past ? 0.55 : 1;
+        chip.Opacity = past ? EventColors.PastOpacity : 1;
         AutomationProperties.SetItemStatus(chip, past ? "Past" : "");
 
         SetLeft(chip, b.FirstColumn * colW + 3);

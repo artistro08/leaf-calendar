@@ -20,20 +20,20 @@
                     <ItemsControl x:Name="UpcomingList" AutomationProperties.Name="Upcoming events" AutomationProperties.AutomationId="UpcomingList">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:UpcomingItem">
-                                <Grid ColumnSpacing="6">
+                                <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <Button
-                                        Padding="8,6"
+                                        Padding="8,4"
                                         HorizontalAlignment="Stretch"
                                         HorizontalContentAlignment="Stretch"
                                         Background="Transparent"
                                         BorderThickness="0"
                                         Click="{x:Bind Open}"
                                         AutomationProperties.Name="{x:Bind Title}">
-                                        <Grid ColumnSpacing="10">
+                                        <Grid ColumnSpacing="8">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
@@ -63,7 +63,7 @@
                 <!-- /Upcoming -->
 
                 <!-- Event Details (event content is plain text; only allowlisted links are clickable) -->
-                <StackPanel x:Name="DetailsView" Spacing="14" Visibility="Collapsed">
+                <StackPanel x:Name="DetailsView" Spacing="16" Visibility="Collapsed">
                     <TextBlock x:Name="TitleText" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsTitle" />
                     <TextBlock x:Name="WhenText" TextWrapping="Wrap" AutomationProperties.AutomationId="DetailsWhen" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
