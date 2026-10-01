@@ -448,9 +448,12 @@ public sealed partial class CalendarPage : Page
         return focused is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox or CalendarView || IsInOpenPopup(focused);
     }
 
-    // Nothing typed or added yet: no title, place, notes, or guests
-    static bool IsUntouched(EventEditorViewModel editor) =>
-        string.IsNullOrEmpty(editor.Title) && string.IsNullOrEmpty(editor.Location) && string.IsNullOrEmpty(editor.Description) && !editor.HasGuests;
+    // Nothing changed since it opened: the same calendar, and no field Google would be sent (every field of the draft)
+    static bool IsUntouched(EventEditorViewModel editor)
+    {
+        var now = editor.ToDraft();
+        return now.AccountId == editor.Before.AccountId && now.CalendarId == editor.Before.CalendarId && EventJson.BuildPatch(editor.Before, now).Count == 0;
+    }
 
     static bool IsModifier(VirtualKey key) => key is VirtualKey.Control or VirtualKey.LeftControl or VirtualKey.RightControl
         or VirtualKey.Shift or VirtualKey.LeftShift or VirtualKey.RightShift

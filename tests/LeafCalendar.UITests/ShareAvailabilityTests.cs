@@ -241,6 +241,45 @@ public sealed class ShareAvailabilityTests : IDisposable
         Assert.True(Retry.WhileTrue(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(5)).Success, "The empty editor stayed open.");
     }
 
+    // Once the new event has anything in it, S does nothing (the edit is never thrown away)
+    [Fact]
+    public void S_WithATouchedNewEditor_DoesNothing()
+    {
+        using var leaf = Launch();
+        var dentist = leaf.WaitFor(Dentist);
+        var column  = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
+        Mouse.DoubleClick(new Point(column.X + column.Width / 2, dentist.BoundingRectangle.Y + 3 * HourPixels(dentist)));
+        leaf.WaitFor("EditorTitle").AsTextBox().Text = "Lunch";
+        leaf.WaitFor("EditorAllDay").Focus();
+
+        Keyboard.Press(VirtualKeyShort.KEY_S);
+        Thread.Sleep(1500);
+
+        Assert.False(leaf.Exists("ShareBar"));
+        Assert.True(leaf.Exists("EventEditor"));
+    }
+
+    // An end before the start of a daytime time makes no sense: the slot stays as it was and the picker goes back
+    [Fact]
+    public void RightPanel_EndBeforeStart_PutsThePickerBack()
+    {
+        using var leaf = Launch();
+        StartSharing(leaf);
+        DragHours(leaf, 10, 11);
+        leaf.WaitFor("SharePanelSlot_0");
+
+        // End: 11 AM to 10 AM (the hour field, one step back)
+        leaf.WaitFor("SharePanelEnd_0").Click();
+        var hours = leaf.WaitForPopup("HourLoopingSelector");
+        hours.Focus();
+        Keyboard.Press(VirtualKeyShort.UP);
+        Thread.Sleep(300);
+        leaf.WaitForPopup("AcceptButton").AsButton().Invoke();
+        Thread.Sleep(800);
+
+        Assert.Equal("Thu Oct 1: 10–11 AM ET", Copy(leaf));
+    }
+
     [Fact]
     public void Offline_CopySaysWhy_AndKeepsTheSlots()
     {
