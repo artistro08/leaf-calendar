@@ -244,4 +244,19 @@ public sealed class TrayAgendaTests : IDisposable
 
         Assert.Contains(Load(Morning)[0].Items, i => i.Title == "(No title)");
     }
+
+    [Fact]
+    public void Load_ExcludedCalendar_IsLeftOut()
+    {
+        const string Family = "family123@group.calendar.google.com";
+        using var conn = _db.Database.Open();
+        EventStore.ApplyJson(conn, null, Account, Family, """{"id":"evt-play","status":"confirmed","summary":"School play","start":{"dateTime":"2026-10-01T15:00:00-04:00"},"end":{"dateTime":"2026-10-01T16:00:00-04:00"}}""");
+
+        var all  = TrayAgenda.Load(conn, Morning, NewYork, 14, includeAllDay: true, use24Hour: false);
+        var some = TrayAgenda.Load(conn, Morning, NewYork, 14, includeAllDay: true, use24Hour: false, excluded: [new CalendarRef(Account, Family)]);
+
+        Assert.Contains(all.SelectMany(d => d.Items), i => i.Occurrence.CalendarId == Family);
+        Assert.DoesNotContain(some.SelectMany(d => d.Items), i => i.Occurrence.CalendarId == Family);
+        Assert.Contains(some.SelectMany(d => d.Items), i => i.Occurrence.CalendarId == Primary);
+    }
 }

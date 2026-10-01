@@ -7,7 +7,7 @@ using Windows.ApplicationModel;
 
 namespace LeafCalendar.App.Views.Settings;
 
-/// <summary>Settings › About: the app's name and version (from the package), and the GitHub link.</summary>
+/// <summary>Settings › About: the app's name and version (from the package), the GitHub link, and the log folder.</summary>
 public sealed partial class AboutPage : Page
 {
     // Fixed Address (opened through LeafServices.LaunchAsync, which checks it and never throws)
@@ -36,4 +36,7 @@ public sealed partial class AboutPage : Page
     }
 
     void OnGitHubClick(object sender, RoutedEventArgs e) => _ = _services.LaunchAsync(GitHub);
+
+    // Leaf's own log folder (OpenFolderAsync never throws)
+    void OnOpenLogsClick(object sender, RoutedEventArgs e) => _ = _services.OpenFolderAsync(Path.GetDirectoryName(_services.Log.FilePath)!);
 }

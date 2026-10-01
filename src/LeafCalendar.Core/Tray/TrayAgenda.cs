@@ -1,6 +1,7 @@
 using System.Globalization;
 using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Views;
 using Microsoft.Data.Sqlite;
 
@@ -37,11 +38,17 @@ public static class TrayAgenda
 
     const int MaxTitle = 200;
 
-    /// <summary>The agenda for <paramref name="days"/> days from today (local to <paramref name="zone"/>).</summary>
-    public static IReadOnlyList<AgendaDay> Load(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone, int days, bool includeAllDay, bool use24Hour)
+    /// <summary>
+    /// The agenda for <paramref name="days"/> days from today (local to <paramref name="zone"/>), leaving out the
+    /// calendars in <paramref name="excluded"/> (Settings › Tray).
+    /// </summary>
+    public static IReadOnlyList<AgendaDay> Load(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone, int days, bool includeAllDay, bool use24Hour, IReadOnlyCollection<CalendarRef>? excluded = null)
     {
         var today       = LocalDate(now, zone);
-        var occurrences = OccurrenceQuery.Load(conn, today.AddDays(-1), today.AddDays(days), zone, includeDeclined: false);
+        var skip        = excluded is { Count: > 0 } ? excluded.ToHashSet() : null;
+        var occurrences = OccurrenceQuery.Load(conn, today.AddDays(-1), today.AddDays(days), zone, includeDeclined: false)
+            .Where(o => skip is null || !skip.Contains(new CalendarRef(o.AccountId, o.CalendarId)))
+            .ToList();
         var links       = new Dictionary<(string, string, string), Uri?>();
         var result      = new List<AgendaDay>();
 

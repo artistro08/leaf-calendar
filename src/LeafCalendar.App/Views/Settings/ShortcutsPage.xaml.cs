@@ -10,8 +10,7 @@ namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
 /// Settings › Shortcuts (spec 8.6, 9): the two global shortcuts, each changed by pressing the new keys. A combination
-/// another app holds shows a warning under its row and asks for another. The link to the in-app cheat sheet arrives with
-/// the cheat sheet (Milestone 5).
+/// another app holds shows a warning under its row and asks for another. Below them, a button opens the in-app cheat sheet.
 /// </summary>
 public sealed partial class ShortcutsPage : Page
 {
@@ -44,6 +43,19 @@ public sealed partial class ShortcutsPage : Page
     }
 
     void OnChanged(object? sender, EventArgs e) => Load();
+
+    // The cheat sheet, over the Settings window
+    async void OnShowCheatSheetClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await ShortcutSheet.ShowAsync(XamlRoot, _context.Calendar.Settings);
+        }
+        catch (Exception ex)
+        {
+            _context.Services.Log.Info("shortcuts.sheet.failed", $"error={ex.GetType().Name}");
+        }
+    }
 
     void Load()
     {

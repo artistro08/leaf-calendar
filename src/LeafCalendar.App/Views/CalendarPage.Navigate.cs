@@ -15,6 +15,7 @@ public sealed partial class CalendarPage
     // The command menu, built on first use and kept for the page's life
     Flyout? _commandFlyout;
     CommandMenu? _commandMenu;
+    bool _sheetOpen;
 
     /// <summary>The mini month's "Next month" button (the title bar centers its search icon over it).</summary>
     public FrameworkElement? MiniMonthNextButton => Sidebar.MiniMonthNextButton;
@@ -165,9 +166,30 @@ public sealed partial class CalendarPage
         }
     }
 
-    // ? (Task 4)
+    // =========================================================================
+    // CHEAT SHEET
+    // =========================================================================
+
+    // ?: one sheet at a time (a second dialog while one is open throws in WinUI)
     void ShowShortcutSheet()
     {
+        if (_sheetOpen)
+        {
+            return;
+        }
+
+        _sheetOpen = true;
+        ViewModel.Fire(async () =>
+        {
+            try
+            {
+                await ShortcutSheet.ShowAsync(XamlRoot, ViewModel.Settings);
+            }
+            finally
+            {
+                _sheetOpen = false;
+            }
+        }, "shortcuts.sheet.failed");
     }
 
     // Z (Task 5)

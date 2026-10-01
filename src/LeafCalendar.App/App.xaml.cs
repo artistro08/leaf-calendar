@@ -294,7 +294,7 @@ public partial class App : Application
 
     // The flyout header's and tooltip's next event: timed events within the lookahead (its own two days, so a one-day agenda still sees past midnight)
     NextUp? LoadNext(SqliteConnection conn, LeafSettings settings, DateTimeOffset now) =>
-        TrayAgenda.Next(TrayAgenda.Load(conn, now, _zone.Zone, TrayAgenda.NextDays, includeAllDay: false, settings.Use24HourTime), now, TimeSpan.FromMinutes(settings.TrayLookaheadMinutes));
+        TrayAgenda.Next(TrayAgenda.Load(conn, now, _zone.Zone, TrayAgenda.NextDays, includeAllDay: false, settings.Use24HourTime, settings.TrayExcludedCalendars), now, TimeSpan.FromMinutes(settings.TrayLookaheadMinutes));
 
     // The saved settings (the view model may not exist while Leaf is only in the tray)
     LeafSettings CurrentSettings()
@@ -538,7 +538,7 @@ public partial class App : Application
             using var conn = services.Database.Open();
             var settings   = SettingsStore.Load(conn);
             var now        = services.Time.GetUtcNow();
-            var days       = TrayAgenda.Load(conn, now, _zone.Zone, settings.FlyoutDays, settings.FlyoutAllDay, settings.Use24HourTime);
+            var days       = TrayAgenda.Load(conn, now, _zone.Zone, settings.FlyoutDays, settings.FlyoutAllDay, settings.Use24HourTime, settings.TrayExcludedCalendars);
             return new AgendaModel(days, LoadNext(conn, settings, now), TrayAgenda.NothingNext(settings.TrayLookaheadMinutes));
         }
         catch (Exception ex)

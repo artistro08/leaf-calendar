@@ -193,6 +193,31 @@ public sealed class LeafServices : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Opens one of Leaf's own folders (the log folder, from Settings › About) in File Explorer. It's Leaf's only folder
+    /// launch, and never takes a path from event, contact, or calendar content. In fake-Google mode nothing opens:
+    /// <c>folder:&lt;path&gt;</c> is appended to <c>launched.txt</c>, as <see cref="LaunchAsync"/> does for links. A launch that
+    /// fails is logged by error type and reported as false, never thrown.
+    /// </summary>
+    public async Task<bool> OpenFolderAsync(string path)
+    {
+        try
+        {
+            if (Options.FakeGoogle is not null)
+            {
+                await File.AppendAllTextAsync(Path.Combine(Paths.ProfileDirectory, "launched.txt"), "folder:" + path + Environment.NewLine);
+                return true;
+            }
+
+            return await Launcher.LaunchFolderPathAsync(path);
+        }
+        catch (Exception ex)
+        {
+            Log.Info("folder.launch.failed", string.Create(CultureInfo.InvariantCulture, $"error={ex.GetType().Name} hresult=0x{ex.HResult:X8}"));
+            return false;
+        }
+    }
+
     GoogleServices? CreateGoogle()
     {
         if (Tokens.GetClientCredentials() is not { } credentials)
