@@ -30,6 +30,7 @@ public sealed partial class PaneGlyph : UserControl
 
     readonly Path _outline = new();
     readonly Path _panel   = new();
+    readonly TranslateTransform _snap = new();
     double _scale;
 
     /// <summary>Creates the glyph.</summary>
@@ -38,7 +39,8 @@ public sealed partial class PaneGlyph : UserControl
         IsTabStop = false;
         Width     = GlyphWidth;
         Height    = GlyphHeight;
-        Content   = new Canvas { Children = { _panel, _outline } };
+        Content   = new Canvas { Children = { _panel, _outline }, RenderTransform = _snap };
+        LayoutUpdated += (_, _) => SnapToPixels();
         RegisterPropertyChangedCallback(ForegroundProperty, (_, _) => Paint());
 
         // Theme And Contrast Changes Repaint Once They've Settled (an inherited color changes without a callback)
@@ -108,7 +110,7 @@ public sealed partial class PaneGlyph : UserControl
         var left   = Pane == "Sidebar";
         var width  = Math.Round(GlyphWidth * scale);
         var height = Math.Round(GlyphHeight * scale);
-        var stroke = Math.Max(1, Math.Round(scale));
+        var stroke = Math.Max(1, Math.Round(scale * 1.25, MidpointRounding.AwayFromZero));
         var corner = Math.Round(Corner * scale);
         var panel  = Math.Round(PanelWidth * scale);
         var half   = stroke / 2;
@@ -127,6 +129,25 @@ public sealed partial class PaneGlyph : UserControl
         var fill  = new PathGeometry();
         fill.Figures.Add(left ? RoundedRect(box, inner, 0, 0, inner, scale) : RoundedRect(box, 0, inner, inner, 0, scale));
         _panel.Data = fill;
+    }
+
+    // Moves the drawing by the fraction of a pixel the glyph's spot is off the screen's pixel grid (a 16 DIP glyph
+    // centered in a 32 DIP button lands half a pixel off at 125%), so its pixel-aligned lines stay sharp
+    void SnapToPixels()
+    {
+        if (XamlRoot is null || _scale <= 0)
+        {
+            return;
+        }
+
+        var at = TransformToVisual(null).TransformPoint(default);
+        var x  = (Math.Round(at.X * _scale) - at.X * _scale) / _scale;
+        var y  = (Math.Round(at.Y * _scale) - at.Y * _scale) / _scale;
+        if (x != _snap.X || y != _snap.Y)
+        {
+            _snap.X = x;
+            _snap.Y = y;
+        }
     }
 
     // A rectangle (physical pixels) with its own radius at each corner: top left, top right, bottom right, bottom left
