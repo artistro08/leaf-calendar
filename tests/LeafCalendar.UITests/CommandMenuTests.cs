@@ -68,6 +68,10 @@ public sealed class CommandMenuTests : IDisposable
         var offset = box.Left + box.Width / 2.0 - (client.Left + client.Width / 2.0);
         Assert.True(Math.Abs(offset) <= 2, $"The menu's center is {offset} px off the window's.");
 
+        // Vertically, The Menu Sits In The Window's Middle Band: Not Under The Title Bar, And Inside The Window
+        var vertical = box.Top + box.Height / 2.0 - (client.Top + client.Height / 2.0);
+        Assert.True(Math.Abs(vertical) <= client.Height * 0.2 && box.Top >= client.Top && box.Bottom <= client.Bottom, $"The menu {box} isn't centered in the window {client}.");
+
         // Every Scroll Bar Around The Menu Is Vertical (the presenter's, the results')
         var popup = menu.Parent!.Parent ?? menu;
         var bars  = popup.FindAllDescendants(cf => cf.ByControlType(ControlType.ScrollBar)).Where(b => !b.IsOffscreen && b.BoundingRectangle.Width > b.BoundingRectangle.Height).ToList();

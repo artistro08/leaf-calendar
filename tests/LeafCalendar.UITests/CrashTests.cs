@@ -137,6 +137,42 @@ public sealed class CrashTests : IDisposable
         Assert.NotNull(leaf.WaitFor(Events[0]));
     }
 
+    // Polish round 4: WinUI destroyed a released time picker after .NET had collected it (the share panel's rows come and go)
+    [Fact]
+    public void SharePanelTimePickers_AddedAndRemovedOverAndOver_DoNotCrash()
+    {
+        using var leaf = Launch();
+
+        // Pick A Time, Remove It, Pick Two, Cancel (every row's pickers are released each round)
+        for (var round = 0; round < 5; round++)
+        {
+            ShareAvailabilityTests.StartSharing(leaf);
+            ShareAvailabilityTests.DragHours(leaf, 10, 12);
+            leaf.WaitFor("SharePanelRemove_0").AsButton().Invoke();
+            Assert.True(FlaUI.Core.Tools.Retry.WhileTrue(() => leaf.Exists("SharePanelStart_0"), TimeSpan.FromSeconds(5)).Success, "The removed time's row stayed.");
+
+            ShareAvailabilityTests.DragHours(leaf, 10, 11);
+            ShareAvailabilityTests.DragHours(leaf, 14, 16);
+            leaf.WaitFor("SharePanelStart_1");
+            leaf.WaitFor("ShareCancelButton").AsButton().Invoke();
+            Assert.True(FlaUI.Core.Tools.Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Cancel left the share panel up.");
+        }
+
+        // Editor Open And Closed (its pickers too)
+        for (var round = 0; round < 5; round++)
+        {
+            leaf.WaitFor(Events[0]).Click();
+            leaf.Press(VirtualKeyShort.KEY_E);
+            leaf.WaitFor("EditorEndTime");
+            leaf.Press(VirtualKeyShort.ESCAPE);
+            Wait.UntilInputIsProcessed();
+        }
+
+        Thread.Sleep(2000);
+        Assert.False(leaf.App.HasExited, "Leaf ended after time pickers were released.");
+        Assert.NotNull(leaf.WaitFor(Events[0]));
+    }
+
     [Fact]
     public void ResizingSettingsOnGeneral_AcrossEveryWidth_DoesNotCrash()
     {

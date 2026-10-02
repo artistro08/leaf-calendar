@@ -62,7 +62,8 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="local:KeyCharPresenter">
-                    <Grid>
+                    <!-- Leaf change: the same FontSize-tall box as the text and Windows keys (the icon's own line height made glyph caps like Shift taller) -->
+                    <Grid Height="{TemplateBinding FontSize}">
                         <Viewbox>
                             <FontIcon
                                 HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"

@@ -18,7 +18,6 @@ public sealed partial class TimeZonesPage : Page
 {
     readonly ObservableCollection<ZoneRow> _rows = [];
     IReadOnlyList<TimeZoneChoice> _suggestions = [];
-    IReadOnlyList<TimeZoneChoice> _primarySuggestions = [];
 
     // True while the saved values are being shown (the switches' Toggled events are ignored meanwhile)
     bool _loading;
@@ -55,14 +54,14 @@ public sealed partial class TimeZonesPage : Page
     // PRIMARY TIME ZONE
     // =========================================================================
 
-    // The saved choice: following Windows (the box and prompt are off), or the pinned zone's city in the box
+    // The saved choice: following Windows (the box, showing Windows' zone, and the prompt are off), or the pinned zone
     void ShowPrimary()
     {
         var s    = _vm.Settings;
         _loading = true;
 
         FollowWindowsZoneSwitch.IsOn = s.PrimaryTimeZone is null;
-        PrimaryZoneBox.Text          = s.PrimaryTimeZone is { } id ? TimeZoneCatalog.CityFor(id) : "";
+        PrimaryZoneBox.Show(s.PrimaryTimeZone ?? TimeZoneCatalog.IanaId(_vm.UserZone), _vm.Now);
         ZonePromptSwitch.IsOn        = s.PromptOnZoneChange;
         UpdatePrimaryState();
         UpdatePrimarySummary();
@@ -87,30 +86,17 @@ public sealed partial class TimeZonesPage : Page
         UpdatePrimaryState();
         if (!_loading && FollowWindowsZoneSwitch.IsOn && _vm.Settings.PrimaryTimeZone is not null)
         {
-            PrimaryZoneBox.Text = "";
+            PrimaryZoneBox.Show(TimeZoneCatalog.IanaId(_vm.UserZone), _vm.Now);
             _context.Save(s => s with { PrimaryTimeZone = null });
             UpdatePrimarySummary();
         }
     }
 
-    void OnPrimaryTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    // A pick pins the zone
+    void OnPrimaryZoneChanged(object? sender, string id)
     {
-        if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
-        {
-            _primarySuggestions = TimeZoneCatalog.Search(sender.Text, _vm.Now);
-            sender.ItemsSource  = _primarySuggestions.Select(c => c.ToString()).ToList();
-        }
-    }
-
-    // A pick pins the zone (matched against our own list, never read back as a Core record)
-    void OnPrimaryChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
-    {
-        if (args.SelectedItem is string text && _primarySuggestions.FirstOrDefault(c => c.ToString() == text) is { } choice)
-        {
-            _context.Save(s => s with { PrimaryTimeZone = choice.Id });
-            sender.Text = choice.City;
-            UpdatePrimarySummary();
-        }
+        _context.Save(s => s with { PrimaryTimeZone = id });
+        UpdatePrimarySummary();
     }
 
     void OnZonePromptToggled(object sender, RoutedEventArgs e)

@@ -62,4 +62,22 @@ public class TimeZoneCatalogTests
 
         Assert.StartsWith("Tokyo (UTC+9", choice.ToString(), StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void All_ListsEveryZoneByOffset_AsWindowsWritesThem()
+    {
+        var all = TimeZoneCatalog.All(Now).ToList();
+
+        // More than the curated cities, each zone once, west to east
+        Assert.True(all.Count > 30, $"Only {all.Count} zones.");
+        Assert.Equal(all.Count, all.Select(z => z.Id).Distinct().Count());
+        Assert.Contains(("Asia/Tokyo", "(UTC+09:00) Tokyo"), all);
+        Assert.Contains(("Asia/Kolkata", "(UTC+05:30) Mumbai"), all);
+        Assert.Contains(("America/New_York", "(UTC-04:00) New York"), all);
+        Assert.True(all.FindIndex(z => z.Id == "America/New_York") < all.FindIndex(z => z.Id == "Asia/Tokyo"));
+    }
+
+    [Fact]
+    public void ListLabel_ZeroOffset_IsPlus() =>
+        Assert.Equal("(UTC+00:00) UTC", TimeZoneCatalog.ListLabel("Etc/UTC", Now));
 }

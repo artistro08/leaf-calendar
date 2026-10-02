@@ -34,6 +34,9 @@ namespace LeafCalendar.App;
 [SuppressMessage("Design", "CA1001", Justification = "The App lives as long as the process; Quit disposes the tray icon, notifier, alerts, and view model.")]
 public partial class App : Application
 {
+    /// <summary>Leaf's icon file, for each window's title bar and taskbar button.</summary>
+    internal static readonly string IconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "LeafCalendar.ico");
+
     MainWindow? _window;
     OnboardingWindow? _onboarding;
     readonly RepeatFilter _toastRepeats = new(TimeProvider.System);

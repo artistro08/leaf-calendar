@@ -17,6 +17,7 @@ public sealed partial class CalendarPage
     // The command menu, built on first use and kept for the page's life
     Flyout? _commandFlyout;
     CommandMenu? _commandMenu;
+    Border? _commandAnchor;
     bool _dialogOpen;
 
     // The time travel and zone switch bars above the calendar
@@ -93,6 +94,12 @@ public sealed partial class CalendarPage
         _commandFlyout?.Hide();
         _commandFlyout = null;
         _commandMenu   = null;
+        if (_commandAnchor is not null)
+        {
+            Root.SizeChanged -= OnCommandRootSizeChanged;
+            Root.Children.Remove(_commandAnchor);
+            _commandAnchor = null;
+        }
     }
 
     void OnNavigatePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -142,24 +149,53 @@ public sealed partial class CalendarPage
             (_commandFlyout, _commandMenu) = (flyout, menu);
         }
 
-        _commandMenu.Reset();
-
-        // Centered Both Ways (the menu's height when it opens, so it stays put as results change)
-        _commandMenu.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
-        var top = Math.Max(0, (Root.ActualHeight - _commandMenu.DesiredSize.Height) / 2);
-
-        _commandFlyout.ShowAt(Root, new FlyoutShowOptions
+        // The flyout hangs off an invisible anchor that sits at the window's horizontal center (Root spans the whole
+        // window; the old fixed point 56 DIPs down read as "under the title bar", and was set once at open). The anchor
+        // re-places itself on every resize, so the menu stays centered while it's open.
+        if (_commandAnchor is null)
         {
-            Position  = new Windows.Foundation.Point(Root.ActualWidth / 2, top),
+            _commandAnchor = new Border { Width = 640, Height = 1, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
+            Root.Children.Add(_commandAnchor);
+            Root.SizeChanged += OnCommandRootSizeChanged;
+        }
+
+        PlaceCommandAnchor();
+        _commandMenu.Reset();
+        _commandFlyout.ShowAt(_commandAnchor, new FlyoutShowOptions
+        {
             Placement = FlyoutPlacementMode.Bottom,
             ShowMode  = FlyoutShowMode.Standard,
         });
+    }
+
+    void OnCommandRootSizeChanged(object sender, SizeChangedEventArgs e) => PlaceCommandAnchor();
+
+    // The menu's top is where a full size menu (search row, 384 of results, footer: about 480 DIPs) would be centered
+    // vertically, so it doesn't jump as the results grow and shrink; a short window clamps it and shortens the list
+    void PlaceCommandAnchor()
+    {
+        if (_commandAnchor is null || _commandMenu is null)
+        {
+            return;
+        }
+
+        const double FullHeight = 480;
+        var height = Root.ActualHeight;
+        var top    = Math.Max(8, (height - FullHeight) / 2);
+        _commandAnchor.Margin = new Thickness(0, top, 0, 0);
+        _commandMenu.LimitResultsHeight(Math.Max(96, height - top - 8 - 96));
     }
 
     // Runs the picked row (the menu closes first, so focus is back on the calendar for what the row opens)
     void RunCommandRow(CommandRow row, bool jump)
     {
         _commandFlyout?.Hide();
+
+        // A Date Or An Event Hides A Showing Editor, Like Closing The Panel (the edit is kept; C or E brings it back)
+        if (row.Kind is CommandRowKind.Event or CommandRowKind.Date && ViewModel.Editing is not null && IsDetailsOpen)
+        {
+            SetDetailsOpen(false, animate: true);
+        }
 
         switch (row.Kind)
         {
@@ -272,7 +308,7 @@ public sealed partial class CalendarPage
         _beforeSheet = null;
     }
 
-    // Lifts a floating card (the cheat sheet, the share card) over the calendar view: raised 32 like a flyout, its
+    // Lifts a floating card (the cheat sheet) over the calendar view: raised 32 like a flyout, its
     // shadow falling on the view
     void Float(UIElement card)
     {

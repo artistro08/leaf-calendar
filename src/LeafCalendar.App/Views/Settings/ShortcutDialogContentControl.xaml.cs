@@ -121,26 +121,43 @@ public sealed partial class ShortcutDialogContentControl : UserControl
 
     private static void OnIsErrorChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) => ((ShortcutDialogContentControl)d).DrawKeys();
 
-    // The Key Caps (PowerToys' KeysControl item template) And Clear, Shown Only With Keys To Clear
+    // The Key Caps (PowerToys' KeysControl item template) And Clear, Shown Only With Keys To Clear. Caps already on
+    // screen are updated in place; only a missing one is made and only a surplus one removed
     private void DrawKeys()
     {
-        KeysControl.Children.Clear();
-        foreach (var key in _keys ?? [])
+        var keys  = _keys ?? [];
+        var caps  = KeysControl.Children;
+        var state = IsError ? KeyVisualState.Error : KeyVisualState.Normal;
+
+        while (caps.Count > keys.Count)
         {
+            caps.RemoveAt(caps.Count - 1);
+        }
+
+        for (int index = 0; index < keys.Count; index++)
+        {
+            if (index < caps.Count)
+            {
+                var cap     = (KeyVisual)caps[index];
+                cap.Content = keys[index];
+                cap.State   = state;
+                continue;
+            }
+
             var keyVisual = new KeyVisual
             {
                 Padding          = new Thickness(20, 16, 20, 16),
-                Content          = key,
+                Content          = keys[index],
                 CornerRadius     = new CornerRadius(8),
                 FontSize         = 16,
                 FontWeight       = FontWeights.SemiBold,
                 IsTabStop        = false,
                 RenderKeyAsGlyph = true,
-                State            = IsError ? KeyVisualState.Error : KeyVisualState.Normal,
+                State            = state,
                 Style            = (Style)Application.Current.Resources["AccentKeyVisualStyle"],
             };
             AutomationProperties.SetAccessibilityView(keyVisual, AccessibilityView.Raw);
-            KeysControl.Children.Add(keyVisual);
+            caps.Add(keyVisual);
         }
 
         ClearBtn.Visibility = _keys is { Count: > 0 } ? Visibility.Visible : Visibility.Collapsed;

@@ -30,6 +30,7 @@
                 <StackPanel>
                     <controls:SettingRow
                         Style="{StaticResource LeafExpanderItemRowStyle}"
+                        Padding="48,12,16,12"
                         BorderThickness="0"
                         Header="Use Windows time zone"
                         Description="Leaf follows your PC's time zone, so your calendar changes when you travel.">
@@ -40,19 +41,22 @@
                             AutomationProperties.Name="Use Windows time zone"
                             AutomationProperties.AutomationId="FollowWindowsZoneSwitch" />
                     </controls:SettingRow>
-                    <controls:SettingRow Style="{StaticResource LeafExpanderItemRowStyle}" Header="Leaf's time zone">
-                        <AutoSuggestBox
+                    <controls:SettingRow
+                        Style="{StaticResource LeafExpanderItemRowStyle}"
+                        Padding="48,12,16,12"
+                        Header="Leaf's time zone">
+                        <controls:TimeZoneComboBox
                             x:Name="PrimaryZoneBox"
                             Width="320"
-                            PlaceholderText="Search a city or zone (Tokyo, NYC, UTC)"
-                            QueryIcon="Find"
-                            TextChanged="OnPrimaryTextChanged"
-                            SuggestionChosen="OnPrimaryChosen"
+                            IsEditable="True"
+                            IsTextSearchEnabled="True"
+                            ZoneChanged="OnPrimaryZoneChanged"
                             AutomationProperties.Name="Leaf's time zone"
                             AutomationProperties.AutomationId="PrimaryZoneBox" />
                     </controls:SettingRow>
                     <controls:SettingRow
                         Style="{StaticResource LeafExpanderItemRowStyle}"
+                        Padding="48,12,16,12"
                         Header="Ask when my PC's time zone changes"
                         Description="Leaf offers to switch when you travel.">
                         <ToggleSwitch

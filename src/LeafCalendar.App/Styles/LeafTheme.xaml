@@ -7,12 +7,27 @@
     <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Light">
             <SolidColorBrush x:Key="LeafFlyoutFooterBrush" Color="#0F000000" />
+            <!-- Settings Expander Headers: no hover or press fill -->
+            <SolidColorBrush x:Key="ExpanderHeaderBackgroundPointerOver" Color="Transparent" />
+            <SolidColorBrush x:Key="ExpanderHeaderBackgroundPressed" Color="Transparent" />
+            <SolidColorBrush x:Key="ExpanderChevronPointerOverBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="ExpanderChevronPressedBackground" Color="Transparent" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
             <SolidColorBrush x:Key="LeafFlyoutFooterBrush" Color="#33000000" />
+            <!-- Settings Expander Headers: no hover or press fill -->
+            <SolidColorBrush x:Key="ExpanderHeaderBackgroundPointerOver" Color="Transparent" />
+            <SolidColorBrush x:Key="ExpanderHeaderBackgroundPressed" Color="Transparent" />
+            <SolidColorBrush x:Key="ExpanderChevronPointerOverBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="ExpanderChevronPressedBackground" Color="Transparent" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="HighContrast">
             <SolidColorBrush x:Key="LeafFlyoutFooterBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <!-- Settings Expander Headers: no hover or press fill -->
+            <SolidColorBrush x:Key="ExpanderHeaderBackgroundPointerOver" Color="Transparent" />
+            <SolidColorBrush x:Key="ExpanderHeaderBackgroundPressed" Color="Transparent" />
+            <SolidColorBrush x:Key="ExpanderChevronPointerOverBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="ExpanderChevronPressedBackground" Color="Transparent" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 

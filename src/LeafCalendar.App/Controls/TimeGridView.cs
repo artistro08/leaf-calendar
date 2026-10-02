@@ -59,8 +59,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
     readonly ScrollViewer _bodyScroll = new() { HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Enabled, ZoomMode = ZoomMode.Disabled };
     // One row of fixed-size cells: positions are exact (index × width), unlike StackLayout's estimates,
     // which drift by weeks when jumping deep into the strip after the column width changes
-    readonly UniformGridLayout _headerLayout = new() { Orientation = Orientation.Vertical, MaximumRowsOrColumns = 1 };
-    readonly UniformGridLayout _bodyLayout = new() { Orientation = Orientation.Vertical, MaximumRowsOrColumns = 1 };
+    readonly DayStripLayout _headerLayout = new();
+    readonly DayStripLayout _bodyLayout = new();
     readonly ItemsRepeater _headerRepeater = new() { HorizontalCacheLength = 2 };
     readonly ItemsRepeater _bodyRepeater = new() { HorizontalCacheLength = 2 };
     readonly Grid _headerContent = new();
@@ -344,7 +344,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // changed (a height-only resize costs nothing), and it only repaints what depends on the width.
     void Relayout(bool force)
     {
-        var available = _bodyScroll.ActualWidth + _bodyScroll.Margin.Right;
+        // The days' column, not the body plus its spare margin: the margin is rounded to whole pixels when it's laid out,
+        // so reading it back could pick the other column width every pass (a layout cycle mid-slide)
+        var available = ColumnDefinitions[1].ActualWidth;
         if (_disposed || available <= 0)
         {
             return;
@@ -358,19 +360,27 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
-        var spare = new Thickness(0, 0, Math.Max(0, available - width * _vm.VisibleColumns), 0);
+        var widthOnly = !force && _initialized && _bodyRepeater.Height == BodyHeight;
+        var spare     = new Thickness(0, 0, Math.Max(0, available - width * _vm.VisibleColumns), 0);
         ColumnWidth                 = width;
         _bodyScroll.Margin          = spare;
         _headerScroll.Margin        = spare;
         _bodyRepeater.Height        = BodyHeight;
         _headerRepeater.Height      = DayHeaderHeight;
-        _bodyLayout.MinItemWidth    = ColumnWidth;
-        _bodyLayout.MinItemHeight   = BodyHeight;
-        _headerLayout.MinItemWidth  = ColumnWidth;
-        _headerLayout.MinItemHeight = DayHeaderHeight;
-        _bodyRepeater.InvalidateMeasure();
-        _headerRepeater.InvalidateMeasure();
-        RenderColumns();
+        _bodyLayout.ItemWidth       = ColumnWidth;
+        _bodyLayout.ItemHeight      = BodyHeight;
+        _headerLayout.ItemWidth     = ColumnWidth;
+        _headerLayout.ItemHeight    = DayHeaderHeight;
+        _bodyLayout.Pin(_firstIndex);
+        _headerLayout.Pin(_firstIndex);
+        if (widthOnly)
+        {
+            ResizeColumns();
+        }
+        else
+        {
+            RenderColumns();
+        }
 
         // First Layout: the corner and hour labels (they don't depend on the width), and a jump to 7:30 AM
         if (!_initialized)
@@ -627,6 +637,23 @@ public sealed partial class TimeGridView : Grid, IDisposable
         return true;
     }
 
+    // A new column width alone (a pane sliding, the window resizing): each column, header, and the all-day row only
+    // takes the width, so a frame of the slide stays cheap
+    void ResizeColumns()
+    {
+        foreach (var column in _columns)
+        {
+            column.Resize();
+        }
+
+        foreach (var header in _headers)
+        {
+            header.Width = ColumnWidth;
+        }
+
+        RenderAllDay();
+    }
+
     // Everything that depends on the column width: the columns, the headers, and the all-day row
     void RenderColumns()
     {
@@ -703,6 +730,13 @@ public sealed partial class TimeGridView : Grid, IDisposable
         if (_disposed)
         {
             return;
+        }
+
+        // A Dropped Resize's Card Now Draws From The Saved Event
+        if (_holdResize)
+        {
+            _holdResize = false;
+            _resized    = null;
         }
 
         if (_pendingIndex is not null)
@@ -904,7 +938,6 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
 
         _drag = null;
-        _vm.IsPickingTime = false;
         HideBox();
         ShowNewEventGhost();
         ReleasePointerCaptures();
@@ -941,7 +974,6 @@ public sealed partial class TimeGridView : Grid, IDisposable
             }
 
             drag.Started = true;
-            _vm.IsPickingTime = drag.Kind == DragKind.Create && _vm.IsSharing;
         }
 
         // Box: drawn from the press to the pointer (ponytail: selection applies on release, not live; live highlighting re-renders every move)
@@ -969,6 +1001,22 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
         drag.Target    = target;
         drag.Duplicate = duplicate;
+
+        // Resizing Resizes The Card Itself
+        if (drag.Kind == DragKind.Resize && target is { } resize)
+        {
+            ShowResize(drag.Occurrence!, resize.End);
+            return;
+        }
+
+        // Creating: the range sits beside the events already there (picking times to share keeps the plain ghost)
+        if (drag.Kind == DragKind.Create && !_vm.IsSharing && target is { } create && StandInFor(create.Start, create.End, isAllDay: false) is { } standIn)
+        {
+            _allDay.ClearGhost();
+            SetPreviews(standIn, null);
+            return;
+        }
+
         ShowGhost(target, duplicate);
     }
 
@@ -980,9 +1028,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
 
         _drag = null;
-        _vm.IsPickingTime = false;
         HideBox();
         ReleasePointerCapture(e.Pointer);
+
+        // A Resize That Changes The End Keeps Its Card At The New Size Until The Saved Change Redraws The Grid
+        _holdResize = drag is { Kind: DragKind.Resize, Started: true, Target: { } resized } && resized.End != drag.Occurrence!.End;
         ShowNewEventGhost();
         if (!drag.Started)
         {
@@ -1075,6 +1125,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     void ShowGhost((DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? target, bool duplicate)
     {
         var copy = duplicate ? "+ Copy  " : "";
+        SetPreviews(null, HeldResize);
 
         // All-Day Row
         if (target is { InHeader: true } header)
@@ -1220,11 +1271,104 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
         if (_newEvent?.ToDraft() is not { } draft)
         {
+            SetPreviews(null, HeldResize);
             ClearGhosts();
             return;
         }
 
+        // A Timed Range Sits Beside The Events Already There, As One More Overlapping Column
+        if (StandInFor(draft.Start, draft.End, draft.IsAllDay) is { } standIn)
+        {
+            _allDay.ClearGhost();
+            SetPreviews(standIn, HeldResize);
+            return;
+        }
+
         ShowGhost((draft.Start, draft.End, draft.IsAllDay, draft.IsAllDay), duplicate: false);
+    }
+
+    // =========================================================================
+    // STAND-INS
+    // =========================================================================
+
+    // Laid out with the day's events by the columns: a new event's range (drawn as the ghost, one more overlapping
+    // column) and an event being resized (its own card, drawn at the new end)
+    CalendarOccurrence? _standIn;
+    CalendarOccurrence? _resized;
+
+    // A dropped resize: its card keeps the new end until the saved change redraws the grid
+    // (ponytail: a save that fails without a redraw leaves the card at the new size until the next data change)
+    bool _holdResize;
+
+    CalendarOccurrence? HeldResize => _holdResize ? _resized : null;
+
+    /// <summary>The new event's range as the columns lay it out, or null.</summary>
+    internal CalendarOccurrence? StandIn => _standIn;
+
+    /// <summary>A day's events with the stand-ins: the resized event in place of the original, and the new event's range.</summary>
+    internal IEnumerable<CalendarOccurrence> WithPreviews(IReadOnlyList<CalendarOccurrence> day)
+    {
+        IEnumerable<CalendarOccurrence> events = day;
+        if (_resized is { } resized)
+        {
+            events = events.Where(o => o.Key != resized.Key).Append(resized);
+        }
+
+        return _standIn is { } standIn ? events.Append(standIn) : events;
+    }
+
+    // A timed range the columns can lay out (one of 24 hours or more draws as the plain ghost on every day it covers).
+    // Its account sorts after every real one, so at the same start and length it takes the column on the right
+    static CalendarOccurrence? StandInFor(DateTimeOffset start, DateTimeOffset end, bool isAllDay)
+    {
+        if (isAllDay)
+        {
+            return null;
+        }
+
+        var standIn = new CalendarOccurrence("￿", "", "NewEvent", null, null, start, end > start ? end : start + TimeSpan.FromMinutes(DragMath.SnapMinutes), false, "", default, default, "", null, false, false);
+        return SpanLayout.IsSpanning(standIn) ? null : standIn;
+    }
+
+    // Redraws the events when a stand-in changes (a ghost left by the old new-event range is cleared)
+    void SetPreviews(CalendarOccurrence? standIn, CalendarOccurrence? resized)
+    {
+        if (Equals(standIn, _standIn) && Equals(resized, _resized))
+        {
+            return;
+        }
+
+        var hadStandIn = _standIn is not null;
+        _standIn = standIn;
+        _resized = resized;
+        foreach (var column in _columns)
+        {
+            if (hadStandIn && standIn is null)
+            {
+                column.ClearGhost();
+            }
+
+            column.RenderEventsAndNow();
+        }
+    }
+
+    // The card being resized is drawn at its new end, and the new time shows under that end
+    void ShowResize(CalendarOccurrence occurrence, DateTimeOffset end)
+    {
+        var resized = occurrence with { End = end };
+        ClearGhosts();
+        SetPreviews(null, SpanLayout.IsSpanning(resized) ? null : resized);
+
+        var label = TimeLabels.Range(resized.Start, end, _vm.Zone, _vm.Settings.Use24HourTime);
+        foreach (var column in _columns)
+        {
+            var dayStart = OccurrenceQuery.LocalMidnight(column.Date, _vm.Zone);
+            var dayEnd   = OccurrenceQuery.LocalMidnight(column.Date.AddDays(1), _vm.Zone);
+            if (end > dayStart && end <= dayEnd)
+            {
+                column.SetTimeLabel(end == dayEnd ? 24 * 60 : MinutesIntoDay(end), label);
+            }
+        }
     }
 
     // Day and minutes past local midnight under the pointer, in the day columns

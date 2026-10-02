@@ -206,19 +206,7 @@ public sealed partial class CalendarViewModel
         set => _shareZoneId = value;
     }
 
-    /// <summary>The calendars whose busy times are left out of the shared times (all shareable ones when sharing starts).</summary>
-    public IReadOnlySet<CalendarRef> ShareCalendars => _shareCalendars;
-
-    /// <summary>True while a time to share is being dragged out on the grid (the share card steps aside).</summary>
-    public bool IsPickingTime
-    {
-        get => _pickingTime;
-        set => SetProperty(ref _pickingTime, value);
-    }
-
-    bool _pickingTime;
-
-    /// <summary>Sharing started or stopped, or the slots changed (redraw the bar and the slots).</summary>
+    /// <summary>Sharing started or stopped, or the slots changed (redraw the share panel).</summary>
     public event EventHandler? ShareChanged;
 
     /// <summary>Starts picking times to share (nothing happens while already sharing).</summary>
@@ -282,24 +270,12 @@ public sealed partial class CalendarViewModel
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Counts a calendar's busy times in (or leaves them out of) the shared times.</summary>
-    public void SetShareCalendar(CalendarRef calendar, bool include)
-    {
-        if (include)
-        {
-            _shareCalendars.Add(calendar);
-        }
-        else
-        {
-            _shareCalendars.Remove(calendar);
-        }
-    }
 
     /// <summary>The calendars whose busy times can block shared times: the visible ones you own or can write to.</summary>
     public IReadOnlyList<CalendarInfo> ShareableCalendars() => [.. Calendars.Where(c => c.IsVisible && c.AccessRole is "owner" or "writer")];
 
     /// <summary>
-    /// The picked times minus everything busy on the chosen calendars (Google free/busy), as text in the chosen zone;
+    /// The picked times minus everything busy on the visible calendars (Google free/busy), as text in the chosen zone;
     /// <c>""</c> when none is free, null when Google couldn't be asked or had no answer for a calendar.
     /// </summary>
     public async Task<string?> BuildAvailabilityAsync(CancellationToken ct)

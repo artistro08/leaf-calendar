@@ -5,6 +5,7 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 
 namespace LeafCalendar.App.Controls;
@@ -21,7 +22,15 @@ public sealed partial class DayColumn : Canvas
     // The app's icon button look, read once (as SidebarView reads its day styles)
     static readonly Lazy<Style> IconButtonStyle = new(() => (Style)Application.Current.Resources["LeafIconButtonStyle"]);
 
+    // The lines and shading run this far right and the column clips them to its width, so a new column width (a pane
+    // sliding, the window resizing) changes one clip instead of every line
+    const double LineSpan = 8192;
+
+    // The now dot hangs this far left of the column
+    const double DotOverhang = 6;
+
     readonly TimeGridView _owner;
+    readonly RectangleGeometry _clip = new();
     readonly Action<CalendarOccurrence> _select;
     readonly Rectangle[] _hourLines = new Rectangle[24];
     readonly Rectangle[] _halfLines = new Rectangle[24];
@@ -47,13 +56,15 @@ public sealed partial class DayColumn : Canvas
         _owner  = owner;
         _select = o => KeyState.SelectClicked(_owner.ViewModel, o);
 
+        Clip = _clip;
+
         // Off-Hours Shading (behind everything, even the hour lines)
         Children.Add(_offHours);
 
         for (var h = 0; h < 24; h++)
         {
-            Children.Add(_hourLines[h] = new Rectangle { Height = 1, IsHitTestVisible = false });
-            Children.Add(_halfLines[h] = new Rectangle { Height = 1, IsHitTestVisible = false });
+            Children.Add(_hourLines[h] = new Rectangle { Width = LineSpan, Height = 1, IsHitTestVisible = false });
+            Children.Add(_halfLines[h] = new Rectangle { Width = LineSpan, Height = 1, IsHitTestVisible = false });
         }
 
         // People Overlay, Then Shared-Availability Slots (under the events; clicks and drags go through to the grid)
@@ -110,20 +121,17 @@ public sealed partial class DayColumn : Canvas
     public void Render()
     {
         var dark   = _owner.IsDark;
-        var width  = _owner.ColumnWidth;
         var hour   = _owner.HourHeight;
-        Width      = width;
         Height     = _owner.BodyHeight;
         Background = ViewNavigator.IsWeekend(Date) ? LeafBrushes.WeekendFill(dark) : LeafBrushes.Transparent;
+        SizeToColumn();
 
         // Grid Lines
         for (var h = 0; h < 24; h++)
         {
-            _hourLines[h].Width = width;
-            _hourLines[h].Fill  = LeafBrushes.GridLine(dark);
+            _hourLines[h].Fill = LeafBrushes.GridLine(dark);
             SetTop(_hourLines[h], h * hour);
-            _halfLines[h].Width = width;
-            _halfLines[h].Fill  = LeafBrushes.HalfHourLine(dark);
+            _halfLines[h].Fill = LeafBrushes.HalfHourLine(dark);
             SetTop(_halfLines[h], h * hour + hour / 2);
         }
 
@@ -137,6 +145,32 @@ public sealed partial class DayColumn : Canvas
     }
 
     /// <summary>
+    /// Fits a new column width: only what depends on it moves (the clip, the event cards, the overlay and shared
+    /// slots), so it's cheap enough to run on every frame of a pane's slide or a window resize.
+    /// </summary>
+    public void Resize()
+    {
+        SizeToColumn();
+        if (_overlayBlocks.Count > 0)
+        {
+            RenderOverlay();
+        }
+
+        if (_slotItems.Count > 0 || _owner.ViewModel.ShareSlots.Count > 0)
+        {
+            RenderSlots();
+        }
+
+        RenderEventsAndNow();
+    }
+
+    void SizeToColumn()
+    {
+        Width      = _owner.ColumnWidth;
+        _clip.Rect = new Windows.Foundation.Rect(-DotOverhang, 0, Width + DotOverhang, _owner.BodyHeight);
+    }
+
+    /// <summary>
     /// Repaints the events (past ones fade) and the now line: what the time grid's minute clock redraws. The shading,
     /// overlay, and slot layers only change with their own data, so the clock leaves them alone.
     /// </summary>
@@ -147,16 +181,30 @@ public sealed partial class DayColumn : Canvas
         var width = _owner.ColumnWidth;
         var hour  = _owner.HourHeight;
 
-        // Events (drawn at the same minimum length DayLayout uses for overlap, so short events never collide)
-        var blocks = DayLayout.Layout(Date, vm.Cache.ForDay(Date), vm.Zone);
+        // Events (drawn at the same minimum length DayLayout uses for overlap, so short events never collide). The
+        // grid's stand-ins are laid out with them: a new event's range is one more overlapping column, drawn as the ghost
+        var standIn    = _owner.StandIn;
+        var blocks     = DayLayout.Layout(Date, _owner.WithPreviews(vm.Cache.ForDay(Date)), vm.Zone);
+        var shown      = 0;
+        var ghostShown = false;
         EnsureBlocks(blocks.Count);
 
         for (var i = 0; i < blocks.Count; i++)
         {
             var b       = blocks[i];
-            var card    = _blocks[i];
             var usable  = width - 10;
             var colW    = usable / b.ColumnCount;
+
+            // The New Event's Ghost, In Its Own Column
+            if (ReferenceEquals(b.Occurrence, standIn))
+            {
+                var label = b.Occurrence.Start >= OccurrenceQuery.LocalMidnight(Date, vm.Zone) ? TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime) : "";
+                PlaceGhost(2 + b.Column * colW, Math.Max(colW - 2, 10), b.StartMinute, Math.Max(b.EndMinute, b.StartMinute + DragMath.SnapMinutes), label);
+                ghostShown = true;
+                continue;
+            }
+
+            var card    = _blocks[shown++];
             var height  = Math.Max(b.EndMinute - b.StartMinute, DayLayout.MinVisualMinutes) / 60 * hour - 2;
             var palette = LeafBrushes.CardPalette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, vm.IsPast(b.Occurrence), vm.IsSelected(b.Occurrence));
 
@@ -169,9 +217,15 @@ public sealed partial class DayColumn : Canvas
             card.Bind(b.Occurrence, palette, TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, _select, vm.IsPast(b.Occurrence));
         }
 
-        for (var i = blocks.Count; i < _blocks.Count; i++)
+        for (var i = shown; i < _blocks.Count; i++)
         {
             _blocks[i].Visibility = Visibility.Collapsed;
+        }
+
+        // A New Event On Another Day Leaves No Ghost Here
+        if (standIn is not null && !ghostShown)
+        {
+            ClearGhost();
         }
 
         // Now Line
@@ -182,7 +236,7 @@ public sealed partial class DayColumn : Canvas
             _nowLine.Fill = _nowDot.Fill = LeafBrushes.NowLine;
             var now = TimeZoneInfo.ConvertTime(vm.Now, vm.Zone);
             var top = now.TimeOfDay.TotalMinutes / 60 * hour;
-            _nowLine.Width = width;
+            _nowLine.Width = LineSpan;
             SetTop(_nowLine, top - 1);
             SetLeft(_nowDot, -5);
             SetTop(_nowDot, top - 5);
@@ -192,16 +246,40 @@ public sealed partial class DayColumn : Canvas
     }
 
     /// <summary>Shows where a dragged or new event would land (minutes past local midnight).</summary>
-    public void SetGhost(double startMinute, double endMinute, string label)
+    public void SetGhost(double startMinute, double endMinute, string label) =>
+        PlaceGhost(2, Math.Max(_owner.ColumnWidth - 6, 10), startMinute, endMinute, label);
+
+    /// <summary>
+    /// Shows only the time a resized event will end at (<paramref name="label"/>), just under its new end
+    /// (<paramref name="endMinute"/> past local midnight), or just above it at the bottom of the day. The card itself
+    /// is drawn at the new size, so there's no outline.
+    /// </summary>
+    public void SetTimeLabel(double endMinute, string label)
+    {
+        var y = endMinute / 60 * _owner.HourHeight;
+        _ghost.Width       = double.NaN;
+        _ghost.Height      = TimeLabelHeight;
+        _ghost.BorderBrush = LeafBrushes.Transparent;
+        _ghost.Background  = LeafBrushes.GhostFill(_owner.IsDark);
+        _ghostLabel.Text   = label;
+        SetLeft(_ghost, 2);
+        SetTop(_ghost, y + 2 + TimeLabelHeight <= _owner.BodyHeight ? y + 2 : y - 2 - TimeLabelHeight);
+        _ghost.Visibility  = Visibility.Visible;
+    }
+
+    // Height of the resize time label (one line of the ghost's 11 px text)
+    const double TimeLabelHeight = 20;
+
+    void PlaceGhost(double left, double width, double startMinute, double endMinute, string label)
     {
         var hour  = _owner.HourHeight;
         var dark  = _owner.IsDark;
-        _ghost.Width       = Math.Max(_owner.ColumnWidth - 6, 10);
+        _ghost.Width       = width;
         _ghost.Height      = Math.Max((endMinute - startMinute) / 60 * hour - 2, 10);
         _ghost.BorderBrush = LeafBrushes.Accent(dark);
         _ghost.Background  = LeafBrushes.GhostFill(dark);
         _ghostLabel.Text   = label;
-        SetLeft(_ghost, 2);
+        SetLeft(_ghost, left);
         SetTop(_ghost, startMinute / 60 * hour + 1);
         _ghost.Visibility  = Visibility.Visible;
     }
@@ -231,7 +309,7 @@ public sealed partial class DayColumn : Canvas
             var shade        = _offHourBlocks[i];
             shade.Visibility = Visibility.Visible;
             shade.Background = fill;
-            shade.Width      = _owner.ColumnWidth;
+            shade.Width      = LineSpan;
             shade.Height     = (end - start) / 60.0 * hour;
             SetTop(shade, start / 60.0 * hour);
             AutomationProperties.SetAutomationId(shade, string.Create(CultureInfo.InvariantCulture, $"OffHours_{Date:yyyy-MM-dd}_{i}"));

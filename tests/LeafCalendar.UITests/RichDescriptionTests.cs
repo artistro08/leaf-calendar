@@ -83,10 +83,10 @@ public sealed class RichDescriptionTests : IDisposable
         var firstTop = text.Min(r => r.Top);
 
         // The buttons are one row laid over the box (the box's own bounds read empty through UI Automation, so the text
-        // shows it): the first line starts just under them, not under a gap, border, and padding as a row above the box
-        // would leave, and the row starts at the text's left edge
+        // shows it): the first line starts just under them and their 1 px divider, not under a gap, border, and padding as
+        // a row above the box would leave, and the row starts at the text's left edge
         Assert.Equal(bold.Top, numbers.Top);
-        Assert.True(firstTop >= bold.Bottom && firstTop - bold.Bottom <= 7 * leaf.Scale, $"The text starts at {firstTop}; the toolbar ends at {bold.Bottom}.");
+        Assert.True(firstTop >= bold.Bottom && firstTop - bold.Bottom <= 12 * leaf.Scale, $"The text starts at {firstTop}; the toolbar ends at {bold.Bottom}.");
         Assert.True(Math.Abs(bold.Left - text.Min(r => r.Left)) <= 8 * leaf.Scale, $"The toolbar starts at {bold.Left}, the text at {text.Min(r => r.Left)}.");
     }
 

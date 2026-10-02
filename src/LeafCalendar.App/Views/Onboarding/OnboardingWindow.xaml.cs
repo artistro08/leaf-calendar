@@ -48,6 +48,7 @@ public sealed partial class OnboardingWindow : Window
         _presenter.IsMaximizable = false;
         _presenter.IsMinimizable = false;
         AppWindow.SetPresenter(_presenter);
+        AppWindow.SetIcon(App.IconPath);
 
         // Title Bar
         ExtendsContentIntoTitleBar = true;

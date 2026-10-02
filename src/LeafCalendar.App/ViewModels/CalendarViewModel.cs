@@ -187,6 +187,29 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>True once <paramref name="o"/> is over (drawn faded).</summary>
     public bool IsPast(CalendarOccurrence o) => o.HasEndedBy(Now, Zone);
 
+    /// <summary>
+    /// An event card's hover tooltip: the title, the time, and the location when there is one, one cleaned line each.
+    /// </summary>
+    /// <remarks>The location isn't on the occurrence, so it's read from the stored event (once per hover, not per card drawn).</remarks>
+    public string HoverText(CalendarOccurrence o, string timeText)
+    {
+        var lines = new List<string> { Core.Tray.DisplayText.Clean(o.Title, 200), timeText };
+        try
+        {
+            using var conn = _services.Database.Open();
+            if (EventStore.Get(conn, o.AccountId, o.CalendarId, o.EventId) is { } stored)
+            {
+                lines.Add(Core.Tray.DisplayText.Clean(EventDetailsParser.Parse(stored.RawJson)?.Location, 200));
+            }
+        }
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or Microsoft.Data.Sqlite.SqliteException or InvalidOperationException)
+        {
+            _services.Log.Error("calendar.hover.failed", ex);
+        }
+
+        return string.Join('\n', lines.Where(l => l.Length > 0));
+    }
+
     /// <summary>What Narrator reads for an event card: "Title, time, calendar name", then ", past" and ", declined" when they apply (never color alone).</summary>
     public string CardName(CalendarOccurrence o, string timeText)
     {

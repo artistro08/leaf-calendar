@@ -228,7 +228,15 @@ public sealed partial class WeekRow : Canvas
             EventContextMenu.Show(chip, e.GetPosition(chip), vm, o);
             e.Handled = true;
         };
-        chip.PointerEntered += (_, _) => vm.PointerEvent = o;
+        // Hover Tooltip: title, time, and location, filled in as the pointer arrives (the location is a lookup)
+        var time = o.IsAllDay ? "All day" : TimeLabels.Range(o.Start, o.End, vm.Zone, vm.Settings.Use24HourTime);
+        var tip  = new ToolTip();
+        ToolTipService.SetToolTip(chip, tip);
+        chip.PointerEntered += (_, _) =>
+        {
+            vm.PointerEvent = o;
+            tip.Content     = vm.HoverText(o, time);
+        };
         chip.PointerExited  += (_, _) => vm.PointerEvent = null;
         chip.DoubleTapped += (_, e) =>
         {
@@ -244,7 +252,7 @@ public sealed partial class WeekRow : Canvas
             }
         };
         AutomationProperties.SetAutomationId(chip, string.Create(CultureInfo.InvariantCulture, $"Chip_{o.EventId}_{first:yyyyMMdd}"));
-        AutomationProperties.SetName(chip, vm.CardName(o, o.IsAllDay ? "All day" : TimeLabels.Range(o.Start, o.End, vm.Zone, vm.Settings.Use24HourTime)));
+        AutomationProperties.SetName(chip, vm.CardName(o, time));
 
         // Past Events Fade (still readable)
         var past = vm.IsPast(o);
