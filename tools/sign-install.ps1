@@ -15,7 +15,7 @@ $cert = Get-ChildItem Cert:\CurrentUser\My |
 if (-not $cert) {
     $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject $Publisher `
         -CertStoreLocation Cert:\CurrentUser\My -KeyUsage DigitalSignature `
-        -FriendlyName 'Leaf Calendar Dev Signing' -NotAfter (Get-Date).AddYears(3) `
+        -FriendlyName 'Leaf Calendar Dev Signing' -NotAfter (Get-Date).AddYears(3) -KeyExportPolicy NonExportable `
         -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}')
 }
 
@@ -23,6 +23,7 @@ if (-not $cert) {
 $cer = Join-Path $env:TEMP 'LeafCalendar-dev.cer'
 Export-Certificate -Cert $cert -FilePath $cer | Out-Null
 Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+Remove-Item $cer -Force
 
 # Publish Signed MSIX (the AOT linker setup calls vswhere.exe by bare name)
 $env:PATH += ";${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
