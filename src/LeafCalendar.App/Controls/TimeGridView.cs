@@ -911,7 +911,6 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
 
         _drag = null;
-        _vm.IsPickingTime = false;
         HideBox();
         ShowNewEventGhost();
         ReleasePointerCaptures();
@@ -948,7 +947,6 @@ public sealed partial class TimeGridView : Grid, IDisposable
             }
 
             drag.Started = true;
-            _vm.IsPickingTime = drag.Kind == DragKind.Create && _vm.IsSharing;
         }
 
         // Box: drawn from the press to the pointer (ponytail: selection applies on release, not live; live highlighting re-renders every move)
@@ -1003,7 +1001,6 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
 
         _drag = null;
-        _vm.IsPickingTime = false;
         HideBox();
         ReleasePointerCapture(e.Pointer);
 

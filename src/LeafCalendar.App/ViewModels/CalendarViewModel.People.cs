@@ -206,16 +206,6 @@ public sealed partial class CalendarViewModel
         set => _shareZoneId = value;
     }
 
-
-    /// <summary>True while a time to share is being dragged out on the grid.</summary>
-    public bool IsPickingTime
-    {
-        get => _pickingTime;
-        set => SetProperty(ref _pickingTime, value);
-    }
-
-    bool _pickingTime;
-
     /// <summary>Sharing started or stopped, or the slots changed (redraw the share panel).</summary>
     public event EventHandler? ShareChanged;
 
