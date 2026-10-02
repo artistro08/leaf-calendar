@@ -403,7 +403,7 @@ public static partial class DescriptionFormatter
         return Uri.TryCreate(value, UriKind.Absolute, out var uri) && LinkSafety.IsClickableInDescription(uri) ? uri : null;
     }
 
-    // Keeps only subject, body, and cc from a mailto link's query, so an invite can't add bcc or attachments
+    // Keeps only the subject from a mailto link's query, so an invite can't add cc, bcc, a body, or attachments
     // Recipients must be plain addresses, so one that hides "?bcc=" or another header behind encoding makes the link unclickable.
     // A kept value can't hold "&", "=", or ";" once decoded either (a client that decodes before splitting would read a new field)
     internal static Uri? TrimMailto(string value)
@@ -418,9 +418,8 @@ public static partial class DescriptionFormatter
             ? []
             : parts[1].Split('&', StringSplitOptions.RemoveEmptyEntries)
                 .Select(p => p.Split('=', 2))
-                .Where(p => p.Length == 2 && p[0].ToLowerInvariant() is "subject" or "body" or "cc"
-                    && Uri.UnescapeDataString(p[1]) is var decoded && !decoded.Any(c => char.IsControl(c) || c is '&' or '=' or ';')
-                    && (!p[0].Equals("cc", StringComparison.OrdinalIgnoreCase) || AreAddresses(p[1], allowEmpty: false)))
+                .Where(p => p.Length == 2 && p[0].Equals("subject", StringComparison.OrdinalIgnoreCase)
+                    && Uri.UnescapeDataString(p[1]) is var decoded && !decoded.Any(c => char.IsControl(c) || c is '&' or '=' or ';'))
                 .Select(p => $"{p[0]}={p[1]}")
                 .ToList();
         // Several recipients: Uri takes only one "@" in the address part, so all but the last "@" and the commas are

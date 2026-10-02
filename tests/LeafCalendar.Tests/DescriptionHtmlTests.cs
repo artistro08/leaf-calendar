@@ -283,7 +283,7 @@ public partial class DescriptionHtmlTests
     [Fact]
     public void Write_ReviewerProbeLinks_StaySafe()
     {
-        Assert.Equal("<a href=\"mailto:a@b.example?cc=x@y.example\">mail</a>", WriteLink("mail", "mailto:a@b.example?bcc=c@d.example&cc=x@y.example"));
+        Assert.Equal("<a href=\"mailto:a@b.example\">mail</a>", WriteLink("mail", "mailto:a@b.example?bcc=c@d.example&cc=x@y.example"));
         Assert.Equal("<a href=\"https://ok.example/%E2%80%AEgnp.exe\">x</a>", WriteLink("x", "https://ok.example/\u202Egnp.exe"));
         Assert.Equal("x", WriteLink("x", "data:text/html,hi"));
         Assert.Equal("x", WriteLink("x", "file:///c:/x"));

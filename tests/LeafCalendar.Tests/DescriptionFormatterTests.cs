@@ -155,15 +155,16 @@ public class DescriptionFormatterTests
 
     [Theory]
     [InlineData("mailto:sam@example.com?subject=Hi&attach=C:/secret.txt", "mailto:sam@example.com?subject=Hi")]
-    [InlineData("mailto:sam@example.com?bcc=evil@example.com&body=Yo&cc=a@example.com", "mailto:sam@example.com?body=Yo&cc=a@example.com")]
+    [InlineData("mailto:sam@example.com?bcc=evil@example.com&body=Yo&cc=a@example.com", "mailto:sam@example.com")]
+    [InlineData("mailto:sam@example.com?subject=Hi&body=Yo&cc=a@example.com", "mailto:sam@example.com?subject=Hi")]
     [InlineData("mailto:sam@example.com?ATTACH=x&BCC=y", "mailto:sam@example.com")]
-    [InlineData("mailto:a@b.example,c@d.example?cc=e@f.example&amp;bcc=g@h.example&amp;to=i@j.example", "mailto:a%40b.example%2Cc@d.example?cc=e@f.example")]
-    [InlineData("mailto:a@b.example?%62cc=c@d.example&amp;body=hi", "mailto:a@b.example?body=hi")]
+    [InlineData("mailto:a@b.example,c@d.example?cc=e@f.example&amp;bcc=g@h.example&amp;to=i@j.example", "mailto:a%40b.example%2Cc@d.example")]
+    [InlineData("mailto:a@b.example?%62cc=c@d.example&amp;body=hi", "mailto:a@b.example")]
     [InlineData("mailto:a@b.example?subject=x;bcc=c@d.example", "mailto:a@b.example")]
     [InlineData("mailto:a@b.example?%20bcc=c@d.example", "mailto:a@b.example")]
     [InlineData("mailto:a@b.example?attach=C:x&amp;body=%0Dhi", "mailto:a@b.example")]
     [InlineData("mailto:a@b.example?cc=e@f.example%3Fbcc%3Dg@h.example", "mailto:a@b.example")]
-    public void Format_MailtoLinks_KeepOnlySubjectBodyCc(string href, string expected)
+    public void Format_MailtoLinks_KeepOnlySubject(string href, string expected)
     {
         Assert.Equal(expected, DescriptionFormatter.Format($"<a href=\"{href}\">mail</a>").Single().Link?.OriginalString);
     }
