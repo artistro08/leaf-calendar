@@ -445,6 +445,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// The period start a view switch lands on, while the switch is under way (null otherwise). Views lay their new
+    /// layout out there directly, so the switch never shows the old first day and then scrolls across to the new one.
+    /// </summary>
+    public DateOnly? SwitchingTo { get; private set; }
+
     /// <summary>Switches view (and day count for <see cref="CalendarViewMode.Days"/>), keeping the selected event's day, else today when it's showing, else the period start.</summary>
     public void SetMode(CalendarViewMode mode, int? days = null)
     {
@@ -452,8 +458,18 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             ? ViewNavigator.MonthStartOf(Today) == PeriodStart
             : Today >= PeriodStart && Today < PeriodStart.AddDays(VisibleColumns);
         var anchor = SelectedInfo?.Occurrence is { } selected ? LocalDate(selected.Start) : todayShown ? Today : PeriodStart;
-        Update(s => s with { ViewMode = mode, CustomDayCount = days ?? s.CustomDayCount });
-        NavigateTo(anchor);
+
+        // The Views Relayout Straight Onto The New Period (the navigation that follows finds them already there)
+        SwitchingTo = ViewNavigator.PeriodStart(mode, anchor, Settings.WeekStart);
+        try
+        {
+            Update(s => s with { ViewMode = mode, CustomDayCount = days ?? s.CustomDayCount });
+            NavigateTo(anchor);
+        }
+        finally
+        {
+            SwitchingTo = null;
+        }
     }
 
     /// <summary>

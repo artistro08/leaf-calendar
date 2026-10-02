@@ -75,8 +75,9 @@
         <!-- Divider -->
         <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
 
-        <!-- Results (the list doesn't scroll itself, so the scroller is ours and its indicator shows on hover) -->
-        <ScrollViewer x:Name="ResultsScroll" MaxHeight="384">
+        <!-- Results (the list doesn't scroll itself, so the scroller is ours and its indicator shows on hover; tall enough
+             for the default actions, CommandMenu.ResultsMaxHeight, so it opens without a scroll) -->
+        <ScrollViewer x:Name="ResultsScroll" MaxHeight="416">
             <controls:PinnedListView
                 x:Name="CommandResults"
                 Padding="8"

@@ -195,8 +195,63 @@ public sealed partial class CommandMenu : UserControl
     /// <summary>x:Bind helper: the swatch brush for a hex color.</summary>
     public static Brush Brush(string hex) => LeafBrushes.FromHex(hex);
 
-    /// <summary>Caps the results list at the given height (at most 384), so the menu never runs past a short window.</summary>
-    public void LimitResultsHeight(double height) => ResultsScroll.MaxHeight = Math.Min(384, height);
+    /// <summary>
+    /// The results list's tallest: the default actions under their header (8 + 28 + 8 × 44 + 8 = 396) with room to
+    /// spare, so the menu opens without a scroll.
+    /// </summary>
+    public const double ResultsMaxHeight = 416;
+
+    // The rows' entrance: they slide down into place and fade in with the flyout, one after another
+    const float EntranceOffset = -12;
+    const int EntranceStaggerLimit = 10;
+    static readonly TimeSpan EntranceDuration = TimeSpan.FromMilliseconds(250);
+    static readonly TimeSpan EntranceStagger  = TimeSpan.FromMilliseconds(17);
+
+    /// <summary>Caps the results list at the given height (at most <see cref="ResultsMaxHeight"/>), so the menu never runs past a short window.</summary>
+    public void LimitResultsHeight(double height) => ResultsScroll.MaxHeight = Math.Min(ResultsMaxHeight, height);
+
+    /// <summary>
+    /// Slides the shown rows down into place as they fade in, a little after one another, so they arrive with the rest
+    /// of the menu as the flyout opens (nothing moves when Windows' animations are off).
+    /// </summary>
+    public void PlayEntrance()
+    {
+        if (!new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
+        {
+            return;
+        }
+
+        var order = 0;
+        foreach (var row in _rows)
+        {
+            if (!_containers.TryGetValue(row, out var container))
+            {
+                continue;
+            }
+
+            Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.SetIsTranslationEnabled(container, true);
+            var visual     = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(container);
+            var compositor = visual.Compositor;
+            var easing     = compositor.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.1f, 0.9f), new System.Numerics.Vector2(0.2f, 1));
+            var delay      = EntranceStagger * Math.Min(order++, EntranceStaggerLimit);
+
+            var slide = compositor.CreateVector3KeyFrameAnimation();
+            slide.InsertKeyFrame(0, new System.Numerics.Vector3(0, EntranceOffset, 0));
+            slide.InsertKeyFrame(1, System.Numerics.Vector3.Zero, easing);
+            slide.Duration      = EntranceDuration;
+            slide.DelayTime     = delay;
+            slide.DelayBehavior = Microsoft.UI.Composition.AnimationDelayBehavior.SetInitialValueBeforeDelay;
+            visual.StartAnimation("Translation", slide);
+
+            var fade = compositor.CreateScalarKeyFrameAnimation();
+            fade.InsertKeyFrame(0, 0);
+            fade.InsertKeyFrame(1, 1, easing);
+            fade.Duration      = EntranceDuration;
+            fade.DelayTime     = delay;
+            fade.DelayBehavior = Microsoft.UI.Composition.AnimationDelayBehavior.SetInitialValueBeforeDelay;
+            visual.StartAnimation("Opacity", fade);
+        }
+    }
 
     /// <summary>Clears the box and shows the default actions.</summary>
     public void Reset()

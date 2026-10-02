@@ -142,6 +142,7 @@ public sealed partial class CalendarPage
             flyout.Opened += (_, _) =>
             {
                 menu.FocusBox();
+                menu.PlayEntrance();
                 CommandMenuShown?.Invoke(this, true);
             };
             flyout.Closed += (_, _) => CommandMenuShown?.Invoke(this, false);
@@ -170,7 +171,7 @@ public sealed partial class CalendarPage
 
     void OnCommandRootSizeChanged(object sender, SizeChangedEventArgs e) => PlaceCommandAnchor();
 
-    // The menu's top is where a full size menu (search row, 384 of results, footer: about 480 DIPs) would be centered
+    // The menu's top is where a full size menu (search row, the results at their tallest, footer) would be centered
     // vertically, so it doesn't jump as the results grow and shrink; a short window clamps it and shortens the list
     void PlaceCommandAnchor()
     {
@@ -179,7 +180,7 @@ public sealed partial class CalendarPage
             return;
         }
 
-        const double FullHeight = 480;
+        const double FullHeight = 56 + 1 + CommandMenu.ResultsMaxHeight + 40;
         var height = Root.ActualHeight;
         var top    = Math.Max(8, (height - FullHeight) / 2);
         _commandAnchor.Margin = new Thickness(0, top, 0, 0);

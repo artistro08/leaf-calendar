@@ -257,8 +257,24 @@ public sealed partial class TimeGridView : Grid, IDisposable
         SetColumnSpan(_boxLayer, 2);
         Children.Add(_boxLayer);
 
-        BuildStrip(_vm.PeriodStart);
+        // Built On The Period A View Switch Is Heading To (else it would scroll there from the old one), and hidden until
+        // its first layout has landed on that day and the morning, so it never shows them snapping into place
+        BuildStrip(_vm.SwitchingTo ?? _vm.PeriodStart);
+        Opacity = 0;
+
+        // Shown By Now Whatever Happens (a layout that never lands, say at no size, mustn't leave the view invisible)
+        _reveal = DispatcherQueue.GetForCurrentThread().CreateTimer();
+        _reveal.Interval    = RevealFallback;
+        _reveal.IsRepeating = false;
+        _reveal.Tick       += (_, _) => Opacity = 1;
+        _reveal.Start();
     }
+
+    // Shows a new view if its first layout hasn't landed in time (held here so it lives until it fires)
+    readonly DispatcherQueueTimer _reveal;
+
+    // How long a new view may stay hidden waiting for its first layout to land
+    static readonly TimeSpan RevealFallback = TimeSpan.FromMilliseconds(250);
 
     /// <summary>The top-left corner above the gutter.</summary>
     public Grid Corner { get; }
@@ -315,6 +331,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     {
         _disposed = true;
         _clock.Stop();
+        _reveal.Stop();
         _vm.OccurrencesChanged    -= OnOccurrencesChanged;
         _vm.LayoutChanged         -= OnLayoutChanged;
         _vm.NavigateRequested     -= OnNavigateRequested;
@@ -532,12 +549,13 @@ public sealed partial class TimeGridView : Grid, IDisposable
             }
         }
 
-        // Arrived
+        // Arrived (a new view shows itself now, on its day and the morning)
         var target = pending * ColumnWidth;
         if (top is null && IsAt(target, _bodyScroll.HorizontalOffset))
         {
             _pendingIndex = null;
             _firstIndex   = pending;
+            Opacity       = 1;
             Settle();
             return;
         }
@@ -755,6 +773,19 @@ public sealed partial class TimeGridView : Grid, IDisposable
         if (_strip.SkipsWeekends == _vm.Settings.ShowWeekends)
         {
             BuildStrip(_strip[_firstIndex]);
+        }
+
+        // A View Switch: the new layout starts on its new first day, so nothing scrolls across from the old one
+        if (_vm.SwitchingTo is { } switching)
+        {
+            if (!_strip.Contains(switching))
+            {
+                BuildStrip(switching);
+            }
+
+            _firstIndex   = _strip.IndexOf(switching);
+            _pendingIndex = null;
+            _animating    = false;
         }
 
         _reportedIndex = -1;

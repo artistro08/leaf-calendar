@@ -117,8 +117,10 @@ public sealed partial class MonthGridView : Grid, IDisposable
         _vm.LayoutChanged      += OnLayoutChanged;
         _vm.NavigateRequested  += OnNavigateRequested;
 
-        FocusMonth = ViewNavigator.MonthStartOf(_vm.PeriodStart);
-        BuildWeeks(_vm.PeriodStart);
+        // Built On The Period A View Switch Is Heading To (else it would scroll there from the old one)
+        var start  = _vm.SwitchingTo ?? _vm.PeriodStart;
+        FocusMonth = ViewNavigator.MonthStartOf(start);
+        BuildWeeks(start);
         _firstIndex = WeekIndexOf(FocusMonth);
 
         // Dragging Chips Between Days
@@ -411,6 +413,11 @@ public sealed partial class MonthGridView : Grid, IDisposable
 
         // The weeks are rebuilt, so a running drag's cells no longer line up
         CancelDrag();
+        if (_vm.SwitchingTo is { } switching)
+        {
+            FocusMonth = ViewNavigator.MonthStartOf(switching);
+        }
+
         BuildWeeks(FocusMonth);
         _firstIndex = WeekIndexOf(FocusMonth);
         BuildWeekdayHeader();
