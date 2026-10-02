@@ -8,12 +8,12 @@ namespace LeafCalendar.App.Views;
 /// <summary>
 /// The side panes' slide. Each pane lies over the page and slides in or out on the compositor's own thread (one
 /// composition animation on the island fill's edge, which the pane's translation and the island's clip follow), so it
-/// starts on the next frame and stays smooth however busy the UI thread gets. The island never
-/// slides: it takes its final size the moment a pane opens or closes, so the day columns, the scroll position, and
-/// the right edge (with the toolbar over it) stay put. Its fill grows or shrinks with the sliding pane's edge, and
-/// while a pane closes the island's clip uncovers the newly freed space at the same pace. An inline SplitView did
-/// it the other way: it resized the island at once and then slid all of it, details panel included, by the
-/// pane's width, so the calendar's center jumped on every toggle.
+/// starts on the next frame and stays smooth however busy the UI thread gets. The calendar slides with the panes in
+/// the same animation: its fill grows or shrinks with the sliding pane's edge, its left edge rides the sidebar's edge,
+/// and its clip follows the details panel's edge. Its columns lay out only once per toggle: at the start of a close
+/// (the room it gains is still under the closing pane) and at the end of an open (the opening pane slides over it until
+/// then), so nothing snaps at either end. An inline SplitView did it the other way: it resized the island at once and
+/// then slid all of it, details panel included, by the pane's width, so the calendar's center jumped on every toggle.
 /// </summary>
 public sealed partial class CalendarPage
 {
@@ -39,8 +39,35 @@ public sealed partial class CalendarPage
     /// <summary>True when the details panel takes up room.</summary>
     public bool IsDetailsOpen => _detailsOpen;
 
-    // The island's composition clip (it also keeps the time grid's scrolling content from drawing under the panes)
-    void OnIslandSizeChanged(object sender, SizeChangedEventArgs e) => EnsurePaneVisuals();
+    // The island's composition clip (it also keeps the time grid's scrolling content from drawing under the panes). A
+    // new size means new margins, so the edge expressions take them in the same frame as the layout that applied them
+    void OnIslandSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        EnsurePaneVisuals();
+        FollowEdges();
+    }
+
+    // The island rides the sidebar's sliding edge (its left edge is the fill's left edge), and its clip cuts off what
+    // has slid under the details panel. Both are measured from the island's laid-out margins
+    void FollowEdges()
+    {
+        var margin     = IslandArea.Margin;
+        var compositor = _fillClip!.Compositor;
+
+        var ride = compositor.CreateExpressionAnimation("fill.LeftInset - left");
+        ride.SetReferenceParameter("fill", _fillClip);
+        ride.SetScalarParameter("left", (float)margin.Left);
+        ElementCompositionPreview.GetElementVisual(Island).StartAnimation("Translation.X", ride);
+
+        var clip = compositor.CreateExpressionAnimation("Max(fill.RightInset - right + fill.LeftInset - left, 0)");
+        clip.SetReferenceParameter("fill", _fillClip);
+        clip.SetScalarParameter("left", (float)margin.Left);
+        clip.SetScalarParameter("right", (float)margin.Right);
+        _islandClip!.StartAnimation("RightInset", clip);
+    }
+
+    // The island's room for the panes that are open
+    void ApplyIslandRoom() => IslandArea.Margin = new Thickness(_sidebarOpen ? SidebarWidth : 0, 0, _detailsOpen ? DetailsWidth : 0, 0);
 
     void EnsurePaneVisuals()
     {
@@ -61,10 +88,12 @@ public sealed partial class CalendarPage
 
         ElementCompositionPreview.SetIsTranslationEnabled(Sidebar, true);
         ElementCompositionPreview.SetIsTranslationEnabled(DetailsPane, true);
+        ElementCompositionPreview.SetIsTranslationEnabled(Island, true);
     }
 
-    // Opens or closes one pane: the island takes its final room now; the pane, the fill's edge, and (closing)
-    // the island's clip slide there from wherever they are
+    // Opens or closes one pane: the pane, the fill's edge, the island's left edge, and its clip slide there from
+    // wherever they are. The island's columns lay out once: at the start of a close (the room it gains is still under
+    // the pane) and at the end of an open (until then the pane slides over it)
     void SlidePane(bool sidebar, bool open, bool animate)
     {
         EnsurePaneVisuals();
@@ -78,9 +107,6 @@ public sealed partial class CalendarPage
             _detailsOpen = open;
         }
 
-        // The Island's Final Room
-        IslandArea.Margin = new Thickness(_sidebarOpen ? SidebarWidth : 0, 0, _detailsOpen ? DetailsWidth : 0, 0);
-
         var pane     = sidebar ? (UIElement)Sidebar : DetailsPane;
         var width    = (float)(sidebar ? SidebarWidth : DetailsWidth);
         var fillTo   = open ? width : 0;
@@ -93,20 +119,15 @@ public sealed partial class CalendarPage
             return;
         }
 
-        // One Driver: the fill's edge. The pane rides on it (its edge is the fill's edge) and the island's clip follows it,
-        // all in the compositor's same frame, so nothing shows between them, and a toggle mid-slide turns around from
-        // wherever the edge is now
+        // One Driver: the fill's edge. The pane rides on it (its edge is the fill's edge), and the island's edge and
+        // clip follow it (FollowEdges), all in the compositor's same frame, so nothing shows between them, and a toggle
+        // mid-slide turns around from wherever the edge is now
         var compositor = _fillClip!.Compositor;
         var visual     = ElementCompositionPreview.GetElementVisual(pane);
         var ride       = compositor.CreateExpressionAnimation(sidebar ? "fill.LeftInset - width" : "width - fill.RightInset");
         ride.SetReferenceParameter("fill", _fillClip);
         ride.SetScalarParameter("width", width);
         visual.StartAnimation("Translation.X", ride);
-
-        var follow = compositor.CreateExpressionAnimation($"Max(fill.{inset} - room, 0)");
-        follow.SetReferenceParameter("fill", _fillClip);
-        follow.SetScalarParameter("room", open ? width : 0);
-        _islandClip!.StartAnimation(inset, follow);
 
         pane.Visibility = Visibility.Visible;
         var slide = sidebar ? ++_sidebarSlide : ++_detailsSlide;
@@ -117,16 +138,33 @@ public sealed partial class CalendarPage
             _fillClip.StopAnimation(inset);
             SetInset(_fillClip, sidebar, fillTo);
             pane.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+            ApplyIslandRoom();
             return;
         }
 
-        // Slide The Edge (a closed pane is collapsed once its own slide ends, so its controls leave the tab order)
+        // Closing: the island takes its new room now (the part it gains is still under the pane)
+        if (!open)
+        {
+            ApplyIslandRoom();
+        }
+
+        // Slide The Edge (opening, the island takes its room once the pane is there; a closed pane is collapsed once its
+        // own slide ends, so its controls leave the tab order)
         var batch = compositor.CreateScopedBatch(CompositionBatchTypes.Animation);
         _fillClip.StartAnimation(inset, Slide(compositor, fillTo, duration));
         batch.End();
         batch.Completed += (_, _) =>
         {
-            if (!open && slide == (sidebar ? _sidebarSlide : _detailsSlide))
+            if (slide != (sidebar ? _sidebarSlide : _detailsSlide))
+            {
+                return;
+            }
+
+            if (open)
+            {
+                ApplyIslandRoom();
+            }
+            else
             {
                 pane.Visibility = Visibility.Collapsed;
             }
