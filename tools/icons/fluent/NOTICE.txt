@@ -1,4 +1,4 @@
-These SVGs are the "Leaf One" icon (ic_fluent_leaf_one_*_regular) of
+These SVGs are the "Leaf One" icon (ic_fluent_leaf_one_*_filled) of
 Fluent UI System Icons, https://github.com/microsoft/fluentui-system-icons, used under the MIT License:
 
 MIT License
