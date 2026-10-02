@@ -39,7 +39,9 @@
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
-    <!-- Icon Buttons (plain icon; a subtle layer fades in over the button's own fill in 83 ms on hover and press, even when a toggle is on) -->
+    <!-- Icon Buttons (plain icon; a subtle layer fades in over the button's own fill in 83 ms on hover and press, even when a
+         toggle is on. Pressed, the glyph shrinks to 90% around its center in 83 ms and eases back in 167 ms on release, the
+         design standard's fast and normal durations; every icon button style here does the same) -->
     <Style x:Key="LeafIconButtonStyle" TargetType="ButtonBase">
         <Setter Property="Width" Value="32" />
         <Setter Property="Height" Value="32" />
@@ -57,6 +59,28 @@
                         CornerRadius="{TemplateBinding CornerRadius}">
                         <VisualStateManager.VisualStateGroups>
                             <VisualStateGroup x:Name="CommonStates">
+                                <VisualStateGroup.Transitions>
+                                    <VisualTransition To="Pressed" GeneratedDuration="0:0:0.083">
+                                        <VisualTransition.GeneratedEasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </VisualTransition.GeneratedEasingFunction>
+                                    </VisualTransition>
+                                    <VisualTransition To="CheckedPressed" GeneratedDuration="0:0:0.083">
+                                        <VisualTransition.GeneratedEasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </VisualTransition.GeneratedEasingFunction>
+                                    </VisualTransition>
+                                    <VisualTransition From="Pressed" GeneratedDuration="0:0:0.167">
+                                        <VisualTransition.GeneratedEasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </VisualTransition.GeneratedEasingFunction>
+                                    </VisualTransition>
+                                    <VisualTransition From="CheckedPressed" GeneratedDuration="0:0:0.167">
+                                        <VisualTransition.GeneratedEasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </VisualTransition.GeneratedEasingFunction>
+                                    </VisualTransition>
+                                </VisualStateGroup.Transitions>
                                 <VisualState x:Name="Normal" />
                                 <VisualState x:Name="PointerOver">
                                     <VisualState.Setters>
@@ -66,8 +90,11 @@
                                 <VisualState x:Name="Pressed">
                                     <VisualState.Setters>
                                         <Setter Target="HoverLayer.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
-                                        <Setter Target="Presenter.Opacity" Value="0.6" />
                                     </VisualState.Setters>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="PressScale" Storyboard.TargetProperty="ScaleX" To="0.9" Duration="0" />
+                                        <DoubleAnimation Storyboard.TargetName="PressScale" Storyboard.TargetProperty="ScaleY" To="0.9" Duration="0" />
+                                    </Storyboard>
                                 </VisualState>
                                 <VisualState x:Name="Disabled">
                                     <VisualState.Setters>
@@ -83,8 +110,11 @@
                                 <VisualState x:Name="CheckedPressed">
                                     <VisualState.Setters>
                                         <Setter Target="HoverLayer.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
-                                        <Setter Target="Presenter.Opacity" Value="0.6" />
                                     </VisualState.Setters>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="PressScale" Storyboard.TargetProperty="ScaleX" To="0.9" Duration="0" />
+                                        <DoubleAnimation Storyboard.TargetName="PressScale" Storyboard.TargetProperty="ScaleY" To="0.9" Duration="0" />
+                                    </Storyboard>
                                 </VisualState>
                                 <VisualState x:Name="CheckedDisabled">
                                     <VisualState.Setters>
@@ -105,12 +135,13 @@
                                 Padding="{TemplateBinding Padding}"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
+                                RenderTransformOrigin="0.5,0.5"
                                 Content="{TemplateBinding Content}"
                                 ContentTemplate="{TemplateBinding ContentTemplate}"
                                 Foreground="{TemplateBinding Foreground}">
-                                <ContentPresenter.OpacityTransition>
-                                    <ScalarTransition Duration="0:0:0.083" />
-                                </ContentPresenter.OpacityTransition>
+                                <ContentPresenter.RenderTransform>
+                                    <ScaleTransform x:Name="PressScale" />
+                                </ContentPresenter.RenderTransform>
                             </ContentPresenter>
                         </Border>
                     </Border>
@@ -119,7 +150,8 @@
         </Setter>
     </Style>
 
-    <!-- Bare Icon Buttons (title bar navigation: the icon only, no hover or press fill; keyboard focus still shows) -->
+    <!-- Bare Icon Buttons (title bar navigation: the icon only, no hover or press fill, the glyph shrinks while pressed;
+         keyboard focus still shows) -->
     <Style x:Key="LeafBareIconButtonStyle" TargetType="ButtonBase" BasedOn="{StaticResource LeafIconButtonStyle}">
         <Setter Property="Template">
             <Setter.Value>
@@ -127,12 +159,35 @@
                     <Border Background="Transparent" CornerRadius="{TemplateBinding CornerRadius}">
                         <VisualStateManager.VisualStateGroups>
                             <VisualStateGroup x:Name="CommonStates">
+                                <VisualStateGroup.Transitions>
+                                    <VisualTransition To="Pressed" GeneratedDuration="0:0:0.083">
+                                        <VisualTransition.GeneratedEasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </VisualTransition.GeneratedEasingFunction>
+                                    </VisualTransition>
+                                    <VisualTransition To="CheckedPressed" GeneratedDuration="0:0:0.083">
+                                        <VisualTransition.GeneratedEasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </VisualTransition.GeneratedEasingFunction>
+                                    </VisualTransition>
+                                    <VisualTransition From="Pressed" GeneratedDuration="0:0:0.167">
+                                        <VisualTransition.GeneratedEasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </VisualTransition.GeneratedEasingFunction>
+                                    </VisualTransition>
+                                    <VisualTransition From="CheckedPressed" GeneratedDuration="0:0:0.167">
+                                        <VisualTransition.GeneratedEasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </VisualTransition.GeneratedEasingFunction>
+                                    </VisualTransition>
+                                </VisualStateGroup.Transitions>
                                 <VisualState x:Name="Normal" />
                                 <VisualState x:Name="PointerOver" />
                                 <VisualState x:Name="Pressed">
-                                    <VisualState.Setters>
-                                        <Setter Target="Presenter.Opacity" Value="0.6" />
-                                    </VisualState.Setters>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="PressScale" Storyboard.TargetProperty="ScaleX" To="0.9" Duration="0" />
+                                        <DoubleAnimation Storyboard.TargetName="PressScale" Storyboard.TargetProperty="ScaleY" To="0.9" Duration="0" />
+                                    </Storyboard>
                                 </VisualState>
                                 <VisualState x:Name="Disabled">
                                     <VisualState.Setters>
@@ -142,9 +197,10 @@
                                 <VisualState x:Name="Checked" />
                                 <VisualState x:Name="CheckedPointerOver" />
                                 <VisualState x:Name="CheckedPressed">
-                                    <VisualState.Setters>
-                                        <Setter Target="Presenter.Opacity" Value="0.6" />
-                                    </VisualState.Setters>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="PressScale" Storyboard.TargetProperty="ScaleX" To="0.9" Duration="0" />
+                                        <DoubleAnimation Storyboard.TargetName="PressScale" Storyboard.TargetProperty="ScaleY" To="0.9" Duration="0" />
+                                    </Storyboard>
                                 </VisualState>
                                 <VisualState x:Name="CheckedDisabled">
                                     <VisualState.Setters>
@@ -158,12 +214,13 @@
                             Padding="{TemplateBinding Padding}"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
+                            RenderTransformOrigin="0.5,0.5"
                             Content="{TemplateBinding Content}"
                             ContentTemplate="{TemplateBinding ContentTemplate}"
                             Foreground="{TemplateBinding Foreground}">
-                            <ContentPresenter.OpacityTransition>
-                                <ScalarTransition Duration="0:0:0.083" />
-                            </ContentPresenter.OpacityTransition>
+                            <ContentPresenter.RenderTransform>
+                                <ScaleTransform x:Name="PressScale" />
+                            </ContentPresenter.RenderTransform>
                         </ContentPresenter>
                     </Border>
                 </ControlTemplate>
@@ -186,19 +243,32 @@
                     <Border Background="Transparent" CornerRadius="{TemplateBinding CornerRadius}">
                         <VisualStateManager.VisualStateGroups>
                             <VisualStateGroup x:Name="CommonStates">
+                                <VisualStateGroup.Transitions>
+                                    <VisualTransition To="Pressed" GeneratedDuration="0:0:0.083">
+                                        <VisualTransition.GeneratedEasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </VisualTransition.GeneratedEasingFunction>
+                                    </VisualTransition>
+                                    <VisualTransition From="Pressed" GeneratedDuration="0:0:0.167">
+                                        <VisualTransition.GeneratedEasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </VisualTransition.GeneratedEasingFunction>
+                                    </VisualTransition>
+                                </VisualStateGroup.Transitions>
                                 <VisualState x:Name="Normal" />
                                 <VisualState x:Name="PointerOver" />
                                 <VisualState x:Name="Pressed">
-                                    <VisualState.Setters>
-                                        <Setter Target="Glyph.Opacity" Value="0.6" />
-                                    </VisualState.Setters>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="PressScale" Storyboard.TargetProperty="ScaleX" To="0.9" Duration="0" />
+                                        <DoubleAnimation Storyboard.TargetName="PressScale" Storyboard.TargetProperty="ScaleY" To="0.9" Duration="0" />
+                                    </Storyboard>
                                 </VisualState>
                             </VisualStateGroup>
                         </VisualStateManager.VisualStateGroups>
-                        <controls:PaneGlyph x:Name="Glyph" Pane="Sidebar" Foreground="{TemplateBinding Foreground}">
-                            <controls:PaneGlyph.OpacityTransition>
-                                <ScalarTransition Duration="0:0:0.083" />
-                            </controls:PaneGlyph.OpacityTransition>
+                        <controls:PaneGlyph x:Name="Glyph" Pane="Sidebar" Foreground="{TemplateBinding Foreground}" RenderTransformOrigin="0.5,0.5">
+                            <controls:PaneGlyph.RenderTransform>
+                                <ScaleTransform x:Name="PressScale" />
+                            </controls:PaneGlyph.RenderTransform>
                         </controls:PaneGlyph>
                     </Border>
                 </ControlTemplate>
