@@ -5,6 +5,7 @@ using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
 using LeafCalendar.Core.Settings;
+using LeafCalendar.Core.Views;
 using LeafCalendar.UITests.Support;
 
 namespace LeafCalendar.UITests;
@@ -57,6 +58,14 @@ public sealed class EditorExtrasTests : IDisposable
     FakeWrite DentistPatch() =>
         _google.WaitForWrite(w => w.Method == "PATCH" && w.Path.EndsWith("/events/evt-single", StringComparison.Ordinal));
 
+    // The box takes focus the way a click or Tab gives it (its text field only shows once it has focus, so there's
+    // nothing to click before that)
+    static void FocusZoneBox(LeafApp leaf)
+    {
+        leaf.WaitFor("EditorTimeZoneBox").Focus();
+        Thread.Sleep(200);
+    }
+
     static TextBox ZoneEdit(LeafApp leaf) =>
         Retry.WhileNull(() => leaf.WaitFor("EditorTimeZoneBox").FindFirstDescendant(cf => cf.ByControlType(ControlType.Edit)), TimeSpan.FromSeconds(10)).Result?.AsTextBox()
         ?? throw new InvalidOperationException("The time zone box has no text box inside.");
@@ -96,7 +105,7 @@ public sealed class EditorExtrasTests : IDisposable
 
         // Pick Tokyo (click into the dropdown's text the way a person does, replace it, and press Enter)
         var edit = ZoneEdit(leaf);
-        edit.Click();
+        FocusZoneBox(leaf);
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("Tokyo");
         Keyboard.Type(VirtualKeyShort.RETURN);
@@ -188,18 +197,20 @@ public sealed class EditorExtrasTests : IDisposable
 
         // The stock dropdown lists every zone, not a short list of cities
         combo.Expand();
-        Assert.True(Retry.WhileFalse(() => combo.Items.Length > 100, TimeSpan.FromSeconds(10)).Success, $"The dropdown listed {combo.Items.Length} zones.");
+        // (the list builds only the rows in view, so the last zone of the full list is looked up rather than counted)
+        var last = TimeZoneCatalog.All(DateTimeOffset.Now)[^1].Label;
+        Assert.True(Retry.WhileFalse(() => combo.Patterns.ItemContainer.Pattern.FindItemByProperty(null, combo.Automation.PropertyLibrary.Element.Name, last) is not null, TimeSpan.FromSeconds(10)).Success, $"The dropdown has no \"{last}\" row.");
         combo.Collapse();
 
         // Typed text that matches no zone changes nothing, on Enter or when focus leaves; the editor stays open
-        edit.Click();
+        FocusZoneBox(leaf);
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("Nowhere at all");
         Keyboard.Type(VirtualKeyShort.RETURN);
         Assert.True(Retry.WhileFalse(() => ZoneEdit(leaf).Text == before, TimeSpan.FromSeconds(5)).Success, $"Enter left \"{ZoneEdit(leaf).Text}\".");
         Assert.True(leaf.Exists("EditorTitle"), "Enter in the zone box closed the editor.");
 
-        edit.Click();
+        FocusZoneBox(leaf);
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("Nowhere at all");
         leaf.WaitFor("EditorTitle").AsTextBox().Focus();

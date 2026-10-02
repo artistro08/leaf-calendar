@@ -137,8 +137,9 @@ public sealed class ZoneTests : IDisposable
         Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("ZonePromptSwitch").IsEnabled, Wait).Success);
 
         // The dropdown is searchable: typing a city and pressing Enter picks it
-        var box = leaf.WaitInSettings("PrimaryZoneBox").FindFirstDescendant(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.Edit)) ?? throw new InvalidOperationException("The zone box has no text box inside.");
-        box.Click();
+        // (focused the way a click or Tab does: its text field only shows once it has focus)
+        leaf.WaitInSettings("PrimaryZoneBox").Focus();
+        Thread.Sleep(200);
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("London");
         Keyboard.Type(VirtualKeyShort.RETURN);
