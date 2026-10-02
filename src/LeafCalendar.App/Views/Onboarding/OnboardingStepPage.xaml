@@ -65,6 +65,7 @@
                     KeyDown="OnClientSecretKeyDown"
                     AutomationProperties.AutomationId="ClientSecretBox" />
                 <InfoBar
+                    CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                     Severity="Error"
                     IsClosable="False"
                     IsOpen="{x:Bind ViewModel.Client.HasError, Mode=OneWay}"
@@ -92,6 +93,7 @@
                         AutomationProperties.AutomationId="OnboardingSignInStatus" />
                 </StackPanel>
                 <InfoBar
+                    CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                     Severity="Error"
                     IsClosable="False"
                     IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
@@ -118,6 +120,7 @@
                         AutomationProperties.AutomationId="OnboardingSyncCounts" />
                 </StackPanel>
                 <InfoBar
+                    CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                     Severity="Error"
                     IsClosable="False"
                     IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"

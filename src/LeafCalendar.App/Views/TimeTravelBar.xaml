@@ -7,6 +7,7 @@
     <StackPanel>
         <!-- Time Travel ("Viewing your calendar in Tokyo time (UTC+9)." · Return) -->
         <InfoBar
+            CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
             x:Name="TravelBar"
             Margin="16,0,16,8"
             Severity="Informational"
@@ -24,6 +25,7 @@
 
         <!-- Zone Switch Offer (Windows moved to another zone while Leaf's primary zone is pinned) -->
         <InfoBar
+            CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
             x:Name="ZoneSwitchBar"
             Margin="16,0,16,8"
             Severity="Informational"

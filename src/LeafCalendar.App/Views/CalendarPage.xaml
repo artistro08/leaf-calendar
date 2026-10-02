@@ -100,6 +100,7 @@
                     VerticalAlignment="Bottom"
                     Spacing="8">
                     <InfoBar
+                        CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                         x:Name="SharingHint"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         IsClosable="False"
@@ -107,6 +108,7 @@
                         AutomationProperties.LiveSetting="Polite"
                         AutomationProperties.AutomationId="SharingHint" />
                     <InfoBar
+                        CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                         x:Name="NoticeBar"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         IsClosable="True"

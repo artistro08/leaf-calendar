@@ -12,6 +12,7 @@
 
             <!-- Status -->
             <InfoBar
+                CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                 Margin="0,0,0,12"
                 Severity="{x:Bind local:AccountsPage.SeverityFor(ViewModel.MessageKind), Mode=OneWay}"
                 IsOpen="{x:Bind ViewModel.HasMessage, Mode=OneWay}"
