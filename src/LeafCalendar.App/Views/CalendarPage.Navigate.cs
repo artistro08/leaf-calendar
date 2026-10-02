@@ -26,28 +26,47 @@ public sealed partial class CalendarPage
     public event EventHandler<bool>? CommandMenuShown;
 
     /// <summary>
-    /// The Next month button's center, in window DIPs, once the open sidebar has settled; null before it's laid out.
+    /// The Next month button's center, in window DIPs, with the sidebar open; null before the sidebar was first laid out.
     /// </summary>
-    /// <remarks>Measured against the sidebar itself (which settles at the window's left edge), so a pane still sliding in doesn't move it.</remarks>
+    /// <remarks>
+    /// Measured against the sidebar itself (which settles at the window's left edge), so a pane still sliding in doesn't
+    /// move it. The last measure is kept while the sidebar is collapsed, so the search icon knows where it's headed
+    /// the moment the sidebar starts to open.
+    /// </remarks>
     public double? MiniMonthNextCenterX =>
         Sidebar.MiniMonthNextButton is { ActualWidth: > 0 } next
-            ? next.TransformToVisual(Sidebar).TransformPoint(new Windows.Foundation.Point(next.ActualWidth / 2, 0)).X
-            : null;
+            ? _miniMonthNextCenterX = next.TransformToVisual(Sidebar).TransformPoint(new Windows.Foundation.Point(next.ActualWidth / 2, 0)).X
+            : _miniMonthNextCenterX;
+
+    double? _miniMonthNextCenterX;
 
     /// <summary>
-    /// With the sidebar closed, starts the period title after <paramref name="right"/> (the title bar search icon's right
-    /// edge, in window DIPs), so the icon never covers it. With the sidebar open the title keeps its place.
+    /// With the sidebar closed, starts the period title after <paramref name="right"/> (the right edge the title bar search
+    /// icon has with the sidebar closed, in window DIPs), so the icon never covers it. With the sidebar open the title
+    /// keeps its usual inset.
     /// </summary>
     public void KeepTitleClearOf(double right)
     {
-        if (IsSidebarOpen)
+        // The search glyph's ink ends 8 in from its button's edge; the title starts the usual inset after it
+        var left = Math.Max(PaneToggleClearance + TitleInset, right - 8 + TitleInset);
+        if (left == _titleClosedLeft)
         {
             return;
         }
 
-        // The search glyph's ink ends 8 in from its button's edge; the title starts the usual inset after it
-        var left = Math.Max(PaneToggleClearance + TitleInset, right - 8 + TitleInset);
-        PeriodTitle.Margin = new Thickness(left, PeriodTitle.Margin.Top, 0, PeriodTitle.Margin.Bottom);
+        _titleClosedLeft = left;
+        PlaceTitle();
+    }
+
+    // The period title's inset with the sidebar closed (clear of the title bar's pane toggle and search icon)
+    double _titleClosedLeft = PaneToggleClearance + TitleInset;
+
+    // The period title's inset for the sidebar as it is now, eased with the sidebar's edge while it slides
+    void PlaceTitle()
+    {
+        var left = IsSidebarOpen ? TitleInset : _titleClosedLeft;
+        PeriodTitle.Margin = new Thickness(left, 9, 0, 8);
+        RideSidebarEdge(PeriodTitle, _titleClosedLeft, TitleInset, left);
     }
 
     // Called once when the page opens: the zone bars
@@ -124,9 +143,14 @@ public sealed partial class CalendarPage
         }
 
         _commandMenu.Reset();
+
+        // Centered Both Ways (the menu's height when it opens, so it stays put as results change)
+        _commandMenu.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+        var top = Math.Max(0, (Root.ActualHeight - _commandMenu.DesiredSize.Height) / 2);
+
         _commandFlyout.ShowAt(Root, new FlyoutShowOptions
         {
-            Position  = new Windows.Foundation.Point(Root.ActualWidth / 2, 56),
+            Position  = new Windows.Foundation.Point(Root.ActualWidth / 2, top),
             Placement = FlyoutPlacementMode.Bottom,
             ShowMode  = FlyoutShowMode.Standard,
         });

@@ -189,11 +189,11 @@ public sealed partial class CalendarPage : Page
     // Slides the pane (CalendarPage.Panes.cs) and reports the change so the title bar can follow
     void SetPaneOpen(bool sidebar, bool open, bool animate)
     {
-        SlidePane(sidebar, open, animate);
+        // The title bar (toolbar, search icon) follows once the slide starts, so it moves with the island and not ahead of it
+        SlidePane(sidebar, open, animate, () => PanesChanged?.Invoke(this, new PanesChangedEventArgs(animate, open)));
 
         // With the sidebar closed the title bar's pane toggle sits over the island's corner, so the title moves right
-        PeriodTitle.Margin = new Thickness(IsSidebarOpen ? TitleInset : PaneToggleClearance + TitleInset, 9, 0, 8);
-        PanesChanged?.Invoke(this, new PanesChangedEventArgs(animate, open));
+        PlaceTitle();
     }
 
     /// <summary>Puts the view for the current mode into <see cref="ViewHost"/>, keeping one view per mode family.</summary>

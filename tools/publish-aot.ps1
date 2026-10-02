@@ -24,6 +24,9 @@ if (-not $Register) { return }
 # Unpack And Register
 $layout = Join-Path $app 'AppPackages/aot-layout'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+# A running Leaf locks the last layout's files, so close it before overwriting them
+Get-Process LeafCalendar -ErrorAction SilentlyContinue | ForEach-Object { $_ | Stop-Process -Force; $_.WaitForExit() }
+if (Test-Path $layout) { Remove-Item $layout -Recurse -Force }
 [IO.Compression.ZipFile]::ExtractToDirectory($msix.FullName, $layout)
 
 $existing = Get-AppxPackage LeafCalendar

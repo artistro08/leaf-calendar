@@ -231,6 +231,7 @@ public sealed partial class MainWindow : Window
     {
         var page       = e.Content as CalendarPage;
         var onCalendar = page is not null;
+        _searchRide    = null;
 
         CalendarToolbar.Visibility            = onCalendar ? Visibility.Visible : Visibility.Collapsed;
         SearchButton.Visibility               = CalendarToolbar.Visibility;
@@ -322,8 +323,9 @@ public sealed partial class MainWindow : Window
         AppTitleBar.RecomputeDragRegions();
     }
 
-    // The search icon: centered over the mini month's Next month button while the sidebar is open, else 8 after the
-    // title bar's left items (and the period title moves clear of it). Only the button takes clicks.
+    // The search icon: centered over the mini month's Next month button while the sidebar is open, else right after the
+    // title bar's pane toggle (and the period title moves clear of it). Its margin is its resting spot (where it takes
+    // clicks); while the sidebar slides it rides the sidebar's edge on the compositor, so it never jumps or lags.
     void PlaceSearchButton()
     {
         if (ContentFrame.Content is not CalendarPage page || RootGrid.XamlRoot is null)
@@ -331,21 +333,27 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var scale = RootGrid.XamlRoot.RasterizationScale;
-        var hostX = ToolbarHost.TransformToVisual(RootGrid).TransformPoint(default).X;
-        var left  = page.IsSidebarOpen && page.MiniMonthNextCenterX is { } center ? center - hostX - SearchButton.Width / 2 : 8;
-        left      = Math.Max(8, Math.Round(left * scale) / scale);
+        var scale  = RootGrid.XamlRoot.RasterizationScale;
+        var hostX  = ToolbarHost.TransformToVisual(RootGrid).TransformPoint(default).X;
+        var closed = 0.0;
+        var open   = page.MiniMonthNextCenterX is { } center ? Math.Max(closed, Math.Round((center - hostX - SearchButton.Width / 2) * scale) / scale) : closed;
+        var left   = page.IsSidebarOpen ? open : closed;
 
-        page.KeepTitleClearOf(hostX + left + SearchButton.Width);
-        if (SearchButton.Margin.Left == left)
+        page.KeepTitleClearOf(hostX + closed + SearchButton.Width);
+        if (_searchRide == (closed, open, left))
         {
             return;
         }
 
         // No Forced Layout Here (it ran the whole window's layout, the calendar's included, inside a pane toggle and held up the slide):
         // FollowSearchAnchor re-punches the icon's hole once the next layout pass has moved it
+        _searchRide         = (closed, open, left);
         SearchButton.Margin = new Thickness(left, 0, 0, 0);
+        page.RideSidebarEdge(SearchButton, closed, open, left);
     }
+
+    // The search icon's closed, open, and resting spots last handed to the compositor (toolbar host DIPs)
+    (double Closed, double Open, double Resting)? _searchRide;
 
     // The dim's fade (the design standard's 167 ms), whether the menu is open now, and the timer that collapses it
     static readonly TimeSpan DimFadeDuration = TimeSpan.FromMilliseconds(167);
