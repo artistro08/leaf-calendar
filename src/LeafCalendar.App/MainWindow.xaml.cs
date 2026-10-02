@@ -485,7 +485,14 @@ public sealed partial class MainWindow : Window
 
     void OnActivated(object sender, WindowActivatedEventArgs args)
     {
-        if (args.WindowActivationState == WindowActivationState.Deactivated)
+        // The Calendar's Chrome Dims With The Title Bar While Another Window Is Active
+        var active = args.WindowActivationState != WindowActivationState.Deactivated;
+        if (ContentFrame.Content is CalendarPage page)
+        {
+            page.SetWindowActive(active);
+        }
+
+        if (!active)
         {
             return;
         }
@@ -627,10 +634,48 @@ public sealed partial class MainWindow : Window
         DetailsToggle.IsChecked = s.DetailsPanelOpen;
         AutomationProperties.SetName(ViewModeButton, view);
 
-        // Pager Arrows Point The Way The View Moves (month scrolls up and down; ← and → still page it)
-        var month = s.ViewMode == CalendarViewMode.Month;
-        PreviousGlyph.Glyph = month ? "" : "";
-        NextGlyph.Glyph     = month ? "" : "";
+        // Pager Arrows Point The Way The View Moves (month scrolls up and down; ← and → still page it): they turn a
+        // quarter to point up and down in Month view, and back when it's left
+        RotatePagers(s.ViewMode == CalendarViewMode.Month);
+    }
+
+    // The pager arrows' turn last shown: null until the first layout, which sets it without animating
+    bool? _pagersVertical;
+
+    // Turns the left and right chevrons a quarter clockwise (up and down) for Month view, animated once shown
+    void RotatePagers(bool vertical)
+    {
+        if (_pagersVertical == vertical)
+        {
+            return;
+        }
+
+        var animate     = _pagersVertical is not null;
+        _pagersVertical = vertical;
+        var angle       = vertical ? 90 : 0;
+        foreach (var glyph in new[] { PreviousGlyph, NextGlyph })
+        {
+            if (glyph.RenderTransform is not RotateTransform turn)
+            {
+                continue;
+            }
+
+            if (!animate)
+            {
+                turn.Angle = angle;
+                continue;
+            }
+
+            var spin = new DoubleAnimation
+            {
+                To             = angle,
+                Duration       = TimeSpan.FromMilliseconds(167),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            };
+            Storyboard.SetTarget(spin, turn);
+            Storyboard.SetTargetProperty(spin, nameof(RotateTransform.Angle));
+            new Storyboard { Children = { spin } }.Begin();
+        }
     }
 
     // =========================================================================
@@ -643,7 +688,7 @@ public sealed partial class MainWindow : Window
         {
             UpdateEventActions();
         }
-        else if (e.PropertyName is nameof(CalendarViewModel.ConflictCount) or nameof(CalendarViewModel.PendingCount) or nameof(CalendarViewModel.IsOffline))
+        else if (e.PropertyName is nameof(CalendarViewModel.ConflictCount) or nameof(CalendarViewModel.PendingCount) or nameof(CalendarViewModel.IsOffline) or nameof(CalendarViewModel.IsSyncing))
         {
             ShowSyncState();
         }
@@ -675,9 +720,11 @@ public sealed partial class MainWindow : Window
             _waitingTimer.Start();
         }
 
-        var conflicts = vm.ConflictCount > 0;
-        var offline   = !conflicts && vm.IsOffline;
-        var waiting   = !conflicts && vm.PendingCount > 0 && (vm.IsOffline || _waitingDue);
+        // A Sync You Asked For Shows Its Progress Ring In The Slot Until It Ends; then the slot shows what it found
+        var syncing   = vm.IsSyncing;
+        var conflicts = !syncing && vm.ConflictCount > 0;
+        var offline   = !syncing && !conflicts && vm.IsOffline;
+        var waiting   = !syncing && !conflicts && vm.PendingCount > 0 && (vm.IsOffline || _waitingDue);
         var count     = vm.PendingCount == 1 ? "1 change waiting to sync" : string.Create(CultureInfo.InvariantCulture, $"{vm.PendingCount} changes waiting to sync");
         var review    = vm.ConflictCount == 1 ? "1 change needs your review" : string.Create(CultureInfo.InvariantCulture, $"{vm.ConflictCount} changes need your review");
         var away      = vm.PendingCount == 0
@@ -701,8 +748,12 @@ public sealed partial class MainWindow : Window
         SetWords(WaitingButton, count, vm.IsOffline ? away : $"{count}. Select to try now.");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(WaitingButton, vm.IsOffline ? away : "");
 
+        // Syncing
+        SyncingRing.IsActive   = syncing;
+        SyncingRing.Visibility = syncing ? Visibility.Visible : Visibility.Collapsed;
+
         // Show The Slot And Re-Punch The Title Bar's Click-Through Holes
-        SyncStatus.Visibility = conflicts || offline || waiting ? Visibility.Visible : Visibility.Collapsed;
+        SyncStatus.Visibility = syncing || conflicts || offline || waiting ? Visibility.Visible : Visibility.Collapsed;
         CalendarToolbar.UpdateLayout();
         AppTitleBar.RecomputeDragRegions();
     }
@@ -721,7 +772,8 @@ public sealed partial class MainWindow : Window
     }
 
     // Offline or waiting: try sending now
-    void OnSyncStatusClick(object sender, RoutedEventArgs e) => _services.Google?.Loop.TriggerNow();
+    // Try now: a sync you asked for, so its ring shows while it runs
+    void OnSyncStatusClick(object sender, RoutedEventArgs e) => _calendar?.Fire(_calendar.SyncNowAsync, "sync.now.failed");
 
     /// <summary>Opens the conflict dialog (the toolbar's conflicts button, or the "needs your review" notification). Never throws.</summary>
     public async Task ReviewConflictsAsync()

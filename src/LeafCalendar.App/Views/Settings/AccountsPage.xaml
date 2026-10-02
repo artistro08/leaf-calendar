@@ -28,8 +28,8 @@
                         Width="20"
                         Height="20"
                         Margin="0,0,4,0"
-                        IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}"
-                        AutomationProperties.Name="Working"
+                        IsActive="{x:Bind ViewModel.IsAdding, Mode=OneWay}"
+                        AutomationProperties.Name="Adding account"
                         AutomationProperties.AutomationId="AddAccountProgress" />
                     <Button
                         Content="Cancel"
@@ -136,10 +136,18 @@
             <!-- Sync -->
             <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Sync" />
             <controls:SettingRow Glyph="&#xE72C;" Header="Sync now" Description="Leaf syncs on its own. Sync now to get the latest changes from Google right away.">
-                <Button
-                    Content="Sync now"
-                    Command="{x:Bind ViewModel.SyncNowCommand}"
-                    AutomationProperties.AutomationId="SyncNowButton" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <ProgressRing
+                        Width="20"
+                        Height="20"
+                        IsActive="{x:Bind ViewModel.IsSyncing, Mode=OneWay}"
+                        AutomationProperties.Name="Syncing"
+                        AutomationProperties.AutomationId="SyncNowProgress" />
+                    <Button
+                        Content="Sync now"
+                        Command="{x:Bind ViewModel.SyncNowCommand}"
+                        AutomationProperties.AutomationId="SyncNowButton" />
+                </StackPanel>
             </controls:SettingRow>
 
             <!-- OAuth Client -->

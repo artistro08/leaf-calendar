@@ -90,6 +90,15 @@ public sealed partial class SidebarView : UserControl
 
     void OnCalendarsChanged(object? sender, EventArgs e) => UpdateCalendarList();
 
+    /// <summary>Dims the mini month, the calendar list, and the footer's icons while the window isn't the active one.</summary>
+    public void SetWindowActive(bool active)
+    {
+        var opacity = active ? 1 : CalendarPage.InactiveOpacity;
+        MiniMonth.Opacity     = opacity;
+        ContentScroll.Opacity = opacity;
+        Footer.Opacity        = opacity;
+    }
+
     // A new day, week start, or time zone moves today's circle and the weekday names
     void OnLayoutChanged(object? sender, EventArgs e) => RenderMiniMonth();
 

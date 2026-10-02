@@ -92,6 +92,14 @@ public sealed partial class AccountsViewModel : ObservableObject
     /// <summary>True when no sign-in or sync is running.</summary>
     public bool IsNotBusy => !IsBusy;
 
+    /// <summary>True while an account is being added: signing in, then its first sync (the Add row's progress ring).</summary>
+    [ObservableProperty]
+    public partial bool IsAdding { get; set; }
+
+    /// <summary>True while Sync now runs (the Sync now row's progress ring).</summary>
+    [ObservableProperty]
+    public partial bool IsSyncing { get; set; }
+
     /// <summary>True while a sign-in waits on the browser (it can be canceled; the sync after it can't).</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CancelSignInCommand))]
@@ -210,7 +218,8 @@ public sealed partial class AccountsViewModel : ObservableObject
             return;
         }
 
-        IsBusy = true;
+        IsBusy   = true;
+        IsAdding = true;
         Show(AccountsMessageKind.Progress, "Finish signing in with Google in your browser.");
         try
         {
@@ -241,7 +250,8 @@ public sealed partial class AccountsViewModel : ObservableObject
             }
             finally
             {
-                IsBusy = false;
+                IsBusy   = false;
+                IsAdding = false;
                 Reload();
             }
         }
@@ -276,7 +286,8 @@ public sealed partial class AccountsViewModel : ObservableObject
             return;
         }
 
-        IsBusy = true;
+        IsBusy    = true;
+        IsSyncing = true;
         ClearMessage();
         try
         {
@@ -286,7 +297,8 @@ public sealed partial class AccountsViewModel : ObservableObject
             }
             finally
             {
-                IsBusy = false;
+                IsBusy    = false;
+                IsSyncing = false;
                 Reload();
             }
         }

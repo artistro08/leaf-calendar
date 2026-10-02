@@ -314,6 +314,47 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool IsOffline { get; set; }
 
+    /// <summary>True while a sync you asked for (the command menu, the sync status button, the tray) is running.</summary>
+    [ObservableProperty]
+    public partial bool IsSyncing { get; private set; }
+
+    // Syncs you asked for that haven't finished (they can overlap; the indicator shows until the last one ends)
+    int _syncsRunning;
+
+    /// <summary>
+    /// Shown at least this long, so a quick sync still reads as "it synced" rather than a flicker.
+    /// </summary>
+    public static readonly TimeSpan MinimumSyncIndicator = TimeSpan.FromMilliseconds(600);
+
+    /// <summary>
+    /// Syncs every account with Google now, the calendar lists included, with <see cref="IsSyncing"/> set while it runs,
+    /// then reloads what's on screen. Without Google services it only reloads.
+    /// </summary>
+    public async Task SyncNowAsync()
+    {
+        if (_services.Google is not { } google)
+        {
+            await RefreshAsync();
+            return;
+        }
+
+        _syncsRunning++;
+        IsSyncing = true;
+        try
+        {
+            // Off The UI Thread; The Indicator Stays Up For At Least Its Minimum
+            var sync = Task.Run(() => google.Sync.SyncAllAsync(refreshCalendarLists: true, _life.Token));
+            await Task.WhenAll(sync, Task.Delay(MinimumSyncIndicator, _life.Token));
+        }
+        finally
+        {
+            _syncsRunning--;
+            IsSyncing = _syncsRunning > 0;
+        }
+
+        await RefreshAsync();
+    }
+
     /// <summary>True while a reload updates the selection (not the user picking an event), so the details panel isn't opened for it.</summary>
     internal bool IsRefreshingSelection { get; private set; }
 

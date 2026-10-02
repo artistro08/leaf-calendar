@@ -158,6 +158,19 @@ public sealed partial class CalendarPage : Page
         ViewHost.Children.Clear();
     }
 
+    /// <summary>
+    /// Opacity of the window's chrome while another window is active: the stock title bar's own
+    /// <c>TitleBarDeactivatedOpacity</c>, so the period title and the sidebar dim with the title bar's icons.
+    /// </summary>
+    public const double InactiveOpacity = 0.5;
+
+    /// <summary>Dims the period title and the sidebar while the window isn't the active one, like the title bar does.</summary>
+    public void SetWindowActive(bool active)
+    {
+        PeriodTitle.Opacity = active ? 1 : InactiveOpacity;
+        Sidebar.SetWindowActive(active);
+    }
+
     /// <summary>Shows or hides the sidebar (sliding when <paramref name="animate"/>) and remembers the choice.</summary>
     public void SetSidebarOpen(bool open, bool animate)
     {

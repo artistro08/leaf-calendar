@@ -240,7 +240,7 @@ public sealed partial class CalendarPage
                 return;
 
             case "sync":
-                vm.Fire(vm.RefreshAsync);
+                vm.Fire(vm.SyncNowAsync, "sync.now.failed");
                 return;
         }
 

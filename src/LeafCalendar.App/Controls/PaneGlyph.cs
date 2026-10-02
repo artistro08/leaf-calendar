@@ -123,9 +123,12 @@ public sealed partial class PaneGlyph : UserControl
         _outline.Data            = outline;
         _outline.StrokeThickness = stroke / scale;
 
-        // Panel Fill (inside the stroke, its outer corners following the outline's inner curve)
+        // Panel Fill (inside the stroke and up to the divider, never under it, its outer corners following the outline's
+        // inner curve). The shapes must not overlap: while the window is inactive the title bar fades its content to half,
+        // each shape on its own, and a pixel both cover came out brighter as a line beside the panel
         var inner = Math.Max(0, corner - stroke);
-        var box   = left ? new Rect(stroke, stroke, panel - stroke, height - stroke * 2) : new Rect(width - panel, stroke, panel - stroke, height - stroke * 2);
+        var fillW = Math.Max(0, panel - stroke * 2);
+        var box   = left ? new Rect(stroke, stroke, fillW, height - stroke * 2) : new Rect(width - panel + stroke, stroke, fillW, height - stroke * 2);
         var fill  = new PathGeometry();
         fill.Figures.Add(left ? RoundedRect(box, inner, 0, 0, inner, scale) : RoundedRect(box, 0, inner, inner, 0, scale));
         _panel.Data = fill;
