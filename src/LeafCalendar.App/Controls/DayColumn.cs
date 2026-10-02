@@ -5,7 +5,6 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 
 namespace LeafCalendar.App.Controls;
@@ -22,15 +21,7 @@ public sealed partial class DayColumn : Canvas
     // The app's icon button look, read once (as SidebarView reads its day styles)
     static readonly Lazy<Style> IconButtonStyle = new(() => (Style)Application.Current.Resources["LeafIconButtonStyle"]);
 
-    // The lines and shading run this far right and the column clips them to its width, so a new column width (a pane
-    // sliding, the window resizing) changes one clip instead of every line
-    const double LineSpan = 8192;
-
-    // The now dot hangs this far left of the column
-    const double DotOverhang = 6;
-
     readonly TimeGridView _owner;
-    readonly RectangleGeometry _clip = new();
     readonly Action<CalendarOccurrence> _select;
     readonly Rectangle[] _hourLines = new Rectangle[24];
     readonly Rectangle[] _halfLines = new Rectangle[24];
@@ -56,15 +47,13 @@ public sealed partial class DayColumn : Canvas
         _owner  = owner;
         _select = o => KeyState.SelectClicked(_owner.ViewModel, o);
 
-        Clip = _clip;
-
         // Off-Hours Shading (behind everything, even the hour lines)
         Children.Add(_offHours);
 
         for (var h = 0; h < 24; h++)
         {
-            Children.Add(_hourLines[h] = new Rectangle { Width = LineSpan, Height = 1, IsHitTestVisible = false });
-            Children.Add(_halfLines[h] = new Rectangle { Width = LineSpan, Height = 1, IsHitTestVisible = false });
+            Children.Add(_hourLines[h] = new Rectangle { Height = 1, IsHitTestVisible = false });
+            Children.Add(_halfLines[h] = new Rectangle { Height = 1, IsHitTestVisible = false });
         }
 
         // People Overlay, Then Shared-Availability Slots (under the events; clicks and drags go through to the grid)
@@ -121,17 +110,20 @@ public sealed partial class DayColumn : Canvas
     public void Render()
     {
         var dark   = _owner.IsDark;
+        var width  = _owner.ColumnWidth;
         var hour   = _owner.HourHeight;
+        Width      = width;
         Height     = _owner.BodyHeight;
         Background = ViewNavigator.IsWeekend(Date) ? LeafBrushes.WeekendFill(dark) : LeafBrushes.Transparent;
-        SizeToColumn();
 
         // Grid Lines
         for (var h = 0; h < 24; h++)
         {
-            _hourLines[h].Fill = LeafBrushes.GridLine(dark);
+            _hourLines[h].Width = width;
+            _hourLines[h].Fill  = LeafBrushes.GridLine(dark);
             SetTop(_hourLines[h], h * hour);
-            _halfLines[h].Fill = LeafBrushes.HalfHourLine(dark);
+            _halfLines[h].Width = width;
+            _halfLines[h].Fill  = LeafBrushes.HalfHourLine(dark);
             SetTop(_halfLines[h], h * hour + hour / 2);
         }
 
@@ -142,32 +134,6 @@ public sealed partial class DayColumn : Canvas
         RenderOverlay();
         RenderSlots();
         RenderEventsAndNow();
-    }
-
-    /// <summary>
-    /// Fits a new column width: only what depends on it moves (the clip, the event cards, the overlay and shared
-    /// slots), so it's cheap enough to run on every frame of a pane's slide or a window resize.
-    /// </summary>
-    public void Resize()
-    {
-        SizeToColumn();
-        if (_overlayBlocks.Count > 0)
-        {
-            RenderOverlay();
-        }
-
-        if (_slotItems.Count > 0 || _owner.ViewModel.ShareSlots.Count > 0)
-        {
-            RenderSlots();
-        }
-
-        RenderEventsAndNow();
-    }
-
-    void SizeToColumn()
-    {
-        Width      = _owner.ColumnWidth;
-        _clip.Rect = new Windows.Foundation.Rect(-DotOverhang, 0, Width + DotOverhang, _owner.BodyHeight);
     }
 
     /// <summary>
@@ -236,7 +202,7 @@ public sealed partial class DayColumn : Canvas
             _nowLine.Fill = _nowDot.Fill = LeafBrushes.NowLine;
             var now = TimeZoneInfo.ConvertTime(vm.Now, vm.Zone);
             var top = now.TimeOfDay.TotalMinutes / 60 * hour;
-            _nowLine.Width = LineSpan;
+            _nowLine.Width = width;
             SetTop(_nowLine, top - 1);
             SetLeft(_nowDot, -5);
             SetTop(_nowDot, top - 5);
@@ -309,7 +275,7 @@ public sealed partial class DayColumn : Canvas
             var shade        = _offHourBlocks[i];
             shade.Visibility = Visibility.Visible;
             shade.Background = fill;
-            shade.Width      = LineSpan;
+            shade.Width      = _owner.ColumnWidth;
             shade.Height     = (end - start) / 60.0 * hour;
             SetTop(shade, start / 60.0 * hour);
             AutomationProperties.SetAutomationId(shade, string.Create(CultureInfo.InvariantCulture, $"OffHours_{Date:yyyy-MM-dd}_{i}"));
