@@ -65,6 +65,9 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
     /// <summary>An alert fires within a minute; sync now.</summary>
     public event EventHandler? SyncSoon;
 
+    /// <summary>The plan was rebuilt; the argument holds what it found from now on (for the diagnostic log).</summary>
+    public event EventHandler<PlanSummary>? Planned;
+
     /// <summary>A pass or one of its handlers failed; the rest of the pass goes on, and the next pass tries again.</summary>
     public event EventHandler<Exception>? Failed;
 
@@ -128,6 +131,7 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
             List<Alert> due;
             List<string> retracted;
             bool syncSoon;
+            PlanSummary? planned = null;
 
             lock (_gate)
             {
@@ -150,6 +154,8 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
                     _planZone = tz.Id;
                     _plan     = AlertPlanner.Plan(conn, PlanFrom(conn, now, tz), _planTo, tz);
                     replanned = true;
+                    var ahead = _plan.Where(a => a.FireAt > now).ToList();
+                    planned   = new PlanSummary(ahead.Count, ahead.Count > 0 ? ahead[0].FireAt : null);
                 }
 
                 // Clock Set Back: forget the sync look-ahead so the next minute's alerts still ask for one
@@ -170,6 +176,11 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
             }
 
             // Raised Outside The State Lock, Each On Its Own (handlers show notifications, which can fail)
+            if (planned is not null)
+            {
+                Raise(() => Planned?.Invoke(this, planned));
+            }
+
             foreach (var alert in due)
             {
                 Raise(() => AlertDue?.Invoke(this, alert));
@@ -306,3 +317,6 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
         return now >= (end > start ? end : start + TimeSpan.FromMinutes(1));
     }
 }
+
+/// <summary>A rebuilt plan: how many alerts are still ahead in it, and when the first of them fires.</summary>
+public sealed record PlanSummary(int Ahead, DateTimeOffset? Next);

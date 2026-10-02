@@ -80,6 +80,23 @@ public sealed class AlertSchedulerTests : IDisposable
     }
 
     [Fact]
+    public void Check_Replan_ReportsWhatsAhead()
+    {
+        var scheduler = Scheduler();
+        var plans     = new List<PlanSummary>();
+        scheduler.Planned += (_, plan) => plans.Add(plan);
+
+        At(17, 45);
+        scheduler.Check();
+        scheduler.Check();
+
+        // The 17:50 reminder and the 18:00 "Join now"; a pass on the cached plan reports nothing
+        var plan = Assert.Single(plans);
+        Assert.Equal(2, plan.Ahead);
+        Assert.Equal(new DateTimeOffset(2026, 10, 1, 17, 50, 0, TimeSpan.Zero), plan.Next);
+    }
+
+    [Fact]
     public void Check_NewSchedulerAfterRestart_DoesNotRepeat()
     {
         var first = Scheduler();
