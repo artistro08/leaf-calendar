@@ -58,10 +58,17 @@ for (const size of [16, 24, 32, 48, 256]) {
     render(`Square44x44Logo.targetsize-${size}_altform-unplated.png`, size, size, size);
 }
 
-// Tray Glyphs (each size from its own hinted Fluent SVG; 32 for anything larger). Each is drawn where it renders
-// sharpest: as drawn or moved half a pixel either way, whichever leaves the fewest half-covered pixels (the 16-24
-// glyphs center their 1 px stem on a pixel edge, so as drawn it smears across two)
+// Tray Glyphs: the Fluent leaf scaled to fill the square (the Fluent art keeps 2-3 px of room around it, which read
+// as a small icon), each size from the hinted SVG nearest its scale. Its stem (a cutout and the stalk below, between
+// the two x values) is set to a whole number of pixels at that scale, and the leaf is drawn where it renders sharpest:
+// as placed or moved half a pixel either way, whichever leaves the fewest half-covered pixels
 fs.mkdirSync(path.join(assets, 'Tray'), { recursive: true });
+const trays = {
+    16: { source: 20, stem: ['9.49995', '10.5'], px: 1 },
+    20: { source: 24, stem: ['11.25', '12.75'], px: 1 },
+    24: { source: 32, stem: ['15', '17'], px: 2 },
+    32: { source: 32, stem: ['15', '17'], px: 2 },
+};
 function blur(png) {
     const pixels = png.pixels;
     let soft = 0;
@@ -72,20 +79,29 @@ function blur(png) {
     }
     return soft;
 }
-// The 24 glyph's stem is 1.5 px wide (11.25 to 12.75), which no position draws sharp; it's widened to 2 px
-const stems = { 24: [['11.25', '11'], ['12.75', '13']] };
-for (const size of [16, 20, 24, 32]) {
-    const glyph = fs.readFileSync(path.join(fluentDir, `ic_fluent_leaf_one_${size}_filled.svg`), 'utf8');
-    let body    = glyph.slice(glyph.indexOf('>') + 1, glyph.lastIndexOf('</svg>'));
-    for (const [from, to] of stems[size] ?? []) {
-        body = body.split(from).join(to);
-    }
+function token(text, from, to) {
+    return text.replace(new RegExp(`(?<![0-9.])${from.replace('.', '[.]')}(?![0-9.])`, 'g'), to);
+}
+for (const [size, tray] of Object.entries(trays).map(([s, t]) => [Number(s), t])) {
+    const glyph = fs.readFileSync(path.join(fluentDir, `ic_fluent_leaf_one_${tray.source}_filled.svg`), 'utf8');
+    const box   = new Resvg(glyph).getBBox();
+    const k     = Math.min(size / box.height, size / box.width);
+
+    // Stem: Whole Pixels At This Scale
+    const [left, right] = tray.stem.map(Number);
+    const middle = (left + right) / 2, half = tray.px / (2 * k);
+    let body = glyph.slice(glyph.indexOf('>') + 1, glyph.lastIndexOf('</svg>'));
+    body = token(token(body, tray.stem[0], (middle - half).toFixed(4)), tray.stem[1], (middle + half).toFixed(4));
+
     for (const [name, color] of [['dark-taskbar', '#FFFFFF'], ['light-taskbar', '#1F1F1F']]) {
+        const paint = body.replace(/fill="#212121"/g, `fill="${color}"`);
         let best = null;
         for (const dx of [0, 0.5, -0.5]) {
             for (const dy of [0, 0.5, -0.5]) {
+                const tx  = (size - box.width * k) / 2 - box.x * k + dx;
+                const ty  = (size - box.height * k) / 2 - box.y * k + dy;
                 const svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">` +
-                    `<g transform="translate(${dx} ${dy})">${body.replace(/fill="#212121"/g, `fill="${color}"`)}</g></svg>`;
+                    `<g transform="translate(${tx} ${ty}) scale(${k})">${paint}</g></svg>`;
                 const png  = new Resvg(svg, { fitTo: { mode: 'original' } }).render();
                 const soft = blur(png);
                 if (best === null || soft < best.soft) {
