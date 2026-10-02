@@ -90,6 +90,7 @@ public sealed partial class SettingsWindow : Window
 
         // Window Presenter (ours, kept, so its minimum size can be set without casting AppWindow.Presenter)
         AppWindow.SetPresenter(_presenter);
+        AppWindow.SetIcon(App.IconPath);
 
         // Title Bar
         ExtendsContentIntoTitleBar = true;

@@ -11,6 +11,8 @@ namespace LeafCalendar.App.Controls;
 /// The items are plain strings (a list of Core records can't go to WinRT under Native AOT) and the pick is read by
 /// index from our own list of IDs. With <c>IsEditable</c> on, typed text is matched like the old search boxes (a city,
 /// an alias such as NYC, or any part of a row) and only a zone from the list is taken.
+/// The box has no XAML file of its own: a XAML file whose root is a ComboBox subclass fails to parse when the
+/// box is built (XamlParseException), which kept the calendar page from opening. Rows are the stock string rows.
 /// </remarks>
 public sealed partial class TimeZoneComboBox : ComboBox
 {
@@ -22,8 +24,8 @@ public sealed partial class TimeZoneComboBox : ComboBox
     /// <summary>Creates the box (filled by <see cref="Show"/>).</summary>
     public TimeZoneComboBox()
     {
-        DefaultStyleKey = typeof(ComboBox);
-        InitializeComponent();
+        DefaultStyleKey     = typeof(ComboBox);
+        HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Stretch;
         SelectionChanged += OnSelectionChanged;
         TextSubmitted    += OnTextSubmitted;
     }

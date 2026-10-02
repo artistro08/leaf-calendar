@@ -85,6 +85,9 @@ public sealed partial class MainWindow : Window
         };
         ToolbarSlide.RenderTransform = _toolbarShift;
 
+        // A Page That Fails To Build Logs The Exception And The Stack That Built It (the crash that follows only names the Frame)
+        ContentFrame.NavigationFailed += (_, e) => _services.Log.Crash("frame.navigation.failed", e.Exception, e.Exception?.Message);
+
         // Shortcuts are handled at the root so they work wherever focus is
         RootGrid.PreviewKeyDown += (_, e) =>
         {
@@ -116,6 +119,7 @@ public sealed partial class MainWindow : Window
 
         // Window Presenter (ours, kept, so its minimum size can be set without casting AppWindow.Presenter)
         AppWindow.SetPresenter(_presenter);
+        AppWindow.SetIcon(App.IconPath);
 
         // Window Size (as it last closed, else the first-run default; a restored window's size is kept as it changes)
         // (the minimum applies first, and a size saved before the minimum grew is grown to it)
