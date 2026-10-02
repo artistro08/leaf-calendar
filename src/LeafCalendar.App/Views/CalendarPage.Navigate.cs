@@ -26,12 +26,16 @@ public sealed partial class CalendarPage
     public event EventHandler<bool>? CommandMenuShown;
 
     /// <summary>
-    /// The Next month button's center, in window DIPs, once the open sidebar has settled; null before it's laid out.
+    /// The Next month button's center, in window DIPs, wherever the sliding sidebar has it now; null while the sidebar
+    /// takes no room or before it's laid out.
     /// </summary>
-    /// <remarks>Measured against the sidebar itself (which settles at the window's left edge), so a pane still sliding in doesn't move it.</remarks>
+    /// <remarks>
+    /// Measured against the sidebar (laid out, so no render offsets), then moved by how far its slot is from fully open:
+    /// the sidebar keeps its width and rides the slot's edge.
+    /// </remarks>
     public double? MiniMonthNextCenterX =>
-        Sidebar.MiniMonthNextButton is { ActualWidth: > 0 } next
-            ? next.TransformToVisual(Sidebar).TransformPoint(new Windows.Foundation.Point(next.ActualWidth / 2, 0)).X
+        SidebarSlot.ActualWidth > 0 && Sidebar.MiniMonthNextButton is { ActualWidth: > 0 } next
+            ? next.TransformToVisual(Sidebar).TransformPoint(new Windows.Foundation.Point(next.ActualWidth / 2, 0)).X + SidebarSlot.ActualWidth - SidebarWidth
             : null;
 
     /// <summary>

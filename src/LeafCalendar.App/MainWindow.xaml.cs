@@ -326,7 +326,7 @@ public sealed partial class MainWindow : Window
         AppTitleBar.RecomputeDragRegions();
     }
 
-    // The search icon: centered over the mini month's Next month button while the sidebar is open, else 8 after the
+    // The search icon: centered over the mini month's Next month button, following it as the sidebar slides, else 8 after the
     // title bar's left items (and the period title moves clear of it). Only the button takes clicks.
     void PlaceSearchButton()
     {
@@ -337,7 +337,7 @@ public sealed partial class MainWindow : Window
 
         var scale = RootGrid.XamlRoot.RasterizationScale;
         var hostX = ToolbarHost.TransformToVisual(RootGrid).TransformPoint(default).X;
-        var left  = page.IsSidebarOpen && page.MiniMonthNextCenterX is { } center ? center - hostX - SearchButton.Width / 2 : 8;
+        var left  = page.MiniMonthNextCenterX is { } center ? center - hostX - SearchButton.Width / 2 : 8;
         left      = Math.Max(8, Math.Round(left * scale) / scale);
 
         page.KeepTitleClearOf(hostX + left + SearchButton.Width);
