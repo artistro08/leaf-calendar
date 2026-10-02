@@ -2,6 +2,7 @@ using System.Numerics;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Hosting;
+using Microsoft.UI.Xaml.Media;
 
 namespace LeafCalendar.App.Views;
 
@@ -78,14 +79,14 @@ public sealed partial class CalendarPage
             _detailsOpen = open;
         }
 
-        // The Island's Final Room
-        IslandArea.Margin = new Thickness(_sidebarOpen ? SidebarWidth : 0, 0, _detailsOpen ? DetailsWidth : 0, 0);
+        // The Island's Final Room (it grows or shrinks with the pane's edge, a frame at a time, like Windows' navigation pane)
+        var duration = open ? PaneOpenDuration : PaneCloseDuration;
+        ResizeIsland(sidebar, open ? (sidebar ? SidebarWidth : DetailsWidth) : 0, animate && new Windows.UI.ViewManagement.UISettings().AnimationsEnabled, duration);
 
         var pane     = sidebar ? (UIElement)Sidebar : DetailsPane;
         var width    = (float)(sidebar ? SidebarWidth : DetailsWidth);
         var fillTo   = open ? width : 0;
         var inset    = sidebar ? "LeftInset" : "RightInset";
-        var duration = open ? PaneOpenDuration : PaneCloseDuration;
 
         // Already Headed There (a slide that's running keeps going)
         if (animate && was == open)
@@ -102,11 +103,6 @@ public sealed partial class CalendarPage
         ride.SetReferenceParameter("fill", _fillClip);
         ride.SetScalarParameter("width", width);
         visual.StartAnimation("Translation.X", ride);
-
-        var follow = compositor.CreateExpressionAnimation($"Max(fill.{inset} - room, 0)");
-        follow.SetReferenceParameter("fill", _fillClip);
-        follow.SetScalarParameter("room", open ? width : 0);
-        _islandClip!.StartAnimation(inset, follow);
 
         pane.Visibility = Visibility.Visible;
         var slide = sidebar ? ++_sidebarSlide : ++_detailsSlide;
@@ -132,6 +128,70 @@ public sealed partial class CalendarPage
             }
         };
     }
+
+    // Island Margin Tween (the island's own room, eased like the pane's edge; the layout follows every frame)
+    sealed class MarginTween
+    {
+        public double From, To;
+        public long Start;
+        public TimeSpan Duration;
+        public bool Running;
+    }
+
+    readonly MarginTween _leftRoom  = new();
+    readonly MarginTween _rightRoom = new();
+
+    void ResizeIsland(bool left, double to, bool animate, TimeSpan duration)
+    {
+        var tween = left ? _leftRoom : _rightRoom;
+        var now   = left ? IslandArea.Margin.Left : IslandArea.Margin.Right;
+
+        tween.From     = now;
+        tween.To       = to;
+        tween.Start    = System.Diagnostics.Stopwatch.GetTimestamp();
+        tween.Duration = duration;
+        tween.Running  = animate && now != to;
+
+        if (!tween.Running)
+        {
+            ApplyIslandRoom();
+            return;
+        }
+
+        CompositionTarget.Rendering -= OnIslandFrame;
+        CompositionTarget.Rendering += OnIslandFrame;
+    }
+
+    void OnIslandFrame(object? sender, object e)
+    {
+        ApplyIslandRoom();
+
+        if (!_leftRoom.Running && !_rightRoom.Running)
+        {
+            CompositionTarget.Rendering -= OnIslandFrame;
+        }
+    }
+
+    // Sets the island's margins to where each tween is now (a finished or stopped tween sits at its target)
+    void ApplyIslandRoom()
+    {
+        IslandArea.Margin = new Thickness(Room(_leftRoom), 0, Room(_rightRoom), 0);
+
+        static double Room(MarginTween tween)
+        {
+            if (!tween.Running)
+            {
+                return tween.To;
+            }
+
+            var t = Math.Clamp(System.Diagnostics.Stopwatch.GetElapsedTime(tween.Start) / tween.Duration, 0, 1);
+            tween.Running = t < 1;
+
+            // Ease-out, near the pane's own curve (0, 0.35, 0.15, 1)
+            return tween.From + (tween.To - tween.From) * (1 - Math.Pow(1 - t, 3));
+        }
+    }
+
     ScalarKeyFrameAnimation Slide(Compositor compositor, float to, TimeSpan duration)
     {
         var animation = compositor.CreateScalarKeyFrameAnimation();
