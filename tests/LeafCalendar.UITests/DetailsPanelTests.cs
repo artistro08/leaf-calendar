@@ -18,7 +18,7 @@ public sealed class DetailsPanelTests : IDisposable
         _google.Dispose();
     }
 
-    static readonly string[] EditorDividers = ["Calendar", "Guests", "Reminder", "Description"];
+    static readonly string[] EditorDividers = ["Calendar", "Guests", "Call", "Reminder", "Description"];
 
     LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
@@ -106,7 +106,7 @@ public sealed class DetailsPanelTests : IDisposable
         leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
         leaf.WaitFor("EditorTitle");
 
-        // Title and dates | calendar, color, repeat | location, call, guests | reminders | description
+        // Title and dates | calendar, color, repeat | location | call, guests | reminders | description
         var edges = EditorDividers
             .Select(name => leaf.WaitFor($"EditorDivider_{name}").BoundingRectangle.Top)
             .ToList();

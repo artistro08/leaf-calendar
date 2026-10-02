@@ -223,6 +223,9 @@
                 <!-- Location -->
                 <TextBox Header="Location" Text="{x:Bind Editor.Location, Mode=TwoWay}" Visibility="{x:Bind Editor.ShowLocation, Mode=OneWay}" AutomationProperties.AutomationId="EditorLocation" />
 
+                <!-- Divider (between the location and the video call and guests) -->
+                <Border Style="{StaticResource LeafDividerStyle}" Visibility="{x:Bind Editor.ShowGuests, Mode=OneWay}" AutomationProperties.AutomationId="EditorDivider_Call" />
+
                 <!-- Video Call (new events start from the account's Meet by default; Google makes the Meet link on save) -->
                 <Grid ColumnSpacing="8" ColumnDefinitions="*,Auto" Visibility="{x:Bind Editor.ShowConference, Mode=OneWay}">
                     <TextBlock VerticalAlignment="Center" Text="{x:Bind Editor.ConferenceText, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.AutomationId="EditorConference" />
