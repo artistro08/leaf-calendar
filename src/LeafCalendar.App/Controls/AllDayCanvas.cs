@@ -19,6 +19,9 @@ public sealed partial class AllDayCanvas : Canvas
     readonly TimeGridView _owner;
     readonly List<(Border Chip, TextBlock Text)> _chips = [];
     readonly Dictionary<Border, CalendarOccurrence> _shown = [];
+
+    // Every laid-out event's days (strip indexes) and lane, shown or not, so the ghost can find a free lane
+    readonly List<(int First, int Last, int Lane, string Key)> _lanes = [];
     readonly Border _ghost = new() { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2), Height = TimeGridView.AllDayLaneHeight - 3, IsHitTestVisible = false, Visibility = Visibility.Collapsed };
     readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Text = "+ Copy" };
     DayStrip? _strip;
@@ -43,6 +46,9 @@ public sealed partial class AllDayCanvas : Canvas
         };
     }
 
+    /// <summary>Lanes the showing ghost needs (its lane and every lane above it), or 0 with no ghost.</summary>
+    public int GhostLanes { get; private set; }
+
     /// <summary>Lanes used by the last render.</summary>
     public int LaneCount { get; private set; }
 
@@ -59,6 +65,8 @@ public sealed partial class AllDayCanvas : Canvas
         var blocks  = SpanLayout.Layout(columns, items, vm.Zone, includeTimed: false);
 
         LaneCount = blocks.Count == 0 ? 0 : blocks.Max(b => b.Lane) + 1;
+        _lanes.Clear();
+        _lanes.AddRange(blocks.Select(b => (first + b.FirstColumn, first + b.FirstColumn + b.ColumnSpan - 1, b.Lane, b.Occurrence.Key)));
         var shown = blocks.Where(b => b.Lane < maxLanes).ToList();
 
         while (_chips.Count < shown.Count)
@@ -101,8 +109,12 @@ public sealed partial class AllDayCanvas : Canvas
         }
     }
 
-    /// <summary>Shows where a dragged all-day event would land (marked "+ Copy" when <paramref name="copy"/>, for Alt+drag).</summary>
-    public void SetGhost(DateOnly first, DateOnly last, bool copy = false)
+    /// <summary>
+    /// Shows where a dragged or new all-day event would land (marked "+ Copy" when <paramref name="copy"/>, for Alt+drag),
+    /// in the first lane its days leave free, so it never covers an event. <paramref name="skipKey"/> is the dragged
+    /// event's own key (its lane counts as free). <see cref="GhostLanes"/> says how tall the row must be to show it.
+    /// </summary>
+    public void SetGhost(DateOnly first, DateOnly last, bool copy = false, string? skipKey = null)
     {
         if (_strip is not { } strip)
         {
@@ -116,13 +128,26 @@ public sealed partial class AllDayCanvas : Canvas
         _ghost.BorderBrush = LeafBrushes.Accent(_owner.IsDark);
         _ghost.Background  = LeafBrushes.Hover(_owner.IsDark);
         _ghostLabel.Visibility = copy ? Visibility.Visible : Visibility.Collapsed;
+        // First Free Lane Over The Ghost's Days
+        var taken = _lanes.Where(l => l.Key != skipKey && l.First <= to && l.Last >= from).Select(l => l.Lane).ToHashSet();
+        var lane  = 0;
+        while (taken.Contains(lane))
+        {
+            lane++;
+        }
+
+        GhostLanes = lane + 1;
         SetLeft(_ghost, from * width + 2);
-        SetTop(_ghost, 2);
+        SetTop(_ghost, lane * TimeGridView.AllDayLaneHeight + 2);
         _ghost.Visibility  = Visibility.Visible;
     }
 
     /// <summary>Hides the ghost.</summary>
-    public void ClearGhost() => _ghost.Visibility = Visibility.Collapsed;
+    public void ClearGhost()
+    {
+        _ghost.Visibility = Visibility.Collapsed;
+        GhostLanes        = 0;
+    }
 
     void AddChip()
     {

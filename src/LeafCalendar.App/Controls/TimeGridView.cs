@@ -648,13 +648,31 @@ public sealed partial class TimeGridView : Grid, IDisposable
         var count    = _vm.VisibleColumns;
         var maxLanes = _allDayExpanded ? int.MaxValue : MaxCollapsedLanes;
         _allDay.Render(_strip, _firstIndex - count, count * 3, maxLanes);
+        _allDay.Width            = _strip.Count * ColumnWidth;
+        _allDayExpand.Visibility = _allDay.LaneCount > MaxCollapsedLanes ? Visibility.Visible : Visibility.Collapsed;
+        SizeAllDay();
+    }
 
-        var lanes = Math.Min(_allDay.LaneCount, maxLanes);
+    // Hides the all-day ghost, giving back a lane the row grew for it
+    void ClearAllDayGhost()
+    {
+        var grown = _allDay.GhostLanes > 0;
+        _allDay.ClearGhost();
+        if (grown)
+        {
+            SizeAllDay();
+        }
+    }
+
+    // The all-day row's height: its shown lanes, or more while a ghost needs a lane below them
+    void SizeAllDay()
+    {
+        var maxLanes = _allDayExpanded ? int.MaxValue : MaxCollapsedLanes;
+        var lanes    = Math.Max(Math.Min(_allDay.LaneCount, maxLanes), _allDay.GhostLanes);
+
         // Never Shorter Than EmptyAllDayHeight: empty, the row is still there to double-click for a new all-day event
         _allDay.Height = Math.Max(EmptyAllDayHeight, lanes * AllDayLaneHeight + 4);
-        _allDay.Width  = _strip.Count * ColumnWidth;
-        _allDayExpand.Visibility = _allDay.LaneCount > MaxCollapsedLanes ? Visibility.Visible : Visibility.Collapsed;
-        Corner.Height = DayHeaderHeight + _allDay.Height;
+        Corner.Height  = DayHeaderHeight + _allDay.Height;
 
         // Zone Labels Sit At The Bottom Of The Day-Header Band (the all-day row's corner keeps the expand chevron)
         _zoneLabels.Margin = new Thickness(0, 0, 0, _allDay.Height + 4);
@@ -985,7 +1003,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         // Creating: the range sits beside the events already there (picking times to share keeps the plain ghost)
         if (drag.Kind == DragKind.Create && !_vm.IsSharing && target is { } create && StandInFor(create.Start, create.End, isAllDay: false) is { } standIn)
         {
-            _allDay.ClearGhost();
+            ClearAllDayGhost();
             SetPreviews(standIn, null);
             return;
         }
@@ -1110,12 +1128,13 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
             var first = header.IsAllDay ? DateOnly.FromDateTime(header.Start.UtcDateTime) : LocalDate(header.Start);
             var last  = header.IsAllDay ? DateOnly.FromDateTime(header.End.UtcDateTime).AddDays(-1) : LocalDate(header.End.AddTicks(-1));
-            _allDay.SetGhost(first, last < first ? first : last, duplicate);
+            _allDay.SetGhost(first, last < first ? first : last, duplicate, duplicate ? null : _drag?.Occurrence?.Key);
+            SizeAllDay();
             return;
         }
 
         // Grid Columns: the part of the range that falls on each day
-        _allDay.ClearGhost();
+        ClearAllDayGhost();
         foreach (var column in _columns)
         {
             if (target is not { } t)
@@ -1196,7 +1215,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
             column.ClearGhost();
         }
 
-        _allDay.ClearGhost();
+        ClearAllDayGhost();
     }
 
     // =========================================================================
@@ -1252,7 +1271,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         // A Timed Range Sits Beside The Events Already There, As One More Overlapping Column
         if (StandInFor(draft.Start, draft.End, draft.IsAllDay) is { } standIn)
         {
-            _allDay.ClearGhost();
+            ClearAllDayGhost();
             SetPreviews(standIn, HeldResize);
             return;
         }
