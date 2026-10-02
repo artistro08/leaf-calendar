@@ -74,6 +74,12 @@ public sealed partial class CalendarPage
             return;
         }
 
+        // Started Or Stopped: the grid takes or drops the scheduling look (faded events, lined days) everywhere it's drawn
+        if (_view is Controls.TimeGridView grid)
+        {
+            grid.RenderRealized();
+        }
+
         _slotsPanel.Visibility = sharing ? Visibility.Visible : Visibility.Collapsed;
         Details.Visibility     = sharing ? Visibility.Collapsed : Visibility.Visible;
         if (sharing)
