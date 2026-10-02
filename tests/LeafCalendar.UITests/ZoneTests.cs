@@ -136,11 +136,11 @@ public sealed class ZoneTests : IDisposable
         follow.Toggle();
         Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("ZonePromptSwitch").IsEnabled, Wait).Success);
 
-        var box = leaf.WaitInSettings("PrimaryZoneBox");
-        box.Focus();
+        // The dropdown is searchable: typing a city and pressing Enter picks it
+        var box = leaf.WaitInSettings("PrimaryZoneBox").FindFirstDescendant(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.Edit)) ?? throw new InvalidOperationException("The zone box has no text box inside.");
+        box.Click();
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("London");
-        Thread.Sleep(500);
-        Keyboard.Type(VirtualKeyShort.DOWN);
         Keyboard.Type(VirtualKeyShort.RETURN);
 
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsWhen").Name.Contains("2 PM – 3 PM", StringComparison.Ordinal), Wait).Success,

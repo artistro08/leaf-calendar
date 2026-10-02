@@ -57,10 +57,6 @@ public sealed class EditorExtrasTests : IDisposable
     FakeWrite DentistPatch() =>
         _google.WaitForWrite(w => w.Method == "PATCH" && w.Path.EndsWith("/events/evt-single", StringComparison.Ordinal));
 
-    // The suggestion rows' names (the list is a popup, so every window is searched)
-    static IReadOnlyList<AutomationElement> Suggestions(LeafApp leaf) =>
-        [.. leaf.FindAllAnywhere("SuggestionsList").SelectMany(list => list.FindAllDescendants(cf => cf.ByControlType(ControlType.ListItem)))];
-
     static TextBox ZoneEdit(LeafApp leaf) =>
         Retry.WhileNull(() => leaf.WaitFor("EditorTimeZoneBox").FindFirstDescendant(cf => cf.ByControlType(ControlType.Edit)), TimeSpan.FromSeconds(10)).Result?.AsTextBox()
         ?? throw new InvalidOperationException("The time zone box has no text box inside.");
@@ -98,14 +94,13 @@ public sealed class EditorExtrasTests : IDisposable
         EditDentist(leaf);
         Assert.False(leaf.Exists("EditorLocalTimeText"), "The 'In your time' line shows for an event in the zone on screen.");
 
-        // Pick Tokyo (click into the box the way a person does, then replace its text)
+        // Pick Tokyo (click into the dropdown's text the way a person does, replace it, and press Enter)
         var edit = ZoneEdit(leaf);
         edit.Click();
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("Tokyo");
-        var tokyo = Retry.WhileNull(() => Suggestions(leaf).FirstOrDefault(s => (s.Properties.Name.ValueOrDefault ?? "").StartsWith("Tokyo (", StringComparison.Ordinal)), TimeSpan.FromSeconds(10)).Result
-            ?? throw new InvalidOperationException("Tokyo wasn't suggested.");
-        tokyo.Click();
+        Keyboard.Type(VirtualKeyShort.RETURN);
+        Assert.True(Retry.WhileFalse(() => edit.Text == "(UTC+09:00) Tokyo", TimeSpan.FromSeconds(5)).Success, $"The box reads \"{edit.Text}\".");
 
         // The Clock Stays 9-10, Now In Tokyo
         var local = leaf.WaitFor("EditorLocalTimeText");
@@ -181,53 +176,35 @@ public sealed class EditorExtrasTests : IDisposable
     }
 
     [Fact]
-    public void TimeZoneArrow_ListsZones_AndTakesOnlyAListedOne()
+    public void TimeZoneDropdown_ListsEveryZone_AndTakesOnlyAListedOne()
     {
         Seed(new LeafSettings { PrimaryTimeZone = "America/New_York" });
         using var leaf = Launch();
         EditDentist(leaf);
+        var combo  = leaf.WaitFor("EditorTimeZoneBox").AsComboBox();
         var edit   = ZoneEdit(leaf);
         var before = edit.Text;
+        Assert.StartsWith("(UTC-0", before, StringComparison.Ordinal);
 
-        // The arrow (the input row's right end; UI Automation doesn't list it) drops down the common zones without typing
-        var box = edit.BoundingRectangle;
-        Mouse.Click(new System.Drawing.Point(box.Right - (int)(14 * leaf.Scale), box.Bottom - (int)(16 * leaf.Scale)));
-        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count > 3, TimeSpan.FromSeconds(10)).Success, $"The arrow listed {Suggestions(leaf).Count} zones.");
-        Keyboard.Press(VirtualKeyShort.ESCAPE);
-        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count == 0, TimeSpan.FromSeconds(5)).Success, "Esc left the zone list open.");
+        // The stock dropdown lists every zone, not a short list of cities
+        combo.Expand();
+        Assert.True(Retry.WhileFalse(() => combo.Items.Length > 100, TimeSpan.FromSeconds(10)).Success, $"The dropdown listed {combo.Items.Length} zones.");
+        combo.Collapse();
 
-        // Alt+Down does the same from the keyboard
-        edit.Focus();
-        Keyboard.TypeSimultaneously(VirtualKeyShort.ALT, VirtualKeyShort.DOWN);
-        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count > 3, TimeSpan.FromSeconds(10)).Success, $"Alt+Down listed {Suggestions(leaf).Count} zones.");
-        Keyboard.Press(VirtualKeyShort.ESCAPE);
-
-        // With text typed, the arrow lists its matches and changes nothing; Esc closes the list, puts the zone back, and
-        // keeps the editor open
+        // Typed text that matches no zone changes nothing, on Enter or when focus leaves; the editor stays open
         edit.Click();
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
-        Keyboard.Type("Tokyo");
-        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count > 0, TimeSpan.FromSeconds(5)).Success, "Typing listed no zones.");
-        Keyboard.Press(VirtualKeyShort.ESCAPE);
-        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Count == 0 && ZoneEdit(leaf).Text == before, TimeSpan.FromSeconds(5)).Success, $"Esc left \"{ZoneEdit(leaf).Text}\".");
-        Assert.True(leaf.Exists("EditorTitle"), "Esc in the zone list closed the editor.");
+        Keyboard.Type("Nowhere at all");
+        Keyboard.Type(VirtualKeyShort.RETURN);
+        Assert.True(Retry.WhileFalse(() => ZoneEdit(leaf).Text == before, TimeSpan.FromSeconds(5)).Success, $"Enter left \"{ZoneEdit(leaf).Text}\".");
+        Assert.True(leaf.Exists("EditorTitle"), "Enter in the zone box closed the editor.");
 
-        edit.Click();
-        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
-        Keyboard.Type("Tokyo");
-        Mouse.Click(new System.Drawing.Point(box.Right - (int)(14 * leaf.Scale), box.Bottom - (int)(16 * leaf.Scale)));
-        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Any(s => (s.Name ?? "").StartsWith("Tokyo (", StringComparison.Ordinal)), TimeSpan.FromSeconds(5)).Success, "The arrow didn't list Tokyo.");
-        Thread.Sleep(300);
-        Assert.False(leaf.Exists("EditorLocalTimeText"), "The arrow picked a zone.");
-        Assert.Equal("Tokyo", ZoneEdit(leaf).Text);
-        Keyboard.Press(VirtualKeyShort.ESCAPE);
-
-        // Typed text that isn't picked is dropped when focus leaves
         edit.Click();
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("Nowhere at all");
         leaf.WaitFor("EditorTitle").AsTextBox().Focus();
         Assert.True(Retry.WhileFalse(() => ZoneEdit(leaf).Text == before, TimeSpan.FromSeconds(5)).Success, $"The box kept \"{ZoneEdit(leaf).Text}\".");
+        Assert.False(leaf.Exists("EditorLocalTimeText"), "Typed text picked a zone.");
     }
 
     [Fact]

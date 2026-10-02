@@ -1,0 +1,13 @@
+<ComboBox
+    x:Class="LeafCalendar.App.Controls.TimeZoneComboBox"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    HorizontalAlignment="Stretch">
+
+    <!-- Zone Row ("(UTC-05:00) New York"; a long one ends in an ellipsis instead of widening the box) -->
+    <ComboBox.ItemTemplate>
+        <DataTemplate x:DataType="x:String">
+            <TextBlock Text="{x:Bind}" TextTrimming="CharacterEllipsis" />
+        </DataTemplate>
+    </ComboBox.ItemTemplate>
+</ComboBox>

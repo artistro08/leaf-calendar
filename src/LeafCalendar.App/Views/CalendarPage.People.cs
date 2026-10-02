@@ -9,22 +9,19 @@ namespace LeafCalendar.App.Views;
 public sealed partial class CalendarPage
 {
     OverlayBar? _overlayBar;
-    ShareBar? _shareBar;
     ShareSlotsPanel? _slotsPanel;
 
     // Whether the details panel was open when sharing started (it opens for the picked times and goes back after)
     bool? _detailsBeforeSharing;
 
-    // Called once when the page opens: the overlay bar, the share card (floating in the view's bottom-right corner) and the
-    // share slots panel (in the details pane), and the view model events they follow
+    // Called once when the page opens: the overlay bar, the share panel (in the details pane), and the view model events
+    // they follow
     void AttachPeople()
     {
         _overlayBar = new OverlayBar();
         IslandBars.Children.Add(_overlayBar);
         _overlayBar.Update(ViewModel);
-        _shareBar = new ShareBar();
-        Float(_shareBar);
-        FloatingCards.Children.Add(_shareBar);
+
         _slotsPanel = new ShareSlotsPanel { Visibility = Visibility.Collapsed };
         DetailsPane.Children.Add(_slotsPanel);
         ShowSharing();
@@ -51,11 +48,6 @@ public sealed partial class CalendarPage
             _overlayBar = null;
         }
 
-        if (_shareBar is not null)
-        {
-            FloatingCards.Children.Remove(_shareBar);
-            _shareBar = null;
-        }
 
         if (_slotsPanel is not null)
         {
@@ -68,11 +60,10 @@ public sealed partial class CalendarPage
 
     void OnShareChanged(object? sender, EventArgs e) => ShowSharing();
 
-    // While sharing: the card, and the picked times in the right panel in place of the details (the panel opens for them and
-    // goes back to how it was when sharing stops)
+    // While sharing: the share panel in the right pane in place of the details (the pane opens for it and goes back to how it
+    // was when sharing stops)
     void ShowSharing()
     {
-        _shareBar?.Update(ViewModel);
         _slotsPanel?.Update(ViewModel);
         var sharing = ViewModel.IsSharing;
         if (_slotsPanel is null || (_slotsPanel.Visibility == Visibility.Visible) == sharing)
@@ -98,12 +89,6 @@ public sealed partial class CalendarPage
 
     void OnPeoplePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        // A Time Being Dragged Out: the share card steps aside
-        if (e.PropertyName == nameof(CalendarViewModel.IsPickingTime))
-        {
-            _shareBar?.SetDragging(ViewModel.IsPickingTime);
-            return;
-        }
 
         // Paging Loads Busy Times For The New Days
         if (e.PropertyName == nameof(CalendarViewModel.PeriodStart) && ViewModel.OverlayPeople.Count > 0)

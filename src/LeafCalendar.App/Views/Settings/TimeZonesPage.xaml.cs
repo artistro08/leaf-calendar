@@ -18,8 +18,6 @@ public sealed partial class TimeZonesPage : Page
 {
     readonly ObservableCollection<ZoneRow> _rows = [];
     IReadOnlyList<TimeZoneChoice> _suggestions = [];
-    // Every zone this PC knows as "(UTC+09:00) Tokyo", mapped back to its ID (strings only go to the box: AOT)
-    readonly Dictionary<string, string> _zoneIds = [];
 
     // True while the saved values are being shown (the switches' Toggled events are ignored meanwhile)
     bool _loading;
@@ -49,7 +47,6 @@ public sealed partial class TimeZonesPage : Page
         }
 
         UpdateState();
-        BuildZoneList();
         ShowPrimary();
     }
 
@@ -57,14 +54,14 @@ public sealed partial class TimeZonesPage : Page
     // PRIMARY TIME ZONE
     // =========================================================================
 
-    // The saved choice: following Windows (the box and prompt are off), or the pinned zone's city in the box
+    // The saved choice: following Windows (the box, showing Windows' zone, and the prompt are off), or the pinned zone
     void ShowPrimary()
     {
         var s    = _vm.Settings;
         _loading = true;
 
         FollowWindowsZoneSwitch.IsOn = s.PrimaryTimeZone is null;
-        PrimaryZoneBox.SelectedItem  = s.PrimaryTimeZone is { } id ? _zoneIds.FirstOrDefault(z => z.Value == id).Key : null;
+        PrimaryZoneBox.Show(s.PrimaryTimeZone ?? TimeZoneCatalog.IanaId(_vm.UserZone), _vm.Now);
         ZonePromptSwitch.IsOn        = s.PromptOnZoneChange;
         UpdatePrimaryState();
         UpdatePrimarySummary();
@@ -89,49 +86,17 @@ public sealed partial class TimeZonesPage : Page
         UpdatePrimaryState();
         if (!_loading && FollowWindowsZoneSwitch.IsOn && _vm.Settings.PrimaryTimeZone is not null)
         {
-            PrimaryZoneBox.SelectedItem = null;
+            PrimaryZoneBox.Show(TimeZoneCatalog.IanaId(_vm.UserZone), _vm.Now);
             _context.Save(s => s with { PrimaryTimeZone = null });
             UpdatePrimarySummary();
         }
     }
 
-    // All of Windows' zones, sorted by offset then city
-    void BuildZoneList()
-    {
-        var now = _vm.Now;
-        var all = new List<(TimeSpan Offset, string City, string Id)>();
-        foreach (var zone in TimeZoneInfo.GetSystemTimeZones())
-        {
-            var id = TimeZoneCatalog.IanaId(zone);
-            if (TimeZoneCatalog.IsKnown(id) && all.TrueForAll(a => a.Id != id))
-            {
-                all.Add((zone.GetUtcOffset(now), TimeZoneCatalog.CityFor(id), id));
-            }
-        }
-
-        _zoneIds.Clear();
-        List<string> names = [];
-        foreach (var (offset, city, id) in all.OrderBy(a => a.Offset).ThenBy(a => a.City, StringComparer.CurrentCulture))
-        {
-            var sign = offset < TimeSpan.Zero ? "−" : "+";
-            var name = $"(UTC{sign}{offset.Duration():hh\\:mm}) {city}";
-            if (_zoneIds.TryAdd(name, id))
-            {
-                names.Add(name);
-            }
-        }
-
-        PrimaryZoneBox.ItemsSource = names;
-    }
-
     // A pick pins the zone
-    void OnPrimaryChosen(object sender, SelectionChangedEventArgs e)
+    void OnPrimaryZoneChanged(object? sender, string id)
     {
-        if (!_loading && PrimaryZoneBox.SelectedItem is string name && _zoneIds.TryGetValue(name, out var id))
-        {
-            _context.Save(s => s with { PrimaryTimeZone = id });
-            UpdatePrimarySummary();
-        }
+        _context.Save(s => s with { PrimaryTimeZone = id });
+        UpdatePrimarySummary();
     }
 
     void OnZonePromptToggled(object sender, RoutedEventArgs e)

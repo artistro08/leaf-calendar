@@ -136,7 +136,7 @@
                     <!-- /Join -->
 
                     <!-- Location -->
-                    <StackPanel x:Name="LocationRow" Spacing="4">
+                    <StackPanel x:Name="LocationRow" Spacing="12">
                         <TextBlock x:Name="LocationText" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsLocation" />
                         <Button x:Name="MapsLink" HorizontalAlignment="Stretch" Content="Open in Google Maps" Click="OnMapsClick" AutomationProperties.AutomationId="DetailsMapsLink" />
                     </StackPanel>

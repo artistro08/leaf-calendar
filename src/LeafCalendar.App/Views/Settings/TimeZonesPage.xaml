@@ -45,13 +45,12 @@
                         Style="{StaticResource LeafExpanderItemRowStyle}"
                         Padding="48,12,16,12"
                         Header="Leaf's time zone">
-                        <ComboBox
+                        <controls:TimeZoneComboBox
                             x:Name="PrimaryZoneBox"
                             Width="320"
                             IsEditable="True"
                             IsTextSearchEnabled="True"
-                            PlaceholderText="Search a city or zone"
-                            SelectionChanged="OnPrimaryChosen"
+                            ZoneChanged="OnPrimaryZoneChanged"
                             AutomationProperties.Name="Leaf's time zone"
                             AutomationProperties.AutomationId="PrimaryZoneBox" />
                     </controls:SettingRow>

@@ -77,6 +77,29 @@ public static class TimeZoneCatalog
             .ToList();
     }
 
+    /// <summary>
+    /// Every zone this PC knows (the curated cities and one per Windows zone), as dropdown rows: "(UTC-05:00) New York",
+    /// ordered by their offset at <paramref name="now"/>, then city.
+    /// </summary>
+    public static IReadOnlyList<(string Id, string Label)> All(DateTimeOffset now) =>
+        [.. AllEntries.Value
+            .Select(e => (e.Id, Offset: TimeZoneInfo.FindSystemTimeZoneById(e.Id).GetUtcOffset(now), e.City))
+            .OrderBy(x => x.Offset)
+            .ThenBy(x => x.City, StringComparer.CurrentCulture)
+            .Select(x => (x.Id, ListLabel(x.Offset, x.City)))];
+
+    /// <summary>A zone's dropdown row, as Windows writes them: "(UTC+05:30) Mumbai", "(UTC-05:00) New York".</summary>
+    public static string ListLabel(string id, DateTimeOffset now) =>
+        ListLabel(TimeZoneInfo.FindSystemTimeZoneById(id).GetUtcOffset(now), CityFor(id));
+
+    static string ListLabel(TimeSpan offset, string city)
+    {
+        var sign = offset < TimeSpan.Zero ? "-" : "+";
+        var abs  = offset.Duration();
+
+        return string.Create(CultureInfo.InvariantCulture, $"(UTC{sign}{abs.Hours:00}:{abs.Minutes:00}) {city}");
+    }
+
     /// <summary>"UTC", "UTC+9", "UTC−5", "UTC+5:30" (with a real minus sign).</summary>
     public static string OffsetLabel(TimeSpan offset)
     {
