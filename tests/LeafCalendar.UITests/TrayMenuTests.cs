@@ -42,6 +42,23 @@ public sealed class TrayMenuTests : IDisposable
     }
 
     [Fact]
+    public void RightClick_WithTheFlyoutOpen_SwapsItForTheMenu()
+    {
+        using var leaf = Launch();
+        leaf.PostTrayMessage(LeafApp.TraySelect);
+        leaf.WaitForPopup("FlyoutNewEvent");
+
+        leaf.RightClickTrayIcon();
+
+        // The menu stays up, the flyout goes, and the host stays shown under the menu
+        leaf.WaitForPopup("TrayMenuOpen");
+        Assert.True(Retry.WhileTrue(() => leaf.PopupExists("FlyoutNewEvent"), TimeSpan.FromSeconds(5)).Success, "The flyout stayed open.");
+        Thread.Sleep(1000);
+        Assert.True(leaf.PopupExists("TrayMenuOpen"), "The menu closed with the flyout.");
+        Assert.True(leaf.IsTrayHostShown());
+    }
+
+    [Fact]
     public void Escape_ClosesTheMenuAndHidesItsHost()
     {
         using var leaf = Launch();

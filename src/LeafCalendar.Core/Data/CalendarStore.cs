@@ -223,15 +223,19 @@ public static partial class CalendarStore
     /// Each calendar's default popup reminders in minutes (Google's <c>defaultReminders</c>, <c>popup</c> only, within
     /// Google's 0–40,320 range, no repeats). Email reminders are Google's own, so they're left out.
     /// </summary>
+    /// <remarks>
+    /// A calendar shared with several of your accounts is one Google calendar with a reminder setting per account, and
+    /// Leaf usually shows it under just one of them. So every account's copy gets the reminders set under any of them:
+    /// a 30-minute reminder set from the account whose copy is hidden in Leaf still reminds from the copy that's shown.
+    /// </remarks>
     public static IReadOnlyDictionary<(string AccountId, string CalendarId), IReadOnlyList<int>> PopupDefaults(SqliteConnection conn)
     {
-        var result = new Dictionary<(string, string), IReadOnlyList<int>>();
-        foreach (var (account, id, json) in conn.Query(null, "SELECT account_id, id, default_reminders FROM calendars;", r => (r.GetString(0), r.GetString(1), r.GetStringOrNull(2))))
-        {
-            result[(account, id)] = PopupMinutes(json);
-        }
+        var rows = conn.Query(null, "SELECT account_id, id, default_reminders FROM calendars;", r => (Account: r.GetString(0), Id: r.GetString(1), Minutes: PopupMinutes(r.GetStringOrNull(2))));
+        var byCalendar = rows
+            .GroupBy(r => r.Id, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<int>)[.. g.SelectMany(r => r.Minutes).Distinct().Order()], StringComparer.Ordinal);
 
-        return result;
+        return rows.ToDictionary(r => (r.Account, r.Id), r => byCalendar[r.Id]);
     }
 
     static List<int> PopupMinutes(string? json)

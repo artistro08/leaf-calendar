@@ -111,8 +111,9 @@ public sealed partial class TrayHost : Window
     {
         try
         {
-            // One Popup At A Time (a second right-click moves the menu)
-            HideAgenda();
+            // One Popup At A Time (a second right-click moves the menu). The flyout goes at once, not by its slide: closing
+            // as the menu opened, it took the menu's focus with it and the menu light-dismissed too
+            CloseAgendaAtOnce();
             if (Menu.IsOpen)
             {
                 Menu.Hide();
@@ -195,6 +196,20 @@ public sealed partial class TrayHost : Window
         {
             Agenda.Hide();
         }
+    }
+
+    // Closes the flyout without its slide (also ending a slide-out a click on the taskbar already started)
+    void CloseAgendaAtOnce()
+    {
+        if (!Agenda.IsOpen)
+        {
+            return;
+        }
+
+        _motion?.Stop();
+        _motion       = null;
+        _exitFinished = true;
+        Agenda.Hide();
     }
 
     /// <summary>Lets the window really close (Quit).</summary>
