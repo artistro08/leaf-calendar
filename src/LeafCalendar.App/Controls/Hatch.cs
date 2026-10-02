@@ -29,9 +29,16 @@ public static class Hatch
             return;
         }
 
-        hatch.Data       = Lines(width, height);
+        // Lines Only For A New Size (a column redraws on every scroll step and data change; the lines rarely change)
+        var size = new Size(width, height);
+        if (hatch.Tag is not Size drawn || drawn != size)
+        {
+            hatch.Data = Lines(width, height);
+            hatch.Clip = new RectangleGeometry { Rect = new Rect(0, 0, width, height) };
+            hatch.Tag  = size;
+        }
+
         hatch.Stroke     = stroke;
-        hatch.Clip       = new RectangleGeometry { Rect = new Rect(0, 0, width, height) };
         hatch.Visibility = Visibility.Visible;
     }
 

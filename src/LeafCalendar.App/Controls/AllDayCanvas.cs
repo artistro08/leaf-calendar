@@ -147,10 +147,11 @@ public sealed partial class AllDayCanvas : Canvas
         var width = _owner.ColumnWidth;
         var from  = strip.IndexOf(first);
         var to    = Math.Max(from, strip.IndexOf(last));
-        _ghost.Width       = Math.Max((to - from + 1) * width - 2 - SpareWidth, 8);
-        _ghost.BorderBrush = LeafBrushes.Accent(_owner.IsDark);
-        _ghost.Background  = LeafBrushes.Hover(_owner.IsDark);
+        _ghost.Width           = Math.Max((to - from + 1) * width - 2 - SpareWidth, 8);
+        _ghost.BorderBrush     = LeafBrushes.Accent(_owner.IsDark);
+        _ghost.Background      = LeafBrushes.Hover(_owner.IsDark);
         _ghostLabel.Visibility = copy ? Visibility.Visible : Visibility.Collapsed;
+
         // First Free Lane Over The Ghost's Days
         var taken = _lanes.Where(l => l.Key != skipKey && l.First <= to && l.Last >= from).Select(l => l.Lane).ToHashSet();
         var lane  = 0;
@@ -178,6 +179,10 @@ public sealed partial class AllDayCanvas : Canvas
     const double DividerHeaderReach = TimeGridView.DayHeaderHeight - 8;
     const double DividerFade        = 16;
 
+    // The dividers' fading brush and the line color it was made for
+    LinearGradientBrush? _dividerBrush;
+    Windows.UI.Color _dividerColor;
+
     // One divider on the left edge of each drawn day, from the day header down through the row
     void RenderDividers(int first, int count, bool dark)
     {
@@ -188,13 +193,24 @@ public sealed partial class AllDayCanvas : Canvas
             Children.Insert(0, line);
         }
 
+        // One Brush Per Line Color (this runs on every scroll step; a new brush each time cost an allocation and a repaint per line)
         var width = _owner.ColumnWidth;
-        var brush = FadingDivider(LeafBrushes.GridLine(dark).Color);
+        var color = LeafBrushes.GridLine(dark).Color;
+        if (_dividerBrush is null || _dividerColor != color)
+        {
+            _dividerBrush = FadingDivider(color);
+            _dividerColor = color;
+        }
+
         for (var i = 0; i < _dividers.Count; i++)
         {
             var line = _dividers[i];
             line.Visibility = i < count ? Visibility.Visible : Visibility.Collapsed;
-            line.Fill       = brush;
+            if (line.Fill != _dividerBrush)
+            {
+                line.Fill = _dividerBrush;
+            }
+
             SetLeft(line, (first + i) * width);
             SetTop(line, -DividerHeaderReach);
         }

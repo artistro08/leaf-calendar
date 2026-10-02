@@ -161,8 +161,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
         Corner.Children.Add(addZone);
 
         // Header (day names + all-day row)
-        _headerRepeater.Layout = _headerLayout;
-        _bodyRepeater.Layout   = _bodyLayout;
+        _headerRepeater.Layout       = _headerLayout;
+        _bodyRepeater.Layout         = _bodyLayout;
         _headerRepeater.ItemTemplate = new DayHeaderFactory(this);
         _headerRepeater.ElementPrepared += (_, e) => _headers.Add((DayHeaderCell)e.Element);
         _headerRepeater.ElementClearing += (_, e) => _headers.Remove((DayHeaderCell)e.Element);
