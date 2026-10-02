@@ -36,42 +36,40 @@
                     <controls:PinnedItemsControl x:Name="UpcomingList" AutomationProperties.Name="Upcoming events" AutomationProperties.AutomationId="UpcomingList">
                         <controls:PinnedItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:UpcomingItem">
-                                <Grid ColumnSpacing="8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Button
-                                        Padding="8,4"
-                                        HorizontalAlignment="Stretch"
-                                        HorizontalContentAlignment="Stretch"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Click="{x:Bind Open}"
-                                        AutomationProperties.Name="{x:Bind Title}">
-                                        <Grid ColumnSpacing="8">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{x:Bind local:DetailsPanel.Brush(Color)}" />
-                                            <StackPanel Grid.Column="1">
-                                                <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
-                                                    <Run Text="{x:Bind When}" /><Run Text=" · " /><Run Text="{x:Bind Relative}" />
-                                                </TextBlock>
-                                            </StackPanel>
-                                        </Grid>
-                                    </Button>
-                                    <Button
-                                        Grid.Column="1"
-                                        VerticalAlignment="Center"
-                                        Content="Join"
-                                        Click="{x:Bind Join}"
-                                        Visibility="{x:Bind local:DetailsPanel.Visible(CanJoin)}"
-                                        AutomationProperties.Name="Join"
-                                        AutomationProperties.AutomationId="{x:Bind JoinId}" />
-                                </Grid>
+                                <!-- Row: opens the event (spans the full width with the tray's hover fill; Join sits inside it,
+                                     so the row keeps its highlight behind Join while the pointer is on Join too) -->
+                                <Button
+                                    Padding="8,4"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    Style="{StaticResource SubtleButtonStyle}"
+                                    Click="{x:Bind Open}"
+                                    AutomationProperties.Name="{x:Bind Title}">
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{x:Bind local:DetailsPanel.Brush(Color)}" />
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                                                <Run Text="{x:Bind When}" /><Run Text=" · " /><Run Text="{x:Bind Relative}" />
+                                            </TextBlock>
+                                        </StackPanel>
+
+                                        <!-- Join (its own click; the row's doesn't run) -->
+                                        <Button
+                                            Grid.Column="2"
+                                            VerticalAlignment="Center"
+                                            Content="Join"
+                                            Click="{x:Bind Join}"
+                                            Visibility="{x:Bind local:DetailsPanel.Visible(CanJoin)}"
+                                            AutomationProperties.Name="Join"
+                                            AutomationProperties.AutomationId="{x:Bind JoinId}" />
+                                    </Grid>
+                                </Button>
                             </DataTemplate>
                         </controls:PinnedItemsControl.ItemTemplate>
                     </controls:PinnedItemsControl>
