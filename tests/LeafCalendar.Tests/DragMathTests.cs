@@ -137,4 +137,16 @@ public class DragMathTests
         var (s2, e2) = DragMath.MoveTimed(fall, fall.Start, fall.Start + TimeSpan.FromHours(3), NewYork);
         Assert.Equal((Utc(11, 1, 7), Utc(11, 1, 8)), (s2, e2));
     }
+
+    [Fact]
+    public void AllDayRange_OneDay_IsThatDay() =>
+        Assert.Equal((Utc(10, 1, 0), Utc(10, 2, 0)), DragMath.AllDayRange(Oct1, Oct1));
+
+    [Fact]
+    public void AllDayRange_DraggedRight_CoversEveryDay() =>
+        Assert.Equal((Utc(10, 1, 0), Utc(10, 4, 0)), DragMath.AllDayRange(Oct1, Oct1.AddDays(2)));
+
+    [Fact]
+    public void AllDayRange_DraggedLeft_CoversEveryDay() =>
+        Assert.Equal((Utc(9, 29, 0), Utc(10, 2, 0)), DragMath.AllDayRange(Oct1, Oct1.AddDays(-2)));
 }

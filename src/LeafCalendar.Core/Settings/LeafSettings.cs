@@ -205,6 +205,9 @@ public sealed record LeafSettings
     /// <summary>Accounts whose new events get a Google Meet link by default.</summary>
     public IReadOnlyList<string> MeetByDefaultAccounts { get; init; } = [];
 
+    /// <summary>Accounts whose calendars are folded away under their header (the sidebar and Settings › Calendars).</summary>
+    public IReadOnlyList<string> CollapsedAccounts { get; init; } = [];
+
     /// <summary>Detailed logging (Settings › About): a breadcrumb trail and crash dumps in the log folder. Off by default.</summary>
     public bool DetailedLogging { get; init; }
 
@@ -223,7 +226,7 @@ public sealed record LeafSettings
     /// An upcoming lookahead that isn't one of <see cref="UpcomingChoices"/> becomes 8 hours.
     /// A primary time zone this PC doesn't know becomes null (follow Windows).
     /// A blank main account becomes null, and so does a window size that isn't positive and finite.
-    /// Blank and repeated Meet-by-default accounts are dropped. (The old tray-excluded calendars are no longer read: the
+    /// Blank and repeated Meet-by-default and collapsed accounts are dropped. (The old tray-excluded calendars are no longer read: the
     /// tray follows what's shown in Leaf, so a saved row that still has them loads without them.)
     /// A list whose contents didn't change keeps its instance, so normalizing twice gives an equal record.
     /// </remarks>
@@ -264,20 +267,39 @@ public sealed record LeafSettings
             MainAccountId         = string.IsNullOrWhiteSpace(MainAccountId) ? null : MainAccountId,
             MainWindowSize        = MainWindowSize?.Clean(),
             SettingsWindowSize    = SettingsWindowSize?.Clean(),
-            MeetByDefaultAccounts = Keep(MeetByDefaultAccounts, [.. (MeetByDefaultAccounts ?? []).Where(a => !string.IsNullOrWhiteSpace(a)).Distinct(StringComparer.Ordinal)]),
+            MeetByDefaultAccounts = Keep(MeetByDefaultAccounts, CleanAccounts(MeetByDefaultAccounts)),
+            CollapsedAccounts     = Keep(CollapsedAccounts, CleanAccounts(CollapsedAccounts)),
         };
     }
 
     /// <summary>
     /// Returns a copy without the per-account choices of accounts no longer connected (the main account, Meet by
-    /// default), so adding the same Google account again starts fresh. Equal to this
+    /// default, collapsed in the calendar lists), so adding the same Google account again starts fresh. Equal to this
     /// record when every account they name is still in <paramref name="accountIds"/>.
     /// </summary>
     public LeafSettings ForAccounts(IReadOnlyCollection<string> accountIds) => this with
     {
         MainAccountId         = MainAccountId is { } main && accountIds.Contains(main) ? main : null,
         MeetByDefaultAccounts = Keep(MeetByDefaultAccounts, [.. MeetByDefaultAccounts.Where(accountIds.Contains)]),
+        CollapsedAccounts     = Keep(CollapsedAccounts, [.. CollapsedAccounts.Where(accountIds.Contains)]),
     };
+
+    /// <summary>Returns a copy with <paramref name="accountId"/>'s calendars folded away (or shown again).</summary>
+    public LeafSettings WithAccountCollapsed(string accountId, bool collapsed)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
+
+        if (CollapsedAccounts.Contains(accountId) == collapsed)
+        {
+            return this;
+        }
+
+        return this with { CollapsedAccounts = collapsed ? [.. CollapsedAccounts, accountId] : [.. CollapsedAccounts.Where(a => a != accountId)] };
+    }
+
+    // Account IDs without blanks or repeats, in their first order
+    static List<string> CleanAccounts(IReadOnlyList<string>? accounts) =>
+        [.. (accounts ?? []).Where(a => !string.IsNullOrWhiteSpace(a)).Distinct(StringComparer.Ordinal)];
 
     // Records compare lists by reference, so an unchanged list keeps its instance and a normalized copy still equals the original
     static IReadOnlyList<T> Keep<T>(IReadOnlyList<T>? original, List<T> cleaned) =>

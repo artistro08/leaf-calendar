@@ -39,9 +39,6 @@ public static class LeafBrushes
     /// <summary>Hour and day divider lines.</summary>
     public static SolidColorBrush GridLine(bool dark) => HighContrast ? SystemBrush(UIElementType.GrayText) : FromHex(ChromeColors.GridLine(dark));
 
-    /// <summary>Half-hour lines.</summary>
-    public static SolidColorBrush HalfHourLine(bool dark) => HighContrast ? SystemBrush(UIElementType.GrayText) : FromHex(ChromeColors.HalfHourLine(dark));
-
     /// <summary>Weekend column tint.</summary>
     public static SolidColorBrush WeekendFill(bool dark) => HighContrast ? SystemBrush(UIElementType.Window) : FromHex(ChromeColors.WeekendFill(dark));
 
@@ -116,7 +113,7 @@ public static class LeafBrushes
 
     /// <summary>Card colors: Google's in normal themes; window, text, and highlight colors in a contrast theme (where past cards aren't faded).</summary>
     public static EventPalette CardPalette(string accentHex, bool dark, bool past = false, bool selected = false) =>
-        HighContrast ? HighContrastPalette(selected) : EventColors.Palette(accentHex, dark, past);
+        HighContrast ? HighContrastPalette(selected) : EventColors.Palette(accentHex, dark, past, selected);
 
     /// <summary>A card's border: 2 when selected, 1 when outlined or in a contrast theme (where the fill matches the window), else none.</summary>
     public static Thickness CardBorder(bool selected, bool outlined = false) => new(selected ? 2 : outlined || HighContrast ? 1 : 0);

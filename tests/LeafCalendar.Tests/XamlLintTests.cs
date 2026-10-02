@@ -23,7 +23,7 @@ public class XamlLintTests
         "MainWindow.xaml|spacing|10,0,10,1 (Button in TodayButton)",   // Today label sits 1 px high to line up with the caption glyphs (comment above the View menu)
         "Styles/LeafTheme.xaml|spacing|10,0 (Setter in LeafToolbarButtonStyle)",   // Same 10 px sides as the Today button
         "Styles/LeafTheme.xaml|spacing|9,12,0,4 (Setter in LeafSectionHeaderStyle)",   // 9 on the sidebar's shared left edge (style comment)
-        "Styles/LeafTheme.xaml|spacing|48,12,60,12 (Setter in LeafExpanderItemRowStyle)",   // 60 lines child controls up with the expander header's, left of the stock chevron column (20 + 32 + 8)
+        "Styles/LeafTheme.xaml|spacing|9,4,8,4 (Setter in LeafFoldHeaderButtonStyle)",   // The account email stays on the sidebar's shared 9 px left edge
 
         // Optical alignment tuned by hand (title bar lift, sidebar glyph centers); see the comments in each file
         "Views/CalendarPage.xaml|spacing|0,9,0,8 (TextBlock in PeriodTitle)",
@@ -31,6 +31,7 @@ public class XamlLintTests
         "Views/SidebarView.xaml|spacing|9,0,0,0 (TextBlock in MiniMonthTitle)",
         "Views/SidebarView.xaml|spacing|9,0,4,0 (Grid in CalendarList)",
         "Views/SidebarView.xaml|spacing|0,0,11,0 (PinnedItemsControl in CalendarList)",
+        "Views/DetailsPanel.xaml|spacing|8,8,0,6 (Button in ShortcutsButton)",   // 6 below, like the sidebar's settings button opposite it
 
         // Ported from PowerToys (ShortcutDialogContentControl's CondensedInfoBarStyle): the InfoBar template binds its own
         // TemplateSettings.IconElement and Foreground through RelativeSource TemplatedParent, as the stock InfoBar template does

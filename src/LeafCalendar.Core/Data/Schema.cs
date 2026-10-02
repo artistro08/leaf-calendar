@@ -138,4 +138,13 @@ internal static class Schema
     public const string V6 = """
         ALTER TABLE accounts ADD COLUMN hosted_domain TEXT;
         """;
+
+    /// <summary>
+    /// Version 7: <c>calendars.google_shown</c>, whether the calendar was ticked (and not hidden) in Google Calendar at the
+    /// last list refresh. Null until then. When Google's choice changes (or isn't known yet), Leaf follows it; otherwise
+    /// Leaf's own choice in <c>leaf_hidden</c> stays.
+    /// </summary>
+    public const string V7 = """
+        ALTER TABLE calendars ADD COLUMN google_shown INTEGER;
+        """;
 }

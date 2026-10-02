@@ -85,8 +85,28 @@
                 <controls:PinnedItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:AccountGroup">
                         <StackPanel>
-                            <TextBlock Style="{StaticResource LeafSectionHeaderStyle}" Text="{x:Bind Email, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                            <!-- Account Header (click to fold the account's calendars away; the email stays on the shared 9 px edge,
+                                 and the 8 px top margin plus its 4 px padding keep the section header's 12 px gap above the text) -->
+                            <Button
+                                Margin="0,8,0,0"
+                                Style="{StaticResource LeafFoldHeaderButtonStyle}"
+                                Click="OnAccountHeaderClick"
+                                Tag="{x:Bind}"
+                                ToolTipService.ToolTip="{x:Bind FoldTip, Mode=OneWay}"
+                                AutomationProperties.Name="{x:Bind Email, Mode=OneWay}"
+                                AutomationProperties.HelpText="{x:Bind FoldTip, Mode=OneWay}"
+                                AutomationProperties.AutomationId="{x:Bind HeaderId}">
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{x:Bind Email, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                                    <FontIcon Grid.Column="1" FontSize="10" Glyph="{x:Bind Chevron, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
+                                </Grid>
+                            </Button>
                             <controls:PinnedListView
+                                Visibility="{x:Bind IsExpanded, Mode=OneWay}"
                                 ItemsSource="{x:Bind Calendars}"
                                 SelectionMode="None"
                                 ScrollViewer.VerticalScrollMode="Disabled"
@@ -154,6 +174,7 @@
 
         <!-- Footer -->
         <StackPanel
+            x:Name="Footer"
             Grid.Row="2"
             Orientation="Horizontal"
             Spacing="4"

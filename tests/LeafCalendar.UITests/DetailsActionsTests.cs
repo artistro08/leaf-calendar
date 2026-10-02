@@ -159,12 +159,30 @@ public sealed class DetailsActionsTests : IDisposable
         Assert.False(leaf.WaitFor("DeleteEventButton").IsEnabled);
 
         leaf.WaitFor("DetailsRsvpNote").AsTextBox().Text = "Running late";
-        leaf.WaitFor("DetailsRsvpMaybe").Click();
+        leaf.WaitFor("DetailsResponse").AsButton().Invoke();
+        leaf.WaitForAnywhere("DetailsRsvpMaybe").AsMenuItem().Invoke();
 
         var write = _google.WaitForWrite(w => w.Method == "PATCH" && w.Path.EndsWith("/events/evt-meeting", StringComparison.Ordinal));
         Assert.Contains("\"tentative\"", write.Body, StringComparison.Ordinal);
         Assert.Contains("Running late", write.Body, StringComparison.Ordinal);
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsResponse").Name == "Your response: Maybe", TimeSpan.FromSeconds(10)).Success);
+    }
+
+    [Fact]
+    public void Rsvp_Dropdown_ShowsTheReplyAsABadgeWithEveryChoiceInItsMenu()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Meeting).Click();
+
+        // One full-width dropdown, read as the whole line; the badge carries the reply
+        var response = leaf.WaitFor("DetailsResponse");
+        Assert.StartsWith("Your response: ", response.Name, StringComparison.Ordinal);
+        Assert.Equal(response.Name["Your response: ".Length..], leaf.WaitFor("DetailsResponseLabel").Name);
+
+        response.AsButton().Invoke();
+        Assert.NotNull(leaf.WaitForAnywhere("DetailsRsvpYes"));
+        Assert.NotNull(leaf.WaitForAnywhere("DetailsRsvpMaybe"));
+        Assert.NotNull(leaf.WaitForAnywhere("DetailsRsvpNo"));
     }
 
     [Fact]

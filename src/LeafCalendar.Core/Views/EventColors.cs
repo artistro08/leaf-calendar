@@ -64,12 +64,17 @@ public static partial class EventColors
         return Hex().IsMatch(calendarColor) ? calendarColor.ToUpperInvariant() : CalendarInfo.DefaultColor;
     }
 
-    /// <summary>Card colors for an accent in the dark or light theme; <paramref name="past"/> fades the accent and fill toward the calendar surface and picks text against the faded fill.</summary>
-    public static EventPalette Palette(string accentHex, bool dark, bool past = false)
+    /// <summary>
+    /// Card colors for an accent in the dark or light theme; <paramref name="past"/> fades the accent and fill toward the
+    /// calendar surface and picks text against the faded fill. A <paramref name="selected"/> card is filled with the
+    /// accent itself, at full strength even when past, with text picked against it (a mid-tone accent is deepened or
+    /// lightened just enough for its text to read at 4.5:1).
+    /// </summary>
+    public static EventPalette Palette(string accentHex, bool dark, bool past = false, bool selected = false)
     {
         var accent = Hex().IsMatch(accentHex) ? accentHex.ToUpperInvariant() : CalendarInfo.DefaultColor;
-        var fill   = Blend(accent, dark ? DarkSurface : LightSurface, dark ? 0.62 : 0.78);
-        if (past)
+        var fill   = selected ? accent : Blend(accent, dark ? DarkSurface : LightSurface, dark ? 0.62 : 0.78);
+        if (past && !selected)
         {
             accent = Blend(accent, ChromeColors.Surface(dark), PastFade);
             fill   = Blend(fill, ChromeColors.Surface(dark), PastFade);
@@ -77,7 +82,25 @@ public static partial class EventColors
 
         var text   = ContrastRatio(LightText, fill) >= ContrastRatio(DarkText, fill) ? LightText : DarkText;
 
+        // A Mid-Tone Accent Reaches 4.5:1 With Neither Text Color: deepen it (white text) or lighten it (dark text) until it does
+        if (selected)
+        {
+            fill = Legible(fill, text);
+        }
+
         return new EventPalette(accent, fill, text, (text == LightText ? "#F2" : "#D9") + text[1..]);
+    }
+
+    // The fill moved toward black (under white text) or white (under dark text) in small steps until the text reads at 4.5:1
+    static string Legible(string fill, string text)
+    {
+        var toward = text == LightText ? "#000000" : "#FFFFFF";
+        for (var step = 0; step < 20 && ContrastRatio(text, fill) < 4.5; step++)
+        {
+            fill = Blend(fill, toward, 0.05);
+        }
+
+        return fill;
     }
 
     /// <summary>Mixes two colors; <paramref name="backgroundAmount"/> 0 is all foreground, 1 all background.</summary>

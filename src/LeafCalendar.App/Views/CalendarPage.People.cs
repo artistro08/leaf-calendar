@@ -66,6 +66,9 @@ public sealed partial class CalendarPage
     {
         _slotsPanel?.Update(ViewModel);
         var sharing = ViewModel.IsSharing;
+
+        // The Hint Toast Stays Up While You Mark Times (the events behind it are faded and lined)
+        SharingHint.IsOpen = sharing;
         if (_slotsPanel is null || (_slotsPanel.Visibility == Visibility.Visible) == sharing)
         {
             return;

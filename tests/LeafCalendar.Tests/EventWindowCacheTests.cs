@@ -122,4 +122,30 @@ public sealed class EventWindowCacheTests : IDisposable
         Assert.Equal(1, changed);
         Assert.Single(_cache.ForDay(D(2026, 10, 5)));
     }
+
+    [Fact]
+    public async Task SharedEvent_IsHeldOnce_WithAStripePerCalendar()
+    {
+        var start    = new DateTimeOffset(2026, 10, 5, 14, 0, 0, TimeSpan.Zero);
+        var work     = new CalendarOccurrence("work", "w", "e1", "uid", null, start, start.AddHours(1), false, "Sync", EventKind.Default, ResponseStatus.Accepted, "#039BE5", null, false, false);
+        var personal = work with { AccountId = "home", CalendarId = "h", CalendarColor = "#D50000" };
+        _data.AddRange([work, personal]);
+
+        await _cache.EnsureAsync(D(2026, 10, 4), D(2026, 10, 11), TestContext.Current.CancellationToken);
+
+        Assert.Equal([work], _cache.ForDay(D(2026, 10, 5)));
+        Assert.Equal(["#039BE5", "#D50000"], _cache.StripesOf(work));
+        Assert.Empty(_cache.StripesOf(personal));
+    }
+
+    [Fact]
+    public async Task UnsharedEvent_HasNoStripes()
+    {
+        var one = Timed("one", new DateTimeOffset(2026, 10, 5, 14, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 5, 15, 0, 0, TimeSpan.Zero));
+        _data.Add(one);
+
+        await _cache.EnsureAsync(D(2026, 10, 4), D(2026, 10, 11), TestContext.Current.CancellationToken);
+
+        Assert.Empty(_cache.StripesOf(one));
+    }
 }

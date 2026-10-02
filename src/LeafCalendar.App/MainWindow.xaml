@@ -58,9 +58,20 @@
                             Spacing="4"
                             Visibility="Collapsed">
                             <!-- Sync Status (one 32 DIP slot, shown only when something needs attention, one state at a time:
-                                 conflicts, then offline, then changes waiting. Offline with changes waiting, the waiting button
+                                 a sync you asked for, then conflicts, then offline, then changes waiting. Offline with changes waiting, the waiting button
                                  takes the offline glyph and sits exactly over the offline one, so both can be read at once) -->
                             <Grid x:Name="SyncStatus" Width="32" Height="32" Visibility="Collapsed">
+                                <!-- Syncing (a sync you asked for: the command menu's Sync now, this slot's buttons, the tray) -->
+                                <ProgressRing
+                                    x:Name="SyncingRing"
+                                    Width="16"
+                                    Height="16"
+                                    IsActive="False"
+                                    Visibility="Collapsed"
+                                    ToolTipService.ToolTip="Syncing with Google"
+                                    AutomationProperties.Name="Syncing with Google"
+                                    AutomationProperties.LiveSetting="Polite"
+                                    AutomationProperties.AutomationId="SyncingIndicator" />
                                 <Button
                                     x:Name="ConflictsButton"
                                     Style="{StaticResource LeafBareIconButtonStyle}"
@@ -147,7 +158,12 @@
                                     ToolTipService.ToolTip="Previous (←)"
                                     AutomationProperties.Name="Previous"
                                     AutomationProperties.AutomationId="PreviousButton">
-                                    <FontIcon x:Name="PreviousGlyph" Glyph="&#xE76B;" FontSize="12" />
+                                    <!-- The chevron turns a quarter to point up in Month view (MainWindow.RotatePagers) -->
+                                    <FontIcon x:Name="PreviousGlyph" Glyph="&#xE76B;" FontSize="12" RenderTransformOrigin="0.5,0.5">
+                                        <FontIcon.RenderTransform>
+                                            <RotateTransform />
+                                        </FontIcon.RenderTransform>
+                                    </FontIcon>
                                 </Button>
                                 <Button
                                     Style="{StaticResource LeafBareIconButtonStyle}"
@@ -155,7 +171,12 @@
                                     ToolTipService.ToolTip="Next (→)"
                                     AutomationProperties.Name="Next"
                                     AutomationProperties.AutomationId="NextButton">
-                                    <FontIcon x:Name="NextGlyph" Glyph="&#xE76C;" FontSize="12" />
+                                    <!-- The chevron turns a quarter to point down in Month view -->
+                                    <FontIcon x:Name="NextGlyph" Glyph="&#xE76C;" FontSize="12" RenderTransformOrigin="0.5,0.5">
+                                        <FontIcon.RenderTransform>
+                                            <RotateTransform />
+                                        </FontIcon.RenderTransform>
+                                    </FontIcon>
                                 </Button>
                                 <ToggleButton
                                     x:Name="DetailsToggle"

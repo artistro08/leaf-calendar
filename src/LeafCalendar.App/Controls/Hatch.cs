@@ -1,0 +1,51 @@
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
+using Windows.Foundation;
+using Path = Microsoft.UI.Xaml.Shapes.Path;
+
+namespace LeafCalendar.App.Controls;
+
+/// <summary>
+/// A repeating diagonal-line overlay (WinUI has no hatch brush): 1 DIP lines at 45°, <see cref="Spacing"/> apart, drawn as
+/// one path sized to what it covers. While you mark times to share, the calendar's events wear it over their faded
+/// colors, so they read as "taken" rather than as something to click.
+/// </summary>
+public static class Hatch
+{
+    /// <summary>Distance between the lines, along the edge.</summary>
+    public const double Spacing = 8;
+
+    /// <summary>A hidden overlay path, ready for <see cref="Draw"/> (it never takes clicks).</summary>
+    public static Path Create() => new() { StrokeThickness = 1, IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+
+    /// <summary>Shows <paramref name="hatch"/> over a <paramref name="width"/> × <paramref name="height"/> area in <paramref name="stroke"/>, or hides it.</summary>
+    public static void Draw(Path hatch, bool show, double width, double height, Brush? stroke)
+    {
+        ArgumentNullException.ThrowIfNull(hatch);
+
+        if (!show || width <= 0 || height <= 0 || double.IsNaN(width) || double.IsNaN(height))
+        {
+            hatch.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        hatch.Data       = Lines(width, height);
+        hatch.Stroke     = stroke;
+        hatch.Clip       = new RectangleGeometry { Rect = new Rect(0, 0, width, height) };
+        hatch.Visibility = Visibility.Visible;
+    }
+
+    // Lines from the top edge down-left at 45°, starting far enough right that the bottom-right corner is covered too
+    static PathGeometry Lines(double width, double height)
+    {
+        var geometry = new PathGeometry();
+        for (var x = Spacing / 2; x < width + height; x += Spacing)
+        {
+            var figure = new PathFigure { StartPoint = new Point(x, 0), IsClosed = false, IsFilled = false };
+            figure.Segments.Add(new LineSegment { Point = new Point(x - height, height) });
+            geometry.Figures.Add(figure);
+        }
+
+        return geometry;
+    }
+}

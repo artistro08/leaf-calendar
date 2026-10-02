@@ -27,9 +27,6 @@ public static class ChromeColors
     /// <summary>Hour and day divider lines.</summary>
     public static string GridLine(bool dark) => dark ? "#1FFFFFFF" : "#1A000000";
 
-    /// <summary>Half-hour lines.</summary>
-    public static string HalfHourLine(bool dark) => dark ? "#0DFFFFFF" : "#0A000000";
-
     /// <summary>Weekend column tint.</summary>
     public static string WeekendFill(bool dark) => dark ? "#08FFFFFF" : "#06000000";
 

@@ -257,8 +257,24 @@ public sealed partial class TimeGridView : Grid, IDisposable
         SetColumnSpan(_boxLayer, 2);
         Children.Add(_boxLayer);
 
-        BuildStrip(_vm.PeriodStart);
+        // Built On The Period A View Switch Is Heading To (else it would scroll there from the old one), and hidden until
+        // its first layout has landed on that day and the morning, so it never shows them snapping into place
+        BuildStrip(_vm.SwitchingTo ?? _vm.PeriodStart);
+        Opacity = 0;
+
+        // Shown By Now Whatever Happens (a layout that never lands, say at no size, mustn't leave the view invisible)
+        _reveal = DispatcherQueue.GetForCurrentThread().CreateTimer();
+        _reveal.Interval    = RevealFallback;
+        _reveal.IsRepeating = false;
+        _reveal.Tick       += (_, _) => Opacity = 1;
+        _reveal.Start();
     }
+
+    // Shows a new view if its first layout hasn't landed in time (held here so it lives until it fires)
+    readonly DispatcherQueueTimer _reveal;
+
+    // How long a new view may stay hidden waiting for its first layout to land
+    static readonly TimeSpan RevealFallback = TimeSpan.FromMilliseconds(250);
 
     /// <summary>The top-left corner above the gutter.</summary>
     public Grid Corner { get; }
@@ -315,6 +331,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     {
         _disposed = true;
         _clock.Stop();
+        _reveal.Stop();
         _vm.OccurrencesChanged    -= OnOccurrencesChanged;
         _vm.LayoutChanged         -= OnLayoutChanged;
         _vm.NavigateRequested     -= OnNavigateRequested;
@@ -532,12 +549,13 @@ public sealed partial class TimeGridView : Grid, IDisposable
             }
         }
 
-        // Arrived
+        // Arrived (a new view shows itself now, on its day and the morning)
         var target = pending * ColumnWidth;
         if (top is null && IsAt(target, _bodyScroll.HorizontalOffset))
         {
             _pendingIndex = null;
             _firstIndex   = pending;
+            Opacity       = 1;
             Settle();
             return;
         }
@@ -685,7 +703,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
         // Extra zones oldest first, then this PC's zone next to the days (the gutter's column order)
         var zones = _vm.Settings.TimeZones.Select(z => (z.Id, Label: TimeZoneCatalog.ShortLabel(z))).ToList();
-        zones.Add(("Local", TimeZoneCatalog.OffsetLabel(_vm.Zone.GetUtcOffset(_vm.Now))));
+        zones.Add(("Local", ZoneAbbreviation.For(_vm.Zone, _vm.Now)));
 
         foreach (var (id, label) in zones)
         {
@@ -757,6 +775,19 @@ public sealed partial class TimeGridView : Grid, IDisposable
             BuildStrip(_strip[_firstIndex]);
         }
 
+        // A View Switch: the new layout starts on its new first day, so nothing scrolls across from the old one
+        if (_vm.SwitchingTo is { } switching)
+        {
+            if (!_strip.Contains(switching))
+            {
+                BuildStrip(switching);
+            }
+
+            _firstIndex   = _strip.IndexOf(switching);
+            _pendingIndex = null;
+            _animating    = false;
+        }
+
         _reportedIndex = -1;
         Relayout(force: true);
         RenderCorner();
@@ -798,11 +829,22 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
+        // Starting Or Stopping: every event changes its look (faded with diagonal lines while marking times)
+        if (_sharingShown != _vm.IsSharing)
+        {
+            _sharingShown = _vm.IsSharing;
+            RenderColumns();
+            return;
+        }
+
         foreach (var column in _columns)
         {
             column.RenderSlots();
         }
     }
+
+    // Whether the events were last drawn for marking times to share
+    bool _sharingShown;
 
     // =========================================================================
     // DRAGGING
@@ -811,7 +853,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // How far the pointer must move before a press becomes a drag (less stays a click)
     const double DragThreshold = 4;
 
-    enum DragKind { Move, Resize, Create, AllDay, Box }
+    enum DragKind { Move, Resize, Create, CreateAllDay, AllDay, Box }
 
     sealed class DragSession(DragKind kind, Point origin)
     {
@@ -879,6 +921,18 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
 
         _drag = new DragSession(DragKind.Create, e.GetCurrentPoint(this).Position) { GrabbedAt = DragMath.Instant(day, minutes, _vm.Zone) };
+    }
+
+    /// <summary>Empty all-day space was pressed: dragging across days makes a new all-day event over them.</summary>
+    public void BeginAllDayCreateDrag(PointerRoutedEventArgs e)
+    {
+        // Picking times to share is about hours, and a box select needs the grid's times: neither starts here
+        if (_vm.IsSharing || KeyState.IsDown(Windows.System.VirtualKey.Shift))
+        {
+            return;
+        }
+
+        _drag = new DragSession(DragKind.CreateAllDay, e.GetCurrentPoint(this).Position) { GrabbedDay = DayAt(e.GetCurrentPoint(_allDay).Position.X) };
     }
 
     /// <summary>An all-day chip was pressed: dragging moves it across days, or into the grid to become timed.</summary>
@@ -1054,9 +1108,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
-        if (drag.Kind == DragKind.Create)
+        if (drag.Kind is DragKind.Create or DragKind.CreateAllDay)
         {
-            _vm.BeginCreate(target.Start, target.End, isAllDay: false);
+            _vm.BeginCreate(target.Start, target.End, isAllDay: drag.Kind == DragKind.CreateAllDay);
             return;
         }
 
@@ -1097,6 +1151,10 @@ public sealed partial class TimeGridView : Grid, IDisposable
             case DragKind.Create:
                 var (createStart, createEnd) = DragMath.CreateRange(drag.GrabbedAt, pointerAt, zone);
                 return (createStart, createEnd, false, false);
+
+            case DragKind.CreateAllDay:
+                var (allDayStart, allDayEnd) = DragMath.AllDayRange(drag.GrabbedDay, DayAt(e.GetCurrentPoint(_allDay).Position.X));
+                return (allDayStart, allDayEnd, true, true);
 
             default:
                 // Over The Grid: a one-hour timed event there

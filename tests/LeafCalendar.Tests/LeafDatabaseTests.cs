@@ -24,7 +24,7 @@ public sealed class LeafDatabaseTests : IDisposable
         foreignKeys.CommandText = "PRAGMA foreign_keys;";
 
         Assert.Equal("wal", (string)mode.ExecuteScalar()!);
-        Assert.Equal(6L, (long)version.ExecuteScalar()!);
+        Assert.Equal(7L, (long)version.ExecuteScalar()!);
         Assert.Equal(1L, (long)foreignKeys.ExecuteScalar()!);
     }
 
@@ -89,7 +89,7 @@ public sealed class LeafDatabaseTests : IDisposable
             Assert.Equal(1L, pending[1].DependsOn);
             Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM calendars;", r => r.GetInt64(0)).Single());
             Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM events;", r => r.GetInt64(0)).Single());
-            Assert.Equal(6L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(7L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.True(AlertLedger.TryAdd(conn, "k", LeafCalendar.Core.Alerts.AlertKind.Reminder, "t", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
             conn.Close();
             SqliteConnection.ClearPool(conn);
@@ -120,7 +120,40 @@ public sealed class LeafDatabaseTests : IDisposable
             var account = Assert.Single(AccountStore.GetAll(conn));
             Assert.Equal(("acct", "a@example.com", "A"), (account.Id, account.Email, account.DisplayName));
             Assert.Null(account.HostedDomain);
-            Assert.Equal(6L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(7L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            conn.Close();
+            SqliteConnection.ClearPool(conn);
+        }
+    }
+
+    [Fact]
+    public void Migrate_FromVersion6_FollowsGooglesChoiceOnceOnTheNextRefresh()
+    {
+        using var folder = new TempFolder();
+        var database     = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
+
+        // A Version 6 Database Showing A Calendar That's Off In Google (Leaf decided before it followed Google's changes)
+        using (var conn = database.Open())
+        using (var setup = conn.CreateCommand())
+        {
+            setup.CommandText = Schema.V1 + Schema.V2 + Schema.V3 + Schema.V4 + Schema.V5 + Schema.V6 + """
+                PRAGMA user_version = 6;
+                INSERT INTO accounts (id, email, display_name) VALUES ('acct', 'a@example.com', 'A');
+                INSERT INTO calendars (account_id, id, summary, access_role, leaf_hidden) VALUES ('acct', 'todoist', 'Todoist', 'reader', 0);
+                """;
+            setup.ExecuteNonQuery();
+        }
+
+        database.Migrate();
+
+        using (var conn = database.Open())
+        {
+            Assert.Equal(7L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.True(Assert.Single(CalendarStore.GetAll(conn)).IsVisible);
+
+            CalendarStore.ReplaceForAccount(conn, "acct", [new LeafCalendar.Core.Google.CalendarListEntry { Id = "todoist", Summary = "Todoist", Selected = false }]);
+
+            Assert.False(Assert.Single(CalendarStore.GetAll(conn)).IsVisible);
             conn.Close();
             SqliteConnection.ClearPool(conn);
         }

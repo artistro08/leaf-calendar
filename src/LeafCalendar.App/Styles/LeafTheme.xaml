@@ -306,6 +306,60 @@
         <Setter Property="Margin" Value="9,12,0,4" />
     </Style>
 
+    <!-- Fold Header (an account's header that folds its calendars away: the whole row is the button, a subtle fill fades in
+         on hover and press like the icon buttons, and the content is laid out by the page, its chevron on the right) -->
+    <Style x:Key="LeafFoldHeaderButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Padding" Value="9,4,8,4" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Root"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        CornerRadius="{TemplateBinding CornerRadius}">
+                        <Border.BackgroundTransition>
+                            <BrushTransition Duration="0:0:0.083" />
+                        </Border.BackgroundTransition>
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Disabled">
+                                    <VisualState.Setters>
+                                        <Setter Target="Presenter.Opacity" Value="0.4" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <ContentPresenter
+                            x:Name="Presenter"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="Center"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Foreground="{TemplateBinding Foreground}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Divider (a 1 px line between groups; set the margin where it's used) -->
     <Style x:Key="LeafDividerStyle" TargetType="Border">
         <Setter Property="Height" Value="1" />
@@ -406,8 +460,9 @@
     <!--
         Setting Expander (the Windows 11 Settings expander card, a stock Expander): the header is a SettingRow without
         its card (LeafExpanderHeaderRowStyle; its content is the summary on the right), and the child rows inside are
-        LeafExpanderItemRowStyle, divided by a line, their text lined up with the header's and their controls with the
-        header's summary (left of the 60 DIP chevron column). The first child row sets BorderThickness="0".
+        LeafExpanderItemRowStyle, divided by a line, their text lined up with the header's and their controls reaching
+        the card's right edge (16 in, like every other card), so the dropdown's rows read as part of the card. The first
+        child row sets BorderThickness="0".
     -->
     <Style x:Key="LeafSettingExpanderStyle" TargetType="Expander">
         <Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -426,7 +481,7 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0,1,0,0" />
         <Setter Property="CornerRadius" Value="0" />
-        <Setter Property="Padding" Value="48,12,60,12" />
+        <Setter Property="Padding" Value="48,12,16,12" />
         <Setter Property="MinHeight" Value="48" />
     </Style>
     <!-- /Setting Expander -->

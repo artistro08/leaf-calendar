@@ -12,12 +12,18 @@ namespace LeafCalendar.App.Controls;
 /// <summary>
 /// The all-day row: all-day and 24-hour-plus events as bars across day columns, packed into lanes
 /// with <see cref="SpanLayout"/>. Only a window of columns around the visible ones is drawn. Chips can be
-/// dragged across days, or down into the grid to become timed.
+/// dragged across days, or down into the grid to become timed. Like the time grid's columns, each day keeps a strip of
+/// empty space on its right (<see cref="SpareWidth"/>), so there's always room to drag out a new all-day event, and the
+/// day dividers run down through the row from the day headers.
 /// </summary>
 public sealed partial class AllDayCanvas : Canvas
 {
+    /// <summary>Empty space kept on the right of each day's chips (the time grid's columns keep the same 10 px).</summary>
+    public const double SpareWidth = 10;
+
     readonly TimeGridView _owner;
-    readonly List<(Border Chip, TextBlock Text)> _chips = [];
+    readonly List<(Border Chip, TextBlock Text, Microsoft.UI.Xaml.Shapes.Path Hatch)> _chips = [];
+    readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _dividers = [];
     readonly Dictionary<Border, CalendarOccurrence> _shown = [];
 
     // Every laid-out event's days (strip indexes) and lane, shown or not, so the ghost can find a free lane
@@ -34,6 +40,18 @@ public sealed partial class AllDayCanvas : Canvas
         _ghost.Child = _ghostLabel;
         Children.Add(_ghost);
         SetZIndex(_ghost, 20);
+
+        // Drag Across Empty Space: a new all-day event over those days (a press on a chip is the chip's own drag)
+        PointerPressed += (_, e) =>
+        {
+            if (ReferenceEquals(e.OriginalSource, this) && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed && e.Pointer.PointerDeviceType != PointerDeviceType.Touch)
+            {
+                _owner.BeginAllDayCreateDrag(e);
+            }
+        };
+
+        // The Day Dividers Reach The Row's Bottom, However Many Lanes It Shows
+        SizeChanged += (_, _) => SizeDividers();
 
         // Double-Click Empty Space: a new all-day event that day (chips mark their own double-clicks handled)
         DoubleTapped += (_, e) =>
@@ -64,6 +82,8 @@ public sealed partial class AllDayCanvas : Canvas
         var items   = columns.SelectMany(vm.Cache.ForDay).DistinctBy(o => o.Key).ToList();
         var blocks  = SpanLayout.Layout(columns, items, vm.Zone, includeTimed: false);
 
+        RenderDividers(first, columns.Count, dark);
+
         LaneCount = blocks.Count == 0 ? 0 : blocks.Max(b => b.Lane) + 1;
         _lanes.Clear();
         _lanes.AddRange(blocks.Select(b => (first + b.FirstColumn, first + b.FirstColumn + b.ColumnSpan - 1, b.Lane, b.Occurrence.Key)));
@@ -77,7 +97,7 @@ public sealed partial class AllDayCanvas : Canvas
         _shown.Clear();
         for (var i = 0; i < _chips.Count; i++)
         {
-            var (chip, text) = _chips[i];
+            var (chip, text, hatch) = _chips[i];
             if (i >= shown.Count)
             {
                 chip.Visibility = Visibility.Collapsed;
@@ -85,18 +105,21 @@ public sealed partial class AllDayCanvas : Canvas
             }
 
             var b       = shown[i];
-            var palette = LeafBrushes.CardPalette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, vm.IsPast(b.Occurrence), vm.IsSelected(b.Occurrence));
+            var faded   = vm.IsPast(b.Occurrence) || vm.IsSharing; // marking times to share fades every event, with diagonal lines
+            var palette = LeafBrushes.CardPalette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, faded, vm.IsSelected(b.Occurrence));
             var start   = SpanLayout.CoveredDates(b.Occurrence, vm.Zone).First;
             _shown[chip] = b.Occurrence;
 
             chip.Visibility      = Visibility.Visible;
-            chip.Width           = Math.Max(b.ColumnSpan * width - 4, 8);
+            chip.Width           = Math.Max(b.ColumnSpan * width - 2 - SpareWidth, 8);
             chip.Height          = TimeGridView.AllDayLaneHeight - 3;
             chip.Background      = LeafBrushes.FromHex(palette.Fill);
             chip.BorderBrush     = LeafBrushes.FromHex(palette.Accent);
             chip.BorderThickness = LeafBrushes.CardBorder(vm.IsSelected(b.Occurrence));
             text.Text            = (b.ContinuesBefore ? "‹ " : "") + b.Occurrence.Title + (b.ContinuesAfter ? " ›" : "");
             text.Foreground      = LeafBrushes.FromHex(palette.Text);
+            var border = chip.BorderThickness.Left * 2;
+            Hatch.Draw(hatch, vm.IsSharing, chip.Width - border, chip.Height - border, LeafBrushes.FromHex("#40" + palette.Text[1..]));
 
             SetLeft(chip, (first + b.FirstColumn) * width + 2);
             SetTop(chip, b.Lane * TimeGridView.AllDayLaneHeight + 2);
@@ -124,7 +147,7 @@ public sealed partial class AllDayCanvas : Canvas
         var width = _owner.ColumnWidth;
         var from  = strip.IndexOf(first);
         var to    = Math.Max(from, strip.IndexOf(last));
-        _ghost.Width       = Math.Max((to - from + 1) * width - 4, 8);
+        _ghost.Width       = Math.Max((to - from + 1) * width - 2 - SpareWidth, 8);
         _ghost.BorderBrush = LeafBrushes.Accent(_owner.IsDark);
         _ghost.Background  = LeafBrushes.Hover(_owner.IsDark);
         _ghostLabel.Visibility = copy ? Visibility.Visible : Visibility.Collapsed;
@@ -149,10 +172,44 @@ public sealed partial class AllDayCanvas : Canvas
         GhostLanes        = 0;
     }
 
+    // One divider on the left edge of each drawn day (the day header's divider continues down through the row)
+    void RenderDividers(int first, int count, bool dark)
+    {
+        while (_dividers.Count < count)
+        {
+            var line = new Microsoft.UI.Xaml.Shapes.Rectangle { Width = 1, IsHitTestVisible = false };
+            _dividers.Add(line);
+            Children.Insert(0, line);
+        }
+
+        var width = _owner.ColumnWidth;
+        var brush = LeafBrushes.GridLine(dark);
+        for (var i = 0; i < _dividers.Count; i++)
+        {
+            var line = _dividers[i];
+            line.Visibility = i < count ? Visibility.Visible : Visibility.Collapsed;
+            line.Fill       = brush;
+            SetLeft(line, (first + i) * width);
+        }
+
+        SizeDividers();
+    }
+
+    void SizeDividers()
+    {
+        var height = double.IsNaN(Height) ? ActualHeight : Height;
+        foreach (var line in _dividers)
+        {
+            line.Height = height;
+        }
+    }
+
     void AddChip()
     {
         var text = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
-        var chip = new Border { CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 0, 6, 0), Child = text };
+        var hatch = Hatch.Create();
+        text.Margin = new Thickness(6, 0, 6, 0);
+        var chip = new Border { CornerRadius = new CornerRadius(4), Child = new Grid { Children = { text, hatch } } };
 
         chip.Tapped += (_, e) =>
         {
@@ -205,7 +262,7 @@ public sealed partial class AllDayCanvas : Canvas
             }
         };
 
-        _chips.Add((chip, text));
+        _chips.Add((chip, text, hatch));
         Children.Add(chip);
     }
 }

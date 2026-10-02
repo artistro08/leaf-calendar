@@ -10,6 +10,16 @@ using Microsoft.UI.Xaml.Navigation;
 
 namespace LeafCalendar.App.Views.Settings;
 
+/// <summary>A choice in the default calendar dropdown: the calendar's name, and under it the account's email (when there's more than one account).</summary>
+public sealed record DefaultCalendarChoice(string Name, string? Email)
+{
+    /// <summary>x:Bind helper: the email line shows.</summary>
+    public bool HasEmail => Email is not null;
+
+    /// <summary>The name (what Narrator and UI Automation read for the item).</summary>
+    public override string ToString() => Name;
+}
+
 /// <summary>
 /// Settings › Accounts: an expander per Google account (Meet by default and Disconnect inside), adding one, the main
 /// account, the default calendar, Sync now, and the OAuth client.
@@ -21,8 +31,8 @@ public sealed partial class AccountsPage : Page
     // The Default Calendar Choices, Parallel To The Combo Box Items (index 0 is "your main Google calendar" = null)
     readonly List<CalendarRef?> _refs = [];
 
-    // The Combo Box Labels As Last Filled (an unchanged list isn't refilled, so a sync never closes an open dropdown)
-    readonly List<string> _labels = [];
+    // The Combo Box Choices As Last Filled (an unchanged list isn't refilled, so a sync never closes an open dropdown)
+    List<DefaultCalendarChoice> _choices = [];
 
     // The Main Account Choices, Parallel To Its Combo Box Items
     readonly List<string> _accountIds = [];
@@ -43,11 +53,16 @@ public sealed partial class AccountsPage : Page
         ScrollIndicator.ShowOnHover(PageScroll);
     }
 
-    /// <summary>x:Bind helper: failures show as errors, progress as information.</summary>
-    public static InfoBarSeverity SeverityFor(bool isError) => isError ? InfoBarSeverity.Error : InfoBarSeverity.Informational;
+    /// <summary>x:Bind helper: failures show as errors, a finished sign-in as success, progress as information.</summary>
+    public static InfoBarSeverity SeverityFor(AccountsMessageKind kind) => kind switch
+    {
+        AccountsMessageKind.Error   => InfoBarSeverity.Error,
+        AccountsMessageKind.Success => InfoBarSeverity.Success,
+        _                           => InfoBarSeverity.Informational,
+    };
 
-    /// <summary>x:Bind helper: Narrator interrupts for failures and waits its turn for progress.</summary>
-    public static AutomationLiveSetting LiveFor(bool isError) => isError ? AutomationLiveSetting.Assertive : AutomationLiveSetting.Polite;
+    /// <summary>x:Bind helper: Narrator interrupts for failures and waits its turn for progress and success.</summary>
+    public static AutomationLiveSetting LiveFor(AccountsMessageKind kind) => kind == AccountsMessageKind.Error ? AutomationLiveSetting.Assertive : AutomationLiveSetting.Polite;
 
     /// <summary>Page view model (the window's, see <see cref="SettingsWindow.Accounts"/>).</summary>
     public AccountsViewModel ViewModel { get; private set; } = null!;
@@ -61,8 +76,7 @@ public sealed partial class AccountsPage : Page
         // Nothing Running: a finished action's message is stale by now
         if (!ViewModel.IsBusy)
         {
-            ViewModel.Message = null;
-            ViewModel.IsError = false;
+            ViewModel.ClearMessage();
             ViewModel.Refresh();
         }
 
@@ -153,11 +167,11 @@ public sealed partial class AccountsPage : Page
             .Where(c => c.AccessRole is "owner" or "writer" && calendar.AccountEmails.ContainsKey(c.AccountId))
             .ToList();
 
-        List<CalendarRef?> refs   = [null, .. writable.Select(c => new CalendarRef(c.AccountId, c.Id))];
-        List<string>       labels = ["Your main Google calendar", .. writable.Select(c => several ? $"{c.Summary} ({calendar.AccountEmails[c.AccountId]})" : c.Summary)];
+        List<CalendarRef?>          refs    = [null, .. writable.Select(c => new CalendarRef(c.AccountId, c.Id))];
+        List<DefaultCalendarChoice> choices = [new("Your main Google calendar", null), .. writable.Select(c => new DefaultCalendarChoice(c.Summary, several ? calendar.AccountEmails[c.AccountId] : null))];
 
         // Same Choices As Shown: leave the combo box alone
-        if (refs.SequenceEqual(_refs) && labels.SequenceEqual(_labels, StringComparer.Ordinal))
+        if (refs.SequenceEqual(_refs) && choices.SequenceEqual(_choices))
         {
             return;
         }
@@ -165,13 +179,8 @@ public sealed partial class AccountsPage : Page
         _loading = true;
         _refs.Clear();
         _refs.AddRange(refs);
-        _labels.Clear();
-        _labels.AddRange(labels);
-        DefaultCalendarBox.Items.Clear();
-        foreach (var label in labels)
-        {
-            DefaultCalendarBox.Items.Add(label);
-        }
+        _choices                       = choices;
+        DefaultCalendarBox.ItemsSource = choices;
 
         // A stored default that is gone or read-only shows as the main calendar, matching DefaultCalendar.Pick
         var index = _refs.FindIndex(r => r is not null && r == chosen);

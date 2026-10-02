@@ -6,6 +6,19 @@ using LeafCalendar.Core.Data;
 
 namespace LeafCalendar.App.ViewModels;
 
+/// <summary>What the Accounts page's status message reports.</summary>
+public enum AccountsMessageKind
+{
+    /// <summary>Something is under way ("Finish signing in…").</summary>
+    Progress,
+
+    /// <summary>It finished ("Signed in as…").</summary>
+    Success,
+
+    /// <summary>It failed.</summary>
+    Error,
+}
+
 /// <summary>One row in the accounts list.</summary>
 public sealed record AccountRow(string Id, string Email, string Summary);
 
@@ -53,6 +66,9 @@ public sealed partial class AccountsViewModel : ObservableObject
     readonly LeafServices _services;
     readonly Action _accountsChanged;
 
+    // Cancels the sign-in waiting on the browser; null when none is
+    CancellationTokenSource? _signIn;
+
     /// <summary>Loads the account list. <paramref name="accountsChanged"/> runs after an add, sync, or disconnect (the main window reloads its calendars).</summary>
     public AccountsViewModel(LeafServices services, Action accountsChanged)
     {
@@ -76,6 +92,19 @@ public sealed partial class AccountsViewModel : ObservableObject
     /// <summary>True when no sign-in or sync is running.</summary>
     public bool IsNotBusy => !IsBusy;
 
+    /// <summary>True while an account is being added: signing in, then its first sync (the Add row's progress ring).</summary>
+    [ObservableProperty]
+    public partial bool IsAdding { get; set; }
+
+    /// <summary>True while Sync now runs (the Sync now row's progress ring).</summary>
+    [ObservableProperty]
+    public partial bool IsSyncing { get; set; }
+
+    /// <summary>True while a sign-in waits on the browser (it can be canceled; the sync after it can't).</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CancelSignInCommand))]
+    public partial bool IsSigningIn { get; set; }
+
     /// <summary>Status or error text, or null.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMessage))]
@@ -84,9 +113,16 @@ public sealed partial class AccountsViewModel : ObservableObject
     /// <summary>True when <see cref="Message"/> is set.</summary>
     public bool HasMessage => Message is not null;
 
-    /// <summary>True when <see cref="Message"/> reports a failure (shown as an error), false for progress.</summary>
+    /// <summary>What <see cref="Message"/> reports: progress, success, or a failure.</summary>
     [ObservableProperty]
-    public partial bool IsError { get; set; }
+    public partial AccountsMessageKind MessageKind { get; set; }
+
+    /// <summary>Clears the status message (a finished action's message is stale once the page is left).</summary>
+    public void ClearMessage()
+    {
+        Message     = null;
+        MessageKind = AccountsMessageKind.Progress;
+    }
 
     /// <summary>Reloads rows from the database.</summary>
     public void Refresh()
@@ -166,10 +202,12 @@ public sealed partial class AccountsViewModel : ObservableObject
     }
 
     // A failure the user can act on, shown as an error
-    void ShowFailure(string message)
+    void ShowFailure(string message) => Show(AccountsMessageKind.Error, message);
+
+    void Show(AccountsMessageKind kind, string message)
     {
-        IsError = true;
-        Message = message;
+        MessageKind = kind;
+        Message     = message;
     }
 
     [RelayCommand(CanExecute = nameof(IsNotBusy))]
@@ -180,25 +218,47 @@ public sealed partial class AccountsViewModel : ObservableObject
             return;
         }
 
-        IsBusy  = true;
-        IsError = false;
-        Message = "Finish signing in with Google in your browser.";
+        IsBusy   = true;
+        IsAdding = true;
+        Show(AccountsMessageKind.Progress, "Finish signing in with Google in your browser.");
         try
         {
             try
             {
-                var account = await google.CreateSignIn(_services.OpenSignInPageAsync).RunAsync(null, CancellationToken.None);
-                Message = $"Signed in as {account.Email}. Syncing…";
+                // Sign In (Cancel stops the wait on the browser)
+                Account account;
+                using (var signIn = new CancellationTokenSource())
+                {
+                    _signIn     = signIn;
+                    IsSigningIn = true;
+                    try
+                    {
+                        account = await google.CreateSignIn(_services.OpenSignInPageAsync).RunAsync(null, signIn.Token);
+                    }
+                    finally
+                    {
+                        IsSigningIn = false;
+                        _signIn     = null;
+                    }
+                }
+
+                Show(AccountsMessageKind.Progress, $"Signed in as {account.Email}. Syncing…");
 
                 // Sync Off The UI Thread; Property Updates Resume On It After The Await
                 await Task.Run(() => google.Sync.SyncAccountAsync(account.Id, CancellationToken.None));
-                Message = null;
+                Show(AccountsMessageKind.Success, $"Signed in as {account.Email}. Its calendars are in Leaf now.");
             }
             finally
             {
-                IsBusy = false;
+                IsBusy   = false;
+                IsAdding = false;
                 Reload();
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Canceled here: nothing was saved, so there's nothing to report
+            ClearMessage();
         }
         catch (SignInException ex)
         {
@@ -214,6 +274,10 @@ public sealed partial class AccountsViewModel : ObservableObject
         }
     }
 
+    /// <summary>Stops a sign-in that is waiting on the browser (nothing is saved); the page goes back to how it was.</summary>
+    [RelayCommand(CanExecute = nameof(IsSigningIn))]
+    public void CancelSignIn() => _signIn?.Cancel();
+
     [RelayCommand(CanExecute = nameof(IsNotBusy))]
     async Task SyncNowAsync()
     {
@@ -222,9 +286,9 @@ public sealed partial class AccountsViewModel : ObservableObject
             return;
         }
 
-        IsBusy  = true;
-        IsError = false;
-        Message = null;
+        IsBusy    = true;
+        IsSyncing = true;
+        ClearMessage();
         try
         {
             try
@@ -233,7 +297,8 @@ public sealed partial class AccountsViewModel : ObservableObject
             }
             finally
             {
-                IsBusy = false;
+                IsBusy    = false;
+                IsSyncing = false;
                 Reload();
             }
         }

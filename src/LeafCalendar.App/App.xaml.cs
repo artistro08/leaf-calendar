@@ -845,7 +845,12 @@ public partial class App : Application
         // async void: anything that escapes here would end the process
         try
         {
-            if (_services?.Google is { } google)
+            // Through The Calendar When It's Open, So Its Title Bar Shows The Sync Running
+            if (_calendar is { } calendar)
+            {
+                await calendar.SyncNowAsync();
+            }
+            else if (_services?.Google is { } google)
             {
                 await Task.Run(() => google.Sync.SyncAllAsync(refreshCalendarLists: true, CancellationToken.None));
             }

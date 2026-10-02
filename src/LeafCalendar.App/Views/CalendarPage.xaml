@@ -90,26 +90,37 @@
                     HorizontalAlignment="Right"
                     VerticalAlignment="Bottom" />
 
-                <!-- Notice ("Event deleted · Undo"; solid so the grid never shows through) -->
-                <InfoBar
-                    x:Name="NoticeBar"
+                <!-- Toasts (bottom center, solid so the grid never shows through): the hint while you mark times to share,
+                     then the notice ("Event deleted · Undo") -->
+                <StackPanel
                     Grid.Row="2"
                     Margin="0,0,0,16"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Bottom"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    IsClosable="True"
-                    Closed="OnNoticeClosed"
-                    AutomationProperties.LiveSetting="Polite"
-                    AutomationProperties.AutomationId="NoticeBar">
-                    <InfoBar.ActionButton>
-                        <Button
-                            x:Name="UndoButton"
-                            Content="Undo"
-                            Click="OnUndoClick"
-                            AutomationProperties.AutomationId="UndoButton" />
-                    </InfoBar.ActionButton>
-                </InfoBar>
+                    Spacing="8">
+                    <InfoBar
+                        x:Name="SharingHint"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        IsClosable="False"
+                        Message="Mark times that are available on your calendar"
+                        AutomationProperties.LiveSetting="Polite"
+                        AutomationProperties.AutomationId="SharingHint" />
+                    <InfoBar
+                        x:Name="NoticeBar"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        IsClosable="True"
+                        Closed="OnNoticeClosed"
+                        AutomationProperties.LiveSetting="Polite"
+                        AutomationProperties.AutomationId="NoticeBar">
+                        <InfoBar.ActionButton>
+                            <Button
+                                x:Name="UndoButton"
+                                Content="Undo"
+                                Click="OnUndoClick"
+                                AutomationProperties.AutomationId="UndoButton" />
+                        </InfoBar.ActionButton>
+                    </InfoBar>
+                </StackPanel>
                 <!-- /Notice -->
             </Grid>
             <!-- /Island -->

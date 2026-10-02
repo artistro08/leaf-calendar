@@ -199,7 +199,7 @@ public static class ShortcutSheet
         Margin     = new Thickness(0, first ? 0 : 16, 0, 4),
     };
 
-    // The action on the left, the keys on the right in a key cap
+    // The action on the left, the keys on the right, each on its own key cap (PowerToys' legend look)
     static Grid Row(string action, string keys, string automationId, Colors colors)
     {
         var grid = new Grid { MinHeight = 32, ColumnSpacing = 12 };
@@ -210,36 +210,22 @@ public static class ShortcutSheet
 
         grid.Children.Add(new TextBlock { Text = action, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap });
 
-        var cap = new Border
-        {
-            Child             = new TextBlock { Text = keys, FontSize = CaptionSize, Foreground = colors.CapText },
-            Background        = colors.CapFill,
-            BorderBrush       = colors.CapStroke,
-            BorderThickness   = new Thickness(1),
-            CornerRadius      = new CornerRadius(4),
-            Padding           = new Thickness(8, 2, 8, 2),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        Grid.SetColumn(cap, 1);
-        grid.Children.Add(cap);
+        // "Off" (a global shortcut that isn't set) is a word, not a key
+        UIElement legend = keys == "Off"
+            ? new TextBlock { Text = keys, FontSize = CaptionSize, Foreground = colors.Secondary, VerticalAlignment = VerticalAlignment.Center }
+            : ShortcutLegend.Build(keys, colors.Secondary);
+        Grid.SetColumn((FrameworkElement)legend, 1);
+        grid.Children.Add(legend);
 
         return grid;
     }
 
-    /// <summary>The sheet's code-built colors: LeafBrushes per theme, or the system's button colors in high contrast.</summary>
-    sealed record Colors(Brush CapFill, Brush CapStroke, Brush CapText, Brush Secondary)
+    /// <summary>The sheet's code-built colors: LeafBrushes per theme, or the system's text color in high contrast (the key caps take theirs from their style).</summary>
+    sealed record Colors(Brush Secondary)
     {
-        public static Colors For(bool dark)
-        {
-            if (!new AccessibilitySettings().HighContrast)
-            {
-                return new(LeafBrushes.Hover(dark), LeafBrushes.GridLine(dark), LeafBrushes.PrimaryText(dark), LeafBrushes.SecondaryText(dark));
-            }
-
-            var ui   = new UISettings();
-            var face = new SolidColorBrush(ui.UIElementColor(UIElementType.ButtonFace));
-            var text = new SolidColorBrush(ui.UIElementColor(UIElementType.ButtonText));
-            return new(face, text, text, new SolidColorBrush(ui.UIElementColor(UIElementType.WindowText)));
-        }
+        public static Colors For(bool dark) =>
+            new AccessibilitySettings().HighContrast
+                ? new(new SolidColorBrush(new UISettings().UIElementColor(UIElementType.WindowText)))
+                : new(LeafBrushes.SecondaryText(dark));
     }
 }

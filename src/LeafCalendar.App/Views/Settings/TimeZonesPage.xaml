@@ -30,7 +30,6 @@
                 <StackPanel>
                     <controls:SettingRow
                         Style="{StaticResource LeafExpanderItemRowStyle}"
-                        Padding="48,12,16,12"
                         BorderThickness="0"
                         Header="Use Windows time zone"
                         Description="Leaf follows your PC's time zone, so your calendar changes when you travel.">
@@ -43,7 +42,6 @@
                     </controls:SettingRow>
                     <controls:SettingRow
                         Style="{StaticResource LeafExpanderItemRowStyle}"
-                        Padding="48,12,16,12"
                         Header="Leaf's time zone">
                         <controls:TimeZoneComboBox
                             x:Name="PrimaryZoneBox"
@@ -56,7 +54,6 @@
                     </controls:SettingRow>
                     <controls:SettingRow
                         Style="{StaticResource LeafExpanderItemRowStyle}"
-                        Padding="48,12,16,12"
                         Header="Ask when my PC's time zone changes"
                         Description="Leaf offers to switch when you travel.">
                         <ToggleSwitch

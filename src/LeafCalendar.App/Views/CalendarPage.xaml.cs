@@ -107,6 +107,7 @@ public sealed partial class CalendarPage : Page
 
         Sidebar.Attach(ViewModel);
         Details.Attach(ViewModel);
+        Details.ShortcutsRequested += OnShortcutsRequested;
         ViewModel.PropertyChanged      += OnViewModelPropertyChanged;
         ViewModel.LayoutChanged        += OnLayoutChanged;
         ViewModel.CalendarsChanged     += OnCalendarsChanged;
@@ -152,10 +153,24 @@ public sealed partial class CalendarPage : Page
         _editorFromE = false;
         Sidebar.Detach();
         Details.Detach();
+        Details.ShortcutsRequested -= OnShortcutsRequested;
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _view?.Dispose();
         _view = null;
         ViewHost.Children.Clear();
+    }
+
+    /// <summary>
+    /// Opacity of the window's chrome while another window is active: the stock title bar's own
+    /// <c>TitleBarDeactivatedOpacity</c>, so the period title and the sidebar dim with the title bar's icons.
+    /// </summary>
+    public const double InactiveOpacity = 0.5;
+
+    /// <summary>Dims the period title and the sidebar while the window isn't the active one, like the title bar does.</summary>
+    public void SetWindowActive(bool active)
+    {
+        PeriodTitle.Opacity = active ? 1 : InactiveOpacity;
+        Sidebar.SetWindowActive(active);
     }
 
     /// <summary>Shows or hides the sidebar (sliding when <paramref name="animate"/>) and remembers the choice.</summary>
@@ -263,6 +278,9 @@ public sealed partial class CalendarPage : Page
     }
 
     void OnDetailsOpenRequested(object? sender, EventArgs e) => SetDetailsOpen(true, animate: true);
+
+    // The details panel's keyboard button: the same cheat sheet as ?
+    void OnShortcutsRequested(object? sender, EventArgs e) => RunCommand(CalendarCommand.ShortcutSheet);
 
     // A tap on empty calendar space clears the selection and ends an edit (events and chips mark their own taps handled)
     void OnViewHostTapped(object sender, TappedRoutedEventArgs e) => ViewModel.ClearSelection();
@@ -608,20 +626,18 @@ public sealed partial class CalendarPage : Page
     // How many days the last view showed (a month counts as 35), to tell drilling in from zooming out
     int _viewSpan;
 
-    // The drill waiting for the new view to settle: its direction, the frames it has waited, and whether a layout
-    // pass ran since the last frame
-    float? _drillFrom;
-    int _drillFrames;
-    bool _drillDirty;
+    // The drill: fewer days than before drill in (the view grows from 95%), more zoom out (it settles from 105%), the way
+    // Windows moves into and out of a level, with a quick fade up from half
+    const float DrillInFrom      = 0.95f;
+    const float ZoomOutFrom      = 1.05f;
+    const float DrillFadeFrom    = 0.5f;
+    static readonly TimeSpan DrillDuration = TimeSpan.FromMilliseconds(167);
+    static readonly TimeSpan FadeDuration  = TimeSpan.FromMilliseconds(117);
 
-    // Most frames the drill waits for the view to settle (a view that keeps laying out still animates in)
-    const int MaxDrillWait = 20;
-
-    // Fewer days than before drill in (the view grows from 92% as it fades in), more zoom out (it settles from 108%),
-    // the way Windows moves into and out of a level. Only a change of span animates (a layout change that keeps it,
-    // like the hour zoom, doesn't). The new view is hidden until its first layout passes are done (the columns
-    // taking their width, the scroll to the morning, the events), so it never shows them snapping into place; then
-    // the drill runs on the compositor
+    // Only a change of span animates (a layout change that keeps it, like the hour zoom, doesn't). It starts at once:
+    // the view switch lays the new view out on its new days directly (CalendarViewModel.SwitchingTo), so there's no
+    // scroll to wait out and nothing is hidden first; a brand-new time grid keeps itself hidden only until its first
+    // layout lands (TimeGridView), which the fade covers
     void DrillIntoView()
     {
         var span = ViewModel.Mode == Core.Settings.CalendarViewMode.Month ? 35 : ViewModel.VisibleColumns;
@@ -632,56 +648,24 @@ public sealed partial class CalendarPage : Page
             return;
         }
 
-        // Hidden Until Settled
-        var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(ViewHost);
-        visual.StopAnimation("Opacity");
-        visual.StopAnimation("Scale");
-        visual.Opacity = 0;
-
-        var waiting = _drillFrom is not null;
-        _drillFrom   = span < was ? 0.92f : 1.08f;
-        _drillFrames = 0;
-        _drillDirty  = true;
-        if (waiting)
-        {
-            return;
-        }
-
-        ViewHost.LayoutUpdated      += OnDrillLayout;
-        CompositionTarget.Rendering += OnDrillFrame;
-    }
-
-    void OnDrillLayout(object? sender, object e) => _drillDirty = true;
-
-    // Waits for a frame with no layout pass before it (or MaxDrillWait frames), then drills
-    void OnDrillFrame(object? sender, object e)
-    {
-        if (_drillDirty && ++_drillFrames < MaxDrillWait)
-        {
-            _drillDirty = false;
-            return;
-        }
-
-        ViewHost.LayoutUpdated      -= OnDrillLayout;
-        CompositionTarget.Rendering -= OnDrillFrame;
-        var from = _drillFrom ?? 1;
-        _drillFrom = null;
-
+        var from       = span < was ? DrillInFrom : ZoomOutFrom;
         var visual     = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(ViewHost);
         var compositor = visual.Compositor;
         var easing     = compositor.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.1f, 0.9f), new System.Numerics.Vector2(0.2f, 1));
+        visual.StopAnimation("Opacity");
+        visual.StopAnimation("Scale");
         visual.CenterPoint = new System.Numerics.Vector3((float)ViewHost.ActualWidth / 2, (float)ViewHost.ActualHeight / 2, 0);
 
         var scale = compositor.CreateVector3KeyFrameAnimation();
         scale.InsertKeyFrame(0, new System.Numerics.Vector3(from, from, 1));
         scale.InsertKeyFrame(1, System.Numerics.Vector3.One, easing);
-        scale.Duration = TimeSpan.FromMilliseconds(300);
+        scale.Duration = DrillDuration;
         visual.StartAnimation("Scale", scale);
 
         var fade = compositor.CreateScalarKeyFrameAnimation();
-        fade.InsertKeyFrame(0, 0);
+        fade.InsertKeyFrame(0, DrillFadeFrom);
         fade.InsertKeyFrame(1, 1, easing);
-        fade.Duration = TimeSpan.FromMilliseconds(200);
+        fade.Duration = FadeDuration;
         visual.StartAnimation("Opacity", fade);
     }
 

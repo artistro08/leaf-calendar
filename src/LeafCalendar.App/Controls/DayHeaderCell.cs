@@ -16,7 +16,8 @@ public sealed partial class DayHeaderCell : Grid
     readonly TextBlock _weekday = new() { FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center };
     readonly TextBlock _number = new() { FontSize = 20, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     readonly Border _circle = new() { Width = 34, Height = 34, CornerRadius = new CornerRadius(17), HorizontalAlignment = HorizontalAlignment.Center };
-    readonly Rectangle _divider = new() { Width = 1, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom, Height = 14 };
+    // The day's left edge, the full header height, so it meets the all-day row's divider and the column's below it
+    readonly Rectangle _divider = new() { Width = 1, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Stretch };
 
     /// <summary>Creates a header owned by <paramref name="owner"/>.</summary>
     public DayHeaderCell(TimeGridView owner)

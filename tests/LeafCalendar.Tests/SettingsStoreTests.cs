@@ -33,6 +33,7 @@ public sealed class SettingsStoreTests : IDisposable
             WorkingHours          = new WorkingHours { Enabled = false, StartMinute = 8 * 60, EndMinute = 18 * 60, Days = [DayOfWeek.Sunday, DayOfWeek.Wednesday] },
             MapProvider           = MapProvider.Bing,
             MeetByDefaultAccounts = ["acct1"],
+            CollapsedAccounts     = ["acct2"],
         };
 
         SettingsStore.Save(conn, saved);
@@ -44,6 +45,7 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal([DayOfWeek.Sunday, DayOfWeek.Wednesday], loaded.WorkingHours.Days);
         Assert.Equal(MapProvider.Bing, loaded.MapProvider);
         Assert.Equal(["acct1"], loaded.MeetByDefaultAccounts);
+        Assert.Equal(["acct2"], loaded.CollapsedAccounts);
     }
 
     [Fact]

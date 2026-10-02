@@ -60,7 +60,7 @@ public class TimeZoneCatalogTests
     {
         var choice = TimeZoneCatalog.Search("tokyo", Now)[0];
 
-        Assert.StartsWith("Tokyo (UTC+9", choice.ToString(), StringComparison.Ordinal);
+        Assert.StartsWith("Tokyo (JST · ", choice.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]
