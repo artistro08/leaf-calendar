@@ -107,6 +107,7 @@
                             </Button>
                             <controls:PinnedListView
                                 Visibility="{x:Bind IsExpanded, Mode=OneWay}"
+                                SizeChanged="OnCalendarListSizeChanged"
                                 ItemsSource="{x:Bind Calendars}"
                                 SelectionMode="None"
                                 ScrollViewer.VerticalScrollMode="Disabled"
@@ -172,37 +173,46 @@
         </ScrollViewer>
         <!-- /Calendars -->
 
-        <!-- Footer -->
-        <StackPanel
-            x:Name="Footer"
-            Grid.Row="2"
-            Orientation="Horizontal"
-            Spacing="4"
-            HorizontalAlignment="Left">
-            <!-- Settings (bottom-left corner; the glyph starts 8 in on its 32-wide button, so a 1 px margin puts it on the shared 9 px edge,
-                 and its center sits 22 px from both the left and the bottom edges) -->
-            <Button
-                Margin="1,8,0,0"
-                Style="{StaticResource LeafBareIconButtonStyle}"
-                Click="OnSettingsClick"
-                ToolTipService.ToolTip="Settings"
-                AutomationProperties.Name="Settings"
-                AutomationProperties.AutomationId="SettingsButton">
-                <FontIcon Glyph="&#xE713;" FontSize="16" />
-            </Button>
+        <!-- Footer (Settings and Share availability on the left, Keyboard shortcuts on the right) -->
+        <Grid x:Name="Footer" Grid.Row="2">
+            <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Left">
+                <!-- Settings (bottom-left corner; the glyph starts 8 in on its 32-wide button, so a 1 px margin puts it on the shared 9 px edge,
+                     and its center sits 22 px from both the left and the bottom edges) -->
+                <Button
+                    Margin="1,8,0,0"
+                    Style="{StaticResource LeafBareIconButtonStyle}"
+                    Click="OnSettingsClick"
+                    ToolTipService.ToolTip="Settings"
+                    AutomationProperties.Name="Settings"
+                    AutomationProperties.AutomationId="SettingsButton">
+                    <FontIcon Glyph="&#xE713;" FontSize="16" />
+                </Button>
 
-            <!-- Share Availability (spec 6.3; Task 8 makes it work; bare like Settings so the pair matches) -->
+                <!-- Share Availability (bare like Settings so the pair matches) -->
+                <Button
+                    x:Name="ShareButton"
+                    Margin="0,8,0,0"
+                    Style="{StaticResource LeafBareIconButtonStyle}"
+                    Click="OnShareClick"
+                    ToolTipService.ToolTip="Share availability (S)"
+                    AutomationProperties.Name="Share availability"
+                    AutomationProperties.AutomationId="SidebarShareAvailability">
+                    <FontIcon Glyph="&#xE72D;" FontSize="16" />
+                </Button>
+            </StackPanel>
+
+            <!-- Keyboard Shortcuts (bottom-right corner, mirroring Settings: its center 22 px from the right and the bottom) -->
             <Button
-                x:Name="ShareButton"
-                Margin="0,8,0,0"
+                Margin="0,8,1,0"
+                HorizontalAlignment="Right"
                 Style="{StaticResource LeafBareIconButtonStyle}"
-                Click="OnShareClick"
-                ToolTipService.ToolTip="Share availability (S)"
-                AutomationProperties.Name="Share availability"
-                AutomationProperties.AutomationId="SidebarShareAvailability">
-                <FontIcon Glyph="&#xE72D;" FontSize="16" />
+                Click="OnShortcutsClick"
+                ToolTipService.ToolTip="Keyboard shortcuts (?)"
+                AutomationProperties.Name="Keyboard shortcuts"
+                AutomationProperties.AutomationId="SidebarShortcutsButton">
+                <FontIcon Glyph="&#xE765;" FontSize="16" />
             </Button>
-        </StackPanel>
+        </Grid>
         <!-- /Footer -->
     </Grid>
 </UserControl>

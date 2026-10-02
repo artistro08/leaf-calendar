@@ -48,7 +48,7 @@ public static class ShortcutSheet
     }
 
     /// <summary>
-    /// The main window's sheet: a floating card for the right side of the calendar view (like PowerToys' shortcut
+    /// The main window's sheet: a floating card for the left side of the calendar view (like PowerToys' shortcut
     /// guide), with a title, a close button, the filter box, and the list filling the rest of its height. Esc or ?
     /// (even while typing in the filter) calls <paramref name="close"/>; so does the close button. The caller places it,
     /// gives it its shadow, and focuses the filter box (returned).

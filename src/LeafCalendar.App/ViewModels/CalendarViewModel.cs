@@ -146,7 +146,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         // "Today" Is The Date In The Zone On Screen, Not The PC Clock's
         _applied = Zone;
         Today    = services.Options.StartDate ?? LocalDate(Now);
-        Cache    = new EventWindowCache(LoadAsync, Zone);
+        Cache    = new EventWindowCache(LoadAsync, Zone, DrawnFirst);
         Cache.Changed += (_, _) =>
         {
             // The Data Changed: one calendar's upcoming list is read again
@@ -338,6 +338,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // One Sync At A Time: a second ask while one runs is the same sync
+        if (IsSyncing)
+        {
+            return;
+        }
+
         _syncsRunning++;
         IsSyncing = true;
         try
@@ -358,6 +364,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
 
         await RefreshAsync();
+    }
+
+    // Which copy of a shared event is drawn: one you can edit, then one on the main account (lower is drawn first)
+    int DrawnFirst(CalendarOccurrence copy)
+    {
+        var editable = Calendars.Any(c => c.AccountId == copy.AccountId && c.Id == copy.CalendarId && c.AccessRole is "owner" or "writer");
+        return (editable ? 0 : 2) + (copy.AccountId == Settings.MainAccountId ? 0 : 1);
     }
 
     /// <summary>True while a reload updates the selection (not the user picking an event), so the details panel isn't opened for it.</summary>
@@ -649,6 +662,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// </summary>
     public void Select(CalendarOccurrence occurrence)
     {
+        // A Shared Event's Other Copies Select The One Drawn, So Its Card Highlights
+        occurrence = Cache.Drawn(occurrence);
         if (Editing is { } editing && editing.Occurrence?.Key != occurrence.Key)
         {
             CancelEdit();
@@ -1267,7 +1282,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         try
         {
             // Only this account may come back; another Google user is never saved
-            await google.CreateSignIn(_services.OpenSignInPageAsync).RunAsync(email, accountId, CancellationToken.None);
+            await _services.SignInAsync(google, email, accountId, CancellationToken.None);
         }
         catch (WrongAccountException ex)
         {

@@ -199,7 +199,9 @@ public sealed class SignInFlowTests : IDisposable
 
         _time.Advance(SignInFlow.Timeout);
 
-        var error = await Assert.ThrowsAsync<SignInException>(() => run);
+        // Its own type, so the app can tell a sign-in nobody finished from one the browser came back from
+        var error = await Assert.ThrowsAsync<SignInTimeoutException>(() => run);
         Assert.Equal("Sign-in timed out. Try again.", error.Message);
+        Assert.IsAssignableFrom<SignInException>(error);
     }
 }

@@ -272,7 +272,7 @@ public sealed partial class CalendarPage
     Border? _sheet;
     DependencyObject? _beforeSheet;
 
-    // ?: the cheat sheet as a panel at the right of the calendar view, over it (? again, Esc, or its close button closes it)
+    // ?: the cheat sheet as a panel at the left of the calendar view, over it (? again, Esc, or its close button closes it)
     void ShowShortcutSheet()
     {
         if (_sheet is not null)
@@ -282,7 +282,7 @@ public sealed partial class CalendarPage
         }
 
         var (panel, filter) = ShortcutSheet.Panel(this, ViewModel.Settings, CloseShortcutSheet);
-        panel.HorizontalAlignment = HorizontalAlignment.Right;
+        panel.HorizontalAlignment = HorizontalAlignment.Left;
         panel.Margin              = new Thickness(16);
         Grid.SetRow(panel, 2);
         Float(panel);
@@ -314,14 +314,15 @@ public sealed partial class CalendarPage
 
     // Lifts a floating card (the cheat sheet) over the calendar view: raised 32 like a flyout, its
     // shadow falling on the view
-    // The sheet flies in from the right: it starts just past the island's right edge, which the island clips at, so it
-    // comes out from behind the details panel when that's open (or from the window's edge), and goes back the same way
+    // The sheet flies in from the left, like the keyboard buttons it opens from: it starts just past the island's left
+    // edge, which the island clips at, so it comes out from behind the sidebar when that's open (or from the window's
+    // edge), and goes back the same way
     static readonly TimeSpan SheetSlide = TimeSpan.FromMilliseconds(250);
 
     void SlideSheet(Border sheet, bool show)
     {
         var lift  = sheet.Translation.Z;
-        var away  = new System.Numerics.Vector3((float)(ShortcutSheet.PanelWidth + sheet.Margin.Right), 0, lift);
+        var away  = new System.Numerics.Vector3(-(float)(ShortcutSheet.PanelWidth + sheet.Margin.Left), 0, lift);
         var home  = new System.Numerics.Vector3(0, 0, lift);
         if (!new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
         {

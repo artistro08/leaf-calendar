@@ -132,7 +132,7 @@ public sealed partial class AccountsViewModel : ObservableObject
 
         foreach (var account in AccountStore.GetAll(conn))
         {
-            var calendars = CalendarStore.GetForAccount(conn, account.Id);
+            var calendars = CalendarStore.GetForAccount(conn, account.Id).Where(c => !c.Hidden).ToList();
             var events    = calendars.Sum(c => EventStore.Count(conn, account.Id, c.Id));
             var summary   = account.Status == AccountStatus.NeedsSignIn
                 ? "Needs sign-in"
@@ -221,6 +221,9 @@ public sealed partial class AccountsViewModel : ObservableObject
         IsBusy   = true;
         IsAdding = true;
         Show(AccountsMessageKind.Progress, "Finish signing in with Google in your browser.");
+
+        // Cancel's own token (still readable after its source is disposed), so only Cancel counts as canceled
+        CancellationToken canceled = default;
         try
         {
             try
@@ -229,11 +232,12 @@ public sealed partial class AccountsViewModel : ObservableObject
                 Account account;
                 using (var signIn = new CancellationTokenSource())
                 {
+                    canceled    = signIn.Token;
                     _signIn     = signIn;
                     IsSigningIn = true;
                     try
                     {
-                        account = await google.CreateSignIn(_services.OpenSignInPageAsync).RunAsync(null, signIn.Token);
+                        account = await _services.SignInAsync(google, null, null, signIn.Token);
                     }
                     finally
                     {
@@ -242,7 +246,8 @@ public sealed partial class AccountsViewModel : ObservableObject
                     }
                 }
 
-                Show(AccountsMessageKind.Progress, $"Signed in as {account.Email}. Syncing…");
+                // Signed In: a success already, while the first sync runs
+                Show(AccountsMessageKind.Success, $"Signed in as {account.Email}. Syncing…");
 
                 // Sync Off The UI Thread; Property Updates Resume On It After The Await
                 await Task.Run(() => google.Sync.SyncAccountAsync(account.Id, CancellationToken.None));
@@ -255,9 +260,9 @@ public sealed partial class AccountsViewModel : ObservableObject
                 Reload();
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (canceled.IsCancellationRequested)
         {
-            // Canceled here: nothing was saved, so there's nothing to report
+            // Canceled With Cancel: nothing was saved, so there's nothing to report (a timeout falls through to the failure below)
             ClearMessage();
         }
         catch (SignInException ex)

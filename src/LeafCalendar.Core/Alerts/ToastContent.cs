@@ -24,9 +24,10 @@ public sealed record ToastMessage(string Tag, string Group, string Xml);
 /// an event goes into a tag or into activation arguments (those carry IDs only).
 /// </para>
 /// <para>
-/// Reminders carry Join (when there's a link), Windows' own Snooze with a 5/10/15/30-minute choice, and Dismiss.
-/// "Join now" uses <c>scenario="reminder"</c>, so it stays on screen, with a background-activated Join button (which
-/// Windows requires for that scenario) and Dismiss, and no Snooze. Invites carry Yes / No / Maybe. Clicking a
+/// Reminders and "Join now" use <c>scenario="reminder"</c>, like other calendar apps, so they stay on screen until
+/// acted on and show through Do Not Disturb when Windows allows reminders. Reminders carry Join (when there's a link),
+/// Windows' own Snooze with a 5/10/15/30-minute choice, and Dismiss; "Join now" a background-activated Join button
+/// (Windows requires a button for that scenario) and Dismiss, and no Snooze. Invites carry Yes / No / Maybe. Clicking a
 /// notification's body opens what it's about. With sound off, the toast is silent.
 /// </para>
 /// </remarks>
@@ -83,7 +84,7 @@ public static class ToastContent
         actions.Add(SystemButton("snooze", SnoozeInputId));
         actions.Add(SystemButton("dismiss"));
 
-        return Build(alert.Tag, ReminderGroup, ToastArgs.For(ToastAction.Open, profile, o), null, [details.Title, when, details.Location], actions, sound);
+        return Build(alert.Tag, ReminderGroup, ToastArgs.For(ToastAction.Open, profile, o), "reminder", [details.Title, when, details.Location], actions, sound);
     }
 
     /// <summary>The persistent "Join now": title and "Starting now &#x00B7; time"; Join and Dismiss.</summary>

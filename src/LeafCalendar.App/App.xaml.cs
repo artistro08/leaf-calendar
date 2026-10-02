@@ -108,6 +108,9 @@ public partial class App : Application
         _services   = services;
         _dispatcher = DispatcherQueue.GetForCurrentThread();
 
+        // Back From Sign-In In The Browser: the window that asked comes to the front
+        services.SignInReturned += (_, _) => _dispatcher.TryEnqueue(BringSignInWindowToFront);
+
         // Detailed Logging (Settings › About) Starts With The Saved Choice
         _log.Detailed = CurrentSettings().DetailedLogging;
         CrashDump.Install(_log, Path.GetRelativePath(localFolder, _log.Directory));
@@ -400,6 +403,24 @@ public partial class App : Application
             _probeTimer.IsRepeating = false;
             _probeTimer.Tick       += (_, _) => _window?.Close();
             _probeTimer.Start();
+        }
+    }
+
+    // A sign-in starts in onboarding, Settings › Accounts, or the main window (allowing contact suggestions): whichever is
+    // showing comes back when the browser is done
+    void BringSignInWindowToFront()
+    {
+        if (_onboarding is { } onboarding)
+        {
+            onboarding.BringToFront();
+        }
+        else if (SettingsWindow.Current is { } settings)
+        {
+            settings.BringToFront();
+        }
+        else
+        {
+            _window?.BringToFront();
         }
     }
 

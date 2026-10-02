@@ -232,7 +232,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         SetBusy(true);
         try
         {
-            _account = await google.CreateSignIn(_services.OpenSignInPageAsync).RunAsync(null, signIn.Token);
+            _account = await _services.SignInAsync(google, null, null, signIn.Token);
         }
         catch (Exception) when (signIn.IsCancellationRequested)
         {
@@ -364,7 +364,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     (int Calendars, int Events, AccountStatus Status) Counts(string accountId)
     {
         using var conn = _services.Database.Open();
-        var calendars = CalendarStore.GetForAccount(conn, accountId);
+        var calendars = CalendarStore.GetForAccount(conn, accountId).Where(c => !c.Hidden).ToList();
         var events    = calendars.Sum(c => EventStore.Count(conn, accountId, c.Id));
         var status    = AccountStore.GetAll(conn).FirstOrDefault(a => a.Id == accountId)?.Status ?? AccountStatus.NeedsSignIn;
         return (calendars.Count, events, status);

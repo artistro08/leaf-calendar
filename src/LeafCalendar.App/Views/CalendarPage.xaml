@@ -90,9 +90,10 @@
                     HorizontalAlignment="Right"
                     VerticalAlignment="Bottom" />
 
-                <!-- Toasts (bottom center, solid so the grid never shows through): the hint while you mark times to share,
-                     then the notice ("Event deleted · Undo") -->
+                <!-- Toasts (bottom center, solid so the grid never shows through): the people overlay's bar (added in code),
+                     the hint while you mark times to share, then the notice ("Event deleted · Undo") -->
                 <StackPanel
+                    x:Name="Toasts"
                     Grid.Row="2"
                     Margin="0,0,0,16"
                     HorizontalAlignment="Center"
@@ -146,6 +147,23 @@
             <!-- /Empty State -->
         </Grid>
         <!-- /Island Area -->
+
+        <!-- Keyboard Shortcuts While The Sidebar Is Closed (where the sidebar's footer would be: the window's bottom-left
+             corner, its glyph centered 22 px from the left and the bottom like the sidebar's Settings) -->
+        <Button
+            x:Name="ShortcutsCornerButton"
+            Canvas.ZIndex="2"
+            Margin="6,0,0,6"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Bottom"
+            Style="{StaticResource LeafBareIconButtonStyle}"
+            Visibility="Collapsed"
+            Click="OnShortcutsClick"
+            ToolTipService.ToolTip="Keyboard shortcuts (?)"
+            AutomationProperties.Name="Keyboard shortcuts"
+            AutomationProperties.AutomationId="CornerShortcutsButton">
+            <FontIcon Glyph="&#xE765;" FontSize="16" />
+        </Button>
 
         <!-- Details Pane (the details panel, or the share slots while sharing availability) -->
         <Grid x:Name="DetailsPane" Canvas.ZIndex="2" Width="320" HorizontalAlignment="Right">

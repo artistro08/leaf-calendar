@@ -107,7 +107,7 @@ public sealed partial class CalendarPage : Page
 
         Sidebar.Attach(ViewModel);
         Details.Attach(ViewModel);
-        Details.ShortcutsRequested += OnShortcutsRequested;
+        Sidebar.ShortcutsRequested += OnShortcutsRequested;
         ViewModel.PropertyChanged      += OnViewModelPropertyChanged;
         ViewModel.LayoutChanged        += OnLayoutChanged;
         ViewModel.CalendarsChanged     += OnCalendarsChanged;
@@ -153,7 +153,7 @@ public sealed partial class CalendarPage : Page
         _editorFromE = false;
         Sidebar.Detach();
         Details.Detach();
-        Details.ShortcutsRequested -= OnShortcutsRequested;
+        Sidebar.ShortcutsRequested -= OnShortcutsRequested;
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _view?.Dispose();
         _view = null;
@@ -170,9 +170,10 @@ public sealed partial class CalendarPage : Page
     public void SetWindowActive(bool active)
     {
         var opacity = active ? 1 : InactiveOpacity;
-        PeriodTitle.Opacity = opacity;
-        Details.Opacity     = opacity;
-        _slotsPanel?.Opacity = opacity;
+        PeriodTitle.Opacity           = opacity;
+        Details.Opacity               = opacity;
+        ShortcutsCornerButton.Opacity = opacity;
+        _slotsPanel?.Opacity          = opacity;
         Sidebar.SetWindowActive(active);
     }
 
@@ -208,6 +209,12 @@ public sealed partial class CalendarPage : Page
     // Slides the pane (CalendarPage.Panes.cs) and reports the change so the title bar can follow
     void SetPaneOpen(bool sidebar, bool open, bool animate)
     {
+        // With the sidebar closed, its keyboard button stands in the window's bottom-left corner instead
+        if (sidebar)
+        {
+            ShortcutsCornerButton.Visibility = open ? Visibility.Collapsed : Visibility.Visible;
+        }
+
         // The title bar (toolbar, search icon) follows once the slide starts, so it moves with the island and not ahead of it
         SlidePane(sidebar, open, animate, () => PanesChanged?.Invoke(this, new PanesChangedEventArgs(animate, open)));
 
@@ -282,8 +289,10 @@ public sealed partial class CalendarPage : Page
 
     void OnDetailsOpenRequested(object? sender, EventArgs e) => SetDetailsOpen(true, animate: true);
 
-    // The details panel's keyboard button: the same cheat sheet as ?
+    // The keyboard buttons (the sidebar's, or the window's bottom-left one while it's closed): the same cheat sheet as ?
     void OnShortcutsRequested(object? sender, EventArgs e) => RunCommand(CalendarCommand.ShortcutSheet);
+
+    void OnShortcutsClick(object sender, RoutedEventArgs e) => RunCommand(CalendarCommand.ShortcutSheet);
 
     // A tap on empty calendar space clears the selection and ends an edit (events and chips mark their own taps handled)
     void OnViewHostTapped(object sender, TappedRoutedEventArgs e) => ViewModel.ClearSelection();

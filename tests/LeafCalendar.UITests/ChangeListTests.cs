@@ -147,30 +147,57 @@ public sealed class ChangeListTests : IDisposable
     }
 
     // =========================================================================
-    // DETAILS PANEL
+    // KEYBOARD SHORTCUTS BUTTON AND DETAILS PANEL
     // =========================================================================
 
     [Fact]
-    public void KeyboardButton_ShowsWithNothingSelected_AndOpensTheCheatSheet()
+    public void KeyboardButton_IsInTheSidebarsBottomRight_AndOpensTheCheatSheet()
     {
         using var leaf = Launch();
 
-        var button = leaf.WaitFor("DetailsShortcutsButton");
+        var button  = leaf.WaitFor("SidebarShortcutsButton");
+        var sidebar = leaf.WaitFor("Sidebar").BoundingRectangle;
+        var box     = button.BoundingRectangle;
         Assert.Equal("Keyboard shortcuts", button.Name);
-        button.AsButton().Invoke();
+        Assert.True(sidebar.Right - box.Right < box.Width, "The keyboard button isn't at the sidebar's right edge.");
+        Assert.True(sidebar.Bottom - box.Bottom < box.Height, "The keyboard button isn't at the sidebar's bottom.");
+        Assert.False(Shows(leaf, "CornerShortcutsButton"), "The corner button shows with the sidebar open.");
 
+        button.AsButton().Invoke();
         Assert.NotNull(leaf.WaitForAnywhere("ShortcutSheet"));
     }
 
     [Fact]
-    public void SelectedEvent_HidesTheKeyboardButton_AndListsItsShortcuts()
+    public void KeyboardButton_SidebarClosed_StandsInTheWindowsBottomLeftCorner()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("AppTitleBar").FindFirstDescendant(cf => cf.ByAutomationId("PART_PaneToggleButton"))!.AsButton().Invoke();
+        Assert.True(Retry.WhileFalse(() => Shows(leaf, "CornerShortcutsButton"), Wait).Success, "No corner keyboard button with the sidebar closed.");
+
+        var window = leaf.MainWindow.BoundingRectangle;
+        var corner = leaf.WaitFor("CornerShortcutsButton").BoundingRectangle;
+        Assert.True(corner.Left - window.Left < 3 * corner.Width && window.Bottom - corner.Bottom < 3 * corner.Height, "The corner button isn't at the bottom left.");
+    }
+
+    [Fact]
+    public void SelectedEvent_ListsItsShortcuts()
     {
         using var leaf = Launch();
         leaf.WaitFor("Event_evt-single_202610011300").Click();
 
-        Assert.True(Retry.WhileFalse(() => !Shows(leaf, "DetailsShortcutsButton"), Wait).Success, "The keyboard button stayed with an event selected.");
         var hints = leaf.WaitFor("DetailsShortcuts");
         Assert.True(Retry.WhileFalse(() => hints.FindFirstDescendant(cf => cf.ByName("Select / deselect: X")) is not null, Wait).Success, "No shortcut hints under the event.");
+    }
+
+    [Fact]
+    public void NothingComingUp_ShowsDoneForToday()
+    {
+        // Late in the day after the seeded events, with nothing in the next 8 hours
+        using var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01 --now 2026-10-01T23:30:00-04:00");
+        leaf.WaitFor($"CalendarToggle_{FamilyId}");
+
+        Assert.True(Retry.WhileFalse(() => Shows(leaf, "UpcomingEmpty"), Wait).Success, "No empty state with nothing coming up.");
+        Assert.Equal("Done for today", leaf.WaitFor("UpcomingEmptyTitle").Name);
     }
 
     // =========================================================================

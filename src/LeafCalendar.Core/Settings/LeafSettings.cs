@@ -291,9 +291,13 @@ public sealed record LeafSettings
             SettingsWindowSize    = SettingsWindowSize?.Clean(),
             MeetByDefaultAccounts = Keep(MeetByDefaultAccounts, CleanAccounts(MeetByDefaultAccounts)),
             CollapsedAccounts     = Keep(CollapsedAccounts, CleanAccounts(CollapsedAccounts)),
-            ShareMessage          = ShareMessage is null ? AvailabilityText.DefaultMessage : ShareMessage[..Math.Min(ShareMessage.Length, AvailabilityText.MaxMessageLength)],
+            ShareMessage          = ShareMessage is null ? AvailabilityText.DefaultMessage : Clip(ShareMessage, AvailabilityText.MaxMessageLength),
         };
     }
+
+    // Cuts text to a length without splitting a surrogate pair (an emoji at the limit is dropped whole)
+    static string Clip(string text, int max) =>
+        text.Length <= max ? text : text[..(char.IsHighSurrogate(text[max - 1]) ? max - 1 : max)];
 
     /// <summary>
     /// Returns a copy without the per-account choices of accounts no longer connected (the main account, Meet by

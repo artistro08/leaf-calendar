@@ -66,10 +66,14 @@ public sealed partial class DetailsPanel : UserControl
 
     void OnUpcomingChanged(object? sender, NotifyCollectionChangedEventArgs e) => UpdateUpcomingEmpty();
 
+    // Nothing coming up: "Done for today" centered in the panel (or, for one calendar's list, that it's quiet), only while
+    // the upcoming list is what the panel shows
     void UpdateUpcomingEmpty()
     {
-        UpcomingEmpty.Visibility = _vm?.Upcoming.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
-        UpcomingEmpty.Text       = _vm?.UpcomingCalendar is null
+        var showing = ContentScroll.Visibility == Visibility.Visible && UpcomingView.Visibility == Visibility.Visible;
+        UpcomingEmpty.Visibility = showing && _vm?.Upcoming.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpcomingEmptyTitle.Text  = _vm?.UpcomingCalendar is null ? "Done for today" : "All clear";
+        UpcomingEmptyDetail.Text = _vm?.UpcomingCalendar is null
             ? string.Create(CultureInfo.InvariantCulture, $"Nothing in the next {_vm?.UpcomingHours ?? 8} hours.")
             : "Nothing in the next 30 days.";
     }
@@ -133,8 +137,8 @@ public sealed partial class DetailsPanel : UserControl
             }
 
             var view = EditorView!;
-            ContentScroll.Visibility   = Visibility.Collapsed;
-            ShortcutsButton.Visibility = Visibility.Collapsed;
+            ContentScroll.Visibility = Visibility.Collapsed;
+            UpdateUpcomingEmpty();
             view.Visibility            = Visibility.Visible;
 
             // A new editor starts at the top (a refresh behind an open editor keeps the scroll position)
@@ -155,10 +159,10 @@ public sealed partial class DetailsPanel : UserControl
         {
             EditorView?.Detach();
             EditorView?.Visibility  = Visibility.Collapsed;
-            UpcomingView.Visibility    = Visibility.Collapsed;
-            DetailsView.Visibility     = Visibility.Collapsed;
-            ShortcutsButton.Visibility = Visibility.Collapsed;
-            SelectionSummary.Text      = string.Create(CultureInfo.InvariantCulture, $"{count} events selected");
+            UpcomingView.Visibility = Visibility.Collapsed;
+            DetailsView.Visibility  = Visibility.Collapsed;
+            SelectionSummary.Text   = string.Create(CultureInfo.InvariantCulture, $"{count} events selected");
+            UpdateUpcomingEmpty();
             return;
         }
 
@@ -173,9 +177,9 @@ public sealed partial class DetailsPanel : UserControl
 
     void Show(SelectedEventInfo? info)
     {
-        UpcomingView.Visibility    = Visible(info is null);
-        DetailsView.Visibility     = Visible(info is not null);
-        ShortcutsButton.Visibility = Visible(info is null);
+        UpcomingView.Visibility = Visible(info is null);
+        DetailsView.Visibility  = Visible(info is not null);
+        UpdateUpcomingEmpty();
 
         // Back To The Top For Another Event (a refresh of the same event keeps the scroll position and note)
         if (info?.Occurrence.Key != _shownKey)
@@ -270,11 +274,6 @@ public sealed partial class DetailsPanel : UserControl
 
     // The hints shown now (an unchanged set isn't rebuilt when the same event refreshes)
     IReadOnlyList<ShortcutRow> _hints = [];
-
-    /// <summary>The keyboard button (nothing selected) asks for the shortcut cheat sheet.</summary>
-    public event EventHandler? ShortcutsRequested;
-
-    void OnShortcutsClick(object sender, RoutedEventArgs e) => ShortcutsRequested?.Invoke(this, EventArgs.Empty);
 
     // The arrow opens the menu once, right-aligned under the whole button group
     void OnJoinMenuClick(object sender, RoutedEventArgs e) =>

@@ -287,4 +287,17 @@ public sealed class PeopleOverlayTests : IDisposable
         Assert.DoesNotContain("[email]", text, StringComparison.Ordinal);
         Assert.DoesNotContain("dana", text, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void OverlayBar_SitsAtTheBottomLikeTheNotice()
+    {
+        using var leaf = Launch();
+        Pick(leaf, VirtualKeyShort.KEY_P, "pat@example.com");
+
+        var bar  = leaf.WaitFor("OverlayBar");
+        var grid = leaf.WaitFor("TimeGrid").BoundingRectangle;
+        Assert.True(
+            Retry.WhileFalse(() => !bar.IsOffscreen && bar.BoundingRectangle.Top > grid.Top + grid.Height / 2, TimeSpan.FromSeconds(10)).Success,
+            "The overlay bar isn't in the bottom half of the calendar.");
+    }
 }

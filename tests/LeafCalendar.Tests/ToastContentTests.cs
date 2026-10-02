@@ -67,7 +67,7 @@ public class ToastContentTests
         var toast   = Parse(ToastContent.Reminder(Reminder(Meet), Details(), "Today \u00B7 2 PM \u2013 3 PM", "default", sound: true));
         var actions = Actions(toast);
 
-        Assert.Null(toast.Attribute("scenario"));
+        Assert.Equal("reminder", (string?)toast.Attribute("scenario"));
         Assert.Equal(["Design review", "Today \u00B7 2 PM \u2013 3 PM", "Room 4"], Texts(toast));
         Assert.Equal("Join", (string?)actions[0].Attribute("content"));
         Assert.Equal("background", (string?)actions[0].Attribute("activationType"));

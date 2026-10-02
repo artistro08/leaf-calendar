@@ -67,7 +67,7 @@ public static partial class EventSearch
                e.start_time_zone, e.raw_json, COALESCE(c.leaf_color, c.background_color, '#4285F4')
         FROM events e
         JOIN calendars c ON c.account_id = e.account_id AND c.id = e.calendar_id
-        WHERE COALESCE(c.leaf_hidden, c.hidden) = 0
+        WHERE COALESCE(c.leaf_hidden, c.hidden) = 0 AND c.hidden = 0
           AND e.status <> 'cancelled'
           AND e.raw_json LIKE $like ESCAPE '\'
         ORDER BY e.is_recurring_master DESC, ABS(COALESCE(e.start_utc, 0) - $now)

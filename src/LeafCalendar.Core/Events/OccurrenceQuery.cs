@@ -27,7 +27,7 @@ public static class OccurrenceQuery
         FROM events e
         JOIN calendars c ON c.account_id = e.account_id AND c.id = e.calendar_id
         JOIN accounts a  ON a.id = e.account_id
-        WHERE COALESCE(c.leaf_hidden, c.hidden) = 0
+        WHERE COALESCE(c.leaf_hidden, c.hidden) = 0 AND c.hidden = 0
           AND (
                 (e.is_recurring_master = 1 AND e.status <> 'cancelled' AND e.start_utc < $to)
              OR (e.is_recurring_master = 0 AND e.recurring_event_id IS NULL AND e.status <> 'cancelled'

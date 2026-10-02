@@ -8,11 +8,12 @@
     AutomationProperties.AutomationId="OverlayBar"
     AutomationProperties.Name="People overlay">
 
-    <!-- Overlay Bar: who is overlaid on the time grid (P, F, E then F), one chip each, and Clear -->
+    <!-- Overlay Bar: who is overlaid on the time grid (P, F, E then F), one chip each, and Clear. A toast at the bottom of the
+         calendar like the notice: solid, so the grid never shows through, and no wider than 640 (the chips scroll) -->
     <Border
-        Margin="16,0,16,8"
+        MaxWidth="640"
         Padding="12,8"
-        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+        Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
         BorderThickness="1"
         CornerRadius="8">

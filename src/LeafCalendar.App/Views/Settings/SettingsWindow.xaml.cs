@@ -188,8 +188,8 @@ public sealed partial class SettingsWindow : Window
     /// <summary>Applies the app theme to the content and caption buttons.</summary>
     public void ApplyTheme(AppTheme theme) => MainWindow.ApplyTheme(AppWindow, RootGrid, theme);
 
-    // Restores the window if it's minimized and brings it to the front
-    void BringToFront()
+    /// <summary>Restores the window if it's minimized and brings it to the front (back from sign-in in the browser, too).</summary>
+    public void BringToFront()
     {
         if (_presenter.State == OverlappedPresenterState.Minimized)
         {
@@ -197,7 +197,7 @@ public sealed partial class SettingsWindow : Window
         }
 
         Activate();
-        PInvoke.SetForegroundWindow(new HWND(Win32Interop.GetWindowFromWindowId(AppWindow.Id)));
+        Interop.Foreground.Take(new HWND(Win32Interop.GetWindowFromWindowId(AppWindow.Id)));
     }
 
     // Centered on the monitor under the cursor at the size it last closed at (else the opening size), with the minimum from

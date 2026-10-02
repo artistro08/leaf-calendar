@@ -32,8 +32,8 @@ public sealed record CalendarInfo(
     /// <summary>Color to draw with: Leaf's override, then Google's, then the default.</summary>
     public string DisplayColor => LeafColor ?? BackgroundColor ?? DefaultColor;
 
-    /// <summary>True when the calendar's events are shown.</summary>
-    public bool IsVisible => !LeafHidden;
+    /// <summary>True when the calendar's events are shown (shown in Leaf, and not hidden from Google Calendar's list).</summary>
+    public bool IsVisible => !LeafHidden && !Hidden;
 }
 
 /// <summary>Reads and writes the <c>calendars</c> table.</summary>
@@ -52,17 +52,19 @@ public static partial class CalendarStore
     /// Makes the account's calendars match Google's list.
     /// </summary>
     /// <remarks>
-    /// Calendars missing from the list, marked deleted, or hidden from Google Calendar's list ("Hide from list") are
-    /// removed along with their events: a hidden calendar isn't shown anywhere in Leaf, and comes back on the next
-    /// refresh once it's shown in Google again.
-    /// Existing calendars keep their sync token, local order, and color. A calendar is shown only when it is enabled in
-    /// Google Calendar (ticked, or "selected", and not hidden from the list): a newly seen calendar starts that way, and so
-    /// does one whose Google choice changed since the last refresh (or was never recorded). Otherwise Leaf's own choice
-    /// (<see cref="SetHidden"/>) stays.
+    /// Calendars missing from the list (or marked deleted) are removed along with their events.
+    /// Existing calendars keep their sync token, local order, and color. A calendar hidden from Google Calendar's list
+    /// ("Hide from list") is kept, but appears nowhere in Leaf (<see cref="GetAll"/>, the calendar, search, sync), so its
+    /// color, order, and any edit still waiting for Google survive until it's shown in Google again.
+    /// A calendar is shown only when it is enabled in Google Calendar (ticked, or "selected", and not hidden from the
+    /// list): a newly seen calendar starts that way, and so does one whose Google choice changed since the last refresh.
+    /// Otherwise Leaf's own choice (<see cref="SetHidden"/>) stays. A calendar whose Google choice was never recorded
+    /// (saved before schema version 7) takes Google's choice only when that hides it, so a calendar you hid in Leaf
+    /// never comes back on its own.
     /// </remarks>
     public static void ReplaceForAccount(SqliteConnection conn, string accountId, IReadOnlyList<CalendarListEntry> entries)
     {
-        var incoming    = entries.Where(e => !e.Deleted && !e.Hidden).ToList();
+        var incoming    = entries.Where(e => !e.Deleted).ToList();
         var incomingIds = incoming.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
 
         using var tx = conn.BeginTransaction();
@@ -94,7 +96,9 @@ public static partial class CalendarStore
                     is_primary        = excluded.is_primary,
                     hidden            = excluded.hidden,
                     default_reminders = excluded.default_reminders,
-                    leaf_hidden       = CASE WHEN calendars.google_shown IS excluded.google_shown
+                    leaf_hidden       = CASE WHEN calendars.google_shown IS NULL
+                                             THEN COALESCE(calendars.leaf_hidden, 0) OR excluded.leaf_hidden
+                                             WHEN calendars.google_shown IS excluded.google_shown
                                              THEN COALESCE(calendars.leaf_hidden, excluded.leaf_hidden)
                                              ELSE excluded.leaf_hidden END,
                     google_shown      = excluded.google_shown;
@@ -125,13 +129,16 @@ public static partial class CalendarStore
         return entry.Selected && !entry.Hidden;
     }
 
-    /// <summary>An account's calendars in Leaf's order (inside <paramref name="tx"/> when one is open).</summary>
+    /// <summary>
+    /// An account's calendars in Leaf's order (inside <paramref name="tx"/> when one is open), hidden ones included (the
+    /// outbox and the editor still need them); callers that list calendars skip <see cref="CalendarInfo.Hidden"/> ones.
+    /// </summary>
     public static IReadOnlyList<CalendarInfo> GetForAccount(SqliteConnection conn, string accountId, SqliteTransaction? tx = null) =>
         conn.Query(tx, SelectColumns + " WHERE c.account_id = $account ORDER BY c.sort_order;", Map, ("$account", accountId));
 
-    /// <summary>Every calendar, grouped by account email, in Leaf's order.</summary>
+    /// <summary>Every calendar Leaf lists (not those hidden from Google Calendar's list), grouped by account email, in Leaf's order.</summary>
     public static IReadOnlyList<CalendarInfo> GetAll(SqliteConnection conn) =>
-        conn.Query(null, SelectColumns + " JOIN accounts a ON a.id = c.account_id ORDER BY a.email, c.sort_order;", Map);
+        conn.Query(null, SelectColumns + " JOIN accounts a ON a.id = c.account_id WHERE c.hidden = 0 ORDER BY a.email, c.sort_order;", Map);
 
     /// <summary>Saves the token for the calendar's next incremental sync.</summary>
     public static void SetSyncToken(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId, string? syncToken) =>

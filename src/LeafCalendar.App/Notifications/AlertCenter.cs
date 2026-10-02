@@ -1,3 +1,4 @@
+using System.Globalization;
 using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Events;
@@ -53,6 +54,7 @@ internal sealed class AlertCenter : IDisposable
         _scheduler.AlertRetracted += OnAlertRetracted;
         _scheduler.SyncSoon       += OnSyncSoon;
         _scheduler.Failed         += OnSchedulerFailed;
+        _scheduler.Planned        += OnPlanned;
 
         // Changed Events Re-Plan
         services.Editor.Changed    += OnDataChanged;
@@ -117,6 +119,7 @@ internal sealed class AlertCenter : IDisposable
             var o          = alert.Occurrence;
             if (EventStore.Get(conn, o.AccountId, o.CalendarId, o.EventId) is not { } stored)
             {
+                _services.Log.Info("alert.skipped", $"kind={alert.Kind} tag={alert.Tag} reason=gone");
                 return;
             }
 
@@ -125,9 +128,16 @@ internal sealed class AlertCenter : IDisposable
             var details  = EventDetailsParser.Parse(stored.RawJson, includeDescription: true);
             var when     = ToastContent.When(o, _zone(), settings.Use24HourTime, _services.Time.GetUtcNow());
             var profile  = _services.Options.Profile;
-            _notifier.Show(alert.Kind == AlertKind.JoinNow
+            var shown    = _notifier.Show(alert.Kind == AlertKind.JoinNow
                 ? ToastContent.JoinNow(alert, details, when, profile, settings.NotificationSound)
                 : ToastContent.Reminder(alert, details, when, profile, settings.NotificationSound));
+            if (!shown)
+            {
+                // Not Shown: forgotten, so the next pass tries again while it's still due
+                AlertLedger.Remove(conn, alert.Key);
+                return;
+            }
+
             _services.Log.Info("alert.shown", $"kind={alert.Kind} tag={alert.Tag}");
         }
         catch (Exception ex)
@@ -142,6 +152,10 @@ internal sealed class AlertCenter : IDisposable
         _services.Log.Info("alert.withdrawn", $"tag={tag}");
         _ = _notifier.RemoveAsync(tag, ToastContent.JoinGroup);
     }
+
+    // Detailed logging only: counts and a time, never event content
+    void OnPlanned(object? sender, PlanSummary plan) =>
+        _services.Log.Trace("alert.plan", string.Create(CultureInfo.InvariantCulture, $"ahead={plan.Ahead} next={plan.Next?.UtcDateTime:O}"));
 
     void OnSyncSoon(object? sender, EventArgs e) => _services.Google?.Loop.TriggerNow();
 

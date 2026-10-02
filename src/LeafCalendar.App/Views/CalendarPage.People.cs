@@ -18,8 +18,9 @@ public sealed partial class CalendarPage
     // they follow
     void AttachPeople()
     {
+        // At the bottom with the other toasts, above the share hint and the notice
         _overlayBar = new OverlayBar();
-        IslandBars.Children.Add(_overlayBar);
+        Toasts.Children.Insert(0, _overlayBar);
         _overlayBar.Update(ViewModel);
 
         _slotsPanel = new ShareSlotsPanel { Visibility = Visibility.Collapsed };
@@ -44,10 +45,9 @@ public sealed partial class CalendarPage
 
         if (_overlayBar is not null)
         {
-            IslandBars.Children.Remove(_overlayBar);
+            Toasts.Children.Remove(_overlayBar);
             _overlayBar = null;
         }
-
 
         if (_slotsPanel is not null)
         {
