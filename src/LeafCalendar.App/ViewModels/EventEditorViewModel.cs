@@ -90,24 +90,6 @@ public sealed class ContactSuggestion(string name, string email)
     public override string ToString() => Display;
 }
 
-/// <summary>A time zone suggestion for the editor's zone box (an App type, so WinRT can hold the list).</summary>
-public sealed class ZoneSuggestion(TimeZoneChoice choice)
-{
-    /// <summary>IANA ID.</summary>
-    public string Id { get; } = choice.Id;
-
-    /// <summary>"Tokyo (UTC+9 · Tokyo Standard Time)".</summary>
-    public string Display { get; } = choice.ToString();
-
-    /// <summary>The row's first line: "Tokyo (UTC+9)".</summary>
-    public string Label { get; } = $"{choice.City} ({choice.Detail.Split(" · ")[0]})";
-
-    /// <summary>The row's second line: Windows' name for the zone ("Tokyo Standard Time"), or empty.</summary>
-    public string ZoneName { get; } = choice.Detail.Split(" · ") is [_, var name, ..] ? name : "";
-
-    /// <summary>The shown text (what a screen reader says for the item).</summary>
-    public override string ToString() => Display;
-}
 
 /// <summary>A room suggestion for the room box (an App type, so WinRT can hold the list).</summary>
 public sealed class RoomSuggestion(Room room)
@@ -258,7 +240,6 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         // When (an all-day event shows its last day, inclusive; a timed one shows its own zone's clock)
         var start = draft.IsAllDay ? draft.Start.UtcDateTime : TimeZoneInfo.ConvertTime(draft.Start, _eventZone).DateTime;
         var end   = draft.IsAllDay ? draft.End.UtcDateTime.AddDays(-1) : TimeZoneInfo.ConvertTime(draft.End, _eventZone).DateTime;
-        ZoneInput = TimeZoneText;
         StartDate = Picker(start);
         StartTime = start.TimeOfDay;
         EndDate   = Picker(end);
@@ -524,18 +505,9 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
 
     /// <summary>The event's IANA zone; its dates and times show on this zone's clock.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(TimeZoneText), nameof(LocalTimeText), nameof(ShowLocalTime))]
+    [NotifyPropertyChangedFor(nameof(LocalTimeText), nameof(ShowLocalTime))]
     public partial string TimeZoneId { get; set; }
 
-    /// <summary>"Tokyo (UTC+9)".</summary>
-    public string TimeZoneText => $"{TimeZoneCatalog.CityFor(TimeZoneId)} ({TimeZoneCatalog.OffsetLabel(_eventZone.GetUtcOffset(Before.Start))})";
-
-    /// <summary>The zone box's text (the picked zone, or what's being typed).</summary>
-    [ObservableProperty]
-    public partial string ZoneInput { get; set; } = "";
-
-    /// <summary>Zones matching the typed text.</summary>
-    public ObservableCollection<ZoneSuggestion> ZoneSuggestions { get; } = [];
 
     /// <summary>The zone box shows (timed events).</summary>
     public bool ShowTimeZone => !IsAllDay;
@@ -560,40 +532,13 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Lists the zones matching the typed text, or with <paramref name="all"/> (the dropdown arrow) every common zone.</summary>
-    public void RefreshZoneSuggestions(DateTimeOffset now, bool all = false)
+    /// <summary>Makes a picked zone (an IANA ID) the event's own: the clock fields stay, so the event moves to that clock.</summary>
+    public void PickZone(string id)
     {
-        ZoneSuggestions.Clear();
-        foreach (var choice in all ? TimeZoneCatalog.Search("", now, 100) : TimeZoneCatalog.Search(ZoneInput, now, 8))
-        {
-            ZoneSuggestions.Add(new ZoneSuggestion(choice));
-        }
-    }
-
-    /// <summary>Makes a picked zone the event's own: the clock fields stay, so the event moves to that clock.</summary>
-    public void PickZone(ZoneSuggestion zone)
-    {
-        ArgumentNullException.ThrowIfNull(zone);
-
-        if (FindZone(zone.Id) is { } picked)
+        if (FindZone(id) is { } picked)
         {
             _eventZone = picked;
-            TimeZoneId = zone.Id;
-        }
-
-        ResetZoneInput();
-    }
-
-    /// <summary>
-    /// Puts the picked zone back in the box (typing without a pick changes nothing). With <paramref name="keepSuggestions"/>
-    /// the list stays: the box loses focus as a suggestion is pressed, before the click picks it.
-    /// </summary>
-    public void ResetZoneInput(bool keepSuggestions = false)
-    {
-        ZoneInput = TimeZoneText;
-        if (!keepSuggestions)
-        {
-            ZoneSuggestions.Clear();
+            TimeZoneId = id;
         }
     }
 

@@ -41,13 +41,12 @@
                             AutomationProperties.AutomationId="FollowWindowsZoneSwitch" />
                     </controls:SettingRow>
                     <controls:SettingRow Style="{StaticResource LeafExpanderItemRowStyle}" Header="Leaf's time zone">
-                        <AutoSuggestBox
+                        <controls:TimeZoneComboBox
                             x:Name="PrimaryZoneBox"
                             Width="320"
-                            PlaceholderText="Search a city or zone (Tokyo, NYC, UTC)"
-                            QueryIcon="Find"
-                            TextChanged="OnPrimaryTextChanged"
-                            SuggestionChosen="OnPrimaryChosen"
+                            IsEditable="True"
+                            IsTextSearchEnabled="True"
+                            ZoneChanged="OnPrimaryZoneChanged"
                             AutomationProperties.Name="Leaf's time zone"
                             AutomationProperties.AutomationId="PrimaryZoneBox" />
                     </controls:SettingRow>
