@@ -29,8 +29,9 @@ namespace LeafCalendar.App.Interop;
 /// window procedure: it would end the process.
 /// </para>
 /// <para>
-/// The art is a placeholder (the app logo); Milestone 6 draws light and dark tray glyphs and gives the icon a fixed
-/// <c>NIF_GUID</c> identity, which only survives updates on a signed package.
+/// The art is the Fluent UI System Icons "Leaf One" glyph (MIT, see Assets/Tray/NOTICE.txt), white on a dark taskbar
+/// and dark on a light one; a theme switch reloads it. A fixed <c>NIF_GUID</c> identity, which only survives updates
+/// on a signed package, is still to come.
 /// </para>
 /// </remarks>
 internal sealed unsafe class TrayIcon : IDisposable
@@ -48,6 +49,9 @@ internal sealed unsafe class TrayIcon : IDisposable
     const uint NinKeySelect        = 0x0401;
     const uint NotifyIconVersion4  = 4;
     const uint IconResourceVersion = 0x00030000;
+
+    // Tray Glyph Sizes Drawn In Assets/Tray (tools/make-icons.ps1)
+    static readonly int[] GlyphSizes = [16, 20, 24, 32];
 
     static TrayIcon? s_current;
 
@@ -200,7 +204,8 @@ internal sealed unsafe class TrayIcon : IDisposable
         return data;
     }
 
-    // Placeholder Art: the app logo PNG, turned into an icon at the taskbar's small-icon size
+    // The Leaf glyph for the taskbar's theme (white on a dark taskbar, dark on a light one), from the drawn size that
+    // fits the taskbar's small-icon size (the next one up, else the largest), turned into an icon at that size
     void LoadIcon()
     {
         // Remembered even when the load fails, so a failed size isn't retried on every setting change
@@ -208,7 +213,9 @@ internal sealed unsafe class TrayIcon : IDisposable
         _iconSize = size;
         try
         {
-            var png = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Assets", "Square44x44Logo.png"));
+            var drawn = GlyphSizes.FirstOrDefault(s => s >= size, GlyphSizes[^1]);
+            var theme = TaskbarIsLight() ? "light-taskbar" : "dark-taskbar";
+            var png   = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Assets", "Tray", $"tray-{theme}-{drawn}.png"));
             HICON icon;
             fixed (byte* bits = png)
             {
@@ -228,10 +235,17 @@ internal sealed unsafe class TrayIcon : IDisposable
 
             _icon = icon;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or System.Security.SecurityException)
         {
             _log.Info("tray.icon.failed", $"error={ex.GetType().Name}");
         }
+    }
+
+    // True when the taskbar is light (Settings > Personalization > Colors, "Choose your default Windows mode")
+    static bool TaskbarIsLight()
+    {
+        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+        return key?.GetValue("SystemUsesLightTheme") is int value && value != 0;
     }
 
     // The taskbar's small-icon size, in pixels
