@@ -230,6 +230,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _vm.ScrollToTimeRequested += OnScrollToTimeRequested;
         _vm.OverlayChanged        += OnOverlayChanged;
         _vm.ShareChanged          += OnShareChanged;
+        _sharingShown              = vm.IsSharing;
         _vm.PropertyChanged       += OnViewModelPropertyChanged;
         ActualThemeChanged        += (_, _) => RenderRealized();
         Loaded                    += (_, _) =>
@@ -849,7 +850,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
     }
 
-    // Whether the events were last drawn for marking times to share
+    // Whether the events were last drawn for marking times to share (from the start: a grid built while scheduling draws
+    // its days for it, so stopping must redraw them)
     bool _sharingShown;
 
     // =========================================================================
