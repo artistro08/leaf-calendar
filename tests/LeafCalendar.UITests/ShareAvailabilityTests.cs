@@ -99,7 +99,14 @@ public sealed class ShareAvailabilityTests : IDisposable
 
         DragHours(leaf, 10, 12);
         leaf.WaitFor("ShareSlot_0");
-        leaf.WaitFor("ShareZoneBox").AsComboBox().Select("(UTC+09:00) Tokyo");
+
+        // Typed Like A Person (the box is editable, and a typed city submitted with Enter picks its zone)
+        var zone = leaf.WaitFor("ShareZoneBox");
+        zone.Focus();
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
+        Keyboard.Type("Tokyo");
+        Keyboard.Type(VirtualKeyShort.ENTER);
+        Assert.True(Retry.WhileFalse(() => (zone.Patterns.Value.PatternOrDefault?.Value.ValueOrDefault ?? "").Contains("Tokyo", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success, "The zone box didn't take Tokyo.");
 
         Assert.Equal("Thu Oct 1: 11 PM–12 AM Tokyo time\r\nFri Oct 2: 12–1 AM Tokyo time", Copy(leaf));
     }
