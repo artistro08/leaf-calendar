@@ -181,14 +181,15 @@ public sealed class DragTests : IDisposable
         Assert.Contains("\"2026-10-13\"", write.Body, StringComparison.Ordinal);
     }
 
-    // The resize ghost starts where the card does; it must hide the card's text under it, or the two labels overlap
+    // Resizing grows the real card under the pointer (there's no ghost over it, so no second label to overlap its text)
     [Fact]
-    public void ResizeGhost_CoversTheCardsTextUnderIt()
+    public void Resize_GrowsTheCardLive()
     {
         using var leaf = Launch();
         var dentist = leaf.WaitFor(Dentist);
         LeafApp.WaitUntilStill(dentist);
         var box   = dentist.BoundingRectangle;
+        var hour  = HourPixels(dentist);
         var start = new Point(box.X + box.Width / 2, box.Bottom - 2);
 
         LeafApp.MoveMouse(start);
@@ -198,25 +199,14 @@ public sealed class DragTests : IDisposable
         {
             for (var i = 1; i <= 12; i++)
             {
-                LeafApp.MoveMouse(new Point(start.X, start.Y + HourPixels(dentist) * i / 12));
+                LeafApp.MoveMouse(new Point(start.X, start.Y + hour * i / 12));
                 Thread.Sleep(30);
             }
 
-            Thread.Sleep(300);
-
-            // The card's second line (its time) sits under the ghost's empty middle: it should read as one flat fill
-            var region = new Rectangle(box.X + box.Width / 20, box.Y + box.Height * 45 / 100, box.Width * 3 / 10, box.Height / 6);
-            using var shot = FlaUI.Core.Capturing.Capture.Rectangle(region);
-            var lightness = new List<float>();
-            for (var x = 0; x < shot.Bitmap.Width; x++)
-            {
-                for (var y = 0; y < shot.Bitmap.Height; y++)
-                {
-                    lightness.Add(shot.Bitmap.GetPixel(x, y).GetBrightness());
-                }
-            }
-
-            Assert.True(lightness.Max() - lightness.Min() < 0.1f, $"Text shows through the ghost (lightness {lightness.Min():0.00} to {lightness.Max():0.00}).");
+            // About An Hour Taller While The Button Is Still Down
+            Assert.True(Retry.WhileFalse(() => dentist.BoundingRectangle.Height >= box.Height + hour * 3 / 4, TimeSpan.FromSeconds(3)).Success,
+                $"The card stayed {dentist.BoundingRectangle.Height} px tall (was {box.Height}, an hour is {hour}).");
+            Assert.Equal(box.Top, dentist.BoundingRectangle.Top);
         }
         finally
         {
