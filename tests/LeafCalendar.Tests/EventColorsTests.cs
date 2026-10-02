@@ -67,5 +67,49 @@ public class EventColorsTests
             }
         }
     }
-}
 
+    // A Selected Card Is The Accent At Full Strength (even when past), And Its Text Still Meets 4.5:1, Both Themes
+    [Fact]
+    public void SelectedCards_AreFilledWithTheAccent_AndTextMeetsAA()
+    {
+        foreach (var dark in new[] { true, false })
+        {
+            foreach (var accent in EventColors.CalendarPalette.Concat(EventColors.EventColorNames.Select(c => EventColors.ResolveAccent(c.Id, "#039BE5"))))
+            {
+                foreach (var past in new[] { true, false })
+                {
+                    var selected = EventColors.Palette(accent, dark, past, selected: true);
+
+                    // The fill is the accent, or as close to it as readable text allows
+                    Assert.True(Distance(selected.Fill, accent) <= 120, $"{accent} dark={dark} past={past}: {selected.Fill} is far from the accent");
+                    Assert.Equal(accent.ToUpperInvariant(), selected.Accent);
+                    Assert.True(EventColors.ContrastRatio(selected.Text, selected.Fill) >= 4.5, $"{accent} dark={dark} past={past}");
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void SelectedCard_IsStrongerThanTheUnselectedOne()
+    {
+        foreach (var dark in new[] { true, false })
+        {
+            var surface    = ChromeColors.Surface(dark);
+            var unselected = EventColors.Palette("#039BE5", dark);
+            var selected   = EventColors.Palette("#039BE5", dark, selected: true);
+
+            Assert.True(Distance(selected.Fill, surface) > Distance(unselected.Fill, surface), $"dark={dark}");
+        }
+    }
+
+    [Theory]
+    [InlineData("#039BE5")]
+    [InlineData("#D50000")]
+    [InlineData("#F6BF26")]
+    public void SelectedCard_ReadableAccent_IsExactlyTheAccent(string accent) =>
+        Assert.Equal(accent, EventColors.Palette(accent, dark: true, selected: true).Fill);
+
+    [Fact]
+    public void SelectedCard_BadHex_UsesTheDefaultColor() =>
+        Assert.Equal(LeafCalendar.Core.Data.CalendarInfo.DefaultColor, EventColors.Palette("blue", dark: false, selected: true).Fill);
+}

@@ -86,6 +86,19 @@ public static class DragMath
         return a < b ? (a, b) : (b, a);
     }
 
+    /// <summary>
+    /// The days an all-day create drag covers, in either direction: UTC midnights (how all-day dates are stored), the
+    /// end exclusive, so a press and release on one day is that day.
+    /// </summary>
+    public static (DateTimeOffset Start, DateTimeOffset End) AllDayRange(DateOnly anchor, DateOnly pointerDay)
+    {
+        var first = anchor < pointerDay ? anchor : pointerDay;
+        var last  = anchor < pointerDay ? pointerDay : anchor;
+        return (UtcMidnight(first), UtcMidnight(last.AddDays(1)));
+    }
+
+    static DateTimeOffset UtcMidnight(DateOnly day) => new(day.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+
     /// <summary>The event moved by whole days (all-day by date; timed keeping its wall-clock time).</summary>
     public static (DateTimeOffset Start, DateTimeOffset End) ShiftDays(CalendarOccurrence o, int days, TimeZoneInfo zone)
     {

@@ -811,7 +811,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // How far the pointer must move before a press becomes a drag (less stays a click)
     const double DragThreshold = 4;
 
-    enum DragKind { Move, Resize, Create, AllDay, Box }
+    enum DragKind { Move, Resize, Create, CreateAllDay, AllDay, Box }
 
     sealed class DragSession(DragKind kind, Point origin)
     {
@@ -879,6 +879,18 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
 
         _drag = new DragSession(DragKind.Create, e.GetCurrentPoint(this).Position) { GrabbedAt = DragMath.Instant(day, minutes, _vm.Zone) };
+    }
+
+    /// <summary>Empty all-day space was pressed: dragging across days makes a new all-day event over them.</summary>
+    public void BeginAllDayCreateDrag(PointerRoutedEventArgs e)
+    {
+        // Picking times to share is about hours, and a box select needs the grid's times: neither starts here
+        if (_vm.IsSharing || KeyState.IsDown(Windows.System.VirtualKey.Shift))
+        {
+            return;
+        }
+
+        _drag = new DragSession(DragKind.CreateAllDay, e.GetCurrentPoint(this).Position) { GrabbedDay = DayAt(e.GetCurrentPoint(_allDay).Position.X) };
     }
 
     /// <summary>An all-day chip was pressed: dragging moves it across days, or into the grid to become timed.</summary>
@@ -1054,9 +1066,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
-        if (drag.Kind == DragKind.Create)
+        if (drag.Kind is DragKind.Create or DragKind.CreateAllDay)
         {
-            _vm.BeginCreate(target.Start, target.End, isAllDay: false);
+            _vm.BeginCreate(target.Start, target.End, isAllDay: drag.Kind == DragKind.CreateAllDay);
             return;
         }
 
@@ -1097,6 +1109,10 @@ public sealed partial class TimeGridView : Grid, IDisposable
             case DragKind.Create:
                 var (createStart, createEnd) = DragMath.CreateRange(drag.GrabbedAt, pointerAt, zone);
                 return (createStart, createEnd, false, false);
+
+            case DragKind.CreateAllDay:
+                var (allDayStart, allDayEnd) = DragMath.AllDayRange(drag.GrabbedDay, DayAt(e.GetCurrentPoint(_allDay).Position.X));
+                return (allDayStart, allDayEnd, true, true);
 
             default:
                 // Over The Grid: a one-hour timed event there

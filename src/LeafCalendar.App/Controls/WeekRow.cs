@@ -369,7 +369,7 @@ public sealed partial class WeekRow : Canvas
             var past     = vm.IsPast(o);
             var palette  = LeafBrushes.CardPalette(EventColors.ResolveAccent(o.ColorId, o.CalendarColor), dark, past, selected);
             var spanning = SpanLayout.IsSpanning(o);
-            var filled   = spanning || selected && LeafBrushes.HighContrast; // a contrast theme shows selection as the highlight fill
+            var filled   = spanning || selected; // a selected chip is filled with its color at full strength (the highlight pair in a contrast theme)
             var first    = SpanLayout.CoveredDates(o, vm.Zone).First;
 
             _occurrence = o;

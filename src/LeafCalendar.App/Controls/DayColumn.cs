@@ -10,7 +10,7 @@ using Microsoft.UI.Xaml.Shapes;
 namespace LeafCalendar.App.Controls;
 
 /// <summary>
-/// One day of the time grid: hour and half-hour lines, the left divider, weekend tint, the event
+/// One day of the time grid: hour lines (no half-hour lines, so the grid stays quiet), the left divider, weekend tint, the event
 /// cards (laid out with <see cref="DayLayout"/>), and on today a current-time line. Instances are
 /// recycled by the grid, and <see cref="Bind"/> repaints for a new date.
 /// </summary>
@@ -24,7 +24,6 @@ public sealed partial class DayColumn : Canvas
     readonly TimeGridView _owner;
     readonly Action<CalendarOccurrence> _select;
     readonly Rectangle[] _hourLines = new Rectangle[24];
-    readonly Rectangle[] _halfLines = new Rectangle[24];
     readonly Rectangle _divider = new() { Width = 1 };
     readonly Rectangle _nowLine = new() { Height = 2, Fill = LeafBrushes.NowLine };
     readonly Ellipse _nowDot = new() { Width = 10, Height = 10, Fill = LeafBrushes.NowLine };
@@ -53,7 +52,6 @@ public sealed partial class DayColumn : Canvas
         for (var h = 0; h < 24; h++)
         {
             Children.Add(_hourLines[h] = new Rectangle { Height = 1, IsHitTestVisible = false });
-            Children.Add(_halfLines[h] = new Rectangle { Height = 1, IsHitTestVisible = false });
         }
 
         // People Overlay, Then Shared-Availability Slots (under the events; clicks and drags go through to the grid)
@@ -122,9 +120,6 @@ public sealed partial class DayColumn : Canvas
             _hourLines[h].Width = width;
             _hourLines[h].Fill  = LeafBrushes.GridLine(dark);
             SetTop(_hourLines[h], h * hour);
-            _halfLines[h].Width = width;
-            _halfLines[h].Fill  = LeafBrushes.HalfHourLine(dark);
-            SetTop(_halfLines[h], h * hour + hour / 2);
         }
 
         _divider.Height = Height;
@@ -180,7 +175,7 @@ public sealed partial class DayColumn : Canvas
             SetLeft(card, 2 + b.Column * colW);
             SetTop(card, b.StartMinute / 60 * hour + 1);
             card.HoldsEnd = b.Occurrence.End <= OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
-            card.Bind(b.Occurrence, palette, TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, _select, vm.IsPast(b.Occurrence));
+            card.Bind(b.Occurrence, palette, TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, _select, vm.IsPast(b.Occurrence), StripesFor(b.Occurrence, dark));
         }
 
         for (var i = shown; i < _blocks.Count; i++)
@@ -209,6 +204,21 @@ public sealed partial class DayColumn : Canvas
             SetZIndex(_nowLine, 10);
             SetZIndex(_nowDot, 10);
         }
+    }
+
+    // The same event on several shown calendars: each calendar's bar color, faded or full as the card is
+    IReadOnlyList<string>? StripesFor(CalendarOccurrence occurrence, bool dark)
+    {
+        var vm      = _owner.ViewModel;
+        var accents = vm.Cache.StripesOf(occurrence);
+        if (accents.Count < 2)
+        {
+            return null;
+        }
+
+        var past     = vm.IsPast(occurrence);
+        var selected = vm.IsSelected(occurrence);
+        return [.. accents.Select(a => LeafBrushes.CardPalette(a, dark, past, selected).Accent)];
     }
 
     /// <summary>Shows where a dragged or new event would land (minutes past local midnight).</summary>

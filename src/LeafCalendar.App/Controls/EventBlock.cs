@@ -13,9 +13,11 @@ using Windows.UI.Text;
 namespace LeafCalendar.App.Controls;
 
 /// <summary>
-/// One timed event card: a tinted fill, a 3 px accent bar in the event's color, the title, and
+/// One timed event card: a tinted fill, a 3 px accent bar in the event's color (a bar per calendar when the same event
+/// is on several shown calendars), the title, and
 /// (when tall enough) the time. Declined events show as an outline with struck-through text, and
-/// unanswered or tentative events as an outline. Focus time, out of office, and birthdays get an icon.
+/// unanswered or tentative events as an outline. A selected card is filled with the event's color at full strength.
+/// Focus time, out of office, and birthdays get an icon.
 /// </summary>
 public sealed partial class EventBlock : Grid
 {
@@ -30,8 +32,13 @@ public sealed partial class EventBlock : Grid
     readonly TimeGridView? _owner;
     bool _inResizeZone;
 
+    // Accent bars: 3 px wide, 2 px from the card's edges and from each other (one per calendar the event is on)
+    const double StripeWidth = 3;
+    const double StripeGap   = 2;
+
     readonly Border _card = new() { CornerRadius = new CornerRadius(4) };
-    readonly Rectangle _accent = new() { Width = 3, RadiusX = 1.5, RadiusY = 1.5, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(2) };
+    readonly StackPanel _accents = new() { Orientation = Orientation.Horizontal, Spacing = StripeGap, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(StripeGap) };
+    readonly StackPanel _text = new() { Margin = new Thickness(9, 3, 4, 2) };
     readonly TextBlock _title = new() { FontSize = 12, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.WrapWholeWords, MaxLines = 2 };
     readonly TextBlock _time = new() { FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis };
     readonly FontIcon _icon = new() { FontSize = 11, Margin = new Thickness(0, 1, 4, 0), Visibility = Visibility.Collapsed };
@@ -48,13 +55,12 @@ public sealed partial class EventBlock : Grid
         titleRow.Children.Add(_icon);
         titleRow.Children.Add(_title);
 
-        var text = new StackPanel { Margin = new Thickness(9, 3, 4, 2) };
-        text.Children.Add(titleRow);
-        text.Children.Add(_time);
+        _text.Children.Add(titleRow);
+        _text.Children.Add(_time);
 
         var inner = new Grid();
-        inner.Children.Add(_accent);
-        inner.Children.Add(text);
+        inner.Children.Add(_accents);
+        inner.Children.Add(_text);
 
         _card.Child = inner;
         Children.Add(_card);
@@ -121,6 +127,28 @@ public sealed partial class EventBlock : Grid
         PointerExited  += (_, _) => _owner?.ViewModel.PointerEvent = null;
     }
 
+    // One bar per color, and the text moved clear of them (a lone bar leaves the usual 9 px)
+    void BindStripes(IReadOnlyList<string> colors)
+    {
+        while (_accents.Children.Count < colors.Count)
+        {
+            _accents.Children.Add(new Rectangle { Width = StripeWidth, RadiusX = StripeWidth / 2, RadiusY = StripeWidth / 2 });
+        }
+
+        for (var i = 0; i < _accents.Children.Count; i++)
+        {
+            var bar = (Rectangle)_accents.Children[i];
+            bar.Visibility = i < colors.Count ? Visibility.Visible : Visibility.Collapsed;
+            if (i < colors.Count)
+            {
+                bar.Fill = LeafBrushes.FromHex(colors[i]);
+            }
+        }
+
+        var left = StripeGap + colors.Count * StripeWidth + (colors.Count - 1) * StripeGap + 4;
+        _text.Margin = new Thickness(left, 3, 4, 2);
+    }
+
     // The grid decides whether the press becomes a drag (it waits for the pointer to move a few pixels)
     void OnPointerPressed(object sender, PointerRoutedEventArgs e)
     {
@@ -142,23 +170,28 @@ public sealed partial class EventBlock : Grid
     public static string AutomationIdFor(CalendarOccurrence o) =>
         string.Create(CultureInfo.InvariantCulture, $"Event_{o.EventId}_{o.Start.UtcDateTime:yyyyMMddHHmm}");
 
-    /// <summary>Shows <paramref name="occurrence"/>, faded when <paramref name="past"/>.</summary>
-    public void Bind(CalendarOccurrence occurrence, EventPalette palette, string timeText, bool selected, bool compact, Action<CalendarOccurrence> select, bool past)
+    /// <summary>
+    /// Shows <paramref name="occurrence"/>, faded when <paramref name="past"/>. An event shown on several calendars passes
+    /// each one's bar color in <paramref name="stripes"/> (its own first) and gets a bar per calendar; otherwise the card
+    /// has its one accent bar.
+    /// </summary>
+    public void Bind(CalendarOccurrence occurrence, EventPalette palette, string timeText, bool selected, bool compact, Action<CalendarOccurrence> select, bool past, IReadOnlyList<string>? stripes = null)
     {
         _occurrence = occurrence;
         _select     = select;
         _timeText   = timeText;
 
+        // A Selected Card Is Always Solid (its palette is the accent at full strength), Even When Unanswered Or Declined
         var declined = occurrence.SelfResponse == ResponseStatus.Declined;
-        var outlined = declined || occurrence.SelfResponse is ResponseStatus.NeedsAction or ResponseStatus.Tentative;
+        var outlined = !selected && (declined || occurrence.SelfResponse is ResponseStatus.NeedsAction or ResponseStatus.Tentative);
         var accent   = LeafBrushes.FromHex(palette.Accent);
 
         // Card
-        _card.Background      = declined ? LeafBrushes.Transparent : outlined ? LeafBrushes.FromHex("#33" + palette.Fill[1..]) : LeafBrushes.FromHex(palette.Fill);
+        _card.Background      = !outlined ? LeafBrushes.FromHex(palette.Fill) : declined ? LeafBrushes.Transparent : LeafBrushes.FromHex("#33" + palette.Fill[1..]);
         _card.BorderBrush     = accent;
         _card.BorderThickness = LeafBrushes.CardBorder(selected, outlined);
-        _accent.Fill          = accent;
-        _accent.Visibility    = declined ? Visibility.Collapsed : Visibility.Visible;
+        _accents.Visibility   = declined && !selected ? Visibility.Collapsed : Visibility.Visible;
+        BindStripes(stripes is { Count: > 1 } ? stripes : [palette.Accent]);
 
         // Text
         var textBrush = outlined ? null : LeafBrushes.FromHex(palette.Text);

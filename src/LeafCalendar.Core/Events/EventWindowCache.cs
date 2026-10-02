@@ -8,7 +8,8 @@ namespace LeafCalendar.Core.Events;
 /// the UI thread), nearest month first. <see cref="Changed"/> is raised after each month, so the
 /// visible month appears first. Months outside the window are dropped. Calls are serialized; call
 /// from the UI thread. Instances are bucketed by local day, so a view asks
-/// <see cref="ForDay"/> without touching the database.
+/// <see cref="ForDay"/> without touching the database. The same event on several shown calendars is held once
+/// (<see cref="SharedEvents"/>), with <see cref="StripesOf"/> giving each calendar's color.
 /// </remarks>
 public sealed class EventWindowCache(Func<DateOnly, DateOnly, CancellationToken, Task<IReadOnlyList<CalendarOccurrence>>> load, TimeZoneInfo zone) : IDisposable
 {
@@ -18,6 +19,7 @@ public sealed class EventWindowCache(Func<DateOnly, DateOnly, CancellationToken,
     readonly SemaphoreSlim _gate = new(1, 1);
     Dictionary<DateOnly, IReadOnlyList<CalendarOccurrence>> _months = [];
     Dictionary<DateOnly, List<CalendarOccurrence>> _byDay = [];
+    IReadOnlyDictionary<string, IReadOnlyList<string>> _stripes = new Dictionary<string, IReadOnlyList<string>>();
 
     /// <summary>Raised on the calling thread whenever the cached data changes.</summary>
     public event EventHandler? Changed;
@@ -97,14 +99,26 @@ public sealed class EventWindowCache(Func<DateOnly, DateOnly, CancellationToken,
     /// <summary>Instances touching <paramref name="day"/> in local time (empty when not loaded).</summary>
     public IReadOnlyList<CalendarOccurrence> ForDay(DateOnly day) => _byDay.TryGetValue(day, out var list) ? list : [];
 
+    /// <summary>
+    /// The accent of every calendar <paramref name="occurrence"/> is shown on, its own first, when it's on more than one;
+    /// otherwise empty (the card has its one accent).
+    /// </summary>
+    public IReadOnlyList<string> StripesOf(CalendarOccurrence occurrence)
+    {
+        ArgumentNullException.ThrowIfNull(occurrence);
+
+        return _stripes.TryGetValue(occurrence.Key, out var stripes) ? stripes : [];
+    }
+
     /// <inheritdoc />
     public void Dispose() => _gate.Dispose();
 
     void Rebuild()
     {
-        var byDay = new Dictionary<DateOnly, List<CalendarOccurrence>>();
+        var byDay  = new Dictionary<DateOnly, List<CalendarOccurrence>>();
+        var merged = SharedEvents.Merge(_months.Values.SelectMany(m => m).DistinctBy(o => o.Key));
 
-        foreach (var occurrence in _months.Values.SelectMany(m => m).DistinctBy(o => o.Key))
+        foreach (var occurrence in merged.Shown)
         {
             var (first, last) = occurrence.IsAllDay
                 ? (occurrence.AllDayStart, occurrence.AllDayEnd.AddDays(-1))
@@ -121,7 +135,8 @@ public sealed class EventWindowCache(Func<DateOnly, DateOnly, CancellationToken,
             }
         }
 
-        _byDay = byDay;
+        _byDay   = byDay;
+        _stripes = merged.Stripes;
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
