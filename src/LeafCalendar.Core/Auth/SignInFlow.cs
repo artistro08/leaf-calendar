@@ -62,7 +62,8 @@ public sealed class SignInFlow(
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested && !ct.IsCancellationRequested)
         {
-            throw Fail("timeout", "Sign-in timed out. Try again.");
+            log.Info("signin.failed", "reason=timeout");
+            throw new SignInTimeoutException("Sign-in timed out. Try again.");
         }
 
         // Check Reply

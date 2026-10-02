@@ -13,6 +13,9 @@ public sealed class AccountNeedsSignInException(string accountId) : Exception("T
 /// <summary>Sign-in failed. <see cref="Exception.Message"/> is written for the user.</summary>
 public class SignInException(string message) : Exception(message);
 
+/// <summary>The browser never came back from sign-in in time (<see cref="SignInFlow.Timeout"/>), so nothing was saved.</summary>
+public sealed class SignInTimeoutException(string message) : SignInException(message);
+
 /// <summary>
 /// A sign-in for one account came back as another Google user, so nothing was saved. Both addresses are plain text
 /// (control and format characters removed), ready to show.

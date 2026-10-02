@@ -104,5 +104,36 @@ public class SharedEventsTests
     }
 
     [Fact]
+    public void Merge_Preference_DrawsTheBestCopyInTheGroupsPlace()
+    {
+        var early    = On("a", "a", null, id: "early", start: Nine.AddHours(-2));
+        var readOnly = On("a", "holidays", "uid", "#111111");
+        var editable = On("b", "b", "uid", "#222222");
+
+        var result = SharedEvents.Merge([early, readOnly, editable], o => o.AccountId == "b" ? 0 : 1);
+
+        Assert.Equal([early, editable], result.Shown);
+        Assert.Equal(["#222222", "#111111"], result.Stripes[editable.Key]);
+        Assert.Same(editable, result.Aliases[readOnly.Key]);
+        Assert.False(result.Aliases.ContainsKey(editable.Key));
+    }
+
+    [Fact]
+    public void Merge_PreferenceTie_KeepsTheFirstCopy()
+    {
+        var a = On("a", "a", "uid");
+        var b = On("b", "b", "uid");
+
+        var result = SharedEvents.Merge([a, b], _ => 0);
+
+        Assert.Equal([a], result.Shown);
+        Assert.Same(a, result.Aliases[b.Key]);
+    }
+
+    [Fact]
+    public void Merge_NothingShared_HasNoAliases() =>
+        Assert.Empty(SharedEvents.Merge([On("a", "a", "one"), On("b", "b", "two")]).Aliases);
+
+    [Fact]
     public void Merge_Null_Throws() => Assert.Throws<ArgumentNullException>(() => SharedEvents.Merge(null!));
 }

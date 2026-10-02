@@ -139,6 +139,20 @@ public sealed class EventWindowCacheTests : IDisposable
     }
 
     [Fact]
+    public async Task SharedEvent_OtherCopy_IsDrawnAsTheShownOne()
+    {
+        var start    = new DateTimeOffset(2026, 10, 5, 14, 0, 0, TimeSpan.Zero);
+        var work     = new CalendarOccurrence("work", "w", "e1", "uid", null, start, start.AddHours(1), false, "Sync", EventKind.Default, ResponseStatus.Accepted, "#039BE5", null, false, false);
+        var personal = work with { AccountId = "home", CalendarId = "h", CalendarColor = "#D50000" };
+        _data.AddRange([work, personal]);
+
+        await _cache.EnsureAsync(D(2026, 10, 4), D(2026, 10, 11), TestContext.Current.CancellationToken);
+
+        Assert.Same(work, _cache.Drawn(personal));
+        Assert.Same(work, _cache.Drawn(work));
+    }
+
+    [Fact]
     public async Task UnsharedEvent_HasNoStripes()
     {
         var one = Timed("one", new DateTimeOffset(2026, 10, 5, 14, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 5, 15, 0, 0, TimeSpan.Zero));

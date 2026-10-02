@@ -49,6 +49,30 @@ public sealed class SyncEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task SyncAccountAsync_CalendarHiddenFromGooglesList_IsKeptButNotSynced()
+    {
+        // Family Hidden From Google's List (routed first: the first matching route wins)
+        var list = System.Text.Json.Nodes.JsonNode.Parse(Fixture.Read("calendar-list.json"))!;
+        foreach (var item in list["items"]!.AsArray())
+        {
+            if ((string?)item!["id"] == Family)
+            {
+                item["hidden"] = true;
+            }
+        }
+
+        _h.Google.On(HttpMethod.Get, SyncHarness.ListUrl, HttpStatusCode.OK, list.ToJsonString());
+        _h.RouteStandardGoogle();
+
+        await _h.Engine.SyncAccountAsync(Account, TestContext.Current.CancellationToken);
+
+        Assert.True(Calendar(Family).Hidden);
+        Assert.Null(Calendar(Family).SyncToken);
+        Assert.DoesNotContain(_h.Google.Requests, r => r.Uri.AbsolutePath == new Uri(SyncHarness.FamilyEventsUrl).AbsolutePath);
+        Assert.Equal("sync-token-1", Calendar(Primary).SyncToken);
+    }
+
+    [Fact]
     public async Task SyncAccountAsync_SecondRun_AppliesIncrementalChanges()
     {
         var ct = TestContext.Current.CancellationToken;

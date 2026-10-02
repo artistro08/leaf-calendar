@@ -11,7 +11,10 @@ namespace LeafCalendar.Core.Events;
 /// <see cref="ForDay"/> without touching the database. The same event on several shown calendars is held once
 /// (<see cref="SharedEvents"/>), with <see cref="StripesOf"/> giving each calendar's color.
 /// </remarks>
-public sealed class EventWindowCache(Func<DateOnly, DateOnly, CancellationToken, Task<IReadOnlyList<CalendarOccurrence>>> load, TimeZoneInfo zone) : IDisposable
+/// <param name="load">Loads a month's instances.</param>
+/// <param name="zone">The zone that buckets instances into local days.</param>
+/// <param name="preference">Ranks the copies of a shared event for which one is drawn (see <see cref="SharedEvents.Merge"/>); null draws the first.</param>
+public sealed class EventWindowCache(Func<DateOnly, DateOnly, CancellationToken, Task<IReadOnlyList<CalendarOccurrence>>> load, TimeZoneInfo zone, Func<CalendarOccurrence, int>? preference = null) : IDisposable
 {
     /// <summary>Months kept on each side of the visible range.</summary>
     public const int MonthsAround = 3;
@@ -20,6 +23,7 @@ public sealed class EventWindowCache(Func<DateOnly, DateOnly, CancellationToken,
     Dictionary<DateOnly, IReadOnlyList<CalendarOccurrence>> _months = [];
     Dictionary<DateOnly, List<CalendarOccurrence>> _byDay = [];
     IReadOnlyDictionary<string, IReadOnlyList<string>> _stripes = new Dictionary<string, IReadOnlyList<string>>();
+    IReadOnlyDictionary<string, CalendarOccurrence> _aliases = new Dictionary<string, CalendarOccurrence>();
 
     /// <summary>Raised on the calling thread whenever the cached data changes.</summary>
     public event EventHandler? Changed;
@@ -110,13 +114,24 @@ public sealed class EventWindowCache(Func<DateOnly, DateOnly, CancellationToken,
         return _stripes.TryGetValue(occurrence.Key, out var stripes) ? stripes : [];
     }
 
+    /// <summary>
+    /// The occurrence the views draw for <paramref name="occurrence"/>: itself, or, for a copy of a shared event that's
+    /// drawn once, the copy drawn instead (so selecting it from search or the upcoming list highlights the card).
+    /// </summary>
+    public CalendarOccurrence Drawn(CalendarOccurrence occurrence)
+    {
+        ArgumentNullException.ThrowIfNull(occurrence);
+
+        return _aliases.TryGetValue(occurrence.Key, out var drawn) ? drawn : occurrence;
+    }
+
     /// <inheritdoc />
     public void Dispose() => _gate.Dispose();
 
     void Rebuild()
     {
         var byDay  = new Dictionary<DateOnly, List<CalendarOccurrence>>();
-        var merged = SharedEvents.Merge(_months.Values.SelectMany(m => m).DistinctBy(o => o.Key));
+        var merged = SharedEvents.Merge(_months.Values.SelectMany(m => m).DistinctBy(o => o.Key), preference);
 
         foreach (var occurrence in merged.Shown)
         {
@@ -137,6 +152,7 @@ public sealed class EventWindowCache(Func<DateOnly, DateOnly, CancellationToken,
 
         _byDay   = byDay;
         _stripes = merged.Stripes;
+        _aliases = merged.Aliases;
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Tests.Support;
 
@@ -118,24 +119,61 @@ public sealed class CalendarPreferencesTests : IDisposable
     }
 
     [Fact]
-    public void ReplaceForAccount_HiddenLater_LeavesWithItsEvents_AndComesBackWhenShown()
+    public void ReplaceForAccount_HiddenLater_IsKeptOutOfSight_AndComesBackAsItWas()
     {
         Refresh(Todoist(selected: true));
         using (var conn = _db.Database.Open())
         {
+            CalendarStore.SetColor(conn, Account, Todoist(true).Id, "#16A765");
             EventStore.ApplyJson(conn, null, Account, Todoist(true).Id, """{"id":"task","status":"confirmed","summary":"Task","start":{"date":"2026-10-01"},"end":{"date":"2026-10-02"}}""");
-            Assert.Equal(1, EventStore.Count(conn, Account, Todoist(true).Id));
         }
 
+        // Hidden: not listed, its events not shown or searched, but kept (an edit waiting for Google isn't dropped)
         Refresh(Todoist(selected: true, hidden: true));
         Assert.False(Listed(Todoist(true).Id));
         using (var conn = _db.Database.Open())
         {
-            Assert.Equal(0, EventStore.Count(conn, Account, Todoist(true).Id));
+            Assert.Equal(1, EventStore.Count(conn, Account, Todoist(true).Id));
+            Assert.Contains(CalendarStore.GetForAccount(conn, Account), c => c.Id == Todoist(true).Id && c.Hidden && !c.IsVisible);
+            Assert.DoesNotContain(OccurrenceQuery.Load(conn, new DateOnly(2026, 9, 30), new DateOnly(2026, 10, 3), TimeZoneInfo.Utc, includeDeclined: true), o => o.CalendarId == Todoist(true).Id);
+        }
+
+        // Shown Again: back with its color
+        Refresh(Todoist(selected: true));
+        var back = Get(Todoist(true).Id);
+        Assert.True(back.IsVisible);
+        Assert.Equal("#16A765", back.DisplayColor);
+    }
+
+    [Fact]
+    public void LegacyRow_HiddenInLeaf_StaysHidden_WhileGoogleShowsIt()
+    {
+        // A row from before Leaf recorded Google's choice (google_shown null), hidden in Leaf: Google ticking it doesn't
+        // bring it back
+        Refresh(Todoist(selected: true));
+        using (var conn = _db.Database.Open())
+        {
+            CalendarStore.SetHidden(conn, Account, Todoist(true).Id, hidden: true);
+            conn.Execute(null, "UPDATE calendars SET google_shown = NULL;");
         }
 
         Refresh(Todoist(selected: true));
-        Assert.True(Get(Todoist(true).Id).IsVisible);
+
+        Assert.False(Get(Todoist(true).Id).IsVisible);
+    }
+
+    [Fact]
+    public void LegacyRow_ShownInLeaf_HidesWhenGoogleHasItOff()
+    {
+        Refresh(Todoist(selected: true));
+        using (var conn = _db.Database.Open())
+        {
+            conn.Execute(null, "UPDATE calendars SET google_shown = NULL;");
+        }
+
+        Refresh(Todoist(selected: false));
+
+        Assert.False(Get(Todoist(true).Id).IsVisible);
     }
 
     [Fact]

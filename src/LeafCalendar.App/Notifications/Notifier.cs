@@ -51,28 +51,30 @@ internal sealed class Notifier(LeafServices services) : IDisposable
         }
     }
 
-    /// <summary>Shows a notification (replacing one with the same tag and group).</summary>
-    public void Show(ToastMessage message)
+    /// <summary>Shows a notification (replacing one with the same tag and group). False when Windows didn't take it.</summary>
+    public bool Show(ToastMessage message)
     {
         if (IsFake)
         {
             Record("show", message.Group, message.Tag, message.Xml);
-            return;
+            return true;
         }
 
         if (!_registered)
         {
-            return;
+            return false;
         }
 
         try
         {
             AppNotificationManager.Default.Show(new AppNotification(message.Xml) { Tag = message.Tag, Group = message.Group });
+            return true;
         }
         catch (Exception ex)
         {
             // Called from the alert handlers, which must never throw
             services.Log.Info("notifications.show.failed", $"error={ex.GetType().Name}");
+            return false;
         }
     }
 

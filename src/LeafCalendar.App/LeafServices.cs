@@ -91,26 +91,35 @@ public sealed class LeafServices : IAsyncDisposable
     public event EventHandler? GoogleChanged;
 
     /// <summary>
-    /// The browser came back from a sign-in (it finished, failed, or was refused; not when Leaf canceled it), so the
-    /// window that asked can come back to the front. Raised on whatever thread the sign-in finished on.
+    /// The browser came back from a sign-in (Google signed in, or answered with a refusal or an error), so the window that
+    /// asked can come back to the front. Not raised when Leaf canceled it, when it timed out (the user has moved on), or
+    /// when Google couldn't be reached. Raised on whatever thread the sign-in finished on.
     /// </summary>
     public event EventHandler? SignInReturned;
 
     /// <summary>
     /// Signs a Google account in through the browser (<see cref="SignInFlow.RunAsync(string?, string?, CancellationToken)"/>),
-    /// then raises <see cref="SignInReturned"/> unless <paramref name="ct"/> canceled it.
+    /// then raises <see cref="SignInReturned"/> when the browser came back.
     /// </summary>
     public async Task<Account> SignInAsync(GoogleServices google, string? loginHint, string? expectedAccountId, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(google);
 
+        var returned = false;
         try
         {
-            return await google.CreateSignIn(OpenSignInPageAsync).RunAsync(loginHint, expectedAccountId, ct);
+            var account = await google.CreateSignIn(OpenSignInPageAsync).RunAsync(loginHint, expectedAccountId, ct);
+            returned = true;
+            return account;
+        }
+        catch (SignInException ex) when (ex is not SignInTimeoutException && !ct.IsCancellationRequested)
+        {
+            returned = true;
+            throw;
         }
         finally
         {
-            if (!ct.IsCancellationRequested)
+            if (returned)
             {
                 SignInReturned?.Invoke(this, EventArgs.Empty);
             }

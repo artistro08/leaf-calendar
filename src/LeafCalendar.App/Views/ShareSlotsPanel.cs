@@ -129,7 +129,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         _vm = vm;
         if (vm.IsSharing && !_sharing)
         {
-            _zoneBox.Show(vm.ShareZoneId, vm.Now, vm.Zone);
+            _zoneBox.Show(vm.ShareZoneId, vm.Now);
             _message.Text = vm.Settings.ShareMessage.Replace("\r\n", "\r", StringComparison.Ordinal);
         }
 

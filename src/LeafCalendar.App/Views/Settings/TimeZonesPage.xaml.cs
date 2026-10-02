@@ -62,7 +62,7 @@ public sealed partial class TimeZonesPage : Page
         _loading = true;
 
         FollowWindowsZoneSwitch.IsOn = s.PrimaryTimeZone is null;
-        PrimaryZoneBox.Show(s.PrimaryTimeZone ?? TimeZoneCatalog.IanaId(_vm.UserZone), _vm.Now, _vm.Zone);
+        PrimaryZoneBox.Show(s.PrimaryTimeZone ?? TimeZoneCatalog.IanaId(_vm.UserZone), _vm.Now);
         ZonePromptSwitch.IsOn        = s.PromptOnZoneChange;
         UpdatePrimaryState();
         UpdatePrimarySummary();
@@ -87,7 +87,7 @@ public sealed partial class TimeZonesPage : Page
         UpdatePrimaryState();
         if (!_loading && FollowWindowsZoneSwitch.IsOn && _vm.Settings.PrimaryTimeZone is not null)
         {
-            PrimaryZoneBox.Show(TimeZoneCatalog.IanaId(_vm.UserZone), _vm.Now, _vm.Zone);
+            PrimaryZoneBox.Show(TimeZoneCatalog.IanaId(_vm.UserZone), _vm.Now);
             _context.Save(s => s with { PrimaryTimeZone = null });
             UpdatePrimarySummary();
         }

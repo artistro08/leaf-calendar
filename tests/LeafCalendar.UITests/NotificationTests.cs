@@ -25,7 +25,7 @@ public sealed class NotificationTests : IDisposable
 
         Assert.Contains("content=\"Join\"", line, StringComparison.Ordinal);
         Assert.Contains("arguments=\"snooze\"", line, StringComparison.Ordinal);
-        Assert.DoesNotContain("scenario=", line, StringComparison.Ordinal);
+        Assert.Contains("scenario=\"reminder\"", line, StringComparison.Ordinal);
     }
 
     [Fact]

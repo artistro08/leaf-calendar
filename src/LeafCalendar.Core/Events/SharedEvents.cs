@@ -9,22 +9,33 @@ namespace LeafCalendar.Core.Events;
 /// </summary>
 /// <remarks>
 /// Copies are the same event when they share Google's iCalendar UID and the same start, end, and all-day flag, and sit
-/// on different calendars. The first copy in the input is the one drawn (and selected, opened, and edited); the
-/// others are only remembered as stripes. Events without a UID are never merged.
+/// on different calendars. One copy is drawn (and selected, opened, and edited): the one <c>preference</c> ranks lowest
+/// (Leaf ranks a calendar you can edit, then your main account, first), else the first in the input. It takes the place
+/// of the group's first copy, so the input order holds; the others are remembered as stripes and as aliases of the
+/// drawn one. Events without a UID are never merged.
 /// </remarks>
 public static class SharedEvents
 {
-    /// <summary>The occurrences to draw, and for each one shown on more than one calendar (by its <see cref="CalendarOccurrence.Key"/>) the accent of every copy, the drawn one first.</summary>
-    public sealed record Result(IReadOnlyList<CalendarOccurrence> Shown, IReadOnlyDictionary<string, IReadOnlyList<string>> Stripes);
+    /// <summary>
+    /// The occurrences to draw; for each one shown on more than one calendar (by its <see cref="CalendarOccurrence.Key"/>)
+    /// the accent of every copy, the drawn one first; and for each copy not drawn (by its key), the copy drawn instead.
+    /// </summary>
+    public sealed record Result(
+        IReadOnlyList<CalendarOccurrence> Shown,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> Stripes,
+        IReadOnlyDictionary<string, CalendarOccurrence> Aliases);
 
     /// <summary>Merges the copies of shared events in <paramref name="occurrences"/>, keeping the input order.</summary>
-    public static Result Merge(IEnumerable<CalendarOccurrence> occurrences)
+    /// <param name="occurrences">The occurrences, in the order they're drawn.</param>
+    /// <param name="preference">Ranks a copy for being the one drawn (lower wins; ties keep the input order). Null: the first copy.</param>
+    public static Result Merge(IEnumerable<CalendarOccurrence> occurrences, Func<CalendarOccurrence, int>? preference = null)
     {
         ArgumentNullException.ThrowIfNull(occurrences);
 
         var shown   = new List<CalendarOccurrence>();
         var stripes = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
-        var firsts  = new Dictionary<(string Uid, long Start, long End, bool AllDay), (CalendarOccurrence First, List<CalendarOccurrence> Copies)>();
+        var aliases = new Dictionary<string, CalendarOccurrence>(StringComparer.Ordinal);
+        var groups  = new Dictionary<(string Uid, long Start, long End, bool AllDay), (int Slot, List<CalendarOccurrence> Copies)>();
 
         foreach (var o in occurrences)
         {
@@ -35,9 +46,9 @@ public static class SharedEvents
             }
 
             var key = (uid, o.Start.UtcTicks, o.End.UtcTicks, o.IsAllDay);
-            if (!firsts.TryGetValue(key, out var group))
+            if (!groups.TryGetValue(key, out var group))
             {
-                firsts[key] = (o, [o]);
+                groups[key] = (shown.Count, [o]);
                 shown.Add(o);
                 continue;
             }
@@ -52,11 +63,20 @@ public static class SharedEvents
             group.Copies.Add(o);
         }
 
-        foreach (var (first, copies) in firsts.Values.Where(g => g.Copies.Count > 1))
+        foreach (var (slot, copies) in groups.Values.Where(g => g.Copies.Count > 1))
         {
-            stripes[first.Key] = [.. copies.Select(c => EventColors.ResolveAccent(c.ColorId, c.CalendarColor))];
+            // The Preferred Copy Is Drawn In The Group's Place (MinBy keeps the first of equals)
+            var drawn = preference is null ? copies[0] : copies.MinBy(preference)!;
+            shown[slot] = drawn;
+
+            List<CalendarOccurrence> ordered = [drawn, .. copies.Where(c => !ReferenceEquals(c, drawn))];
+            stripes[drawn.Key] = [.. ordered.Select(c => EventColors.ResolveAccent(c.ColorId, c.CalendarColor))];
+            foreach (var other in ordered.Skip(1))
+            {
+                aliases[other.Key] = drawn;
+            }
         }
 
-        return new Result(shown, stripes);
+        return new Result(shown, stripes, aliases);
     }
 }
