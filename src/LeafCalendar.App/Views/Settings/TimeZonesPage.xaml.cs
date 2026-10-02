@@ -18,7 +18,8 @@ public sealed partial class TimeZonesPage : Page
 {
     readonly ObservableCollection<ZoneRow> _rows = [];
     IReadOnlyList<TimeZoneChoice> _suggestions = [];
-    IReadOnlyList<TimeZoneChoice> _primarySuggestions = [];
+    // Every zone this PC knows as "(UTC+09:00) Tokyo", mapped back to its ID (strings only go to the box: AOT)
+    readonly Dictionary<string, string> _zoneIds = [];
 
     // True while the saved values are being shown (the switches' Toggled events are ignored meanwhile)
     bool _loading;
@@ -48,6 +49,7 @@ public sealed partial class TimeZonesPage : Page
         }
 
         UpdateState();
+        BuildZoneList();
         ShowPrimary();
     }
 
@@ -62,7 +64,7 @@ public sealed partial class TimeZonesPage : Page
         _loading = true;
 
         FollowWindowsZoneSwitch.IsOn = s.PrimaryTimeZone is null;
-        PrimaryZoneBox.Text          = s.PrimaryTimeZone is { } id ? TimeZoneCatalog.CityFor(id) : "";
+        PrimaryZoneBox.SelectedItem  = s.PrimaryTimeZone is { } id ? _zoneIds.FirstOrDefault(z => z.Value == id).Key : null;
         ZonePromptSwitch.IsOn        = s.PromptOnZoneChange;
         UpdatePrimaryState();
         UpdatePrimarySummary();
@@ -87,28 +89,47 @@ public sealed partial class TimeZonesPage : Page
         UpdatePrimaryState();
         if (!_loading && FollowWindowsZoneSwitch.IsOn && _vm.Settings.PrimaryTimeZone is not null)
         {
-            PrimaryZoneBox.Text = "";
+            PrimaryZoneBox.SelectedItem = null;
             _context.Save(s => s with { PrimaryTimeZone = null });
             UpdatePrimarySummary();
         }
     }
 
-    void OnPrimaryTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    // All of Windows' zones, sorted by offset then city
+    void BuildZoneList()
     {
-        if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+        var now = _vm.Now;
+        var all = new List<(TimeSpan Offset, string City, string Id)>();
+        foreach (var zone in TimeZoneInfo.GetSystemTimeZones())
         {
-            _primarySuggestions = TimeZoneCatalog.Search(sender.Text, _vm.Now);
-            sender.ItemsSource  = _primarySuggestions.Select(c => c.ToString()).ToList();
+            var id = TimeZoneCatalog.IanaId(zone);
+            if (TimeZoneCatalog.IsKnown(id) && all.TrueForAll(a => a.Id != id))
+            {
+                all.Add((zone.GetUtcOffset(now), TimeZoneCatalog.CityFor(id), id));
+            }
         }
+
+        _zoneIds.Clear();
+        List<string> names = [];
+        foreach (var (offset, city, id) in all.OrderBy(a => a.Offset).ThenBy(a => a.City, StringComparer.CurrentCulture))
+        {
+            var sign = offset < TimeSpan.Zero ? "−" : "+";
+            var name = $"(UTC{sign}{offset.Duration():hh\\:mm}) {city}";
+            if (_zoneIds.TryAdd(name, id))
+            {
+                names.Add(name);
+            }
+        }
+
+        PrimaryZoneBox.ItemsSource = names;
     }
 
-    // A pick pins the zone (matched against our own list, never read back as a Core record)
-    void OnPrimaryChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
+    // A pick pins the zone
+    void OnPrimaryChosen(object sender, SelectionChangedEventArgs e)
     {
-        if (args.SelectedItem is string text && _primarySuggestions.FirstOrDefault(c => c.ToString() == text) is { } choice)
+        if (!_loading && PrimaryZoneBox.SelectedItem is string name && _zoneIds.TryGetValue(name, out var id))
         {
-            _context.Save(s => s with { PrimaryTimeZone = choice.Id });
-            sender.Text = choice.City;
+            _context.Save(s => s with { PrimaryTimeZone = id });
             UpdatePrimarySummary();
         }
     }
