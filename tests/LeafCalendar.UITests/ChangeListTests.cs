@@ -201,7 +201,8 @@ public sealed class ChangeListTests : IDisposable
         leaf.Press(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_K);
         var box = leaf.WaitForAnywhere("CommandSearchBox");
         box.AsTextBox().Text = "sync now";
-        leaf.WaitForAnywhere("CommandResult_sync").AsListBoxItem().Select();
+        // The Only Match Is The First Row, Picked As The Menu Opens It (rows are list items' content, not selectable themselves)
+        leaf.WaitForAnywhere("CommandResult_sync");
         FlaUI.Core.Input.Keyboard.Type(VirtualKeyShort.RETURN);
 
         // The ring shows for at least its minimum, then the slot empties

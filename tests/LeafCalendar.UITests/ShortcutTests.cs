@@ -44,7 +44,8 @@ public sealed class ShortcutTests : IDisposable
     [Fact]
     public void JoinShortcut_NothingSoon_SaysSo()
     {
-        using var leaf = Launch("2026-10-01T11:00:00-04:00");
+        // 9 hours before the 2 PM meeting: past the upcoming list's 8 hour lookahead, which the shortcut joins within
+        using var leaf = Launch("2026-10-01T05:00:00-04:00");
 
         Press(VirtualKeyShort.F9);
 

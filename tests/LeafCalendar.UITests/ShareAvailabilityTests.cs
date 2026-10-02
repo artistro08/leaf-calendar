@@ -4,6 +4,7 @@ using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
+using LeafCalendar.Core.People;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.UITests.Support;
 
@@ -58,7 +59,11 @@ public sealed class ShareAvailabilityTests : IDisposable
         leaf.WaitFor("ShareCopyButton").AsButton().Invoke();
         var text = Retry.WhileNull(Clipboard.Text, TimeSpan.FromSeconds(10)).Result;
         Assert.NotNull(text);
-        return text;
+
+        // Wrapped In The Default Message: the times follow its greeting
+        var intro = AvailabilityText.Compose(AvailabilityText.DefaultMessage, "");
+        Assert.StartsWith(intro, text, StringComparison.Ordinal);
+        return text[intro.Length..];
     }
 
     static bool NoticeSays(LeafApp leaf, string text) =>
