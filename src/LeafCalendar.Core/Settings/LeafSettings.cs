@@ -221,6 +221,12 @@ public sealed record LeafSettings
     /// <summary>Accounts whose calendars are folded away under their header (the sidebar and Settings › Calendars).</summary>
     public IReadOnlyList<string> CollapsedAccounts { get; init; } = [];
 
+    /// <summary>
+    /// When Windows starts Leaf at sign-in, open its window too; false (the default, and what a row saved before this
+    /// existed reads as) starts it minimized to the tray. Settings shows it as "Start minimized", the other way round.
+    /// </summary>
+    public bool OpenWindowAtSignIn { get; init; }
+
     /// <summary>Detailed logging (Settings › About): a breadcrumb trail and crash dumps in the log folder. Off by default.</summary>
     public bool DetailedLogging { get; init; }
 

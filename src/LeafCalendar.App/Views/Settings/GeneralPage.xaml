@@ -185,14 +185,41 @@
 
             <!-- Startup (spec 8.1) -->
             <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Startup" />
-            <controls:SettingRow x:Name="StartupRow" Glyph="&#xE770;" Header="Start with Windows" Description="Leaf starts in the tray when you sign in to Windows, so reminders arrive on time.">
-                <ToggleSwitch
-                    x:Name="StartupSwitch"
-                    Style="{StaticResource LeafCardToggleSwitchStyle}"
-                    Toggled="OnStartupToggled"
-                    AutomationProperties.Name="Start with Windows"
-                    AutomationProperties.AutomationId="StartupSwitch" />
-            </controls:SettingRow>
+            <!-- Start With Windows (an expander, like Windows Settings: the switch in its header, Start minimized inside) -->
+            <Expander
+                x:Name="StartupExpander"
+                Style="{StaticResource LeafSettingExpanderStyle}"
+                AutomationProperties.Name="Start with Windows"
+                AutomationProperties.AutomationId="StartupExpander">
+                <Expander.Header>
+                    <controls:SettingRow
+                        x:Name="StartupRow"
+                        Style="{StaticResource LeafExpanderHeaderRowStyle}"
+                        Glyph="&#xE770;"
+                        Header="Start with Windows"
+                        Description="Leaf starts when you sign in to Windows, so reminders arrive on time.">
+                        <ToggleSwitch
+                            x:Name="StartupSwitch"
+                            Style="{StaticResource LeafCardToggleSwitchStyle}"
+                            Toggled="OnStartupToggled"
+                            AutomationProperties.Name="Start with Windows"
+                            AutomationProperties.AutomationId="StartupSwitch" />
+                    </controls:SettingRow>
+                </Expander.Header>
+                <controls:SettingRow
+                    Style="{StaticResource LeafExpanderItemRowStyle}"
+                    BorderThickness="0"
+                    Header="Start minimized"
+                    Description="Leaf waits in the tray. Turn off to open its window when you sign in.">
+                    <ToggleSwitch
+                        x:Name="StartMinimizedSwitch"
+                        Style="{StaticResource LeafCardToggleSwitchStyle}"
+                        Toggled="OnStartMinimizedToggled"
+                        AutomationProperties.Name="Start minimized"
+                        AutomationProperties.AutomationId="StartMinimizedSwitch" />
+                </controls:SettingRow>
+            </Expander>
+            <!-- /Start With Windows -->
         </StackPanel>
     </ScrollViewer>
 </Page>

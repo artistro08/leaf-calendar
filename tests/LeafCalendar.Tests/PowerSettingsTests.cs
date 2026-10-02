@@ -148,6 +148,13 @@ public sealed class PowerSettingsTests
     }
 
     [Fact]
+    public void OpenWindowAtSignIn_IsOffByDefault_AndForOlderRows()
+    {
+        Assert.False(new LeafSettings().Normalize().OpenWindowAtSignIn);
+        Assert.False(System.Text.Json.JsonSerializer.Deserialize("""{"flyoutDays":5}""", LeafJsonContext.Default.LeafSettings)!.Normalize().OpenWindowAtSignIn);
+    }
+
+    [Fact]
     public void WithAccountCollapsed_FoldsAndUnfolds()
     {
         var s = new LeafSettings();

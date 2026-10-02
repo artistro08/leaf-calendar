@@ -34,7 +34,7 @@ public sealed partial class GeneralPage : Page
     const string StartupTaskId = "LeafCalendarStartup";
 
     // The startup row's description when Windows leaves the switch to Leaf
-    const string StartupDescription = "Leaf starts in the tray when you sign in to Windows, so reminders arrive on time.";
+    const string StartupDescription = "Leaf starts when you sign in to Windows, so reminders arrive on time.";
 
     SettingsContext _context = null!;
 
@@ -95,6 +95,7 @@ public sealed partial class GeneralPage : Page
         UpcomingHoursBox.SelectedIndex = LeafSettings.UpcomingChoices.ToList().IndexOf(s.UpcomingHours);
         MapProviderBox.SelectedIndex   = Array.IndexOf(MapSources, s.MapProvider);
         LoadWorkingHours(s.WorkingHours, s.WeekStart, s.Use24HourTime);
+        StartMinimizedSwitch.IsOn = !s.OpenWindowAtSignIn;
 
         _loading = false;
     }
@@ -329,7 +330,8 @@ public sealed partial class GeneralPage : Page
             }
 
             var state = task.State;
-            StartupSwitch.IsOn      = state is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy;
+            StartupSwitch.IsOn             = state is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy;
+            StartMinimizedSwitch.IsEnabled = StartupSwitch.IsOn;
             StartupSwitch.IsEnabled = state is StartupTaskState.Enabled or StartupTaskState.Disabled;
             StartupRow.Description  = state switch
             {
@@ -341,7 +343,8 @@ public sealed partial class GeneralPage : Page
         catch (Exception ex)
         {
             // Not packaged, or the task is missing: the switch stays off; the type only
-            StartupSwitch.IsEnabled = false;
+            StartupSwitch.IsEnabled        = false;
+            StartMinimizedSwitch.IsEnabled = false;
             _context.Services.Log.Info("settings.startup.failed", $"error={ex.GetType().Name}");
         }
         finally
@@ -350,6 +353,16 @@ public sealed partial class GeneralPage : Page
             {
                 _loadingStartup = false;
             }
+        }
+    }
+
+    // On (the default): Windows' sign-in start stays in the tray; off: it opens the main window too
+    void OnStartMinimizedToggled(object sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+        {
+            var open = !StartMinimizedSwitch.IsOn;
+            _context.Save(s => s with { OpenWindowAtSignIn = open });
         }
     }
 
