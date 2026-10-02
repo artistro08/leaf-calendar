@@ -71,13 +71,34 @@ public class TimeZoneCatalogTests
         // More than the curated cities, each zone once, west to east
         Assert.True(all.Count > 30, $"Only {all.Count} zones.");
         Assert.Equal(all.Count, all.Select(z => z.Id).Distinct().Count());
-        Assert.Contains(("Asia/Tokyo", "(UTC+09:00) Tokyo"), all);
-        Assert.Contains(("Asia/Kolkata", "(UTC+05:30) Mumbai"), all);
-        Assert.Contains(("America/New_York", "(UTC-04:00) New York"), all);
+        Assert.Contains(("Asia/Tokyo", "(UTC+09:00) Tokyo (JST)"), all);
+        Assert.Contains(("Asia/Kolkata", "(UTC+05:30) Mumbai (IST)"), all);
+        Assert.Contains(("America/New_York", "(UTC-04:00) New York (EDT)"), all);
         Assert.True(all.FindIndex(z => z.Id == "America/New_York") < all.FindIndex(z => z.Id == "Asia/Tokyo"));
     }
 
     [Fact]
     public void ListLabel_ZeroOffset_IsPlus() =>
         Assert.Equal("(UTC+00:00) UTC", TimeZoneCatalog.ListLabel("Etc/UTC", Now));
+
+    [Theory]
+    [InlineData("America/Chicago", "(UTC-05:00) Chicago (CDT)")]
+    [InlineData("Europe/London", "(UTC+01:00) London (BST)")]
+    [InlineData("Asia/Kathmandu", "(UTC+05:45) Kathmandu")]
+    public void ListLabel_AddsTheShortNameWhenThereIsOne(string id, string expected) =>
+        Assert.Equal(expected, TimeZoneCatalog.ListLabel(id, Now));
+
+    [Fact]
+    public void ListLabel_Winter_UsesTheStandardName() =>
+        Assert.Equal("(UTC-06:00) Chicago (CST)", TimeZoneCatalog.ListLabel("America/Chicago", new DateTimeOffset(2026, 1, 15, 12, 0, 0, TimeSpan.Zero)));
+
+    [Theory]
+    [InlineData("America/Chicago", "America/Chicago", true)]
+    [InlineData("Central Standard Time", "America/Chicago", true)]
+    [InlineData("America/Chicago", "Central Standard Time", true)]
+    [InlineData("America/New_York", "America/Chicago", false)]
+    [InlineData("Mars/Olympus", "America/Chicago", false)]
+    [InlineData(null, "America/Chicago", false)]
+    public void IsSameZone_MatchesWindowsAndIanaIds(string? id, string zone, bool expected) =>
+        Assert.Equal(expected, TimeZoneCatalog.IsSameZone(id, TimeZoneInfo.FindSystemTimeZoneById(zone)));
 }

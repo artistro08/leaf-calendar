@@ -98,7 +98,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         _vm = vm;
         if (vm.IsSharing && !_sharing)
         {
-            _zoneBox.Show(vm.ShareZoneId, vm.Now);
+            _zoneBox.Show(vm.ShareZoneId, vm.Now, vm.Zone);
         }
 
         _sharing            = vm.IsSharing;

@@ -39,9 +39,6 @@ public sealed partial class EventBlock : Grid
     readonly Border _card = new() { CornerRadius = new CornerRadius(4) };
     readonly StackPanel _accents = new() { Orientation = Orientation.Horizontal, Spacing = StripeGap, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(StripeGap) };
     readonly StackPanel _text = new() { Margin = new Thickness(9, 3, 4, 2) };
-    readonly Microsoft.UI.Xaml.Shapes.Path _hatch = Hatch.Create();
-    Microsoft.UI.Xaml.Media.Brush? _hatchStroke;
-    bool _hatched;
     readonly TextBlock _title = new() { FontSize = 12, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.WrapWholeWords, MaxLines = 2 };
     readonly TextBlock _time = new() { FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis };
     readonly FontIcon _icon = new() { FontSize = 11, Margin = new Thickness(0, 1, 4, 0), Visibility = Visibility.Collapsed };
@@ -64,8 +61,6 @@ public sealed partial class EventBlock : Grid
         var inner = new Grid();
         inner.Children.Add(_accents);
         inner.Children.Add(_text);
-        inner.Children.Add(_hatch);
-        inner.SizeChanged += (_, e) => Hatch.Draw(_hatch, _hatched, e.NewSize.Width, e.NewSize.Height, _hatchStroke);
 
         _card.Child = inner;
         Children.Add(_card);
@@ -180,8 +175,7 @@ public sealed partial class EventBlock : Grid
     /// each one's bar color in <paramref name="stripes"/> (its own first) and gets a bar per calendar; otherwise the card
     /// has its one accent bar.
     /// </summary>
-    /// <remarks>While you mark times to share (<paramref name="hatched"/>), the card wears a diagonal-line overlay.</remarks>
-    public void Bind(CalendarOccurrence occurrence, EventPalette palette, string timeText, bool selected, bool compact, Action<CalendarOccurrence> select, bool past, IReadOnlyList<string>? stripes = null, bool hatched = false)
+    public void Bind(CalendarOccurrence occurrence, EventPalette palette, string timeText, bool selected, bool compact, Action<CalendarOccurrence> select, bool past, IReadOnlyList<string>? stripes = null)
     {
         _occurrence = occurrence;
         _select     = select;
@@ -215,14 +209,6 @@ public sealed partial class EventBlock : Grid
         {
             _title.Foreground = textBrush;
             _time.Foreground  = LeafBrushes.FromHex(palette.SecondaryText);
-        }
-
-        // Diagonal Lines While Marking Times To Share (in the card's text color, faint)
-        _hatched     = hatched;
-        _hatchStroke = LeafBrushes.FromHex("#40" + (outlined ? palette.Accent : palette.Text)[1..]);
-        if (_card.Child is FrameworkElement area)
-        {
-            Hatch.Draw(_hatch, hatched, area.ActualWidth, area.ActualHeight, _hatchStroke);
         }
 
         // Kind Icon

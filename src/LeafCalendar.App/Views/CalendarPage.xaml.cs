@@ -166,10 +166,13 @@ public sealed partial class CalendarPage : Page
     /// </summary>
     public const double InactiveOpacity = 0.5;
 
-    /// <summary>Dims the period title and the sidebar while the window isn't the active one, like the title bar does.</summary>
+    /// <summary>Dims the period title, the sidebar, and the details panel (or the share panel in its place) while the window isn't the active one, like the title bar does.</summary>
     public void SetWindowActive(bool active)
     {
-        PeriodTitle.Opacity = active ? 1 : InactiveOpacity;
+        var opacity = active ? 1 : InactiveOpacity;
+        PeriodTitle.Opacity = opacity;
+        Details.Opacity     = opacity;
+        _slotsPanel?.Opacity = opacity;
         Sidebar.SetWindowActive(active);
     }
 

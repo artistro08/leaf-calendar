@@ -102,12 +102,40 @@ public sealed class CalendarPreferencesTests : IDisposable
         CalendarStore.ReplaceForAccount(conn, Account, [.. Entries("calendar-list.json"), .. extra]);
     }
 
+    bool Listed(string id)
+    {
+        using var conn = _db.Database.Open();
+        return CalendarStore.GetAll(conn).Any(c => c.Id == id);
+    }
+
     [Fact]
-    public void ReplaceForAccount_HiddenFromGooglesList_StartsHidden()
+    public void ReplaceForAccount_HiddenFromGooglesList_IsNotListed()
     {
         Refresh(Todoist(selected: true, hidden: true));
 
-        Assert.False(Get(Todoist(true).Id).IsVisible);
+        Assert.False(Listed(Todoist(true).Id));
+        Assert.True(Listed(Primary));
+    }
+
+    [Fact]
+    public void ReplaceForAccount_HiddenLater_LeavesWithItsEvents_AndComesBackWhenShown()
+    {
+        Refresh(Todoist(selected: true));
+        using (var conn = _db.Database.Open())
+        {
+            EventStore.ApplyJson(conn, null, Account, Todoist(true).Id, """{"id":"task","status":"confirmed","summary":"Task","start":{"date":"2026-10-01"},"end":{"date":"2026-10-02"}}""");
+            Assert.Equal(1, EventStore.Count(conn, Account, Todoist(true).Id));
+        }
+
+        Refresh(Todoist(selected: true, hidden: true));
+        Assert.False(Listed(Todoist(true).Id));
+        using (var conn = _db.Database.Open())
+        {
+            Assert.Equal(0, EventStore.Count(conn, Account, Todoist(true).Id));
+        }
+
+        Refresh(Todoist(selected: true));
+        Assert.True(Get(Todoist(true).Id).IsVisible);
     }
 
     [Fact]

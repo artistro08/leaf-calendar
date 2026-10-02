@@ -78,6 +78,7 @@
                     Width="320"
                     PlaceholderText="Add a city or zone (Tokyo, NYC, UTC)"
                     QueryIcon="Add"
+                    UpdateTextOnSelect="False"
                     TextChanged="OnSearchTextChanged"
                     SuggestionChosen="OnSuggestionChosen"
                     QuerySubmitted="OnQuerySubmitted"

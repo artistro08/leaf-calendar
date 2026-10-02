@@ -31,6 +31,9 @@ public sealed partial class DayColumn : Canvas
     readonly Border _ghost = new() { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
     readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 2, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
     readonly Canvas _offHours = new() { IsHitTestVisible = false };
+
+    // Marking times to share: diagonal lines over the day's empty time (under the events and the picked times)
+    readonly Microsoft.UI.Xaml.Shapes.Path _hatch = Hatch.Create();
     readonly List<Border> _offHourBlocks = [];
     readonly Canvas _overlay = new() { IsHitTestVisible = false };
     readonly List<(Border Block, TextBlock Title)> _overlayBlocks = [];
@@ -53,6 +56,9 @@ public sealed partial class DayColumn : Canvas
         {
             Children.Add(_hourLines[h] = new Rectangle { Height = 1, IsHitTestVisible = false });
         }
+
+        // Diagonal Lines While Marking Times To Share
+        Children.Add(_hatch);
 
         // People Overlay, Then Shared-Availability Slots (under the events; clicks and drags go through to the grid)
         Children.Add(_overlay);
@@ -124,6 +130,7 @@ public sealed partial class DayColumn : Canvas
 
         _divider.Height = Height;
         _divider.Fill   = LeafBrushes.GridLine(dark);
+        Hatch.Draw(_hatch, _owner.ViewModel.IsSharing, width, Height, LeafBrushes.GridLine(dark));
 
         RenderOffHours();
         RenderOverlay();
@@ -167,7 +174,7 @@ public sealed partial class DayColumn : Canvas
 
             var card    = _blocks[shown++];
             var height  = Math.Max(b.EndMinute - b.StartMinute, DayLayout.MinVisualMinutes) / 60 * hour - 2;
-            // Marking Times To Share: every event looks past and wears diagonal lines (they're taken, not something to pick)
+            // Marking Times To Share: every event looks past (they're taken; the day behind them wears diagonal lines)
             var faded   = vm.IsPast(b.Occurrence) || vm.IsSharing;
             var palette = LeafBrushes.CardPalette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, faded, vm.IsSelected(b.Occurrence));
 
@@ -177,7 +184,7 @@ public sealed partial class DayColumn : Canvas
             SetLeft(card, 2 + b.Column * colW);
             SetTop(card, b.StartMinute / 60 * hour + 1);
             card.HoldsEnd = b.Occurrence.End <= OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
-            card.Bind(b.Occurrence, palette, TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, _select, faded, StripesFor(b.Occurrence, dark), hatched: vm.IsSharing);
+            card.Bind(b.Occurrence, palette, TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, _select, faded, StripesFor(b.Occurrence, dark));
         }
 
         for (var i = shown; i < _blocks.Count; i++)

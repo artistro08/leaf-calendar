@@ -7,8 +7,8 @@ namespace LeafCalendar.App.Controls;
 
 /// <summary>
 /// A repeating diagonal-line overlay (WinUI has no hatch brush): 1 DIP lines at 45°, <see cref="Spacing"/> apart, drawn as
-/// one path sized to what it covers. While you mark times to share, the calendar's events wear it over their faded
-/// colors, so they read as "taken" rather than as something to click.
+/// one path sized to what it covers. While you mark times to share, the time grid's days wear it behind the faded
+/// events, so the calendar reads as a surface to mark rather than events to click.
 /// </summary>
 public static class Hatch
 {

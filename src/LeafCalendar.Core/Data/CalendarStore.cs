@@ -52,7 +52,9 @@ public static partial class CalendarStore
     /// Makes the account's calendars match Google's list.
     /// </summary>
     /// <remarks>
-    /// Calendars missing from the list (or marked deleted) are removed along with their events.
+    /// Calendars missing from the list, marked deleted, or hidden from Google Calendar's list ("Hide from list") are
+    /// removed along with their events: a hidden calendar isn't shown anywhere in Leaf, and comes back on the next
+    /// refresh once it's shown in Google again.
     /// Existing calendars keep their sync token, local order, and color. A calendar is shown only when it is enabled in
     /// Google Calendar (ticked, or "selected", and not hidden from the list): a newly seen calendar starts that way, and so
     /// does one whose Google choice changed since the last refresh (or was never recorded). Otherwise Leaf's own choice
@@ -60,7 +62,7 @@ public static partial class CalendarStore
     /// </remarks>
     public static void ReplaceForAccount(SqliteConnection conn, string accountId, IReadOnlyList<CalendarListEntry> entries)
     {
-        var incoming    = entries.Where(e => !e.Deleted).ToList();
+        var incoming    = entries.Where(e => !e.Deleted && !e.Hidden).ToList();
         var incomingIds = incoming.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
 
         using var tx = conn.BeginTransaction();

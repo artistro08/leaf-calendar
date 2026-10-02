@@ -72,6 +72,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
     readonly TimeZoneGutter _gutter;
     readonly StackPanel _zoneLabels = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 4) };
     readonly TextBlock _weekNumber = new() { FontSize = 11, Margin = new Thickness(30, 6, 0, 0) };
+    // The line under the all-day row, across the corner and the days, so the row always has a bottom edge whatever the
+    // grid below is scrolled to
+    readonly Border _allDayRule = new() { Height = 1, VerticalAlignment = VerticalAlignment.Bottom, IsHitTestVisible = false };
     readonly Button _allDayExpand = new() { Padding = new Thickness(4), Background = LeafBrushes.Transparent, BorderThickness = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
     readonly DispatcherQueueTimer _clock;
     readonly HashSet<DayColumn> _columns = [];
@@ -172,6 +175,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _headerScroll.Content = _headerHost;
         SetColumn(_headerScroll, 1);
         Children.Add(_headerScroll);
+        SetColumnSpan(_allDayRule, 2);
+        Children.Add(_allDayRule);
 
         // Gutter
         _gutterHost.Children.Add(_gutter);
@@ -714,6 +719,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
         Corner.Width           = zones.Count * ZoneColumnWidth;
         _weekNumber.Foreground = LeafBrushes.SecondaryText(dark);
+        _allDayRule.Background = LeafBrushes.GridLine(dark);
         RenderWeekNumber();
     }
 

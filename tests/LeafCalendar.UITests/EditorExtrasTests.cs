@@ -100,7 +100,7 @@ public sealed class EditorExtrasTests : IDisposable
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("Tokyo");
         Keyboard.Type(VirtualKeyShort.RETURN);
-        Assert.True(Retry.WhileFalse(() => edit.Text == "(UTC+09:00) Tokyo", TimeSpan.FromSeconds(5)).Success, $"The box reads \"{edit.Text}\".");
+        Assert.True(Retry.WhileFalse(() => edit.Text == "(UTC+09:00) Tokyo (JST)", TimeSpan.FromSeconds(5)).Success, $"The box reads \"{edit.Text}\".");
 
         // The Clock Stays 9-10, Now In Tokyo
         var local = leaf.WaitFor("EditorLocalTimeText");
