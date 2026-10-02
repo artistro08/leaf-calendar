@@ -167,7 +167,9 @@ public sealed partial class DayColumn : Canvas
 
             var card    = _blocks[shown++];
             var height  = Math.Max(b.EndMinute - b.StartMinute, DayLayout.MinVisualMinutes) / 60 * hour - 2;
-            var palette = LeafBrushes.CardPalette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, vm.IsPast(b.Occurrence), vm.IsSelected(b.Occurrence));
+            // Marking Times To Share: every event looks past and wears diagonal lines (they're taken, not something to pick)
+            var faded   = vm.IsPast(b.Occurrence) || vm.IsSharing;
+            var palette = LeafBrushes.CardPalette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, faded, vm.IsSelected(b.Occurrence));
 
             card.Width      = Math.Max(colW - 2, 10);
             card.Height     = height;
@@ -175,7 +177,7 @@ public sealed partial class DayColumn : Canvas
             SetLeft(card, 2 + b.Column * colW);
             SetTop(card, b.StartMinute / 60 * hour + 1);
             card.HoldsEnd = b.Occurrence.End <= OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
-            card.Bind(b.Occurrence, palette, TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, _select, vm.IsPast(b.Occurrence), StripesFor(b.Occurrence, dark));
+            card.Bind(b.Occurrence, palette, TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, _select, faded, StripesFor(b.Occurrence, dark), hatched: vm.IsSharing);
         }
 
         for (var i = shown; i < _blocks.Count; i++)
@@ -216,7 +218,7 @@ public sealed partial class DayColumn : Canvas
             return null;
         }
 
-        var past     = vm.IsPast(occurrence);
+        var past     = vm.IsPast(occurrence) || vm.IsSharing;
         var selected = vm.IsSelected(occurrence);
         return [.. accents.Select(a => LeafBrushes.CardPalette(a, dark, past, selected).Accent)];
     }

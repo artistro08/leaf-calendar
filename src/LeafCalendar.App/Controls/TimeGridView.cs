@@ -829,11 +829,22 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
+        // Starting Or Stopping: every event changes its look (faded with diagonal lines while marking times)
+        if (_sharingShown != _vm.IsSharing)
+        {
+            _sharingShown = _vm.IsSharing;
+            RenderColumns();
+            return;
+        }
+
         foreach (var column in _columns)
         {
             column.RenderSlots();
         }
     }
+
+    // Whether the events were last drawn for marking times to share
+    bool _sharingShown;
 
     // =========================================================================
     // DRAGGING

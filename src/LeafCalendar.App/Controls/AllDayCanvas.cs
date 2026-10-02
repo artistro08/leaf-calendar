@@ -22,7 +22,7 @@ public sealed partial class AllDayCanvas : Canvas
     public const double SpareWidth = 10;
 
     readonly TimeGridView _owner;
-    readonly List<(Border Chip, TextBlock Text)> _chips = [];
+    readonly List<(Border Chip, TextBlock Text, Microsoft.UI.Xaml.Shapes.Path Hatch)> _chips = [];
     readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _dividers = [];
     readonly Dictionary<Border, CalendarOccurrence> _shown = [];
 
@@ -97,7 +97,7 @@ public sealed partial class AllDayCanvas : Canvas
         _shown.Clear();
         for (var i = 0; i < _chips.Count; i++)
         {
-            var (chip, text) = _chips[i];
+            var (chip, text, hatch) = _chips[i];
             if (i >= shown.Count)
             {
                 chip.Visibility = Visibility.Collapsed;
@@ -105,7 +105,8 @@ public sealed partial class AllDayCanvas : Canvas
             }
 
             var b       = shown[i];
-            var palette = LeafBrushes.CardPalette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, vm.IsPast(b.Occurrence), vm.IsSelected(b.Occurrence));
+            var faded   = vm.IsPast(b.Occurrence) || vm.IsSharing; // marking times to share fades every event, with diagonal lines
+            var palette = LeafBrushes.CardPalette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, faded, vm.IsSelected(b.Occurrence));
             var start   = SpanLayout.CoveredDates(b.Occurrence, vm.Zone).First;
             _shown[chip] = b.Occurrence;
 
@@ -117,6 +118,8 @@ public sealed partial class AllDayCanvas : Canvas
             chip.BorderThickness = LeafBrushes.CardBorder(vm.IsSelected(b.Occurrence));
             text.Text            = (b.ContinuesBefore ? "‹ " : "") + b.Occurrence.Title + (b.ContinuesAfter ? " ›" : "");
             text.Foreground      = LeafBrushes.FromHex(palette.Text);
+            var border = chip.BorderThickness.Left * 2;
+            Hatch.Draw(hatch, vm.IsSharing, chip.Width - border, chip.Height - border, LeafBrushes.FromHex("#40" + palette.Text[1..]));
 
             SetLeft(chip, (first + b.FirstColumn) * width + 2);
             SetTop(chip, b.Lane * TimeGridView.AllDayLaneHeight + 2);
@@ -204,7 +207,9 @@ public sealed partial class AllDayCanvas : Canvas
     void AddChip()
     {
         var text = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
-        var chip = new Border { CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 0, 6, 0), Child = text };
+        var hatch = Hatch.Create();
+        text.Margin = new Thickness(6, 0, 6, 0);
+        var chip = new Border { CornerRadius = new CornerRadius(4), Child = new Grid { Children = { text, hatch } } };
 
         chip.Tapped += (_, e) =>
         {
@@ -257,7 +262,7 @@ public sealed partial class AllDayCanvas : Canvas
             }
         };
 
-        _chips.Add((chip, text));
+        _chips.Add((chip, text, hatch));
         Children.Add(chip);
     }
 }
