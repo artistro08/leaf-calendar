@@ -327,7 +327,7 @@
                                                 TextWrapping="NoWrap"
                                                 Visibility="{x:Bind ShowDetail}"
                                                 AutomationProperties.AutomationId="{x:Bind DetailId}" />
-                                            <CheckBox MinWidth="0" Content="Optional" IsChecked="{x:Bind Optional, Mode=TwoWay}" Visibility="{x:Bind ShowOptional}" AutomationProperties.AutomationId="{x:Bind OptionalId}" />
+                                            <CheckBox MinWidth="0" Content="Optional" IsChecked="{x:Bind Optional, Mode=TwoWay}" Visibility="{x:Bind ShowOptional}" ToolTipService.ToolTip="Optional guests can decline without affecting the meeting" AutomationProperties.AutomationId="{x:Bind OptionalId}" />
                                         </StackPanel>
                                         <Button
                                             Grid.Column="1"
@@ -380,7 +380,13 @@
                                 </DataTemplate>
                             </controls:PinnedItemsControl.ItemTemplate>
                         </controls:PinnedItemsControl>
-                        <HyperlinkButton Content="Add reminder" Click="OnAddReminderClick" Visibility="{x:Bind Editor.CanAddReminder, Mode=OneWay}" AutomationProperties.AutomationId="EditorAddReminder" />
+                        <!-- Add Reminder (a plain link: no fill on hover or press, the stock link padding kept) -->
+                        <HyperlinkButton Content="Add reminder" Click="OnAddReminderClick" Visibility="{x:Bind Editor.CanAddReminder, Mode=OneWay}" AutomationProperties.AutomationId="EditorAddReminder">
+                            <HyperlinkButton.Resources>
+                                <SolidColorBrush x:Key="HyperlinkButtonBackgroundPointerOver" Color="Transparent" />
+                                <SolidColorBrush x:Key="HyperlinkButtonBackgroundPressed" Color="Transparent" />
+                            </HyperlinkButton.Resources>
+                        </HyperlinkButton>
                     </StackPanel>
                 </StackPanel>
                 <!-- /Reminder -->
