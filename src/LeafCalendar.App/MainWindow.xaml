@@ -170,16 +170,6 @@
                                     <!-- The chevron turns a quarter to point down in Month view -->
                                     <FontIcon x:Name="NextGlyph" Glyph="&#xE76C;" FontSize="12" RenderTransformOrigin="0.5,0.5" />
                                 </Button>
-                                <ToggleButton
-                                    x:Name="DetailsToggle"
-                                    Style="{StaticResource LeafBareIconButtonStyle}"
-                                    Click="OnDetailsToggleClick"
-                                    ToolTipService.ToolTip="Details panel"
-                                    AutomationProperties.Name="Details panel"
-                                    AutomationProperties.AutomationId="DetailsToggleButton">
-                                    <!-- The details glyph: its right panel filled while the panel is open -->
-                                    <controls:PaneGlyph Pane="Details" Foreground="{x:Bind DetailsToggle.Foreground, Mode=OneWay}" />
-                                </ToggleButton>
                             </StackPanel>
                         </StackPanel>
 
@@ -218,6 +208,20 @@
                         <!-- /Event Actions -->
                     </Grid>
                     <!-- /Slide -->
+
+                    <!-- Details Panel Toggle (always beside the caption buttons, whether the panel is open or closed; the
+                         toolbar ends at its left edge while the panel is closed. Placed in code) -->
+                    <ToggleButton
+                        x:Name="DetailsToggle"
+                        HorizontalAlignment="Right"
+                        Style="{StaticResource LeafBareIconButtonStyle}"
+                        Click="OnDetailsToggleClick"
+                        ToolTipService.ToolTip="Details panel"
+                        AutomationProperties.Name="Details panel"
+                        AutomationProperties.AutomationId="DetailsToggleButton">
+                        <!-- The details glyph: its right panel filled while the panel is open -->
+                        <controls:PaneGlyph Pane="Details" Foreground="{x:Bind DetailsToggle.Foreground, Mode=OneWay}" />
+                    </ToggleButton>
                 </Grid>
             </TitleBar.Content>
             <!-- /Toolbar -->
