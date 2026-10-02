@@ -90,7 +90,7 @@ public sealed partial class OnboardingWindow : Window
         }
 
         Activate();
-        PInvoke.SetForegroundWindow(new HWND(Win32Interop.GetWindowFromWindowId(AppWindow.Id)));
+        Interop.Foreground.Take(new HWND(Win32Interop.GetWindowFromWindowId(AppWindow.Id)));
     }
 
     void ShowStep(SlideNavigationTransitionEffect effect)

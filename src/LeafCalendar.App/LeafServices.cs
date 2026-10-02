@@ -90,6 +90,33 @@ public sealed class LeafServices : IAsyncDisposable
     /// <summary>Raised after <see cref="ReloadGoogleAsync"/> replaces <see cref="Google"/>.</summary>
     public event EventHandler? GoogleChanged;
 
+    /// <summary>
+    /// The browser came back from a sign-in (it finished, failed, or was refused; not when Leaf canceled it), so the
+    /// window that asked can come back to the front. Raised on whatever thread the sign-in finished on.
+    /// </summary>
+    public event EventHandler? SignInReturned;
+
+    /// <summary>
+    /// Signs a Google account in through the browser (<see cref="SignInFlow.RunAsync(string?, string?, CancellationToken)"/>),
+    /// then raises <see cref="SignInReturned"/> unless <paramref name="ct"/> canceled it.
+    /// </summary>
+    public async Task<Account> SignInAsync(GoogleServices google, string? loginHint, string? expectedAccountId, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(google);
+
+        try
+        {
+            return await google.CreateSignIn(OpenSignInPageAsync).RunAsync(loginHint, expectedAccountId, ct);
+        }
+        finally
+        {
+            if (!ct.IsCancellationRequested)
+            {
+                SignInReturned?.Invoke(this, EventArgs.Empty);
+            }
+        }
+    }
+
     /// <summary>Rebuilds Google services after the OAuth client changes.</summary>
     public async Task ReloadGoogleAsync()
     {

@@ -1267,7 +1267,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         try
         {
             // Only this account may come back; another Google user is never saved
-            await google.CreateSignIn(_services.OpenSignInPageAsync).RunAsync(email, accountId, CancellationToken.None);
+            await _services.SignInAsync(google, email, accountId, CancellationToken.None);
         }
         catch (WrongAccountException ex)
         {

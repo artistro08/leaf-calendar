@@ -71,7 +71,6 @@
                             Visibility="Collapsed"
                             AutomationProperties.AutomationId="UpcomingShowAll" />
                     </Grid>
-                    <TextBlock x:Name="UpcomingEmpty" Text="Nothing in the next 8 hours." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                     <controls:PinnedItemsControl x:Name="UpcomingList" AutomationProperties.Name="Upcoming events" AutomationProperties.AutomationId="UpcomingList">
                         <controls:PinnedItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:UpcomingItem">
@@ -281,24 +280,40 @@
             </Grid>
         </ScrollViewer>
 
-        <!-- Footer (nothing selected: the keyboard button opens the shortcut cheat sheet; the glyph starts 8 in on its
-             32-wide button, so an 8 margin puts it on the panel's 16 content edge, and 6 below matches the sidebar's
-             settings button) -->
-        <Button
-            x:Name="ShortcutsButton"
-            Grid.Row="1"
-            Margin="8,8,0,6"
-            HorizontalAlignment="Left"
-            Style="{StaticResource LeafBareIconButtonStyle}"
-            Click="OnShortcutsClick"
-            ToolTipService.ToolTip="Keyboard shortcuts (?)"
-            AutomationProperties.Name="Keyboard shortcuts"
-            AutomationProperties.AutomationId="DetailsShortcutsButton">
-            <FontIcon Glyph="&#xE765;" FontSize="16" />
-        </Button>
+        <!-- Done For Today (nothing selected and nothing coming up: centered in the panel, faded, an icon over the words) -->
+        <StackPanel
+            x:Name="UpcomingEmpty"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Spacing="8"
+            IsHitTestVisible="False"
+            Visibility="Collapsed"
+            AutomationProperties.AutomationId="UpcomingEmpty">
+            <FontIcon
+                HorizontalAlignment="Center"
+                FontSize="32"
+                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                Glyph="&#xE930;"
+                AutomationProperties.AccessibilityView="Raw" />
+            <TextBlock
+                x:Name="UpcomingEmptyTitle"
+                HorizontalAlignment="Center"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                Text="Done for today"
+                AutomationProperties.AutomationId="UpcomingEmptyTitle" />
+            <TextBlock
+                x:Name="UpcomingEmptyDetail"
+                HorizontalAlignment="Center"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                TextAlignment="Center"
+                TextWrapping="Wrap"
+                AutomationProperties.AutomationId="UpcomingEmptyDetail" />
+        </StackPanel>
 
         <!-- Editor -->
         <!-- Loaded the first time an editor opens -->
-        <local:EventEditorView x:Name="EditorView" Grid.RowSpan="2" x:FieldModifier="internal" x:Load="False" />
+        <local:EventEditorView x:Name="EditorView" x:FieldModifier="internal" x:Load="False" />
     </Grid>
 </UserControl>

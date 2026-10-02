@@ -177,7 +177,7 @@ public sealed partial class MainWindow : Window
         }
 
         Activate();
-        PInvoke.SetForegroundWindow(new HWND(Win32Interop.GetWindowFromWindowId(AppWindow.Id)));
+        Interop.Foreground.Take(new HWND(Win32Interop.GetWindowFromWindowId(AppWindow.Id)));
     }
 
     /// <summary>Applies the app theme to the content and caption buttons.</summary>

@@ -8,6 +8,8 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Windows.Foundation;
 
 namespace LeafCalendar.App.Controls;
@@ -133,13 +135,14 @@ public sealed partial class TimeGridView : Grid, IDisposable
         Corner.Children.Add(_weekNumber);
         Corner.Children.Add(_zoneLabels);
         Corner.Children.Add(_allDayExpand);
-        _allDayExpand.Content = new FontIcon { Glyph = "", FontSize = 10 };
+        _allDayExpand.Content = new FontIcon { Glyph = "", FontSize = 10, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = _allDayTurn };
         AutomationProperties.SetAutomationId(_allDayExpand, "AllDayExpand");
-        AutomationProperties.SetName(_allDayExpand, "Show all all-day events");
+        ShowAllDayChevron(animate: false);
         _allDayExpand.Click += (_, _) =>
         {
             _allDayExpanded = !_allDayExpanded;
-            RenderAllDay();
+            ShowAllDayChevron(animate: true);
+            RenderAllDay(slide: true);
         };
         Children.Add(Corner);
 
@@ -667,14 +670,40 @@ public sealed partial class TimeGridView : Grid, IDisposable
         RenderAllDay();
     }
 
-    void RenderAllDay()
+    void RenderAllDay(bool slide = false)
     {
         var count    = _vm.VisibleColumns;
         var maxLanes = _allDayExpanded ? int.MaxValue : MaxCollapsedLanes;
         _allDay.Render(_strip, _firstIndex - count, count * 3, maxLanes);
         _allDay.Width            = _strip.Count * ColumnWidth;
         _allDayExpand.Visibility = _allDay.LaneCount > MaxCollapsedLanes ? Visibility.Visible : Visibility.Collapsed;
-        SizeAllDay();
+        SizeAllDay(slide);
+    }
+
+    // The expand chevron points down while the row shows three lanes and turns up (half a turn, 167 ms) while it shows
+    // them all. Its rotation is made and held here, never read back from the icon (a Native AOT trap)
+    readonly RotateTransform _allDayTurn = new();
+    static readonly TimeSpan AllDaySlide = TimeSpan.FromMilliseconds(167);
+
+    void ShowAllDayChevron(bool animate)
+    {
+        var angle = _allDayExpanded ? 180 : 0;
+        AutomationProperties.SetName(_allDayExpand, _allDayExpanded ? "Show fewer all-day events" : "Show all all-day events");
+        if (!animate || !new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
+        {
+            _allDayTurn.Angle = angle;
+            return;
+        }
+
+        var turn = new DoubleAnimation
+        {
+            To             = angle,
+            Duration       = AllDaySlide,
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+        };
+        Storyboard.SetTarget(turn, _allDayTurn);
+        Storyboard.SetTargetProperty(turn, nameof(RotateTransform.Angle));
+        new Storyboard { Children = { turn } }.Begin();
     }
 
     // Hides the all-day ghost, giving back a lane the row grew for it
@@ -688,18 +717,61 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
     }
 
-    // The all-day row's height: its shown lanes, or more while a ghost needs a lane below them
-    void SizeAllDay()
+    // The row's height slide (the chevron's expand and collapse only), or null
+    Storyboard? _allDaySlide;
+
+    // The all-day row's height: its shown lanes, or more while a ghost needs a lane below them. With slide, the row and
+    // the corner grow or shrink to it over 167 ms; the header's scroller clips the chips below the row meanwhile, so
+    // they're revealed (or covered) as it slides
+    void SizeAllDay(bool slide = false)
     {
         var maxLanes = _allDayExpanded ? int.MaxValue : MaxCollapsedLanes;
         var lanes    = Math.Max(Math.Min(_allDay.LaneCount, maxLanes), _allDay.GhostLanes);
 
         // Never Shorter Than EmptyAllDayHeight: empty, the row is still there to double-click for a new all-day event
-        _allDay.Height = Math.Max(EmptyAllDayHeight, lanes * AllDayLaneHeight + 4);
-        Corner.Height  = DayHeaderHeight + _allDay.Height;
+        var from   = _allDay.ActualHeight;
+        var height = Math.Max(EmptyAllDayHeight, lanes * AllDayLaneHeight + 4);
+
+        // The Final Sizes Are Set First; A Slide Only Shows The Way There (stopping it leaves them)
+        _allDaySlide?.Stop();
+        _allDaySlide   = null;
+        _allDay.Height = height;
+        Corner.Height  = DayHeaderHeight + height;
 
         // Zone Labels Sit At The Bottom Of The Day-Header Band (the all-day row's corner keeps the expand chevron)
-        _zoneLabels.Margin = new Thickness(0, 0, 0, _allDay.Height + 4);
+        _zoneLabels.Margin = new Thickness(0, 0, 0, height + 4);
+
+        if (!slide || from <= 0 || from == height || !new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
+        {
+            return;
+        }
+
+        _allDaySlide = new Storyboard();
+        foreach (var (target, offset) in new (FrameworkElement, double)[] { (_allDay, 0), (Corner, DayHeaderHeight) })
+        {
+            var grow = new DoubleAnimation
+            {
+                From                     = from + offset,
+                To                       = height + offset,
+                Duration                 = AllDaySlide,
+                EnableDependentAnimation = true,
+                EasingFunction           = new CubicEase { EasingMode = EasingMode.EaseOut },
+            };
+            Storyboard.SetTarget(grow, target);
+            Storyboard.SetTargetProperty(grow, nameof(Height));
+            _allDaySlide.Children.Add(grow);
+        }
+
+        var running = _allDaySlide;
+        running.Completed += (_, _) =>
+        {
+            running.Stop();
+            if (ReferenceEquals(_allDaySlide, running))
+            {
+                _allDaySlide = null;
+            }
+        };
+        running.Begin();
     }
 
     void RenderCorner()
@@ -775,6 +847,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         if (_vm.Settings.AllDayExpanded != _allDayDefault)
         {
             _allDayExpanded = _allDayDefault = _vm.Settings.AllDayExpanded;
+            ShowAllDayChevron(animate: false);
         }
 
         if (_strip.SkipsWeekends == _vm.Settings.ShowWeekends)

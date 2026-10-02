@@ -57,6 +57,9 @@ public sealed partial class SidebarView : UserControl
     /// <summary>The share-availability button was clicked.</summary>
     public event EventHandler? ShareAvailabilityRequested;
 
+    /// <summary>The keyboard shortcuts button was clicked.</summary>
+    public event EventHandler? ShortcutsRequested;
+
     /// <summary>x:Bind helper: automation ID of a calendar's visibility checkbox.</summary>
     public static string ToggleId(CalendarInfo info) => $"CalendarToggle_{info.Id}";
 
@@ -285,8 +288,53 @@ public sealed partial class SidebarView : UserControl
     {
         if (_viewModel is not null && sender is Button { Tag: AccountGroup group })
         {
+            // Unfolding: the calendars are revealed as the accounts below slide down, not drawn over them at once
+            _revealing = group.IsExpanded ? null : group.Calendars;
             _viewModel.SetAccountExpanded(group.AccountId, !group.IsExpanded);
         }
+    }
+
+    // The calendars an unfold is about to show (matched by reference to the list bound to them), or null
+    ObservableCollection<CalendarRow>? _revealing;
+
+    // As long as the accounts below take to slide down (the list's reposition transition)
+    static readonly TimeSpan RevealDuration = TimeSpan.FromMilliseconds(300);
+
+    // An unfolded account's list takes its height at once, and the accounts below slide down to make room: the list is
+    // clipped from the bottom and the clip opens as they slide, so its rows are uncovered rather than drawn over them
+    void OnCalendarListSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_revealing is null || sender is not ListViewBase list || !ReferenceEquals(list.ItemsSource, _revealing) || e.NewSize.Height <= 0)
+        {
+            return;
+        }
+
+        _revealing = null;
+        if (!new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
+        {
+            return;
+        }
+
+        var visual     = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(list);
+        var compositor = visual.Compositor;
+        var clip       = compositor.CreateInsetClip(0, 0, 0, (float)e.NewSize.Height);
+        visual.Clip = clip;
+
+        var open = compositor.CreateScalarKeyFrameAnimation();
+        open.InsertKeyFrame(1, 0, compositor.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.1f, 0.9f), new System.Numerics.Vector2(0.2f, 1)));
+        open.Duration = RevealDuration;
+
+        // The Clip Goes Once It's Fully Open (nothing stays clipped if the list grows later)
+        var batch = compositor.CreateScopedBatch(Microsoft.UI.Composition.CompositionBatchTypes.Animation);
+        clip.StartAnimation("BottomInset", open);
+        batch.End();
+        batch.Completed += (_, _) =>
+        {
+            if (ReferenceEquals(visual.Clip, clip))
+            {
+                visual.Clip = null;
+            }
+        };
     }
 
     void OnVisibilityClick(object sender, RoutedEventArgs e)
@@ -451,4 +499,6 @@ public sealed partial class SidebarView : UserControl
     void OnSettingsClick(object sender, RoutedEventArgs e) => _viewModel?.OpenSettings?.Invoke(SettingsSection.General);
 
     void OnShareClick(object sender, RoutedEventArgs e) => ShareAvailabilityRequested?.Invoke(this, EventArgs.Empty);
+
+    void OnShortcutsClick(object sender, RoutedEventArgs e) => ShortcutsRequested?.Invoke(this, EventArgs.Empty);
 }

@@ -45,3 +45,6 @@ GetForegroundWindow
 GetAsyncKeyState
 HC_ACTION
 SendInput
+GetWindowThreadProcessId
+AttachThreadInput
+BringWindowToTop

@@ -233,7 +233,7 @@ public sealed partial class AccountsViewModel : ObservableObject
                     IsSigningIn = true;
                     try
                     {
-                        account = await google.CreateSignIn(_services.OpenSignInPageAsync).RunAsync(null, signIn.Token);
+                        account = await _services.SignInAsync(google, null, null, signIn.Token);
                     }
                     finally
                     {
@@ -242,7 +242,8 @@ public sealed partial class AccountsViewModel : ObservableObject
                     }
                 }
 
-                Show(AccountsMessageKind.Progress, $"Signed in as {account.Email}. Syncing…");
+                // Signed In: a success already, while the first sync runs
+                Show(AccountsMessageKind.Success, $"Signed in as {account.Email}. Syncing…");
 
                 // Sync Off The UI Thread; Property Updates Resume On It After The Await
                 await Task.Run(() => google.Sync.SyncAccountAsync(account.Id, CancellationToken.None));
