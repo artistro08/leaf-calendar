@@ -318,7 +318,7 @@ public sealed partial class CalendarPage
                 }
 
                 // A Row Of Text And Icons In A Day (a chip's dot and title, a card's title and time) Is Held As One
-                var text = child is TextBlock or RichTextBlock || zone is not null && child is StackPanel;
+                var text = child is TextBlock or RichTextBlock || zone is not null && child is StackPanel { Orientation: Orientation.Horizontal };
                 if (text || IsUnstretchable(child) || zone is null && child is Control)
                 {
                     if (zone is not null)
@@ -392,6 +392,7 @@ public sealed partial class CalendarPage
         // Scales the element by 1 / its stretch (the island's, times its day area's if it's in one) around the center point
         void Hold(FrameworkElement element, Visual? zone, float center, bool clip)
         {
+
             var visual = ElementCompositionPreview.GetElementVisual(element);
             var width  = (float)element.ActualWidth;
             var held   = _unstretched.TryGetValue(visual, out var was);
@@ -445,14 +446,13 @@ public sealed partial class CalendarPage
     // Text that fills its slot and trims to it (an event's title, a chip's dot and title): only it can run past a narrower slot
     static bool FillsItsSlot(FrameworkElement element) =>
         element.HorizontalAlignment == HorizontalAlignment.Stretch
-        && element is StackPanel or TextBlock { TextTrimming: not TextTrimming.None };
+        && element is StackPanel { Orientation: Orientation.Horizontal } or TextBlock { TextTrimming: not TextTrimming.None };
 
-    // Icons, images, dots, circles and pills (a corner radius of half the height or more), badges and buttons (a box
-    // around a text or icon, which would cut it off as it squeezes), and lines 3 px or thinner
+    // Icons, images, dots, circles and pills (a corner radius of half the height or more), buttons (their rounded box
+    // would cut their text off as it squeezes), and lines 3 px or thinner
     static bool IsUnstretchable(FrameworkElement element) => element switch
     {
         IconElement or Image or Ellipse                     => true,
-        Border { Child: TextBlock or IconElement }          => true,
         ButtonBase                                          => true,
         Rectangle line                                      => line.ActualWidth <= 3,
         Border round when round.CornerRadius.TopLeft > 0    => round.CornerRadius.TopLeft * 2 >= Math.Min(round.ActualWidth, round.ActualHeight) - 1,
