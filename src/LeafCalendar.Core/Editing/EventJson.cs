@@ -346,7 +346,7 @@ public static class EventJson
     }
 
     /// <summary>The row that hides one canceled instance of a series (what Google sends for it).</summary>
-    public static string CancelledInstance(string masterId, string instanceId, DateTimeOffset originalStart, bool isAllDay, string? timeZone) =>
+    public static string CanceledInstance(string masterId, string instanceId, DateTimeOffset originalStart, bool isAllDay, string? timeZone) =>
         new JsonObject
         {
             ["id"]                = instanceId,

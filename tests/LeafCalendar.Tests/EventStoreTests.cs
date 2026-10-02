@@ -65,7 +65,7 @@ public sealed class EventStoreTests : IDisposable
     }
 
     [Fact]
-    public void Apply_CancelledStandalone_IsNotStored()
+    public void Apply_CanceledStandalone_IsNotStored()
     {
         ApplyAll("events-page2.json");
 
@@ -75,7 +75,7 @@ public sealed class EventStoreTests : IDisposable
     }
 
     [Fact]
-    public void Apply_CancelledOccurrence_KeptWithOriginalStart()
+    public void Apply_CanceledOccurrence_KeptWithOriginalStart()
     {
         ApplyAll("events-page2.json");
 
@@ -89,7 +89,7 @@ public sealed class EventStoreTests : IDisposable
     }
 
     [Fact]
-    public void Apply_CancelledMaster_RemovesMasterAndItsOccurrences()
+    public void Apply_CanceledMaster_RemovesMasterAndItsOccurrences()
     {
         ApplyAll("events-page2.json");
 
@@ -179,7 +179,7 @@ public sealed class EventStoreTests : IDisposable
     }
 
     [Fact]
-    public void Apply_CancelledSeriesWithPendingEdit_KeepsLocalRow()
+    public void Apply_CanceledSeriesWithPendingEdit_KeepsLocalRow()
     {
         ApplyAll("events-page1.json");
         using var conn = _db.Database.Open();

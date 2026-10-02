@@ -59,7 +59,7 @@ public sealed class OccurrenceQueryTests : IDisposable
     }
 
     [Fact]
-    public void Load_CancelledException_HidesInstance()
+    public void Load_CanceledException_HidesInstance()
     {
         var starts = Load(D(10, 5), D(10, 12)).Where(o => o.RecurringEventId == "evt-weekly").Select(o => o.Start.UtcDateTime.Day);
 

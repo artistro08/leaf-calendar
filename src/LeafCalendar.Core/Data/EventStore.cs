@@ -26,8 +26,8 @@ public static class EventStore
     /// Applies one event from Google.
     /// </summary>
     /// <remarks>
-    /// A cancelled event without <c>recurringEventId</c> is a deletion: the row and any of its
-    /// occurrence exceptions are removed. A cancelled occurrence of a repeating event is kept,
+    /// A canceled event without <c>recurringEventId</c> is a deletion: the row and any of its
+    /// occurrence exceptions are removed. A canceled occurrence of a repeating event is kept,
     /// since it hides that one date when the series is expanded. Everything else is upserted with
     /// Google's full JSON kept in <c>raw_json</c>.
     /// </remarks>
@@ -212,7 +212,7 @@ public static class EventStore
             ("$calendar", calendarId),
             ("$id", id)).SingleOrDefault();
 
-    /// <summary>Number of stored rows for a calendar (including cancelled occurrences).</summary>
+    /// <summary>Number of stored rows for a calendar (including canceled occurrences).</summary>
     public static int Count(SqliteConnection conn, string accountId, string calendarId) =>
         conn.Query(
             null,

@@ -32,7 +32,7 @@ public class GoogleJsonTests
     }
 
     [Fact]
-    public void Deserialize_CancelledException_ReadsRecurringFields()
+    public void Deserialize_CanceledException_ReadsRecurringFields()
     {
         var page      = JsonSerializer.Deserialize(Fixture.Read("events-page2.json"), GoogleJsonContext.Default.EventsPage)!;
         var master    = JsonSerializer.Deserialize(page.Items[0], GoogleJsonContext.Default.GoogleEvent)!;

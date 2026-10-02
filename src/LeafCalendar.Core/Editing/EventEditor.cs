@@ -500,7 +500,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
                 var instanceId = InstanceIdOf(o, master, originalStart);
                 var existing   = EventStore.Get(conn, tx, o.AccountId, o.CalendarId, instanceId);
                 var seq        = OutboxStore.Add(conn, tx, new OutboxEntry(0, o.AccountId, o.CalendarId, instanceId, OutboxOperation.Delete, null, existing?.Etag, sendUpdates, EventStore.Snapshot(conn, tx, o.AccountId, o.CalendarId, instanceId), notBefore));
-                EventStore.ApplyJson(conn, tx, o.AccountId, o.CalendarId, EventJson.CancelledInstance(master.Id, instanceId, originalStart, o.IsAllDay, masterDraft.TimeZone));
+                EventStore.ApplyJson(conn, tx, o.AccountId, o.CalendarId, EventJson.CanceledInstance(master.Id, instanceId, originalStart, o.IsAllDay, masterDraft.TimeZone));
                 return (seq, DeleteKind.Instance);
         }
     }
