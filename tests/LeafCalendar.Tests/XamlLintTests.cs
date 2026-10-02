@@ -239,6 +239,18 @@ public class XamlLintTests
         AssertNone(Failures(file, "live-region", hits));
     }
 
+    // XAML Roots Leaf Can Load (a ComboBox-rooted x:Class failed to parse when built, so the calendar page never opened)
+    [Theory, MemberData(nameof(Files))]
+    public void Roots_AreLoadableTypes(string file)
+    {
+        var root = Load(file).Root!;
+        var hits = root.Name.LocalName is "Application" or "Window" or "Page" or "UserControl" or "ResourceDictionary"
+            ? []
+            : new[] { (root, root.Name.LocalName) };
+
+        AssertNone(Failures(file, "root", hits));
+    }
+
     // Section 14: Text Follows The System Text Size, So Text Elements Never Get A Fixed Height
     [Theory, MemberData(nameof(Files))]
     public void TextElements_HaveNoFixedHeight(string file)

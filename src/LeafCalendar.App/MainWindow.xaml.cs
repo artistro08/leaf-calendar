@@ -85,6 +85,9 @@ public sealed partial class MainWindow : Window
         };
         ToolbarSlide.RenderTransform = _toolbarShift;
 
+        // A Page That Fails To Build Logs The Exception And The Stack That Built It (the crash that follows only names the Frame)
+        ContentFrame.NavigationFailed += (_, e) => _services.Log.Crash("frame.navigation.failed", e.Exception, e.Exception?.Message);
+
         // Shortcuts are handled at the root so they work wherever focus is
         RootGrid.PreviewKeyDown += (_, e) =>
         {
