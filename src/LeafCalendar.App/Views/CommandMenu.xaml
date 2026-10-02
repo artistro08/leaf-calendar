@@ -9,19 +9,12 @@
     AutomationProperties.AutomationId="CommandMenu">
 
     <UserControl.Resources>
-        <!-- Key Chip (a shortcut key, PowerToys Command Palette style; radius 4 and Caption per the design standard) -->
-        <Style x:Key="CommandKeyChipStyle" TargetType="Border">
-            <Setter Property="MinWidth" Value="20" />
-            <Setter Property="Padding" Value="4,2" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Background" Value="{ThemeResource ControlFillColorSecondaryBrush}" />
-            <Setter Property="BorderBrush" Value="{ThemeResource DividerStrokeColorDefaultBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
+        <!-- Key Cap (one key of a shortcut, PowerToys legend style: the same caps as ShortcutLegend, radius 4, Caption size) -->
+        <Style x:Key="CommandKeyCapStyle" TargetType="controls:KeyVisual" BasedOn="{StaticResource DefaultKeyVisualStyle}">
+            <Setter Property="MinWidth" Value="24" />
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="CornerRadius" Value="4" />
-        </Style>
-        <Style x:Key="CommandKeyTextStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
-            <Setter Property="HorizontalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
         </Style>
     </UserControl.Resources>
 
@@ -145,10 +138,13 @@
                                     TextTrimming="CharacterEllipsis">
                                     <Run Text="{x:Bind Title}" /><Run Text="{x:Bind DetailGap}" /><Run Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Detail}" />
                                 </TextBlock>
-                                <!-- Shortcut -->
-                                <Border Grid.Column="2" Style="{StaticResource CommandKeyChipStyle}" Visibility="{x:Bind KeysVisibility}">
-                                    <TextBlock Style="{StaticResource CommandKeyTextStyle}" Text="{x:Bind Keys}" />
-                                </Border>
+                                <!-- Shortcut (each key on its own cap, like PowerToys' legends) -->
+                                <ContentControl
+                                    Grid.Column="2"
+                                    VerticalAlignment="Center"
+                                    IsTabStop="False"
+                                    Content="{x:Bind local:CommandMenu.Legend(Keys)}"
+                                    Visibility="{x:Bind KeysVisibility}" />
                             </Grid>
                             <!-- /Row -->
                         </Grid>
@@ -198,20 +194,14 @@
                     <!-- Open: Enter -->
                     <StackPanel Orientation="Horizontal" Spacing="4">
                         <TextBlock VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" Text="Open" />
-                        <Border Style="{StaticResource CommandKeyChipStyle}">
-                            <TextBlock Style="{StaticResource CommandKeyTextStyle}" Text="Enter" />
-                        </Border>
+                        <controls:KeyVisual Style="{StaticResource CommandKeyCapStyle}" Content="Enter" />
                     </StackPanel>
 
                     <!-- Go To Event: Alt+Enter (event rows only) -->
                     <StackPanel x:Name="FooterJump" Orientation="Horizontal" Spacing="4" Visibility="Collapsed">
                         <TextBlock VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" Text="Go to event" />
-                        <Border Style="{StaticResource CommandKeyChipStyle}">
-                            <TextBlock Style="{StaticResource CommandKeyTextStyle}" Text="Alt" />
-                        </Border>
-                        <Border Style="{StaticResource CommandKeyChipStyle}">
-                            <TextBlock Style="{StaticResource CommandKeyTextStyle}" Text="Enter" />
-                        </Border>
+                        <controls:KeyVisual Style="{StaticResource CommandKeyCapStyle}" Content="Alt" />
+                        <controls:KeyVisual Style="{StaticResource CommandKeyCapStyle}" Content="Enter" />
                     </StackPanel>
                 </StackPanel>
             </Grid>

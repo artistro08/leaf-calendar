@@ -195,6 +195,9 @@ public sealed partial class CommandMenu : UserControl
     /// <summary>x:Bind helper: the swatch brush for a hex color.</summary>
     public static Brush Brush(string hex) => LeafBrushes.FromHex(hex);
 
+    /// <summary>x:Bind helper: a row's shortcut, each key on its own cap (nothing for a row without one).</summary>
+    public static UIElement? Legend(string keys) => keys.Length == 0 ? null : ShortcutLegend.Build(keys);
+
     /// <summary>
     /// The results list's tallest: the default actions under their header (8 + 28 + 8 × 44 + 8 = 396) with room to
     /// spare, so the menu opens without a scroll.
