@@ -47,7 +47,10 @@ public static class JoinPicker
     /// <summary>Timed, not declined instances around <paramref name="now"/> that have a meeting link and could qualify.</summary>
     public static IReadOnlyList<JoinTarget> Candidates(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone) => Candidates(conn, now, zone, Lead);
 
-    /// <summary>Timed, not declined instances with a meeting link that are running or start within <paramref name="lookahead"/>.</summary>
+    /// <summary>
+    /// Timed, not declined instances with a known meeting host's link (<see cref="LinkSafety.ProviderOf"/>) that are
+    /// running or start within <paramref name="lookahead"/>.
+    /// </summary>
     public static IReadOnlyList<JoinTarget> Candidates(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone, TimeSpan lookahead)
     {
         var today  = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
@@ -60,7 +63,8 @@ public static class JoinPicker
                 continue;
             }
 
-            if (MeetingLink(conn, o) is { } link)
+            // Opened Blind, So Only A Known Meeting Host; Any Other Link Waits For The Details Panel's Join Button
+            if (MeetingLink(conn, o) is { } link && LinkSafety.ProviderOf(link) is not null)
             {
                 result.Add(new JoinTarget(o, link));
             }

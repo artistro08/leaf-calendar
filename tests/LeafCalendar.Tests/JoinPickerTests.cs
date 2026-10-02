@@ -180,4 +180,18 @@ public sealed class JoinPickerTests : IDisposable
         using var conn = _db.Database.Open();
         Assert.NotNull(JoinPicker.FindNext(conn, Now, TimeZoneInfo.Utc, TimeSpan.FromHours(12)));
     }
+
+    [Fact]
+    public void Find_UnknownHost_IsNotOpenedBlind()
+    {
+        Store(Account, Primary, """
+            {"id":"evt-odd","status":"confirmed","summary":"Odd","hangoutLink":"https://evil.example/join",
+             "conferenceData":{"entryPoints":[{"entryPointType":"video","uri":"https://evil.example/video"}]},
+             "start":{"dateTime":"2026-10-01T18:00:00Z"},"end":{"dateTime":"2026-10-01T18:30:00Z"}}
+            """);
+
+        using var conn = _db.Database.Open();
+        Assert.Null(JoinPicker.Find(conn, Now, TimeZoneInfo.Utc));
+        Assert.Null(JoinPicker.FindNext(conn, Now, TimeZoneInfo.Utc, TimeSpan.FromHours(8)));
+    }
 }
