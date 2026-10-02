@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Text;
 
 namespace LeafCalendar.App.Views;
@@ -286,55 +287,88 @@ public sealed partial class SidebarView : UserControl
     // An account header folds its calendars away or shows them again (Settings › Calendars follows)
     void OnAccountHeaderClick(object sender, RoutedEventArgs e)
     {
-        if (_viewModel is not null && sender is Button { Tag: AccountGroup group })
-        {
-            // Unfolding: the calendars are revealed as the accounts below slide down, not drawn over them at once
-            _revealing = group.IsExpanded ? null : group.Calendars;
-            _viewModel.SetAccountExpanded(group.AccountId, !group.IsExpanded);
-        }
-    }
-
-    // The calendars an unfold is about to show (matched by reference to the list bound to them), or null
-    ObservableCollection<CalendarRow>? _revealing;
-
-    // As long as the accounts below take to slide down (the list's reposition transition)
-    static readonly TimeSpan RevealDuration = TimeSpan.FromMilliseconds(300);
-
-    // An unfolded account's list takes its height at once, and the accounts below slide down to make room: the list is
-    // clipped from the bottom and the clip opens as they slide, so its rows are uncovered rather than drawn over them
-    void OnCalendarListSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (_revealing is null || sender is not ListViewBase list || !ReferenceEquals(list.ItemsSource, _revealing) || e.NewSize.Height <= 0)
+        if (_viewModel is null || sender is not Button { Tag: AccountGroup group, Parent: Panel header } || header.Children.OfType<ListViewBase>().FirstOrDefault() is not { } list)
         {
             return;
         }
 
-        _revealing = null;
+        // A Fold Still Running Ends Where It Was Going First
+        if (_folds.Remove(list, out var running))
+        {
+            running.SkipToFill();
+            running.Stop();
+            FinishFold(list, running);
+        }
+
+        var viewModel = _viewModel;
+        var expand    = !group.IsExpanded;
         if (!new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
         {
+            viewModel.SetAccountExpanded(group.AccountId, expand);
             return;
         }
 
-        var visual     = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(list);
-        var compositor = visual.Compositor;
-        var clip       = compositor.CreateInsetClip(0, 0, 0, (float)e.NewSize.Height);
-        visual.Clip = clip;
-
-        var open = compositor.CreateScalarKeyFrameAnimation();
-        open.InsertKeyFrame(1, 0, compositor.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.1f, 0.9f), new System.Numerics.Vector2(0.2f, 1)));
-        open.Duration = RevealDuration;
-
-        // The Clip Goes Once It's Fully Open (nothing stays clipped if the list grows later)
-        var batch = compositor.CreateScopedBatch(Microsoft.UI.Composition.CompositionBatchTypes.Animation);
-        clip.StartAnimation("BottomInset", open);
-        batch.End();
-        batch.Completed += (_, _) =>
+        // Unfold: shown at its full height for a moment (to learn it), then grown from nothing. Fold: shrunk to nothing,
+        // then hidden. Either way the list's own scroller clips its rows, so they're uncovered or covered as it slides
+        // and never drawn over the accounts below.
+        double from, to;
+        if (expand)
         {
-            if (ReferenceEquals(visual.Clip, clip))
+            viewModel.SetAccountExpanded(group.AccountId, true);
+            list.UpdateLayout();
+            (from, to) = (0, list.ActualHeight);
+        }
+        else
+        {
+            (from, to) = (list.ActualHeight, 0);
+        }
+
+        var slide = new DoubleAnimation
+        {
+            From                     = from,
+            To                       = to,
+            Duration                 = FoldDuration,
+            EasingFunction           = new CubicEase { EasingMode = EasingMode.EaseOut },
+            EnableDependentAnimation = true,
+        };
+        Storyboard.SetTarget(slide, list);
+        Storyboard.SetTargetProperty(slide, "Height");
+        var fold = new Storyboard { Children = { slide } };
+        fold.Completed += (_, _) =>
+        {
+            if (_folds.Remove(list))
             {
-                visual.Clip = null;
+                if (!expand)
+                {
+                    viewModel.SetAccountExpanded(group.AccountId, false);
+                }
+
+                FinishFold(list, fold);
             }
         };
+
+        // The Accounts Below Follow The List Frame By Frame, So Their Own Slide Is Off Meanwhile
+        CalendarList.ItemContainerTransitions = new TransitionCollection();
+        list.Height = from;
+        _folds[list] = fold;
+        fold.Begin();
+    }
+
+    // Folds running, by the list they slide
+    readonly Dictionary<ListViewBase, Storyboard> _folds = [];
+
+    // How long an account's calendars take to slide open or shut
+    static readonly TimeSpan FoldDuration = TimeSpan.FromMilliseconds(250);
+
+    // A fold ended: the list sizes to its rows again, and the accounts slide again once no fold runs
+    void FinishFold(ListViewBase list, Storyboard fold)
+    {
+        fold.Stop();
+        list.ClearValue(HeightProperty);
+        if (_folds.Count == 0)
+        {
+            CalendarList.ItemContainerTransitions = new TransitionCollection { new RepositionThemeTransition() };
+        }
     }
 
     void OnVisibilityClick(object sender, RoutedEventArgs e)
