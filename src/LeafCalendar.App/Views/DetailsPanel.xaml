@@ -11,6 +11,10 @@
     <!-- Top padding clears the title bar row this panel runs under; the details scroll as one, the editor has its own
          scroll and a pinned footer -->
     <Grid Padding="0,48,0,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
         <ScrollViewer x:Name="ContentScroll" AutomationProperties.AutomationId="DetailsScroll">
             <Grid Margin="16,8,16,16">
 
@@ -143,14 +147,53 @@
                     <!-- Divider -->
                     <Border x:Name="DividerPeople" Style="{StaticResource LeafDividerStyle}" AutomationProperties.AutomationId="DetailsDivider_People" />
 
-                    <!-- Your Reply -->
+                    <!-- Your Reply (one full-width dropdown: "Your response" on the left, the reply on the right as a colored
+                         badge with its icon; the menu sets it) -->
                     <StackPanel x:Name="RsvpRow" Spacing="8">
-                        <TextBlock x:Name="ResponseText" AutomationProperties.AutomationId="DetailsResponse" />
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <ToggleButton x:Name="RsvpYes" Content="Going" Click="OnRsvpYesClick" AutomationProperties.AutomationId="DetailsRsvpYes" />
-                            <ToggleButton x:Name="RsvpMaybe" Content="Maybe" Click="OnRsvpMaybeClick" AutomationProperties.AutomationId="DetailsRsvpMaybe" />
-                            <ToggleButton x:Name="RsvpNo" Content="Not going" Click="OnRsvpNoClick" AutomationProperties.AutomationId="DetailsRsvpNo" />
-                        </StackPanel>
+                        <DropDownButton
+                            x:Name="ResponseButton"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            AutomationProperties.AutomationId="DetailsResponse">
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" Text="Your response" TextTrimming="CharacterEllipsis" />
+                                <!-- Badge -->
+                                <Border
+                                    x:Name="ResponseBadge"
+                                    Grid.Column="1"
+                                    Padding="8,2"
+                                    VerticalAlignment="Center"
+                                    CornerRadius="4">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <FontIcon x:Name="ResponseGlyph" FontSize="12" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
+                                        <TextBlock x:Name="ResponseLabel" VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" AutomationProperties.AutomationId="DetailsResponseLabel" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                            <DropDownButton.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <MenuFlyoutItem x:Name="RsvpYes" Text="Going" Click="OnRsvpYesClick" AutomationProperties.AutomationId="DetailsRsvpYes">
+                                        <MenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE73E;" />
+                                        </MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="RsvpMaybe" Text="Maybe" Click="OnRsvpMaybeClick" AutomationProperties.AutomationId="DetailsRsvpMaybe">
+                                        <MenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE897;" />
+                                        </MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="RsvpNo" Text="Not going" Click="OnRsvpNoClick" AutomationProperties.AutomationId="DetailsRsvpNo">
+                                        <MenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE711;" />
+                                        </MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
                         <TextBox x:Name="RsvpNote" PlaceholderText="Add a note (optional)" AutomationProperties.Name="Reply note" AutomationProperties.AutomationId="DetailsRsvpNote" />
                         <CheckBox x:Name="RsvpEmail" Content="Email the organizer" IsChecked="True" AutomationProperties.AutomationId="DetailsRsvpEmail" />
                     </StackPanel>
@@ -186,6 +229,10 @@
                     <Border x:Name="DividerDescription" Style="{StaticResource LeafDividerStyle}" AutomationProperties.AutomationId="DetailsDivider_Description" />
 
                     <RichTextBlock x:Name="DescriptionBlock" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsDescription" />
+
+                    <!-- Shortcuts (what you can press for this event, each key on its own cap; filled in code) -->
+                    <Border Style="{StaticResource LeafDividerStyle}" AutomationProperties.AutomationId="DetailsDivider_Shortcuts" />
+                    <StackPanel x:Name="ShortcutHints" Spacing="4" AutomationProperties.Name="Shortcuts" AutomationProperties.AutomationId="DetailsShortcuts" />
                 </StackPanel>
                 <!-- /Event Details -->
 
@@ -199,8 +246,24 @@
             </Grid>
         </ScrollViewer>
 
+        <!-- Footer (nothing selected: the keyboard button opens the shortcut cheat sheet; the glyph starts 8 in on its
+             32-wide button, so an 8 margin puts it on the panel's 16 content edge, and 6 below matches the sidebar's
+             settings button) -->
+        <Button
+            x:Name="ShortcutsButton"
+            Grid.Row="1"
+            Margin="8,8,0,6"
+            HorizontalAlignment="Left"
+            Style="{StaticResource LeafBareIconButtonStyle}"
+            Click="OnShortcutsClick"
+            ToolTipService.ToolTip="Keyboard shortcuts (?)"
+            AutomationProperties.Name="Keyboard shortcuts"
+            AutomationProperties.AutomationId="DetailsShortcutsButton">
+            <FontIcon Glyph="&#xE765;" FontSize="16" />
+        </Button>
+
         <!-- Editor -->
         <!-- Loaded the first time an editor opens -->
-        <local:EventEditorView x:Name="EditorView" x:FieldModifier="internal" x:Load="False" />
+        <local:EventEditorView x:Name="EditorView" Grid.RowSpan="2" x:FieldModifier="internal" x:Load="False" />
     </Grid>
 </UserControl>

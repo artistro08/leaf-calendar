@@ -5,7 +5,9 @@ using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Documents;
@@ -131,7 +133,8 @@ public sealed partial class DetailsPanel : UserControl
             }
 
             var view = EditorView!;
-            ContentScroll.Visibility = Visibility.Collapsed;
+            ContentScroll.Visibility   = Visibility.Collapsed;
+            ShortcutsButton.Visibility = Visibility.Collapsed;
             view.Visibility          = Visibility.Visible;
 
             // A new editor starts at the top (a refresh behind an open editor keeps the scroll position)
@@ -152,9 +155,10 @@ public sealed partial class DetailsPanel : UserControl
         {
             EditorView?.Detach();
             EditorView?.Visibility  = Visibility.Collapsed;
-            UpcomingView.Visibility = Visibility.Collapsed;
-            DetailsView.Visibility  = Visibility.Collapsed;
-            SelectionSummary.Text   = string.Create(CultureInfo.InvariantCulture, $"{count} events selected");
+            UpcomingView.Visibility    = Visibility.Collapsed;
+            DetailsView.Visibility     = Visibility.Collapsed;
+            ShortcutsButton.Visibility = Visibility.Collapsed;
+            SelectionSummary.Text      = string.Create(CultureInfo.InvariantCulture, $"{count} events selected");
             return;
         }
 
@@ -169,8 +173,9 @@ public sealed partial class DetailsPanel : UserControl
 
     void Show(SelectedEventInfo? info)
     {
-        UpcomingView.Visibility = Visible(info is null);
-        DetailsView.Visibility  = Visible(info is not null);
+        UpcomingView.Visibility    = Visible(info is null);
+        DetailsView.Visibility     = Visible(info is not null);
+        ShortcutsButton.Visibility = Visible(info is null);
 
         // Back To The Top For Another Event (a refresh of the same event keeps the scroll position and note)
         if (info?.Occurrence.Key != _shownKey)
@@ -220,6 +225,7 @@ public sealed partial class DetailsPanel : UserControl
         GuestList.ItemsSource = guests.Select(g => new GuestItem(g.Email, GuestDetail(g), g.Name)).ToList();
 
         RenderDescription(info.DescriptionRuns);
+        ShowShortcutHints(info, guests.Count > 0);
 
         // Dividers: one above each group that shows, never above the first group (the title block), so none sit
         // at the ends or side by side
@@ -227,6 +233,48 @@ public sealed partial class DetailsPanel : UserControl
         DividerPeople.Visibility      = Visible(RsvpRow.Visibility == Visibility.Visible || GuestsRow.Visibility == Visibility.Visible);
         DividerDescription.Visibility = DescriptionBlock.Visibility;
     }
+
+    // What you can press for this event: the action on the left, its keys on the right (rebuilt only for another set)
+    void ShowShortcutHints(SelectedEventInfo info, bool hasGuests)
+    {
+        var hints = ShortcutCatalog.ForEvent(info.CanEdit, info.Details.ConferenceUri is not null, info.CanRespond, hasGuests);
+        if (hints.SequenceEqual(_hints))
+        {
+            return;
+        }
+
+        _hints = hints;
+        ShortcutHints.Children.Clear();
+        foreach (var hint in hints)
+        {
+            var row = new Grid { MinHeight = 28, ColumnSpacing = 12 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            AutomationProperties.SetName(row, $"{hint.Action}: {hint.Keys}");
+
+            row.Children.Add(new TextBlock
+            {
+                Text              = hint.Action,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming      = TextTrimming.CharacterEllipsis,
+                Style             = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+                Foreground        = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+            });
+
+            var legend = ShortcutLegend.Build(hint.Keys);
+            Grid.SetColumn(legend, 1);
+            row.Children.Add(legend);
+            ShortcutHints.Children.Add(row);
+        }
+    }
+
+    // The hints shown now (an unchanged set isn't rebuilt when the same event refreshes)
+    IReadOnlyList<ShortcutRow> _hints = [];
+
+    /// <summary>The keyboard button (nothing selected) asks for the shortcut cheat sheet.</summary>
+    public event EventHandler? ShortcutsRequested;
+
+    void OnShortcutsClick(object sender, RoutedEventArgs e) => ShortcutsRequested?.Invoke(this, EventArgs.Empty);
 
     // The arrow opens the menu once, right-aligned under the whole button group
     void OnJoinMenuClick(object sender, RoutedEventArgs e) =>
@@ -330,21 +378,34 @@ public sealed partial class DetailsPanel : UserControl
         return span;
     }
 
+    // The reply as a badge: its words in its color on that color's soft fill, with its icon (the menu marks nothing; the
+    // badge is the state). Narrator reads the button as the whole line
     void ShowResponse(ResponseStatus response)
     {
-        ResponseText.Text   = ResponseLine(response);
-        RsvpYes.IsChecked   = response == ResponseStatus.Accepted;
-        RsvpMaybe.IsChecked = response == ResponseStatus.Tentative;
-        RsvpNo.IsChecked    = response == ResponseStatus.Declined;
+        var badge = Core.Events.ResponseBadge.For(response);
+        var (text, fill, glyph) = BadgeLook(badge.Tone);
+
+        ResponseLabel.Text       = badge.Label;
+        ResponseLabel.Foreground = text;
+        ResponseGlyph.Glyph      = glyph;
+        ResponseGlyph.Foreground = text;
+        ResponseBadge.Background = fill;
+        AutomationProperties.SetName(ResponseButton, badge.Spoken);
     }
 
-    static string ResponseLine(ResponseStatus response) => response switch
+    // A tone's text color, soft fill, and icon (Segoe Fluent: CheckMark, Help, Cancel, Clock), from the theme's status
+    // brushes so light, dark, and contrast themes all read
+    static (Brush Text, Brush Fill, string Glyph) BadgeLook(ResponseTone tone)
     {
-        ResponseStatus.Accepted  => "Your response: Going",
-        ResponseStatus.Tentative => "Your response: Maybe",
-        ResponseStatus.Declined  => "Your response: Not going",
-        _                        => "Your response: Not answered yet",
-    };
+        var resources = Application.Current.Resources;
+        return tone switch
+        {
+            ResponseTone.Positive => ((Brush)resources["SystemFillColorSuccessBrush"], (Brush)resources["SystemFillColorSuccessBackgroundBrush"], "\uE73E"),
+            ResponseTone.Caution  => ((Brush)resources["SystemFillColorCautionBrush"], (Brush)resources["SystemFillColorCautionBackgroundBrush"], "\uE897"),
+            ResponseTone.Critical => ((Brush)resources["SystemFillColorCriticalBrush"], (Brush)resources["SystemFillColorCriticalBackgroundBrush"], "\uE711"),
+            _                                 => ((Brush)resources["TextFillColorSecondaryBrush"], (Brush)resources["SystemFillColorNeutralBackgroundBrush"], "\uE823"),
+        };
+    }
 
     static string GuestDetail(Guest guest)
     {
@@ -395,14 +456,8 @@ public sealed partial class DetailsPanel : UserControl
 
     void OnRsvpNoClick(object sender, RoutedEventArgs e) => Reply(ResponseStatus.Declined);
 
-    // A toggle flips itself on click; show the stored reply until the new one is saved and the event reloads
-    void Reply(ResponseStatus response)
-    {
-        if (_vm?.SelectedInfo is { } info)
-        {
-            ShowResponse(info.Details.SelfResponse);
-        }
-
+    // The badge keeps showing the stored reply until the new one is saved and the event reloads
+    void Reply(ResponseStatus response) =>
         Act(
             async vm =>
             {
@@ -413,7 +468,6 @@ public sealed partial class DetailsPanel : UserControl
                 }
             },
             "details.respond.failed");
-    }
 
     // The view model runs the work and logs a failure under the given name, so nothing escapes into the dispatcher
     void Act(Func<CalendarViewModel, Task> work, string eventName)

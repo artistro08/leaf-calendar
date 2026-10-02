@@ -31,6 +31,7 @@ public class XamlLintTests
         "Views/SidebarView.xaml|spacing|9,0,0,0 (TextBlock in MiniMonthTitle)",
         "Views/SidebarView.xaml|spacing|9,0,4,0 (Grid in CalendarList)",
         "Views/SidebarView.xaml|spacing|0,0,11,0 (PinnedItemsControl in CalendarList)",
+        "Views/DetailsPanel.xaml|spacing|8,8,0,6 (Button in ShortcutsButton)",   // 6 below, like the sidebar's settings button opposite it
 
         // Ported from PowerToys (ShortcutDialogContentControl's CondensedInfoBarStyle): the InfoBar template binds its own
         // TemplateSettings.IconElement and Foreground through RelativeSource TemplatedParent, as the stock InfoBar template does

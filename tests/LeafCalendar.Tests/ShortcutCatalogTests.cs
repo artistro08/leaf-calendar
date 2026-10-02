@@ -61,4 +61,33 @@ public sealed class ShortcutCatalogTests
 
     [Fact]
     public void Filter_Empty_IsEverything() => Assert.Equal(ShortcutCatalog.Rows.Count, ShortcutCatalog.Filter(" ").Count);
+
+    // The shortcuts under a selected event, as "keys: label"
+    static List<string> Hints(bool canEdit, bool canJoin, bool canRespond, bool hasGuests) =>
+        [.. ShortcutCatalog.ForEvent(canEdit, canJoin, canRespond, hasGuests).Select(r => $"{r.Keys}: {r.Action}")];
+
+    [Fact]
+    public void ForEvent_YourOwnMeetingWithGuests_ShowsEverything() =>
+        Assert.Equal(
+            ["E: Edit", "Delete: Delete", "Ctrl+J: Join", "V: Open meeting link", "E then E: Email guests", "X: Select / deselect", "Esc: Clear selection"],
+            Hints(canEdit: true, canJoin: true, canRespond: false, hasGuests: true));
+
+    [Fact]
+    public void ForEvent_AnInvite_OffersTheReply() =>
+        Assert.Equal(
+            ["E then Y / N / M: RSVP yes / no / maybe", "X: Select / deselect", "Esc: Clear selection"],
+            Hints(canEdit: false, canJoin: false, canRespond: true, hasGuests: false));
+
+    [Fact]
+    public void ForEvent_ReadOnly_KeepsOnlySelection() =>
+        Assert.Equal(["X: Select / deselect", "Esc: Clear selection"], Hints(false, false, false, false));
+
+    [Fact]
+    public void ForEvent_KeysMatchTheCheatSheet()
+    {
+        foreach (var hint in ShortcutCatalog.ForEvent(true, true, true, true))
+        {
+            Assert.Contains(ShortcutCatalog.Rows, r => r.Keys == hint.Keys && r.Command == hint.Command);
+        }
+    }
 }

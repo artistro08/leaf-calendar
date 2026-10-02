@@ -107,6 +107,7 @@ public sealed partial class CalendarPage : Page
 
         Sidebar.Attach(ViewModel);
         Details.Attach(ViewModel);
+        Details.ShortcutsRequested += OnShortcutsRequested;
         ViewModel.PropertyChanged      += OnViewModelPropertyChanged;
         ViewModel.LayoutChanged        += OnLayoutChanged;
         ViewModel.CalendarsChanged     += OnCalendarsChanged;
@@ -152,6 +153,7 @@ public sealed partial class CalendarPage : Page
         _editorFromE = false;
         Sidebar.Detach();
         Details.Detach();
+        Details.ShortcutsRequested -= OnShortcutsRequested;
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _view?.Dispose();
         _view = null;
@@ -276,6 +278,9 @@ public sealed partial class CalendarPage : Page
     }
 
     void OnDetailsOpenRequested(object? sender, EventArgs e) => SetDetailsOpen(true, animate: true);
+
+    // The details panel's keyboard button: the same cheat sheet as ?
+    void OnShortcutsRequested(object? sender, EventArgs e) => RunCommand(CalendarCommand.ShortcutSheet);
 
     // A tap on empty calendar space clears the selection and ends an edit (events and chips mark their own taps handled)
     void OnViewHostTapped(object sender, TappedRoutedEventArgs e) => ViewModel.ClearSelection();

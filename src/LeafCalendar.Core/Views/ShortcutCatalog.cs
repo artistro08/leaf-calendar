@@ -76,4 +76,43 @@ public static class ShortcutCatalog
         var words = (query ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return [.. Rows.Where(r => words.All(w => r.Keys.Contains(w, StringComparison.OrdinalIgnoreCase) || r.Action.Contains(w, StringComparison.OrdinalIgnoreCase)))];
     }
+
+    /// <summary>
+    /// The few shortcuts worth showing under a selected event in the details panel, with short labels: Edit and Delete
+    /// when you can change it, Join and Open meeting link when it has a call, the RSVP sequence when you can reply,
+    /// Email guests when it has guests, then Select / deselect and Esc. The keys are the cheat sheet's own, so the two
+    /// never disagree.
+    /// </summary>
+    public static IReadOnlyList<ShortcutRow> ForEvent(bool canEdit, bool canJoin, bool canRespond, bool hasGuests)
+    {
+        var rows = new List<ShortcutRow>();
+        if (canEdit)
+        {
+            rows.Add(Hint(CalendarCommand.EditEvent, "Edit"));
+            rows.Add(Hint(CalendarCommand.DeleteSelected, "Delete"));
+        }
+
+        if (canJoin)
+        {
+            rows.Add(Hint(CalendarCommand.JoinMeeting, "Join"));
+            rows.Add(Hint(CalendarCommand.OpenMeetingLink, "Open meeting link"));
+        }
+
+        if (canRespond)
+        {
+            rows.Add(Hint(CalendarCommand.RsvpYes, "RSVP yes / no / maybe"));
+        }
+
+        if (hasGuests)
+        {
+            rows.Add(Hint(CalendarCommand.EmailGuests, "Email guests"));
+        }
+
+        rows.Add(Hint(CalendarCommand.ToggleSelect, "Select / deselect"));
+        rows.Add(Rows.Single(r => r.Keys == "Esc") with { Action = "Clear selection" });
+        return rows;
+    }
+
+    // The cheat sheet's row for a command, with a shorter label
+    static ShortcutRow Hint(CalendarCommand command, string label) => Rows.First(r => r.Command == command) with { Action = label };
 }
