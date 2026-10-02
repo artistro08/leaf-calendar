@@ -107,7 +107,6 @@
                             </Button>
                             <controls:PinnedListView
                                 Visibility="{x:Bind IsExpanded, Mode=OneWay}"
-                                SizeChanged="OnCalendarListSizeChanged"
                                 ItemsSource="{x:Bind Calendars}"
                                 SelectionMode="None"
                                 ScrollViewer.VerticalScrollMode="Disabled"
