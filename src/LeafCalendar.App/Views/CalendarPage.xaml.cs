@@ -608,9 +608,20 @@ public sealed partial class CalendarPage : Page
     // How many days the last view showed (a month counts as 35), to tell drilling in from zooming out
     int _viewSpan;
 
+    // The drill waiting for the new view to settle: its direction, the frames it has waited, and whether a layout
+    // pass ran since the last frame
+    float? _drillFrom;
+    int _drillFrames;
+    bool _drillDirty;
+
+    // Most frames the drill waits for the view to settle (a view that keeps laying out still animates in)
+    const int MaxDrillWait = 20;
+
     // Fewer days than before drill in (the view grows from 92% as it fades in), more zoom out (it settles from 108%),
-    // the way Windows moves into and out of a level. On the compositor, so the relayout behind it can't stall it.
-    // Only a change of span animates (a layout change that keeps it, like the hour zoom, doesn't)
+    // the way Windows moves into and out of a level. Only a change of span animates (a layout change that keeps it,
+    // like the hour zoom, doesn't). The new view is hidden until its first layout passes are done (the columns
+    // taking their width, the scroll to the morning, the events), so it never shows them snapping into place; then
+    // the drill runs on the compositor
     void DrillIntoView()
     {
         var span = ViewModel.Mode == Core.Settings.CalendarViewMode.Month ? 35 : ViewModel.VisibleColumns;
@@ -621,10 +632,44 @@ public sealed partial class CalendarPage : Page
             return;
         }
 
+        // Hidden Until Settled
+        var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(ViewHost);
+        visual.StopAnimation("Opacity");
+        visual.StopAnimation("Scale");
+        visual.Opacity = 0;
+
+        var waiting = _drillFrom is not null;
+        _drillFrom   = span < was ? 0.92f : 1.08f;
+        _drillFrames = 0;
+        _drillDirty  = true;
+        if (waiting)
+        {
+            return;
+        }
+
+        ViewHost.LayoutUpdated      += OnDrillLayout;
+        CompositionTarget.Rendering += OnDrillFrame;
+    }
+
+    void OnDrillLayout(object? sender, object e) => _drillDirty = true;
+
+    // Waits for a frame with no layout pass before it (or MaxDrillWait frames), then drills
+    void OnDrillFrame(object? sender, object e)
+    {
+        if (_drillDirty && ++_drillFrames < MaxDrillWait)
+        {
+            _drillDirty = false;
+            return;
+        }
+
+        ViewHost.LayoutUpdated      -= OnDrillLayout;
+        CompositionTarget.Rendering -= OnDrillFrame;
+        var from = _drillFrom ?? 1;
+        _drillFrom = null;
+
         var visual     = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(ViewHost);
         var compositor = visual.Compositor;
         var easing     = compositor.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.1f, 0.9f), new System.Numerics.Vector2(0.2f, 1));
-        var from       = span < was ? 0.92f : 1.08f;
         visual.CenterPoint = new System.Numerics.Vector3((float)ViewHost.ActualWidth / 2, (float)ViewHost.ActualHeight / 2, 0);
 
         var scale = compositor.CreateVector3KeyFrameAnimation();
