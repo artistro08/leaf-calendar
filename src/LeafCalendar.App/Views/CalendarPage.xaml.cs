@@ -120,6 +120,7 @@ public sealed partial class CalendarPage : Page
         SetDetailsOpen(ViewModel.Settings.DetailsPanelOpen, animate: false);
         ViewModel.ReloadCalendars();
         UpdateEmptyState();
+        DrillIntoView();
         ApplyView();
 
         // Each Track's Own Wiring (Milestone 5)
@@ -598,7 +599,46 @@ public sealed partial class CalendarPage : Page
         return false;
     }
 
-    void OnLayoutChanged(object? sender, EventArgs e) => ApplyView();
+    void OnLayoutChanged(object? sender, EventArgs e)
+    {
+        DrillIntoView();
+        ApplyView();
+    }
+
+    // How many days the last view showed (a month counts as 35), to tell drilling in from zooming out
+    int _viewSpan;
+
+    // Fewer days than before drill in (the view grows from 92% as it fades in), more zoom out (it settles from 108%),
+    // the way Windows moves into and out of a level. On the compositor, so the relayout behind it can't stall it.
+    // Only a change of span animates (a layout change that keeps it, like the hour zoom, doesn't)
+    void DrillIntoView()
+    {
+        var span = ViewModel.Mode == Core.Settings.CalendarViewMode.Month ? 35 : ViewModel.VisibleColumns;
+        var was  = _viewSpan;
+        _viewSpan = span;
+        if (was == 0 || was == span || ViewHost.ActualWidth <= 0 || !new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
+        {
+            return;
+        }
+
+        var visual     = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(ViewHost);
+        var compositor = visual.Compositor;
+        var easing     = compositor.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.1f, 0.9f), new System.Numerics.Vector2(0.2f, 1));
+        var from       = span < was ? 0.92f : 1.08f;
+        visual.CenterPoint = new System.Numerics.Vector3((float)ViewHost.ActualWidth / 2, (float)ViewHost.ActualHeight / 2, 0);
+
+        var scale = compositor.CreateVector3KeyFrameAnimation();
+        scale.InsertKeyFrame(0, new System.Numerics.Vector3(from, from, 1));
+        scale.InsertKeyFrame(1, System.Numerics.Vector3.One, easing);
+        scale.Duration = TimeSpan.FromMilliseconds(300);
+        visual.StartAnimation("Scale", scale);
+
+        var fade = compositor.CreateScalarKeyFrameAnimation();
+        fade.InsertKeyFrame(0, 0);
+        fade.InsertKeyFrame(1, 1, easing);
+        fade.Duration = TimeSpan.FromMilliseconds(200);
+        visual.StartAnimation("Opacity", fade);
+    }
 
     void OnCalendarsChanged(object? sender, EventArgs e) => UpdateEmptyState();
 
