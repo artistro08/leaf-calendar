@@ -166,8 +166,10 @@ public partial class App : Application
         {
             StartTray(services);
 
-            // Started By Windows At Sign-In, Or By A Notification Click: the tray, plus what the click asked for
-            if (Program.StartKind is ExtendedActivationKind.StartupTask or ExtendedActivationKind.AppNotification)
+            // Started By Windows At Sign-In (minimized unless Settings says to open the window), Or By A Notification
+            // Click: the tray, plus what the click asked for
+            var signInMinimized = Program.StartKind == ExtendedActivationKind.StartupTask && !CurrentSettings().OpenWindowAtSignIn;
+            if (signInMinimized || Program.StartKind == ExtendedActivationKind.AppNotification)
             {
                 GoToTray();
                 if (Program.StartKind == ExtendedActivationKind.AppNotification)

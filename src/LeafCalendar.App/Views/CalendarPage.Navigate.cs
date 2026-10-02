@@ -288,6 +288,7 @@ public sealed partial class CalendarPage
         Float(panel);
         Island.Children.Add(panel);
         _sheet       = panel;
+        SlideSheet(panel, show: true);
         _beforeSheet = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
         filter.Loaded += (_, _) => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => filter.Focus(FocusState.Programmatic));
     }
@@ -299,8 +300,10 @@ public sealed partial class CalendarPage
             return;
         }
 
-        Island.Children.Remove(_sheet);
+        // It slides back out to the right, then goes
+        var sheet = _sheet;
         _sheet = null;
+        SlideSheet(sheet, show: false);
         if (_beforeSheet is { } before)
         {
             _ = FocusManager.TryFocusAsync(before, FocusState.Programmatic);
@@ -311,6 +314,51 @@ public sealed partial class CalendarPage
 
     // Lifts a floating card (the cheat sheet) over the calendar view: raised 32 like a flyout, its
     // shadow falling on the view
+    // The sheet flies in from the right: it starts just past the island's right edge, which the island clips at, so it
+    // comes out from behind the details panel when that's open (or from the window's edge), and goes back the same way
+    static readonly TimeSpan SheetSlide = TimeSpan.FromMilliseconds(250);
+
+    void SlideSheet(Border sheet, bool show)
+    {
+        var lift  = sheet.Translation.Z;
+        var away  = new System.Numerics.Vector3((float)(ShortcutSheet.PanelWidth + sheet.Margin.Right), 0, lift);
+        var home  = new System.Numerics.Vector3(0, 0, lift);
+        if (!new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
+        {
+            if (!show)
+            {
+                Island.Children.Remove(sheet);
+            }
+
+            return;
+        }
+
+        if (show)
+        {
+            // Placed off to the side first, then the transition carries it in once it's on screen
+            sheet.Translation = away;
+            sheet.Loaded += (_, _) => DispatcherQueue.TryEnqueue(() =>
+            {
+                sheet.TranslationTransition = new Vector3Transition { Duration = SheetSlide };
+                sheet.Translation           = home;
+            });
+            return;
+        }
+
+        sheet.IsHitTestVisible      = false;
+        sheet.TranslationTransition = new Vector3Transition { Duration = SheetSlide };
+        sheet.Translation           = away;
+        _sheetGone?.Stop();
+        _sheetGone = DispatcherQueue.CreateTimer();
+        _sheetGone.Interval    = SheetSlide;
+        _sheetGone.IsRepeating = false;
+        _sheetGone.Tick       += (_, _) => Island.Children.Remove(sheet);
+        _sheetGone.Start();
+    }
+
+    // Removes a closed sheet once it has slid out (held so it lives until it fires)
+    Microsoft.UI.Dispatching.DispatcherQueueTimer? _sheetGone;
+
     void Float(UIElement card)
     {
         card.Translation = new System.Numerics.Vector3(0, 0, 32);

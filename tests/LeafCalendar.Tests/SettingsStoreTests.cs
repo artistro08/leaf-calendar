@@ -35,6 +35,7 @@ public sealed class SettingsStoreTests : IDisposable
             MeetByDefaultAccounts = ["acct1"],
             CollapsedAccounts     = ["acct2"],
             ShareMessage          = "Free then:\n{times}",
+            OpenWindowAtSignIn    = true,
         };
 
         SettingsStore.Save(conn, saved);
@@ -48,6 +49,7 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(["acct1"], loaded.MeetByDefaultAccounts);
         Assert.Equal(["acct2"], loaded.CollapsedAccounts);
         Assert.Equal("Free then:\n{times}", loaded.ShareMessage);
+        Assert.True(loaded.OpenWindowAtSignIn);
     }
 
     [Fact]
