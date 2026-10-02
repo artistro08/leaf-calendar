@@ -39,6 +39,8 @@ public sealed partial class EventEditorView : UserControl
     {
         InitializeComponent();
         ScrollIndicator.ShowOnHover(BodyScroll);
+        TimePickerFit.Shrink(StartTimePicker);
+        TimePickerFit.Shrink(EndTimePicker);
 
         // Contact Search Waits For A Pause In Typing
         _suggestTimer = DispatcherQueue.CreateTimer();

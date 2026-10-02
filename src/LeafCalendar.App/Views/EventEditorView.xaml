@@ -53,7 +53,8 @@
                             HorizontalAlignment="Stretch"
                             Date="{x:Bind Editor.StartDate, Mode=TwoWay}"
                             AutomationProperties.AutomationId="EditorStartDate" />
-                        <controls:LeafTimePicker
+                        <TimePicker
+                            x:Name="StartTimePicker"
                             Grid.Column="1"
                             MinWidth="0"
                             HorizontalAlignment="Stretch"
@@ -74,7 +75,7 @@
                             HorizontalAlignment="Stretch"
                             Date="{x:Bind Editor.EndDate, Mode=TwoWay}"
                             AutomationProperties.AutomationId="EditorEndDate" />
-                        <controls:LeafTimePicker
+                        <TimePicker
                             x:Name="EndTimePicker"
                             Grid.Column="1"
                             MinWidth="0"

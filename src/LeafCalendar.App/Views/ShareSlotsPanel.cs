@@ -145,9 +145,9 @@ public sealed partial class ShareSlotsPanel : UserControl
 
         public Grid Grid { get; } = new();
 
-        public LeafTimePicker From { get; } = new() { MinuteIncrement = 5, MinWidth = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+        public TimePicker From { get; } = TimePickerFit.Shrink(new() { MinuteIncrement = 5, MinWidth = 0, HorizontalAlignment = HorizontalAlignment.Stretch });
 
-        public LeafTimePicker To { get; } = new() { MinuteIncrement = 5, MinWidth = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+        public TimePicker To { get; } = TimePickerFit.Shrink(new() { MinuteIncrement = 5, MinWidth = 0, HorizontalAlignment = HorizontalAlignment.Stretch });
 
         // Shows a slot's day and times (in the zone on screen) without counting as a pick
         public void Show(CalendarViewModel vm, BusyRange slot, bool dark)
