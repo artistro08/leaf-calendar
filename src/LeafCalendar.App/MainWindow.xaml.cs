@@ -626,6 +626,11 @@ public sealed partial class MainWindow : Window
         ViewModeLabel.Text      = view;
         DetailsToggle.IsChecked = s.DetailsPanelOpen;
         AutomationProperties.SetName(ViewModeButton, view);
+
+        // Pager Arrows Point The Way The View Moves (month scrolls up and down; ← and → still page it)
+        var month = s.ViewMode == CalendarViewMode.Month;
+        PreviousGlyph.Glyph = month ? "" : "";
+        NextGlyph.Glyph     = month ? "" : "";
     }
 
     // =========================================================================

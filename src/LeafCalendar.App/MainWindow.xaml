@@ -147,7 +147,7 @@
                                     ToolTipService.ToolTip="Previous (←)"
                                     AutomationProperties.Name="Previous"
                                     AutomationProperties.AutomationId="PreviousButton">
-                                    <FontIcon Glyph="&#xE76B;" FontSize="12" />
+                                    <FontIcon x:Name="PreviousGlyph" Glyph="&#xE76B;" FontSize="12" />
                                 </Button>
                                 <Button
                                     Style="{StaticResource LeafBareIconButtonStyle}"
@@ -155,7 +155,7 @@
                                     ToolTipService.ToolTip="Next (→)"
                                     AutomationProperties.Name="Next"
                                     AutomationProperties.AutomationId="NextButton">
-                                    <FontIcon Glyph="&#xE76C;" FontSize="12" />
+                                    <FontIcon x:Name="NextGlyph" Glyph="&#xE76C;" FontSize="12" />
                                 </Button>
                                 <ToggleButton
                                     x:Name="DetailsToggle"
