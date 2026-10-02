@@ -346,6 +346,11 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             var sync = Task.Run(() => google.Sync.SyncAllAsync(refreshCalendarLists: true, _life.Token));
             await Task.WhenAll(sync, Task.Delay(MinimumSyncIndicator, _life.Token));
         }
+        catch (OperationCanceledException) when (_life.IsCancellationRequested)
+        {
+            // Leaf Is Closing: not a failed sync, and nothing left to reload
+            return;
+        }
         finally
         {
             _syncsRunning--;
