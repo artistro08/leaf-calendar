@@ -244,7 +244,8 @@ public partial class App : Application
         {
             if (action == ShortcutAction.Join)
             {
-                JoinNext();
+                // Like the window's Ctrl+J: the next meeting in the upcoming list's lookahead, not only within 10 minutes
+                JoinNext(TimeSpan.FromHours(CurrentSettings().UpcomingHours));
             }
             else
             {
@@ -807,8 +808,9 @@ public partial class App : Application
         _dispatcher?.TryEnqueue(DispatcherQueuePriority.Low, () => _calendar?.BeginCreateNow());
     }
 
-    // Join next meeting (the tray menu and the join shortcut): the join rule (spec 8.5), else "No meeting to join"
-    void JoinNext()
+    // Join next meeting: the join rule (spec 8.5) for the tray menu; the join shortcut passes a lookahead, so with nothing
+    // in the next 10 minutes it opens the next meeting within it. Else "No meeting to join"
+    void JoinNext(TimeSpan? lookahead = null)
     {
         if (_services is not { } services)
         {
@@ -820,7 +822,8 @@ public partial class App : Application
             Uri? link;
             using (var conn = services.Database.Open())
             {
-                link = JoinPicker.Find(conn, services.Time.GetUtcNow(), _zone.Zone);
+                var now = services.Time.GetUtcNow();
+                link = lookahead is { } ahead ? JoinPicker.FindNext(conn, now, _zone.Zone, ahead) : JoinPicker.Find(conn, now, _zone.Zone);
             }
 
             if (link is null)

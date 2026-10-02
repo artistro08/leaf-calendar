@@ -33,14 +33,29 @@ public static class JoinPicker
             ?? open.Where(c => c.Occurrence.Start <= now).MaxBy(c => c.Occurrence.Start);
     }
 
+    /// <summary>
+    /// The meeting the join shortcut opens: the one <see cref="Pick"/> chooses, else the soonest one starting within
+    /// <paramref name="lookahead"/> (like the main window's Ctrl+J, which doesn't wait for the 10 minutes either), or null.
+    /// </summary>
+    public static JoinTarget? PickNext(IEnumerable<JoinTarget> candidates, DateTimeOffset now, TimeSpan lookahead)
+    {
+        var list = candidates.ToList();
+        return Pick(list, now)
+            ?? list.Where(c => !c.Occurrence.IsAllDay && c.Occurrence.Start > now && c.Occurrence.Start - now <= lookahead).MinBy(c => c.Occurrence.Start);
+    }
+
     /// <summary>Timed, not declined instances around <paramref name="now"/> that have a meeting link and could qualify.</summary>
-    public static IReadOnlyList<JoinTarget> Candidates(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone)
+    public static IReadOnlyList<JoinTarget> Candidates(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone) => Candidates(conn, now, zone, Lead);
+
+    /// <summary>Timed, not declined instances with a meeting link that are running or start within <paramref name="lookahead"/>.</summary>
+    public static IReadOnlyList<JoinTarget> Candidates(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone, TimeSpan lookahead)
     {
         var today  = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
+        var last   = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now + lookahead, zone).DateTime);
         var result = new List<JoinTarget>();
-        foreach (var o in OccurrenceQuery.Load(conn, today.AddDays(-1), today.AddDays(2), zone, includeDeclined: false))
+        foreach (var o in OccurrenceQuery.Load(conn, today.AddDays(-1), last.AddDays(2), zone, includeDeclined: false))
         {
-            if (o.IsAllDay || o.End <= now || o.Start - now > Lead)
+            if (o.IsAllDay || o.End <= now || o.Start - now > lookahead)
             {
                 continue;
             }
@@ -82,4 +97,8 @@ public static class JoinPicker
     /// <summary>The address the join shortcut opens now, or null when no meeting qualifies ("No meeting to join").</summary>
     public static Uri? Find(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone) =>
         Pick(Candidates(conn, now, zone), now) is { } target ? JoinLink(conn, target) : null;
+
+    /// <summary>The join shortcut's link (<see cref="PickNext"/>), or null when nothing with a link starts within <paramref name="lookahead"/>.</summary>
+    public static Uri? FindNext(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone, TimeSpan lookahead) =>
+        PickNext(Candidates(conn, now, zone, lookahead), now, lookahead) is { } target ? JoinLink(conn, target) : null;
 }
