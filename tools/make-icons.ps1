@@ -58,13 +58,42 @@ for (const size of [16, 24, 32, 48, 256]) {
     render(`Square44x44Logo.targetsize-${size}_altform-unplated.png`, size, size, size);
 }
 
-// Tray Glyphs (each size from its own hinted Fluent SVG; 32 for anything larger)
+// Tray Glyphs (each size from its own hinted Fluent SVG; 32 for anything larger). Each is drawn where it renders
+// sharpest: as drawn or moved half a pixel either way, whichever leaves the fewest half-covered pixels (the 16-24
+// glyphs center their 1 px stem on a pixel edge, so as drawn it smears across two)
 fs.mkdirSync(path.join(assets, 'Tray'), { recursive: true });
+function blur(png) {
+    const pixels = png.pixels;
+    let soft = 0;
+    for (let i = 3; i < pixels.length; i += 4) {
+        if (pixels[i] > 24 && pixels[i] < 232) {
+            soft++;
+        }
+    }
+    return soft;
+}
+// The 24 glyph's stem is 1.5 px wide (11.25 to 12.75), which no position draws sharp; it's widened to 2 px
+const stems = { 24: [['11.25', '11'], ['12.75', '13']] };
 for (const size of [16, 20, 24, 32]) {
     const glyph = fs.readFileSync(path.join(fluentDir, `ic_fluent_leaf_one_${size}_filled.svg`), 'utf8');
+    let body    = glyph.slice(glyph.indexOf('>') + 1, glyph.lastIndexOf('</svg>'));
+    for (const [from, to] of stems[size] ?? []) {
+        body = body.split(from).join(to);
+    }
     for (const [name, color] of [['dark-taskbar', '#FFFFFF'], ['light-taskbar', '#1F1F1F']]) {
-        const svg = glyph.replace(/fill="#212121"/g, `fill="${color}"`);
-        fs.writeFileSync(path.join(assets, 'Tray', `tray-${name}-${size}.png`), new Resvg(svg, { fitTo: { mode: 'width', value: size } }).render().asPng());
+        let best = null;
+        for (const dx of [0, 0.5, -0.5]) {
+            for (const dy of [0, 0.5, -0.5]) {
+                const svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">` +
+                    `<g transform="translate(${dx} ${dy})">${body.replace(/fill="#212121"/g, `fill="${color}"`)}</g></svg>`;
+                const png  = new Resvg(svg, { fitTo: { mode: 'original' } }).render();
+                const soft = blur(png);
+                if (best === null || soft < best.soft) {
+                    best = { soft, png };
+                }
+            }
+        }
+        fs.writeFileSync(path.join(assets, 'Tray', `tray-${name}-${size}.png`), best.png.asPng());
     }
 }
 '@ | Set-Content -Encoding utf8 $script
