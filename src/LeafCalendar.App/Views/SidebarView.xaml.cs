@@ -378,6 +378,26 @@ public sealed partial class SidebarView : UserControl
         // The unchecked outline reads its brush once, when the template is applied, so re-apply it
         box.Template = null;
         box.ClearValue(Control.TemplateProperty);
+
+        // A re-applied template starts in no visual state, and drew every box with the indeterminate dash until the
+        // pointer passed over it: put it in its real state now, or as soon as it's back on screen
+        if (box.IsLoaded && box.ApplyTemplate())
+        {
+            ShowCheckBoxHover(box, hover: false);
+        }
+        else
+        {
+            box.Loaded -= OnRepaintedBoxLoaded;
+            box.Loaded += OnRepaintedBoxLoaded;
+        }
+    }
+
+    static void OnRepaintedBoxLoaded(object sender, RoutedEventArgs e)
+    {
+        var box = (CheckBox)sender;
+        box.Loaded -= OnRepaintedBoxLoaded;
+        box.ApplyTemplate();
+        ShowCheckBoxHover(box, hover: false);
     }
 
     // =========================================================================
