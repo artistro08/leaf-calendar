@@ -43,12 +43,12 @@ public sealed class ShareAvailabilityTests : IDisposable
         LeafApp.Drag(new Point(x, top + (fromHour - 9) * hour), new Point(x, top + (toHour - 9) * hour));
     }
 
-    // S, then wait for the bar
+    // S, then wait for the share panel
     static void StartSharing(LeafApp leaf)
     {
         leaf.WaitFor(Dentist);
         leaf.Press(VirtualKeyShort.KEY_S);
-        Assert.NotNull(leaf.WaitFor("ShareBar"));
+        Assert.NotNull(leaf.WaitFor("ShareSlotsPanel"));
     }
 
     // Copy, then the clipboard's text once it holds the shared times
@@ -99,13 +99,13 @@ public sealed class ShareAvailabilityTests : IDisposable
 
         DragHours(leaf, 10, 12);
         leaf.WaitFor("ShareSlot_0");
-        leaf.WaitFor("ShareZoneBox").AsComboBox().Select("Tokyo (UTC+9)");
+        leaf.WaitFor("ShareZoneBox").AsComboBox().Select("(UTC+09:00) Tokyo");
 
         Assert.Equal("Thu Oct 1: 11 PM–12 AM Tokyo time\r\nFri Oct 2: 12–1 AM Tokyo time", Copy(leaf));
     }
 
     [Fact]
-    public void LeavingACalendarOut_ItsEventsDontBlock()
+    public void AHiddenCalendar_ItsEventsDontBlock()
     {
         _google.AddEvent(Family, new JsonObject
         {
@@ -121,12 +121,11 @@ public sealed class ShareAvailabilityTests : IDisposable
 
         Assert.Equal("Thu Oct 1: 11 AM–12 PM ET", Copy(leaf));
 
-        // Copy Ends Sharing, So Pick Again
+        // Copy Ends Sharing: Hide The Calendar In The Sidebar (busy times come from the visible ones), Then Pick Again
+        leaf.WaitFor($"CalendarToggle_{Family}").Click();
         StartSharing(leaf);
         DragHours(leaf, 10, 12);
         leaf.WaitFor("ShareSlot_0");
-        leaf.WaitFor("ShareCalendarsButton").Click();
-        leaf.WaitForAnywhere($"ShareCalendar_{Family}").Click();
 
         Assert.Equal("Thu Oct 1: 10 AM–12 PM ET", Copy(leaf));
     }
@@ -146,7 +145,7 @@ public sealed class ShareAvailabilityTests : IDisposable
         Assert.True(leaf.Exists("ShareSlot_0"));
 
         leaf.WaitFor("ShareCancelButton").AsButton().Invoke();
-        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareBar") || leaf.Exists("ShareSlot_0"), TimeSpan.FromSeconds(5)).Success, "The share bar or a slot still shows.");
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel") || leaf.Exists("ShareSlot_0"), TimeSpan.FromSeconds(5)).Success, "The share panel or a slot still shows.");
 
         // Dragging makes events again
         DragHours(leaf, 15, 16);
@@ -160,19 +159,19 @@ public sealed class ShareAvailabilityTests : IDisposable
         leaf.WaitFor(Dentist);
 
         leaf.WaitFor("SidebarShareAvailability").AsButton().Invoke();
-        Assert.NotNull(leaf.WaitFor("ShareBar"));
+        Assert.NotNull(leaf.WaitFor("ShareSlotsPanel"));
         leaf.WaitFor("ShareCancelButton").AsButton().Invoke();
-        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareBar"), TimeSpan.FromSeconds(5)).Success, "Cancel left the share bar up.");
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Cancel left the share panel up.");
 
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_K);
         Thread.Sleep(500);
         Keyboard.Type("share");
         Thread.Sleep(500);
         Keyboard.Press(VirtualKeyShort.RETURN);
-        Assert.NotNull(leaf.WaitFor("ShareBar"));
+        Assert.NotNull(leaf.WaitFor("ShareSlotsPanel"));
     }
 
-    // Copy copies, ends sharing (the card and the slots go), and says so in the notice like a delete does; the card has
+    // Copy copies, ends sharing (the panel and the slots go), and says so in the notice like a delete does; the panel has
     // no booking pages link
     [Fact]
     public void Copy_StopsSharing_AndSaysSo()
@@ -185,22 +184,31 @@ public sealed class ShareAvailabilityTests : IDisposable
 
         Assert.Equal("Thu Oct 1: 10 AM–12 PM ET", Copy(leaf));
 
-        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareBar") || leaf.Exists("ShareSlot_0"), TimeSpan.FromSeconds(5)).Success, "Sharing didn't stop.");
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel") || leaf.Exists("ShareSlot_0"), TimeSpan.FromSeconds(5)).Success, "Sharing didn't stop.");
         Assert.True(NoticeSays(leaf, "Availability copied"), "The notice didn't say the availability was copied.");
     }
 
-    // The card floats in the calendar view's bottom-right corner, over the calendar
+    // Everything sits in the right panel: the zone, the times, then Copy and Cancel splitting the full width at the bottom;
+    // the panel keeps its width as times are picked, and there's no calendars dropdown
     [Fact]
-    public void Card_FloatsInTheViewsBottomRight()
+    public void Panel_HoldsTheZoneTimesAndButtons_AtAFixedWidth()
     {
         using var leaf = Launch();
         StartSharing(leaf);
 
-        var card = leaf.WaitFor("ShareBar").BoundingRectangle;
-        var view = leaf.WaitFor("ViewHost").BoundingRectangle;
-        var gap  = 24 * leaf.Scale;
-        Assert.True(card.Right <= view.Right && view.Right - card.Right <= gap && card.Bottom <= view.Bottom && view.Bottom - card.Bottom <= gap,
-            $"The card ({card}) isn't in the view's ({view}) bottom-right corner.");
+        var panel = leaf.WaitFor("ShareSlotsPanel").BoundingRectangle;
+        var zone  = leaf.WaitFor("ShareZoneBox").BoundingRectangle;
+        var copy  = leaf.WaitFor("ShareCopyButton").BoundingRectangle;
+        var stop  = leaf.WaitFor("ShareCancelButton").BoundingRectangle;
+        var edge  = 16 * leaf.Scale + 1;
+        Assert.False(leaf.Exists("ShareCalendarsButton"), "The calendars dropdown still shows.");
+        Assert.True(zone.Left - panel.Left <= edge && panel.Right - zone.Right <= edge, $"The zone box ({zone}) doesn't span the panel ({panel}).");
+        Assert.True(copy.Left - panel.Left <= edge && panel.Right - stop.Right <= edge && copy.Top == stop.Top, $"Copy ({copy}) and Cancel ({stop}) don't span the panel ({panel}).");
+        Assert.True(panel.Bottom - copy.Bottom <= edge, $"The buttons ({copy}) aren't at the panel's ({panel}) bottom.");
+
+        DragHours(leaf, 10, 11);
+        leaf.WaitFor("SharePanelSlot_0");
+        Assert.Equal(panel.Width, leaf.WaitFor("ShareSlotsPanel").BoundingRectangle.Width);
     }
 
     // While sharing, the right panel lists the picked times; a later end time there grows the grid's slot and changes the copy
@@ -237,7 +245,7 @@ public sealed class ShareAvailabilityTests : IDisposable
 
         Keyboard.Press(VirtualKeyShort.KEY_S);
 
-        Assert.NotNull(leaf.WaitFor("ShareBar"));
+        Assert.NotNull(leaf.WaitFor("ShareSlotsPanel"));
         Assert.True(Retry.WhileTrue(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(5)).Success, "The empty editor stayed open.");
     }
 
@@ -255,7 +263,7 @@ public sealed class ShareAvailabilityTests : IDisposable
         Keyboard.Press(VirtualKeyShort.KEY_S);
         Thread.Sleep(1500);
 
-        Assert.False(leaf.Exists("ShareBar"));
+        Assert.False(leaf.Exists("ShareSlotsPanel"));
         Assert.True(leaf.Exists("EventEditor"));
     }
 

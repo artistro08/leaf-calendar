@@ -248,7 +248,7 @@ public sealed partial class CalendarPage
         _beforeSheet = null;
     }
 
-    // Lifts a floating card (the cheat sheet, the share card) over the calendar view: raised 32 like a flyout, its
+    // Lifts a floating card (the cheat sheet) over the calendar view: raised 32 like a flyout, its
     // shadow falling on the view
     void Float(UIElement card)
     {
