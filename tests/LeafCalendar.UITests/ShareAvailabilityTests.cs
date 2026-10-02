@@ -33,7 +33,7 @@ public sealed class ShareAvailabilityTests : IDisposable
 
     // Drags from one Eastern hour to another on Oct 1, near the column's right edge (beside the event cards), a tenth
     // of an hour in so snapping is clear
-    static void DragHours(LeafApp leaf, int fromHour, int toHour)
+    internal static void DragHours(LeafApp leaf, int fromHour, int toHour)
     {
         var dentist = leaf.WaitFor(Dentist);
         var hour    = HourPixels(dentist);
@@ -44,7 +44,7 @@ public sealed class ShareAvailabilityTests : IDisposable
     }
 
     // S, then wait for the bar
-    static void StartSharing(LeafApp leaf)
+    internal static void StartSharing(LeafApp leaf)
     {
         leaf.WaitFor(Dentist);
         leaf.Press(VirtualKeyShort.KEY_S);
