@@ -26,33 +26,32 @@
         <KeyboardAccelerator Key="Escape" Invoked="OnEscapeInvoked" />
     </Page.KeyboardAccelerators>
 
-    <!-- Three parts: the sidebar and the details panel on the window's Mica, and the calendar island between them.
-         The panes lie over the page and slide by composition. The island slides with them: its left edge rides the
-         sidebar's edge, its clip follows the details panel's edge, and its columns lay out once per toggle (at the
-         start of a close, at the end of an open; CalendarPage.Panes.cs).
-         The page runs under the title bar, so the top 48 px of each part sits in the title bar row. -->
+    <!-- Three columns: the sidebar and the details panel on the window's Mica, and the calendar island between them.
+         Each pane's column is its slot's width, which a storyboard animates when the pane opens or closes, so the
+         island (star sized) lays out at every step of the slide, the same as it does while the window resizes
+         (CalendarPage.Panes.cs). The page runs under the title bar, so the top 48 px of each part sits in the title bar row. -->
     <Grid x:Name="Root" Background="Transparent" AutomationProperties.Name="Calendar" AutomationProperties.AutomationId="CalendarRoot">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
 
-        <!-- Sidebar Pane (first, so Tab and Narrator go sidebar, calendar, details; drawn over the island) -->
-        <local:SidebarView
-            x:Name="Sidebar"
-            Canvas.ZIndex="2"
-            Width="264"
-            HorizontalAlignment="Left"
-            AutomationProperties.Name="Sidebar"
-            AutomationProperties.LandmarkType="Navigation"
-            AutomationProperties.AutomationId="Sidebar" />
+        <!-- Sidebar Slot (first, so Tab and Narrator go sidebar, calendar, details; the sidebar keeps its width and slides out to the left as the slot narrows) -->
+        <Grid x:Name="SidebarSlot" Width="264">
+            <local:SidebarView
+                x:Name="Sidebar"
+                Width="264"
+                HorizontalAlignment="Right"
+                AutomationProperties.Name="Sidebar"
+                AutomationProperties.LandmarkType="Navigation"
+                AutomationProperties.AutomationId="Sidebar" />
+        </Grid>
 
-        <!-- Island Fill (the island's color; its edges follow the panes as they slide) -->
-        <Border x:Name="IslandFill" Background="{ThemeResource LayerFillColorDefaultBrush}" />
-
-        <!-- Island Area (its margins leave room for the open panes) -->
-        <Grid x:Name="IslandArea">
-            <!-- Island (flat, top to bottom; its fill against the Mica is the only edge) -->
-            <Grid
-                x:Name="Island"
-                Background="Transparent"
-                SizeChanged="OnIslandSizeChanged">
+        <!-- Island Area (the island's fill against the Mica is its only edge) -->
+        <Grid x:Name="IslandArea" Grid.Column="1" Background="{ThemeResource LayerFillColorDefaultBrush}">
+            <!-- Island (flat, top to bottom) -->
+            <Grid x:Name="Island">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="49" />
                     <RowDefinition Height="Auto" />
@@ -136,10 +135,12 @@
         </Grid>
         <!-- /Island Area -->
 
-        <!-- Details Pane (the details panel, or the share slots while sharing availability) -->
-        <Grid x:Name="DetailsPane" Canvas.ZIndex="2" Width="320" HorizontalAlignment="Right">
-            <local:DetailsPanel x:Name="Details" />
+        <!-- Details Slot (the details panel, or the share slots while sharing availability; it keeps its width and slides out to the right) -->
+        <Grid x:Name="DetailsSlot" Grid.Column="2" Width="320">
+            <Grid x:Name="DetailsPane" Width="320" HorizontalAlignment="Left">
+                <local:DetailsPanel x:Name="Details" />
+            </Grid>
         </Grid>
-        <!-- /Details Pane -->
+        <!-- /Details Slot -->
     </Grid>
 </Page>

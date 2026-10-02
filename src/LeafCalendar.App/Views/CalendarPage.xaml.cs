@@ -28,8 +28,8 @@ public sealed class PanesChangedEventArgs(bool animate, bool opening) : EventArg
 /// <summary>
 /// The main calendar page in three parts: the sidebar and the details panel on the window's Mica,
 /// and between them a flat "island" holding the period title and the current view. The page runs
-/// under the title bar. The side panes lie over the page and slide by composition while the island stays put
-/// (see CalendarPage.Panes.cs).
+/// under the title bar. The side panes open and close by animating their columns' widths, and the island between them
+/// reflows as they slide (see CalendarPage.Panes.cs).
 /// </summary>
 public sealed partial class CalendarPage : Page
 {
@@ -97,7 +97,7 @@ public sealed partial class CalendarPage : Page
     /// <summary>The page's view model.</summary>
     public CalendarViewModel ViewModel => _args.ViewModel;
 
-    /// <summary>The sidebar or details panel started to open or close (the island already has its new size).</summary>
+    /// <summary>The sidebar or details panel started to open or close.</summary>
     public event EventHandler<PanesChangedEventArgs>? PanesChanged;
 
     /// <inheritdoc />
