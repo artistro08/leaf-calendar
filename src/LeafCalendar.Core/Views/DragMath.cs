@@ -149,7 +149,12 @@ public static class DragMath
     {
         var minutes = TimeZoneInfo.ConvertTime(instant, zone).TimeOfDay.TotalMinutes;
         var steps   = round(minutes / SnapMinutes) * SnapMinutes;
-        return instant + TimeSpan.FromMinutes(steps - minutes);
+        var snapped = instant + TimeSpan.FromMinutes(steps - minutes);
+
+        // On The Whole Minute: the double math above can land a few ticks short of the step, and Google's
+        // whole-second times then read 2:00 PM as 1:59:59
+        var ticks = (long)Math.Round((double)snapped.UtcTicks / TimeSpan.TicksPerMinute) * TimeSpan.TicksPerMinute;
+        return new DateTimeOffset(ticks, TimeSpan.Zero).ToOffset(instant.Offset);
     }
 
     static DateOnly LocalDay(CalendarOccurrence o, TimeZoneInfo zone) =>

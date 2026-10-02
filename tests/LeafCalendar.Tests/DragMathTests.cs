@@ -99,6 +99,20 @@ public class DragMathTests
         Assert.Equal(Utc(10, 1, 14, 15), DragMath.Snap(Utc(10, 1, 14, 7) + TimeSpan.FromSeconds(30), NewYork));
     }
 
+    // A pointer position with a fraction of a tick (a drag measured in DIPs) still snaps to the exact quarter hour,
+    // not a few ticks short of it (which Google's whole-second times read as 1:59:59)
+    [Theory]
+    [InlineData(59.99999999)]
+    [InlineData(60.00000001)]
+    [InlineData(52.5000001)]
+    public void Snap_FractionalMinutes_LandsOnTheWholeMinute(double minutes)
+    {
+        var snapped = DragMath.Snap(DragMath.Instant(new DateOnly(2026, 10, 1), 13 * 60 + minutes, NewYork), NewYork);
+
+        Assert.Equal(0, snapped.UtcTicks % TimeSpan.TicksPerMinute);
+        Assert.Equal(Utc(10, 1, 18, 0), snapped);
+    }
+
     [Fact]
     public void RepeatedHour_SnapMoveResizeShiftZero_StayPut()
     {
