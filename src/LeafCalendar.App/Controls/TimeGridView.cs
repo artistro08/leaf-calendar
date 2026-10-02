@@ -59,8 +59,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
     readonly ScrollViewer _bodyScroll = new() { HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Enabled, ZoomMode = ZoomMode.Disabled };
     // One row of fixed-size cells: positions are exact (index × width), unlike StackLayout's estimates,
     // which drift by weeks when jumping deep into the strip after the column width changes
-    readonly UniformGridLayout _headerLayout = new() { Orientation = Orientation.Vertical, MaximumRowsOrColumns = 1 };
-    readonly UniformGridLayout _bodyLayout = new() { Orientation = Orientation.Vertical, MaximumRowsOrColumns = 1 };
+    readonly DayStripLayout _headerLayout = new();
+    readonly DayStripLayout _bodyLayout = new();
     readonly ItemsRepeater _headerRepeater = new() { HorizontalCacheLength = 2 };
     readonly ItemsRepeater _bodyRepeater = new() { HorizontalCacheLength = 2 };
     readonly Grid _headerContent = new();
@@ -344,7 +344,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // changed (a height-only resize costs nothing), and it only repaints what depends on the width.
     void Relayout(bool force)
     {
-        var available = _bodyScroll.ActualWidth + _bodyScroll.Margin.Right;
+        // The days' column, not the body plus its spare margin: the margin is rounded to whole pixels when it's laid out,
+        // so reading it back could pick the other column width every pass (a layout cycle mid-slide)
+        var available = ColumnDefinitions[1].ActualWidth;
         if (_disposed || available <= 0)
         {
             return;
@@ -358,19 +360,27 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
-        var spare = new Thickness(0, 0, Math.Max(0, available - width * _vm.VisibleColumns), 0);
+        var widthOnly = !force && _initialized && _bodyRepeater.Height == BodyHeight;
+        var spare     = new Thickness(0, 0, Math.Max(0, available - width * _vm.VisibleColumns), 0);
         ColumnWidth                 = width;
         _bodyScroll.Margin          = spare;
         _headerScroll.Margin        = spare;
         _bodyRepeater.Height        = BodyHeight;
         _headerRepeater.Height      = DayHeaderHeight;
-        _bodyLayout.MinItemWidth    = ColumnWidth;
-        _bodyLayout.MinItemHeight   = BodyHeight;
-        _headerLayout.MinItemWidth  = ColumnWidth;
-        _headerLayout.MinItemHeight = DayHeaderHeight;
-        _bodyRepeater.InvalidateMeasure();
-        _headerRepeater.InvalidateMeasure();
-        RenderColumns();
+        _bodyLayout.ItemWidth       = ColumnWidth;
+        _bodyLayout.ItemHeight      = BodyHeight;
+        _headerLayout.ItemWidth     = ColumnWidth;
+        _headerLayout.ItemHeight    = DayHeaderHeight;
+        _bodyLayout.Pin(_firstIndex);
+        _headerLayout.Pin(_firstIndex);
+        if (widthOnly)
+        {
+            ResizeColumns();
+        }
+        else
+        {
+            RenderColumns();
+        }
 
         // First Layout: the corner and hour labels (they don't depend on the width), and a jump to 7:30 AM
         if (!_initialized)
@@ -625,6 +635,23 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
 
         return true;
+    }
+
+    // A new column width alone (a pane sliding, the window resizing): each column, header, and the all-day row only
+    // takes the width, so a frame of the slide stays cheap
+    void ResizeColumns()
+    {
+        foreach (var column in _columns)
+        {
+            column.Resize();
+        }
+
+        foreach (var header in _headers)
+        {
+            header.Width = ColumnWidth;
+        }
+
+        RenderAllDay();
     }
 
     // Everything that depends on the column width: the columns, the headers, and the all-day row
