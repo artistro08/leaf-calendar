@@ -100,6 +100,9 @@ public sealed class FakeGoogleServer : IDisposable
     /// <summary>When true, sign-in comes back as a different Google user (<see cref="OtherUserEmail"/>) than the fixture account.</summary>
     public bool SignInAsOtherUser { get; set; }
 
+    /// <summary>When true, Google's sign-in page never sends the browser back, as when someone walks away from it (Leaf waits until it's canceled).</summary>
+    public bool AbandonSignIn { get; set; }
+
     /// <summary>The other user's address (sub <see cref="OtherUserId"/>).</summary>
     public const string OtherUserEmail = "other.person@example.com";
 
@@ -239,6 +242,11 @@ public sealed class FakeGoogleServer : IDisposable
         // Sign-In
         if (method == "GET" && path == "/auth")
         {
+            if (AbandonSignIn)
+            {
+                return (200, "<html><body>Choose an account</body></html>", null);
+            }
+
             var redirect = $"{query["redirect_uri"]}?code=fake-code&state={Uri.EscapeDataString(query["state"])}";
             return (302, "", redirect);
         }
