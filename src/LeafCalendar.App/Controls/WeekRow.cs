@@ -19,16 +19,58 @@ namespace LeafCalendar.App.Controls;
 /// Each day cell shows its date, and events are chips packed into lanes with <see cref="SpanLayout"/>.
 /// All-day and multi-day events are filled bars; timed events are a dot, time, and title. When a day
 /// has more events than fit, the last lane shows "+N more", which opens that day's full list.
+/// Rows render in place (as <see cref="DayColumn"/> does): the seven cells are built once, and chips
+/// and "+N more" links are pooled, so a repaint only sets properties instead of building new controls.
 /// </remarks>
 public sealed partial class WeekRow : Canvas
 {
     readonly MonthGridView _owner;
-    readonly List<(Button Button, DateOnly Date)> _dayNumbers = [];
+    readonly List<(Rectangle Left, Rectangle Top, Rectangle Tint, Button Day, TextBlock Number)> _cells = [];
+    readonly List<MonthChip> _chips = [];
+    readonly List<HyperlinkButton> _mores = [];
+    readonly List<DateOnly> _moreDates = [];
+    IReadOnlyList<DateOnly> _dates = [];
 
     /// <summary>Creates a row owned by <paramref name="owner"/>.</summary>
     public WeekRow(MonthGridView owner)
     {
-        _owner = owner;
+        _owner     = owner;
+        Background = LeafBrushes.Transparent;
+
+        // Cells (all seven, shown or not, so later chips always draw above them)
+        for (var c = 0; c < 7; c++)
+        {
+            var column = c;
+            var number = new TextBlock { FontSize = 12 };
+            var day    = new Button
+            {
+                Content         = number,
+                Padding         = new Thickness(6, 1, 6, 1),
+                MinWidth        = 24,
+                Height          = 22,
+                CornerRadius    = new CornerRadius(11),
+                BorderThickness = new Thickness(0),
+            };
+            day.Click += (_, _) =>
+            {
+                _owner.ViewModel.SetMode(CalendarViewMode.Day);
+                _owner.ViewModel.NavigateTo(_dates[column]);
+            };
+
+            // Click-Through Lines And Tint, So A Press On A Weekend Is A Press On The Row (Shift+drag box)
+            var cell = (
+                Left:   new Rectangle { Width = 1, IsHitTestVisible = false },
+                Top:    new Rectangle { Height = 1, IsHitTestVisible = false },
+                Tint:   new Rectangle { IsHitTestVisible = false },
+                Day:    day,
+                Number: number);
+            _cells.Add(cell);
+            Children.Add(cell.Left);
+            Children.Add(cell.Top);
+            Children.Add(cell.Tint);
+            Children.Add(cell.Day);
+            SetTop(day, 3);
+        }
 
         // Double-Click An Empty Cell: a new all-day event that day (chips mark their own taps handled; the day number strip is skipped)
         DoubleTapped += (_, e) =>
@@ -57,7 +99,7 @@ public sealed partial class WeekRow : Canvas
         Render();
     }
 
-    /// <summary>Repaints (rebuilds its few children; ponytail: pool chips if month scrolling ever stutters).</summary>
+    /// <summary>Repaints for the current size, theme, data, and selection, reusing the row's controls.</summary>
     public void Render()
     {
         var vm     = _owner.ViewModel;
@@ -66,42 +108,47 @@ public sealed partial class WeekRow : Canvas
         var colW   = _owner.ColumnWidth;
         var height = _owner.RowHeight;
 
-        Children.Clear();
-        _dayNumbers.Clear();
-        Width      = colW * dates.Count;
-        Height     = height;
-        Background = LeafBrushes.Transparent;
+        _dates = dates;
+        Width  = colW * dates.Count;
+        Height = height;
 
         // Cells
-        for (var c = 0; c < dates.Count; c++)
+        for (var c = 0; c < _cells.Count; c++)
         {
-            var date = dates[c];
-            AddLine(c * colW, 0, 1, height, dark);
-            AddLine(c * colW, 0, colW, 1, dark);
-            if (ViewNavigator.IsWeekend(date))
-            {
-                // Click-Through, So A Press On A Weekend Is A Press On The Row (Shift+drag box)
-                var tint = new Rectangle { Width = colW, Height = height, Fill = LeafBrushes.WeekendFill(dark), IsHitTestVisible = false };
-                SetLeft(tint, c * colW);
-                Children.Add(tint);
-            }
-
-            Children.Add(DayNumber(date, c * colW, dark));
+            RenderCell(c, colW, height, dark);
         }
 
-        // Chips
+        // Chips (a day with more than fits gives its last lane to "+N more")
         var items    = dates.SelectMany(vm.Cache.ForDay).DistinctBy(o => o.Key).ToList();
         var blocks   = SpanLayout.Layout(dates, items, vm.Zone, includeTimed: true);
         var maxLanes = Math.Max(1, (int)((height - MonthGridView.DayNumberHeight - 4) / MonthGridView.ChipHeight));
+        var full     = new bool[dates.Count];
         var overflow = new int[dates.Count];
+        var shown    = 0;
+
+        foreach (var b in blocks.Where(b => b.Lane >= maxLanes))
+        {
+            for (var c = b.FirstColumn; c < b.FirstColumn + b.ColumnSpan; c++)
+            {
+                full[c] = true;
+            }
+        }
 
         foreach (var b in blocks)
         {
-            var overflowing = Enumerable.Range(b.FirstColumn, b.ColumnSpan).Any(c => blocks.Any(x => x.Lane >= maxLanes && c >= x.FirstColumn && c < x.FirstColumn + x.ColumnSpan));
+            var overflowing = Enumerable.Range(b.FirstColumn, b.ColumnSpan).Any(c => full[c]);
             var laneLimit   = overflowing ? maxLanes - 1 : maxLanes;
             if (b.Lane < laneLimit)
             {
-                Children.Add(Chip(b, colW, dark));
+                // Reuse A Pooled Chip
+                if (shown == _chips.Count)
+                {
+                    var chip = new MonthChip(_owner);
+                    _chips.Add(chip);
+                    Children.Add(chip);
+                }
+
+                _chips[shown++].Bind(b, colW, dark);
                 continue;
             }
 
@@ -111,13 +158,24 @@ public sealed partial class WeekRow : Canvas
             }
         }
 
+        for (var i = shown; i < _chips.Count; i++)
+        {
+            _chips[i].Visibility = Visibility.Collapsed;
+        }
+
         // "+N More"
+        var mores = 0;
         for (var c = 0; c < dates.Count; c++)
         {
             if (overflow[c] > 0)
             {
-                Children.Add(More(dates[c], overflow[c], c * colW, MonthGridView.DayNumberHeight + (maxLanes - 1) * MonthGridView.ChipHeight));
+                More(mores++, dates[c], overflow[c], c * colW, MonthGridView.DayNumberHeight + (maxLanes - 1) * MonthGridView.ChipHeight);
             }
+        }
+
+        for (var i = mores; i < _mores.Count; i++)
+        {
+            _mores[i].Visibility = Visibility.Collapsed;
         }
     }
 
@@ -125,179 +183,220 @@ public sealed partial class WeekRow : Canvas
     public void RenderFocus()
     {
         var dark = _owner.IsDark;
-        foreach (var (button, date) in _dayNumbers)
+        for (var c = 0; c < _dates.Count; c++)
         {
-            if (date != _owner.ViewModel.Today)
+            if (_dates[c] != _owner.ViewModel.Today)
             {
-                button.Foreground = InFocusMonth(date) ? LeafBrushes.PrimaryText(dark) : LeafBrushes.DimText(dark);
+                _cells[c].Day.Foreground = InFocusMonth(_dates[c]) ? LeafBrushes.PrimaryText(dark) : LeafBrushes.DimText(dark);
             }
         }
     }
 
     bool InFocusMonth(DateOnly date) => date.Month == _owner.FocusMonth.Month && date.Year == _owner.FocusMonth.Year;
 
-    void AddLine(double x, double y, double w, double h, bool dark)
+    // One day cell: its left and top lines, the weekend tint, and the day number (columns past the shown days hide)
+    void RenderCell(int c, double colW, double height, bool dark)
     {
-        var line = new Rectangle { Width = w, Height = h, Fill = LeafBrushes.GridLine(dark), IsHitTestVisible = false };
-        SetLeft(line, x);
-        SetTop(line, y);
-        Children.Add(line);
-    }
-
-    Button DayNumber(DateOnly date, double x, bool dark)
-    {
-        var vm      = _owner.ViewModel;
-        var isToday = date == vm.Today;
-        var inMonth = InFocusMonth(date);
-        var text    = date.Day == 1 ? date.ToString("MMM d", CultureInfo.GetCultureInfo("en-US")) : date.Day.ToString(CultureInfo.InvariantCulture);
-
-        var button = new Button
+        var (left, top, tint, day, number) = _cells[c];
+        var shown = c < _dates.Count;
+        left.Visibility = top.Visibility = day.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        if (!shown)
         {
-            Content         = new TextBlock { Text = text, FontSize = 12, FontWeight = isToday ? FontWeights.SemiBold : FontWeights.Normal },
-            Padding         = new Thickness(6, 1, 6, 1),
-            MinWidth        = 24,
-            Height          = 22,
-            CornerRadius    = new CornerRadius(11),
-            BorderThickness = new Thickness(0),
-            Background      = isToday ? LeafBrushes.Accent(dark) : LeafBrushes.Transparent,
-            Foreground      = isToday ? LeafBrushes.OnAccent(dark) : inMonth ? LeafBrushes.PrimaryText(dark) : LeafBrushes.DimText(dark),
-        };
-        AutomationProperties.SetAutomationId(button, $"MonthDay_{date:yyyy-MM-dd}");
-        AutomationProperties.SetName(button, TimeLabels.LongDate(date));
-        button.Click += (_, _) =>
-        {
-            vm.SetMode(CalendarViewMode.Day);
-            vm.NavigateTo(date);
-        };
-
-        SetLeft(button, x + 4);
-        SetTop(button, 3);
-        _dayNumbers.Add((button, date));
-        return button;
-    }
-
-    Border Chip(SpanBlock b, double colW, bool dark)
-    {
-        var vm       = _owner.ViewModel;
-        var o        = b.Occurrence;
-        var selected = vm.IsSelected(o);
-        var palette  = LeafBrushes.CardPalette(EventColors.ResolveAccent(o.ColorId, o.CalendarColor), dark, vm.IsPast(o), selected);
-        var spanning = SpanLayout.IsSpanning(o);
-        var filled   = spanning || selected && LeafBrushes.HighContrast; // a contrast theme shows selection as the highlight fill
-        var first    = SpanLayout.CoveredDates(o, vm.Zone).First;
-
-        var text = new TextBlock
-        {
-            FontSize          = 12,
-            TextTrimming      = TextTrimming.CharacterEllipsis,
-            VerticalAlignment = VerticalAlignment.Center,
-            Text              = spanning ? o.Title : $"{TimeLabels.Compact(o.Start, vm.Zone, vm.Settings.Use24HourTime)} {o.Title}",
-            Foreground        = filled ? LeafBrushes.FromHex(palette.Text) : LeafBrushes.PrimaryText(dark),
-            FontWeight        = spanning ? FontWeights.SemiBold : FontWeights.Normal,
-            TextDecorations   = o.SelfResponse == ResponseStatus.Declined ? TextDecorations.Strikethrough : TextDecorations.None,
-        };
-
-        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        if (!spanning)
-        {
-            content.Children.Add(new Ellipse { Width = 7, Height = 7, Fill = LeafBrushes.FromHex(palette.Accent), VerticalAlignment = VerticalAlignment.Center });
+            tint.Visibility = Visibility.Collapsed;
+            return;
         }
 
-        content.Children.Add(text);
+        // Lines And Weekend Tint
+        var date = _dates[c];
+        var x    = c * colW;
+        left.Height     = height;
+        left.Fill       = LeafBrushes.GridLine(dark);
+        top.Width       = colW;
+        top.Fill        = LeafBrushes.GridLine(dark);
+        tint.Width      = colW;
+        tint.Height     = height;
+        tint.Fill       = LeafBrushes.WeekendFill(dark);
+        tint.Visibility = ViewNavigator.IsWeekend(date) ? Visibility.Visible : Visibility.Collapsed;
+        SetLeft(left, x);
+        SetLeft(top, x);
+        SetLeft(tint, x);
 
-        var chip = new Border
-        {
-            Width           = Math.Max(b.ColumnSpan * colW - 6, 8),
-            Height          = MonthGridView.ChipHeight - 2,
-            CornerRadius    = new CornerRadius(4),
-            Padding         = new Thickness(6, 0, 6, 0),
-            Background      = filled ? LeafBrushes.FromHex(palette.Fill) : LeafBrushes.Transparent,
-            BorderBrush     = LeafBrushes.FromHex(palette.Accent),
-            BorderThickness = filled ? LeafBrushes.CardBorder(selected) : new Thickness(0),
-            Child           = content,
-        };
-        chip.Tapped += (_, e) =>
-        {
-            KeyState.SelectClicked(vm, o);
-            e.Handled = true;
-        };
-
-        // Right-Click Menu, And The Event Under The Mouse (X toggles it)
-        chip.RightTapped += (_, e) =>
-        {
-            EventContextMenu.Show(chip, e.GetPosition(chip), vm, o);
-            e.Handled = true;
-        };
-        // Hover Tooltip: title, time, and location, filled in as the pointer arrives (the location is a lookup)
-        var time = o.IsAllDay ? "All day" : TimeLabels.Range(o.Start, o.End, vm.Zone, vm.Settings.Use24HourTime);
-        var tip  = new ToolTip();
-        ToolTipService.SetToolTip(chip, tip);
-        chip.PointerEntered += (_, _) =>
-        {
-            vm.PointerEvent = o;
-            tip.Content     = vm.HoverText(o, time);
-        };
-        chip.PointerExited  += (_, _) => vm.PointerEvent = null;
-        chip.DoubleTapped += (_, e) =>
-        {
-            vm.Select(o);
-            vm.BeginEdit();
-            e.Handled = true;
-        };
-        chip.PointerPressed += (_, e) =>
-        {
-            if (e.GetCurrentPoint(chip).Properties.IsLeftButtonPressed && e.Pointer.PointerDeviceType != PointerDeviceType.Touch)
-            {
-                _owner.BeginChipDrag(o, e);
-            }
-        };
-        AutomationProperties.SetAutomationId(chip, string.Create(CultureInfo.InvariantCulture, $"Chip_{o.EventId}_{first:yyyyMMdd}"));
-        AutomationProperties.SetName(chip, vm.CardName(o, time));
-
-        // Past Events Fade (still readable)
-        var past = vm.IsPast(o);
-        AutomationProperties.SetItemStatus(chip, past ? "Past" : "");
-
-        SetLeft(chip, b.FirstColumn * colW + 3);
-        SetTop(chip, MonthGridView.DayNumberHeight + b.Lane * MonthGridView.ChipHeight);
-        return chip;
+        // Day Number
+        var isToday = date == _owner.ViewModel.Today;
+        number.Text       = date.Day == 1 ? date.ToString("MMM d", CultureInfo.GetCultureInfo("en-US")) : date.Day.ToString(CultureInfo.InvariantCulture);
+        number.FontWeight = isToday ? FontWeights.SemiBold : FontWeights.Normal;
+        day.Background    = isToday ? LeafBrushes.Accent(dark) : LeafBrushes.Transparent;
+        day.Foreground    = isToday ? LeafBrushes.OnAccent(dark) : InFocusMonth(date) ? LeafBrushes.PrimaryText(dark) : LeafBrushes.DimText(dark);
+        AutomationProperties.SetAutomationId(day, $"MonthDay_{date:yyyy-MM-dd}");
+        AutomationProperties.SetName(day, TimeLabels.LongDate(date));
+        SetLeft(day, x + 4);
     }
 
-    HyperlinkButton More(DateOnly date, int count, double x, double y)
+    // Shows the pooled "+N more" link at <paramref name="index"/> for <paramref name="date"/>
+    void More(int index, DateOnly date, int count, double x, double y)
     {
-        var vm   = _owner.ViewModel;
-        var link = new HyperlinkButton { Content = string.Create(CultureInfo.InvariantCulture, $"+{count} more"), FontSize = 12, Padding = new Thickness(6, 0, 6, 0), Height = MonthGridView.ChipHeight - 2 };
-        AutomationProperties.SetAutomationId(link, $"More_{date:yyyy-MM-dd}");
-        link.Click += (_, _) =>
+        // Reuse A Pooled Link
+        if (index == _mores.Count)
         {
-            var list = new StackPanel { Spacing = 2, MinWidth = 220 };
-            list.Children.Add(new TextBlock { Text = TimeLabels.LongDate(date), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) });
+            var created = new HyperlinkButton { FontSize = 12, Padding = new Thickness(6, 0, 6, 0), Height = MonthGridView.ChipHeight - 2 };
+            created.Click += (_, _) => ShowDay(created, _moreDates[index]);
+            _mores.Add(created);
+            _moreDates.Add(date);
+            Children.Add(created);
+        }
 
-            var flyout = new Flyout();
-            foreach (var o in vm.Cache.ForDay(date).OrderBy(o => !o.IsAllDay).ThenBy(o => o.Start))
-            {
-                var item = new Button
-                {
-                    Content                    = o.IsAllDay ? o.Title : $"{TimeLabels.Compact(o.Start, vm.Zone, vm.Settings.Use24HourTime)}  {o.Title}",
-                    HorizontalAlignment        = HorizontalAlignment.Stretch,
-                    HorizontalContentAlignment = HorizontalAlignment.Left,
-                    Background                 = LeafBrushes.Transparent,
-                    BorderThickness            = new Thickness(0),
-                };
-                item.Click += (_, _) =>
-                {
-                    flyout.Hide();
-                    vm.Select(o);
-                };
-                list.Children.Add(item);
-            }
-
-            flyout.Content = list;
-            flyout.ShowAt(link);
-        };
-
+        var link = _mores[index];
+        _moreDates[index] = date;
+        link.Content      = string.Create(CultureInfo.InvariantCulture, $"+{count} more");
+        link.Visibility   = Visibility.Visible;
+        AutomationProperties.SetAutomationId(link, $"More_{date:yyyy-MM-dd}");
         SetLeft(link, x + 2);
         SetTop(link, y);
-        return link;
+    }
+
+    // The day's full list in a flyout under the "+N more" link
+    void ShowDay(HyperlinkButton link, DateOnly date)
+    {
+        var vm   = _owner.ViewModel;
+        var list = new StackPanel { Spacing = 2, MinWidth = 220 };
+        list.Children.Add(new TextBlock { Text = TimeLabels.LongDate(date), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) });
+
+        var flyout = new Flyout();
+        foreach (var o in vm.Cache.ForDay(date).OrderBy(o => !o.IsAllDay).ThenBy(o => o.Start))
+        {
+            var item = new Button
+            {
+                Content                    = o.IsAllDay ? o.Title : $"{TimeLabels.Compact(o.Start, vm.Zone, vm.Settings.Use24HourTime)}  {o.Title}",
+                HorizontalAlignment        = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Background                 = LeafBrushes.Transparent,
+                BorderThickness            = new Thickness(0),
+            };
+            item.Click += (_, _) =>
+            {
+                flyout.Hide();
+                vm.Select(o);
+            };
+            list.Children.Add(item);
+        }
+
+        flyout.Content = list;
+        flyout.ShowAt(link);
+    }
+
+    // =========================================================================
+    // CHIPS
+    // =========================================================================
+
+    /// <summary>
+    /// One event chip, pooled by its row. Its handlers are wired once and act on whichever event
+    /// <see cref="Bind"/> last gave it.
+    /// </summary>
+    sealed partial class MonthChip : Grid
+    {
+        readonly MonthGridView _owner;
+        readonly Ellipse _dot = new() { Width = 7, Height = 7, VerticalAlignment = VerticalAlignment.Center };
+        readonly TextBlock _text = new() { FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        readonly ToolTip _tip = new();
+        CalendarOccurrence? _occurrence;
+        string _time = "";
+
+        public MonthChip(MonthGridView owner)
+        {
+            _owner       = owner;
+            ToolTipService.SetToolTip(this, _tip);
+            Height       = MonthGridView.ChipHeight - 2;
+            CornerRadius = new CornerRadius(4);
+            Padding      = new Thickness(6, 0, 6, 0);
+
+            var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            content.Children.Add(_dot);
+            content.Children.Add(_text);
+            Children.Add(content);
+
+            Tapped += (_, e) =>
+            {
+                if (_occurrence is { } o)
+                {
+                    KeyState.SelectClicked(_owner.ViewModel, o);
+                }
+
+                e.Handled = true;
+            };
+
+            // Right-Click Menu, And The Event Under The Mouse (X toggles it)
+            RightTapped += (_, e) =>
+            {
+                if (_occurrence is { } o)
+                {
+                    EventContextMenu.Show(this, e.GetPosition(this), _owner.ViewModel, o);
+                }
+
+                e.Handled = true;
+            };
+            // Hover Tooltip: title, time, and location, filled in as the pointer arrives (the location is a lookup)
+            PointerEntered += (_, _) =>
+            {
+                _owner.ViewModel.PointerEvent = _occurrence;
+                _tip.Content                  = _occurrence is { } o ? _owner.ViewModel.HoverText(o, _time) : null;
+            };
+            PointerExited  += (_, _) => _owner.ViewModel.PointerEvent = null;
+            DoubleTapped   += (_, e) =>
+            {
+                if (_occurrence is { } o)
+                {
+                    _owner.ViewModel.Select(o);
+                    _owner.ViewModel.BeginEdit();
+                }
+
+                e.Handled = true;
+            };
+            PointerPressed += (_, e) =>
+            {
+                if (_occurrence is { } o && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed && e.Pointer.PointerDeviceType != PointerDeviceType.Touch)
+                {
+                    _owner.BeginChipDrag(o, e);
+                }
+            };
+        }
+
+        /// <summary>Shows block <paramref name="b"/>'s event in its lane and columns.</summary>
+        public void Bind(SpanBlock b, double colW, bool dark)
+        {
+            var vm       = _owner.ViewModel;
+            var o        = b.Occurrence;
+            var selected = vm.IsSelected(o);
+            var past     = vm.IsPast(o);
+            var palette  = LeafBrushes.CardPalette(EventColors.ResolveAccent(o.ColorId, o.CalendarColor), dark, past, selected);
+            var spanning = SpanLayout.IsSpanning(o);
+            var filled   = spanning || selected && LeafBrushes.HighContrast; // a contrast theme shows selection as the highlight fill
+            var first    = SpanLayout.CoveredDates(o, vm.Zone).First;
+
+            _occurrence = o;
+            _time       = o.IsAllDay ? "All day" : TimeLabels.Range(o.Start, o.End, vm.Zone, vm.Settings.Use24HourTime);
+
+            // Text And Dot
+            _text.Text            = spanning ? o.Title : $"{TimeLabels.Compact(o.Start, vm.Zone, vm.Settings.Use24HourTime)} {o.Title}";
+            _text.Foreground      = filled ? LeafBrushes.FromHex(palette.Text) : LeafBrushes.PrimaryText(dark);
+            _text.FontWeight      = spanning ? FontWeights.SemiBold : FontWeights.Normal;
+            _text.TextDecorations = o.SelfResponse == ResponseStatus.Declined ? TextDecorations.Strikethrough : TextDecorations.None;
+            _dot.Fill             = LeafBrushes.FromHex(palette.Accent);
+            _dot.Visibility       = spanning ? Visibility.Collapsed : Visibility.Visible;
+
+            // Chip
+            Width           = Math.Max(b.ColumnSpan * colW - 6, 8);
+            Background      = filled ? LeafBrushes.FromHex(palette.Fill) : LeafBrushes.Transparent;
+            BorderBrush     = LeafBrushes.FromHex(palette.Accent);
+            BorderThickness = filled ? LeafBrushes.CardBorder(selected) : new Thickness(0);
+            Visibility      = Visibility.Visible;
+            AutomationProperties.SetAutomationId(this, string.Create(CultureInfo.InvariantCulture, $"Chip_{o.EventId}_{first:yyyyMMdd}"));
+            AutomationProperties.SetName(this, vm.CardName(o, _time));
+
+            // Past Events Fade (still readable)
+            AutomationProperties.SetItemStatus(this, past ? "Past" : "");
+
+            SetLeft(this, b.FirstColumn * colW + 3);
+            SetTop(this, MonthGridView.DayNumberHeight + b.Lane * MonthGridView.ChipHeight);
+        }
     }
 }
