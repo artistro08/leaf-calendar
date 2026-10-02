@@ -53,8 +53,10 @@ public static partial class CalendarStore
     /// </summary>
     /// <remarks>
     /// Calendars missing from the list (or marked deleted) are removed along with their events.
-    /// Existing calendars keep their sync token, local order, color, and visibility. A newly seen
-    /// calendar starts visible only when it is ticked ("selected") in Google Calendar.
+    /// Existing calendars keep their sync token, local order, and color. A calendar is shown only when it is enabled in
+    /// Google Calendar (ticked, or "selected", and not hidden from the list): a newly seen calendar starts that way, and so
+    /// does one whose Google choice changed since the last refresh (or was never recorded). Otherwise Leaf's own choice
+    /// (<see cref="SetHidden"/>) stays.
     /// </remarks>
     public static void ReplaceForAccount(SqliteConnection conn, string accountId, IReadOnlyList<CalendarListEntry> entries)
     {
@@ -78,8 +80,8 @@ public static partial class CalendarStore
                 tx,
                 """
                 INSERT INTO calendars (account_id, id, summary, summary_override, time_zone, background_color, foreground_color,
-                                       access_role, is_primary, hidden, sort_order, default_reminders, leaf_hidden)
-                VALUES ($account, $id, $summary, $override, $zone, $background, $foreground, $role, $primary, $hidden, $order, $reminders, $leafHidden)
+                                       access_role, is_primary, hidden, sort_order, default_reminders, leaf_hidden, google_shown)
+                VALUES ($account, $id, $summary, $override, $zone, $background, $foreground, $role, $primary, $hidden, $order, $reminders, NOT $shown, $shown)
                 ON CONFLICT (account_id, id) DO UPDATE SET
                     summary           = excluded.summary,
                     summary_override  = excluded.summary_override,
@@ -90,7 +92,10 @@ public static partial class CalendarStore
                     is_primary        = excluded.is_primary,
                     hidden            = excluded.hidden,
                     default_reminders = excluded.default_reminders,
-                    leaf_hidden       = COALESCE(calendars.leaf_hidden, excluded.leaf_hidden);
+                    leaf_hidden       = CASE WHEN calendars.google_shown IS excluded.google_shown
+                                             THEN COALESCE(calendars.leaf_hidden, excluded.leaf_hidden)
+                                             ELSE excluded.leaf_hidden END,
+                    google_shown      = excluded.google_shown;
                 """,
                 ("$account", accountId),
                 ("$id", entry.Id),
@@ -104,10 +109,18 @@ public static partial class CalendarStore
                 ("$hidden", entry.Hidden),
                 ("$order", nextOrder++),
                 ("$reminders", JsonSerializer.Serialize(entry.DefaultReminders ?? [], GoogleJsonContext.Default.ListReminderOverride)),
-                ("$leafHidden", !entry.Selected));
+                ("$shown", IsEnabledInGoogle(entry)));
         }
 
         tx.Commit();
+    }
+
+    /// <summary>True when the calendar is enabled in Google Calendar: ticked in the list and not hidden from it.</summary>
+    public static bool IsEnabledInGoogle(CalendarListEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        return entry.Selected && !entry.Hidden;
     }
 
     /// <summary>An account's calendars in Leaf's order (inside <paramref name="tx"/> when one is open).</summary>

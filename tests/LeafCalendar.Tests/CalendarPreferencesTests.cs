@@ -92,4 +92,66 @@ public sealed class CalendarPreferencesTests : IDisposable
         using var check = _db.Database.Open();
         Assert.Equal([Family, Primary], CalendarStore.GetAll(check).Select(c => c.Id));
     }
+
+    static CalendarListEntry Todoist(bool selected, bool hidden = false) =>
+        new() { Id = "todoist@group.calendar.google.com", Summary = "Todoist", AccessRole = "reader", Selected = selected, Hidden = hidden };
+
+    void Refresh(params CalendarListEntry[] extra)
+    {
+        using var conn = _db.Database.Open();
+        CalendarStore.ReplaceForAccount(conn, Account, [.. Entries("calendar-list.json"), .. extra]);
+    }
+
+    [Fact]
+    public void ReplaceForAccount_HiddenFromGooglesList_StartsHidden()
+    {
+        Refresh(Todoist(selected: true, hidden: true));
+
+        Assert.False(Get(Todoist(true).Id).IsVisible);
+    }
+
+    [Fact]
+    public void ReplaceForAccount_TurnedOffInGoogle_HidesInLeaf()
+    {
+        Refresh(Todoist(selected: true));
+        Assert.True(Get(Todoist(true).Id).IsVisible);
+
+        Refresh(Todoist(selected: false));
+
+        Assert.False(Get(Todoist(true).Id).IsVisible);
+    }
+
+    [Fact]
+    public void ReplaceForAccount_TurnedOnInGoogle_ShowsInLeaf()
+    {
+        Refresh(Todoist(selected: false));
+        Assert.False(Get(Todoist(true).Id).IsVisible);
+
+        Refresh(Todoist(selected: true));
+
+        Assert.True(Get(Todoist(true).Id).IsVisible);
+    }
+
+    [Fact]
+    public void ReplaceForAccount_GoogleUnchanged_KeepsLeafsChoiceToShowIt()
+    {
+        // Off in Google, but shown in Leaf on purpose: a refresh that doesn't change Google's choice leaves it shown
+        Refresh(Todoist(selected: false));
+        using (var conn = _db.Database.Open())
+        {
+            CalendarStore.SetHidden(conn, Account, Todoist(true).Id, hidden: false);
+        }
+
+        Refresh(Todoist(selected: false));
+
+        Assert.True(Get(Todoist(true).Id).IsVisible);
+    }
+
+    [Theory]
+    [InlineData(true, false, true)]
+    [InlineData(false, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, true, false)]
+    public void IsEnabledInGoogle_TickedAndNotHidden(bool selected, bool hidden, bool expected) =>
+        Assert.Equal(expected, CalendarStore.IsEnabledInGoogle(Todoist(selected, hidden)));
 }
