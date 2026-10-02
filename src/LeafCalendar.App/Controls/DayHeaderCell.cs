@@ -22,8 +22,12 @@ public sealed partial class DayHeaderCell : Grid
     /// <summary>Creates a header owned by <paramref name="owner"/>.</summary>
     public DayHeaderCell(TimeGridView owner)
     {
-        _owner = owner;
-        Height = TimeGridView.DayHeaderHeight;
+        _owner     = owner;
+        Height     = TimeGridView.DayHeaderHeight;
+
+        // The Whole Cell Takes The Tap (and reads as the whole day to Narrator), not just its words: without a fill
+        // only the text is hit-testable, now that the divider is drawn by the all-day row
+        Background = LeafBrushes.Transparent;
 
         var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 0 };
         _circle.Child = _number;
