@@ -3,8 +3,6 @@ using System.ComponentModel;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.People;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Automation;
-using Microsoft.UI.Xaml.Controls;
 
 namespace LeafCalendar.App.Views;
 
@@ -147,51 +145,6 @@ public sealed partial class CalendarPage
         }
 
         ViewModel.Fire(() => ViewModel.ShowOverlayAsync(guests, meetWith: false), "people.overlay.failed");
-    }
-
-    // True while the "Stop scheduling?" question is up (a second Esc in the meantime is the dialog's own)
-    bool _confirmingStop;
-
-    // Esc while scheduling: warns before the picked times are dropped; Keep scheduling (or Esc again) goes back to picking
-    void ConfirmStopSharing()
-    {
-        if (_confirmingStop)
-        {
-            return;
-        }
-
-        _confirmingStop = true;
-        var picked = ViewModel.ShareSlots.Count;
-        var dialog = new ContentDialog
-        {
-            XamlRoot          = XamlRoot,
-            RequestedTheme    = ActualTheme,
-            Title             = "Stop scheduling?",
-            Content           = picked == 0
-                ? "You'll leave scheduling."
-                : picked == 1
-                    ? "You'll leave scheduling, and the time you picked won't be kept."
-                    : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"You'll leave scheduling, and the {picked} times you picked won't be kept."),
-            PrimaryButtonText = "Stop scheduling",
-            CloseButtonText   = "Keep scheduling",
-            DefaultButton     = ContentDialogButton.Close,
-        };
-        AutomationProperties.SetAutomationId(dialog, "StopSchedulingDialog");
-
-        ViewModel.Fire(async () =>
-        {
-            try
-            {
-                if (await dialog.ShowAsync() == ContentDialogResult.Primary && ViewModel.IsSharing)
-                {
-                    ViewModel.StopSharing();
-                }
-            }
-            finally
-            {
-                _confirmingStop = false;
-            }
-        }, "share.stop.failed");
     }
 
     // S, the sidebar's share button, and the command menu: S again (or Cancel) stops
