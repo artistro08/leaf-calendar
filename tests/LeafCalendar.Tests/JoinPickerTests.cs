@@ -130,4 +130,54 @@ public sealed class JoinPickerTests : IDisposable
 
         Assert.Null(Find());
     }
+
+    [Fact]
+    public void PickNext_NothingWithinTenMinutes_TakesTheNextWithinTheLookahead()
+    {
+        var picked = JoinPicker.PickNext([Target("afternoon", At(20, 0)), Target("tomorrow", At(23, 30))], Now, TimeSpan.FromHours(4));
+
+        Assert.Equal("afternoon", picked!.Occurrence.EventId);
+    }
+
+    [Fact]
+    public void PickNext_TheJoinRuleStillWins()
+    {
+        // A running meeting beats a later one, as the join rule says
+        var picked = JoinPicker.PickNext([Target("running", At(17, 45)), Target("later", At(19, 0))], Now, TimeSpan.FromHours(8));
+
+        Assert.Equal("running", picked!.Occurrence.EventId);
+    }
+
+    [Fact]
+    public void PickNext_BeyondTheLookahead_IsNull() =>
+        Assert.Null(JoinPicker.PickNext([Target("evening", At(23, 0))], Now, TimeSpan.FromHours(2)));
+
+    [Fact]
+    public void PickNext_AllDay_Skipped() =>
+        Assert.Null(JoinPicker.PickNext([Target("holiday", At(19, 0), allDay: true)], Now, TimeSpan.FromHours(8)));
+
+    [Fact]
+    public void FindNext_AnHourOut_OpensIt_WhileFindWaits()
+    {
+        Store(Account, Primary, """
+            {"id":"evt-later","status":"confirmed","summary":"Later","hangoutLink":"https://meet.google.com/ddd-dddd-ddd",
+             "start":{"dateTime":"2026-10-01T19:00:00Z"},"end":{"dateTime":"2026-10-01T19:30:00Z"}}
+            """);
+
+        using var conn = _db.Database.Open();
+        Assert.Null(JoinPicker.Find(conn, Now, TimeZoneInfo.Utc));
+        Assert.Equal("https://meet.google.com/ddd-dddd-ddd?authuser=leaf.tester%40gmail.com", JoinPicker.FindNext(conn, Now, TimeZoneInfo.Utc, TimeSpan.FromHours(8))!.AbsoluteUri);
+    }
+
+    [Fact]
+    public void FindNext_PastMidnight_LoadsTheNextDay()
+    {
+        Store(Account, Primary, """
+            {"id":"evt-early","status":"confirmed","summary":"Early","hangoutLink":"https://meet.google.com/eee-eeee-eee",
+             "start":{"dateTime":"2026-10-02T02:00:00Z"},"end":{"dateTime":"2026-10-02T02:30:00Z"}}
+            """);
+
+        using var conn = _db.Database.Open();
+        Assert.NotNull(JoinPicker.FindNext(conn, Now, TimeZoneInfo.Utc, TimeSpan.FromHours(12)));
+    }
 }
