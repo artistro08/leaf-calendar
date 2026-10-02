@@ -81,4 +81,37 @@ public sealed class AvailabilityTextTests
     [InlineData("Asia/Tokyo", "Tokyo time")]
     public void ZoneLabel_Short(string id, string expected) =>
         Assert.Equal(expected, AvailabilityText.ZoneLabel(TimeZoneInfo.FindSystemTimeZoneById(id)));
+
+    const string Times = "Thu Oct 1: 10–11 AM ET\r\nFri Oct 2: 2–4 PM ET";
+
+    [Fact]
+    public void Compose_Default_PutsTheTimesUnderTheGreeting() =>
+        Assert.Equal("Here are some times that work for me:\r\n" + Times, AvailabilityText.Compose(AvailabilityText.DefaultMessage, Times));
+
+    [Fact]
+    public void Compose_PlaceholderInTheMiddle_IsReplacedThere() =>
+        Assert.Equal("Hi!\r\n" + Times + "\r\nLet me know.", AvailabilityText.Compose("Hi!\n{times}\nLet me know.", Times));
+
+    [Fact]
+    public void Compose_PlaceholderTwice_IsReplacedBothTimes() =>
+        Assert.Equal("A\r\nA", AvailabilityText.Compose("{times}\n{times}", "A"));
+
+    [Fact]
+    public void Compose_NoPlaceholder_AddsTheTimesAfter() =>
+        Assert.Equal("Free:\r\n" + Times, AvailabilityText.Compose("Free:", Times));
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  \r\n ")]
+    public void Compose_Blank_IsJustTheTimes(string? message) =>
+        Assert.Equal(Times, AvailabilityText.Compose(message, Times));
+
+    [Fact]
+    public void Compose_LineBreaks_AreWindowsBreaks() =>
+        Assert.Equal("a\r\nb\r\nc\r\nX", AvailabilityText.Compose("a\rb\r\nc\n{times}", "X"));
+
+    [Fact]
+    public void Compose_TrimsTheMessagesEnds() =>
+        Assert.Equal("Hi\r\nX", AvailabilityText.Compose("  Hi\n{times}  \n", "X"));
 }

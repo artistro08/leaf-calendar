@@ -113,6 +113,41 @@ public sealed class PowerSettingsTests
     }
 
     [Fact]
+    public void ShareMessage_DefaultsToTheGreeting_AndIsCappedInLength()
+    {
+        Assert.Equal(LeafCalendar.Core.People.AvailabilityText.DefaultMessage, new LeafSettings().Normalize().ShareMessage);
+        Assert.Equal(LeafCalendar.Core.People.AvailabilityText.DefaultMessage, new LeafSettings { ShareMessage = null! }.Normalize().ShareMessage);
+        Assert.Equal("", new LeafSettings { ShareMessage = "" }.Normalize().ShareMessage);
+        Assert.Equal(LeafCalendar.Core.People.AvailabilityText.MaxMessageLength, new LeafSettings { ShareMessage = new string('x', 5000) }.Normalize().ShareMessage.Length);
+    }
+
+    [Fact]
+    public void ShareMessage_SavedBeforeItExisted_LoadsAsTheDefault()
+    {
+        var s = System.Text.Json.JsonSerializer.Deserialize("""{"flyoutDays":5}""", LeafJsonContext.Default.LeafSettings)!.Normalize();
+
+        Assert.Equal(LeafCalendar.Core.People.AvailabilityText.DefaultMessage, s.ShareMessage);
+    }
+
+    [Theory]
+    [InlineData(CalendarViewMode.Day, CalendarViewMode.Week, CalendarViewMode.Day)]
+    [InlineData(CalendarViewMode.Days, CalendarViewMode.Week, CalendarViewMode.Days)]
+    [InlineData(CalendarViewMode.Week, CalendarViewMode.Day, CalendarViewMode.Week)]
+    [InlineData(CalendarViewMode.Month, CalendarViewMode.Days, CalendarViewMode.Days)]
+    [InlineData(CalendarViewMode.Month, CalendarViewMode.Month, CalendarViewMode.Week)]
+    [InlineData(CalendarViewMode.Month, (CalendarViewMode)42, CalendarViewMode.Week)]
+    public void LastGridView_FollowsEveryViewButMonth(CalendarViewMode view, CalendarViewMode last, CalendarViewMode expected) =>
+        Assert.Equal(expected, new LeafSettings { ViewMode = view, LastGridView = last }.Normalize().LastGridView);
+
+    [Fact]
+    public void LastGridView_SavedBeforeItExisted_IsWeek()
+    {
+        var s = System.Text.Json.JsonSerializer.Deserialize("""{"viewMode":"Month"}""", LeafJsonContext.Default.LeafSettings)!.Normalize();
+
+        Assert.Equal(CalendarViewMode.Week, s.LastGridView);
+    }
+
+    [Fact]
     public void WithAccountCollapsed_FoldsAndUnfolds()
     {
         var s = new LeafSettings();

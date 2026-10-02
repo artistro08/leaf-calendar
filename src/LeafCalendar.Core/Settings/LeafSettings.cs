@@ -1,4 +1,5 @@
 using System.Globalization;
+using LeafCalendar.Core.People;
 using LeafCalendar.Core.Tray;
 using LeafCalendar.Core.Views;
 
@@ -127,6 +128,12 @@ public sealed record LeafSettings
     /// <summary>Day count for <see cref="CalendarViewMode.Days"/> (1-31).</summary>
     public int CustomDayCount { get; init; } = 3;
 
+    /// <summary>
+    /// The last view that shows the time grid (Day, Week, or a number of days), kept as <see cref="ViewMode"/> changes,
+    /// so scheduling from Month view can go back to it. Null only in a row saved before it existed (Normalize makes it Week).
+    /// </summary>
+    public CalendarViewMode? LastGridView { get; init; } = CalendarViewMode.Week;
+
     /// <summary>Time-grid hour height in px.</summary>
     public double HourHeight { get; init; } = DefaultHourHeight;
 
@@ -205,6 +212,12 @@ public sealed record LeafSettings
     /// <summary>Accounts whose new events get a Google Meet link by default.</summary>
     public IReadOnlyList<string> MeetByDefaultAccounts { get; init; } = [];
 
+    /// <summary>
+    /// The message Copy wraps your free times in while scheduling (Share availability); <c>{times}</c> marks where they
+    /// go. Empty copies the times alone.
+    /// </summary>
+    public string ShareMessage { get; init; } = AvailabilityText.DefaultMessage;
+
     /// <summary>Accounts whose calendars are folded away under their header (the sidebar and Settings › Calendars).</summary>
     public IReadOnlyList<string> CollapsedAccounts { get; init; } = [];
 
@@ -215,7 +228,8 @@ public sealed record LeafSettings
     /// Returns a copy with every value made safe.
     /// </summary>
     /// <remarks>
-    /// Day count is clamped to 1-31 and hour height to its range. Unknown enum values reset to defaults.
+    /// Day count is clamped to 1-31 and hour height to its range. Unknown enum values reset to defaults. The last
+    /// time-grid view follows the view mode whenever it isn't Month.
     /// Time zones are limited to distinct IDs this PC knows, capped at <see cref="MaxTimeZones"/>, with
     /// labels trimmed (blank becomes null) to at most 24 characters. Flyout days are clamped to 1-14, a lookahead
     /// that isn't one of <see cref="LookaheadChoices"/> becomes 60 minutes, shortcuts are rewritten in
@@ -226,7 +240,8 @@ public sealed record LeafSettings
     /// An upcoming lookahead that isn't one of <see cref="UpcomingChoices"/> becomes 8 hours.
     /// A primary time zone this PC doesn't know becomes null (follow Windows).
     /// A blank main account becomes null, and so does a window size that isn't positive and finite.
-    /// Blank and repeated Meet-by-default and collapsed accounts are dropped. (The old tray-excluded calendars are no longer read: the
+    /// Blank and repeated Meet-by-default and collapsed accounts are dropped. A share message saved before it existed
+    /// (null) is the default one, and a long one is cut to its first 2,000 characters. (The old tray-excluded calendars are no longer read: the
     /// tray follows what's shown in Leaf, so a saved row that still has them loads without them.)
     /// A list whose contents didn't change keeps its instance, so normalizing twice gives an equal record.
     /// </remarks>
@@ -251,6 +266,7 @@ public sealed record LeafSettings
         {
             WeekStart             = Enum.IsDefined(WeekStart) ? WeekStart : DayOfWeek.Sunday,
             ViewMode              = Enum.IsDefined(ViewMode) ? ViewMode : CalendarViewMode.Week,
+            LastGridView          = GridView(ViewMode) ?? (LastGridView is { } last ? GridView(last) : null) ?? CalendarViewMode.Week,
             Theme                 = Enum.IsDefined(Theme) ? Theme : AppTheme.System,
             CustomDayCount        = Math.Clamp(CustomDayCount, 1, 31),
             HourHeight            = double.IsFinite(HourHeight) ? Math.Clamp(HourHeight, MinHourHeight, MaxHourHeight) : DefaultHourHeight,
@@ -269,6 +285,7 @@ public sealed record LeafSettings
             SettingsWindowSize    = SettingsWindowSize?.Clean(),
             MeetByDefaultAccounts = Keep(MeetByDefaultAccounts, CleanAccounts(MeetByDefaultAccounts)),
             CollapsedAccounts     = Keep(CollapsedAccounts, CleanAccounts(CollapsedAccounts)),
+            ShareMessage          = ShareMessage is null ? AvailabilityText.DefaultMessage : ShareMessage[..Math.Min(ShareMessage.Length, AvailabilityText.MaxMessageLength)],
         };
     }
 
@@ -296,6 +313,10 @@ public sealed record LeafSettings
 
         return this with { CollapsedAccounts = collapsed ? [.. CollapsedAccounts, accountId] : [.. CollapsedAccounts.Where(a => a != accountId)] };
     }
+
+    // A view that shows the time grid (not Month, not an unknown value), or null
+    static CalendarViewMode? GridView(CalendarViewMode mode) =>
+        mode != CalendarViewMode.Month && Enum.IsDefined(mode) ? mode : null;
 
     // Account IDs without blanks or repeats, in their first order
     static List<string> CleanAccounts(IReadOnlyList<string>? accounts) =>

@@ -209,12 +209,20 @@ public sealed partial class CalendarViewModel
     /// <summary>Sharing started or stopped, or the slots changed (redraw the share panel).</summary>
     public event EventHandler? ShareChanged;
 
-    /// <summary>Starts picking times to share (nothing happens while already sharing).</summary>
+    /// <summary>
+    /// Starts picking times to share (nothing happens while already sharing). From Month view it switches to the last
+    /// time-grid view you used (Day, Week, or a number of days), since times are picked on the grid.
+    /// </summary>
     public void StartSharing()
     {
         if (_sharing)
         {
             return;
+        }
+
+        if (Mode == CalendarViewMode.Month)
+        {
+            SetMode(Settings.LastGridView ?? CalendarViewMode.Week);
         }
 
         _slots          = [];
@@ -313,7 +321,18 @@ public sealed partial class CalendarViewModel
         }
     }
 
-    /// <summary>Copies the free picked times as text (never logged), then stops sharing and says so in the notice; or says why it couldn't (sharing goes on).</summary>
+    /// <summary>Keeps <paramref name="message"/> as the share message (<c>{times}</c> marks where the free times go) for this and later shares.</summary>
+    public void SetShareMessage(string message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        if (message != Settings.ShareMessage)
+        {
+            Remember(s => s with { ShareMessage = message });
+        }
+    }
+
+    /// <summary>Copies the free picked times as text, in the share message (never logged), then stops sharing and says so in the notice; or says why it couldn't (sharing goes on).</summary>
     public async Task CopyAvailabilityAsync()
     {
         var text = await BuildAvailabilityAsync(_life.Token);
@@ -330,7 +349,7 @@ public sealed partial class CalendarViewModel
         }
 
         var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-        package.SetText(text);
+        package.SetText(AvailabilityText.Compose(Settings.ShareMessage, text));
         Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
         Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
 

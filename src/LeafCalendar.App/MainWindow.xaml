@@ -158,12 +158,8 @@
                                     ToolTipService.ToolTip="Previous (←)"
                                     AutomationProperties.Name="Previous"
                                     AutomationProperties.AutomationId="PreviousButton">
-                                    <!-- The chevron turns a quarter to point up in Month view (MainWindow.RotatePagers) -->
-                                    <FontIcon x:Name="PreviousGlyph" Glyph="&#xE76B;" FontSize="12" RenderTransformOrigin="0.5,0.5">
-                                        <FontIcon.RenderTransform>
-                                            <RotateTransform />
-                                        </FontIcon.RenderTransform>
-                                    </FontIcon>
+                                    <!-- The chevron turns a quarter to point up in Month view (MainWindow.RotatePagers, which gives it its rotation) -->
+                                    <FontIcon x:Name="PreviousGlyph" Glyph="&#xE76B;" FontSize="12" RenderTransformOrigin="0.5,0.5" />
                                 </Button>
                                 <Button
                                     Style="{StaticResource LeafBareIconButtonStyle}"
@@ -172,11 +168,7 @@
                                     AutomationProperties.Name="Next"
                                     AutomationProperties.AutomationId="NextButton">
                                     <!-- The chevron turns a quarter to point down in Month view -->
-                                    <FontIcon x:Name="NextGlyph" Glyph="&#xE76C;" FontSize="12" RenderTransformOrigin="0.5,0.5">
-                                        <FontIcon.RenderTransform>
-                                            <RotateTransform />
-                                        </FontIcon.RenderTransform>
-                                    </FontIcon>
+                                    <FontIcon x:Name="NextGlyph" Glyph="&#xE76C;" FontSize="12" RenderTransformOrigin="0.5,0.5" />
                                 </Button>
                                 <ToggleButton
                                     x:Name="DetailsToggle"

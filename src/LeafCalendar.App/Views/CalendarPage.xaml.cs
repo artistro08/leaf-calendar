@@ -305,6 +305,14 @@ public sealed partial class CalendarPage : Page
             return;
         }
 
+        // Esc While Scheduling Asks Before Stopping (the picked times would be lost)
+        if (ViewModel.IsSharing)
+        {
+            args.Handled = true;
+            ConfirmStopSharing();
+            return;
+        }
+
         ViewModel.ClearSelection();
         args.Handled = true;
     }

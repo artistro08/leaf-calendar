@@ -194,12 +194,14 @@ public sealed partial class WeekRow : Canvas
 
     bool InFocusMonth(DateOnly date) => date.Month == _owner.FocusMonth.Month && date.Year == _owner.FocusMonth.Year;
 
-    // One day cell: its left and top lines, the weekend tint, and the day number (columns past the shown days hide)
+    // One day cell: its left and top lines, the weekend tint, and the day number (columns past the shown days hide). The
+    // first column has no left line: the grid's edge against the window is edge enough
     void RenderCell(int c, double colW, double height, bool dark)
     {
         var (left, top, tint, day, number) = _cells[c];
         var shown = c < _dates.Count;
-        left.Visibility = top.Visibility = day.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        top.Visibility = day.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        left.Visibility = shown && c > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (!shown)
         {
             tint.Visibility = Visibility.Collapsed;
