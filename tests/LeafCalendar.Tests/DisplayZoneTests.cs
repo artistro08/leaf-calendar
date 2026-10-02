@@ -32,10 +32,14 @@ public sealed class DisplayZoneTests
     }
 
     [Fact]
-    public void Describe_CityAndOffset() =>
-        Assert.Equal("Tokyo time (UTC+9)", DisplayZone.Describe(TimeZoneInfo.FindSystemTimeZoneById("Asia/Tokyo"), new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero)));
+    public void Describe_CityAndShortName() =>
+        Assert.Equal("Tokyo time (JST)", DisplayZone.Describe(TimeZoneInfo.FindSystemTimeZoneById("Asia/Tokyo"), new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero)));
 
     [Fact]
     public void Describe_WindowsId_UsesTheCity() =>
-        Assert.Equal("New York time (UTC−4)", DisplayZone.Describe(TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"), new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero)));
+        Assert.Equal("New York time (EDT)", DisplayZone.Describe(TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"), new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero)));
+
+    [Fact]
+    public void Describe_NoShortName_UsesTheOffset() =>
+        Assert.Equal("Kathmandu time (UTC+5:45)", DisplayZone.Describe(TimeZoneInfo.FindSystemTimeZoneById("Asia/Kathmandu"), new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero)));
 }

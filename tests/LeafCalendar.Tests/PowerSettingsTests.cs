@@ -20,6 +20,7 @@ public sealed class PowerSettingsTests
         Assert.True(s.PromptOnZoneChange);
         Assert.Null(s.MainAccountId);
         Assert.Empty(s.MeetByDefaultAccounts);
+        Assert.Empty(s.CollapsedAccounts);
     }
 
     [Fact]
@@ -63,10 +64,12 @@ public sealed class PowerSettingsTests
         {
             MainAccountId         = "  ",
             MeetByDefaultAccounts = ["a", "a", " ", "b"],
+            CollapsedAccounts     = ["c", "", "c", "d"],
         }.Normalize();
 
         Assert.Null(s.MainAccountId);
         Assert.Equal(["a", "b"], s.MeetByDefaultAccounts);
+        Assert.Equal(["c", "d"], s.CollapsedAccounts);
     }
 
     [Fact]
@@ -77,6 +80,7 @@ public sealed class PowerSettingsTests
         {
             TimeZones             = [new("Asia/Tokyo", "HQ")],
             MeetByDefaultAccounts = ["a"],
+            CollapsedAccounts     = ["b"],
         }.Normalize();
 
         Assert.Equal(s, s.Normalize());
@@ -90,21 +94,50 @@ public sealed class PowerSettingsTests
         {
             MainAccountId         = "gone",
             MeetByDefaultAccounts = ["gone", "kept"],
+            CollapsedAccounts     = ["kept", "gone"],
         };
 
         var pruned = s.ForAccounts(["kept"]);
 
         Assert.Null(pruned.MainAccountId);
         Assert.Equal(["kept"], pruned.MeetByDefaultAccounts);
+        Assert.Equal(["kept"], pruned.CollapsedAccounts);
     }
 
     [Fact]
     public void ForAccounts_AllStillConnected_IsEqual()
     {
-        var s = new LeafSettings { MainAccountId = "a", MeetByDefaultAccounts = ["a"] };
+        var s = new LeafSettings { MainAccountId = "a", MeetByDefaultAccounts = ["a"], CollapsedAccounts = ["b"] };
 
         Assert.Equal(s, s.ForAccounts(["a", "b"]));
     }
+
+    [Fact]
+    public void WithAccountCollapsed_FoldsAndUnfolds()
+    {
+        var s = new LeafSettings();
+
+        var folded = s.WithAccountCollapsed("a", collapsed: true).WithAccountCollapsed("b", collapsed: true);
+        Assert.Equal(["a", "b"], folded.CollapsedAccounts);
+
+        var unfolded = folded.WithAccountCollapsed("a", collapsed: false);
+        Assert.Equal(["b"], unfolded.CollapsedAccounts);
+    }
+
+    [Fact]
+    public void WithAccountCollapsed_AlreadyThatWay_ReturnsTheSameSettings()
+    {
+        var s = new LeafSettings { CollapsedAccounts = ["a"] };
+
+        Assert.Same(s, s.WithAccountCollapsed("a", collapsed: true));
+        Assert.Same(s, s.WithAccountCollapsed("b", collapsed: false));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void WithAccountCollapsed_BlankAccount_Throws(string accountId) =>
+        Assert.Throws<ArgumentException>(() => new LeafSettings().WithAccountCollapsed(accountId, collapsed: true));
 
     [Fact]
     public void SavedWithTrayExcludedCalendars_LoadsWithoutThem()

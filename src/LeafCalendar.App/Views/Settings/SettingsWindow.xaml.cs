@@ -112,6 +112,9 @@ public sealed partial class SettingsWindow : Window
             calendar.CalendarsChanged -= OnCalendarsChanged;
             Current = null;
 
+            // A Sign-In Waiting On The Browser Ends With The Window (nothing is saved)
+            _accounts?.CancelSignIn();
+
             // Remember The Size For Next Time (the restored size, and whether it was maximized)
             if (_restoredSize is { } size)
             {

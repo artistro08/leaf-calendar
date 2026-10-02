@@ -685,7 +685,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
         // Extra zones oldest first, then this PC's zone next to the days (the gutter's column order)
         var zones = _vm.Settings.TimeZones.Select(z => (z.Id, Label: TimeZoneCatalog.ShortLabel(z))).ToList();
-        zones.Add(("Local", TimeZoneCatalog.OffsetLabel(_vm.Zone.GetUtcOffset(_vm.Now))));
+        zones.Add(("Local", ZoneAbbreviation.For(_vm.Zone, _vm.Now)));
 
         foreach (var (id, label) in zones)
         {

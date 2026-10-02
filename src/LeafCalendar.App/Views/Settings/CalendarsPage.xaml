@@ -22,8 +22,30 @@
                 <controls:PinnedItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:AccountGroup">
                         <StackPanel Spacing="4">
-                            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="{x:Bind Email, Mode=OneWay}" />
-                            <controls:PinnedItemsControl ItemsSource="{x:Bind Calendars}" IsTabStop="False">
+                            <!-- Account Header (click to fold the account's calendars away, the sidebar follows; the -8 margin and
+                                 8 padding keep the email on the cards' left edge with the hover fill reaching past it, and the
+                                 margin plus padding keep the group header's 24 above the text) -->
+                            <Button
+                                Margin="-8,16,0,0"
+                                Padding="8"
+                                Style="{StaticResource LeafFoldHeaderButtonStyle}"
+                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                Click="OnAccountHeaderClick"
+                                Tag="{x:Bind}"
+                                ToolTipService.ToolTip="{x:Bind FoldTip, Mode=OneWay}"
+                                AutomationProperties.Name="{x:Bind Email, Mode=OneWay}"
+                                AutomationProperties.HelpText="{x:Bind FoldTip, Mode=OneWay}"
+                                AutomationProperties.AutomationId="{x:Bind HeaderId}">
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{x:Bind Email, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                                    <FontIcon Grid.Column="1" FontSize="12" Glyph="{x:Bind Chevron, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
+                                </Grid>
+                            </Button>
+                            <controls:PinnedItemsControl ItemsSource="{x:Bind Calendars}" IsTabStop="False" Visibility="{x:Bind IsExpanded, Mode=OneWay}">
                                 <controls:PinnedItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <StackPanel Spacing="4" />

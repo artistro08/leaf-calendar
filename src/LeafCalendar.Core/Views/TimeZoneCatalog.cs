@@ -129,7 +129,7 @@ public static class TimeZoneCatalog
     static string Detail(string id, DateTimeOffset now)
     {
         var zone = TimeZoneInfo.FindSystemTimeZoneById(id);
-        return $"{OffsetLabel(zone.GetUtcOffset(now))} · {zone.StandardName}";
+        return $"{ZoneAbbreviation.For(zone, now)} · {zone.StandardName}";
     }
 
     static int Rank(Entry entry, string query)

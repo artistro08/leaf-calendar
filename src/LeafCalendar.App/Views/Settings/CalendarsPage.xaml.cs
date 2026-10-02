@@ -56,14 +56,28 @@ public sealed partial class CalendarsPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         _context = (SettingsContext)e.Parameter;
-        _context.Window.CalendarsChanged += OnCalendarsChanged;
+        _context.Window.CalendarsChanged        += OnCalendarsChanged;
+        _context.Calendar.AccountFoldingChanged += OnCalendarsChanged;
         Rebuild();
     }
 
     /// <inheritdoc />
-    protected override void OnNavigatedFrom(NavigationEventArgs e) => _context.Window.CalendarsChanged -= OnCalendarsChanged;
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        _context.Window.CalendarsChanged        -= OnCalendarsChanged;
+        _context.Calendar.AccountFoldingChanged -= OnCalendarsChanged;
+    }
 
     void OnCalendarsChanged(object? sender, EventArgs e) => Rebuild();
+
+    // An account header folds its calendars away or shows them again (the sidebar follows)
+    void OnAccountHeaderClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: AccountGroup group })
+        {
+            _context.Calendar.SetAccountExpanded(group.AccountId, !group.IsExpanded);
+        }
+    }
 
     // Rows are matched by calendar ID and updated in place, so focus and an open flyout stay put; only calendars that
     // came or went are added or removed. A color flyout whose calendar went away closes.

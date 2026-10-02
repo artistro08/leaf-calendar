@@ -65,9 +65,10 @@ public sealed partial class SidebarView : UserControl
     {
         _viewModel = viewModel;
 
-        _viewModel.CalendarsChanged += OnCalendarsChanged;
-        _viewModel.PropertyChanged  += OnViewModelPropertyChanged;
-        _viewModel.LayoutChanged    += OnLayoutChanged;
+        _viewModel.CalendarsChanged      += OnCalendarsChanged;
+        _viewModel.AccountFoldingChanged += OnCalendarsChanged;
+        _viewModel.PropertyChanged       += OnViewModelPropertyChanged;
+        _viewModel.LayoutChanged         += OnLayoutChanged;
 
         UpdateCalendarList();
         ShowMonthOf(ViewNavigator.MiniMonthAnchor(_viewModel.Mode, _viewModel.PeriodStart, _viewModel.VisibleColumns, _viewModel.Today));
@@ -78,9 +79,10 @@ public sealed partial class SidebarView : UserControl
     {
         if (_viewModel is not null)
         {
-            _viewModel.CalendarsChanged -= OnCalendarsChanged;
-            _viewModel.PropertyChanged  -= OnViewModelPropertyChanged;
-            _viewModel.LayoutChanged    -= OnLayoutChanged;
+            _viewModel.CalendarsChanged      -= OnCalendarsChanged;
+            _viewModel.AccountFoldingChanged -= OnCalendarsChanged;
+            _viewModel.PropertyChanged       -= OnViewModelPropertyChanged;
+            _viewModel.LayoutChanged         -= OnLayoutChanged;
         }
 
         _viewModel = null;
@@ -267,6 +269,15 @@ public sealed partial class SidebarView : UserControl
         }
 
         _viewModel.NavigateTo(DateOnly.ParseExact(tag, "O", System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    // An account header folds its calendars away or shows them again (Settings › Calendars follows)
+    void OnAccountHeaderClick(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel is not null && sender is Button { Tag: AccountGroup group })
+        {
+            _viewModel.SetAccountExpanded(group.AccountId, !group.IsExpanded);
+        }
     }
 
     void OnVisibilityClick(object sender, RoutedEventArgs e)

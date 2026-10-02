@@ -332,6 +332,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>The calendar list or its colors or visibility changed.</summary>
     public event EventHandler? CalendarsChanged;
 
+    /// <summary>An account's calendars were folded away or shown again (the calendar lists follow; nothing else changes).</summary>
+    public event EventHandler? AccountFoldingChanged;
+
     /// <summary>The view should scroll to this period start (animated).</summary>
     public event EventHandler<DateOnly>? NavigateRequested;
 
@@ -705,7 +708,25 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         [.. Calendars
             .GroupBy(c => c.AccountId)
             .OrderBy(g => g.Key == Settings.MainAccountId ? 0 : 1)
-            .Select(g => new AccountGroup(g.Key, AccountEmails.GetValueOrDefault(g.Key, g.Key), g.Select(c => new CalendarRow(c))))];
+            .Select(g => new AccountGroup(g.Key, AccountEmails.GetValueOrDefault(g.Key, g.Key), g.Select(c => new CalendarRow(c)), isExpanded: !Settings.CollapsedAccounts.Contains(g.Key)))];
+
+    /// <summary>
+    /// Folds an account's calendars away under its header, or shows them again, in the sidebar and Settings › Calendars
+    /// alike. Only remembered: nothing on the calendar changes.
+    /// </summary>
+    public void SetAccountExpanded(string accountId, bool expanded)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
+
+        // Already That Way: nothing to save or redraw
+        if (Settings.CollapsedAccounts.Contains(accountId) == !expanded)
+        {
+            return;
+        }
+
+        Remember(s => s.WithAccountCollapsed(accountId, collapsed: !expanded));
+        AccountFoldingChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>Saves the order of an account's calendars.</summary>
     public void ReorderCalendars(string accountId, IReadOnlyList<string> calendarIds)
@@ -2140,14 +2161,28 @@ public sealed partial class CalendarRow : ObservableObject
 }
 
 /// <summary>An account's calendars in the sidebar.</summary>
-public sealed partial class AccountGroup(string accountId, string email, IEnumerable<CalendarRow> calendars) : ObservableObject
+public sealed partial class AccountGroup(string accountId, string email, IEnumerable<CalendarRow> calendars, bool isExpanded = true) : ObservableObject
 {
     /// <summary>Google account ID (stable: the list matches groups by it).</summary>
     public string AccountId { get; } = accountId;
 
+    /// <summary>Automation ID of the header that folds the account's calendars away.</summary>
+    public string HeaderId => $"AccountHeader_{AccountId}";
+
     /// <summary>Account email (header; the account ID until the email is known).</summary>
     [ObservableProperty]
     public partial string Email { get; set; } = email;
+
+    /// <summary>The calendars show under the header (false: folded away).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Chevron), nameof(FoldTip))]
+    public partial bool IsExpanded { get; set; } = isExpanded;
+
+    /// <summary>The header's chevron: down while open, right while folded.</summary>
+    public string Chevron => IsExpanded ? "\uE70D" : "\uE76C";
+
+    /// <summary>The header's tooltip.</summary>
+    public string FoldTip => IsExpanded ? "Collapse" : "Expand";
 
     /// <summary>Calendars in Leaf's order (drag to reorder).</summary>
     public ObservableCollection<CalendarRow> Calendars { get; } = new(calendars);
@@ -2156,7 +2191,7 @@ public sealed partial class AccountGroup(string accountId, string email, IEnumer
     /// Brings the shown groups in line with a freshly built list without rebuilding them.
     /// </summary>
     /// <remarks>
-    /// Accounts and calendars are matched by ID (<see cref="ListSync"/>). Kept groups take the fresh email and kept rows
+    /// Accounts and calendars are matched by ID (<see cref="ListSync"/>). Kept groups take the fresh email and folding, and kept rows
     /// the fresh <see cref="CalendarRow.Info"/>; only calendars or accounts that came or went are inserted or removed, so a
     /// list control animates just those rows and leaves the rest alone.
     /// </remarks>
@@ -2166,7 +2201,8 @@ public sealed partial class AccountGroup(string accountId, string email, IEnumer
     {
         ListSync.Apply(shown, fresh, g => g.AccountId, (group, from) =>
         {
-            group.Email = from.Email;
+            group.Email      = from.Email;
+            group.IsExpanded = from.IsExpanded;
             ListSync.Apply(group.Calendars, from.Calendars, r => r.Info.Id, (row, freshRow) => row.Info = freshRow.Info);
         });
     }
