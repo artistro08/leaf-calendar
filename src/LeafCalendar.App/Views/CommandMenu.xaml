@@ -194,14 +194,14 @@
                     <!-- Open: Enter -->
                     <StackPanel Orientation="Horizontal" Spacing="4">
                         <TextBlock VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" Text="Open" />
-                        <controls:KeyVisual Style="{StaticResource CommandKeyCapStyle}" Content="Enter" />
+                        <controls:KeyVisual Style="{StaticResource CommandKeyCapStyle}" RenderKeyAsGlyph="True" Content="{x:Bind controls:ShortcutLegend.CapContent('Enter')}" />
                     </StackPanel>
 
                     <!-- Go To Event: Alt+Enter (event rows only) -->
                     <StackPanel x:Name="FooterJump" Orientation="Horizontal" Spacing="4" Visibility="Collapsed">
                         <TextBlock VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" Text="Go to event" />
                         <controls:KeyVisual Style="{StaticResource CommandKeyCapStyle}" Content="Alt" />
-                        <controls:KeyVisual Style="{StaticResource CommandKeyCapStyle}" Content="Enter" />
+                        <controls:KeyVisual Style="{StaticResource CommandKeyCapStyle}" RenderKeyAsGlyph="True" Content="{x:Bind controls:ShortcutLegend.CapContent('Enter')}" />
                     </StackPanel>
                 </StackPanel>
             </Grid>

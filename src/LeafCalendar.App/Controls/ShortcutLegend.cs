@@ -18,6 +18,23 @@ public static class ShortcutLegend
     const double Gap         = 4;
 
     /// <summary>
+    /// What a key cap shows for a key as the cheat sheet writes it: Shift, Enter, Backspace, Win, and the arrows as their
+    /// virtual keys, so the cap draws their glyph (like the shortcut picker), and every other key as its name.
+    /// </summary>
+    public static object CapContent(string key) => key switch
+    {
+        "Shift"             => (int)Windows.System.VirtualKey.Shift,
+        "Enter"             => (int)Windows.System.VirtualKey.Enter,
+        "Backspace"         => (int)Windows.System.VirtualKey.Back,
+        "Win"               => (int)Windows.System.VirtualKey.LeftWindows,
+        "Left" or "←"       => (int)Windows.System.VirtualKey.Left,
+        "Right" or "→"      => (int)Windows.System.VirtualKey.Right,
+        "Up" or "↑"         => (int)Windows.System.VirtualKey.Up,
+        "Down" or "↓"       => (int)Windows.System.VirtualKey.Down,
+        _                   => key,
+    };
+
+    /// <summary>
     /// The legend for <paramref name="shortcut"/> (as the cheat sheet writes it), read by Narrator as the shortcut itself.
     /// <paramref name="wordBrush"/> colors the words between keys (the theme's secondary text when null).
     /// </summary>
@@ -32,7 +49,8 @@ public static class ShortcutLegend
             {
                 legend.Children.Add(new KeyVisual
                 {
-                    Content      = part.Text,
+                    Content          = CapContent(part.Text),
+                    RenderKeyAsGlyph = true,
                     FontSize     = CapFontSize,
                     MinWidth     = CapMinWidth,
                     Padding      = new Thickness(8, 2, 8, 2),
