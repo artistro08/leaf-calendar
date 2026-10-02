@@ -77,6 +77,37 @@ public static class AvailabilityText
         return string.Join("\r\n", lines);
     }
 
+    /// <summary>Where the free times go in a share message.</summary>
+    public const string TimesPlaceholder = "{times}";
+
+    /// <summary>The share message out of the box.</summary>
+    public const string DefaultMessage = "Here are some times that work for me:\r\n{times}";
+
+    /// <summary>Longest share message kept.</summary>
+    public const int MaxMessageLength = 2000;
+
+    /// <summary>
+    /// The text Copy puts on the clipboard: <paramref name="message"/> with <see cref="TimesPlaceholder"/> replaced by
+    /// <paramref name="times"/> (every one of them), or the times on their own line after the message when it has no
+    /// placeholder, or only the times when the message is blank. Line breaks are written <c>\r\n</c>.
+    /// </summary>
+    public static string Compose(string? message, string times)
+    {
+        ArgumentNullException.ThrowIfNull(times);
+
+        var text = (message ?? "").Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Trim();
+        if (text.Length == 0)
+        {
+            return times;
+        }
+
+        var composed = text.Contains(TimesPlaceholder, StringComparison.Ordinal)
+            ? text.Replace(TimesPlaceholder, times.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal)
+            : $"{text}\n{times.Replace("\r\n", "\n", StringComparison.Ordinal)}";
+
+        return composed.Replace("\n", "\r\n", StringComparison.Ordinal);
+    }
+
     /// <summary><c>ET</c>, <c>CT</c>, <c>MT</c>, <c>PT</c>, <c>AKT</c>, <c>HT</c>, or <c>UTC</c>; otherwise "{City} time".</summary>
     public static string ZoneLabel(TimeZoneInfo zone)
     {

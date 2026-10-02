@@ -34,6 +34,7 @@ public sealed class SettingsStoreTests : IDisposable
             MapProvider           = MapProvider.Bing,
             MeetByDefaultAccounts = ["acct1"],
             CollapsedAccounts     = ["acct2"],
+            ShareMessage          = "Free then:\n{times}",
         };
 
         SettingsStore.Save(conn, saved);
@@ -46,6 +47,7 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(MapProvider.Bing, loaded.MapProvider);
         Assert.Equal(["acct1"], loaded.MeetByDefaultAccounts);
         Assert.Equal(["acct2"], loaded.CollapsedAccounts);
+        Assert.Equal("Free then:\n{times}", loaded.ShareMessage);
     }
 
     [Fact]

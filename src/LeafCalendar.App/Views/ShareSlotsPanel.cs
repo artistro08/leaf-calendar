@@ -11,7 +11,8 @@ using Microsoft.UI.Xaml.Controls;
 namespace LeafCalendar.App.Views;
 
 /// <summary>
-/// The right panel while you share availability (S): the zone the copied text is written in, the picked times, one row
+/// The right panel while you share availability (S): the zone the copied text is written in, the message Copy wraps the
+/// times in (yours to change, kept for next time; <c>{times}</c> marks where they go), the picked times, one row
 /// each (the day, then start and end time pickers and a remove button, in the zone on screen), then Copy (which copies,
 /// stops sharing, and says so in the notice) and Cancel pinned at the bottom. Busy times come from the visible calendars.
 /// A change goes straight to the view model, so the grid's slots and the copied text follow it; a time moved onto
@@ -24,6 +25,15 @@ public sealed partial class ShareSlotsPanel : UserControl
     readonly StackPanel _rows = new() { Spacing = 8 };
     readonly TextBlock _empty = new() { Text = "No times yet.", Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] };
     readonly TimeZoneComboBox _zoneBox = new() { Header = "Time zone", IsEditable = true, IsTextSearchEnabled = true };
+    readonly TextBox _message = new()
+    {
+        Header          = "Message",
+        AcceptsReturn   = true,
+        TextWrapping    = TextWrapping.Wrap,
+        MinHeight       = 88,
+        MaxLength       = AvailabilityText.MaxMessageLength,
+        PlaceholderText = "Only the times",
+    };
     readonly Button _copy = new() { Content = "Copy", IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Stretch, Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
     readonly Border _footer = new() { Padding = new Thickness(16, 12, 16, 12), BorderThickness = new Thickness(0, 1, 0, 0) };
     readonly List<SlotRow> _shown = [];
@@ -46,10 +56,31 @@ public sealed partial class ShareSlotsPanel : UserControl
         AutomationProperties.SetAutomationId(_zoneBox, "ShareZoneBox");
         _zoneBox.ZoneChanged += (_, id) => _vm?.ShareZoneId = id;
 
+        // Message (what Copy wraps the free times in, kept for next time; {times} marks where they go)
+        var messageHint = new TextBlock
+        {
+            Text         = "{times} is replaced with your free times.",
+            Style        = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+            TextWrapping = TextWrapping.Wrap,
+        };
+        var resetMessage = new HyperlinkButton { Content = "Use the default message", Padding = new Thickness(0) };
+        AutomationProperties.SetName(_message, "Message");
+        AutomationProperties.SetAutomationId(_message, "ShareMessageBox");
+        AutomationProperties.SetAutomationId(resetMessage, "ShareMessageReset");
+        _message.LostFocus += (_, _) => _vm?.SetShareMessage(_message.Text);
+        resetMessage.Click += (_, _) =>
+        {
+            _message.Text = AvailabilityText.DefaultMessage.Replace("\r\n", "\r", StringComparison.Ordinal);
+            _vm?.SetShareMessage(AvailabilityText.DefaultMessage);
+        };
+
         var stack = new StackPanel { Spacing = 8, Margin = new Thickness(16, 8, 16, 16) };
         stack.Children.Add(title);
         stack.Children.Add(hint);
         stack.Children.Add(_zoneBox);
+        stack.Children.Add(_message);
+        stack.Children.Add(messageHint);
+        stack.Children.Add(resetMessage);
         stack.Children.Add(_empty);
         stack.Children.Add(_rows);
 
@@ -99,6 +130,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         if (vm.IsSharing && !_sharing)
         {
             _zoneBox.Show(vm.ShareZoneId, vm.Now, vm.Zone);
+            _message.Text = vm.Settings.ShareMessage.Replace("\r\n", "\r", StringComparison.Ordinal);
         }
 
         _sharing            = vm.IsSharing;
@@ -124,10 +156,12 @@ public sealed partial class ShareSlotsPanel : UserControl
         }
     }
 
+    // The message as typed so far counts, even if the box still has focus
     void Copy()
     {
         if (_vm is { } vm)
         {
+            vm.SetShareMessage(_message.Text);
             vm.Fire(vm.CopyAvailabilityAsync, "share.copy.failed");
         }
     }

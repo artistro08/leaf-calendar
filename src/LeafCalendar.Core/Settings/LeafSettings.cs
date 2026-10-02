@@ -1,4 +1,5 @@
 using System.Globalization;
+using LeafCalendar.Core.People;
 using LeafCalendar.Core.Tray;
 using LeafCalendar.Core.Views;
 
@@ -205,6 +206,12 @@ public sealed record LeafSettings
     /// <summary>Accounts whose new events get a Google Meet link by default.</summary>
     public IReadOnlyList<string> MeetByDefaultAccounts { get; init; } = [];
 
+    /// <summary>
+    /// The message Copy wraps your free times in while scheduling (Share availability); <c>{times}</c> marks where they
+    /// go. Empty copies the times alone.
+    /// </summary>
+    public string ShareMessage { get; init; } = AvailabilityText.DefaultMessage;
+
     /// <summary>Accounts whose calendars are folded away under their header (the sidebar and Settings › Calendars).</summary>
     public IReadOnlyList<string> CollapsedAccounts { get; init; } = [];
 
@@ -226,7 +233,8 @@ public sealed record LeafSettings
     /// An upcoming lookahead that isn't one of <see cref="UpcomingChoices"/> becomes 8 hours.
     /// A primary time zone this PC doesn't know becomes null (follow Windows).
     /// A blank main account becomes null, and so does a window size that isn't positive and finite.
-    /// Blank and repeated Meet-by-default and collapsed accounts are dropped. (The old tray-excluded calendars are no longer read: the
+    /// Blank and repeated Meet-by-default and collapsed accounts are dropped. A share message saved before it existed
+    /// (null) is the default one, and a long one is cut to its first 2,000 characters. (The old tray-excluded calendars are no longer read: the
     /// tray follows what's shown in Leaf, so a saved row that still has them loads without them.)
     /// A list whose contents didn't change keeps its instance, so normalizing twice gives an equal record.
     /// </remarks>
@@ -269,6 +277,7 @@ public sealed record LeafSettings
             SettingsWindowSize    = SettingsWindowSize?.Clean(),
             MeetByDefaultAccounts = Keep(MeetByDefaultAccounts, CleanAccounts(MeetByDefaultAccounts)),
             CollapsedAccounts     = Keep(CollapsedAccounts, CleanAccounts(CollapsedAccounts)),
+            ShareMessage          = ShareMessage is null ? AvailabilityText.DefaultMessage : ShareMessage[..Math.Min(ShareMessage.Length, AvailabilityText.MaxMessageLength)],
         };
     }
 

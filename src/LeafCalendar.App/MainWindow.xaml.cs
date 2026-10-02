@@ -642,6 +642,11 @@ public sealed partial class MainWindow : Window
     // The pager arrows' turn last shown: null until the first layout, which sets it without animating
     bool? _pagersVertical;
 
+    // The arrows' rotations, made here and held, never read back from the glyphs (a typed read-back of a WinRT
+    // property fails under Native AOT, and the arrows never turned there)
+    RotateTransform? _previousTurn;
+    RotateTransform? _nextTurn;
+
     // Turns the left and right chevrons a quarter clockwise (up and down) for Month view, animated once shown
     void RotatePagers(bool vertical)
     {
@@ -653,13 +658,14 @@ public sealed partial class MainWindow : Window
         var animate     = _pagersVertical is not null;
         _pagersVertical = vertical;
         var angle       = vertical ? 90 : 0;
-        foreach (var glyph in new[] { PreviousGlyph, NextGlyph })
+        if (_previousTurn is null || _nextTurn is null)
         {
-            if (glyph.RenderTransform is not RotateTransform turn)
-            {
-                continue;
-            }
+            PreviousGlyph.RenderTransform = _previousTurn = new RotateTransform();
+            NextGlyph.RenderTransform     = _nextTurn     = new RotateTransform();
+        }
 
+        foreach (var turn in new[] { _previousTurn, _nextTurn })
+        {
             if (!animate)
             {
                 turn.Angle = angle;
