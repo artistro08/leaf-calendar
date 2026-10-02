@@ -29,6 +29,16 @@ public sealed partial class CalendarPage
     /// <summary>True when the details panel takes up room.</summary>
     public bool IsDetailsOpen => _detailsOpen;
 
+    // Where the period title must start (window DIPs) to clear the title bar's pane toggle and search icon, which sit over
+    // the island's corner while the sidebar is closed
+    double _titleClear = PaneToggleClearance + TitleInset;
+
+    // The title keeps clear of the title bar's buttons only as far as the sidebar's slot doesn't already, so it moves
+    // with the slot's edge at every step of a slide
+    void PlaceTitle() => PeriodTitle.Margin = new Thickness(Math.Max(TitleInset, _titleClear - SidebarSlot.ActualWidth), 9, 0, 8);
+
+    void OnSidebarSlotSizeChanged(object sender, SizeChangedEventArgs e) => PlaceTitle();
+
     // Opens or closes one pane by animating its slot's width from wherever it is now
     void SlidePane(bool sidebar, bool open, bool animate)
     {

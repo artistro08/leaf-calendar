@@ -38,7 +38,7 @@
         </Grid.ColumnDefinitions>
 
         <!-- Sidebar Slot (first, so Tab and Narrator go sidebar, calendar, details; the sidebar keeps its width and slides out to the left as the slot narrows) -->
-        <Grid x:Name="SidebarSlot" Width="264">
+        <Grid x:Name="SidebarSlot" Width="264" SizeChanged="OnSidebarSlotSizeChanged">
             <local:SidebarView
                 x:Name="Sidebar"
                 Width="264"

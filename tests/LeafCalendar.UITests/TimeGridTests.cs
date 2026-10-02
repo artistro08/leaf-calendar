@@ -247,7 +247,7 @@ public sealed class TimeGridTests : IDisposable
         var row    = new Rectangle(root.Left, box.Y, root.Width, box.Height);
         var pane   = row.Width - width + 1; // the pane's first pixel column may still hold the island's edge (layout rounding)
 
-        // Mid-Slide: the pane closing (the content starts one pane width to the left and slides back under it), then opening
+        // Mid-Slide: the pane closing (the island widens into the pane's room as it slides away), then opening
         leaf.WaitFor("DetailsToggleButton").AsToggleButton().Toggle();
         AssertNoFill(Frames(row), pane, fill, "while the pane closes", moving: true);
         Assert.True(Retry.WhileTrue(() => leaf.Exists("UpcomingHeader"), TimeSpan.FromSeconds(5)).Success);

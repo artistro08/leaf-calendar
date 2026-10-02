@@ -190,9 +190,6 @@ public sealed partial class CalendarPage : Page
     void SetPaneOpen(bool sidebar, bool open, bool animate)
     {
         SlidePane(sidebar, open, animate);
-
-        // With the sidebar closed the title bar's pane toggle sits over the island's corner, so the title moves right
-        PeriodTitle.Margin = new Thickness(IsSidebarOpen ? TitleInset : PaneToggleClearance + TitleInset, 9, 0, 8);
         PanesChanged?.Invoke(this, new PanesChangedEventArgs(animate, open));
     }
 

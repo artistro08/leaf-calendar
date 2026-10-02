@@ -223,45 +223,45 @@ public sealed class SidebarTests : IDisposable
         Assert.Equal(before, RowElements(leaf));
     }
 
-    // The calendar never slides with a pane: from the toggle on, the last day's header (one step to its new width at
-    // most), the details panel, and the vertical scroll stay where the final layout puts them. An inline SplitView
-    // resized the island at once and then slid it and the details panel by the pane's width, so the calendar's center jumped
+    // The calendar reflows with the sliding sidebar, the way a window resize reflows it: the first day's header moves
+    // one way only, through several spots on the way (no snap at the start or the end), while the details panel and the
+    // vertical scroll stay put
     [Fact]
-    public void SidebarToggle_KeepsTheCalendarInPlace()
+    public void SidebarToggle_CalendarReflowsWithThePane()
     {
         using var leaf = Launch();
         leaf.WaitFor($"CalendarToggle_{FamilyId}");
         var toggle  = leaf.WaitFor("AppTitleBar").FindFirstDescendant(cf => cf.ByAutomationId("PART_PaneToggleButton"))!.AsButton();
-        var last    = leaf.WaitFor("DayHeader_2026-10-03");
+        var first   = leaf.WaitFor("DayHeader_2026-10-01");
         var details = leaf.WaitFor("DetailsPanel");
         var grid    = leaf.WaitFor("TimeGrid");
-        LeafApp.WaitUntilStill(last);
+        LeafApp.WaitUntilStill(first);
         Thread.Sleep(500);
 
-        var right = last.BoundingRectangle.Right;
         var panel = details.BoundingRectangle;
         var top   = Top(grid);
         foreach (var open in new[] { false, true, false })
         {
+            var start = first.BoundingRectangle.Left;
             toggle.Invoke();
             var watch = System.Diagnostics.Stopwatch.StartNew();
-            var edges = new HashSet<int> { right };
+            var edges = new List<int> { start };
             while (watch.ElapsedMilliseconds < 400)
             {
-                // A Header Being Rebuilt For The New Width Has No Box For A Moment
-                var edge = last.BoundingRectangle.Right;
-                if (edge > 0)
+                var edge = first.BoundingRectangle.Left;
+                if (edge > 0 && edge != edges[^1])
                 {
                     edges.Add(edge);
                 }
 
                 var now = details.BoundingRectangle;
-                Assert.True(now == panel, $"open={open} at {watch.ElapsedMilliseconds} ms: {now} (was {panel}); edges {string.Join(", ", edges)}");
+                Assert.True(now == panel, $"open={open} at {watch.ElapsedMilliseconds} ms: {now} (was {panel})");
             }
 
-            // At Most One Step: The Columns Take Their New Width Once, Then Stay
-            Assert.True(edges.Count <= 2, $"The last day's header slid through {string.Join(", ", edges)}.");
-            right = last.BoundingRectangle.Right;
+            // One Way, Through Several Spots
+            var trail = string.Join(", ", edges);
+            Assert.True(edges.Count >= 3, $"The first day's header only went {trail}.");
+            Assert.True(edges.Zip(edges.Skip(1)).All(p => open ? p.Second > p.First : p.Second < p.First), $"The first day's header went {trail}.");
 
             Assert.Equal(open, leaf.Exists("MiniMonth"));
             Assert.True(Retry.WhileFalse(() => Top(grid) == top, TimeSpan.FromSeconds(3)).Success, $"The grid scrolled to {Top(grid)} (from {top}).");

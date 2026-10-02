@@ -46,8 +46,8 @@ public sealed partial class CalendarPage
         }
 
         // The search glyph's ink ends 8 in from its button's edge; the title starts the usual inset after it
-        var left = Math.Max(PaneToggleClearance + TitleInset, right - 8 + TitleInset);
-        PeriodTitle.Margin = new Thickness(left, PeriodTitle.Margin.Top, 0, PeriodTitle.Margin.Bottom);
+        _titleClear = Math.Max(PaneToggleClearance + TitleInset, right - 8 + TitleInset);
+        PlaceTitle();
     }
 
     // Called once when the page opens: the zone bars
