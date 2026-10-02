@@ -149,7 +149,18 @@ public sealed partial class AllDayCanvas : Canvas
 
             e.Handled = true;
         };
-        chip.PointerEntered += (_, _) => _owner.ViewModel.PointerEvent = _shown.GetValueOrDefault(chip);
+        // Hover Tooltip: title, time, and location, filled in as the pointer arrives (the location is a lookup)
+        var tip = new ToolTip();
+        ToolTipService.SetToolTip(chip, tip);
+        chip.PointerEntered += (_, _) =>
+        {
+            var vm = _owner.ViewModel;
+            vm.PointerEvent = _shown.GetValueOrDefault(chip);
+            if (vm.PointerEvent is { } o)
+            {
+                tip.Content = vm.HoverText(o, o.IsAllDay ? "All day" : TimeLabels.Range(o.Start, o.End, vm.Zone, vm.Settings.Use24HourTime));
+            }
+        };
         chip.PointerExited  += (_, _) => _owner.ViewModel.PointerEvent = null;
         chip.DoubleTapped += (_, e) =>
         {
