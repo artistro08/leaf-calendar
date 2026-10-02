@@ -349,9 +349,8 @@ public sealed partial class TrayHost : Window
         _agendaClosedAt = Environment.TickCount64;
         _exitFinished   = false;
 
-        // Closed Rows Hold No Events Or Brushes Until The Next Open
-        AgendaDays.ItemsSource = null;
-        _model                 = null;
+        // The rows stay for the next open (UpdateAgenda refills them); only the model goes
+        _model = null;
         HideHostIfIdle();
         AgendaClosed?.Invoke(this, EventArgs.Empty);
     }
