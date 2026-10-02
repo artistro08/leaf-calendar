@@ -16,6 +16,8 @@
         <TrimmerSingleWarn>false</TrimmerSingleWarn>
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <ApplicationIcon>Assets\LeafCalendar.ico</ApplicationIcon>
+        <!-- One .msix with every logo scale (scale-qualified logos would otherwise split into a bundle of resource packages) -->
+        <AppxBundle>Never</AppxBundle>
         <!-- Program.cs owns Main (single instance per profile) -->
         <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     </PropertyGroup>
