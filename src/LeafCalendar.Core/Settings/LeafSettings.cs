@@ -128,6 +128,12 @@ public sealed record LeafSettings
     /// <summary>Day count for <see cref="CalendarViewMode.Days"/> (1-31).</summary>
     public int CustomDayCount { get; init; } = 3;
 
+    /// <summary>
+    /// The last view that shows the time grid (Day, Week, or a number of days), kept as <see cref="ViewMode"/> changes,
+    /// so scheduling from Month view can go back to it. Null only in a row saved before it existed (Normalize makes it Week).
+    /// </summary>
+    public CalendarViewMode? LastGridView { get; init; } = CalendarViewMode.Week;
+
     /// <summary>Time-grid hour height in px.</summary>
     public double HourHeight { get; init; } = DefaultHourHeight;
 
@@ -222,7 +228,8 @@ public sealed record LeafSettings
     /// Returns a copy with every value made safe.
     /// </summary>
     /// <remarks>
-    /// Day count is clamped to 1-31 and hour height to its range. Unknown enum values reset to defaults.
+    /// Day count is clamped to 1-31 and hour height to its range. Unknown enum values reset to defaults. The last
+    /// time-grid view follows the view mode whenever it isn't Month.
     /// Time zones are limited to distinct IDs this PC knows, capped at <see cref="MaxTimeZones"/>, with
     /// labels trimmed (blank becomes null) to at most 24 characters. Flyout days are clamped to 1-14, a lookahead
     /// that isn't one of <see cref="LookaheadChoices"/> becomes 60 minutes, shortcuts are rewritten in
@@ -259,6 +266,7 @@ public sealed record LeafSettings
         {
             WeekStart             = Enum.IsDefined(WeekStart) ? WeekStart : DayOfWeek.Sunday,
             ViewMode              = Enum.IsDefined(ViewMode) ? ViewMode : CalendarViewMode.Week,
+            LastGridView          = GridView(ViewMode) ?? (LastGridView is { } last ? GridView(last) : null) ?? CalendarViewMode.Week,
             Theme                 = Enum.IsDefined(Theme) ? Theme : AppTheme.System,
             CustomDayCount        = Math.Clamp(CustomDayCount, 1, 31),
             HourHeight            = double.IsFinite(HourHeight) ? Math.Clamp(HourHeight, MinHourHeight, MaxHourHeight) : DefaultHourHeight,
@@ -305,6 +313,10 @@ public sealed record LeafSettings
 
         return this with { CollapsedAccounts = collapsed ? [.. CollapsedAccounts, accountId] : [.. CollapsedAccounts.Where(a => a != accountId)] };
     }
+
+    // A view that shows the time grid (not Month, not an unknown value), or null
+    static CalendarViewMode? GridView(CalendarViewMode mode) =>
+        mode != CalendarViewMode.Month && Enum.IsDefined(mode) ? mode : null;
 
     // Account IDs without blanks or repeats, in their first order
     static List<string> CleanAccounts(IReadOnlyList<string>? accounts) =>

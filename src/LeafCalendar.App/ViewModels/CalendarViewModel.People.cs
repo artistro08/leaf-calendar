@@ -209,12 +209,20 @@ public sealed partial class CalendarViewModel
     /// <summary>Sharing started or stopped, or the slots changed (redraw the share panel).</summary>
     public event EventHandler? ShareChanged;
 
-    /// <summary>Starts picking times to share (nothing happens while already sharing).</summary>
+    /// <summary>
+    /// Starts picking times to share (nothing happens while already sharing). From Month view it switches to the last
+    /// time-grid view you used (Day, Week, or a number of days), since times are picked on the grid.
+    /// </summary>
     public void StartSharing()
     {
         if (_sharing)
         {
             return;
+        }
+
+        if (Mode == CalendarViewMode.Month)
+        {
+            SetMode(Settings.LastGridView ?? CalendarViewMode.Week);
         }
 
         _slots          = [];
