@@ -298,6 +298,15 @@ public sealed partial class CalendarPage : Page
     /// <returns>True when the key was a shortcut and has been handled.</returns>
     public bool HandleShortcut(KeyRoutedEventArgs e)
     {
+        // Ctrl+K And Ctrl+F Open The Command Menu Even While An Event Is Being Edited (unless a menu or dialog is open)
+        if (ViewModel.Editing is not null && Controls.KeyState.IsDown(VirtualKey.Control)
+            && ShortcutMap.Resolve(e.Key.ToString(), ctrl: true, Controls.KeyState.IsDown(VirtualKey.Shift), Controls.KeyState.IsDown(VirtualKey.Menu)).Command is CalendarCommand.CommandMenu or CalendarCommand.Search
+            && !IsInOpenPopup(FocusManager.GetFocusedElement(XamlRoot)))
+        {
+            OpenCommandMenu();
+            return true;
+        }
+
         // Second Key After An Instant E (the editor opened but nothing was typed yet)
         if (_editorFromE && _keys.IsPending && ViewModel.Editing is not null && !IsModifier(e.Key))
         {
@@ -411,20 +420,42 @@ public sealed partial class CalendarPage : Page
     /// </summary>
     public void RunCommand(CalendarCommand command, int days = 0)
     {
-        if (command == CalendarCommand.CreateEvent && ViewModel.Editing is not null)
+        if (command is CalendarCommand.CreateEvent or CalendarCommand.EditEvent or CalendarCommand.EditDuration && ViewModel.Editing is not null)
         {
             SetDetailsOpen(true, animate: true);
             return;
         }
 
-        // The Editor Handles Its Own Keys While It Shows, So Menu Commands Wait Too
+        // While The Editor Shows: navigating hides it (the edit is kept; C or E brings it back), and anything that would
+        // change, delete, or pick events waits until the edit is finished. The command menu always opens
         if (ViewModel.Editing is not null && IsDetailsOpen)
         {
-            return;
+            if (WaitsForEdit(command))
+            {
+                ViewModel.ShowMessage("Finish or cancel the event you're editing first.");
+                return;
+            }
+
+            if (IsNavigation(command))
+            {
+                SetDetailsOpen(false, animate: true);
+            }
         }
 
         Execute(new ShortcutResult(command, days));
     }
+
+    // Commands that change, delete, or pick events (picking one ends the edit) or start another mode over the grid
+    static bool WaitsForEdit(CalendarCommand command) => command is CalendarCommand.DeleteSelected or CalendarCommand.CancelEventQuietly
+        or CalendarCommand.Cut or CalendarCommand.Paste or CalendarCommand.Undo
+        or CalendarCommand.RsvpYes or CalendarCommand.RsvpNo or CalendarCommand.RsvpMaybe
+        or CalendarCommand.SelectAll or CalendarCommand.ToggleSelect or CalendarCommand.NextEvent or CalendarCommand.PreviousEvent
+        or CalendarCommand.ShareAvailability or CalendarCommand.MeetWith or CalendarCommand.ParticipantOverlay;
+
+    // Commands that move the calendar to other days
+    static bool IsNavigation(CalendarCommand command) => command is CalendarCommand.Today or CalendarCommand.Previous or CalendarCommand.Next
+        or CalendarCommand.NavigateBack or CalendarCommand.NavigateForward or CalendarCommand.GoToDate
+        or CalendarCommand.DayView or CalendarCommand.WeekView or CalendarCommand.MonthView or CalendarCommand.Days;
 
     /// <summary>
     /// Goes back or forward through the visited places, under the same rules as the keyboard shortcuts: nothing

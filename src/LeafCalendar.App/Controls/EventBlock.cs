@@ -35,8 +35,10 @@ public sealed partial class EventBlock : Grid
     readonly TextBlock _title = new() { FontSize = 12, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.WrapWholeWords, MaxLines = 2 };
     readonly TextBlock _time = new() { FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis };
     readonly FontIcon _icon = new() { FontSize = 11, Margin = new Thickness(0, 1, 4, 0), Visibility = Visibility.Collapsed };
+    readonly ToolTip _tip = new();
     CalendarOccurrence? _occurrence;
     Action<CalendarOccurrence>? _select;
+    string _timeText = "";
 
     /// <summary>Builds the card; <paramref name="owner"/> (the time grid) runs its drags and edits.</summary>
     public EventBlock(TimeGridView? owner = null)
@@ -56,6 +58,10 @@ public sealed partial class EventBlock : Grid
 
         _card.Child = inner;
         Children.Add(_card);
+        if (owner is not null)
+        {
+            ToolTipService.SetToolTip(this, _tip);
+        }
 
         Tapped += (_, e) =>
         {
@@ -102,7 +108,16 @@ public sealed partial class EventBlock : Grid
 
             e.Handled = true;
         };
-        PointerEntered += (_, _) => _owner?.ViewModel.PointerEvent = _occurrence;
+        PointerEntered += (_, _) =>
+        {
+            _owner?.ViewModel.PointerEvent = _occurrence;
+
+            // Hover Tooltip: title, time, and location, filled in as the pointer arrives (the location is a lookup)
+            if (_occurrence is { } o && _owner is { } owner)
+            {
+                _tip.Content = owner.ViewModel.HoverText(o, _timeText);
+            }
+        };
         PointerExited  += (_, _) => _owner?.ViewModel.PointerEvent = null;
     }
 
@@ -132,6 +147,7 @@ public sealed partial class EventBlock : Grid
     {
         _occurrence = occurrence;
         _select     = select;
+        _timeText   = timeText;
 
         var declined = occurrence.SelfResponse == ResponseStatus.Declined;
         var outlined = declined || occurrence.SelfResponse is ResponseStatus.NeedsAction or ResponseStatus.Tentative;
