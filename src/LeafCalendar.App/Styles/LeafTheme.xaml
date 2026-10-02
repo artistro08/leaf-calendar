@@ -360,6 +360,13 @@
         </Setter>
     </Style>
 
+    <!-- InfoBar Close Button: its glyph centered (the default button padding is 5 above, 6 below); set as CloseButtonStyle -->
+    <Style x:Key="LeafInfoBarCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource InfoBarCloseButtonStyle}">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
     <!-- Divider (a 1 px line between groups; set the margin where it's used) -->
     <Style x:Key="LeafDividerStyle" TargetType="Border">
         <Setter Property="Height" Value="1" />

@@ -65,7 +65,7 @@ public sealed partial class MainWindow : Window
     // The window's size while restored (not maximized or minimized), saved on close
     Core.Views.WindowSize _restoredSize;
     Storyboard? _toolbarSlide;
-    (double Right, bool Sidebar, bool Calendar)? _titleBarLayout;
+    (double Right, double Toggle, bool Sidebar, bool Calendar)? _titleBarLayout;
 
     /// <summary>Creates the window on the App's calendar view model (Settings shares it). <see cref="App"/> owns both.</summary>
     public MainWindow(LeafServices services, CalendarViewModel calendar)
@@ -235,6 +235,7 @@ public sealed partial class MainWindow : Window
 
         CalendarToolbar.Visibility            = onCalendar ? Visibility.Visible : Visibility.Collapsed;
         SearchButton.Visibility               = CalendarToolbar.Visibility;
+        DetailsToggle.Visibility              = CalendarToolbar.Visibility;
         AppTitleBar.IsPaneToggleButtonVisible = onCalendar;
 
         if (page is not null)
@@ -262,8 +263,8 @@ public sealed partial class MainWindow : Window
         Controls.PaneGlyph.SetOpen("Details", page.IsDetailsOpen);
     }
 
-    // Line the toolbar up with the calendar island's right edge (next to the caption buttons when
-    // the details panel is closed). Then re-punch the title bar's click-through holes for the buttons.
+    // Pin the details toggle beside the caption buttons, and line the toolbar up with the calendar island's right edge
+    // (ending at the toggle when the details panel is closed). Then re-punch the title bar's click-through holes for the buttons.
     // Where the title bar's content area ends is measured, not assumed: TitleBar reserves the caption
     // buttons' width in screen pixels as if they were DIPs, so above 100% its content area stops short
     // of the buttons (about 34 DIPs at 125%). Resizing calls this for every step of the drag, so
@@ -279,14 +280,17 @@ public sealed partial class MainWindow : Window
         // The Search Icon Moves With The Toolbar Host's Left Edge (Back appearing), Even When Nothing Else Changed
         PlaceSearchButton();
 
-        // Target: The Toolbar Inset In From The Island's Right Edge, Or From The Caption Buttons
+        // Target: The Toolbar Inset In From The Island's Right Edge, Or Up To The Toggle (the inset in from the caption buttons)
         var scale   = RootGrid.XamlRoot.RasterizationScale;
         var width   = RootGrid.ActualWidth;
         var caption = AppWindow.TitleBar.RightInset / scale;
         var hostEnd = ToolbarHost.TransformToVisual(RootGrid).TransformPoint(new Windows.Foundation.Point(ToolbarHost.ActualWidth, 0)).X;
-        var target  = page is { IsDetailsOpen: true } ? width - CalendarPage.DetailsWidth - CalendarPage.ToolbarInset : width - caption - CalendarPage.ToolbarInset;
-        var right   = page is null ? 0 : Math.Round((hostEnd - target) * scale) / scale;
-        var layout  = (Right: right, Sidebar: page?.IsSidebarOpen ?? true, Calendar: page is not null);
+        var toggle  = Math.Round((hostEnd - (width - caption - CalendarPage.ToolbarInset)) * scale) / scale;
+        var target  = width - CalendarPage.DetailsWidth - CalendarPage.ToolbarInset;
+        var right   = page is null ? 0
+            : page.IsDetailsOpen ? Math.Round((hostEnd - target) * scale) / scale
+            : toggle + DetailsToggle.Width;
+        var layout  = (Right: right, Toggle: toggle, Sidebar: page?.IsSidebarOpen ?? true, Calendar: page is not null);
         if (layout == _titleBarLayout)
         {
             return;
@@ -295,6 +299,7 @@ public sealed partial class MainWindow : Window
         var previous = _titleBarLayout;
         _titleBarLayout = layout;
 
+        DetailsToggle.Margin   = new Thickness(0, 0, layout.Toggle, 0);
         CalendarToolbar.Margin = new Thickness(0, 0, layout.Right, 0);
         EventActions.Margin    = new Thickness(0, 0, layout.Right - CalendarPage.ToolbarInset - EventActionsSpan, 0);
 

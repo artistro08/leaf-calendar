@@ -254,6 +254,41 @@ public sealed class SidebarTests : IDisposable
         }
     }
 
+    // The details toggle stays beside the caption buttons with either panel open or closed, and the toolbar ends at it
+    // while the details panel is closed
+    [Fact]
+    public void DetailsToggle_StaysBesideTheCaptionButtons()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor($"CalendarToggle_{FamilyId}");
+        var details = leaf.WaitFor("DetailsToggleButton");
+        var sidebar = leaf.WaitFor("AppTitleBar").FindFirstDescendant(cf => cf.ByAutomationId("PART_PaneToggleButton"))!;
+        Thread.Sleep(500);
+        var home = details.BoundingRectangle;
+
+        // Beside The Caption Buttons (three 46-wide buttons, then the 6 inset)
+        var client = leaf.ClientBounds;
+        Assert.True(Math.Abs(client.Right - (3 * 46 + 6) * leaf.Scale - home.Right) <= 4 * leaf.Scale, "The details toggle isn't beside the caption buttons.");
+
+        // Either Panel Toggled: it stays put and visible
+        foreach (var flip in new Action[] { () => details.AsToggleButton().Toggle(), () => sidebar.AsButton().Invoke(), () => details.AsToggleButton().Toggle() })
+        {
+            flip();
+            Thread.Sleep(800);
+            Assert.False(details.IsOffscreen, "The details toggle hid.");
+            Assert.Equal(home, details.BoundingRectangle);
+        }
+
+        // Details Closed: the Next button touches the toggle
+        if (details.AsToggleButton().ToggleState == FlaUI.Core.Definitions.ToggleState.On)
+        {
+            details.AsToggleButton().Toggle();
+            Thread.Sleep(800);
+        }
+
+        Assert.True(Math.Abs(leaf.WaitFor("NextButton").BoundingRectangle.Right - home.Left) <= 2, "The toolbar doesn't end at the details toggle.");
+    }
+
     // Each pane toggle's glyph has a narrow panel (the sidebar's on the left, the details panel's on the right), filled
     // with the icon's color while its pane is open and outlined while it's closed: the panel's middle pixel is the
     // icon's color, then the background

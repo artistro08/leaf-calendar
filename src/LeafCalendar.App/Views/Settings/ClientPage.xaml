@@ -37,6 +37,7 @@
 
             <!-- Error -->
             <InfoBar
+                CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                 Margin="0,8,0,0"
                 Severity="Error"
                 IsClosable="False"

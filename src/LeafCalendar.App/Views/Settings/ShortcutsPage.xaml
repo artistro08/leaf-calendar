@@ -16,6 +16,7 @@
                 <settings:ShortcutControl x:Name="JoinShortcutControl" />
             </controls:SettingRow>
             <InfoBar
+                CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                 x:Name="JoinShortcutWarning"
                 Severity="Warning"
                 IsClosable="False"
@@ -25,6 +26,7 @@
                 <settings:ShortcutControl x:Name="FlyoutShortcutControl" />
             </controls:SettingRow>
             <InfoBar
+                CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                 x:Name="FlyoutShortcutWarning"
                 Severity="Warning"
                 IsClosable="False"
