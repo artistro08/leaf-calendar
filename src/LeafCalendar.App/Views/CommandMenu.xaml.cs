@@ -195,6 +195,9 @@ public sealed partial class CommandMenu : UserControl
     /// <summary>x:Bind helper: the swatch brush for a hex color.</summary>
     public static Brush Brush(string hex) => LeafBrushes.FromHex(hex);
 
+    /// <summary>Caps the results list at the given height (at most 384), so the menu never runs past a short window.</summary>
+    public void LimitResultsHeight(double height) => ResultsScroll.MaxHeight = Math.Min(384, height);
+
     /// <summary>Clears the box and shows the default actions.</summary>
     public void Reset()
     {

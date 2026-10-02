@@ -61,7 +61,7 @@ for (const size of [16, 24, 32, 48, 256]) {
 // Tray Glyphs (each size from its own hinted Fluent SVG; 32 for anything larger)
 fs.mkdirSync(path.join(assets, 'Tray'), { recursive: true });
 for (const size of [16, 20, 24, 32]) {
-    const glyph = fs.readFileSync(path.join(fluentDir, `ic_fluent_leaf_one_${size}_regular.svg`), 'utf8');
+    const glyph = fs.readFileSync(path.join(fluentDir, `ic_fluent_leaf_one_${size}_filled.svg`), 'utf8');
     for (const [name, color] of [['dark-taskbar', '#FFFFFF'], ['light-taskbar', '#1F1F1F']]) {
         const svg = glyph.replace(/fill="#212121"/g, `fill="${color}"`);
         fs.writeFileSync(path.join(assets, 'Tray', `tray-${name}-${size}.png`), new Resvg(svg, { fitTo: { mode: 'width', value: size } }).render().asPng());
