@@ -162,51 +162,39 @@
                                                     <controls:PinnedItemsControl ItemsSource="{x:Bind Items}">
                                                         <controls:PinnedItemsControl.ItemTemplate>
                                                             <DataTemplate x:DataType="local:AgendaRow">
-                                                                <Grid>
-                                                                    <!-- Row: opens the event in the main window (spans the full width; Join sits on top of it) -->
-                                                                    <Button
-                                                                        Padding="8,4"
-                                                                        HorizontalAlignment="Stretch"
-                                                                        HorizontalContentAlignment="Stretch"
-                                                                        Style="{StaticResource SubtleButtonStyle}"
-                                                                        Click="{x:Bind Open}"
-                                                                        AutomationProperties.Name="{x:Bind Title}"
-                                                                        AutomationProperties.AutomationId="{x:Bind RowId}">
-                                                                        <Grid ColumnSpacing="12">
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="Auto" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                                <ColumnDefinition Width="Auto" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{x:Bind Accent}" />
-                                                                            <StackPanel Grid.Column="1">
-                                                                                <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
-                                                                                <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" Text="{x:Bind When}" />
-                                                                            </StackPanel>
+                                                                <!-- Row: opens the event in the main window (spans the full width; Join sits inside it, so the
+                                                                     row keeps its highlight behind Join while the pointer is on Join too) -->
+                                                                <Button
+                                                                    Padding="8,4"
+                                                                    HorizontalAlignment="Stretch"
+                                                                    HorizontalContentAlignment="Stretch"
+                                                                    Style="{StaticResource SubtleButtonStyle}"
+                                                                    Click="{x:Bind Open}"
+                                                                    AutomationProperties.Name="{x:Bind Title}"
+                                                                    AutomationProperties.AutomationId="{x:Bind RowId}">
+                                                                    <Grid ColumnSpacing="12">
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="Auto" />
+                                                                            <ColumnDefinition Width="*" />
+                                                                            <ColumnDefinition Width="Auto" />
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{x:Bind Accent}" />
+                                                                        <StackPanel Grid.Column="1">
+                                                                            <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
+                                                                            <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" Text="{x:Bind When}" />
+                                                                        </StackPanel>
 
-                                                                            <!-- Join Space (invisible copy of the Join button's box so the text stops before it) -->
-                                                                            <Border
-                                                                                Grid.Column="2"
-                                                                                Padding="{ThemeResource ButtonPadding}"
-                                                                                BorderThickness="{ThemeResource ButtonBorderThemeThickness}"
-                                                                                Opacity="0"
-                                                                                Visibility="{x:Bind JoinVisibility}">
-                                                                                <TextBlock Text="Join" AutomationProperties.AccessibilityView="Raw" />
-                                                                            </Border>
-                                                                        </Grid>
-                                                                    </Button>
-
-                                                                    <!-- Join (drawn over the row's right edge, inside its padding) -->
-                                                                    <Button
-                                                                        Margin="0,0,8,0"
-                                                                        HorizontalAlignment="Right"
-                                                                        VerticalAlignment="Center"
-                                                                        Content="Join"
-                                                                        Visibility="{x:Bind JoinVisibility}"
-                                                                        Click="{x:Bind Join}"
-                                                                        AutomationProperties.Name="Join"
-                                                                        AutomationProperties.AutomationId="{x:Bind JoinId}" />
-                                                                </Grid>
+                                                                        <!-- Join (its own click; the row's doesn't run) -->
+                                                                        <Button
+                                                                            Grid.Column="2"
+                                                                            VerticalAlignment="Center"
+                                                                            Content="Join"
+                                                                            Visibility="{x:Bind JoinVisibility}"
+                                                                            Click="{x:Bind Join}"
+                                                                            AutomationProperties.Name="Join"
+                                                                            AutomationProperties.AutomationId="{x:Bind JoinId}" />
+                                                                    </Grid>
+                                                                </Button>
                                                             </DataTemplate>
                                                         </controls:PinnedItemsControl.ItemTemplate>
                                                     </controls:PinnedItemsControl>
