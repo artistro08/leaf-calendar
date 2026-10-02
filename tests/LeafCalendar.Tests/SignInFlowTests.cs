@@ -86,15 +86,27 @@ public sealed class SignInFlowTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_StateMismatch_FailsWithoutExchangingCode()
+    public async Task RunAsync_ForgedStateFirst_IgnoresItAndSignsIn()
     {
         GoogleAccepts();
 
-        var error = await Assert.ThrowsAsync<SignInException>(
-            () => CreateFlow(GoogleRedirects(_ => "code=4%2Fstolen&state=forged")).RunAsync(null, TestContext.Current.CancellationToken));
+        // A Forged Reply Hits The Port Before Google's Real One
+        Func<Uri, Task> forgedThenReal = consentUrl =>
+        {
+            var query    = QueryString.Parse(consentUrl.Query);
+            var redirect = new Uri(query["redirect_uri"]);
+            _ = Task.Run(async () =>
+            {
+                using var forged = await Browser.GetAsync(new Uri(redirect, "?code=4%2Fstolen&state=forged"));
+                using var real   = await Browser.GetAsync(new Uri(redirect, "?" + Approve(query)));
+            });
+            return Task.CompletedTask;
+        };
 
-        Assert.Contains("didn't match", error.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain(_google.Requests, r => r.Uri.AbsoluteUri == TokenUrl);
+        var account = await CreateFlow(forgedThenReal).RunAsync(null, TestContext.Current.CancellationToken);
+
+        Assert.Equal("109876543210", account.Id);
+        Assert.Equal("4/auth-code", _google.Requests.Single(r => r.Uri.AbsoluteUri == TokenUrl).Form("code"));
     }
 
     [Fact]

@@ -35,7 +35,7 @@ public class LoopbackListenerTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var listener = new LoopbackListener();
-        var wait = listener.WaitForCallbackAsync(ct);
+        var wait = listener.WaitForCallbackAsync("xyz", ct);
 
         using var response = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=abc&state=xyz"), ct);
         var query = await wait;
@@ -52,7 +52,7 @@ public class LoopbackListenerTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var listener = new LoopbackListener();
-        var wait = listener.WaitForCallbackAsync(ct);
+        var wait = listener.WaitForCallbackAsync("xyz", ct);
 
         using var favicon = await Http.GetAsync(new Uri(listener.RedirectUri, "favicon.ico"), ct);
         using var bare = await Http.GetAsync(listener.RedirectUri, ct);
@@ -70,7 +70,7 @@ public class LoopbackListenerTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var listener = new LoopbackListener();
-        var wait = listener.WaitForCallbackAsync(ct);
+        var wait = listener.WaitForCallbackAsync("xyz", ct);
 
         using (var junk = new TcpClient())
         {
@@ -89,7 +89,7 @@ public class LoopbackListenerTests
         }
         Assert.False(wait.IsCompleted);
 
-        using var redirect = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=ok&state=s"), ct);
+        using var redirect = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=ok&state=xyz"), ct);
 
         Assert.Equal("ok", (await wait)["code"]);
     }
@@ -99,10 +99,30 @@ public class LoopbackListenerTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var listener = new LoopbackListener();
-        var wait = listener.WaitForCallbackAsync(ct);
+        var wait = listener.WaitForCallbackAsync("xyz", ct);
 
         using var junk = await Http.GetAsync(new Uri(listener.RedirectUri, "?x=1"), ct);
         Assert.Equal(HttpStatusCode.NotFound, junk.StatusCode);
+        Assert.False(wait.IsCompleted);
+
+        using var redirect = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=abc&state=xyz"), ct);
+
+        Assert.Equal(HttpStatusCode.OK, redirect.StatusCode);
+        Assert.Equal("abc", (await wait)["code"]);
+    }
+
+    [Fact]
+    public async Task WaitForCallbackAsync_WrongState_RejectsThenAcceptsValidRedirect()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var listener = new LoopbackListener();
+        var wait = listener.WaitForCallbackAsync("xyz", ct);
+
+        // Any Page Can Hit The Port; A Forged Reply Must Not End Sign-In
+        using var forged    = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=stolen&state=forged"), ct);
+        using var stateless = await Http.GetAsync(new Uri(listener.RedirectUri, "?error=access_denied"), ct);
+        Assert.Equal(HttpStatusCode.NotFound, forged.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, stateless.StatusCode);
         Assert.False(wait.IsCompleted);
 
         using var redirect = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=abc&state=xyz"), ct);
@@ -116,7 +136,7 @@ public class LoopbackListenerTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var listener = new LoopbackListener();
-        var wait = listener.WaitForCallbackAsync(ct);
+        var wait = listener.WaitForCallbackAsync("xyz", ct);
 
         // Browsers send every 127.0.0.1 cookie from local dev servers along with the redirect
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(listener.RedirectUri, "?code=abc&state=xyz"));
@@ -134,7 +154,7 @@ public class LoopbackListenerTests
     {
         using var listener = new LoopbackListener();
         using var cts = new CancellationTokenSource();
-        var wait = listener.WaitForCallbackAsync(cts.Token);
+        var wait = listener.WaitForCallbackAsync("xyz", cts.Token);
 
         await cts.CancelAsync();
 

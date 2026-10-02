@@ -11,9 +11,10 @@ namespace LeafCalendar.Core.Auth;
 /// </summary>
 /// <remarks>
 /// Binds the loopback interface only, so nothing else on the network can reach it. It answers
-/// unrelated requests (favicon, bare <c>/</c>, requests without <c>code</c> or <c>error</c> in the query,
-/// oversized or malformed input) with 404 and keeps waiting; only a <c>GET /?...</c> with <c>code</c> or <c>error</c>
-/// ends the wait. It never echoes tokens or codes into the page.
+/// unrelated requests (favicon, bare <c>/</c>, requests without <c>code</c> or <c>error</c> in the query, a
+/// <c>state</c> other than this sign-in's, oversized or malformed input) with 404 and keeps waiting; only a
+/// <c>GET /?...</c> with <c>code</c> or <c>error</c> and the expected <c>state</c> ends the wait, so another page
+/// hitting the port can't break sign-in. It never echoes tokens or codes into the page.
 /// Only the request line is read (up to 8 KB), so any amount of browser headers, such as cookies
 /// that local dev servers set for 127.0.0.1, can't stall sign-in. After answering, the listener
 /// closes its sending side and briefly reads away the headers it skipped. Closing a socket with
@@ -46,10 +47,12 @@ public sealed class LoopbackListener : IDisposable
     public Uri RedirectUri { get; }
 
     /// <summary>
-    /// Waits for the OAuth redirect and returns its query parameters.
+    /// Waits for the OAuth redirect carrying <paramref name="expectedState"/> and returns its query parameters.
     /// </summary>
+    /// <param name="expectedState">The <c>state</c> sent to Google; a redirect with any other state gets a 404.</param>
+    /// <param name="ct">Cancels the wait.</param>
     /// <exception cref="OperationCanceledException">When <paramref name="ct"/> is canceled.</exception>
-    public async Task<IReadOnlyDictionary<string, string>> WaitForCallbackAsync(CancellationToken ct)
+    public async Task<IReadOnlyDictionary<string, string>> WaitForCallbackAsync(string expectedState, CancellationToken ct)
     {
         while (true)
         {
@@ -81,9 +84,9 @@ public sealed class LoopbackListener : IDisposable
                 continue;
             }
 
-            // Require Code Or Error Parameter
+            // Require Code Or Error Parameter And This Sign-In's State
             var query = QueryString.Parse(target[2..]);
-            if (!query.ContainsKey("code") && !query.ContainsKey("error"))
+            if ((!query.ContainsKey("code") && !query.ContainsKey("error")) || !Pkce.StateMatches(expectedState, query.GetValueOrDefault("state")))
             {
                 await RespondAsync(client, stream, "404 Not Found", "", ct);
                 continue;

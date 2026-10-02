@@ -12,7 +12,7 @@ namespace LeafCalendar.Core.Auth;
 /// The steps are:
 /// <list type="number">
 /// <item>Start a loopback listener, create a PKCE verifier and state, and open Google's consent page.</item>
-/// <item>Wait up to <see cref="Timeout"/> for the redirect, then check the state before trusting anything in it.</item>
+/// <item>Wait up to <see cref="Timeout"/> for the redirect carrying this state (others get a 404), then check it again.</item>
 /// <item>Exchange the code, and require calendar access plus a refresh token.</item>
 /// <item>Read the user's ID and email, save the refresh token to <see cref="ITokenStore"/>, and upsert the account.</item>
 /// </list>
@@ -58,7 +58,7 @@ public sealed class SignInFlow(
             await openBrowser(oauth.BuildAuthorizationUrl(listener.RedirectUri, state, Pkce.CreateChallenge(verifier), loginHint)).WaitAsync(linked.Token);
 
             // Wait For Redirect
-            reply = await listener.WaitForCallbackAsync(linked.Token);
+            reply = await listener.WaitForCallbackAsync(state, linked.Token);
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested && !ct.IsCancellationRequested)
         {
