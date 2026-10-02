@@ -162,11 +162,13 @@ public sealed partial class CalendarPage
             return;
         }
 
-        // Once The Frame That Starts The Slide Is On Screen (nothing has stretched yet, and work done before it would
-        // hold it back): hold the island's text and icons at their own size, the ones on screen and every new layout's
-        // until the slide is over, and lay the island out in its final room. The stretch reads the size the layout
-        // gives it, so the island fills the room between the edges whichever layout it shows
-        _slidesRunning++;
+        // Hold The Island's Text And Icons At Their Own Size, the ones on screen now (in the frame that starts the slide)
+        // and every new layout's until the slide is over
+        HoldWhileSliding();
+
+        // The Island's Final Room, once that frame is on screen (the relayout can hold the UI thread for a while, and the
+        // frame would wait for it). The stretch reads the size the layout gives it, so the island fills the room between
+        // the edges whichever layout it shows
         AfterNextFrame();
 
         // Slide The Edge, starting now. A closed pane is collapsed once its own slide ends, so its controls leave the tab order
@@ -203,27 +205,20 @@ public sealed partial class CalendarPage
     void OnSlideFrame(object? sender, RenderedEventArgs e)
     {
         CompositionTarget.Rendered -= OnSlideFrame;
-        _framePending = false;
-
-        // Still Sliding: hold what's on screen now and what every layout pass brings
-        if (_slidesRunning > 0)
-        {
-            Unstretch(IslandArea);
-            if (!_holding)
-            {
-                _holding = true;
-                IslandArea.LayoutUpdated += OnSlidingLayout;
-            }
-        }
-
-        // The Final Room A Frame Later, so the held text is on screen before the relayout holds up the UI thread
-        CompositionTarget.Rendered += OnHeldFrame;
+        _framePending     = false;
+        IslandArea.Margin = new Thickness(_sidebarOpen ? SidebarWidth : 0, 0, _detailsOpen ? DetailsWidth : 0, 0);
     }
 
-    void OnHeldFrame(object? sender, RenderedEventArgs e)
+    // Counts the running slides; while any runs, every layout pass of the island holds its new elements at their size
+    void HoldWhileSliding()
     {
-        CompositionTarget.Rendered -= OnHeldFrame;
-        IslandArea.Margin = new Thickness(_sidebarOpen ? SidebarWidth : 0, 0, _detailsOpen ? DetailsWidth : 0, 0);
+        Unstretch(IslandArea);
+        _slidesRunning++;
+        if (!_holding)
+        {
+            _holding = true;
+            IslandArea.LayoutUpdated += OnSlidingLayout;
+        }
     }
 
     // The last running slide is over: back to plain XAML
