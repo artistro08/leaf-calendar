@@ -43,6 +43,15 @@ public sealed partial class CalendarViewModel
             return false;
         }
 
+        // An Edit Is Open (its panel was hidden): the calendar moves to the event and selects it, keeping the edit for C or E
+        if (Editing is not null)
+        {
+            NavigateTo(DayOf(occurrence));
+            ShowSelected(occurrence);
+            ScrollToTimeRequested?.Invoke(this, occurrence.Start);
+            return true;
+        }
+
         // Details Only: the calendar stays where it is
         if (!jump)
         {
