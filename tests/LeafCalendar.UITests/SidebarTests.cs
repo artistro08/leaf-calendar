@@ -223,8 +223,9 @@ public sealed class SidebarTests : IDisposable
         Assert.Equal(before, RowElements(leaf));
     }
 
-    // The calendar rides the sidebar's edge (a shift on the compositor, never a stretch), but nothing else moves: from
-    // the toggle on, the details panel stays put, and the vertical scroll is where it was once the slide is over
+    // The calendar resizes with the sidebar's edge (stretched on the compositor, its text held at its own size), but
+    // nothing else moves: from the toggle on, the details panel stays put, and the vertical scroll is where it was once
+    // the slide is over
     [Fact]
     public void SidebarToggle_KeepsTheDetailsPanelAndScrollInPlace()
     {
