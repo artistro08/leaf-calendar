@@ -87,7 +87,8 @@ public sealed partial class EventEditorView : UserControl
 
         editor.PropertyChanged += OnEditorPropertyChanged;
         LeafBrushes.ContrastChanged += OnContrastChanged;
-        TimeZoneBox.Show(editor.TimeZoneId, editor.Before.Start);
+        // The event's own zone is the one it's already in (your zone stays pickable, so an event set elsewhere can come back)
+        TimeZoneBox.Show(editor.TimeZoneId, editor.Before.Start, TimeZoneInfo.TryFindSystemTimeZoneById(editor.TimeZoneId, out var eventZone) ? eventZone : null);
         BuildColors();
         LoadDescription();
 

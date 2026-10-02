@@ -8,8 +8,9 @@ namespace LeafCalendar.App.Controls;
 /// for the event's zone in the editor, the share zone, and Settings' primary zone.
 /// </summary>
 /// <remarks>
-/// The items are plain strings (a list of Core records can't go to WinRT under Native AOT) and the pick is read by
-/// index from our own list of IDs. With <c>IsEditable</c> on, typed text is matched like the old search boxes (a city,
+/// The items are <see cref="ComboBoxItem"/>s holding plain strings (a list of Core records can't go to WinRT under Native
+/// AOT; an item that is its own container is never recycled onto another row), so the zone you're in can be shown
+/// disabled, and the pick is read by index from our own list of IDs. With <c>IsEditable</c> on, typed text is matched like the old search boxes (a city,
 /// an alias such as NYC, or any part of a row) and only a zone from the list is taken.
 /// The box has no XAML file of its own: a XAML file whose root is a ComboBox subclass fails to parse when the
 /// box is built (XamlParseException), which kept the calendar page from opening. Rows are the stock string rows.
@@ -19,6 +20,9 @@ public sealed partial class TimeZoneComboBox : ComboBox
     // The rows' IANA IDs, in the box's order
     readonly List<string> _ids = [];
     readonly List<string> _labels = [];
+
+    // The rows, kept here so nothing is read back from the box (a typed read-back is a Native AOT trap)
+    List<ComboBoxItem> _items = [];
     bool _filling;
 
     /// <summary>Creates the box (filled by <see cref="Show"/>).</summary>
@@ -38,9 +42,10 @@ public sealed partial class TimeZoneComboBox : ComboBox
 
     /// <summary>
     /// Lists every zone with offsets at <paramref name="now"/> and picks <paramref name="zoneId"/>. A known zone the
-    /// list doesn't hold (another IANA name for one of its zones) gets its own row at the top.
+    /// list doesn't hold (another IANA name for one of its zones) gets its own row at the top. The row of
+    /// <paramref name="current"/> (the zone the calendar is in) is shown but can't be picked.
     /// </summary>
-    public void Show(string zoneId, DateTimeOffset now)
+    public void Show(string zoneId, DateTimeOffset now, TimeZoneInfo? current = null)
     {
         _filling = true;
         _ids.Clear();
@@ -57,13 +62,29 @@ public sealed partial class TimeZoneComboBox : ComboBox
             _labels.Insert(0, TimeZoneCatalog.ListLabel(zoneId, now));
         }
 
-        ItemsSource   = _labels.ToList();
+        _items        = [.. _labels.Select((label, i) => new ComboBoxItem { Content = label, IsEnabled = current is null || !TimeZoneCatalog.IsSameZone(_ids[i], current) })];
+        ItemsSource   = _items;
         SelectedIndex = _ids.IndexOf(zoneId);
+        ShowPickedText();
         _filling      = false;
+    }
+
+    // An editable box writes the row's own words (an item that's a ComboBoxItem would otherwise give the box its type name)
+    void ShowPickedText()
+    {
+        if (IsEditable)
+        {
+            Text = SelectedIndex >= 0 ? _labels[SelectedIndex] : "";
+        }
     }
 
     void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (!_filling)
+        {
+            ShowPickedText();
+        }
+
         if (!_filling && ZoneId is { } id)
         {
             ZoneChanged?.Invoke(this, id);
@@ -82,7 +103,8 @@ public sealed partial class TimeZoneComboBox : ComboBox
                 ? ranked
                 : _labels.FindIndex(l => l.Contains(text, StringComparison.OrdinalIgnoreCase));
 
-            if (found >= 0)
+            // Typing the zone you're in can't pick it either
+            if (found >= 0 && _items[found].IsEnabled)
             {
                 SelectedIndex = found;
             }

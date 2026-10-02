@@ -78,26 +78,48 @@ public static class TimeZoneCatalog
     }
 
     /// <summary>
-    /// Every zone this PC knows (the curated cities and one per Windows zone), as dropdown rows: "(UTC-05:00) New York",
+    /// Every zone this PC knows (the curated cities and one per Windows zone), as dropdown rows: "(UTC-05:00) New York (EST)",
     /// ordered by their offset at <paramref name="now"/>, then city.
     /// </summary>
     public static IReadOnlyList<(string Id, string Label)> All(DateTimeOffset now) =>
         [.. AllEntries.Value
-            .Select(e => (e.Id, Offset: TimeZoneInfo.FindSystemTimeZoneById(e.Id).GetUtcOffset(now), e.City))
+            .Select(e => (e.Id, Zone: TimeZoneInfo.FindSystemTimeZoneById(e.Id), e.City))
+            .Select(x => (x.Id, x.Zone, Offset: x.Zone.GetUtcOffset(now), x.City))
             .OrderBy(x => x.Offset)
             .ThenBy(x => x.City, StringComparer.CurrentCulture)
-            .Select(x => (x.Id, ListLabel(x.Offset, x.City)))];
+            .Select(x => (x.Id, ListLabel(x.Zone, x.Offset, x.City, now)))];
 
-    /// <summary>A zone's dropdown row, as Windows writes them: "(UTC+05:30) Mumbai", "(UTC-05:00) New York".</summary>
-    public static string ListLabel(string id, DateTimeOffset now) =>
-        ListLabel(TimeZoneInfo.FindSystemTimeZoneById(id).GetUtcOffset(now), CityFor(id));
-
-    static string ListLabel(TimeSpan offset, string city)
+    /// <summary>
+    /// A zone's dropdown row, as Windows writes them, with the short name people know it by when it has one:
+    /// "(UTC+05:30) Mumbai (IST)", "(UTC-05:00) Chicago (CDT)", "(UTC+05:45) Kathmandu".
+    /// </summary>
+    public static string ListLabel(string id, DateTimeOffset now)
     {
-        var sign = offset < TimeSpan.Zero ? "-" : "+";
-        var abs  = offset.Duration();
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(id);
+        return ListLabel(zone, zone.GetUtcOffset(now), CityFor(id), now);
+    }
 
-        return string.Create(CultureInfo.InvariantCulture, $"(UTC{sign}{abs.Hours:00}:{abs.Minutes:00}) {city}");
+    static string ListLabel(TimeZoneInfo zone, TimeSpan offset, string city, DateTimeOffset now)
+    {
+        var sign  = offset < TimeSpan.Zero ? "-" : "+";
+        var abs   = offset.Duration();
+        var label = string.Create(CultureInfo.InvariantCulture, $"(UTC{sign}{abs.Hours:00}:{abs.Minutes:00}) {city}");
+
+        // "UTC" Names Itself Already
+        return ZoneAbbreviation.TryGet(zone, now, out var name) && !string.Equals(name, city, StringComparison.Ordinal) ? $"{label} ({name})" : label;
+    }
+
+    /// <summary>
+    /// True when <paramref name="id"/> (an IANA or Windows ID) is <paramref name="zone"/> itself: the zone you're in, which
+    /// zone lists offer but don't let you pick again.
+    /// </summary>
+    public static bool IsSameZone(string? id, TimeZoneInfo zone)
+    {
+        ArgumentNullException.ThrowIfNull(zone);
+
+        return id is not null
+            && TimeZoneInfo.TryFindSystemTimeZoneById(id, out var other)
+            && string.Equals(IanaId(other), IanaId(zone), StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>"UTC", "UTC+9", "UTC−5", "UTC+5:30" (with a real minus sign).</summary>

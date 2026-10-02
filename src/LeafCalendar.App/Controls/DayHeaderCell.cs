@@ -5,19 +5,19 @@ using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Shapes;
 
 namespace LeafCalendar.App.Controls;
 
-/// <summary>A day header: weekday name over the date number (today on an accent circle). Tap opens Day view.</summary>
+/// <summary>
+/// A day header: weekday name over the date number (today on an accent circle). Tap opens Day view. Its left divider is
+/// drawn by the all-day row (<see cref="AllDayCanvas"/>), so the header's and the row's are one line.
+/// </summary>
 public sealed partial class DayHeaderCell : Grid
 {
     readonly TimeGridView _owner;
     readonly TextBlock _weekday = new() { FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center };
     readonly TextBlock _number = new() { FontSize = 20, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     readonly Border _circle = new() { Width = 34, Height = 34, CornerRadius = new CornerRadius(17), HorizontalAlignment = HorizontalAlignment.Center };
-    // The day's left edge, the full header height, so it meets the all-day row's divider and the column's below it
-    readonly Rectangle _divider = new() { Width = 1, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Stretch };
 
     /// <summary>Creates a header owned by <paramref name="owner"/>.</summary>
     public DayHeaderCell(TimeGridView owner)
@@ -31,7 +31,6 @@ public sealed partial class DayHeaderCell : Grid
         stack.Children.Add(_circle);
 
         Children.Add(stack);
-        Children.Add(_divider);
 
         Tapped += (_, _) =>
         {
@@ -57,7 +56,6 @@ public sealed partial class DayHeaderCell : Grid
         _number.Text        = date.Day.ToString(CultureInfo.InvariantCulture);
         _number.Foreground  = isToday ? LeafBrushes.OnAccent(dark) : LeafBrushes.PrimaryText(dark);
         _circle.Background  = isToday ? LeafBrushes.Accent(dark) : LeafBrushes.Transparent;
-        _divider.Fill       = LeafBrushes.GridLine(dark);
 
         AutomationProperties.SetAutomationId(this, string.Create(CultureInfo.InvariantCulture, $"DayHeader_{date:yyyy-MM-dd}"));
         AutomationProperties.SetName(this, TimeLabels.LongDate(date));

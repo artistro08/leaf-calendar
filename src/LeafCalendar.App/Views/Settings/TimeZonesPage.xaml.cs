@@ -18,6 +18,7 @@ public sealed partial class TimeZonesPage : Page
 {
     readonly ObservableCollection<ZoneRow> _rows = [];
     IReadOnlyList<TimeZoneChoice> _suggestions = [];
+    List<ListViewItem> _suggestionRows = [];
 
     // True while the saved values are being shown (the switches' Toggled events are ignored meanwhile)
     bool _loading;
@@ -61,7 +62,7 @@ public sealed partial class TimeZonesPage : Page
         _loading = true;
 
         FollowWindowsZoneSwitch.IsOn = s.PrimaryTimeZone is null;
-        PrimaryZoneBox.Show(s.PrimaryTimeZone ?? TimeZoneCatalog.IanaId(_vm.UserZone), _vm.Now);
+        PrimaryZoneBox.Show(s.PrimaryTimeZone ?? TimeZoneCatalog.IanaId(_vm.UserZone), _vm.Now, _vm.Zone);
         ZonePromptSwitch.IsOn        = s.PromptOnZoneChange;
         UpdatePrimaryState();
         UpdatePrimarySummary();
@@ -86,7 +87,7 @@ public sealed partial class TimeZonesPage : Page
         UpdatePrimaryState();
         if (!_loading && FollowWindowsZoneSwitch.IsOn && _vm.Settings.PrimaryTimeZone is not null)
         {
-            PrimaryZoneBox.Show(TimeZoneCatalog.IanaId(_vm.UserZone), _vm.Now);
+            PrimaryZoneBox.Show(TimeZoneCatalog.IanaId(_vm.UserZone), _vm.Now, _vm.Zone);
             _context.Save(s => s with { PrimaryTimeZone = null });
             UpdatePrimarySummary();
         }
@@ -112,31 +113,29 @@ public sealed partial class TimeZonesPage : Page
     // EXTRA TIME ZONES
     // =========================================================================
 
-    // Suggestions go to the box as plain strings: a list of Core records can't be marshaled to WinRT under Native AOT
+    // Suggestions go to the box as rows of plain strings (ZoneSuggestions), the zone you're in shown disabled
     void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
         if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
         {
             _suggestions       = TimeZoneCatalog.Search(sender.Text, _vm.Now);
-            sender.ItemsSource = _suggestions.Select(c => c.ToString()).ToList();
+            _suggestionRows    = ZoneSuggestions.Rows(_suggestions, _vm.Zone);
+            sender.ItemsSource = _suggestionRows;
         }
     }
 
     void OnSuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
     {
-        if (ChoiceFor(args.SelectedItem) is { } choice)
+        if (ZoneSuggestions.Chosen(_suggestionRows, _suggestions, args.SelectedItem) is { } choice)
         {
             Add(choice);
         }
     }
 
-    TimeZoneChoice? ChoiceFor(object? item) =>
-        item is string text ? _suggestions.FirstOrDefault(c => c.ToString() == text) : null;
-
     void OnQuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
         var found  = TimeZoneCatalog.Search(args.QueryText, _vm.Now);
-        var choice = ChoiceFor(args.ChosenSuggestion) ?? (found.Count > 0 ? found[0] : null);
+        var choice = ZoneSuggestions.Chosen(_suggestionRows, _suggestions, args.ChosenSuggestion) ?? ZoneSuggestions.FirstPickable(found, _vm.Zone);
         if (choice is not null)
         {
             Add(choice);

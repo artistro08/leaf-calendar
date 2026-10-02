@@ -359,14 +359,16 @@ public sealed partial class CalendarPage
         }
     }, "calendar.timetravel.failed");
 
-    // The zone picker ("Go" waits for a picked suggestion). Suggestions go to the box as plain strings (a list of Core
-    // records can't be marshaled to WinRT under Native AOT) and come back by matching our own list
+    // The zone picker ("Go" waits for a picked suggestion). Suggestions go to the box as rows of plain strings
+    // (ZoneSuggestions; a list of Core records can't be marshaled to WinRT under Native AOT), the zone you're in disabled,
+    // and come back by matching our own rows. The box's text is written here, from the pick, not from the row
     async Task<string?> AskTravelZoneAsync()
     {
         IReadOnlyList<TimeZoneChoice> suggestions = [];
-        TimeZoneChoice? picked = null;
+        List<ListViewItem>            rows        = [];
+        TimeZoneChoice?               picked      = null;
 
-        var box = new AutoSuggestBox { PlaceholderText = "Search a city or zone (Tokyo, NYC, UTC)", Width = 360 };
+        var box = new AutoSuggestBox { PlaceholderText = "Search a city or zone (Tokyo, NYC, UTC)", Width = 360, UpdateTextOnSelect = false };
         AutomationProperties.SetName(box, "Time zone");
         AutomationProperties.SetAutomationId(box, "TimeTravelBox");
 
@@ -393,12 +395,17 @@ public sealed partial class CalendarPage
             picked                        = null;
             dialog.IsPrimaryButtonEnabled = false;
             suggestions                   = TimeZoneCatalog.Search(sender.Text, ViewModel.Now);
-            sender.ItemsSource            = suggestions.Select(c => c.ToString()).ToList();
+            rows                          = Controls.ZoneSuggestions.Rows(suggestions, ViewModel.Zone);
+            sender.ItemsSource            = rows;
         };
         box.SuggestionChosen += (_, args) =>
         {
-            picked                        = args.SelectedItem is string text ? suggestions.FirstOrDefault(c => c.ToString() == text) : null;
+            picked                        = Controls.ZoneSuggestions.Chosen(rows, suggestions, args.SelectedItem);
             dialog.IsPrimaryButtonEnabled = picked is not null;
+            if (picked is not null)
+            {
+                box.Text = picked.ToString();
+            }
         };
         dialog.Opened += (_, _) => box.Focus(FocusState.Programmatic);
 
