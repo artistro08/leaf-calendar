@@ -51,21 +51,31 @@ public static class ShortcutLegend
                 {
                     Content          = CapContent(part.Text),
                     RenderKeyAsGlyph = true,
-                    FontSize     = CapFontSize,
-                    MinWidth     = CapMinWidth,
-                    Padding      = new Thickness(8, 2, 8, 2),
-                    CornerRadius = new CornerRadius(4),
+                    FontSize         = CapFontSize,
+                    MinWidth         = CapMinWidth,
+                    Padding          = new Thickness(8, 2, 8, 2),
+                    CornerRadius     = new CornerRadius(4),
                 });
                 continue;
             }
 
+            // The Words: the given color, else the theme's secondary text (a ThemeResource style, so it follows Leaf's theme, not Windows')
             var words = new TextBlock
             {
                 Text              = part.Text,
-                FontSize          = CapFontSize,
                 VerticalAlignment = VerticalAlignment.Center,
-                Foreground        = wordBrush ?? (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                TextWrapping      = TextWrapping.NoWrap,
             };
+            if (wordBrush is null)
+            {
+                words.Style = (Style)Application.Current.Resources["LeafSecondaryTextStyle"];
+            }
+            else
+            {
+                words.Foreground = wordBrush;
+            }
+
+            words.FontSize = CapFontSize;
 
             AutomationProperties.SetAccessibilityView(words, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
             legend.Children.Add(words);

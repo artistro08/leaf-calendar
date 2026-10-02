@@ -135,7 +135,7 @@ public sealed partial class DetailsPanel : UserControl
             var view = EditorView!;
             ContentScroll.Visibility   = Visibility.Collapsed;
             ShortcutsButton.Visibility = Visibility.Collapsed;
-            view.Visibility          = Visibility.Visible;
+            view.Visibility            = Visibility.Visible;
 
             // A new editor starts at the top (a refresh behind an open editor keeps the scroll position)
             if (!ReferenceEquals(view.Editor, editing))
@@ -257,8 +257,8 @@ public sealed partial class DetailsPanel : UserControl
                 Text              = hint.Action,
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming      = TextTrimming.CharacterEllipsis,
-                Style             = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
-                Foreground        = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                TextWrapping      = TextWrapping.NoWrap,
+                Style             = (Style)Application.Current.Resources["LeafSecondaryTextStyle"], // its ThemeResource color follows Leaf's theme
             });
 
             var legend = ShortcutLegend.Build(hint.Keys);
@@ -382,30 +382,24 @@ public sealed partial class DetailsPanel : UserControl
     // badge is the state). Narrator reads the button as the whole line
     void ShowResponse(ResponseStatus response)
     {
-        var badge = Core.Events.ResponseBadge.For(response);
-        var (text, fill, glyph) = BadgeLook(badge.Tone);
+        var badge          = Core.Events.ResponseBadge.For(response);
+        var (state, glyph) = BadgeLook(badge.Tone);
 
-        ResponseLabel.Text       = badge.Label;
-        ResponseLabel.Foreground = text;
-        ResponseGlyph.Glyph      = glyph;
-        ResponseGlyph.Foreground = text;
-        ResponseBadge.Background = fill;
+        ResponseLabel.Text  = badge.Label;
+        ResponseGlyph.Glyph = glyph;
+        VisualStateManager.GoToState(this, state, false);
         AutomationProperties.SetName(ResponseButton, badge.Spoken);
     }
 
-    // A tone's text color, soft fill, and icon (Segoe Fluent: CheckMark, Help, Cancel, Clock), from the theme's status
-    // brushes so light, dark, and contrast themes all read
-    static (Brush Text, Brush Fill, string Glyph) BadgeLook(ResponseTone tone)
+    // A tone's visual state (its text color and soft fill, the theme's status brushes in DetailsPanel.xaml, so light,
+    // dark, and contrast themes all read in Leaf's own theme) and its icon (Segoe Fluent: CheckMark, Help, Cancel, Clock)
+    static (string State, string Glyph) BadgeLook(ResponseTone tone) => tone switch
     {
-        var resources = Application.Current.Resources;
-        return tone switch
-        {
-            ResponseTone.Positive => ((Brush)resources["SystemFillColorSuccessBrush"], (Brush)resources["SystemFillColorSuccessBackgroundBrush"], "\uE73E"),
-            ResponseTone.Caution  => ((Brush)resources["SystemFillColorCautionBrush"], (Brush)resources["SystemFillColorCautionBackgroundBrush"], "\uE897"),
-            ResponseTone.Critical => ((Brush)resources["SystemFillColorCriticalBrush"], (Brush)resources["SystemFillColorCriticalBackgroundBrush"], "\uE711"),
-            _                                 => ((Brush)resources["TextFillColorSecondaryBrush"], (Brush)resources["SystemFillColorNeutralBackgroundBrush"], "\uE823"),
-        };
-    }
+        ResponseTone.Positive => ("PositiveTone", "\uE73E"),
+        ResponseTone.Caution  => ("CautionTone", "\uE897"),
+        ResponseTone.Critical => ("CriticalTone", "\uE711"),
+        _                     => ("NeutralTone", "\uE823"),
+    };
 
     static string GuestDetail(Guest guest)
     {

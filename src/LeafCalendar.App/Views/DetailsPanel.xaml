@@ -11,6 +11,41 @@
     <!-- Top padding clears the title bar row this panel runs under; the details scroll as one, the editor has its own
          scroll and a pinned footer -->
     <Grid Padding="0,48,0,0">
+        <!-- Reply Badge Tones (the theme's status brushes, resolved for Leaf's own theme, not Windows'; set from code by the reply) -->
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="ResponseTones">
+                <VisualState x:Name="NeutralTone">
+                    <VisualState.Setters>
+                        <Setter Target="ResponseLabel.Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Setter Target="ResponseGlyph.Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Setter Target="ResponseBadge.Background" Value="{ThemeResource SystemFillColorNeutralBackgroundBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="PositiveTone">
+                    <VisualState.Setters>
+                        <Setter Target="ResponseLabel.Foreground" Value="{ThemeResource SystemFillColorSuccessBrush}" />
+                        <Setter Target="ResponseGlyph.Foreground" Value="{ThemeResource SystemFillColorSuccessBrush}" />
+                        <Setter Target="ResponseBadge.Background" Value="{ThemeResource SystemFillColorSuccessBackgroundBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="CautionTone">
+                    <VisualState.Setters>
+                        <Setter Target="ResponseLabel.Foreground" Value="{ThemeResource SystemFillColorCautionBrush}" />
+                        <Setter Target="ResponseGlyph.Foreground" Value="{ThemeResource SystemFillColorCautionBrush}" />
+                        <Setter Target="ResponseBadge.Background" Value="{ThemeResource SystemFillColorCautionBackgroundBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="CriticalTone">
+                    <VisualState.Setters>
+                        <Setter Target="ResponseLabel.Foreground" Value="{ThemeResource SystemFillColorCriticalBrush}" />
+                        <Setter Target="ResponseGlyph.Foreground" Value="{ThemeResource SystemFillColorCriticalBrush}" />
+                        <Setter Target="ResponseBadge.Background" Value="{ThemeResource SystemFillColorCriticalBackgroundBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+        <!-- /Reply Badge Tones -->
+
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
