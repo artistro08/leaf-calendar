@@ -392,8 +392,8 @@
                 <StackPanel Spacing="4">
                     <TextBlock Text="Description" />
 
-                    <!-- Description Box (the toolbar is its own row laid over the box, inside its border; the box's top
-                         padding, set in LoadDescription, keeps typed text below the buttons) -->
+                    <!-- Description Box (the toolbar is its own row laid over the box, inside its border, with a divider
+                         under it; the box's top padding, set in LoadDescription, keeps typed text below the divider) -->
                     <Grid>
                         <RichEditBox
                             x:Name="DescriptionBox"
@@ -408,78 +408,126 @@
                             TextChanged="OnDescriptionTextChanged"
                             SelectionChanged="OnDescriptionSelectionChanged" />
 
-                        <!-- Description Toolbar (hidden when the description is read-only) -->
-                        <StackPanel
-                            x:Name="DescriptionToolbar"
-                            Margin="4,4,4,0"
-                            VerticalAlignment="Top"
-                            Orientation="Horizontal"
-                            Spacing="4">
-                            <ToggleButton
-                                x:Name="BoldButton"
-                                Width="32"
-                                Height="32"
-                                Padding="0"
-                                AllowFocusOnInteraction="False"
-                                Click="OnBoldClick"
-                                ToolTipService.ToolTip="Bold (Ctrl+B)"
-                                AutomationProperties.Name="Bold"
-                                AutomationProperties.AutomationId="DescriptionBold">
-                                <FontIcon Glyph="&#xE8DD;" FontSize="16" />
-                            </ToggleButton>
-                            <ToggleButton
-                                x:Name="ItalicButton"
-                                Width="32"
-                                Height="32"
-                                Padding="0"
-                                AllowFocusOnInteraction="False"
-                                Click="OnItalicClick"
-                                ToolTipService.ToolTip="Italic (Ctrl+I)"
-                                AutomationProperties.Name="Italic"
-                                AutomationProperties.AutomationId="DescriptionItalic">
-                                <FontIcon Glyph="&#xE8DB;" FontSize="16" />
-                            </ToggleButton>
-                            <ToggleButton
-                                x:Name="UnderlineButton"
-                                Width="32"
-                                Height="32"
-                                Padding="0"
-                                AllowFocusOnInteraction="False"
-                                Click="OnUnderlineClick"
-                                ToolTipService.ToolTip="Underline (Ctrl+U)"
-                                AutomationProperties.Name="Underline"
-                                AutomationProperties.AutomationId="DescriptionUnderline">
-                                <FontIcon Glyph="&#xE8DC;" FontSize="16" />
-                            </ToggleButton>
-                            <ToggleButton
-                                x:Name="BulletsButton"
-                                Width="32"
-                                Height="32"
-                                Padding="0"
-                                AllowFocusOnInteraction="False"
-                                Click="OnBulletsClick"
-                                ToolTipService.ToolTip="Bulleted list"
-                                AutomationProperties.Name="Bulleted list"
-                                AutomationProperties.AutomationId="DescriptionBullets">
-                                <FontIcon Glyph="&#xE8FD;" FontSize="16" />
-                            </ToggleButton>
-                            <ToggleButton
-                                x:Name="NumbersButton"
-                                Width="32"
-                                Height="32"
-                                Padding="0"
-                                AllowFocusOnInteraction="False"
-                                Click="OnNumbersClick"
-                                ToolTipService.ToolTip="Numbered list"
-                                AutomationProperties.Name="Numbered list"
-                                AutomationProperties.AutomationId="DescriptionNumbers">
-                                <!-- Segoe Fluent Icons has no numbered list glyph: 1, 2, 3 beside three lines on the 16 DIP grid, 1 px strokes -->
-                                <PathIcon
-                                    Width="16"
-                                    Height="16"
-                                    Data="M2,1 H3 V5 H2 Z M1,6 H4 V7 H1 Z M3,7 H4 V8 H3 Z M1,7.5 H4 V8.5 H1 Z M1,8.5 H2 V10 H1 Z M1,9 H4 V10 H1 Z M1,11 H4 V12 H1 Z M3,12 H4 V15 H3 Z M1.5,12.5 H4 V13.5 H1.5 Z M1,14 H4 V15 H1 Z M6,2.5 H15 V3.5 H6 Z M6,7.5 H15 V8.5 H6 Z M6,12.5 H15 V13.5 H6 Z" />
-                            </ToggleButton>
-                        </StackPanel>
+                        <!-- Description Toolbar (hidden when the description is read-only). The toggles are bare glyphs: no
+                             fill or border in any state, and an active format shows its glyph in the accent color -->
+                        <Grid x:Name="DescriptionToolbar" VerticalAlignment="Top" RowDefinitions="Auto,Auto">
+                            <Grid.Resources>
+                                <ResourceDictionary>
+                                    <ResourceDictionary.ThemeDictionaries>
+                                        <ResourceDictionary x:Key="Default">
+                                            <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushPointerOver" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushPressed" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="Transparent" />
+                                            <StaticResource x:Key="ToggleButtonForegroundChecked" ResourceKey="AccentTextFillColorPrimaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="AccentTextFillColorSecondaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonForegroundCheckedPressed" ResourceKey="AccentTextFillColorTertiaryBrush" />
+                                        </ResourceDictionary>
+                                        <ResourceDictionary x:Key="HighContrast">
+                                            <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushPointerOver" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushPressed" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="{ThemeResource SystemColorHighlightColor}" />
+                                            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
+                                            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="{ThemeResource SystemColorHighlightColor}" />
+                                        </ResourceDictionary>
+                                    </ResourceDictionary.ThemeDictionaries>
+                                </ResourceDictionary>
+                            </Grid.Resources>
+
+                            <!-- Format Buttons -->
+                            <StackPanel Margin="4" Orientation="Horizontal" Spacing="4">
+                                <ToggleButton
+                                    x:Name="BoldButton"
+                                    Width="32"
+                                    Height="32"
+                                    Padding="0"
+                                    AllowFocusOnInteraction="False"
+                                    Click="OnBoldClick"
+                                    ToolTipService.ToolTip="Bold (Ctrl+B)"
+                                    AutomationProperties.Name="Bold"
+                                    AutomationProperties.AutomationId="DescriptionBold">
+                                    <FontIcon Glyph="&#xE8DD;" FontSize="16" />
+                                </ToggleButton>
+                                <ToggleButton
+                                    x:Name="ItalicButton"
+                                    Width="32"
+                                    Height="32"
+                                    Padding="0"
+                                    AllowFocusOnInteraction="False"
+                                    Click="OnItalicClick"
+                                    ToolTipService.ToolTip="Italic (Ctrl+I)"
+                                    AutomationProperties.Name="Italic"
+                                    AutomationProperties.AutomationId="DescriptionItalic">
+                                    <FontIcon Glyph="&#xE8DB;" FontSize="16" />
+                                </ToggleButton>
+                                <ToggleButton
+                                    x:Name="UnderlineButton"
+                                    Width="32"
+                                    Height="32"
+                                    Padding="0"
+                                    AllowFocusOnInteraction="False"
+                                    Click="OnUnderlineClick"
+                                    ToolTipService.ToolTip="Underline (Ctrl+U)"
+                                    AutomationProperties.Name="Underline"
+                                    AutomationProperties.AutomationId="DescriptionUnderline">
+                                    <FontIcon Glyph="&#xE8DC;" FontSize="16" />
+                                </ToggleButton>
+                                <ToggleButton
+                                    x:Name="BulletsButton"
+                                    Width="32"
+                                    Height="32"
+                                    Padding="0"
+                                    AllowFocusOnInteraction="False"
+                                    Click="OnBulletsClick"
+                                    ToolTipService.ToolTip="Bulleted list"
+                                    AutomationProperties.Name="Bulleted list"
+                                    AutomationProperties.AutomationId="DescriptionBullets">
+                                    <FontIcon Glyph="&#xE8FD;" FontSize="16" />
+                                </ToggleButton>
+                                <ToggleButton
+                                    x:Name="NumbersButton"
+                                    Width="32"
+                                    Height="32"
+                                    Padding="0"
+                                    AllowFocusOnInteraction="False"
+                                    Click="OnNumbersClick"
+                                    ToolTipService.ToolTip="Numbered list"
+                                    AutomationProperties.Name="Numbered list"
+                                    AutomationProperties.AutomationId="DescriptionNumbers">
+                                    <!-- Segoe Fluent Icons has no numbered list glyph: 1, 2, 3 beside three lines on the 16 DIP grid, 1 px strokes -->
+                                    <PathIcon
+                                        Width="16"
+                                        Height="16"
+                                        Data="M2,1 H3 V5 H2 Z M1,6 H4 V7 H1 Z M3,7 H4 V8 H3 Z M1,7.5 H4 V8.5 H1 Z M1,8.5 H2 V10 H1 Z M1,9 H4 V10 H1 Z M1,11 H4 V12 H1 Z M3,12 H4 V15 H3 Z M1.5,12.5 H4 V13.5 H1.5 Z M1,14 H4 V15 H1 Z M6,2.5 H15 V3.5 H6 Z M6,7.5 H15 V8.5 H6 Z M6,12.5 H15 V13.5 H6 Z" />
+                                </ToggleButton>
+                            </StackPanel>
+
+                            <!-- Divider (1 px, inside the box's border, between the toolbar and the text) -->
+                            <Border
+                                Grid.Row="1"
+                                Height="1"
+                                Margin="1,0"
+                                Background="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                AutomationProperties.AutomationId="DescriptionToolbarDivider" />
+                        </Grid>
                         <!-- /Description Toolbar -->
                     </Grid>
                     <!-- /Description Box -->

@@ -547,9 +547,9 @@ public sealed partial class EventEditorView : UserControl
     // =========================================================================
 
     // The stock text box padding (TextControlThemePadding), and the same with the toolbar row on top: 4 margin, the 32
-    // buttons, then 4 more before the first line
+    // buttons, 4 margin, the 1 px divider, then 4 more before the first line
     static readonly Thickness TextPadding        = new(10, 5, 6, 6);
-    static readonly Thickness ToolbarTextPadding = new(10, 40, 6, 6);
+    static readonly Thickness ToolbarTextPadding = new(10, 45, 6, 6);
 
     List<(string Text, Uri Link)> _anchors = [];
     bool _descriptionTouched;
