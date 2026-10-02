@@ -58,6 +58,54 @@ public sealed class AlertPlannerTests : IDisposable
         Assert.Null(alert.MeetingLink);
     }
 
+    // One shared calendar in two more accounts: shown under "222" with no reminder, and under "333" with a 30-minute one
+    const string Shared = "jazmin@group.calendar.google.com";
+
+    void AddSharedCalendar(bool hiddenUnder333)
+    {
+        using var conn = _db.Database.Open();
+        foreach (var (id, reminders) in new[] { ("222", new List<ReminderOverride>()), ("333", [new ReminderOverride { Method = "popup", Minutes = 30 }]) })
+        {
+            AccountStore.Upsert(conn, new Account(id, $"{id}@example.com", null, null, AccountStatus.Ok));
+            CalendarStore.ReplaceForAccount(conn, id, [new CalendarListEntry { Id = Shared, Summary = "Jazmin", AccessRole = "reader", Selected = true, DefaultReminders = reminders }]);
+        }
+
+        CalendarStore.SetHidden(conn, "333", Shared, hiddenUnder333);
+    }
+
+    void InsertShared(string accountId)
+    {
+        using var conn = _db.Database.Open();
+        EventStore.ApplyJson(conn, null, accountId, Shared, """
+            {"id":"evt-shared","status":"confirmed","summary":"Dinner","start":{"dateTime":"2026-10-02T23:00:00Z"},"end":{"dateTime":"2026-10-03T00:00:00Z"},
+             "reminders":{"useDefault":true}}
+            """);
+    }
+
+    [Fact]
+    public void Plan_SharedCalendar_RemindsFromTheShownCopyWithTheHiddenCopysDefault()
+    {
+        AddSharedCalendar(hiddenUnder333: true);
+        InsertShared("222");
+        InsertShared("333");
+
+        var alert = Assert.Single(Plan(Utc(10, 2, 22), Utc(10, 2, 23)));
+
+        Assert.Equal("222", alert.Occurrence.AccountId);
+        Assert.Equal(Utc(10, 2, 22, 30), alert.FireAt);
+        Assert.Equal(30, alert.MinutesBefore);
+    }
+
+    [Fact]
+    public void Plan_SharedCalendarShownTwice_RemindsOnce()
+    {
+        AddSharedCalendar(hiddenUnder333: false);
+        InsertShared("222");
+        InsertShared("333");
+
+        Assert.Single(Plan(Utc(10, 2, 22), Utc(10, 2, 23)));
+    }
+
     [Fact]
     public void Plan_Overrides_ReplaceTheDefaultsAndSkipEmail()
     {

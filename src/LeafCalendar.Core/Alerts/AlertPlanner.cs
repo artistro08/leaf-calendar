@@ -34,8 +34,9 @@ public sealed record Alert(AlertKind Kind, CalendarOccurrence Occurrence, DateTi
 /// <remarks>
 /// <para>
 /// An event on <c>reminders.useDefault</c> (or with no <c>reminders</c> at all) gets its calendar's default popups; one
-/// with overrides gets its own popups instead. Email reminders are Google's to send. Timed reminders count back from the
-/// start; all-day ones from local midnight of the first day, and only from overrides, since Google's API doesn't expose
+/// with overrides gets its own popups instead. A calendar in several of your accounts takes the defaults set under any
+/// of them, and reminds once even when it's shown under more than one. Email reminders are Google's to send. Timed
+/// reminders count back from the start; all-day ones from local midnight of the first day, and only from overrides, since Google's API doesn't expose
 /// the all-day defaults. Minutes outside 0–40,320 (Google's range) are ignored.
 /// </para>
 /// <para>
@@ -94,7 +95,11 @@ public static class AlertPlanner
             }
         }
 
-        return [.. alerts.OrderBy(a => a.FireAt).ThenBy(a => a.Kind)];
+        // A Calendar Shown Under Two Accounts Reminds Once (the first account's copy)
+        return [.. alerts
+            .OrderBy(a => a.FireAt)
+            .ThenBy(a => a.Kind)
+            .DistinctBy(a => (a.Kind, a.Occurrence.CalendarId, a.Occurrence.EventId, a.Occurrence.Start, a.MinutesBefore))];
     }
 
     static DateOnly LocalDate(DateTimeOffset instant, TimeZoneInfo zone) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, zone).DateTime);
