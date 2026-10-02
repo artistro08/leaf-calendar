@@ -339,6 +339,12 @@ public sealed partial class CalendarPage
             sheet.Translation = away;
             sheet.Loaded += (_, _) => DispatcherQueue.TryEnqueue(() =>
             {
+                // Closed Before It Came On Screen: it stays out (its own close slid it away)
+                if (_sheet != sheet)
+                {
+                    return;
+                }
+
                 sheet.TranslationTransition = new Vector3Transition { Duration = SheetSlide };
                 sheet.Translation           = home;
             });
@@ -348,16 +354,30 @@ public sealed partial class CalendarPage
         sheet.IsHitTestVisible      = false;
         sheet.TranslationTransition = new Vector3Transition { Duration = SheetSlide };
         sheet.Translation           = away;
+
+        // One Sheet Leaving At A Time: one still sliding out from an earlier close goes now, so none is left behind
         _sheetGone?.Stop();
-        _sheetGone = DispatcherQueue.CreateTimer();
+        RemoveLeavingSheet();
+        _sheetLeaving = sheet;
+        _sheetGone    = DispatcherQueue.CreateTimer();
         _sheetGone.Interval    = SheetSlide;
         _sheetGone.IsRepeating = false;
-        _sheetGone.Tick       += (_, _) => Island.Children.Remove(sheet);
+        _sheetGone.Tick       += (_, _) => RemoveLeavingSheet();
         _sheetGone.Start();
     }
 
-    // Removes a closed sheet once it has slid out (held so it lives until it fires)
+    // Removes a closed sheet once it has slid out (held so it lives until it fires), and the sheet it removes
     Microsoft.UI.Dispatching.DispatcherQueueTimer? _sheetGone;
+    Border? _sheetLeaving;
+
+    void RemoveLeavingSheet()
+    {
+        if (_sheetLeaving is { } leaving)
+        {
+            Island.Children.Remove(leaving);
+            _sheetLeaving = null;
+        }
+    }
 
     void Float(UIElement card)
     {
