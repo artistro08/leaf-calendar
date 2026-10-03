@@ -55,7 +55,8 @@
 
                 <!-- Upcoming -->
                 <StackPanel x:Name="UpcomingView" Spacing="8">
-                    <Grid ColumnSpacing="8" ColumnDefinitions="*,Auto">
+                    <!-- Header (hidden with "Done for today", which says it all; one calendar's list keeps it for Show all) -->
+                    <Grid x:Name="UpcomingHeaderRow" ColumnSpacing="8" ColumnDefinitions="*,Auto">
                         <TextBlock
                             x:Name="UpcomingHeader"
                             VerticalAlignment="Center"

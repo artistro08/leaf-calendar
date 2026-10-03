@@ -70,10 +70,12 @@ public sealed partial class DetailsPanel : UserControl
     // the upcoming list is what the panel shows
     void UpdateUpcomingEmpty()
     {
-        var showing = ContentScroll.Visibility == Visibility.Visible && UpcomingView.Visibility == Visibility.Visible;
-        UpcomingEmpty.Visibility = showing && _vm?.Upcoming.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        UpcomingEmptyTitle.Text  = _vm?.UpcomingCalendar is null ? "Done for today" : "All clear";
-        UpcomingEmptyDetail.Text = _vm?.UpcomingCalendar is null
+        var showing                  = ContentScroll.Visibility == Visibility.Visible && UpcomingView.Visibility == Visibility.Visible;
+        var empty                    = showing && _vm?.Upcoming.Count == 0;
+        UpcomingEmpty.Visibility     = empty ? Visibility.Visible : Visibility.Collapsed;
+        UpcomingHeaderRow.Visibility = empty && _vm?.UpcomingCalendar is null ? Visibility.Collapsed : Visibility.Visible;
+        UpcomingEmptyTitle.Text      = _vm?.UpcomingCalendar is null ? "Done for today" : "All clear";
+        UpcomingEmptyDetail.Text     = _vm?.UpcomingCalendar is null
             ? string.Create(CultureInfo.InvariantCulture, $"Nothing in the next {_vm?.UpcomingHours ?? 8} hours.")
             : "Nothing in the next 30 days.";
     }
