@@ -40,7 +40,7 @@ public sealed partial class TrayHost : Window
     static readonly TimeSpan ExitDuration  = TimeSpan.FromMilliseconds(167);
 
     // The icon click that closed the flyout or menu (by taking focus, or a press outside) arrives just after the close,
-    // so it mustn't reopen the flyout
+    // so it mustn't open either again
     const long ReopenGuardMs = 300;
 
     readonly AppLog _log;
@@ -114,6 +114,12 @@ public sealed partial class TrayHost : Window
     /// <summary>Opens the menu for a right-click at a screen point (physical pixels), growing away from the taskbar.</summary>
     public void ShowMenu(int x, int y, AppTheme theme)
     {
+        // The Icon Click That Just Closed The Menu (the press watch) Mustn't Open It Again On Its Release
+        if (Environment.TickCount64 - _dismissedAt < ReopenGuardMs)
+        {
+            return;
+        }
+
         try
         {
             // One Popup At A Time (a second right-click moves the menu). The flyout goes at once, not by its slide: closing
