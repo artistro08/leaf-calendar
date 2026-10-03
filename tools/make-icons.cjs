@@ -25,11 +25,41 @@ const inner = source.slice(source.indexOf(open) + open.length, source.lastIndexO
 const namespaces = (open.match(/xmlns(:\w+)?="[^"]*"/g) || []).join(' ');
 
 // The logo at size `logo`, centered on a transparent w x h canvas
-function logo(w, h, size) {
+function render(w, h, size) {
     const x = (w - size) / 2, y = (h - size) / 2;
     const svg = `<svg ${namespaces} width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
         `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="${viewBox}" style="${style}">${inner}</svg></svg>`;
-    return new Resvg(svg, { fitTo: { mode: 'original' } }).render().asPng();
+    return new Resvg(svg, { fitTo: { mode: 'original' } }).render();
+}
+
+function logo(w, h, size) {
+    return render(w, h, size).asPng();
+}
+
+// The logo as an uncompressed 32-bit icon image (a BITMAPINFOHEADER with the height doubled, BGRA rows bottom up, then
+// an all-clear AND mask): the taskbar and title bar show a generic icon for PNG-compressed images below 256 px
+function dib(size) {
+    const px = render(size, size, size).pixels;
+    const rowBytes = size * 4, maskBytes = Math.ceil(size / 32) * 4;
+    const buf = Buffer.alloc(40 + rowBytes * size + maskBytes * size);
+    buf.writeUInt32LE(40, 0);
+    buf.writeInt32LE(size, 4);
+    buf.writeInt32LE(size * 2, 8);
+    buf.writeUInt16LE(1, 12);
+    buf.writeUInt16LE(32, 14);
+    buf.writeUInt32LE(0, 16);
+    buf.writeUInt32LE(rowBytes * size + maskBytes * size, 20);
+    for (let y = 0; y < size; y++) {
+        const src = (size - 1 - y) * rowBytes, dst = 40 + y * rowBytes;
+        for (let x = 0; x < size; x++) {
+            const s = src + x * 4, d = dst + x * 4;
+            buf[d] = px[s + 2];
+            buf[d + 1] = px[s + 1];
+            buf[d + 2] = px[s];
+            buf[d + 3] = px[s + 3];
+        }
+    }
+    return buf;
 }
 
 function write(file, png) {
@@ -58,9 +88,9 @@ for (const size of [16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256]) {
 // (BitmapImage.DecodePixelWidth, logical), which scales with a smooth filter; a shown image shrunk later is jagged
 write('AppLogo.png', logo(512, 512, 512));
 
-// Window And Exe Icon: one PNG image per size, so Windows picks an exact one instead of scaling
+// Window And Exe Icon: one image per size, so Windows picks an exact one instead of scaling; uncompressed below 256
 const icoSizes = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256];
-const images = icoSizes.map(size => logo(size, size, size));
+const images = icoSizes.map(size => size >= 256 ? logo(size, size, size) : dib(size));
 const header = Buffer.alloc(6 + 16 * images.length);
 header.writeUInt16LE(0, 0);
 header.writeUInt16LE(1, 2);

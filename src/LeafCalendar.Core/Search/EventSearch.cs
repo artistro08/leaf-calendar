@@ -122,15 +122,18 @@ public static partial class EventSearch
             }
         }
 
-        return hits
+        return Order(hits, now);
+    }
+
+    // Each event once, title matches first, then upcoming (soonest first), then past (newest first), at most MaxResults
+    static List<SearchHit> Order(List<(SearchHit Hit, string Key)> hits, DateTimeOffset now) =>
+        [.. hits
             .DistinctBy(h => h.Key)
             .Select(h => h.Hit)
             .OrderBy(h => h.Field == SearchField.Title ? 0 : 1)
             .ThenBy(h => h.End > now ? 0 : 1)
             .ThenBy(h => h.End > now ? h.Start.UtcTicks : -h.Start.UtcTicks)
-            .Take(MaxResults)
-            .ToList();
-    }
+            .Take(MaxResults)];
 
     // =========================================================================
     // MATCHING
@@ -140,25 +143,32 @@ public static partial class EventSearch
     /// The event's title, color ID, and the best field the first word is found in, when every word is found in the
     /// title, location, guests (addresses and names), or plain-text description; null otherwise or for malformed JSON.
     /// </summary>
-    static (string Title, string? ColorId, SearchField Field)? Match(string rawJson, IReadOnlyList<string> words)
+    static (string Title, string? ColorId, SearchField Field)? Match(string rawJson, IReadOnlyList<string> words) =>
+        Parse(rawJson) is { } parsed && BestField(parsed.Fields, words) is { } field ? (parsed.Title, parsed.ColorId, field) : null;
+
+    // The event's title and color ID, and its searchable fields (title, location, guests, plain description); null for malformed JSON
+    static (string Title, string? ColorId, string[] Fields)? Parse(string rawJson)
     {
         try
         {
             var details = EventDetailsParser.Parse(rawJson);
-            string[] fields = [details.Title, details.Location ?? "", Guests(rawJson), details.Description];
-
-            if (!words.All(w => fields.Any(f => f.Contains(w, StringComparison.OrdinalIgnoreCase))))
-            {
-                return null;
-            }
-
-            var best = Array.FindIndex(fields, f => f.Contains(words[0], StringComparison.OrdinalIgnoreCase));
-            return (details.Title, details.ColorId, (SearchField)best);
+            return (details.Title, details.ColorId, [details.Title, details.Location ?? "", Guests(rawJson), details.Description]);
         }
         catch (JsonException)
         {
             return null;
         }
+    }
+
+    // The field the first word is found in, when every word is found in some field; null otherwise
+    static SearchField? BestField(string[] fields, IReadOnlyList<string> words)
+    {
+        if (!words.All(w => fields.Any(f => f.Contains(w, StringComparison.OrdinalIgnoreCase))))
+        {
+            return null;
+        }
+
+        return (SearchField)Array.FindIndex(fields, f => f.Contains(words[0], StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>Every guest's address and display name, one per line.</summary>

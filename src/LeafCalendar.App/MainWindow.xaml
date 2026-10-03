@@ -247,10 +247,6 @@
             Opacity="0"
             Visibility="Collapsed"
             AutomationProperties.Name="Command menu backdrop"
-            AutomationProperties.AutomationId="CommandMenuDim">
-            <Border.OpacityTransition>
-                <ScalarTransition Duration="0:0:0.167" />
-            </Border.OpacityTransition>
-        </Border>
+            AutomationProperties.AutomationId="CommandMenuDim" />
     </Grid>
 </Window>

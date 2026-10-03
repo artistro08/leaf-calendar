@@ -64,6 +64,7 @@ internal sealed unsafe class TrayIcon : IDisposable
     int _iconSize;
     readonly Guid _identity;
     bool _byGuid = true;
+    bool _visible;
     long _lastKeySelect;
 
     // Two key selects closer than this are Enter's one press
@@ -75,7 +76,7 @@ internal sealed unsafe class TrayIcon : IDisposable
     /// <summary>Creates the hidden window and adds the icon showing <paramref name="day"/> (1–31). Only one may exist.</summary>
     /// <exception cref="InvalidOperationException">A tray icon already exists.</exception>
     /// <exception cref="Win32Exception">The window couldn't be created.</exception>
-    public TrayIcon(AppLog log, int day, string profile)
+    public TrayIcon(AppLog log, int day, string profile, bool visible = true)
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentOutOfRangeException.ThrowIfLessThan(day, 1);
@@ -89,6 +90,7 @@ internal sealed unsafe class TrayIcon : IDisposable
         _log      = log;
         _day      = day;
         _identity = IdentityFor(profile);
+        _visible  = visible;
         s_current = this;
 
         try
@@ -117,7 +119,10 @@ internal sealed unsafe class TrayIcon : IDisposable
 
             // Explorer Restarts Are Announced With This Message
             _taskbarCreated = PInvoke.RegisterWindowMessage("TaskbarCreated");
-            Add();
+            if (_visible)
+            {
+                Add();
+            }
         }
         catch
         {
@@ -148,6 +153,28 @@ internal sealed unsafe class TrayIcon : IDisposable
 
     /// <summary>The hidden window (global shortcuts are registered on it).</summary>
     public nint Handle => _hwnd;
+
+    /// <summary>
+    /// Shows or hides the icon (the hidden window stays either way: the global shortcuts are registered on it). Hidden,
+    /// Leaf runs in the background with nothing in the notification area.
+    /// </summary>
+    public void SetVisible(bool visible)
+    {
+        if (_disposed || visible == _visible)
+        {
+            return;
+        }
+
+        _visible = visible;
+        if (visible)
+        {
+            Add();
+            return;
+        }
+
+        var data = Data(0);
+        PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_DELETE, in data);
+    }
 
     /// <summary>Shows another day of the month (1–31) on the icon; the same day does nothing.</summary>
     public void SetDay(int day)
@@ -387,7 +414,11 @@ internal sealed unsafe class TrayIcon : IDisposable
         if (_taskbarCreated != 0 && message == _taskbarCreated)
         {
             _byGuid = true;
-            Add();
+            if (_visible)
+            {
+                Add();
+            }
+
             return true;
         }
 

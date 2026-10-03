@@ -226,7 +226,7 @@ public partial class App : Application
         // Tray Icon (without one Leaf still runs, and launching it again brings the window back)
         try
         {
-            _tray          = new TrayIcon(services.Log, TrayDay(), services.Options.Profile);
+            _tray          = new TrayIcon(services.Log, TrayDay(), services.Options.Profile, visible: !CurrentSettings().HideTrayIcon);
             _tray.Invoked += (_, _) => ToggleAgenda();
         }
         catch (Exception ex)
@@ -508,12 +508,14 @@ public partial class App : Application
         {
             _calendar              = new CalendarViewModel(_services!, _dispatcher!);
             _calendar.OpenSettings = OpenSettings;
+            _calendar.QuitApp      = Quit;
 
             // A Settings Change (the Tray page's days, all-day, lookahead; the primary zone) Shows In The Tray Right Away
             // Only when a tray setting changed or the day rolled over (other layout changes don't touch the tray)
             _calendar.LayoutChanged += (_, _) =>
             {
                 var s    = CurrentSettings();
+                _tray?.SetVisible(!s.HideTrayIcon);
                 var zone = DisplayZone.Resolve(null, s.PrimaryTimeZone, _zone.Zone);
                 var key  = (s.FlyoutDays, s.FlyoutAllDay, s.TrayLookaheadMinutes, s.Use24HourTime, Zone: s.PrimaryTimeZone, Today: TimeZoneInfo.ConvertTime(_services!.Time.GetUtcNow(), zone).Date);
                 if (key == _trayKey)
