@@ -6,149 +6,154 @@
     xmlns:vm="using:LeafCalendar.App.ViewModels">
 
     <ScrollViewer x:Name="PageScroll">
-        <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
-            <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Time zones" />
+        <!-- The column sits in a plain Grid, not straight in the scroller: a scroller's content is placed by its scroll
+             engine from its desired width (its natural content width, since MaxWidth counts as a set width), so a
+             capped, stretched column straight in the scroller lands right of center once the window is wider than it -->
+        <Grid>
+            <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
+                <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Time zones" />
 
-            <!-- Primary Time Zone (one expander, like Windows' "Time zone": Windows' zone by default, or one Leaf keeps when you travel) -->
-            <Expander
-                x:Name="PrimaryZoneExpander"
-                Style="{StaticResource LeafSettingExpanderStyle}"
-                AutomationProperties.Name="Primary time zone"
-                AutomationProperties.AutomationId="PrimaryZoneExpander">
-                <Expander.Header>
-                    <controls:SettingRow
-                        Style="{StaticResource LeafExpanderHeaderRowStyle}"
-                        Glyph="&#xE774;"
-                        Header="Primary time zone"
-                        Description="Your calendar shows this time zone.">
-                        <TextBlock
-                            x:Name="PrimaryZoneSummary"
-                            Style="{StaticResource LeafSecondaryTextStyle}"
-                            AutomationProperties.AutomationId="PrimaryZoneSummary" />
-                    </controls:SettingRow>
-                </Expander.Header>
-                <StackPanel>
-                    <controls:SettingRow
-                        Style="{StaticResource LeafExpanderItemRowStyle}"
-                        BorderThickness="0"
-                        Header="Use Windows time zone"
-                        Description="Leaf follows your PC's time zone, so your calendar changes when you travel.">
-                        <ToggleSwitch
-                            x:Name="FollowWindowsZoneSwitch"
-                            Style="{StaticResource LeafCardToggleSwitchStyle}"
-                            Toggled="OnFollowWindowsToggled"
-                            AutomationProperties.Name="Use Windows time zone"
-                            AutomationProperties.AutomationId="FollowWindowsZoneSwitch" />
-                    </controls:SettingRow>
-                    <controls:SettingRow
-                        Style="{StaticResource LeafExpanderItemRowStyle}"
-                        Header="Leaf's time zone">
-                        <controls:TimeZoneComboBox
-                            x:Name="PrimaryZoneBox"
-                            Width="320"
-                            IsEditable="True"
-                            IsTextSearchEnabled="True"
-                            ZoneChanged="OnPrimaryZoneChanged"
-                            AutomationProperties.Name="Leaf's time zone"
-                            AutomationProperties.AutomationId="PrimaryZoneBox" />
-                    </controls:SettingRow>
-                    <controls:SettingRow
-                        Style="{StaticResource LeafExpanderItemRowStyle}"
-                        Header="Ask when my PC's time zone changes"
-                        Description="Leaf offers to switch when you travel.">
-                        <ToggleSwitch
-                            x:Name="ZonePromptSwitch"
-                            Style="{StaticResource LeafCardToggleSwitchStyle}"
-                            Toggled="OnZonePromptToggled"
-                            AutomationProperties.Name="Ask when my PC's time zone changes"
-                            AutomationProperties.AutomationId="ZonePromptSwitch" />
-                    </controls:SettingRow>
-                </StackPanel>
-            </Expander>
-            <!-- /Primary Time Zone -->
-
-            <!-- Add -->
-            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Extra time zones" />
-            <controls:SettingRow
-                Glyph="&#xE774;"
-                Header="Add a time zone"
-                Description="Columns show left to right in this order, next to your PC's time zone. Drag to reorder.">
-                <AutoSuggestBox
-                    x:Name="Search"
-                    Width="320"
-                    PlaceholderText="Add a city or zone (Tokyo, NYC, UTC)"
-                    QueryIcon="Add"
-                    UpdateTextOnSelect="False"
-                    TextChanged="OnSearchTextChanged"
-                    SuggestionChosen="OnSuggestionChosen"
-                    QuerySubmitted="OnQuerySubmitted"
-                    AutomationProperties.Name="Add a time zone"
-                    AutomationProperties.AutomationId="TimeZoneSearch" />
-            </controls:SettingRow>
-            <TextBlock
-                x:Name="LimitText"
-                Margin="0,4,0,0"
-                Style="{StaticResource LeafSecondaryTextStyle}"
-                Text="You can show up to 4 extra time zones."
-                Visibility="Collapsed"
-                AutomationProperties.AutomationId="TimeZoneLimit" />
-
-            <!-- Current Zones (drag to reorder) -->
-            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Your time zones" />
-            <TextBlock
-                x:Name="EmptyText"
-                Style="{StaticResource LeafSecondaryTextStyle}"
-                Text="No extra time zones yet."
-                Visibility="Collapsed" />
-            <controls:PinnedListView
-                x:Name="ZoneList"
-                SelectionMode="None"
-                CanReorderItems="True"
-                CanDragItems="True"
-                AllowDrop="True"
-                DragItemsCompleted="OnReordered"
-                AutomationProperties.Name="Your time zones"
-                AutomationProperties.AutomationId="TimeZoneList">
-                <!-- Cards draw their own background, so the item's hover and press fills are off -->
-                <controls:PinnedListView.Resources>
-                    <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
-                    <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />
-                </controls:PinnedListView.Resources>
-                <controls:PinnedListView.ItemContainerStyle>
-                    <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
-                        <Setter Property="Padding" Value="0" />
-                        <Setter Property="Margin" Value="0,0,0,4" />
-                        <Setter Property="MinHeight" Value="0" />
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                    </Style>
-                </controls:PinnedListView.ItemContainerStyle>
-                <controls:PinnedListView.ItemTemplate>
-                    <DataTemplate x:DataType="vm:ZoneRow">
-                        <!-- Zone Row (label box, then remove) -->
-                        <controls:SettingRow Glyph="&#xE76F;" Header="{x:Bind City}" Description="{x:Bind Detail}">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBox
-                                    Width="180"
-                                    Text="{x:Bind Label, Mode=TwoWay}"
-                                    PlaceholderText="{x:Bind City}"
-                                    MaxLength="24"
-                                    LostFocus="OnLabelLostFocus"
-                                    AutomationProperties.Name="Column label"
-                                    AutomationProperties.AutomationId="{x:Bind LabelBoxId}" />
-                                <Button
-                                    Style="{StaticResource LeafIconButtonStyle}"
-                                    Click="OnRemoveClick"
-                                    Tag="{x:Bind}"
-                                    ToolTipService.ToolTip="Remove"
-                                    AutomationProperties.Name="Remove"
-                                    AutomationProperties.AutomationId="{x:Bind RemoveId}">
-                                    <FontIcon Glyph="&#xE74D;" FontSize="16" />
-                                </Button>
-                            </StackPanel>
+                <!-- Primary Time Zone (one expander, like Windows' "Time zone": Windows' zone by default, or one Leaf keeps when you travel) -->
+                <Expander
+                    x:Name="PrimaryZoneExpander"
+                    Style="{StaticResource LeafSettingExpanderStyle}"
+                    AutomationProperties.Name="Primary time zone"
+                    AutomationProperties.AutomationId="PrimaryZoneExpander">
+                    <Expander.Header>
+                        <controls:SettingRow
+                            Style="{StaticResource LeafExpanderHeaderRowStyle}"
+                            Glyph="&#xE774;"
+                            Header="Primary time zone"
+                            Description="Your calendar shows this time zone.">
+                            <TextBlock
+                                x:Name="PrimaryZoneSummary"
+                                Style="{StaticResource LeafSecondaryTextStyle}"
+                                AutomationProperties.AutomationId="PrimaryZoneSummary" />
                         </controls:SettingRow>
-                    </DataTemplate>
-                </controls:PinnedListView.ItemTemplate>
-            </controls:PinnedListView>
-        </StackPanel>
+                    </Expander.Header>
+                    <StackPanel>
+                        <controls:SettingRow
+                            Style="{StaticResource LeafExpanderItemRowStyle}"
+                            BorderThickness="0"
+                            Header="Use Windows time zone"
+                            Description="Leaf follows your PC's time zone, so your calendar changes when you travel.">
+                            <ToggleSwitch
+                                x:Name="FollowWindowsZoneSwitch"
+                                Style="{StaticResource LeafCardToggleSwitchStyle}"
+                                Toggled="OnFollowWindowsToggled"
+                                AutomationProperties.Name="Use Windows time zone"
+                                AutomationProperties.AutomationId="FollowWindowsZoneSwitch" />
+                        </controls:SettingRow>
+                        <controls:SettingRow
+                            Style="{StaticResource LeafExpanderItemRowStyle}"
+                            Header="Leaf's time zone">
+                            <controls:TimeZoneComboBox
+                                x:Name="PrimaryZoneBox"
+                                Width="320"
+                                IsEditable="True"
+                                IsTextSearchEnabled="True"
+                                ZoneChanged="OnPrimaryZoneChanged"
+                                AutomationProperties.Name="Leaf's time zone"
+                                AutomationProperties.AutomationId="PrimaryZoneBox" />
+                        </controls:SettingRow>
+                        <controls:SettingRow
+                            Style="{StaticResource LeafExpanderItemRowStyle}"
+                            Header="Ask when my PC's time zone changes"
+                            Description="Leaf offers to switch when you travel.">
+                            <ToggleSwitch
+                                x:Name="ZonePromptSwitch"
+                                Style="{StaticResource LeafCardToggleSwitchStyle}"
+                                Toggled="OnZonePromptToggled"
+                                AutomationProperties.Name="Ask when my PC's time zone changes"
+                                AutomationProperties.AutomationId="ZonePromptSwitch" />
+                        </controls:SettingRow>
+                    </StackPanel>
+                </Expander>
+                <!-- /Primary Time Zone -->
+
+                <!-- Add -->
+                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Extra time zones" />
+                <controls:SettingRow
+                    Glyph="&#xE774;"
+                    Header="Add a time zone"
+                    Description="Columns show left to right in this order, next to your PC's time zone. Drag to reorder.">
+                    <AutoSuggestBox
+                        x:Name="Search"
+                        Width="320"
+                        PlaceholderText="Add a city or zone (Tokyo, NYC, UTC)"
+                        QueryIcon="Add"
+                        UpdateTextOnSelect="False"
+                        TextChanged="OnSearchTextChanged"
+                        SuggestionChosen="OnSuggestionChosen"
+                        QuerySubmitted="OnQuerySubmitted"
+                        AutomationProperties.Name="Add a time zone"
+                        AutomationProperties.AutomationId="TimeZoneSearch" />
+                </controls:SettingRow>
+                <TextBlock
+                    x:Name="LimitText"
+                    Margin="0,4,0,0"
+                    Style="{StaticResource LeafSecondaryTextStyle}"
+                    Text="You can show up to 4 extra time zones."
+                    Visibility="Collapsed"
+                    AutomationProperties.AutomationId="TimeZoneLimit" />
+
+                <!-- Current Zones (drag to reorder) -->
+                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Your time zones" />
+                <TextBlock
+                    x:Name="EmptyText"
+                    Style="{StaticResource LeafSecondaryTextStyle}"
+                    Text="No extra time zones yet."
+                    Visibility="Collapsed" />
+                <controls:PinnedListView
+                    x:Name="ZoneList"
+                    SelectionMode="None"
+                    CanReorderItems="True"
+                    CanDragItems="True"
+                    AllowDrop="True"
+                    DragItemsCompleted="OnReordered"
+                    AutomationProperties.Name="Your time zones"
+                    AutomationProperties.AutomationId="TimeZoneList">
+                    <!-- Cards draw their own background, so the item's hover and press fills are off -->
+                    <controls:PinnedListView.Resources>
+                        <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
+                        <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />
+                    </controls:PinnedListView.Resources>
+                    <controls:PinnedListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Margin" Value="0,0,0,4" />
+                            <Setter Property="MinHeight" Value="0" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        </Style>
+                    </controls:PinnedListView.ItemContainerStyle>
+                    <controls:PinnedListView.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ZoneRow">
+                            <!-- Zone Row (label box, then remove) -->
+                            <controls:SettingRow Glyph="&#xE76F;" Header="{x:Bind City}" Description="{x:Bind Detail}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBox
+                                        Width="180"
+                                        Text="{x:Bind Label, Mode=TwoWay}"
+                                        PlaceholderText="{x:Bind City}"
+                                        MaxLength="24"
+                                        LostFocus="OnLabelLostFocus"
+                                        AutomationProperties.Name="Column label"
+                                        AutomationProperties.AutomationId="{x:Bind LabelBoxId}" />
+                                    <Button
+                                        Style="{StaticResource LeafIconButtonStyle}"
+                                        Click="OnRemoveClick"
+                                        Tag="{x:Bind}"
+                                        ToolTipService.ToolTip="Remove"
+                                        AutomationProperties.Name="Remove"
+                                        AutomationProperties.AutomationId="{x:Bind RemoveId}">
+                                        <FontIcon Glyph="&#xE74D;" FontSize="16" />
+                                    </Button>
+                                </StackPanel>
+                            </controls:SettingRow>
+                        </DataTemplate>
+                    </controls:PinnedListView.ItemTemplate>
+                </controls:PinnedListView>
+            </StackPanel>
+        </Grid>
     </ScrollViewer>
 </Page>

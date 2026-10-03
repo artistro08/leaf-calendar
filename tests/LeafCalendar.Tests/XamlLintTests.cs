@@ -252,6 +252,21 @@ public class XamlLintTests
         AssertNone(Failures(file, "root", hits));
     }
 
+    // A Scroller's Content Never Carries A Width: the scroll engine places the content from its desired width, which is the
+    // natural content width once Width, MinWidth or MaxWidth is set, so a capped, stretched column straight in a ScrollViewer
+    // lands right of center when the scroller is wider than it. The column goes in a plain Grid instead (the Settings pages).
+    [Theory, MemberData(nameof(Files))]
+    public void ScrollerContent_HasNoWidth(string file)
+    {
+        var hits = Load(file).Descendants()
+            .Where(e => e.Name.LocalName == "ScrollViewer")
+            .SelectMany(e => e.Elements().Where(c => !c.Name.LocalName.Contains('.')).Take(1))
+            .Where(c => Attr(c, "Width") is not null || Attr(c, "MinWidth") is not null || Attr(c, "MaxWidth") is not null || Attr(c, "Style")?.Contains("LeafSettingsPagePanelStyle", StringComparison.Ordinal) == true)
+            .Select(c => (c, Attr(c, "AutomationProperties.AutomationId") ?? Attr(c, "x:Name") ?? c.Name.LocalName));
+
+        AssertNone(Failures(file, "scroller-content-width", hits));
+    }
+
     // Section 14: Text Follows The System Text Size, So Text Elements Never Get A Fixed Height
     [Theory, MemberData(nameof(Files))]
     public void TextElements_HaveNoFixedHeight(string file)

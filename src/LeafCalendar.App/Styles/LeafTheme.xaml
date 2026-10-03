@@ -380,7 +380,9 @@
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
-    <!-- Settings Page Column (inside the page's full-width ScrollViewer: the content inset, capped at 1000 and centered past that, like Windows Settings) -->
+    <!-- Settings Page Column (in a plain Grid inside the page's full-width ScrollViewer: the content inset, capped at 1000 and
+         centered past that, like Windows Settings. Never the scroller's direct content: the scroll engine places that from its
+         desired width, which is the natural content width once MaxWidth is set, so the capped column lands right of center) -->
     <Style x:Key="LeafSettingsPagePanelStyle" TargetType="StackPanel">
         <Setter Property="MaxWidth" Value="1072" />
         <Setter Property="Padding" Value="36,24" />

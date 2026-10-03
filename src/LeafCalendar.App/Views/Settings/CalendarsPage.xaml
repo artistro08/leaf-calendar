@@ -7,90 +7,95 @@
     xmlns:local="using:LeafCalendar.App.Views.Settings">
 
     <ScrollViewer x:Name="PageScroll">
-        <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
-            <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Calendars" />
+        <!-- The column sits in a plain Grid, not straight in the scroller: a scroller's content is placed by its scroll
+             engine from its desired width (its natural content width, since MaxWidth counts as a set width), so a
+             capped, stretched column straight in the scroller lands right of center once the window is wider than it -->
+        <Grid>
+            <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
+                <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Calendars" />
 
-            <!-- Empty State -->
-            <TextBlock
-                x:Name="EmptyText"
-                Style="{StaticResource LeafSecondaryTextStyle}"
-                Text="No calendars yet. Add a Google account in Accounts."
-                Visibility="Collapsed" />
+                <!-- Empty State -->
+                <TextBlock
+                    x:Name="EmptyText"
+                    Style="{StaticResource LeafSecondaryTextStyle}"
+                    Text="No calendars yet. Add a Google account in Accounts."
+                    Visibility="Collapsed" />
 
-            <!-- Accounts (the -24 top margin cancels the first group header's gap below the page title) -->
-            <controls:PinnedItemsControl x:Name="GroupList" Margin="0,-24,0,0" IsTabStop="False" AutomationProperties.AutomationId="SettingsCalendarList">
-                <controls:PinnedItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:AccountGroup">
-                        <StackPanel Spacing="4">
-                            <!-- Account Header (click to fold the account's calendars away, the sidebar follows; the -8 margin and
-                                 8 padding keep the email on the cards' left edge with the hover fill reaching past it, and the
-                                 margin plus padding keep the group header's 24 above the text) -->
-                            <Button
-                                Margin="-8,16,0,0"
-                                Padding="8"
-                                Style="{StaticResource LeafFoldHeaderButtonStyle}"
-                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                                Click="OnAccountHeaderClick"
-                                Tag="{x:Bind}"
-                                ToolTipService.ToolTip="{x:Bind FoldTip, Mode=OneWay}"
-                                AutomationProperties.Name="{x:Bind Email, Mode=OneWay}"
-                                AutomationProperties.HelpText="{x:Bind FoldTip, Mode=OneWay}"
-                                AutomationProperties.AutomationId="{x:Bind HeaderId}">
-                                <Grid ColumnSpacing="8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{x:Bind Email, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
-                                    <FontIcon Grid.Column="1" FontSize="12" Glyph="{x:Bind Chevron, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
-                                </Grid>
-                            </Button>
-                            <controls:PinnedItemsControl ItemsSource="{x:Bind Calendars}" IsTabStop="False" Visibility="{x:Bind IsExpanded, Mode=OneWay}">
-                                <controls:PinnedItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Spacing="4" />
-                                    </ItemsPanelTemplate>
-                                </controls:PinnedItemsControl.ItemsPanel>
-                                <controls:PinnedItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:CalendarRow">
-                                        <!-- Calendar Row (color picker, then the show/hide switch) -->
-                                        <controls:SettingRow Header="{x:Bind Name, Mode=OneWay}" Description="{x:Bind local:CalendarsPage.ColorSource(Info), Mode=OneWay}">
-                                            <StackPanel Orientation="Horizontal" Spacing="16">
-                                                <DropDownButton
-                                                    Click="OnColorClick"
-                                                    Tag="{x:Bind}"
-                                                    ToolTipService.ToolTip="Change color"
-                                                    AutomationProperties.Name="{x:Bind local:CalendarsPage.ColorName(Name), Mode=OneWay}"
-                                                    AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.ColorId(Info)}">
-                                                    <Ellipse Width="16" Height="16" Fill="{x:Bind local:CalendarsPage.BrushFor(Color), Mode=OneWay}" />
-                                                </DropDownButton>
-                                                <ToggleSwitch
-                                                    Style="{StaticResource LeafCardToggleSwitchStyle}"
-                                                    IsOn="{x:Bind IsVisible, Mode=OneWay}"
-                                                    Toggled="OnVisibleToggled"
-                                                    Tag="{x:Bind}"
-                                                    ToolTipService.ToolTip="Show in Leaf"
-                                                    AutomationProperties.Name="{x:Bind Name, Mode=OneWay}"
-                                                    AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.VisibleId(Info)}" />
-                                                <Button
-                                                    Style="{StaticResource LeafIconButtonStyle}"
-                                                    Click="OnMoreClick"
-                                                    Tag="{x:Bind}"
-                                                    ToolTipService.ToolTip="More options"
-                                                    AutomationProperties.Name="{x:Bind local:CalendarsPage.MoreName(Name), Mode=OneWay}"
-                                                    AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.MoreId(Info)}">
-                                                    <FontIcon Glyph="&#xE712;" FontSize="16" />
-                                                </Button>
-                                            </StackPanel>
-                                        </controls:SettingRow>
-                                    </DataTemplate>
-                                </controls:PinnedItemsControl.ItemTemplate>
-                            </controls:PinnedItemsControl>
-                        </StackPanel>
-                    </DataTemplate>
-                </controls:PinnedItemsControl.ItemTemplate>
-            </controls:PinnedItemsControl>
-            <!-- /Accounts -->
-        </StackPanel>
+                <!-- Accounts (the -24 top margin cancels the first group header's gap below the page title) -->
+                <controls:PinnedItemsControl x:Name="GroupList" Margin="0,-24,0,0" IsTabStop="False" AutomationProperties.AutomationId="SettingsCalendarList">
+                    <controls:PinnedItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AccountGroup">
+                            <StackPanel Spacing="4">
+                                <!-- Account Header (click to fold the account's calendars away, the sidebar follows; the -8 margin and
+                                     8 padding keep the email on the cards' left edge with the hover fill reaching past it, and the
+                                     margin plus padding keep the group header's 24 above the text) -->
+                                <Button
+                                    Margin="-8,16,0,0"
+                                    Padding="8"
+                                    Style="{StaticResource LeafFoldHeaderButtonStyle}"
+                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                    Click="OnAccountHeaderClick"
+                                    Tag="{x:Bind}"
+                                    ToolTipService.ToolTip="{x:Bind FoldTip, Mode=OneWay}"
+                                    AutomationProperties.Name="{x:Bind Email, Mode=OneWay}"
+                                    AutomationProperties.HelpText="{x:Bind FoldTip, Mode=OneWay}"
+                                    AutomationProperties.AutomationId="{x:Bind HeaderId}">
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{x:Bind Email, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                                        <FontIcon Grid.Column="1" FontSize="12" Glyph="{x:Bind Chevron, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
+                                    </Grid>
+                                </Button>
+                                <controls:PinnedItemsControl ItemsSource="{x:Bind Calendars}" IsTabStop="False" Visibility="{x:Bind IsExpanded, Mode=OneWay}">
+                                    <controls:PinnedItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Spacing="4" />
+                                        </ItemsPanelTemplate>
+                                    </controls:PinnedItemsControl.ItemsPanel>
+                                    <controls:PinnedItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:CalendarRow">
+                                            <!-- Calendar Row (color picker, then the show/hide switch) -->
+                                            <controls:SettingRow Header="{x:Bind Name, Mode=OneWay}" Description="{x:Bind local:CalendarsPage.ColorSource(Info), Mode=OneWay}">
+                                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                                    <DropDownButton
+                                                        Click="OnColorClick"
+                                                        Tag="{x:Bind}"
+                                                        ToolTipService.ToolTip="Change color"
+                                                        AutomationProperties.Name="{x:Bind local:CalendarsPage.ColorName(Name), Mode=OneWay}"
+                                                        AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.ColorId(Info)}">
+                                                        <Ellipse Width="16" Height="16" Fill="{x:Bind local:CalendarsPage.BrushFor(Color), Mode=OneWay}" />
+                                                    </DropDownButton>
+                                                    <ToggleSwitch
+                                                        Style="{StaticResource LeafCardToggleSwitchStyle}"
+                                                        IsOn="{x:Bind IsVisible, Mode=OneWay}"
+                                                        Toggled="OnVisibleToggled"
+                                                        Tag="{x:Bind}"
+                                                        ToolTipService.ToolTip="Show in Leaf"
+                                                        AutomationProperties.Name="{x:Bind Name, Mode=OneWay}"
+                                                        AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.VisibleId(Info)}" />
+                                                    <Button
+                                                        Style="{StaticResource LeafIconButtonStyle}"
+                                                        Click="OnMoreClick"
+                                                        Tag="{x:Bind}"
+                                                        ToolTipService.ToolTip="More options"
+                                                        AutomationProperties.Name="{x:Bind local:CalendarsPage.MoreName(Name), Mode=OneWay}"
+                                                        AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.MoreId(Info)}">
+                                                        <FontIcon Glyph="&#xE712;" FontSize="16" />
+                                                    </Button>
+                                                </StackPanel>
+                                            </controls:SettingRow>
+                                        </DataTemplate>
+                                    </controls:PinnedItemsControl.ItemTemplate>
+                                </controls:PinnedItemsControl>
+                            </StackPanel>
+                        </DataTemplate>
+                    </controls:PinnedItemsControl.ItemTemplate>
+                </controls:PinnedItemsControl>
+                <!-- /Accounts -->
+            </StackPanel>
+        </Grid>
     </ScrollViewer>
 </Page>

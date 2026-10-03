@@ -5,59 +5,64 @@
     xmlns:controls="using:LeafCalendar.App.Controls">
 
     <ScrollViewer x:Name="PageScroll">
-        <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
-            <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Change OAuth client" />
+        <!-- The column sits in a plain Grid, not straight in the scroller: a scroller's content is placed by its scroll
+             engine from its desired width (its natural content width, since MaxWidth counts as a set width), so a
+             capped, stretched column straight in the scroller lands right of center once the window is wider than it -->
+        <Grid>
+            <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
+                <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Change OAuth client" />
 
-            <!-- Client -->
-            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Google Cloud OAuth client" />
-            <TextBlock
-                Style="{StaticResource LeafSecondaryTextStyle}"
-                Margin="0,0,0,8"
-                TextWrapping="Wrap"
-                Text="Leaf asks for your calendars, your contacts and other contacts (read-only), and your Google Workspace directory (directory.readonly, read-only, for coworker suggestions). If your consent screen lists its scopes, add these."
-                AutomationProperties.AutomationId="ClientScopesText" />
-            <controls:SettingRow Glyph="&#xE8D7;" Header="Client ID" Description="From your Desktop app OAuth client in Google Cloud Console.">
-                <TextBox
-                    Width="320"
-                    PlaceholderText="123-abc.apps.googleusercontent.com"
-                    Text="{x:Bind ViewModel.ClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                    KeyDown="OnClientIdKeyDown"
-                    AutomationProperties.Name="Client ID"
-                    AutomationProperties.AutomationId="SettingsClientIdBox" />
-            </controls:SettingRow>
-            <controls:SettingRow Glyph="&#xE72E;" Header="Client secret" Description="Leaf keeps it in Windows Credential Locker.">
-                <PasswordBox
-                    x:Name="SecretBox"
-                    Width="320"
-                    Password="{x:Bind ViewModel.ClientSecret, Mode=TwoWay}"
-                    KeyDown="OnSecretKeyDown"
-                    AutomationProperties.Name="Client secret"
-                    AutomationProperties.AutomationId="SettingsClientSecretBox" />
-            </controls:SettingRow>
+                <!-- Client -->
+                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Google Cloud OAuth client" />
+                <TextBlock
+                    Style="{StaticResource LeafSecondaryTextStyle}"
+                    Margin="0,0,0,8"
+                    TextWrapping="Wrap"
+                    Text="Leaf asks for your calendars, your contacts and other contacts (read-only), and your Google Workspace directory (directory.readonly, read-only, for coworker suggestions). If your consent screen lists its scopes, add these."
+                    AutomationProperties.AutomationId="ClientScopesText" />
+                <controls:SettingRow Glyph="&#xE8D7;" Header="Client ID" Description="From your Desktop app OAuth client in Google Cloud Console.">
+                    <TextBox
+                        Width="320"
+                        PlaceholderText="123-abc.apps.googleusercontent.com"
+                        Text="{x:Bind ViewModel.ClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        KeyDown="OnClientIdKeyDown"
+                        AutomationProperties.Name="Client ID"
+                        AutomationProperties.AutomationId="SettingsClientIdBox" />
+                </controls:SettingRow>
+                <controls:SettingRow Glyph="&#xE72E;" Header="Client secret" Description="Leaf keeps it in Windows Credential Locker.">
+                    <PasswordBox
+                        x:Name="SecretBox"
+                        Width="320"
+                        Password="{x:Bind ViewModel.ClientSecret, Mode=TwoWay}"
+                        KeyDown="OnSecretKeyDown"
+                        AutomationProperties.Name="Client secret"
+                        AutomationProperties.AutomationId="SettingsClientSecretBox" />
+                </controls:SettingRow>
 
-            <!-- Error -->
-            <InfoBar
-                CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
-                Margin="0,8,0,0"
-                Severity="Error"
-                IsClosable="False"
-                IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
-                Message="{x:Bind ViewModel.Error, Mode=OneWay}"
-                AutomationProperties.LiveSetting="Assertive"
-                AutomationProperties.AutomationId="SettingsClientError" />
+                <!-- Error -->
+                <InfoBar
+                    CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
+                    Margin="0,8,0,0"
+                    Severity="Error"
+                    IsClosable="False"
+                    IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
+                    Message="{x:Bind ViewModel.Error, Mode=OneWay}"
+                    AutomationProperties.LiveSetting="Assertive"
+                    AutomationProperties.AutomationId="SettingsClientError" />
 
-            <!-- Actions (right-aligned under the cards, Save before Cancel like a dialog's buttons) -->
-            <StackPanel Margin="0,12,0,0" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
-                <Button
-                    Style="{StaticResource AccentButtonStyle}"
-                    Content="Save"
-                    Command="{x:Bind ViewModel.SaveCommand}"
-                    AutomationProperties.AutomationId="ClientSaveButton" />
-                <Button
-                    Content="Cancel"
-                    Click="OnCancelClick"
-                    AutomationProperties.AutomationId="ClientCancelButton" />
+                <!-- Actions (right-aligned under the cards, Save before Cancel like a dialog's buttons) -->
+                <StackPanel Margin="0,12,0,0" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
+                    <Button
+                        Style="{StaticResource AccentButtonStyle}"
+                        Content="Save"
+                        Command="{x:Bind ViewModel.SaveCommand}"
+                        AutomationProperties.AutomationId="ClientSaveButton" />
+                    <Button
+                        Content="Cancel"
+                        Click="OnCancelClick"
+                        AutomationProperties.AutomationId="ClientCancelButton" />
+                </StackPanel>
             </StackPanel>
-        </StackPanel>
+        </Grid>
     </ScrollViewer>
 </Page>
