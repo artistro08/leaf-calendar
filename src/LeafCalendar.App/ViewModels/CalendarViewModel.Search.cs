@@ -14,6 +14,73 @@ public sealed partial class CalendarViewModel
     [ObservableProperty]
     public partial bool ShowBack { get; set; }
 
+    // The events read for the menu's search (null until read, or after they changed), and the read in progress
+    EventSearch.Index? _searchIndex;
+    Task? _searchIndexBuild;
+
+    // Read again after this long, so the rows kept are the ones nearest to now
+    static readonly TimeSpan SearchIndexLife = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// Reads the events for the command menu's search ahead of the first keystroke, off the UI thread (nothing to do
+    /// while they're read and fresh). The menu calls it as it opens.
+    /// </summary>
+    public void WarmSearch()
+    {
+        if (_searchIndexBuild is not null || (_searchIndex is { } index && Now - index.BuiltAt < SearchIndexLife))
+        {
+            return;
+        }
+
+        _searchIndexBuild = BuildSearchIndexAsync();
+    }
+
+    async Task BuildSearchIndexAsync()
+    {
+        var now = Now;
+        try
+        {
+            _searchIndex = await Task.Run(() =>
+            {
+                using var conn = _services.Database.Open();
+                return EventSearch.Index.Build(conn, now);
+            });
+        }
+        catch (Exception ex) when (IsEditFailure(ex))
+        {
+            _services.Log.Error("command.index.failed", ex);
+        }
+        finally
+        {
+            _searchIndexBuild = null;
+        }
+    }
+
+    /// <summary>
+    /// The events matching <paramref name="query"/>, from the warmed index, on this thread (the time it takes to type the
+    /// key); null when the index isn't ready yet (it's started), so the caller searches with
+    /// <see cref="SearchEventsAsync"/> this once. The query is never logged.
+    /// </summary>
+    public IReadOnlyList<SearchHit>? SearchEventsNow(string query)
+    {
+        if (_searchIndex is not { } index)
+        {
+            WarmSearch();
+            return null;
+        }
+
+        try
+        {
+            using var conn = _services.Database.Open();
+            return index.Find(conn, query, Now, Zone);
+        }
+        catch (Exception ex) when (IsEditFailure(ex))
+        {
+            _services.Log.Error("command.search.failed", ex);
+            return null;
+        }
+    }
+
     /// <summary>Searches stored events off the UI thread; canceling stops the search between rows. The query is never logged.</summary>
     public Task<IReadOnlyList<SearchHit>> SearchEventsAsync(string query, CancellationToken ct)
     {

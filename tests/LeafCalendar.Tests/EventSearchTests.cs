@@ -45,6 +45,21 @@ public sealed class EventSearchTests : IDisposable
         return EventSearch.Find(conn, query, Now, NewYork);
     }
 
+    [Theory]
+    [InlineData("dentist")]
+    [InlineData("DENT")]
+    [InlineData("a")]
+    [InlineData("nothing-like-this")]
+    [InlineData("")]
+    public void Index_FindsWhatFindFinds(string query)
+    {
+        using var conn = _db.Database.Open();
+        var index = EventSearch.Index.Build(conn, Now);
+
+        Assert.Equal(Find(query), index.Find(conn, query, Now, NewYork));
+        Assert.Equal(Now, index.BuiltAt);
+    }
+
     static string Timed(string id, string title, string start, string end, string extra = "") =>
         $$"""{"id":"{{id}}","status":"confirmed","summary":"{{title}}","start":{"dateTime":"{{start}}"},"end":{"dateTime":"{{end}}"}{{extra}}}""";
 

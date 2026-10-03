@@ -149,9 +149,11 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         Cache    = new EventWindowCache(LoadAsync, Zone, DrawnFirst);
         Cache.Changed += (_, _) =>
         {
-            // The Data Changed: one calendar's upcoming list is read again, and meeting links looked up again
+            // The Data Changed: one calendar's upcoming list is read again, meeting links looked up again, and the
+            // command menu's search index read again when it's next needed
             ForgetCalendarSoon();
             _providers.Clear();
+            _searchIndex = null;
             RefreshUpcoming();
             OccurrencesChanged?.Invoke(this, EventArgs.Empty);
         };
@@ -298,6 +300,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     /// <summary>Opens the Settings window on a page (the sidebar's settings button, the grid corner's time zones button). Set by the main window.</summary>
     public Action<SettingsSection>? OpenSettings { get; set; }
+
+    /// <summary>Quits Leaf (the command menu's Quit; set by the App). The way out when the tray icon is hidden.</summary>
+    public Action? QuitApp { get; set; }
 
     /// <summary>The bar at the bottom of the calendar, or null.</summary>
     [ObservableProperty]

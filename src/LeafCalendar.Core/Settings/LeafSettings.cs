@@ -170,6 +170,13 @@ public sealed record LeafSettings
     /// <summary>Notifications play the Windows sound.</summary>
     public bool NotificationSound { get; set; } = true;
 
+    /// <summary>
+    /// No icon in the notification area: Leaf still runs in the background (sync, reminders, the global shortcuts), is
+    /// opened again by launching it, and quits from the command menu. Stored as the exception, so a settings file
+    /// without it shows the icon.
+    /// </summary>
+    public bool HideTrayIcon { get; set; }
+
     /// <summary>Days the tray flyout's agenda lists, starting today (1-14).</summary>
     public int FlyoutDays { get; set; } = 3;
 

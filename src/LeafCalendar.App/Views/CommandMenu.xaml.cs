@@ -146,6 +146,7 @@ public sealed class CommandRow
         "sync"                                           => "",
         "back"                                           => "",
         "forward"                                        => "",
+        "quit"                                           => "\uE7E8",
         _ when id.StartsWith("settings", StringComparison.Ordinal) => "",
         _ when id.StartsWith("view-", StringComparison.Ordinal)    => "",
         _                                                => "",
@@ -160,12 +161,8 @@ public sealed class CommandRow
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "A control isn't disposable; the running search is canceled when the menu unloads (the flyout closes).")]
 public sealed partial class CommandMenu : UserControl
 {
-    // Typing settles this long before a search runs
-    static readonly TimeSpan TypingDelay = TimeSpan.FromMilliseconds(120);
-
     readonly CalendarViewModel _vm;
     readonly Action<CommandRow, bool> _run;
-    readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _typing;
     readonly LatestSearch<IReadOnlyList<SearchHit>> _search = new();
     readonly Dictionary<CommandRow, UIElement> _containers = [];
     List<CommandRow> _rows = [];
@@ -178,18 +175,8 @@ public sealed partial class CommandMenu : UserControl
         InitializeComponent();
         ScrollIndicator.ShowOnHover(ResultsScroll);
 
-        // Search Once Typing Settles
-        _typing             = DispatcherQueue.CreateTimer();
-        _typing.Interval    = TypingDelay;
-        _typing.IsRepeating = false;
-        _typing.Tick       += (_, _) => _vm.Fire(RefreshAsync, "command.search.failed");
-
         // Closing Stops A Search Still Running
-        Unloaded += (_, _) =>
-        {
-            _typing.Stop();
-            _search.Cancel();
-        };
+        Unloaded += (_, _) => _search.Cancel();
     }
 
     /// <summary>x:Bind helper: the swatch brush for a hex color.</summary>
@@ -204,57 +191,8 @@ public sealed partial class CommandMenu : UserControl
     /// </summary>
     public const double ResultsMaxHeight = 416;
 
-    // The rows' entrance: they slide down into place and fade in with the flyout, one after another
-    const float EntranceOffset = -12;
-    const int EntranceStaggerLimit = 10;
-    static readonly TimeSpan EntranceDuration = TimeSpan.FromMilliseconds(250);
-    static readonly TimeSpan EntranceStagger  = TimeSpan.FromMilliseconds(17);
-
     /// <summary>Caps the results list at the given height (at most <see cref="ResultsMaxHeight"/>), so the menu never runs past a short window.</summary>
     public void LimitResultsHeight(double height) => ResultsScroll.MaxHeight = Math.Min(ResultsMaxHeight, height);
-
-    /// <summary>
-    /// Slides the shown rows down into place as they fade in, a little after one another, so they arrive with the rest
-    /// of the menu as the flyout opens (nothing moves when Windows' animations are off).
-    /// </summary>
-    public void PlayEntrance()
-    {
-        if (!new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
-        {
-            return;
-        }
-
-        var order = 0;
-        foreach (var row in _rows)
-        {
-            if (!_containers.TryGetValue(row, out var container))
-            {
-                continue;
-            }
-
-            Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.SetIsTranslationEnabled(container, true);
-            var visual     = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(container);
-            var compositor = visual.Compositor;
-            var easing     = compositor.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.1f, 0.9f), new System.Numerics.Vector2(0.2f, 1));
-            var delay      = EntranceStagger * Math.Min(order++, EntranceStaggerLimit);
-
-            var slide = compositor.CreateVector3KeyFrameAnimation();
-            slide.InsertKeyFrame(0, new System.Numerics.Vector3(0, EntranceOffset, 0));
-            slide.InsertKeyFrame(1, System.Numerics.Vector3.Zero, easing);
-            slide.Duration      = EntranceDuration;
-            slide.DelayTime     = delay;
-            slide.DelayBehavior = Microsoft.UI.Composition.AnimationDelayBehavior.SetInitialValueBeforeDelay;
-            visual.StartAnimation("Translation", slide);
-
-            var fade = compositor.CreateScalarKeyFrameAnimation();
-            fade.InsertKeyFrame(0, 0);
-            fade.InsertKeyFrame(1, 1, easing);
-            fade.Duration      = EntranceDuration;
-            fade.DelayTime     = delay;
-            fade.DelayBehavior = Microsoft.UI.Composition.AnimationDelayBehavior.SetInitialValueBeforeDelay;
-            visual.StartAnimation("Opacity", fade);
-        }
-    }
 
     // What the box asks for: anything, or (Jump to date) a date in words
     const string SearchPrompt = "Search events, or type a command or a date";
@@ -263,7 +201,6 @@ public sealed partial class CommandMenu : UserControl
     /// <summary>Clears the box and shows the default actions.</summary>
     public void Reset()
     {
-        _typing.Stop();
         _search.Cancel();
         CommandSearchBox.Text            = "";
         CommandSearchBox.PlaceholderText = SearchPrompt;
@@ -273,7 +210,6 @@ public sealed partial class CommandMenu : UserControl
     /// <summary>Jump to date: the box asks for a date in words (what's typed is read as one, as always).</summary>
     public void AskForDate()
     {
-        _typing.Stop();
         _search.Cancel();
         CommandSearchBox.Text            = "";
         CommandSearchBox.PlaceholderText = DatePrompt;
@@ -288,36 +224,43 @@ public sealed partial class CommandMenu : UserControl
     // RESULTS
     // =========================================================================
 
-    void OnTextChanged(object sender, TextChangedEventArgs e)
-    {
-        _typing.Stop();
-        _typing.Start();
-    }
+    // Every keystroke shows its results at once (no settling delay: a keyboard flow wants what's typed on screen
+    // already): the date, the actions, and the events from the warmed index. Only before the index is ready does a
+    // search run off the thread, and its events follow
+    void OnTextChanged(object sender, TextChangedEventArgs e) => Refresh();
 
-    // The date first, then events, then actions; a slower older search can't overwrite a newer one
-    async Task RefreshAsync()
+    void Refresh()
     {
-        var text  = CommandSearchBox.Text;
-        var today = _vm.Today;
-        var date  = DateQuery.TryParse(text, today, out var day) ? CommandRow.ForDate(day, today) : null;
+        var text         = CommandSearchBox.Text;
+        var today        = _vm.Today;
+        var date         = DateQuery.TryParse(text, today, out var day) ? CommandRow.ForDate(day, today) : null;
+        var actions      = CommandCatalog.Match(text).Select(CommandRow.ForAction).ToList();
+        var actionsFirst = CommandCatalog.NamesAnAction(text); // an action named by what's typed leads and is selected
+        var (zone, use24h) = (_vm.Zone, _vm.Settings.Use24HourTime);
 
-        IReadOnlyList<SearchHit> hits = [];
         if (EventSearch.Words(text).Count == 0)
         {
             _search.Cancel();
-        }
-        else if (await _search.RunAsync(ct => _vm.SearchEventsAsync(text, ct)) is { } found)
-        {
-            hits = found;
-        }
-        else
-        {
+            Show(date, [], actions, actionsFirst);
             return;
         }
 
-        // An Action Named By What's Typed Comes Before The Events (and is the row selected); otherwise events first
-        var (zone, use24h) = (_vm.Zone, _vm.Settings.Use24HourTime);
-        Show(date, [.. hits.Select(h => CommandRow.ForHit(h, today, zone, use24h))], [.. CommandCatalog.Match(text).Select(CommandRow.ForAction)], actionsFirst: CommandCatalog.NamesAnAction(text));
+        if (_vm.SearchEventsNow(text) is { } hits)
+        {
+            _search.Cancel();
+            Show(date, [.. hits.Select(h => CommandRow.ForHit(h, today, zone, use24h))], actions, actionsFirst);
+            return;
+        }
+
+        Show(date, [], actions, actionsFirst);
+        _vm.Fire(async () =>
+        {
+            // A slower older search can't overwrite a newer one, and the box must still say what was searched
+            if (await _search.RunAsync(ct => _vm.SearchEventsAsync(text, ct)) is { } found && CommandSearchBox.Text == text)
+            {
+                Show(date, [.. found.Select(h => CommandRow.ForHit(h, today, zone, use24h))], actions, actionsFirst);
+            }
+        }, "command.search.failed");
     }
 
     // Each non-empty section under its header ("Go to", then "Events" and "Actions", in that order unless the typed
@@ -335,10 +278,14 @@ public sealed partial class CommandMenu : UserControl
             }
         }
 
+        // The Selection Stays On The Same Row When It's Still Listed (events arriving under a chosen action don't move it)
+        var kept  = _rows.Find(r => ReferenceEquals(r, CommandResults.SelectedItem))?.AutomationId;
+        var index = kept is null ? -1 : rows.FindIndex(r => r.AutomationId == kept);
+
         _rows = rows;
         _containers.Clear();
         CommandResults.ItemsSource   = _rows;
-        CommandResults.SelectedIndex = _rows.FindIndex(r => r.Kind != CommandRowKind.Header);
+        CommandResults.SelectedIndex = index >= 0 ? index : _rows.FindIndex(r => r.Kind != CommandRowKind.Header);
         CommandEmptyPanel.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         ResultsScroll.ChangeView(null, 0, null, disableAnimation: true);
         ShowHints();

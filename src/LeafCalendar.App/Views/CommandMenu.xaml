@@ -84,6 +84,10 @@
                 ContainerContentChanging="OnRowChanging"
                 AutomationProperties.Name="Results"
                 AutomationProperties.AutomationId="CommandResults">
+                <!-- No row transitions: results change on every keystroke and must simply be there -->
+                <controls:PinnedListView.ItemContainerTransitions>
+                    <TransitionCollection />
+                </controls:PinnedListView.ItemContainerTransitions>
                 <controls:PinnedListView.Resources>
                     <!-- A plain rounded fill marks the selection, without the stock accent pill -->
                     <x:Boolean x:Key="ListViewItemSelectionIndicatorVisualEnabled">False</x:Boolean>

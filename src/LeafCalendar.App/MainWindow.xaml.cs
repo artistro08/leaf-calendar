@@ -363,40 +363,11 @@ public sealed partial class MainWindow : Window
     // The search icon's closed, open, and resting spots last handed to the compositor (toolbar host DIPs)
     (double Closed, double Open, double Resting)? _searchRide;
 
-    // The dim's fade (the design standard's 167 ms), whether the menu is open now, and the timer that collapses it
-    static readonly TimeSpan DimFadeDuration = TimeSpan.FromMilliseconds(167);
-    bool _dimOpen;
-    Microsoft.UI.Dispatching.DispatcherQueueTimer? _dimTimer;
-
-    // The command menu's dim: shown, then faded in on the next tick (so the opacity transition runs); faded out, then
-    // collapsed once the fade is over, unless the menu opened again meanwhile
+    // The command menu's dim comes and goes at once with the menu (no fade: the menu is a keyboard flow)
     void DimForCommandMenu(bool open)
     {
-        _dimOpen = open;
-        if (open)
-        {
-            CommandMenuDim.Visibility = Visibility.Visible;
-            DispatcherQueue.TryEnqueue(() => CommandMenuDim.Opacity = _dimOpen ? 1 : 0);
-            return;
-        }
-
-        CommandMenuDim.Opacity = 0;
-        if (_dimTimer is null)
-        {
-            _dimTimer             = DispatcherQueue.CreateTimer();
-            _dimTimer.Interval    = DimFadeDuration;
-            _dimTimer.IsRepeating = false;
-            _dimTimer.Tick       += (_, _) =>
-            {
-                if (!_dimOpen)
-                {
-                    CommandMenuDim.Visibility = Visibility.Collapsed;
-                }
-            };
-        }
-
-        _dimTimer.Stop();
-        _dimTimer.Start();
+        CommandMenuDim.Opacity    = open ? 1 : 0;
+        CommandMenuDim.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // Where the search icon and the toolbar host were when the icon's click-through hole was last punched, and where

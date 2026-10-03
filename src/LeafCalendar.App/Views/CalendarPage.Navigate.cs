@@ -137,12 +137,12 @@ public sealed partial class CalendarPage
             style.Setters.Add(new Setter(ScrollViewer.HorizontalScrollModeProperty, ScrollMode.Disabled));
             style.Setters.Add(new Setter(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled));
 
-            // The window dims behind the menu while it's open (closed by Esc, a pick, or a click outside it)
-            var flyout = new Flyout { Content = menu, FlyoutPresenterStyle = style };
+            // The window dims behind the menu while it's open (closed by Esc, a pick, or a click outside it). No open or
+            // close animation: the menu is a keyboard flow, so it's simply there
+            var flyout = new Flyout { Content = menu, FlyoutPresenterStyle = style, AreOpenCloseAnimationsEnabled = false };
             flyout.Opened += (_, _) =>
             {
                 menu.FocusBox();
-                menu.PlayEntrance();
                 CommandMenuShown?.Invoke(this, true);
             };
             flyout.Closed += (_, _) => CommandMenuShown?.Invoke(this, false);
@@ -160,6 +160,8 @@ public sealed partial class CalendarPage
             Root.SizeChanged += OnCommandRootSizeChanged;
         }
 
+        // The Events Are Read For The Search Before The First Keystroke
+        ViewModel.WarmSearch();
         PlaceCommandAnchor();
         _commandMenu.Reset();
         _commandFlyout.ShowAt(_commandAnchor, new FlyoutShowOptions
@@ -228,6 +230,10 @@ public sealed partial class CalendarPage
         var vm = ViewModel;
         switch (id)
         {
+            case "quit":
+                vm.QuitApp?.Invoke();
+                return;
+
             case "toggle-week-numbers":
                 vm.Update(s => s with { ShowWeekNumbers = !s.ShowWeekNumbers });
                 return;

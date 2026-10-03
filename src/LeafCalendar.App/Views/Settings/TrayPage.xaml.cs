@@ -47,6 +47,7 @@ public sealed partial class TrayPage : Page
         var s = _context.Calendar.Settings;
         _loading = true;
 
+        IconSwitch.IsOn            = !s.HideTrayIcon;
         DaysBox.Value              = s.FlyoutDays;
         AllDaySwitch.IsOn          = s.FlyoutAllDay;
         LookaheadBox.SelectedIndex = LeafSettings.LookaheadChoices.ToList().IndexOf(s.TrayLookaheadMinutes);
@@ -70,6 +71,15 @@ public sealed partial class TrayPage : Page
 
         var days = (int)Math.Clamp(args.NewValue, 1, LeafSettings.MaxFlyoutDays);
         _context.Save(s => s with { FlyoutDays = days });
+    }
+
+    void OnIconToggled(object sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+        {
+            var hidden = !IconSwitch.IsOn;
+            _context.Save(s => s with { HideTrayIcon = hidden });
+        }
     }
 
     void OnAllDayToggled(object sender, RoutedEventArgs e)

@@ -8,8 +8,19 @@
         <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
             <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Tray" />
 
+            <!-- Icon -->
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Icon" />
+            <controls:SettingRow Glyph="&#xE7E7;" Header="Show the tray icon" Description="Off, Leaf still runs in the background: sync, reminders, and the global shortcuts keep working. Open it again by launching it; quit it from the command menu.">
+                <ToggleSwitch
+                    x:Name="IconSwitch"
+                    Style="{StaticResource LeafCardToggleSwitchStyle}"
+                    Toggled="OnIconToggled"
+                    AutomationProperties.Name="Show the tray icon"
+                    AutomationProperties.AutomationId="TrayIconSwitch" />
+            </controls:SettingRow>
+
             <!-- Flyout -->
-            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Flyout" />
+            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Flyout" />
             <controls:SettingRow x:Name="DaysRow" Glyph="&#xE787;" Header="Days in the agenda">
                 <NumberBox
                     x:Name="DaysBox"
