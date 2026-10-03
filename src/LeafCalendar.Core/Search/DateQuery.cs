@@ -34,7 +34,10 @@ public static partial class DateQuery
             return false;
         }
 
-        input = Spaces().Replace(Ordinal().Replace(input.Replace(',', ' '), "$1"), " ").Trim();
+        input = Spaces().Replace(Ordinal().Replace(input.Replace(',', ' ').Replace('.', ' '), "$1"), " ").Trim();
+
+        // Longer Short Names Than .NET's Three Letters ("sept 8", "tues", "thurs")
+        input = LongerShortNames().Replace(input, m => m.Value[..3]);
 
         // Relative Words
         switch (input)
@@ -156,4 +159,8 @@ public static partial class DateQuery
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Spaces();
+
+    // A month or weekday written with more than its first three letters but not in full
+    [GeneratedRegex(@"\b(sept|tues|thur|thurs|weds)\b")]
+    private static partial Regex LongerShortNames();
 }
