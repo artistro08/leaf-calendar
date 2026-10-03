@@ -487,11 +487,11 @@ public sealed partial class CalendarPage : Page
         return back ? ViewModel.GoBack() : ViewModel.GoForward();
     }
 
-    // Typing, or focus in a flyout, menu, dialog, or the go-to-date picker
+    // Typing, or focus in a flyout, menu, or dialog
     bool ShortcutsBlocked()
     {
         var focused = FocusManager.GetFocusedElement(XamlRoot);
-        return focused is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox or CalendarView || IsInOpenPopup(focused);
+        return focused is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox || IsInOpenPopup(focused);
     }
 
     // Nothing changed since it opened: the same calendar, and no field Google would be sent (every field of the draft)
@@ -570,22 +570,13 @@ public sealed partial class CalendarPage : Page
         }
     }
 
+    // Jump to date: the command menu, asking for a date in words ("nov 5th", "10 weeks", "next fri"); its date row goes
+    // there. (A CalendarView in a flyout anchored to the page had no room, was squashed against the top, and crashed
+    // in a layout cycle.)
     void ShowGoToDate()
     {
-        var picker = new CalendarView { SelectionMode = CalendarViewSelectionMode.Single, IsTodayHighlighted = true };
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(picker, "GoToDateCalendar");
-        picker.SetDisplayDate(new DateTimeOffset(ViewModel.PeriodStart.ToDateTime(TimeOnly.MinValue)));
-
-        var flyout = new Flyout { Content = picker, Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Bottom };
-        picker.SelectedDatesChanged += (s, a) =>
-        {
-            if (a.AddedDates.Count > 0)
-            {
-                flyout.Hide();
-                ViewModel.NavigateTo(DateOnly.FromDateTime(a.AddedDates[0].Date));
-            }
-        };
-        flyout.ShowAt(ViewHost);
+        OpenCommandMenu();
+        _commandMenu?.AskForDate();
     }
 
     void ShowNotice()
