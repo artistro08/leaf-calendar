@@ -507,6 +507,20 @@ public sealed partial class TrayHost : Window
         });
     }
 
+    // The flyout's Open calendar: the flyout closes, then the main window opens (a click handler, so nothing may escape)
+    void OnFlyoutOpenClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            HideAgenda();
+            OpenRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            _log.Info("tray.flyout.click.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
     // A click handler, so nothing may escape
     void OnOpenClick(object sender, RoutedEventArgs e)
     {

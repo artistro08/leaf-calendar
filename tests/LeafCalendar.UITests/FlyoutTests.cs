@@ -51,6 +51,23 @@ public sealed class FlyoutTests : IDisposable
     }
 
     [Fact]
+    public void Footer_NewEventLeft_OpenCalendarRight_OpensTheWindow()
+    {
+        using var leaf = Launch();
+        leaf.MainWindow.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
+        leaf.PostTrayMessage(LeafApp.TraySelect);
+
+        var newEvent = leaf.WaitForPopup("FlyoutNewEvent").BoundingRectangle;
+        var open     = leaf.WaitForPopup("FlyoutOpenCalendar");
+        Assert.True(newEvent.Right < open.BoundingRectangle.Left, "New event isn't left of Open calendar.");
+
+        open.AsButton().Invoke();
+
+        Assert.True(Retry.WhileFalse(() => leaf.IsInFront, TimeSpan.FromSeconds(10)).Success, "Open calendar didn't bring the window up.");
+        Assert.True(Retry.WhileTrue(() => leaf.PopupExists("FlyoutNewEvent"), TimeSpan.FromSeconds(5)).Success, "The flyout stayed open.");
+    }
+
+    [Fact]
     public void ClickOutside_ClosesTheFlyout()
     {
         using var leaf = Launch();
