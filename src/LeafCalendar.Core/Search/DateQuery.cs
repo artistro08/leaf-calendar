@@ -62,6 +62,20 @@ public static partial class DateQuery
             return TryShift(today, nextLast.Groups[1].Value == "next" ? 1 : -1, nextLast.Groups[2].Value, out date);
         }
 
+        // A Count Of Weekdays Ahead ("two sundays from now": the second Sunday after today)
+        if (CountedWeekday().Match(input) is { Success: true } nth && WeekdayOf(nth.Groups[2].Value) is { } wanted)
+        {
+            var number = nth.Groups[1].Value;
+            var times  = number is "a" or "an" ? 1 : int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out var n) ? n : 0;
+            if (times is < 1 or > 520)
+            {
+                return false;
+            }
+
+            var untilFirst = ((int)wanted - (int)today.DayOfWeek + 6) % 7 + 1;
+            return TryShift(today, untilFirst + (times - 1) * 7, "days", out date);
+        }
+
         // A Count Of Days, Weeks, Months, Or Years Ahead ("3 days", "in 3 days", "3 days from now") Or Back ("3 days ago")
         if (Count().Match(input) is { Success: true } counted)
         {
@@ -153,6 +167,10 @@ public static partial class DateQuery
 
     [GeneratedRegex(@"^(next|last) (week|month|year)$")]
     private static partial Regex NextLast();
+
+    // "two sundays from now", "3 fridays", "a monday from today"
+    [GeneratedRegex(@"^(?:in )?(a|an|[0-9]{1,3}) ([a-z]{3,9}?)s?(?: from (?:now|today)| ahead)?$")]
+    private static partial Regex CountedWeekday();
 
     // "5th", "1st", "22nd", "3rd" after a day number
     [GeneratedRegex(@"\b([0-9]{1,2})(?:st|nd|rd|th)\b")]
