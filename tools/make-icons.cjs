@@ -46,10 +46,21 @@ for (const scale of [100, 125, 150, 200, 400]) {
     write(`SplashScreen${q}`, logo(Math.round(620 * s), Math.round(300 * s), Math.round(200 * s)));
 }
 
-// Taskbar And Start Sizes (plated and unplated alike: the logo brings its own background)
+// Taskbar And Start Sizes (plated, unplated, and light-mode unplated alike: the logo brings its own background; without
+// the light-mode set, a light taskbar scales another size, which leaves jagged edges)
 for (const size of [16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256]) {
     write(`Square44x44Logo.targetsize-${size}.png`, logo(size, size, size));
     write(`Square44x44Logo.targetsize-${size}_altform-unplated.png`, logo(size, size, size));
+    write(`Square44x44Logo.targetsize-${size}_altform-lightunplated.png`, logo(size, size, size));
+}
+
+// In-App Logos (the title bar's 16 DIP icon and the About page's 32 DIP one), drawn at each scale's exact pixel size, so
+// XAML never shrinks a larger logo (which leaves jagged edges)
+for (const dip of [16, 32]) {
+    for (const scale of [100, 125, 150, 175, 200, 250, 300, 400]) {
+        const px = Math.round(dip * scale / 100);
+        write(`AppLogo${dip}.scale-${scale}.png`, logo(px, px, px));
+    }
 }
 
 // Window And Exe Icon: one PNG image per size, so Windows picks an exact one instead of scaling

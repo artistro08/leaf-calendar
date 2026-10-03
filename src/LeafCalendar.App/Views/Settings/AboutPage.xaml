@@ -26,7 +26,7 @@
                         Width="32"
                         Height="32"
                         VerticalAlignment="Center"
-                        Source="ms-appx:///Assets/Square44x44Logo.png"
+                        Source="ms-appx:///Assets/AppLogo32.png"
                         AutomationProperties.AccessibilityView="Raw" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Leaf Calendar" />
