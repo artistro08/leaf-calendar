@@ -53,8 +53,10 @@ internal static unsafe class KeyboardHook
     /// <summary>Removes the hook (safe to call when none is installed).</summary>
     public static void Close()
     {
-        if (!s_hook.IsNull && PInvoke.UnhookWindowsHookEx(s_hook))
+        // The handle goes either way (Windows drops a slow low-level hook itself, and unhooking that one fails)
+        if (!s_hook.IsNull)
         {
+            PInvoke.UnhookWindowsHookEx(s_hook);
             s_hook = default;
         }
 
