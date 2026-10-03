@@ -27,6 +27,48 @@ public sealed class FlyoutTests : IDisposable
         return leaf;
     }
 
+    // The owner's report: after a click to open and a click to close, a third click didn't open it again. Another app
+    // takes the foreground between clicks, the way the taskbar does when the icon is clicked
+    [Fact]
+    public void TrayClick_OpenCloseOpen_OpensEveryTime()
+    {
+        using var leaf = Launch();
+
+        for (var round = 0; round < 3; round++)
+        {
+            leaf.PostTrayMessage(LeafApp.TraySelect);
+            Assert.NotNull(leaf.WaitForPopup("FlyoutNewEvent"));
+            Thread.Sleep(500);
+            Assert.True(leaf.PopupExists("FlyoutNewEvent"), $"Round {round + 1}: the flyout closed as soon as it opened.");
+
+            leaf.PostTrayMessage(LeafApp.TraySelect);
+            Assert.True(Retry.WhileTrue(() => leaf.PopupExists("FlyoutNewEvent"), TimeSpan.FromSeconds(5)).Success, $"Round {round + 1}: the flyout didn't close.");
+
+            // Something Else In Front, Then Past The Reopen Guard
+            leaf.MainWindow.Focus();
+            Thread.Sleep(500);
+        }
+    }
+
+    [Fact]
+    public void TrayRightClick_Repeatedly_OpensTheMenuEveryTime()
+    {
+        using var leaf = Launch();
+
+        for (var round = 0; round < 3; round++)
+        {
+            leaf.RightClickTrayIcon();
+            Assert.NotNull(leaf.WaitForPopup("TrayMenuOpen"));
+            Thread.Sleep(500);
+            Assert.True(leaf.PopupExists("TrayMenuOpen"), $"Round {round + 1}: the menu closed as soon as it opened.");
+
+            Keyboard.Press(VirtualKeyShort.ESCAPE);
+            Assert.True(Retry.WhileTrue(() => leaf.PopupExists("TrayMenuOpen"), TimeSpan.FromSeconds(5)).Success, $"Round {round + 1}: the menu didn't close.");
+            leaf.MainWindow.Focus();
+            Thread.Sleep(500);
+        }
+    }
+
     [Fact]
     public void TrayClick_ShowsTheNextMeetingAndTheAgenda()
     {

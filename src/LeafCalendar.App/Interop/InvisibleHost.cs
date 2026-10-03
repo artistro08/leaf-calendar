@@ -47,8 +47,13 @@ internal static class InvisibleHost
         return new PointInt32(origin.X, origin.Y);
     }
 
-    /// <summary>Takes the foreground (light dismiss needs it; a tray click or a hotkey allows it). False when Windows refused.</summary>
-    public static bool TakeForeground(Window window) => PInvoke.SetForegroundWindow(Handle(window));
+    /// <summary>
+    /// Takes the foreground (light dismiss needs it: without it a popup closes as soon as it opens). A plain
+    /// SetForegroundWindow was refused once Leaf wasn't the last app used, so the tray flyout and menu stopped opening
+    /// after a click or two; this joins the front window's input thread to ask (<see cref="Foreground.Take"/>), and only
+    /// runs for a tray click or a hotkey the user just pressed. False when Windows still refused.
+    /// </summary>
+    public static bool TakeForeground(Window window) => Foreground.Take(Handle(window));
 
     static HWND Handle(Window window) => new(WindowNative.GetWindowHandle(window));
 }

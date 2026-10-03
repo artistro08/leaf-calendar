@@ -33,9 +33,14 @@
                 <StaticResource x:Key="TitleBarPaneToggleButtonStyle" ResourceKey="LeafTitleBarPaneToggleButtonStyle" />
             </TitleBar.Resources>
 
-            <!-- App Icon (no title; drawn at 16 DIP for each scale, so it isn't shrunk) -->
+            <!-- App Icon (no title) -->
             <TitleBar.IconSource>
-                <ImageIconSource ImageSource="ms-appx:///Assets/AppLogo16.png" />
+                <ImageIconSource>
+                    <ImageIconSource.ImageSource>
+                        <!-- Decoded at its size on screen (16 DIP at this scale), so it isn't shrunk with jagged edges -->
+                        <BitmapImage UriSource="ms-appx:///Assets/AppLogo.png" DecodePixelWidth="16" DecodePixelHeight="16" DecodePixelType="Logical" />
+                    </ImageIconSource.ImageSource>
+                </ImageIconSource>
             </TitleBar.IconSource>
 
             <!-- Toolbar (only its buttons take clicks; the space around them drags the window) -->

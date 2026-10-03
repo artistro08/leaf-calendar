@@ -26,8 +26,12 @@
                         Width="32"
                         Height="32"
                         VerticalAlignment="Center"
-                        Source="ms-appx:///Assets/AppLogo32.png"
-                        AutomationProperties.AccessibilityView="Raw" />
+                        AutomationProperties.AccessibilityView="Raw">
+                        <!-- Decoded at its size on screen (32 DIP at this scale), so it isn't shrunk with jagged edges -->
+                        <Image.Source>
+                            <BitmapImage UriSource="ms-appx:///Assets/AppLogo.png" DecodePixelWidth="32" DecodePixelHeight="32" DecodePixelType="Logical" />
+                        </Image.Source>
+                    </Image>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Leaf Calendar" />
                         <TextBlock
