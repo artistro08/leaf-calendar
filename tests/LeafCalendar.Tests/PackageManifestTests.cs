@@ -44,7 +44,7 @@ public class PackageManifestTests
         int[]    targetSizes = [16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256];
         var expected = images.SelectMany(i => scales.Select(s => $"{i}.scale-{s}.png"))
             .Concat(targetSizes.SelectMany(s => (string[])[$"Square44x44Logo.targetsize-{s}.png", $"Square44x44Logo.targetsize-{s}_altform-unplated.png", $"Square44x44Logo.targetsize-{s}_altform-lightunplated.png"]))
-            .Concat(((int[])[16, 32]).SelectMany(d => ((int[])[100, 125, 150, 175, 200, 250, 300, 400]).Select(s => $"AppLogo{d}.scale-{s}.png")))
+            .Append("AppLogo.png")
             .Append("LeafCalendar.ico")
             .Append("ThirdPartyNotices.txt");
 

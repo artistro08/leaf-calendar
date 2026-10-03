@@ -27,7 +27,12 @@
                 <x:Double x:Key="TitleBarMinDragRegionWidth">0</x:Double>
             </TitleBar.Resources>
             <TitleBar.IconSource>
-                <ImageIconSource ImageSource="ms-appx:///Assets/AppLogo16.png" />
+                <ImageIconSource>
+                    <ImageIconSource.ImageSource>
+                        <!-- Decoded at its size on screen (16 DIP at this scale), so it isn't shrunk with jagged edges -->
+                        <BitmapImage UriSource="ms-appx:///Assets/AppLogo.png" DecodePixelWidth="16" DecodePixelHeight="16" DecodePixelType="Logical" />
+                    </ImageIconSource.ImageSource>
+                </ImageIconSource>
             </TitleBar.IconSource>
         </TitleBar>
 
