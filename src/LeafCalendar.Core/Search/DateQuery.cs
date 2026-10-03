@@ -34,7 +34,11 @@ public static partial class DateQuery
             return false;
         }
 
-        input = Spaces().Replace(Ordinal().Replace(input.Replace(',', ' '), "$1"), " ").Trim();
+        input = Spaces().Replace(Ordinal().Replace(input.Replace(',', ' ').Replace('.', ' '), "$1"), " ").Trim();
+
+        // Longer Short Names Than .NET's Three Letters ("sept 8", "tues", "thurs"), And Numbers In Words ("two weeks")
+        input = LongerShortNames().Replace(input, m => m.Value[..3]);
+        input = NumberWords().Replace(input, m => NumberOf(m.Value).ToString(CultureInfo.InvariantCulture));
 
         // Relative Words
         switch (input)
@@ -58,6 +62,20 @@ public static partial class DateQuery
             return TryShift(today, nextLast.Groups[1].Value == "next" ? 1 : -1, nextLast.Groups[2].Value, out date);
         }
 
+        // A Count Of Weekdays Ahead ("two sundays from now": the second Sunday after today)
+        if (CountedWeekday().Match(input) is { Success: true } nth && WeekdayOf(nth.Groups[2].Value) is { } wanted)
+        {
+            var number = nth.Groups[1].Value;
+            var times  = number is "a" or "an" ? 1 : int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out var n) ? n : 0;
+            if (times is < 1 or > 520)
+            {
+                return false;
+            }
+
+            var untilFirst = ((int)wanted - (int)today.DayOfWeek + 6) % 7 + 1;
+            return TryShift(today, untilFirst + (times - 1) * 7, "days", out date);
+        }
+
         // A Count Of Days, Weeks, Months, Or Years Ahead ("3 days", "in 3 days", "3 days from now") Or Back ("3 days ago")
         if (Count().Match(input) is { Success: true } counted)
         {
@@ -71,13 +89,20 @@ public static partial class DateQuery
             return TryShift(today, counted.Groups[3].Success ? -count : count, counted.Groups[2].Value, out date);
         }
 
-        // Weekday, Optionally "next"
-        var next    = input.StartsWith("next ", StringComparison.Ordinal);
-        var weekday = next ? input[5..].Trim() : input;
+        // Weekday, Optionally "next" (a week on) Or "after next" (two weeks on): "friday", "next fri", "friday after next"
+        var next      = input.StartsWith("next ", StringComparison.Ordinal);
+        var afterNext = input.EndsWith(" after next", StringComparison.Ordinal);
+        var weekday   = next ? input[5..].Trim() : afterNext ? input[..^11].Trim() : input;
         if (WeekdayOf(weekday) is { } day)
         {
-            date = today.AddDays(((int)day - (int)today.DayOfWeek + 7) % 7 + (next ? 7 : 0));
+            date = today.AddDays(((int)day - (int)today.DayOfWeek + 7) % 7 + (next ? 7 : afterNext ? 14 : 0));
             return true;
+        }
+
+        // "Week After Next", "Month After Next"
+        if (AfterNext().Match(input) is { Success: true } twoOn)
+        {
+            return TryShift(today, 2, twoOn.Groups[1].Value, out date);
         }
 
         // With A Year
@@ -150,10 +175,31 @@ public static partial class DateQuery
     [GeneratedRegex(@"^(next|last) (week|month|year)$")]
     private static partial Regex NextLast();
 
+    [GeneratedRegex(@"^(week|month|year) after next$")]
+    private static partial Regex AfterNext();
+
+    // "two sundays from now", "3 fridays", "a monday from today"
+    [GeneratedRegex(@"^(?:in )?(a|an|[0-9]{1,3}) ([a-z]{3,9}?)s?(?: from (?:now|today)| ahead)?$")]
+    private static partial Regex CountedWeekday();
+
     // "5th", "1st", "22nd", "3rd" after a day number
     [GeneratedRegex(@"\b([0-9]{1,2})(?:st|nd|rd|th)\b")]
     private static partial Regex Ordinal();
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Spaces();
+
+    // A month or weekday written with more than its first three letters but not in full
+    [GeneratedRegex(@"\b(sept|tues|thur|thurs|weds)\b")]
+    private static partial Regex LongerShortNames();
+
+    // One to twenty, and the tens to ninety, as words
+    [GeneratedRegex(@"\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b")]
+    private static partial Regex NumberWords();
+
+    static readonly string[] Units = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"];
+    static readonly string[] Tens  = ["thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+
+    static int NumberOf(string word) =>
+        Array.IndexOf(Units, word) is var unit && unit >= 0 ? unit + 1 : (Array.IndexOf(Tens, word) + 3) * 10;
 }

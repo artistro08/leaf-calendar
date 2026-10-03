@@ -41,6 +41,22 @@ public sealed class DateQueryTests
     [InlineData("next month", 2026, 11, 1)]
     [InlineData("last year", 2025, 10, 1)]
     [InlineData("  in   3   days ", 2026, 10, 4)]
+    [InlineData("sept 8", 2026, 9, 8)]
+    [InlineData("Sept. 8th", 2026, 9, 8)]
+    [InlineData("8 sept", 2026, 9, 8)]
+    [InlineData("tues", 2026, 10, 6)]
+    [InlineData("next thurs", 2026, 10, 8)]
+    [InlineData("two weeks from now", 2026, 10, 15)]
+    [InlineData("in three days", 2026, 10, 4)]
+    [InlineData("thirty days", 2026, 10, 31)]
+    [InlineData("twelve weeks ago", 2026, 7, 9)]
+    [InlineData("two sundays from now", 2026, 10, 11)]
+    [InlineData("a thursday from now", 2026, 10, 8)] // today is a Thursday: the next one
+    [InlineData("3 fridays", 2026, 10, 16)]
+    [InlineData("friday after next", 2026, 10, 16)]
+    [InlineData("Thursday after next", 2026, 10, 15)] // today is a Thursday
+    [InlineData("week after next", 2026, 10, 15)]
+    [InlineData("month after next", 2026, 12, 1)]
     public void TryParse_Understands(string text, int y, int m, int d)
     {
         Assert.True(DateQuery.TryParse(text, Today, out var date));
