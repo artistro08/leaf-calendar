@@ -70,6 +70,7 @@ public partial class App : Application
         UnhandledException                         += (_, e) => OnCrash("app.unhandled", e.Exception, e.Exception is System.Runtime.InteropServices.COMException ? e.Message : null);
         AppDomain.CurrentDomain.UnhandledException += (_, e) => OnCrash("app.unhandled.domain", e.ExceptionObject as Exception, null);
         TaskScheduler.UnobservedTaskException      += (_, e) => _log?.Crash("app.task.unobserved", e.Exception);
+        AppDomain.CurrentDomain.ProcessExit        += (_, _) => RemoveTrayIcon();
     }
 
     // A crash is about to end Leaf: what happened, then the dump
@@ -82,6 +83,22 @@ public partial class App : Application
 
         log.Crash(eventName, exception, message);
         CrashDump.Write(log);
+        RemoveTrayIcon();
+    }
+
+    // Leaf is ending without Quit (a crash, or the process exiting): the tray icon mustn't be left behind
+    void RemoveTrayIcon()
+    {
+        try
+        {
+            _tray?.Dispose();
+        }
+#pragma warning disable CA1031 // Runs as the process ends; nothing here may throw
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _log?.Info("tray.remove.failed", $"error={ex.GetType().Name}");
+        }
     }
 
     /// <inheritdoc />
@@ -209,7 +226,7 @@ public partial class App : Application
         // Tray Icon (without one Leaf still runs, and launching it again brings the window back)
         try
         {
-            _tray          = new TrayIcon(services.Log, TrayDay());
+            _tray          = new TrayIcon(services.Log, TrayDay(), services.Options.Profile);
             _tray.Invoked += (_, _) => ToggleAgenda();
         }
         catch (Exception ex)

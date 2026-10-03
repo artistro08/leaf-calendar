@@ -30,8 +30,13 @@ namespace LeafCalendar.App.Interop;
 /// </para>
 /// <para>
 /// The art is today's date (<see cref="SetDay"/>), white in dark mode and black in light mode (a theme switch reloads
-/// it), drawn at the taskbar's exact small-icon size (<see cref="TrayGlyph"/>), so it's never scaled. A fixed
-/// <c>NIF_GUID</c> identity, which only survives updates on a signed package, is still to come.
+/// it), drawn at the taskbar's exact small-icon size (<see cref="TrayGlyph"/>), so it's never scaled.
+/// </para>
+/// <para>
+/// The icon has a fixed identity per profile (<c>NIF_GUID</c>), so an icon left behind by a Leaf that was killed or
+/// crashed is deleted when the next one adds its own. Windows ties the GUID to the signed package; when it refuses
+/// the GUID (an unsigned dev build that moved), the icon goes by window and ID as before. A crash removes the icon on
+/// the way out (<see cref="Dispose"/> from the App's crash handlers).
 /// </para>
 /// </remarks>
 internal sealed unsafe class TrayIcon : IDisposable
@@ -57,6 +62,8 @@ internal sealed unsafe class TrayIcon : IDisposable
     readonly uint _taskbarCreated;
     HICON _icon;
     int _iconSize;
+    readonly Guid _identity;
+    bool _byGuid = true;
     int _day;
     string _tooltip = "Leaf Calendar";
     bool _disposed;
@@ -64,8 +71,9 @@ internal sealed unsafe class TrayIcon : IDisposable
     /// <summary>Creates the hidden window and adds the icon showing <paramref name="day"/> (1–31). Only one may exist.</summary>
     /// <exception cref="InvalidOperationException">A tray icon already exists.</exception>
     /// <exception cref="Win32Exception">The window couldn't be created.</exception>
-    public TrayIcon(AppLog log, int day)
+    public TrayIcon(AppLog log, int day, string profile)
     {
+        ArgumentNullException.ThrowIfNull(profile);
         ArgumentOutOfRangeException.ThrowIfLessThan(day, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(day, 31);
 
@@ -76,6 +84,7 @@ internal sealed unsafe class TrayIcon : IDisposable
 
         _log      = log;
         _day      = day;
+        _identity = IdentityFor(profile);
         s_current = this;
 
         try
@@ -168,11 +177,14 @@ internal sealed unsafe class TrayIcon : IDisposable
     /// <summary>The icon's screen rectangle, or null when the shell can't say (it's in the overflow, or Explorer is restarting).</summary>
     public PixelRect? IconRect()
     {
-        var id = new NOTIFYICONIDENTIFIER { cbSize = (uint)sizeof(NOTIFYICONIDENTIFIER), hWnd = _hwnd, uID = IconId };
+        var id = new NOTIFYICONIDENTIFIER { cbSize = (uint)sizeof(NOTIFYICONIDENTIFIER), hWnd = _hwnd, uID = IconId, guidItem = _byGuid ? _identity : Guid.Empty };
         return PInvoke.Shell_NotifyIconGetRect(in id, out var rect).Succeeded ? new PixelRect(rect.left, rect.top, rect.right, rect.bottom) : null;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Removes the icon and the hidden window. Safe to call twice, and from a crash handler on another thread (the icon
+    /// still goes; only the window is left for the process's end to clean up).
+    /// </summary>
     public void Dispose()
     {
         if (_disposed)
@@ -192,12 +204,29 @@ internal sealed unsafe class TrayIcon : IDisposable
         s_current = null;
     }
 
-    // Adds the icon (fails while Explorer isn't up yet at sign-in; TaskbarCreated adds it then)
+    // Adds the icon (fails while Explorer isn't up yet at sign-in; TaskbarCreated adds it then). An icon a killed or
+    // crashed Leaf left with this identity goes first; if Windows refuses the identity, the icon goes by window and ID
     void Add()
     {
         LoadIcon();
-        var data = Data(NOTIFY_ICON_DATA_FLAGS.NIF_MESSAGE | NOTIFY_ICON_DATA_FLAGS.NIF_ICON | NOTIFY_ICON_DATA_FLAGS.NIF_TIP | NOTIFY_ICON_DATA_FLAGS.NIF_SHOWTIP);
-        if (!PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_ADD, in data))
+        const NOTIFY_ICON_DATA_FLAGS Flags = NOTIFY_ICON_DATA_FLAGS.NIF_MESSAGE | NOTIFY_ICON_DATA_FLAGS.NIF_ICON | NOTIFY_ICON_DATA_FLAGS.NIF_TIP | NOTIFY_ICON_DATA_FLAGS.NIF_SHOWTIP;
+        if (_byGuid)
+        {
+            var stale = Data(0);
+            PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_DELETE, in stale);
+        }
+
+        var data  = Data(Flags);
+        var added = PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_ADD, in data);
+        if (!added && _byGuid)
+        {
+            _log.Info("tray.guid.refused");
+            _byGuid = false;
+            data    = Data(Flags);
+            added   = PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_ADD, in data);
+        }
+
+        if (!added)
         {
             _log.Info("tray.add.failed");
             return;
@@ -214,12 +243,23 @@ internal sealed unsafe class TrayIcon : IDisposable
             cbSize           = (uint)sizeof(NOTIFYICONDATAW),
             hWnd             = _hwnd,
             uID              = IconId,
-            uFlags           = flags,
+            uFlags           = _byGuid ? flags | NOTIFY_ICON_DATA_FLAGS.NIF_GUID : flags,
+            guidItem         = _byGuid ? _identity : Guid.Empty,
             uCallbackMessage = CallbackMessage,
             hIcon            = _icon,
         };
         _tooltip.AsSpan(0, Math.Min(_tooltip.Length, 127)).CopyTo(data.szTip.AsSpan());
         return data;
+    }
+
+    // The icon's fixed identity for a profile (profiles run side by side, so each has its own): a name-based GUID
+    static Guid IdentityFor(string profile)
+    {
+        Span<byte> hash = stackalloc byte[32];
+        System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("LeafCalendar.TrayIcon|" + profile), hash);
+        hash[7] = (byte)((hash[7] & 0x0F) | 0x50); // version 5-style (name-based)
+        hash[8] = (byte)((hash[8] & 0x3F) | 0x80); // RFC 4122 variant
+        return new Guid(hash[..16]);
     }
 
     // Today's date for the system theme (white in dark mode, black in light mode), drawn at the taskbar's small-icon size
