@@ -246,6 +246,11 @@ public sealed partial class MonthGridView : Grid, IDisposable
         _weekdays.Children.Clear();
         _weekdays.ColumnDefinitions.Clear();
 
+        // A Line Under The Weekday Names, Always (the first week row's own top line scrolls away with it)
+        _weekdays.Padding         = new Thickness(0, 0, 0, 8);
+        _weekdays.BorderBrush     = LeafBrushes.GridLine(IsDark);
+        _weekdays.BorderThickness = new Thickness(0, 0, 0, 1);
+
         var dates = ColumnDates(ViewNavigator.WeekStartOf(_vm.Today, _vm.Settings.WeekStart));
         for (var c = 0; c < dates.Count; c++)
         {
