@@ -256,13 +256,29 @@ public sealed partial class CommandMenu : UserControl
         }
     }
 
+    // What the box asks for: anything, or (Jump to date) a date in words
+    const string SearchPrompt = "Search events, or type a command or a date";
+    const string DatePrompt   = "Jump to a date: nov 5th, 10 weeks, next fri, 3 days ago…";
+
     /// <summary>Clears the box and shows the default actions.</summary>
     public void Reset()
     {
         _typing.Stop();
         _search.Cancel();
-        CommandSearchBox.Text = "";
+        CommandSearchBox.Text            = "";
+        CommandSearchBox.PlaceholderText = SearchPrompt;
         Show(null, [], [.. CommandCatalog.Defaults.Select(CommandRow.ForAction)]);
+    }
+
+    /// <summary>Jump to date: the box asks for a date in words (what's typed is read as one, as always).</summary>
+    public void AskForDate()
+    {
+        _typing.Stop();
+        _search.Cancel();
+        CommandSearchBox.Text            = "";
+        CommandSearchBox.PlaceholderText = DatePrompt;
+        Show(null, [], []);
+        FocusBox();
     }
 
     /// <summary>Puts keyboard focus in the search box.</summary>

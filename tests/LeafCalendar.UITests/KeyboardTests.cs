@@ -60,13 +60,16 @@ public sealed class KeyboardTests : IDisposable
     }
 
     [Fact]
-    public void Period_OpensGoToDate()
+    public void Period_OpensGoToDate_InTheCommandMenu()
     {
         using var leaf = Launch();
 
         leaf.Press(VirtualKeyShort.OEM_PERIOD);
 
-        Assert.NotNull(leaf.WaitForAnywhere("GoToDateCalendar"));
+        // The menu asks for a date in words; one typed in natural words is offered as the Go to row
+        var box = leaf.WaitForAnywhere("CommandSearchBox");
+        box.AsTextBox().Text = "10 weeks";
+        Assert.Equal("Go to Thu, Dec 10", leaf.WaitForAnywhere("CommandResult_date").Name);
     }
 
     [Fact]

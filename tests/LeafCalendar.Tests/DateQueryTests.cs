@@ -26,6 +26,21 @@ public sealed class DateQueryTests
     [InlineData("sep 15", 2026, 9, 15)] // recent past stays this year
     [InlineData("in 3 days", 2026, 10, 4)]
     [InlineData("in 2 weeks", 2026, 10, 15)]
+    [InlineData("nov 5th", 2026, 11, 5)]
+    [InlineData("Nov 5th, 2027", 2027, 11, 5)]
+    [InlineData("1st nov", 2026, 11, 1)]
+    [InlineData("3 days", 2026, 10, 4)]
+    [InlineData("10 weeks", 2026, 12, 10)]
+    [InlineData("10 weeks from now", 2026, 12, 10)]
+    [InlineData("2 months from today", 2026, 12, 1)]
+    [InlineData("a week", 2026, 10, 8)]
+    [InlineData("1 year", 2027, 10, 1)]
+    [InlineData("3 days ago", 2026, 9, 28)]
+    [InlineData("next week", 2026, 10, 8)]
+    [InlineData("last week", 2026, 9, 24)]
+    [InlineData("next month", 2026, 11, 1)]
+    [InlineData("last year", 2025, 10, 1)]
+    [InlineData("  in   3   days ", 2026, 10, 4)]
     public void TryParse_Understands(string text, int y, int m, int d)
     {
         Assert.True(DateQuery.TryParse(text, Today, out var date));
@@ -41,6 +56,10 @@ public sealed class DateQueryTests
     [InlineData("standup")]
     [InlineData("in ٣ days")]          // Arabic-Indic digits aren't ASCII digits
     [InlineData("in ٣٣٣٣ weeks")]
+    [InlineData("0 days")]
+    [InlineData("5 lightyears")]
+    [InlineData("next decade")]
+    [InlineData("3 days ago from now")]
     public void TryParse_Rejects(string text) => Assert.False(DateQuery.TryParse(text, Today, out _));
 
     [Fact]
