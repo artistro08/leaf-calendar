@@ -1807,10 +1807,18 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-        package.SetText(text);
-        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
-        Say("Link copied", canUndo: false);
+        try
+        {
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText(text);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+            Say("Link copied", canUndo: false);
+        }
+        catch (System.Runtime.InteropServices.COMException ex)
+        {
+            // Another app holds the clipboard (a remote session, a clipboard manager): not a crash
+            Fail("calendar.copy-link.failed", ex);
+        }
     }
 
     /// <summary>Opens a description link (checked against the allowlist again).</summary>
@@ -2174,8 +2182,18 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         var key = (o.AccountId, o.CalendarId, o.EventId);
         if (!_providers.TryGetValue(key, out var provider))
         {
-            using var conn = _services.Database.Open();
-            provider = Core.Alerts.JoinPicker.MeetingLink(conn, o) is { } link ? LinkSafety.ProviderOf(link) : null;
+            try
+            {
+                using var conn = _services.Database.Open();
+                provider = Core.Alerts.JoinPicker.MeetingLink(conn, o) is { } link ? LinkSafety.ProviderOf(link) : null;
+            }
+            catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or InvalidOperationException)
+            {
+                // A busy database (runs from the minute clock and syncs): no logo this time, looked up again next refresh
+                _services.Log.Error("calendar.upcoming.provider.failed", ex);
+                return null;
+            }
+
             _providers[key] = provider;
         }
 

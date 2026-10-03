@@ -149,6 +149,13 @@ public sealed partial class CalendarPage : Page
         ViewModel.AskScope = null;
         _noticeTimer.Stop();
         _sequenceTimer.Stop();
+        if (_framePending)
+        {
+            // A slide's frame wait (a static event) would otherwise hold the detached page until some window renders
+            Microsoft.UI.Xaml.Media.CompositionTarget.Rendered -= OnSlideFrame;
+            _framePending = false;
+        }
+
         _keys.Expire();
         _editorFromE = false;
         Sidebar.Detach();
@@ -621,6 +628,14 @@ public sealed partial class CalendarPage : Page
         {
             // A focused link (a text element, not in the visual tree) starts from the text block that holds it
             var start = focused is TextElement text ? text.ContentStart.VisualParent : focused as DependencyObject;
+
+            // Focus On Something The Tree Can't Place (a popup's own element, such as a date picker's day, that Native
+            // AOT didn't recognize): with a popup open, that's where it is, so the shortcut stays out of it
+            if (start is null && focused is not null)
+            {
+                return true;
+            }
+
             for (var current = start; current is not null; current = VisualTreeHelper.GetParent(current))
             {
                 if (roots.Exists(root => ReferenceEquals(root, current)))

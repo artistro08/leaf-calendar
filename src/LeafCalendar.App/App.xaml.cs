@@ -321,15 +321,26 @@ public partial class App : Application
         RefreshAgenda();
     });
 
+    // The minute clock's tick: nothing may escape it (an unhandled exception here ends Leaf; the next minute tries again)
     void OnMinute()
     {
-        // A New PC Time Zone Re-Plans The Alerts (all-day reminders count from local midnight)
-        if (_zone.Check())
+        try
         {
-            _alerts?.Invalidate();
+            // A New PC Time Zone Re-Plans The Alerts (all-day reminders count from local midnight)
+            if (_zone.Check())
+            {
+                _alerts?.Invalidate();
+            }
+
+            _tray?.SetDay(TrayDay());
+        }
+#pragma warning disable CA1031 // A timer tick that throws ends the process
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _log?.Info("app.minute.failed", $"error={ex.GetType().Name}");
         }
 
-        _tray?.SetDay(TrayDay());
         RefreshTooltip();
         RefreshAgenda();
     }
