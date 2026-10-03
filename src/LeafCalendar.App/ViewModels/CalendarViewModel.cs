@@ -2038,6 +2038,24 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         Say("Something went wrong saving that change. Try again.", canUndo: false);
     }
 
+    /// <summary>A read-only event was dragged: the notice says it can't be changed, and why.</summary>
+    public void ExplainReadOnly(CalendarOccurrence occurrence)
+    {
+        ArgumentNullException.ThrowIfNull(occurrence);
+
+        string? reason = null;
+        try
+        {
+            reason = _services.Editor.ReadOnlyReason(occurrence);
+        }
+        catch (Exception ex) when (IsEditFailure(ex))
+        {
+            _services.Log.Error("calendar.readonly.reason.failed", ex);
+        }
+
+        Say($"This event can't be changed: {reason ?? "it's read-only"}.", canUndo: false);
+    }
+
     // Every notice counts as new (a repeat of the same text restarts the bar's timer), so it's cleared first
     void Say(string text, bool canUndo)
     {

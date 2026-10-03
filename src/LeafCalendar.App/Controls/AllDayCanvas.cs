@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Shapes;
 
 namespace LeafCalendar.App.Controls;
 
@@ -24,7 +25,10 @@ public sealed partial class AllDayCanvas : Canvas
     public const double SpareWidth = 10;
 
     readonly TimeGridView _owner;
-    readonly List<(Border Chip, TextBlock Text)> _chips = [];
+    readonly List<(Border Chip, TextBlock Text, TranslateTransform Pull)> _chips = [];
+
+    // The drag ghost's shadow lands on this (a receiver can't be the ghost's ancestor)
+    readonly Rectangle _floor = new() { IsHitTestVisible = false };
     readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _dividers = [];
     readonly Dictionary<Border, CalendarOccurrence> _shown = [];
 
@@ -40,6 +44,12 @@ public sealed partial class AllDayCanvas : Canvas
         _owner     = owner;
         Background = LeafBrushes.Transparent;
         _ghost.Child = _ghostLabel;
+        _floor.Fill = LeafBrushes.Transparent;
+        Children.Insert(0, _floor);
+        var shadow = new ThemeShadow();
+        shadow.Receivers.Add(_floor);
+        _ghost.Shadow      = shadow;
+        _ghost.Translation = new System.Numerics.Vector3(0, 0, 24);
         Children.Add(_ghost);
         SetZIndex(_ghost, 20);
 
@@ -99,12 +109,15 @@ public sealed partial class AllDayCanvas : Canvas
         _shown.Clear();
         for (var i = 0; i < _chips.Count; i++)
         {
-            var (chip, text) = _chips[i];
+            var (chip, text, pull) = _chips[i];
             if (i >= shown.Count)
             {
                 chip.Visibility = Visibility.Collapsed;
                 continue;
             }
+
+            pull.X = 0;
+            pull.Y = 0;
 
             var b       = shown[i];
             var faded   = vm.IsPast(b.Occurrence) || vm.IsSharing; // marking times to share fades every event
@@ -139,6 +152,8 @@ public sealed partial class AllDayCanvas : Canvas
     /// </summary>
     public void SetGhost(DateOnly first, DateOnly last, bool copy = false, string? skipKey = null, string? accentHex = null)
     {
+        _floor.Width  = ActualWidth;
+        _floor.Height = ActualHeight;
         if (_strip is not { } strip)
         {
             return;
@@ -244,7 +259,8 @@ public sealed partial class AllDayCanvas : Canvas
     void AddChip()
     {
         var text = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
-        var chip = new Border { CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 0, 6, 0), Child = text };
+        var pull = new TranslateTransform();
+        var chip = new Border { CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 0, 6, 0), Child = text, RenderTransform = pull };
 
         chip.Tapped += (_, e) =>
         {
@@ -293,11 +309,11 @@ public sealed partial class AllDayCanvas : Canvas
         {
             if (_shown.TryGetValue(chip, out var o) && e.GetCurrentPoint(chip).Properties.IsLeftButtonPressed && e.Pointer.PointerDeviceType != PointerDeviceType.Touch)
             {
-                _owner.BeginAllDayDrag(o, e);
+                _owner.BeginAllDayDrag(o, e, pull);
             }
         };
 
-        _chips.Add((chip, text));
+        _chips.Add((chip, text, pull));
         Children.Add(chip);
     }
 }

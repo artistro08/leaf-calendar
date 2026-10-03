@@ -934,13 +934,16 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // How far the pointer must move before a press becomes a drag (less stays a click)
     const double DragThreshold = 4;
 
-    enum DragKind { Move, Resize, Create, CreateAllDay, AllDay, Box }
+    enum DragKind { Move, Resize, Create, CreateAllDay, AllDay, Box, Nudge }
 
     sealed class DragSession(DragKind kind, Point origin)
     {
         public DragKind Kind { get; } = kind;
         public Point Origin { get; } = origin;
         public CalendarOccurrence? Occurrence { get; init; }
+
+        // A Read-Only Event's Card Or Chip Transform: pulled a little while dragged, sprung back on release
+        public TranslateTransform? Pull { get; init; }
         public DateTimeOffset GrabbedAt { get; init; }
         public DateOnly GrabbedDay { get; init; }
         public DateOnly BoxDay { get; init; }
@@ -961,8 +964,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
     /// <summary>True between a press on something draggable and its release.</summary>
     public bool IsDragPending => _drag is not null;
 
-    /// <summary>A timed event was pressed: dragging moves it, or resizes it from the bottom edge. Events you can't change don't drag.</summary>
-    public void BeginEventDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e, bool resize)
+    /// <summary>
+    /// A timed event was pressed: dragging moves it, or resizes it from the bottom edge. An event you can't change gives
+    /// a little (<paramref name="pull"/>, its card's transform) and springs back, with a notice saying why.
+    /// </summary>
+    public void BeginEventDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e, bool resize, TranslateTransform pull)
     {
         // Picking Times To Share: a drag that starts on an event picks times too (busy ones are left out when copying)
         if (_vm.IsSharing)
@@ -973,6 +979,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
         if (!_vm.CanEdit(occurrence))
         {
+            _drag = new DragSession(DragKind.Nudge, e.GetCurrentPoint(this).Position) { Occurrence = occurrence, Pull = pull };
             return;
         }
 
@@ -1016,11 +1023,15 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _drag = new DragSession(DragKind.CreateAllDay, e.GetCurrentPoint(this).Position) { GrabbedDay = DayAt(e.GetCurrentPoint(_allDay).Position.X) };
     }
 
-    /// <summary>An all-day chip was pressed: dragging moves it across days, or into the grid to become timed.</summary>
-    public void BeginAllDayDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e)
+    /// <summary>
+    /// An all-day chip was pressed: dragging moves it across days, or into the grid to become timed. An event you can't
+    /// change gives a little (<paramref name="pull"/>, the chip's transform) and springs back, with a notice saying why.
+    /// </summary>
+    public void BeginAllDayDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e, TranslateTransform pull)
     {
         if (!_vm.CanEdit(occurrence))
         {
+            _drag = new DragSession(DragKind.Nudge, e.GetCurrentPoint(this).Position) { Occurrence = occurrence, Pull = pull };
             return;
         }
 
@@ -1063,6 +1074,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return false;
         }
 
+        if (_drag is { Kind: DragKind.Nudge, Started: true, Pull: { } pulled })
+        {
+            ElasticNudge.SnapBack(pulled);
+        }
+
         _drag = null;
         HideBox();
         ShowNewEventGhost();
@@ -1100,6 +1116,14 @@ public sealed partial class TimeGridView : Grid, IDisposable
             }
 
             drag.Started = true;
+        }
+
+        // A Read-Only Event Gives A Little With The Pointer
+        if (drag.Kind == DragKind.Nudge)
+        {
+            ElasticNudge.Pull(drag.Pull!, at.X - drag.Origin.X, at.Y - drag.Origin.Y);
+            e.Handled = true;
+            return;
         }
 
         // Box: drawn from the press to the pointer (ponytail: selection applies on release, not live; live highlighting re-renders every move)
@@ -1156,6 +1180,19 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _drag = null;
         HideBox();
         ReleasePointerCapture(e.Pointer);
+
+        // A Read-Only Event Springs Back, And The Notice Says Why It Stayed
+        if (drag.Kind == DragKind.Nudge)
+        {
+            if (drag.Started)
+            {
+                e.Handled = true;
+                ElasticNudge.SnapBack(drag.Pull!);
+                _vm.ExplainReadOnly(drag.Occurrence!);
+            }
+
+            return;
+        }
 
         // A Resize That Changes The End Keeps Its Card At The New Size Until The Saved Change Redraws The Grid
         _holdResize = drag is { Kind: DragKind.Resize, Started: true, Target: { } resized } && resized.End != drag.Occurrence!.End;

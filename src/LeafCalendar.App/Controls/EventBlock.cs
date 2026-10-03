@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Windows.UI.Text;
 
@@ -47,6 +48,9 @@ public sealed partial class EventBlock : Grid
     Action<CalendarOccurrence>? _select;
     string _timeText = "";
 
+    // The card's give while a read-only event is dragged (ElasticNudge); created here and never read back
+    readonly TranslateTransform _pull = new();
+
     /// <summary>Builds the card; <paramref name="owner"/> (the time grid) runs its drags and edits.</summary>
     public EventBlock(TimeGridView? owner = null)
     {
@@ -62,7 +66,8 @@ public sealed partial class EventBlock : Grid
         inner.Children.Add(_accents);
         inner.Children.Add(_text);
 
-        _card.Child = inner;
+        _card.Child     = inner;
+        RenderTransform = _pull;
         Children.Add(_card);
         if (owner is not null)
         {
@@ -158,7 +163,7 @@ public sealed partial class EventBlock : Grid
             return;
         }
 
-        _owner.BeginEventDrag(o, e, resize: IsResizeZone(point.Position.Y));
+        _owner.BeginEventDrag(o, e, IsResizeZone(point.Position.Y), _pull);
     }
 
     bool IsResizeZone(double y) => HoldsEnd && ActualHeight >= ResizeZone * 3 && y >= ActualHeight - ResizeZone;

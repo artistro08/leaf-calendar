@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
 using Windows.System;
 
@@ -125,6 +126,10 @@ public sealed partial class MonthGridView : Grid, IDisposable
 
         // Dragging Chips Between Days
         _ghost.Child = _ghostLabel;
+        var ghostShadow = new ThemeShadow();
+        ghostShadow.Receivers.Add(_repeater);
+        _ghost.Shadow      = ghostShadow;
+        _ghost.Translation = new System.Numerics.Vector3(0, 0, 24);
         _dragLayer.Children.Add(_ghost);
         _dragLayer.Children.Add(_box);
         SetRow(_dragLayer, 1);
@@ -450,6 +455,10 @@ public sealed partial class MonthGridView : Grid, IDisposable
     sealed class ChipDrag(CalendarOccurrence occurrence, Point origin, DateOnly grabbedDay)
     {
         public CalendarOccurrence Occurrence { get; } = occurrence;
+
+        // A Read-Only Event: the chip gives a little (its transform) and springs back, instead of moving
+        public bool ReadOnly { get; init; }
+        public TranslateTransform? Pull { get; init; }
         public Point Origin { get; } = origin;
         public DateOnly GrabbedDay { get; } = grabbedDay;
         public bool Started { get; set; }
@@ -494,15 +503,17 @@ public sealed partial class MonthGridView : Grid, IDisposable
         _boxDrag   = new BoxDrag(point.Position, corner, CellAt(corner));
     }
 
-    /// <summary>A chip was pressed: dragging moves the event to another day (keeping its time). Events you can't change don't drag.</summary>
-    public void BeginChipDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e)
+    /// <summary>
+    /// A chip was pressed: dragging moves the event to another day (keeping its time). An event you can't change gives a
+    /// little (<paramref name="pull"/>, the chip's transform) and springs back, with a notice saying why.
+    /// </summary>
+    public void BeginChipDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e, TranslateTransform pull)
     {
-        if (!_vm.CanEdit(occurrence))
+        _drag = new ChipDrag(occurrence, e.GetCurrentPoint(this).Position, DateAt(e.GetCurrentPoint(_repeater).Position))
         {
-            return;
-        }
-
-        _drag = new ChipDrag(occurrence, e.GetCurrentPoint(this).Position, DateAt(e.GetCurrentPoint(_repeater).Position));
+            ReadOnly = !_vm.CanEdit(occurrence),
+            Pull     = pull,
+        };
     }
 
     /// <summary>The day under a point in the week rows' coordinates (a real date, so hidden weekends still count as days).</summary>
@@ -519,6 +530,11 @@ public sealed partial class MonthGridView : Grid, IDisposable
         if (_drag is null && _boxDrag is null)
         {
             return false;
+        }
+
+        if (_drag is { ReadOnly: true, Started: true, Pull: { } pulled })
+        {
+            ElasticNudge.SnapBack(pulled);
         }
 
         _drag             = null;
@@ -582,6 +598,14 @@ public sealed partial class MonthGridView : Grid, IDisposable
             }
 
             drag.Started = true;
+        }
+
+        // A Read-Only Event Gives A Little With The Pointer
+        if (drag.ReadOnly)
+        {
+            ElasticNudge.Pull(drag.Pull!, at.X - drag.Origin.X, at.Y - drag.Origin.Y);
+            e.Handled = true;
+            return;
         }
 
         // Redraw The Ghost Only When The Cell Or Copy Mode Changes (the pointer is kept to the visible rows)
@@ -686,6 +710,19 @@ public sealed partial class MonthGridView : Grid, IDisposable
         _drag = null;
         ReleasePointerCapture(e.Pointer);
         _ghost.Visibility = Visibility.Collapsed;
+
+        // A Read-Only Event Springs Back, And The Notice Says Why It Stayed
+        if (drag.ReadOnly)
+        {
+            if (drag.Started)
+            {
+                e.Handled = true;
+                ElasticNudge.SnapBack(drag.Pull!);
+                _vm.ExplainReadOnly(drag.Occurrence);
+            }
+
+            return;
+        }
 
         // Dropped On The Day It Started: nothing to do (no scope question, no copy on top of the original)
         if (!drag.Started || drag.Target is not { } target || target == drag.GrabbedDay)
