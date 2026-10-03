@@ -209,7 +209,7 @@ public partial class App : Application
         // Tray Icon (without one Leaf still runs, and launching it again brings the window back)
         try
         {
-            _tray          = new TrayIcon(services.Log);
+            _tray          = new TrayIcon(services.Log, TrayDay());
             _tray.Invoked += (_, _) => ToggleAgenda();
         }
         catch (Exception ex)
@@ -312,9 +312,13 @@ public partial class App : Application
             _alerts?.Invalidate();
         }
 
+        _tray?.SetDay(TrayDay());
         RefreshTooltip();
         RefreshAgenda();
     }
+
+    // Today's day of the month on the PC clock (the taskbar's date), for the tray icon
+    int TrayDay() => TimeZoneInfo.ConvertTime(_services?.Time.GetUtcNow() ?? DateTimeOffset.UtcNow, _zone.Zone).Day;
 
     // "Standup in 12 min" (spec 8.1), within the tray lookahead setting
     void RefreshTooltip()
