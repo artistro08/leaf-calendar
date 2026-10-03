@@ -3,13 +3,13 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Zone Bars (above the calendar; both closed until there's something to say) -->
-    <StackPanel>
+    <!-- Zone Bars (at the bottom, with the toasts; both closed until there's something to say) -->
+    <StackPanel MaxWidth="640" Spacing="8">
         <!-- Time Travel ("Viewing your calendar in Tokyo time (UTC+9)." · Return) -->
         <InfoBar
             CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
             x:Name="TravelBar"
-            Margin="16,0,16,8"
+            Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
             Severity="Informational"
             IsClosable="False"
             IsOpen="False"
@@ -27,7 +27,7 @@
         <InfoBar
             CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
             x:Name="ZoneSwitchBar"
-            Margin="16,0,16,8"
+            Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
             Severity="Informational"
             IsClosable="False"
             IsOpen="False"
