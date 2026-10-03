@@ -1,0 +1,23 @@
+<Page
+    x:Class="LeafCalendar.App.Views.Settings.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Navigation (items set in code from concrete lists; About sits at the bottom of the pane. The hamburger is the main
+         window title bar's, beside its back button) -->
+    <NavigationView
+        x:Name="Navigation"
+        IsBackButtonVisible="Collapsed"
+        IsPaneToggleButtonVisible="False"
+        IsSettingsVisible="False"
+        OpenPaneLength="240"
+        PaneDisplayMode="Auto"
+        ExpandedModeThresholdWidth="800"
+        SelectionChanged="OnSelectionChanged"
+        ItemInvoked="OnItemInvoked"
+        AutomationProperties.AutomationId="SettingsNavigation">
+        <!-- Each page insets its own content, so its scroll bar sits at the window's right edge -->
+        <Frame x:Name="ContentFrame" />
+    </NavigationView>
+    <!-- /Navigation -->
+</Page>

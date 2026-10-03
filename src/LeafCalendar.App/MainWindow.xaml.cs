@@ -24,9 +24,10 @@ namespace LeafCalendar.App;
 /// toolbar, a Mica backdrop, and a page frame holding the calendar (first-run setup is its own window,
 /// <see cref="Views.Onboarding.OnboardingWindow"/>, shown before this one). On the calendar page the
 /// frame runs under the title bar, so the sidebars and the calendar island reach the top edge; the
-/// title bar stays transparent and only its buttons take clicks. The pane toggle shows only on the
-/// calendar. Settings and accounts live in their own window (<see cref="SettingsWindow"/>), which
-/// shares the App's calendar view model, so its changes show here right away; it stays open when this window closes.
+/// title bar stays transparent and only its buttons take clicks. Settings and accounts show in place of
+/// the calendar (<see cref="SettingsPage"/>, <see cref="ShowSettings"/>), under the title bar, whose back
+/// button returns to the calendar; they share the calendar view model, so a change shows in the calendar right away, and
+/// they close with this window (Leaf lives in the tray).
 /// </summary>
 [SuppressMessage("Design", "CA1001", Justification = "Windows aren't disposable; the App owns the view model.")]
 public sealed partial class MainWindow : Window
@@ -67,6 +68,9 @@ public sealed partial class MainWindow : Window
     Storyboard? _toolbarSlide;
     (double Right, double Toggle, bool Sidebar, bool Calendar)? _titleBarLayout;
 
+    // The Settings view while it shows in place of the calendar
+    SettingsPage? _settings;
+
     /// <summary>Creates the window on the App's calendar view model (Settings shares it). <see cref="App"/> owns both.</summary>
     public MainWindow(LeafServices services, CalendarViewModel calendar)
     {
@@ -88,22 +92,33 @@ public sealed partial class MainWindow : Window
         // Shortcuts are handled at the root so they work wherever focus is
         RootGrid.PreviewKeyDown += (_, e) =>
         {
-            if (ContentFrame.Content is CalendarPage page && page.HandleShortcut(e))
+            if (_settings is null && ContentFrame.Content is CalendarPage page && page.HandleShortcut(e))
             {
                 e.Handled = true;
             }
         };
 
-        // Mouse Back And Forward Buttons (even over controls that handle the press)
+        // Mouse Back And Forward Buttons (even over controls that handle the press; in Settings, Back is the title bar's)
         RootGrid.AddHandler(UIElement.PointerPressedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler((_, e) =>
         {
+            // Only The Press That Just Happened Counts, Not A Button Still Held
+            var kind = e.GetCurrentPoint(RootGrid).Properties.PointerUpdateKind;
+            if (_settings is not null)
+            {
+                if (kind == Microsoft.UI.Input.PointerUpdateKind.XButton1Pressed)
+                {
+                    GoBack();
+                    e.Handled = true;
+                }
+
+                return;
+            }
+
             if (ContentFrame.Content is not CalendarPage page)
             {
                 return;
             }
 
-            // Only The Press That Just Happened Counts, Not A Button Still Held
-            var kind = e.GetCurrentPoint(RootGrid).Properties.PointerUpdateKind;
             if (kind == Microsoft.UI.Input.PointerUpdateKind.XButton1Pressed && page.TryNavigateHistory(back: true))
             {
                 e.Handled = true;
@@ -156,8 +171,9 @@ public sealed partial class MainWindow : Window
         Activated += OnActivated;
         Closed    += (_, _) =>
         {
-            // Closing doesn't navigate, so release the page's views here; the view model is the App's (Settings may
-            // still be open on it, and Leaf stays in the tray)
+            // Closing doesn't navigate, so release the page's views here; the view model is the App's (Leaf stays in
+            // the tray). Settings goes with the window.
+            CloseSettings();
             (ContentFrame.Content as CalendarPage)?.Detach();
             _waitingTimer.Stop();
             _calendar.LayoutChanged   -= OnCalendarLayoutChanged;
@@ -230,16 +246,84 @@ public sealed partial class MainWindow : Window
         ApplyTheme(_calendar.Settings.Theme);
     }
 
-    void OnNavigated(object sender, NavigationEventArgs e)
+    /// <summary>Shows Settings on <paramref name="section"/> in place of the calendar (or that page, if Settings is already showing).</summary>
+    public void ShowSettings(SettingsSection section)
     {
-        var page       = e.Content as CalendarPage;
-        var onCalendar = page is not null;
-        _searchRide    = null;
+        if (_settings is null)
+        {
+            _services.Log.Trace("settings", "open");
+            _settings = new SettingsPage(_services, _calendar);
+            SettingsHost.Children.Add(_settings);
+            SettingsHost.Visibility = Visibility.Visible;
+            ContentFrame.Visibility = Visibility.Collapsed;
+            AppTitleBar.Title       = "Settings";
+            UpdateChrome();
+        }
+
+        _settings.Show(section);
+    }
+
+    // Back to the calendar: the Settings view ends (its pages stop listening) and goes
+    void CloseSettings()
+    {
+        if (_settings is not { } settings)
+        {
+            return;
+        }
+
+        _services.Log.Trace("settings", "close");
+        _settings = null;
+        settings.Close();
+        SettingsHost.Children.Remove(settings);
+        SettingsHost.Visibility = Visibility.Collapsed;
+        ContentFrame.Visibility = Visibility.Visible;
+        AppTitleBar.Title       = "";
+        UpdateChrome();
+    }
+
+    // The title bar's Back: the OAuth client form goes back to Accounts (sliding back, like Cancel), Settings to the calendar,
+    // and the calendar back from a command-menu jump
+    void GoBack()
+    {
+        if (_settings is { } settings)
+        {
+            if (settings.InClientForm)
+            {
+                settings.Show(SettingsSection.Accounts);
+            }
+            else
+            {
+                CloseSettings();
+            }
+        }
+        else
+        {
+            _calendar.BackFromJump();
+        }
+    }
+
+    // The title bar's buttons for what shows: the calendar's toolbar, search, and details toggle only on the calendar; the pane
+    // toggle on both (the sidebar's, or the Settings pane's); Back in Settings and after a command-menu jump. The title bar
+    // only lets clicks through where its buttons are when it computes its regions, so they're recomputed
+    void UpdateChrome()
+    {
+        var onCalendar = _settings is null && ContentFrame.Content is CalendarPage;
 
         CalendarToolbar.Visibility            = onCalendar ? Visibility.Visible : Visibility.Collapsed;
         SearchButton.Visibility               = CalendarToolbar.Visibility;
         DetailsToggle.Visibility              = CalendarToolbar.Visibility;
-        AppTitleBar.IsPaneToggleButtonVisible = onCalendar;
+        AppTitleBar.IsPaneToggleButtonVisible = onCalendar || _settings is not null;
+        AppTitleBar.IsBackButtonVisible       = _settings is not null || _calendar.ShowBack;
+
+        UpdateTitleBarLayout(animate: false);
+        UpdateEventActions();
+        AppTitleBar.RecomputeDragRegions();
+    }
+
+    void OnNavigated(object sender, NavigationEventArgs e)
+    {
+        var page    = e.Content as CalendarPage;
+        _searchRide = null;
 
         if (page is not null)
         {
@@ -255,8 +339,7 @@ public sealed partial class MainWindow : Window
             SyncMenu();
         }
 
-        UpdateTitleBarLayout(animate: false);
-        UpdateEventActions();
+        UpdateChrome();
     }
 
     // The pane toggles' glyphs: a pane's panel is filled while it's open
@@ -419,7 +502,7 @@ public sealed partial class MainWindow : Window
     {
         var several    = _calendar is { Selection.Count: > 1 };
         var canEdit    = _calendar?.SelectedInfo is { CanEdit: true };
-        var show       = ContentFrame.Content is CalendarPage { IsDetailsOpen: true } && _calendar is { Editing: null } && (several || _calendar.SelectedInfo is not null);
+        var show       = _settings is null && ContentFrame.Content is CalendarPage { IsDetailsOpen: true } && _calendar is { Editing: null } && (several || _calendar.SelectedInfo is not null);
         var visibility = show ? Visibility.Visible : Visibility.Collapsed;
         var edit       = !several && canEdit;
         var delete     = _calendar is { CanDeleteSelection: true };
@@ -456,7 +539,11 @@ public sealed partial class MainWindow : Window
 
     void OnPaneToggleRequested(TitleBar sender, object args)
     {
-        if (ContentFrame.Content is CalendarPage page && _calendar is not null)
+        if (_settings is { } settings)
+        {
+            settings.TogglePane();
+        }
+        else if (ContentFrame.Content is CalendarPage page && _calendar is not null)
         {
             page.SetSidebarOpen(!_calendar.Settings.SidebarOpen, animate: true);
         }
@@ -501,8 +588,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    // The title bar's Back shows only after a command-menu jump
-    void OnBackRequested(TitleBar sender, object args) => _calendar.BackFromJump();
+    void OnBackRequested(TitleBar sender, object args) => GoBack();
 
     void OnPreviousClick(object sender, RoutedEventArgs e) => _calendar?.Previous();
 
@@ -679,7 +765,7 @@ public sealed partial class MainWindow : Window
         }
         else if (e.PropertyName == nameof(CalendarViewModel.ShowBack))
         {
-            AppTitleBar.IsBackButtonVisible = _calendar.ShowBack;
+            AppTitleBar.IsBackButtonVisible = _settings is not null || _calendar.ShowBack;
             AppTitleBar.RecomputeDragRegions();
         }
     }

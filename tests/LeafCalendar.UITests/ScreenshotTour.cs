@@ -79,8 +79,8 @@ public sealed class ScreenshotTour : IDisposable
     }
 
     /// <summary>
-    /// Every Settings page in light and dark, with the Settings window at its 640 DIP minimum and wide (1500 px), so the
-    /// capped, centered column and the pane's collapse both show. Set LEAF_SCREENSHOTS to run it (LEAF_SCREENS narrows
+    /// Every Settings page in light and dark, with the main window at its minimum and wide (1500 px), so the capped,
+    /// centered column and the pane's collapse both show. Set LEAF_SCREENSHOTS to run it (LEAF_SCREENS narrows
     /// the pages, such as "General,TimeZones"). Expanders on the page are opened first, so their rows show.
     /// </summary>
     [Fact]
@@ -104,9 +104,7 @@ public sealed class ScreenshotTour : IDisposable
             leaf.WaitFor("SettingsButton");
             foreach (var page in pages)
             {
-                // The Main Window Minimized, So Only Settings Shows In The Shot
                 var settings = leaf.OpenSettings(page);
-                leaf.MainWindow.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
                 foreach (var width in SettingsWidths)
                 {
                     // 0 Asks For The Minimum (the window clamps it)
@@ -123,8 +121,6 @@ public sealed class ScreenshotTour : IDisposable
                         leaf.ExpandInSettings($"AccountExpander_{SeededProfile.AccountId}");
                     }
 
-                    // Only Settings In The Shot (the main window minimized again: opening Settings can bring it back)
-                    leaf.MainWindow.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
                     settings.SetForeground();
                     Thread.Sleep(400);
                     settings.CaptureToFile(Path.Combine(folder, $"settings-{page.ToLowerInvariant()}-{theme.ToString().ToLowerInvariant()}-{(width == 0 ? "narrow" : "wide")}.png"));

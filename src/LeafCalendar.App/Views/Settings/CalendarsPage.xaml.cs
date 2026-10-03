@@ -56,7 +56,7 @@ public sealed partial class CalendarsPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         _context = (SettingsContext)e.Parameter;
-        _context.Window.CalendarsChanged        += OnCalendarsChanged;
+        _context.Host.CalendarsChanged        += OnCalendarsChanged;
         _context.Calendar.AccountFoldingChanged += OnCalendarsChanged;
         Rebuild();
     }
@@ -64,7 +64,7 @@ public sealed partial class CalendarsPage : Page
     /// <inheritdoc />
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
-        _context.Window.CalendarsChanged        -= OnCalendarsChanged;
+        _context.Host.CalendarsChanged        -= OnCalendarsChanged;
         _context.Calendar.AccountFoldingChanged -= OnCalendarsChanged;
     }
 

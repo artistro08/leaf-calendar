@@ -42,7 +42,6 @@ public partial class App : Application
     readonly RepeatFilter _toastRepeats = new(TimeProvider.System);
     LeafServices? _services;
     CalendarViewModel? _calendar;
-    SettingsWindow? _hookedSettings;
     TrayIcon? _tray;
     TrayHost? _host;
     Notifier? _notifier;
@@ -438,17 +437,13 @@ public partial class App : Application
         }
     }
 
-    // A sign-in starts in onboarding, Settings › Accounts, or the main window (allowing contact suggestions): whichever is
+    // A sign-in starts in onboarding or the main window (Settings › Accounts, or allowing contact suggestions): whichever is
     // showing comes back when the browser is done
     void BringSignInWindowToFront()
     {
         if (_onboarding is { } onboarding)
         {
             onboarding.BringToFront();
-        }
-        else if (SettingsWindow.Current is { } settings)
-        {
-            settings.BringToFront();
         }
         else
         {
@@ -539,35 +534,17 @@ public partial class App : Application
         return _calendar;
     }
 
+    // Settings shows in the main window, in place of the calendar
     void OpenSettings(SettingsSection section)
     {
-        if (_services is not { } services)
-        {
-            return;
-        }
-
-        SettingsWindow.Open(services, AcquireCalendar(), section);
-        EfficiencyMode.Set(false);
-
-        // Watch Each Settings Window Once, To Release The View Model When It And The Main Window Are Both Closed
-        if (SettingsWindow.Current is { } open && !ReferenceEquals(open, _hookedSettings))
-        {
-            _hookedSettings = open;
-            open.Closed    += (_, _) =>
-            {
-                _hookedSettings = null;
-                if (!_quitting)
-                {
-                    _dispatcher?.TryEnqueue(ReleaseIfHidden);
-                }
-            };
-        }
+        ShowMainWindow();
+        _window?.ShowSettings(section);
     }
 
     // Tray only: no window uses the view model any more, so its caches and timers go
     void ReleaseIfHidden()
     {
-        if (_window is not null || SettingsWindow.Current is not null)
+        if (_window is not null)
         {
             return;
         }
@@ -730,7 +707,7 @@ public partial class App : Application
                 }
             }
 
-            EfficiencyMode.Set(!visible && SettingsWindow.Current is null);
+            EfficiencyMode.Set(!visible);
         }
         catch (Exception ex)
         {
@@ -942,7 +919,6 @@ public partial class App : Application
                 _tray?.Dispose();
                 _tray = null;
             });
-            QuitStep("settings", () => SettingsWindow.Current?.Close());
             QuitStep("window", () => _window?.Close());
             QuitStep("host", () => _host?.Shutdown());
             QuitStep("calendar", () =>

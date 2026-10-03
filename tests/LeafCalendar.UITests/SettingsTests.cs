@@ -31,17 +31,21 @@ public sealed class SettingsTests : IDisposable
     }
 
     [Fact]
-    public void SettingsButton_OpensOneSettingsWindow()
+    public void SettingsButton_ShowsSettingsInTheMainWindow_AndBackReturnsToTheCalendar()
     {
         using var leaf = Launch();
 
         leaf.OpenSettings();
         Assert.NotNull(leaf.WaitInSettings("ThemeComboBox"));
 
-        // Again: the open window comes forward instead of a second one
-        leaf.WaitFor("SettingsButton").AsButton().Invoke();
-        Thread.Sleep(500);
-        Assert.Equal(1, leaf.WindowCount("Settings"));
+        // In Place Of The Calendar, Not A Window Of Its Own
+        Assert.Equal(0, leaf.WindowCount("Settings"));
+        Assert.True(Retry.WhileFalse(() => leaf.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("SettingsButton")) is null or { IsOffscreen: true }, TimeSpan.FromSeconds(5)).Success, "The calendar still shows.");
+
+        // The Title Bar's Back Button Brings The Calendar Back
+        leaf.CloseSettings();
+        Assert.NotNull(leaf.WaitFor("SettingsButton"));
+        Assert.True(Retry.WhileFalse(() => leaf.BackButton() is null, TimeSpan.FromSeconds(5)).Success, "Back stayed on the calendar.");
     }
 
     [Fact]
@@ -114,7 +118,7 @@ public sealed class SettingsTests : IDisposable
         var settings = leaf.OpenSettings("Accounts");
         leaf.WaitInSettings("DefaultCalendarComboBox").AsComboBox().Select("Family");
         Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("DefaultCalendarComboBox").AsComboBox().SelectedItem?.Name == "Family", TimeSpan.FromSeconds(5)).Success);
-        settings.Close();
+        leaf.CloseSettings();
 
         leaf.MainWindow.Focus();
         leaf.Press(VirtualKeyShort.KEY_C);
@@ -152,7 +156,7 @@ public sealed class SettingsTests : IDisposable
     }
 
     [Fact]
-    public void ClosingMainWindow_LeavesSettingsOpenAndLeafRunning()
+    public void ClosingMainWindow_InSettings_KeepsLeafRunning_AndReopensOnTheCalendar()
     {
         using var leaf = Launch();
         leaf.OpenSettings("About");
@@ -161,8 +165,13 @@ public sealed class SettingsTests : IDisposable
         leaf.MainWindow.Close();
 
         Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
-        Assert.NotNull(leaf.WaitInSettings("AboutVersion"));
         Assert.False(leaf.App.HasExited);
+
+        // Opened Again From The Tray: The Calendar, Not Settings
+        leaf.RightClickTrayIcon();
+        leaf.WaitForPopup("TrayMenuOpen").AsMenuItem().Invoke();
+        Assert.NotNull(leaf.WaitFor("SettingsButton"));
+        Assert.False(leaf.IsSettingsOpen);
     }
 
     [Fact]
@@ -184,31 +193,30 @@ public sealed class SettingsTests : IDisposable
     }
 
     [Fact]
-    public void ChangeOAuthClient_TitleBarBack_ReturnsToAccounts()
+    public void ChangeOAuthClient_TitleBarBack_ReturnsToAccounts_ThenToTheCalendar()
     {
         using var leaf = Launch();
-        var settings = leaf.OpenSettings("Accounts");
+        leaf.OpenSettings("Accounts");
 
-        // A Root Page Has No Back Button
+        // The Back Button Sits Left Of The Hamburger
         leaf.WaitInSettings("AddAccountButton");
-        Assert.Null(BackButton(settings));
+        var back = Retry.WhileNull(leaf.BackButton, TimeSpan.FromSeconds(5)).Result
+            ?? throw new InvalidOperationException("The title bar has no back button in Settings.");
+        var toggle = leaf.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("AppTitleBar"))?.FindFirstDescendant(cf => cf.ByAutomationId("PART_PaneToggleButton"))
+            ?? throw new InvalidOperationException("The title bar has no hamburger in Settings.");
+        Assert.True(back.BoundingRectangle.Right <= toggle.BoundingRectangle.Left, "The back button isn't left of the hamburger.");
 
-        // The Client Form Has One, Left Of The Hamburger, And It Goes Back
+        // From The Client Form, Back Goes To Accounts
         leaf.WaitInSettings("ChangeClientButton").AsButton().Invoke();
         leaf.WaitInSettings("SettingsClientIdBox");
-        var back = Retry.WhileNull(() => BackButton(settings), TimeSpan.FromSeconds(5)).Result
-            ?? throw new InvalidOperationException("The title bar has no back button on the client form.");
-        var toggle = leaf.WaitInSettings("PART_PaneToggleButton");
-        Assert.True(back.BoundingRectangle.Right <= toggle.BoundingRectangle.Left, "The back button isn't left of the hamburger.");
         back.AsButton().Invoke();
-
         Assert.NotNull(leaf.WaitInSettings("AddAccountButton"));
-        Assert.True(Retry.WhileFalse(() => BackButton(settings) is null, TimeSpan.FromSeconds(5)).Success);
-    }
+        Assert.True(leaf.IsSettingsOpen);
 
-    // The stock TitleBar's back button, while it shows
-    static AutomationElement? BackButton(AutomationElement settings) =>
-        settings.FindFirstDescendant(cf => cf.ByAutomationId("SettingsTitleBar"))?.FindFirstDescendant(cf => cf.ByAutomationId("PART_BackButton"));
+        // From Accounts, Back Goes To The Calendar
+        leaf.CloseSettings();
+        Assert.NotNull(leaf.WaitFor("AddTimeZoneButton"));
+    }
 
     [Fact]
     public void Disconnect_WithUnsentChanges_WarnsTheyWillBeLost()

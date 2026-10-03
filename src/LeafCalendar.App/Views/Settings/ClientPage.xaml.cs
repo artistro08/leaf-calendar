@@ -38,10 +38,10 @@ public sealed partial class ClientPage : Page
     async Task OnSavedAsync()
     {
         await _context.Services.ReloadGoogleAsync();
-        _context.Window.Show(SettingsSection.Accounts);
+        _context.Host.Show(SettingsSection.Accounts);
     }
 
-    void OnCancelClick(object sender, RoutedEventArgs e) => _context.Window.Show(SettingsSection.Accounts);
+    void OnCancelClick(object sender, RoutedEventArgs e) => _context.Host.Show(SettingsSection.Accounts);
 
     // Enter in the client ID moves on to the secret
     void OnClientIdKeyDown(object sender, KeyRoutedEventArgs e)
