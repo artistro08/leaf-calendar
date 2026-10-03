@@ -138,6 +138,10 @@ public sealed partial class DayColumn : Canvas
         RenderEventsAndNow();
     }
 
+    // Room right of the cards: 8 between days, and in Day view (one column, so its right edge is the grid's, under the
+    // scroll indicator) enough to press and drag a new event there, clear of the indicator
+    double RightInset => _owner.ViewModel.VisibleColumns == 1 ? 28 : 8;
+
     /// <summary>
     /// Repaints the events (past ones fade) and the now line: what the time grid's minute clock redraws. The shading,
     /// overlay, and slot layers only change with their own data, so the clock leaves them alone.
@@ -160,7 +164,7 @@ public sealed partial class DayColumn : Canvas
         for (var i = 0; i < blocks.Count; i++)
         {
             var b       = blocks[i];
-            var usable  = width - 10;
+            var usable  = width - 2 - RightInset;
             var colW    = usable / b.ColumnCount;
 
             // The New Event's Ghost, In Its Own Column
@@ -231,9 +235,12 @@ public sealed partial class DayColumn : Canvas
         return [.. accents.Select(a => LeafBrushes.CardPalette(a, dark, past, selected).Accent)];
     }
 
-    /// <summary>Shows where a dragged or new event would land (minutes past local midnight).</summary>
-    public void SetGhost(double startMinute, double endMinute, string label) =>
-        PlaceGhost(2, Math.Max(_owner.ColumnWidth - 6, 10), startMinute, endMinute, label);
+    /// <summary>
+    /// Shows where a dragged or new event would land (minutes past local midnight), in the dragged event's color
+    /// (<paramref name="accentHex"/>) or the system accent for a new one.
+    /// </summary>
+    public void SetGhost(double startMinute, double endMinute, string label, string? accentHex = null) =>
+        PlaceGhost(2, Math.Max(_owner.ColumnWidth - 2 - RightInset, 10), startMinute, endMinute, label, accentHex);
 
     /// <summary>
     /// Shows only the time a resized event will end at (<paramref name="label"/>), just under its new end
@@ -256,14 +263,15 @@ public sealed partial class DayColumn : Canvas
     // Height of the resize time label (one line of the ghost's 11 px text)
     const double TimeLabelHeight = 20;
 
-    void PlaceGhost(double left, double width, double startMinute, double endMinute, string label)
+    void PlaceGhost(double left, double width, double startMinute, double endMinute, string label, string? accentHex = null)
     {
         var hour  = _owner.HourHeight;
         var dark  = _owner.IsDark;
+        var (border, fill) = LeafBrushes.GhostPalette(accentHex, dark);
         _ghost.Width       = width;
         _ghost.Height      = Math.Max((endMinute - startMinute) / 60 * hour - 2, 10);
-        _ghost.BorderBrush = LeafBrushes.Accent(dark);
-        _ghost.Background  = LeafBrushes.GhostFill(dark);
+        _ghost.BorderBrush = border;
+        _ghost.Background  = fill;
         _ghostLabel.Text   = label;
         SetLeft(_ghost, left);
         SetTop(_ghost, startMinute / 60 * hour + 1);

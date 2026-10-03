@@ -112,6 +112,21 @@ public static class LeafBrushes
     };
 
     /// <summary>Card colors: Google's in normal themes; window, text, and highlight colors in a contrast theme (where past cards aren't faded).</summary>
+    /// <summary>
+    /// A drag ghost's border and fill: the dragged event's own color (its card palette) when there is one, else the
+    /// system accent on the plain ghost fill (a new event being drawn out).
+    /// </summary>
+    public static (SolidColorBrush Border, SolidColorBrush Fill) GhostPalette(string? accentHex, bool dark)
+    {
+        if (accentHex is null)
+        {
+            return (Accent(dark), GhostFill(dark));
+        }
+
+        var palette = CardPalette(accentHex, dark);
+        return (FromHex(palette.Accent), FromHex(palette.Fill));
+    }
+
     public static EventPalette CardPalette(string accentHex, bool dark, bool past = false, bool selected = false) =>
         HighContrast ? HighContrastPalette(selected) : EventColors.Palette(accentHex, dark, past, selected);
 

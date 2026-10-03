@@ -1255,6 +1255,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
     void ShowGhost((DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? target, bool duplicate)
     {
         var copy = duplicate ? "+ Copy  " : "";
+
+        // The Dragged Event's Color And Title Ride Along (a new event being drawn out has neither yet)
+        var dragged = _drag?.Occurrence;
+        var accent  = dragged is null ? null : EventColors.ResolveAccent(dragged.ColorId, dragged.CalendarColor);
+        var title   = dragged is null ? "" : dragged.Title + "\n";
         SetPreviews(null, HeldResize);
 
         // All-Day Row
@@ -1267,7 +1272,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
             var first = header.IsAllDay ? DateOnly.FromDateTime(header.Start.UtcDateTime) : LocalDate(header.Start);
             var last  = header.IsAllDay ? DateOnly.FromDateTime(header.End.UtcDateTime).AddDays(-1) : LocalDate(header.End.AddTicks(-1));
-            _allDay.SetGhost(first, last < first ? first : last, duplicate, duplicate ? null : _drag?.Occurrence?.Key);
+            _allDay.SetGhost(first, last < first ? first : last, duplicate, duplicate ? null : _drag?.Occurrence?.Key, accent);
             SizeAllDay();
             return;
         }
@@ -1293,7 +1298,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
             var top    = t.Start <= dayStart ? 0 : MinutesIntoDay(t.Start);
             var bottom = end >= dayEnd ? 24 * 60 : MinutesIntoDay(end);
-            column.SetGhost(top, Math.Max(bottom, top + DragMath.SnapMinutes), copy + (t.Start >= dayStart ? TimeLabels.GridRange(t.Start, t.End, _vm.Zone, _vm.Settings.Use24HourTime) : ""));
+            column.SetGhost(top, Math.Max(bottom, top + DragMath.SnapMinutes), copy + title + (t.Start >= dayStart ? TimeLabels.GridRange(t.Start, t.End, _vm.Zone, _vm.Settings.Use24HourTime) : ""), accent);
         }
     }
 

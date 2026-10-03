@@ -599,11 +599,12 @@ public sealed partial class MonthGridView : Grid, IDisposable
         drag.Duplicate = duplicate;
         drag.Target    = days[Math.Min(cell.Column, days.Count - 1)];
 
-        // Ghost Over The Target Cell
+        // Ghost Over The Target Cell, In The Chip's Color
+        var (border, fill)     = LeafBrushes.GhostPalette(EventColors.ResolveAccent(drag.Occurrence.ColorId, drag.Occurrence.CalendarColor), IsDark);
         _ghost.Width           = ColumnWidth - 2;
         _ghost.Height          = RowHeight - 2;
-        _ghost.BorderBrush     = LeafBrushes.Accent(IsDark);
-        _ghost.Background      = LeafBrushes.Hover(IsDark);
+        _ghost.BorderBrush     = border;
+        _ghost.Background      = fill;
         _ghostLabel.Visibility = duplicate ? Visibility.Visible : Visibility.Collapsed;
         Canvas.SetLeft(_ghost, cell.Column * ColumnWidth + 1);
         Canvas.SetTop(_ghost, cell.Row * RowHeight - top + 1);
