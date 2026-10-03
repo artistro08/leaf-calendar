@@ -2092,7 +2092,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             () =>
             {
                 using var conn = _services.Database.Open();
-                return OccurrenceQuery.Load(conn, from, to, Zone, includeDeclined);
+                // Every copy of a shared event: the cache merges them (SharedEvents) and draws the preferred one
+                return OccurrenceQuery.Load(conn, from, to, Zone, includeDeclined, keepSharedCopies: true);
             },
             ct);
     }

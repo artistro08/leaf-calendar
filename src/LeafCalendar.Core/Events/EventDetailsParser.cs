@@ -123,8 +123,9 @@ public static partial class EventDetailsParser
         return html is null ? null : WebUtility.HtmlDecode(html.Length > MaxHtmlInputLength ? html[..MaxHtmlInputLength] : html);
     }
 
+    // An https link without a user name (one can pose as a host: https://meet.google.com@evil.example opens evil.example)
     static Uri? Https(string? value) =>
-        Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps ? uri : null;
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps && uri.UserInfo.Length == 0 ? uri : null;
 
     // Property lookup that tolerates non-object parents
     static JsonElement? Get(JsonElement? element, string name) =>

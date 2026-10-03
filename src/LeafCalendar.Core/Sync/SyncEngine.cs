@@ -326,6 +326,6 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
         ex is HttpRequestException { StatusCode: null } || (ex is TaskCanceledException && !ct.IsCancellationRequested);
 
     static bool IsSyncFailure(Exception ex, CancellationToken ct) =>
-        ex is GoogleApiException or HttpRequestException or JsonException or InvalidDataException or SqliteException ||
+        ex is GoogleApiException or HttpRequestException or JsonException or InvalidDataException or SqliteException or SyncTokenExpiredException ||
         (ex is TaskCanceledException && !ct.IsCancellationRequested);
 }

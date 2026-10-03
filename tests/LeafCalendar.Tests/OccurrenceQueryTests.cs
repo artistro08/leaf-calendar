@@ -164,6 +164,38 @@ public sealed class OccurrenceQueryTests : IDisposable
     }
 
     [Fact]
+    public void Load_SameEventInTwoAccounts_BothKeptWhenTheCallerMergesThem()
+    {
+        using (var conn = _db.Database.Open())
+        {
+            AccountStore.Upsert(conn, new Account("222", "zzz.second@gmail.com", null, null, AccountStatus.Ok));
+            CalendarStore.ReplaceForAccount(conn, "222", [new CalendarListEntry { Id = "zzz.second@gmail.com", Summary = "Second", AccessRole = "owner", Primary = true, Selected = true }]);
+        }
+
+        Insert("""
+            {"id":"copy-in-second","status":"confirmed","iCalUID":"evt-single@google.com","summary":"Dentist appointment",
+             "start":{"dateTime":"2026-10-01T09:00:00-04:00"},"end":{"dateTime":"2026-10-01T10:00:00-04:00"}}
+            """, account: "222", calendar: "zzz.second@gmail.com");
+
+        using var read = _db.Database.Open();
+        var copies = OccurrenceQuery.Load(read, D(10, 1), D(10, 2), NewYork, includeDeclined: false, keepSharedCopies: true);
+
+        Assert.Equal(2, copies.Count(o => o.ICalUid == "evt-single@google.com"));
+    }
+
+    [Fact]
+    public void Load_Title_IsCleanedForOneLineCards()
+    {
+        Insert("""
+            {"id":"evt-messy","status":"confirmed","summary":"Line one\nline two\u202E","start":{"dateTime":"2026-10-03T09:00:00-04:00"},"end":{"dateTime":"2026-10-03T10:00:00-04:00"}}
+            """);
+
+        var o = Assert.Single(Load(D(10, 3), D(10, 4)), o => o.EventId == "evt-messy");
+
+        Assert.Equal("Line one line two", o.Title);
+    }
+
+    [Fact]
     public void Load_LeafColorOverride_Used()
     {
         using (var conn = _db.Database.Open())
