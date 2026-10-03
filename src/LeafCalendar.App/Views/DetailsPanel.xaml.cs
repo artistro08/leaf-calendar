@@ -198,7 +198,7 @@ public sealed partial class DetailsPanel : UserControl
         }
 
         var d = info.Details;
-        TitleText.Text    = d.Title;
+        TitleText.Text    = Core.Tray.DisplayText.Clean(d.Title, 1000);
         WhenText.Text     = info.When;
         CalendarText.Text = info.CalendarName;
         StatusText.Text   = info.StatusText;
@@ -230,7 +230,7 @@ public sealed partial class DetailsPanel : UserControl
         ToolTipService.SetToolTip(EmailGuestsLink, mailto is null ? null : $"Email guests (E then E)\n{LinkSafety.DisplayForm(mailto)}");
         GuestsRow.Visibility  = Visible(guests.Count > 0);
         GuestsText.Text       = guests.Count == 1 ? "1 guest" : string.Create(CultureInfo.InvariantCulture, $"{guests.Count} guests");
-        GuestList.ItemsSource = guests.Select(g => new GuestItem(g.Email, GuestDetail(g), g.Name)).ToList();
+        GuestList.ItemsSource = guests.Select(g => new GuestItem(Clean(g.Email), GuestDetail(g), g.Name is null ? null : Clean(g.Name))).ToList();
 
         RenderDescription(info.DescriptionRuns);
         ShowShortcutHints(info, guests.Count > 0);
@@ -404,6 +404,10 @@ public sealed partial class DetailsPanel : UserControl
         _                     => ("NeutralTone", "\uE823"),
     };
 
+    // Guest names, addresses, and comments come from whoever sent the invite and sit on one-line rows: control, bidi, and
+    // invisible characters go (a name of "Alice\nalice@corp.com" would otherwise draw a fake address line)
+    static string Clean(string? text) => Core.Tray.DisplayText.Clean(text, 200);
+
     static string GuestDetail(Guest guest)
     {
         var parts = new List<string>();
@@ -427,7 +431,7 @@ public sealed partial class DetailsPanel : UserControl
 
         if (guest.Comment is { Length: > 0 } comment)
         {
-            parts.Add($"“{comment}”");
+            parts.Add($"“{Clean(comment)}”");
         }
 
         return string.Join(" · ", parts);

@@ -129,6 +129,18 @@ public sealed class SyncEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task SyncAccountAsync_CalendarListGone_IsASyncFailureNotAThrow()
+    {
+        // A 410 on the calendar list isn't an expired events sync token: it's logged like any other API error
+        _h.Google.On(HttpMethod.Get, SyncHarness.ListUrl, HttpStatusCode.Gone, Fixture.Read("error-410.json"), once: true);
+        _h.RouteStandardGoogle();
+
+        await _h.Engine.SyncAccountAsync(Account, TestContext.Current.CancellationToken);
+
+        Assert.Contains("sync.account.failed", File.ReadAllText(_h.LogPath), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SyncAccountAsync_OneCalendarForbidden_OthersStillSync()
     {
         _h.Google.On(HttpMethod.Get, SyncHarness.PrimaryEventsUrl, HttpStatusCode.Forbidden, Fixture.Read("error-forbidden.json"));

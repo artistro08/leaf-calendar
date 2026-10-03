@@ -179,13 +179,38 @@ public static class RecurrenceExpander
         }
     }
 
-    static TimeZoneInfo? FindZone(string? id)
+    // IANA zones renamed after a PC's time zone data was last updated, by their older names (which it still knows)
+    static readonly Dictionary<string, string> RenamedZones = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Europe/Kyiv"]           = "Europe/Kiev",
+        ["America/Ciudad_Juarez"] = "America/Ojinaga",
+        ["America/Nuuk"]          = "America/Godthab",
+        ["Pacific/Kanton"]        = "Pacific/Enderbury",
+        ["Asia/Kolkata"]          = "Asia/Calcutta",
+        ["Asia/Ho_Chi_Minh"]      = "Asia/Saigon",
+        ["Asia/Yangon"]           = "Asia/Rangoon",
+        ["Asia/Kathmandu"]        = "Asia/Katmandu",
+        ["Atlantic/Faroe"]        = "Atlantic/Faeroe",
+    };
+
+    /// <summary>
+    /// The zone for an IANA or Windows ID: as this PC knows it, else by a renamed IANA zone's older name, else through
+    /// the IANA-to-Windows mapping. Null when it's unknown (a series then expands at its start's fixed offset).
+    /// </summary>
+    public static TimeZoneInfo? FindZone(string? id)
     {
         if (string.IsNullOrEmpty(id))
         {
             return null;
         }
 
+        return Find(id)
+            ?? (RenamedZones.TryGetValue(id, out var older) ? Find(older) : null)
+            ?? (TimeZoneInfo.TryConvertIanaIdToWindowsId(id, out var windows) ? Find(windows) : null);
+    }
+
+    static TimeZoneInfo? Find(string id)
+    {
         try
         {
             return TimeZoneInfo.FindSystemTimeZoneById(id);

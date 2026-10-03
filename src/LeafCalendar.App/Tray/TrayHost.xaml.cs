@@ -40,7 +40,7 @@ public sealed partial class TrayHost : Window
     static readonly TimeSpan ExitDuration  = TimeSpan.FromMilliseconds(167);
 
     // The icon click that closed the flyout or menu (by taking focus, or a press outside) arrives just after the close,
-    // so it mustn't reopen the flyout
+    // so it mustn't open either again
     const long ReopenGuardMs = 300;
 
     readonly AppLog _log;
@@ -49,7 +49,8 @@ public sealed partial class TrayHost : Window
     AgendaModel? _model;
     Storyboard? _motion;
     long _agendaClosedAt;
-    long _dismissedAt;
+    long _menuDismissedAt;
+    long _agendaDismissedAt;
     bool _exitFinished;
     bool _shuttingDown;
 
@@ -114,6 +115,13 @@ public sealed partial class TrayHost : Window
     /// <summary>Opens the menu for a right-click at a screen point (physical pixels), growing away from the taskbar.</summary>
     public void ShowMenu(int x, int y, AppTheme theme)
     {
+        // The Icon Click That Just Closed The Menu (the press watch) Mustn't Open It Again On Its Release; one that closed
+        // the flyout opens the menu as usual
+        if (Environment.TickCount64 - _menuDismissedAt < ReopenGuardMs)
+        {
+            return;
+        }
+
         try
         {
             // One Popup At A Time (a second right-click moves the menu). The flyout goes at once, not by its slide: closing
@@ -138,7 +146,7 @@ public sealed partial class TrayHost : Window
     /// <summary>Opens the flyout next to the tray icon (or at the primary taskbar's far end when its place is unknown).</summary>
     public void ShowAgenda(AgendaModel model, PixelRect? icon, AppTheme theme)
     {
-        if (Agenda.IsOpen || Environment.TickCount64 - _agendaClosedAt < ReopenGuardMs || Environment.TickCount64 - _dismissedAt < ReopenGuardMs)
+        if (Agenda.IsOpen || Environment.TickCount64 - _agendaClosedAt < ReopenGuardMs || Environment.TickCount64 - _agendaDismissedAt < ReopenGuardMs)
         {
             return;
         }
@@ -487,18 +495,19 @@ public sealed partial class TrayHost : Window
         {
             try
             {
-                if (!Menu.IsOpen && !Agenda.IsOpen)
-                {
-                    return;
-                }
-
-                _dismissedAt = Environment.TickCount64;
+                // Each Popup Remembers Its Own Dismissal, so the icon click that closed one can still open the other
+                var now = Environment.TickCount64;
                 if (Menu.IsOpen)
                 {
+                    _menuDismissedAt = now;
                     Menu.Hide();
                 }
 
-                HideAgenda();
+                if (Agenda.IsOpen)
+                {
+                    _agendaDismissedAt = now;
+                    HideAgenda();
+                }
             }
             catch (Exception ex)
             {

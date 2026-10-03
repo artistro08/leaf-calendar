@@ -64,6 +64,10 @@ internal sealed unsafe class TrayIcon : IDisposable
     int _iconSize;
     readonly Guid _identity;
     bool _byGuid = true;
+    long _lastKeySelect;
+
+    // Two key selects closer than this are Enter's one press
+    const long KeySelectRepeatMs = 100;
     int _day;
     string _tooltip = "Leaf Calendar";
     bool _disposed;
@@ -228,6 +232,8 @@ internal sealed unsafe class TrayIcon : IDisposable
 
         if (!added)
         {
+            // Neither way worked (Explorer isn't up yet): the identity is tried again when it is
+            _byGuid = true;
             _log.Info("tray.add.failed");
             return;
         }
@@ -347,8 +353,19 @@ internal sealed unsafe class TrayIcon : IDisposable
         {
             switch ((uint)(lParam.Value & 0xFFFF))
             {
-                case NinSelect or NinKeySelect:
+                case NinSelect:
                     Invoked?.Invoke(this, EventArgs.Empty);
+                    break;
+
+                case NinKeySelect:
+                    // Enter on the icon arrives as two selects in a row (a shell quirk); the second would close what the first opened
+                    var now = Environment.TickCount64;
+                    if (now - _lastKeySelect >= KeySelectRepeatMs)
+                    {
+                        _lastKeySelect = now;
+                        Invoked?.Invoke(this, EventArgs.Empty);
+                    }
+
                     break;
 
                 case WmContextMenu:
@@ -366,9 +383,10 @@ internal sealed unsafe class TrayIcon : IDisposable
             return true;
         }
 
-        // Explorer Restarted
+        // Explorer Restarted (its icons are gone, so the identity is tried again)
         if (_taskbarCreated != 0 && message == _taskbarCreated)
         {
+            _byGuid = true;
             Add();
             return true;
         }

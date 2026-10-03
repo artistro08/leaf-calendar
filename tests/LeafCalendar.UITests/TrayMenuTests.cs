@@ -58,6 +58,21 @@ public sealed class TrayMenuTests : IDisposable
         Assert.True(leaf.IsTrayHostShown());
     }
 
+    // The owner's report: a second right-click on the icon closed the menu and opened it again in one go (a stutter)
+    [Fact]
+    public void RightClickAgain_ClosesTheMenuAndKeepsItClosed()
+    {
+        using var leaf = Launch();
+        leaf.RightClickTrayIcon();
+        leaf.WaitForPopup("TrayMenuOpen");
+
+        leaf.RightClickTrayIcon();
+
+        Assert.True(Retry.WhileTrue(() => leaf.PopupExists("TrayMenuOpen"), TimeSpan.FromSeconds(5)).Success, "The menu stayed open after a second right-click.");
+        Thread.Sleep(800);
+        Assert.False(leaf.PopupExists("TrayMenuOpen"), "The menu opened again after the second right-click.");
+    }
+
     [Fact]
     public void ClickOutside_ClosesTheMenu()
     {

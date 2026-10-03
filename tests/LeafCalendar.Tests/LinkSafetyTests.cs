@@ -19,6 +19,8 @@ public class LinkSafetyTests
     [InlineData("javascript:alert(1)", false)]
     [InlineData("search-ms:query=secret", false)]
     [InlineData("mailto:a@example.com", false)]
+    [InlineData("https://meet.google.com@evil.example/abc", false)]
+    [InlineData("https://user:pass@example.com/a", false)]
     public void CanLaunch_OnlyHttpsAndMeetingApps(string link, bool expected)
     {
         Assert.Equal(expected, LinkSafety.CanLaunch(new Uri(link)));
@@ -222,6 +224,10 @@ public class LinkSafetyTests
         Assert.DoesNotContain(shown, c => hidden.Contains(c, StringComparison.Ordinal));
         Assert.StartsWith("https://example.com/a", shown, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void DisplayForm_HttpsWithAUserName_IsNull() =>
+        Assert.Null(LinkSafety.DisplayForm(new Uri("https://meet.google.com@evil.example/abc")));
 
     [Fact]
     public void DisplayForm_HostWithoutAnAsciiForm_IsNull() =>

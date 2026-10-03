@@ -5,6 +5,14 @@ namespace LeafCalendar.Tests;
 public class EventDetailsParserTests
 {
     [Fact]
+    public void Parse_LinkWithAUserNamePosingAsMeet_IsNotAConference()
+    {
+        var details = EventDetailsParser.Parse("""{"id":"a","hangoutLink":"https://meet.google.com@evil.example/abc","location":"https://zoom.us@evil.example/j/1"}""");
+
+        Assert.Null(details.ConferenceUri);
+    }
+
+    [Fact]
     public void Parse_ZoomLinkPastedInLocation_IsTheConference()
     {
         var details = EventDetailsParser.Parse("""{"id":"a","location":"Zoom: https://us02web.zoom.us/j/555?pwd=abc"}""");

@@ -41,8 +41,11 @@ internal static unsafe class MouseDownWatch
     /// <summary>Stops the watch (safe to call when none is running).</summary>
     public static void Stop()
     {
-        if (!s_hook.IsNull && PInvoke.UnhookWindowsHookEx(s_hook))
+        // The handle goes either way: Windows drops a low-level hook on its own when its callback is too slow, and
+        // unhooking that one fails; kept, it would read as still watching and no new watch would ever start
+        if (!s_hook.IsNull)
         {
+            PInvoke.UnhookWindowsHookEx(s_hook);
             s_hook = default;
         }
 

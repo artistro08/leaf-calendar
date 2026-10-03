@@ -5,6 +5,24 @@ namespace LeafCalendar.Tests;
 
 public class RecurrenceExpanderTests
 {
+    [Theory]
+    [InlineData("Europe/Kyiv")]
+    [InlineData("America/New_York")]
+    [InlineData("Eastern Standard Time")]
+    public void FindZone_KnownOrRenamedZone_KeepsItsDaylightRules(string id)
+    {
+        var zone = RecurrenceExpander.FindZone(id);
+
+        Assert.NotNull(zone);
+        Assert.True(zone.SupportsDaylightSavingTime);
+    }
+
+    [Theory]
+    [InlineData("Mars/Olympus_Mons")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void FindZone_Unknown_IsNull(string? id) => Assert.Null(RecurrenceExpander.FindZone(id));
+
     const string NewYork = "America/New_York";
 
     static readonly DateTimeOffset Always = DateTimeOffset.MinValue;

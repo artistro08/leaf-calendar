@@ -41,7 +41,7 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
                 path += "&pageToken=" + Uri.EscapeDataString(pageToken);
             }
 
-            var page = await GetAsync(accountId, path, GoogleJsonContext.Default.CalendarListPage, ct);
+            var page = await GetAsync(accountId, path, GoogleJsonContext.Default.CalendarListPage, goneIsExpiredToken: false, ct);
             calendars.AddRange(page.Items);
             pageToken = page.NextPageToken;
         }
@@ -66,7 +66,7 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
             path.Append("&pageToken=").Append(Uri.EscapeDataString(pageToken));
         }
 
-        return GetAsync(accountId, path.ToString(), GoogleJsonContext.Default.EventsPage, ct);
+        return GetAsync(accountId, path.ToString(), GoogleJsonContext.Default.EventsPage, goneIsExpiredToken: true, ct);
     }
 
     // =========================================================================
@@ -265,11 +265,12 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
         return await response.Content.ReadAsStringAsync(ct);
     }
 
-    async Task<T> GetAsync<T>(string accountId, string relativePath, JsonTypeInfo<T> info, CancellationToken ct)
+    // A 410 means "sync token expired" only on an events list; anywhere else it's an ordinary API error
+    async Task<T> GetAsync<T>(string accountId, string relativePath, JsonTypeInfo<T> info, bool goneIsExpiredToken, CancellationToken ct)
     {
         using var response = await SendAsync(accountId, HttpMethod.Get, relativePath, null, null, ct);
 
-        if (response.StatusCode == HttpStatusCode.Gone)
+        if (goneIsExpiredToken && response.StatusCode == HttpStatusCode.Gone)
         {
             throw new SyncTokenExpiredException();
         }

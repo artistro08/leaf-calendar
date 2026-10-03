@@ -60,10 +60,13 @@ public static partial class LinkSafety
         ("doxy.me", MeetingProvider.DoxyMe),
     ];
 
-    /// <summary>True for <c>https</c> and the meeting app schemes (<c>zoommtg</c>, <c>zoomus</c>, <c>msteams</c>, <c>webex</c>).</summary>
+    /// <summary>
+    /// True for <c>https</c> (without a user name, which can pose as a host: <c>https://meet.google.com@evil.example</c>
+    /// opens evil.example) and the meeting app schemes (<c>zoommtg</c>, <c>zoomus</c>, <c>msteams</c>, <c>webex</c>).
+    /// </summary>
     public static bool CanLaunch(Uri uri) =>
         uri.IsAbsoluteUri && LaunchSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase)
-            && (uri.Scheme != Uri.UriSchemeHttps || TryIdnHost(uri, out _));
+            && (uri.Scheme != Uri.UriSchemeHttps || (uri.UserInfo.Length == 0 && TryIdnHost(uri, out _)));
 
     /// <summary>True for links a description may make clickable: <c>https</c> (without a user name, which can pose as a host) and <c>mailto</c>.</summary>
     public static bool IsClickableInDescription(Uri uri) =>
@@ -128,7 +131,8 @@ public static partial class LinkSafety
     {
         ArgumentNullException.ThrowIfNull(uri);
 
-        if (!TryIdnHost(uri, out var asciiHost))
+        // No ASCII Host, Or An https User Name Posing As One: never allowlisted, so never shown as a link
+        if (!TryIdnHost(uri, out var asciiHost) || (uri.Scheme == Uri.UriSchemeHttps && uri.UserInfo.Length > 0))
         {
             return null;
         }

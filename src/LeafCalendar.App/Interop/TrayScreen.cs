@@ -27,7 +27,18 @@ internal static unsafe class TrayScreen
     static TrayScreenInfo For(HMONITOR monitor)
     {
         var info = new MONITORINFO { cbSize = (uint)sizeof(MONITORINFO) };
-        PInvoke.GetMonitorInfo(monitor, ref info);
+        if (!PInvoke.GetMonitorInfo(monitor, ref info))
+        {
+            // The monitor went away since the point was taken (a display unplugged): the primary stands in, and failing
+            // that a plain 1080p area, so the flyout still has a size and a place
+            monitor = PInvoke.MonitorFromPoint(default, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTOPRIMARY);
+            if (!PInvoke.GetMonitorInfo(monitor, ref info))
+            {
+                info.rcMonitor = new RECT { right = 1920, bottom = 1080 };
+                info.rcWork    = info.rcMonitor;
+            }
+        }
+
         var bounds = Rect(info.rcMonitor);
         var work   = Rect(info.rcWork);
         var scale  = PInvoke.GetDpiForMonitor(monitor, MONITOR_DPI_TYPE.MDT_EFFECTIVE_DPI, out var dpi, out _).Succeeded ? dpi / 96.0 : 1.0;
