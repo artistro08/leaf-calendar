@@ -3,6 +3,7 @@ using LeafCalendar.Core.Settings;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Animation;
+using Microsoft.UI.Xaml.Navigation;
 
 namespace LeafCalendar.App.Views.Settings;
 
@@ -30,6 +31,9 @@ public sealed record SettingsContext(LeafServices Services, CalendarViewModel Ca
     }
 }
 
+/// <summary>The Settings view's navigation parameter: the app's services, the calendar view model, and the page to show first.</summary>
+public sealed record SettingsPageArgs(LeafServices Services, CalendarViewModel Calendar, SettingsSection Section);
+
 /// <summary>
 /// The Settings view, modeled on the Windows 11 Settings app and shown in the main window in place of the calendar
 /// (<see cref="MainWindow.ShowSettings"/>; the title bar's back button returns to the calendar): a stock left
@@ -42,18 +46,16 @@ public sealed record SettingsContext(LeafServices Services, CalendarViewModel Ca
 public sealed partial class SettingsPage : Page
 {
     readonly List<(SettingsSection Section, NavigationViewItem Item, Type Page)> _pages;
-    readonly SettingsContext _context;
-    readonly CalendarViewModel _calendar;
+    SettingsContext _context = null!;
+    CalendarViewModel _calendar = null!;
     AccountsViewModel? _accounts;
     SettingsSection? _shown;
     bool _inClientForm;
 
-    /// <summary>Creates the view on the App's calendar view model.</summary>
-    public SettingsPage(LeafServices services, CalendarViewModel calendar)
+    /// <summary>Creates the view (the main window's Settings frame navigates to it with <see cref="SettingsPageArgs"/>).</summary>
+    public SettingsPage()
     {
         InitializeComponent();
-        _calendar = calendar;
-        _context  = new SettingsContext(services, calendar, this);
 
         // Pages (items from concrete lists: CsWinRT's AOT mode can't cast the native MenuItems vector)
         _pages =
@@ -69,13 +71,22 @@ public sealed partial class SettingsPage : Page
         ];
         Navigation.MenuItemsSource       = _pages.Where(p => p.Section != SettingsSection.About).Select(p => (object)p.Item).ToList();
         Navigation.FooterMenuItemsSource = _pages.Where(p => p.Section == SettingsSection.About).Select(p => (object)p.Item).ToList();
+    }
+
+    /// <inheritdoc />
+    protected override void OnNavigatedTo(NavigationEventArgs e)
+    {
+        var args  = (SettingsPageArgs)e.Parameter;
+        _calendar = args.Calendar;
+        _context  = new SettingsContext(args.Services, args.Calendar, this);
 
         // Breadcrumb: the pane's layout changes as the window is resized
-        Navigation.DisplayModeChanged += (_, args) => services.Log.Trace("settings.pane", args.DisplayMode.ToString());
+        Navigation.DisplayModeChanged += (_, a) => args.Services.Log.Trace("settings.pane", a.DisplayMode.ToString());
 
         // Follow The Calendar's Settings (pages show them)
-        calendar.LayoutChanged    += OnLayoutChanged;
-        calendar.CalendarsChanged += OnCalendarsChanged;
+        _calendar.LayoutChanged    += OnLayoutChanged;
+        _calendar.CalendarsChanged += OnCalendarsChanged;
+        Show(args.Section);
     }
 
     /// <summary>A setting changed (from a page, a menu, or a shortcut).</summary>

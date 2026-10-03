@@ -252,12 +252,13 @@ public sealed partial class MainWindow : Window
         if (_settings is null)
         {
             _services.Log.Trace("settings", "open");
-            _settings = new SettingsPage(_services, _calendar);
-            SettingsHost.Children.Add(_settings);
-            SettingsHost.Visibility = Visibility.Visible;
-            ContentFrame.Visibility = Visibility.Collapsed;
-            AppTitleBar.Title       = "Settings";
+            SettingsFrame.Visibility = Visibility.Visible;
+            ContentFrame.Visibility  = Visibility.Collapsed;
+            AppTitleBar.Title        = "Settings";
+            SettingsFrame.Navigate(typeof(SettingsPage), new SettingsPageArgs(_services, _calendar, section), new DrillInNavigationTransitionInfo());
+            _settings = SettingsFrame.Content as SettingsPage;
             UpdateChrome();
+            return;
         }
 
         _settings.Show(section);
@@ -274,10 +275,10 @@ public sealed partial class MainWindow : Window
         _services.Log.Trace("settings", "close");
         _settings = null;
         settings.Close();
-        SettingsHost.Children.Remove(settings);
-        SettingsHost.Visibility = Visibility.Collapsed;
-        ContentFrame.Visibility = Visibility.Visible;
-        AppTitleBar.Title       = "";
+        SettingsFrame.Content    = null;
+        SettingsFrame.Visibility = Visibility.Collapsed;
+        ContentFrame.Visibility  = Visibility.Visible;
+        AppTitleBar.Title        = "";
         UpdateChrome();
     }
 
