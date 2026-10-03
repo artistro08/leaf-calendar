@@ -56,4 +56,14 @@ public sealed class CommandCatalogTests
         Assert.Equal(CalendarCommand.ShareAvailability, CommandCatalog.All.Single(c => c.Id == "share").Command);
         Assert.Equal((CalendarCommand.Days, 3), (days.Command, days.Days));
     }
+
+    [Theory]
+    [InlineData("sett", true)]
+    [InlineData("Jump to", true)]
+    [InlineData("create ev", true)]
+    [InlineData("add", false)]      // a keyword of Create event, not its title
+    [InlineData("standup", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void NamesAnAction_TitleWordsOnly(string? query, bool expected) => Assert.Equal(expected, CommandCatalog.NamesAnAction(query));
 }

@@ -315,15 +315,18 @@ public sealed partial class CommandMenu : UserControl
             return;
         }
 
+        // An Action Named By What's Typed Comes Before The Events (and is the row selected); otherwise events first
         var (zone, use24h) = (_vm.Zone, _vm.Settings.Use24HourTime);
-        Show(date, [.. hits.Select(h => CommandRow.ForHit(h, today, zone, use24h))], [.. CommandCatalog.Match(text).Select(CommandRow.ForAction)]);
+        Show(date, [.. hits.Select(h => CommandRow.ForHit(h, today, zone, use24h))], [.. CommandCatalog.Match(text).Select(CommandRow.ForAction)], actionsFirst: CommandCatalog.NamesAnAction(text));
     }
 
-    // Each non-empty section under its header ("Go to", "Events", "Actions"), the first row selected
-    void Show(CommandRow? date, List<CommandRow> events, List<CommandRow> actions)
+    // Each non-empty section under its header ("Go to", then "Events" and "Actions", in that order unless the typed
+    // words name an action), the first row selected
+    void Show(CommandRow? date, List<CommandRow> events, List<CommandRow> actions, bool actionsFirst = false)
     {
         List<CommandRow> rows = [];
-        foreach (var (title, section) in new[] { ("Go to", date is null ? [] : new List<CommandRow> { date }), ("Events", events), ("Actions", actions) })
+        var (first, second) = actionsFirst ? (("Actions", actions), ("Events", events)) : (("Events", events), ("Actions", actions));
+        foreach (var (title, section) in new[] { ("Go to", date is null ? [] : new List<CommandRow> { date }), first, second })
         {
             if (section.Count > 0)
             {

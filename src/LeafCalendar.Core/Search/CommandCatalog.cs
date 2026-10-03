@@ -89,4 +89,18 @@ public static class CommandCatalog
 
         return [.. scored.OrderByDescending(s => s.Score).ThenBy(s => s.Order).Take(max).Select(s => s.Item)];
     }
+
+    /// <summary>
+    /// True when the typed words name an action: every word starts a word of some action's title ("sett", "jump to").
+    /// A match through keywords alone ("go" for Jump to date) doesn't count, so events still come first for it.
+    /// </summary>
+    public static bool NamesAnAction(string? query)
+    {
+        var words = EventSearch.Words(query).Select(w => w.ToLowerInvariant()).ToList();
+        return words.Count > 0 && All.Any(item =>
+        {
+            var titleWords = item.Title.ToLowerInvariant().Split(' ');
+            return words.All(w => titleWords.Any(t => t.StartsWith(w, StringComparison.Ordinal)));
+        });
+    }
 }
