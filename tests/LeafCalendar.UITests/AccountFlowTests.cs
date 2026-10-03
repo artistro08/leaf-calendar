@@ -23,10 +23,10 @@ public sealed class AccountFlowTests : IDisposable
     }
 
     static AutomationElement WaitForNameInSettings(LeafApp leaf, string name) =>
-        Retry.WhileNull(() => leaf.SettingsWindow.FindFirstDescendant(cf => cf.ByName(name)), TimeSpan.FromSeconds(15)).Result
+        Retry.WhileNull(() => leaf.SettingsView.FindFirstDescendant(cf => cf.ByName(name)), TimeSpan.FromSeconds(15)).Result
         ?? throw new InvalidOperationException($"'{name}' didn't appear in Settings.");
 
-    static bool InSettings(LeafApp leaf, string name) => leaf.SettingsWindow.FindFirstDescendant(cf => cf.ByName(name)) is not null;
+    static bool InSettings(LeafApp leaf, string name) => leaf.SettingsView.FindFirstDescendant(cf => cf.ByName(name)) is not null;
 
     // Disconnect the only account and confirm
     static void Disconnect(LeafApp leaf)

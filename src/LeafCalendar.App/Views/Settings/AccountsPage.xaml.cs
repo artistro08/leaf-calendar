@@ -64,14 +64,14 @@ public sealed partial class AccountsPage : Page
     /// <summary>x:Bind helper: Narrator interrupts for failures and waits its turn for progress and success.</summary>
     public static AutomationLiveSetting LiveFor(AccountsMessageKind kind) => kind == AccountsMessageKind.Error ? AutomationLiveSetting.Assertive : AutomationLiveSetting.Polite;
 
-    /// <summary>Page view model (the window's, see <see cref="SettingsWindow.Accounts"/>).</summary>
+    /// <summary>Page view model (the window's, see <see cref="SettingsPage.Accounts"/>).</summary>
     public AccountsViewModel ViewModel { get; private set; } = null!;
 
     /// <inheritdoc />
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         _context  = (SettingsContext)e.Parameter;
-        ViewModel = _context.Window.Accounts;
+        ViewModel = _context.Host.Accounts;
 
         // Nothing Running: a finished action's message is stale by now
         if (!ViewModel.IsBusy)
@@ -81,7 +81,7 @@ public sealed partial class AccountsPage : Page
         }
 
         Bindings.Update();
-        _context.Window.CalendarsChanged += OnCalendarsChanged;
+        _context.Host.CalendarsChanged += OnCalendarsChanged;
         ViewModel.Accounts.CollectionChanged += OnAccountsChanged;
         LoadDefaultCalendar();
         LoadAccountChoices();
@@ -90,7 +90,7 @@ public sealed partial class AccountsPage : Page
     /// <inheritdoc />
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
-        _context.Window.CalendarsChanged     -= OnCalendarsChanged;
+        _context.Host.CalendarsChanged     -= OnCalendarsChanged;
         ViewModel.Accounts.CollectionChanged -= OnAccountsChanged;
     }
 
@@ -197,7 +197,7 @@ public sealed partial class AccountsPage : Page
         }
     }
 
-    void OnChangeClientClick(object sender, RoutedEventArgs e) => _context.Window.ShowClientSetup();
+    void OnChangeClientClick(object sender, RoutedEventArgs e) => _context.Host.ShowClientSetup();
 
     // Disconnect deletes local data (and any edits Google doesn't have yet), so confirm first
     async void OnDisconnectClick(object sender, RoutedEventArgs e)

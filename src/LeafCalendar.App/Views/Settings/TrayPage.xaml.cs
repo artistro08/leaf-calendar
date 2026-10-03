@@ -32,12 +32,12 @@ public sealed partial class TrayPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         _context = (SettingsContext)e.Parameter;
-        _context.Window.SettingsChanged += OnSettingsChanged;
+        _context.Host.SettingsChanged += OnSettingsChanged;
         Load();
     }
 
     /// <inheritdoc />
-    protected override void OnNavigatedFrom(NavigationEventArgs e) => _context.Window.SettingsChanged -= OnSettingsChanged;
+    protected override void OnNavigatedFrom(NavigationEventArgs e) => _context.Host.SettingsChanged -= OnSettingsChanged;
 
     void OnSettingsChanged(object? sender, EventArgs e) => Load();
 

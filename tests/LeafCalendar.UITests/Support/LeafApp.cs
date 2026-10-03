@@ -32,13 +32,33 @@ public sealed class LeafApp : IDisposable
     /// <summary>The running app.</summary>
     public Application App { get; }
 
-    /// <summary>The main window (waits up to 20 s). Found by title: with Settings open, it may not be the process's "main" window.</summary>
+    /// <summary>The main window (waits up to 20 s). Found by title, so onboarding is never mistaken for it.</summary>
     public Window MainWindow => TopLevelWindow("Leaf Calendar", TimeSpan.FromSeconds(20))
         ?? throw new InvalidOperationException("Leaf's main window didn't appear.");
 
-    /// <summary>The Settings window (waits up to 15 s).</summary>
-    public Window SettingsWindow => TopLevelWindow("Settings", TimeSpan.FromSeconds(15))
-        ?? throw new InvalidOperationException("Leaf's Settings window didn't appear.");
+    /// <summary>The Settings view's navigation, in the main window in place of the calendar (waits up to 15 s).</summary>
+    public AutomationElement SettingsView =>
+        Retry.WhileNull(() => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("SettingsNavigation")), TimeSpan.FromSeconds(15)).Result
+        ?? throw new InvalidOperationException("Leaf's Settings view didn't appear.");
+
+    /// <summary>True while Settings shows in the main window.</summary>
+    public bool IsSettingsOpen => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("SettingsNavigation")) is not null;
+
+    /// <summary>The main window title bar's back button, while it shows (in Settings, and after a command-menu jump).</summary>
+    public AutomationElement? BackButton() =>
+        MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("AppTitleBar"))?.FindFirstDescendant(cf => cf.ByAutomationId("PART_BackButton"));
+
+    /// <summary>Leaves Settings with the title bar's back button and waits (up to 10 s) for the calendar to be back.</summary>
+    public void CloseSettings()
+    {
+        var back = Retry.WhileNull(BackButton, TimeSpan.FromSeconds(5)).Result
+            ?? throw new InvalidOperationException("The title bar has no back button.");
+        back.AsButton().Invoke();
+        if (!Retry.WhileTrue(() => IsSettingsOpen, TimeSpan.FromSeconds(10)).Success)
+        {
+            throw new InvalidOperationException("Settings didn't close.");
+        }
+    }
 
     /// <summary>The first-run onboarding window (waits up to 20 s). Its window title differs from the main window's, so neither is mistaken for the other.</summary>
     public Window OnboardingWindow => TopLevelWindow("Set up Leaf Calendar", TimeSpan.FromSeconds(20))
@@ -74,20 +94,23 @@ public sealed class LeafApp : IDisposable
     /// <summary>How many of the app's windows have this title.</summary>
     public int WindowCount(string title) => App.GetAllTopLevelWindows(_automation).Count(w => NameOf(w) == title);
 
-    /// <summary>Opens Settings from the sidebar's settings button and shows a page (<c>General</c>, <c>Calendars</c>, <c>TimeZones</c>, <c>Accounts</c>, <c>About</c>).</summary>
+    /// <summary>
+    /// Opens Settings from the sidebar's settings button and shows a page (<c>General</c>, <c>Calendars</c>, <c>TimeZones</c>,
+    /// <c>Accounts</c>, <c>About</c>). Settings shows in the main window, which is returned.
+    /// </summary>
     public Window OpenSettings(string page = "General")
     {
         WaitFor("SettingsButton").AsButton().Invoke();
-        var settings = SettingsWindow;
+        var settings = SettingsView;
         var item     = Retry.WhileNull(() => settings.FindFirstDescendant(cf => cf.ByAutomationId($"SettingsNav_{page}")), TimeSpan.FromSeconds(15)).Result
             ?? throw new InvalidOperationException($"Settings page '{page}' isn't in the navigation.");
         item.Patterns.SelectionItem.Pattern.Select();
-        return settings;
+        return MainWindow;
     }
 
-    /// <summary>Waits up to 15 s for an element in the Settings window by automation ID.</summary>
+    /// <summary>Waits up to 15 s for an element in the Settings view by automation ID.</summary>
     public AutomationElement WaitInSettings(string automationId) =>
-        Retry.WhileNull(() => SettingsWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)), TimeSpan.FromSeconds(15)).Result
+        Retry.WhileNull(() => SettingsView.FindFirstDescendant(cf => cf.ByAutomationId(automationId)), TimeSpan.FromSeconds(15)).Result
         ?? throw new InvalidOperationException($"Element '{automationId}' didn't appear in Settings.");
 
     /// <summary>Opens a Settings expander (an account, the primary time zone) by automation ID, so its rows show.</summary>
@@ -104,7 +127,7 @@ public sealed class LeafApp : IDisposable
     public void PressDisconnectInSettings()
     {
         var expander = Retry.WhileNull(
-                () => SettingsWindow.FindAllDescendants().FirstOrDefault(e => e.Properties.AutomationId.ValueOrDefault?.StartsWith("AccountExpander_", StringComparison.Ordinal) == true),
+                () => SettingsView.FindAllDescendants().FirstOrDefault(e => e.Properties.AutomationId.ValueOrDefault?.StartsWith("AccountExpander_", StringComparison.Ordinal) == true),
                 TimeSpan.FromSeconds(15)).Result
             ?? throw new InvalidOperationException("No account expander appeared in Settings.");
         expander.Patterns.ExpandCollapse.Pattern.Expand();

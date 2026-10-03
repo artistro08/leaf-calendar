@@ -31,7 +31,7 @@ public sealed class ChangeListTests : IDisposable
         return leaf;
     }
 
-    static bool HasName(Window window, string name) => window.FindFirstDescendant(cf => cf.ByName(name)) is not null;
+    static bool HasName(AutomationElement window, string name) => window.FindFirstDescendant(cf => cf.ByName(name)) is not null;
 
     // =========================================================================
     // SETTINGS › ACCOUNTS
@@ -56,8 +56,8 @@ public sealed class ChangeListTests : IDisposable
         cancel.AsButton().Invoke();
 
         Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("AddAccountButton").IsEnabled, Wait).Success, "Add stayed off after Cancel.");
-        Assert.True(Retry.WhileFalse(() => leaf.SettingsWindow.FindFirstDescendant(cf => cf.ByAutomationId("CancelSignInButton")) is null or { IsOffscreen: true }, Wait).Success, "Cancel stayed up.");
-        Assert.False(HasName(leaf.SettingsWindow, "Finish signing in with Google in your browser."));
+        Assert.True(Retry.WhileFalse(() => leaf.SettingsView.FindFirstDescendant(cf => cf.ByAutomationId("CancelSignInButton")) is null or { IsOffscreen: true }, Wait).Success, "Cancel stayed up.");
+        Assert.False(HasName(leaf.SettingsView, "Finish signing in with Google in your browser."));
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public sealed class ChangeListTests : IDisposable
         leaf.WaitInSettings("AddAccountButton").AsButton().Invoke();
 
         var success = $"Signed in as {FakeGoogleServer.OtherUserEmail}. Its calendars are in Leaf now.";
-        Assert.True(Retry.WhileFalse(() => HasName(leaf.SettingsWindow, success), TimeSpan.FromSeconds(30)).Success, "No success alert after signing in.");
+        Assert.True(Retry.WhileFalse(() => HasName(leaf.SettingsView, success), TimeSpan.FromSeconds(30)).Success, "No success alert after signing in.");
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public sealed class ChangeListTests : IDisposable
 
         leaf.WaitInSettings($"AccountHeader_{SeededProfile.AccountId}").AsButton().Invoke();
 
-        Assert.True(Retry.WhileFalse(() => leaf.SettingsWindow.FindFirstDescendant(cf => cf.ByAutomationId($"CalendarVisible_{FamilyId}")) is null or { IsOffscreen: true }, Wait).Success, "Settings didn't fold the account.");
+        Assert.True(Retry.WhileFalse(() => leaf.SettingsView.FindFirstDescendant(cf => cf.ByAutomationId($"CalendarVisible_{FamilyId}")) is null or { IsOffscreen: true }, Wait).Success, "Settings didn't fold the account.");
         Assert.True(Retry.WhileFalse(() => !Shows(leaf, $"CalendarToggle_{FamilyId}"), Wait).Success, "The sidebar didn't follow.");
     }
 

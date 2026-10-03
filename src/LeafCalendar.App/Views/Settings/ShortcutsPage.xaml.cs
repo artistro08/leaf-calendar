@@ -36,31 +36,33 @@ public sealed partial class ShortcutsPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         _context = (SettingsContext)e.Parameter;
-        _context.Window.SettingsChanged     += OnChanged;
+        _context.Host.SettingsChanged       += OnChanged;
         _context.Services.Shortcuts.Changed += OnChanged;
-        _context.Window.Closed              += OnWindowClosed;
+        _context.Host.Closed                += OnHostClosed;
         Load();
     }
 
     /// <inheritdoc />
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
-        _context.Window.SettingsChanged     -= OnChanged;
+        _context.Host.SettingsChanged       -= OnChanged;
         _context.Services.Shortcuts.Changed -= OnChanged;
-        _context.Window.Closed              -= OnWindowClosed;
+        _context.Host.Closed                -= OnHostClosed;
     }
 
-    // Settings Closed With A Shortcut Dialog Open: close it, which lets go of the keyboard and registers Leaf's shortcuts again
-    void OnWindowClosed(object sender, WindowEventArgs args)
+    // Settings Left (back to the calendar, or the window closed) With A Shortcut Dialog Open: close it, which lets go of the
+    // keyboard and registers Leaf's shortcuts again (the page isn't navigated from, so the service's event is let go here)
+    void OnHostClosed(object? sender, EventArgs e)
     {
-        _context.Window.Closed -= OnWindowClosed;
+        _context.Host.Closed                -= OnHostClosed;
+        _context.Services.Shortcuts.Changed -= OnChanged;
         JoinShortcutControl.CloseDialog();
         FlyoutShortcutControl.CloseDialog();
     }
 
     void OnChanged(object? sender, EventArgs e) => Load();
 
-    // The cheat sheet, over the Settings window
+    // The cheat sheet, over the window
     async void OnShowCheatSheetClick(object sender, RoutedEventArgs e)
     {
         try

@@ -50,8 +50,7 @@ public sealed class TraySettingsTests : IDisposable
             leaf.WaitInSettings(id).AsToggleButton().Toggle();
         }
 
-        leaf.SettingsWindow.Close();
-        Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Settings") > 0, TimeSpan.FromSeconds(10)).Success);
+        leaf.CloseSettings();
         leaf.OpenSettings("Notifications");
 
         foreach (var id in new[] { "RemindersSwitch", "JoinNowSwitch", "InvitesSwitch", "SoundSwitch" })
@@ -81,8 +80,7 @@ public sealed class TraySettingsTests : IDisposable
         leaf.WaitInSettings("FlyoutAllDaySwitch").AsToggleButton().Toggle();
         leaf.WaitInSettings("LookaheadComboBox").AsComboBox().Select("2 hours");
 
-        leaf.SettingsWindow.Close();
-        Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Settings") > 0, TimeSpan.FromSeconds(10)).Success);
+        leaf.CloseSettings();
         leaf.OpenSettings("Tray");
 
         Assert.Equal(7, leaf.WaitInSettings("FlyoutDaysNumberBox").Patterns.RangeValue.Pattern.Value.Value);
@@ -158,8 +156,7 @@ public sealed class TraySettingsTests : IDisposable
         // Close Settings With The Dialog Open (Leaf's shortcuts are let go while it listens)
         leaf.WaitInSettings("JoinShortcutButton").AsButton().Invoke();
         leaf.WaitForAnywhere("ShortcutPreview");
-        leaf.SettingsWindow.Close();
-        Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Settings") > 0, TimeSpan.FromSeconds(10)).Success, "Settings didn't close.");
+        leaf.CloseSettings();
 
         // The Global Shortcut Works Again
         Thread.Sleep(300);
@@ -206,7 +203,7 @@ public sealed class TraySettingsTests : IDisposable
             leaf.OpenSettings("Shortcuts");
 
             Assert.NotNull(leaf.WaitInSettings("JoinShortcutWarning"));
-            Assert.Null(leaf.SettingsWindow.FindFirstDescendant(cf => cf.ByAutomationId("FlyoutShortcutWarning")));
+            Assert.Null(leaf.SettingsView.FindFirstDescendant(cf => cf.ByAutomationId("FlyoutShortcutWarning")));
         }
         finally
         {

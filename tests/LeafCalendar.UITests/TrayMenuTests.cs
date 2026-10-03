@@ -113,7 +113,7 @@ public sealed class TrayMenuTests : IDisposable
     }
 
     [Fact]
-    public void Settings_OpensTheSettingsWindow()
+    public void Settings_ShowsSettingsInTheMainWindow()
     {
         using var leaf = Launch();
 

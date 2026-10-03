@@ -149,7 +149,7 @@ public sealed record LeafSettings
     /// <summary>The main window's size when it last closed; null until then (it opens at <see cref="WindowSize.MainDefault"/>).</summary>
     public WindowSize? MainWindowSize { get; init; }
 
-    /// <summary>The Settings window's size when it last closed; null until then.</summary>
+    /// <summary>Kept from when Settings had its own window (it shows in the main window now); null, or the size it last closed at.</summary>
     public WindowSize? SettingsWindowSize { get; init; }
 
     /// <summary>Where new events go; null uses your main Google calendar (primary, else the first you can write to).</summary>
