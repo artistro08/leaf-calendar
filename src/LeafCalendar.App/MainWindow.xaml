@@ -18,15 +18,9 @@
         <!-- Content (the calendar runs under the title bar, so it spans the title bar row) -->
         <Frame x:Name="ContentFrame" Grid.RowSpan="2" Navigated="OnNavigated" />
 
-        <!-- Settings (in place of the calendar, under the title bar, while it's open: MainWindow.ShowSettings; the view enters with
-             the stock entrance, and the title bar's back button returns to the calendar) -->
-        <Grid x:Name="SettingsHost" Grid.Row="1" Visibility="Collapsed">
-            <Grid.ChildrenTransitions>
-                <TransitionCollection>
-                    <EntranceThemeTransition />
-                </TransitionCollection>
-            </Grid.ChildrenTransitions>
-        </Grid>
+        <!-- Settings (in place of the calendar, under the title bar, while it's open: MainWindow.ShowSettings; the view drills
+             in, and the title bar's back button returns to the calendar) -->
+        <Frame x:Name="SettingsFrame" Grid.Row="1" Visibility="Collapsed" IsNavigationStackEnabled="False" />
 
         <!-- Title Bar -->
         <TitleBar
