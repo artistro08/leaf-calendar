@@ -166,7 +166,7 @@ public sealed partial class DayColumn : Canvas
             // The New Event's Ghost, In Its Own Column
             if (ReferenceEquals(b.Occurrence, standIn))
             {
-                var label = b.Occurrence.Start >= OccurrenceQuery.LocalMidnight(Date, vm.Zone) ? TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime) : "";
+                var label = b.Occurrence.Start >= OccurrenceQuery.LocalMidnight(Date, vm.Zone) ? TimeLabels.GridRange(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime) : "";
                 PlaceGhost(2 + b.Column * colW, Math.Max(colW - 2, 10), b.StartMinute, Math.Max(b.EndMinute, b.StartMinute + DragMath.SnapMinutes), label);
                 ghostShown = true;
                 continue;
@@ -184,7 +184,8 @@ public sealed partial class DayColumn : Canvas
             SetLeft(card, 2 + b.Column * colW);
             SetTop(card, b.StartMinute / 60 * hour + 1);
             card.HoldsEnd = b.Occurrence.End <= OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
-            card.Bind(b.Occurrence, palette, TimeLabels.Range(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, _select, faded, StripesFor(b.Occurrence, dark));
+            // The card shows its times without AM/PM (its place on the grid says which); the tooltip and name keep them
+            card.Bind(b.Occurrence, palette, TimeLabels.GridRange(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, _select, faded, StripesFor(b.Occurrence, dark));
         }
 
         for (var i = shown; i < _blocks.Count; i++)

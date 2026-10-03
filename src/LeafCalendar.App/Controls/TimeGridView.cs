@@ -1293,7 +1293,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
             var top    = t.Start <= dayStart ? 0 : MinutesIntoDay(t.Start);
             var bottom = end >= dayEnd ? 24 * 60 : MinutesIntoDay(end);
-            column.SetGhost(top, Math.Max(bottom, top + DragMath.SnapMinutes), copy + (t.Start >= dayStart ? TimeLabels.Range(t.Start, t.End, _vm.Zone, _vm.Settings.Use24HourTime) : ""));
+            column.SetGhost(top, Math.Max(bottom, top + DragMath.SnapMinutes), copy + (t.Start >= dayStart ? TimeLabels.GridRange(t.Start, t.End, _vm.Zone, _vm.Settings.Use24HourTime) : ""));
         }
     }
 
@@ -1490,7 +1490,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         ClearGhosts();
         SetPreviews(null, SpanLayout.IsSpanning(resized) ? null : resized);
 
-        var label = TimeLabels.Range(resized.Start, end, _vm.Zone, _vm.Settings.Use24HourTime);
+        var label = TimeLabels.GridRange(resized.Start, end, _vm.Zone, _vm.Settings.Use24HourTime);
         foreach (var column in _columns)
         {
             var dayStart = OccurrenceQuery.LocalMidnight(column.Date, _vm.Zone);

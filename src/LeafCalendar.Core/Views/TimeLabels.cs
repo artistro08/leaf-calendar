@@ -41,6 +41,20 @@ public static class TimeLabels
     public static string Range(DateTimeOffset start, DateTimeOffset end, TimeZoneInfo zone, bool use24h) =>
         $"{TimeOfDay(start, zone, use24h)} – {TimeOfDay(end, zone, use24h)}";
 
+    /// <summary>
+    /// A time-grid card's range, without AM/PM (the card's place on the grid says which): "9 – 10:30", "9:15 – 11", or
+    /// "09:00 – 10:30" on a 24-hour clock.
+    /// </summary>
+    public static string GridRange(DateTimeOffset start, DateTimeOffset end, TimeZoneInfo zone, bool use24h) =>
+        use24h ? Range(start, end, zone, true) : $"{Clock(start, zone)} – {Clock(end, zone)}";
+
+    // "9" or "9:15" on a 12-hour clock
+    static string Clock(DateTimeOffset instant, TimeZoneInfo zone)
+    {
+        var local = TimeZoneInfo.ConvertTime(instant, zone);
+        return local.ToString(local.Minute == 0 ? "%h" : "h:mm", English); // "%h": a lone "h" would be read as a standard format
+    }
+
     /// <summary>Month-view time: "9a", "1:30p", or "13:30".</summary>
     public static string Compact(DateTimeOffset instant, TimeZoneInfo zone, bool use24h)
     {
