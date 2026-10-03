@@ -246,6 +246,11 @@ public sealed partial class MonthGridView : Grid, IDisposable
         _weekdays.Children.Clear();
         _weekdays.ColumnDefinitions.Clear();
 
+        // A Line Under The Weekday Names, Always (the first week row's own top line scrolls away with it)
+        _weekdays.Padding         = new Thickness(0, 0, 0, 8);
+        _weekdays.BorderBrush     = LeafBrushes.GridLine(IsDark);
+        _weekdays.BorderThickness = new Thickness(0, 0, 0, 1);
+
         var dates = ColumnDates(ViewNavigator.WeekStartOf(_vm.Today, _vm.Settings.WeekStart));
         for (var c = 0; c < dates.Count; c++)
         {
@@ -594,11 +599,12 @@ public sealed partial class MonthGridView : Grid, IDisposable
         drag.Duplicate = duplicate;
         drag.Target    = days[Math.Min(cell.Column, days.Count - 1)];
 
-        // Ghost Over The Target Cell
+        // Ghost Over The Target Cell, In The Chip's Color
+        var (border, fill)     = LeafBrushes.GhostPalette(EventColors.ResolveAccent(drag.Occurrence.ColorId, drag.Occurrence.CalendarColor), IsDark);
         _ghost.Width           = ColumnWidth - 2;
         _ghost.Height          = RowHeight - 2;
-        _ghost.BorderBrush     = LeafBrushes.Accent(IsDark);
-        _ghost.Background      = LeafBrushes.Hover(IsDark);
+        _ghost.BorderBrush     = border;
+        _ghost.Background      = fill;
         _ghostLabel.Visibility = duplicate ? Visibility.Visible : Visibility.Collapsed;
         Canvas.SetLeft(_ghost, cell.Column * ColumnWidth + 1);
         Canvas.SetTop(_ghost, cell.Row * RowHeight - top + 1);

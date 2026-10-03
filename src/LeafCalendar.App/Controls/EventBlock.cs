@@ -179,7 +179,8 @@ public sealed partial class EventBlock : Grid
     {
         _occurrence = occurrence;
         _select     = select;
-        _timeText   = timeText;
+        // Spoken And Hovered With AM/PM (the card itself shows the grid form, which its place on the grid disambiguates)
+        _timeText   = _owner is { } owner ? TimeLabels.Range(occurrence.Start, occurrence.End, owner.ViewModel.Zone, owner.ViewModel.Settings.Use24HourTime) : timeText;
 
         // A Selected Card Is Always Solid (its palette is the accent at full strength), Even When Unanswered Or Declined
         var declined = occurrence.SelfResponse == ResponseStatus.Declined;
@@ -225,7 +226,7 @@ public sealed partial class EventBlock : Grid
         // (past cards arrive with a faded palette; their text stays full strength). Selection is published too, for UI tests
         AutomationProperties.SetItemStatus(this, string.Join(';', new[] { past ? "Past" : "", selected ? "Selected" : "" }.Where(s => s.Length > 0)));
 
-        AutomationProperties.SetName(this, _owner?.ViewModel.CardName(occurrence, timeText) ?? $"{occurrence.Title}, {timeText}");
+        AutomationProperties.SetName(this, _owner?.ViewModel.CardName(occurrence, _timeText) ?? $"{occurrence.Title}, {_timeText}");
         AutomationProperties.SetAutomationId(this, AutomationIdFor(occurrence));
     }
 }

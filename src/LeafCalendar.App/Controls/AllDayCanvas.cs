@@ -137,7 +137,7 @@ public sealed partial class AllDayCanvas : Canvas
     /// in the first lane its days leave free, so it never covers an event. <paramref name="skipKey"/> is the dragged
     /// event's own key (its lane counts as free). <see cref="GhostLanes"/> says how tall the row must be to show it.
     /// </summary>
-    public void SetGhost(DateOnly first, DateOnly last, bool copy = false, string? skipKey = null)
+    public void SetGhost(DateOnly first, DateOnly last, bool copy = false, string? skipKey = null, string? accentHex = null)
     {
         if (_strip is not { } strip)
         {
@@ -148,8 +148,9 @@ public sealed partial class AllDayCanvas : Canvas
         var from  = strip.IndexOf(first);
         var to    = Math.Max(from, strip.IndexOf(last));
         _ghost.Width           = Math.Max((to - from + 1) * width - 2 - SpareWidth, 8);
-        _ghost.BorderBrush     = LeafBrushes.Accent(_owner.IsDark);
-        _ghost.Background      = LeafBrushes.Hover(_owner.IsDark);
+        (_ghost.BorderBrush, _ghost.Background) = accentHex is null
+            ? (LeafBrushes.Accent(_owner.IsDark), LeafBrushes.Hover(_owner.IsDark))
+            : LeafBrushes.GhostPalette(accentHex, _owner.IsDark);
         _ghostLabel.Visibility = copy ? Visibility.Visible : Visibility.Collapsed;
 
         // First Free Lane Over The Ghost's Days

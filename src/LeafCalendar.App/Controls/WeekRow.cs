@@ -264,16 +264,42 @@ public sealed partial class WeekRow : Canvas
         list.Children.Add(new TextBlock { Text = TimeLabels.LongDate(date), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) });
 
         var flyout = new Flyout();
+        var dark   = ActualTheme == ElementTheme.Dark;
         foreach (var o in vm.Cache.ForDay(date).OrderBy(o => !o.IsAllDay).ThenBy(o => o.Start))
         {
+            // The Chip's Dot In The Event's Color, The Time And Title, And The Calendar On A Small Second Line
+            var past    = vm.IsPast(o);
+            var palette = LeafBrushes.CardPalette(EventColors.ResolveAccent(o.ColorId, o.CalendarColor), dark, past, selected: false);
+            var row     = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new ColumnDefinition { Width = GridLength.Auto }, new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) } } };
+            var dot     = new Ellipse { Width = 7, Height = 7, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 6, 0, 0), Fill = LeafBrushes.FromHex(palette.Accent) };
+            var lines   = new StackPanel();
+            lines.Children.Add(new TextBlock
+            {
+                Text            = o.IsAllDay ? o.Title : $"{TimeLabels.Compact(o.Start, vm.Zone, vm.Settings.Use24HourTime)}  {o.Title}",
+                TextTrimming    = TextTrimming.CharacterEllipsis,
+                TextDecorations = o.SelfResponse == ResponseStatus.Declined ? TextDecorations.Strikethrough : TextDecorations.None,
+            });
+            lines.Children.Add(new TextBlock
+            {
+                Text         = vm.Calendars.FirstOrDefault(c => c.AccountId == o.AccountId && c.Id == o.CalendarId)?.Summary ?? "",
+                FontSize     = 11,
+                Foreground   = LeafBrushes.SecondaryText(dark),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            });
+            Grid.SetColumn(lines, 1);
+            row.Children.Add(dot);
+            row.Children.Add(lines);
+
             var item = new Button
             {
-                Content                    = o.IsAllDay ? o.Title : $"{TimeLabels.Compact(o.Start, vm.Zone, vm.Settings.Use24HourTime)}  {o.Title}",
+                Content                    = row,
                 HorizontalAlignment        = HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Left,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 Background                 = LeafBrushes.Transparent,
                 BorderThickness            = new Thickness(0),
+                Padding                    = new Thickness(8, 4, 8, 4),
             };
+            AutomationProperties.SetName(item, vm.CardName(o, o.IsAllDay ? "All day" : TimeLabels.Range(o.Start, o.End, vm.Zone, vm.Settings.Use24HourTime)));
             item.Click += (_, _) =>
             {
                 flyout.Hide();
