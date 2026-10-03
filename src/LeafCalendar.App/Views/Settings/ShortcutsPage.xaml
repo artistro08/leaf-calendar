@@ -6,41 +6,46 @@
     xmlns:settings="using:LeafCalendar.App.Views.Settings">
 
     <ScrollViewer x:Name="PageScroll">
-        <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
-            <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Shortcuts" />
+        <!-- The column sits in a plain Grid, not straight in the scroller: a scroller's content is placed by its scroll
+             engine from its desired width (its natural content width, since MaxWidth counts as a set width), so a
+             capped, stretched column straight in the scroller lands right of center once the window is wider than it -->
+        <Grid>
+            <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
+                <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Shortcuts" />
 
-            <!-- Global Shortcuts (spec 8.6) -->
-            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Global shortcuts" />
-            <controls:SettingRow Glyph="&#xE714;" Header="Join meeting" Description="Works anywhere in Windows. Joins the meeting that starts in the next 10 minutes, or the one in progress, with the right Google account.">
-                <!-- PowerToys' Shortcut Picker (its button's name and automation ID are set in code) -->
-                <settings:ShortcutControl x:Name="JoinShortcutControl" />
-            </controls:SettingRow>
-            <InfoBar
-                CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
-                x:Name="JoinShortcutWarning"
-                Severity="Warning"
-                IsClosable="False"
-                AutomationProperties.LiveSetting="Polite"
-                AutomationProperties.AutomationId="JoinShortcutWarning" />
-            <controls:SettingRow Glyph="&#xE8A7;" Header="Show or hide the tray flyout" Description="Works anywhere in Windows.">
-                <settings:ShortcutControl x:Name="FlyoutShortcutControl" />
-            </controls:SettingRow>
-            <InfoBar
-                CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
-                x:Name="FlyoutShortcutWarning"
-                Severity="Warning"
-                IsClosable="False"
-                AutomationProperties.LiveSetting="Polite"
-                AutomationProperties.AutomationId="FlyoutShortcutWarning" />
+                <!-- Global Shortcuts (spec 8.6) -->
+                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Global shortcuts" />
+                <controls:SettingRow Glyph="&#xE714;" Header="Join meeting" Description="Works anywhere in Windows. Joins the meeting that starts in the next 10 minutes, or the one in progress, with the right Google account.">
+                    <!-- PowerToys' Shortcut Picker (its button's name and automation ID are set in code) -->
+                    <settings:ShortcutControl x:Name="JoinShortcutControl" />
+                </controls:SettingRow>
+                <InfoBar
+                    CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
+                    x:Name="JoinShortcutWarning"
+                    Severity="Warning"
+                    IsClosable="False"
+                    AutomationProperties.LiveSetting="Polite"
+                    AutomationProperties.AutomationId="JoinShortcutWarning" />
+                <controls:SettingRow Glyph="&#xE8A7;" Header="Show or hide the tray flyout" Description="Works anywhere in Windows.">
+                    <settings:ShortcutControl x:Name="FlyoutShortcutControl" />
+                </controls:SettingRow>
+                <InfoBar
+                    CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
+                    x:Name="FlyoutShortcutWarning"
+                    Severity="Warning"
+                    IsClosable="False"
+                    AutomationProperties.LiveSetting="Polite"
+                    AutomationProperties.AutomationId="FlyoutShortcutWarning" />
 
-            <!-- In-App Shortcuts (spec 8.7) -->
-            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="In-app shortcuts" />
-            <controls:SettingRow Glyph="&#xE765;" Header="Keyboard shortcuts" Description="See every shortcut you can use in Leaf. Press ? in the main window to open this list.">
-                <Button
-                    Content="Show shortcuts"
-                    Click="OnShowCheatSheetClick"
-                    AutomationProperties.AutomationId="ShowCheatSheetButton" />
-            </controls:SettingRow>
-        </StackPanel>
+                <!-- In-App Shortcuts (spec 8.7) -->
+                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="In-app shortcuts" />
+                <controls:SettingRow Glyph="&#xE765;" Header="Keyboard shortcuts" Description="See every shortcut you can use in Leaf. Press ? in the main window to open this list.">
+                    <Button
+                        Content="Show shortcuts"
+                        Click="OnShowCheatSheetClick"
+                        AutomationProperties.AutomationId="ShowCheatSheetButton" />
+                </controls:SettingRow>
+            </StackPanel>
+        </Grid>
     </ScrollViewer>
 </Page>

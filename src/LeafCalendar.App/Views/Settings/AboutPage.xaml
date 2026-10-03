@@ -6,67 +6,72 @@
     xmlns:local="using:LeafCalendar.App.Views.Settings">
 
     <ScrollViewer x:Name="PageScroll">
-        <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
-            <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="About" />
+        <!-- The column sits in a plain Grid, not straight in the scroller: a scroller's content is placed by its scroll
+             engine from its desired width (its natural content width, since MaxWidth counts as a set width), so a
+             capped, stretched column straight in the scroller lands right of center once the window is wider than it -->
+        <Grid>
+            <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
+                <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="About" />
 
-            <!-- App (icon, name, version) -->
-            <Border
-                MinHeight="68"
-                Padding="16"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="{StaticResource OverlayCornerRadius}">
-                <Grid ColumnSpacing="16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Image
-                        Width="32"
-                        Height="32"
-                        VerticalAlignment="Center"
-                        AutomationProperties.AccessibilityView="Raw">
-                        <!-- Decoded at its size on screen (32 DIP at this scale), so it isn't shrunk with jagged edges -->
-                        <Image.Source>
-                            <BitmapImage UriSource="ms-appx:///Assets/AppLogo.png" DecodePixelWidth="32" DecodePixelHeight="32" DecodePixelType="Logical" />
-                        </Image.Source>
-                    </Image>
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Leaf Calendar" />
-                        <TextBlock
-                            Style="{StaticResource LeafSecondaryTextStyle}"
-                            Text="{x:Bind local:AboutPage.VersionText}"
-                            AutomationProperties.AutomationId="AboutVersion" />
-                    </StackPanel>
-                </Grid>
-            </Border>
+                <!-- App (icon, name, version) -->
+                <Border
+                    MinHeight="68"
+                    Padding="16"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{StaticResource OverlayCornerRadius}">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Image
+                            Width="32"
+                            Height="32"
+                            VerticalAlignment="Center"
+                            AutomationProperties.AccessibilityView="Raw">
+                            <!-- Decoded at its size on screen (32 DIP at this scale), so it isn't shrunk with jagged edges -->
+                            <Image.Source>
+                                <BitmapImage UriSource="ms-appx:///Assets/AppLogo.png" DecodePixelWidth="32" DecodePixelHeight="32" DecodePixelType="Logical" />
+                            </Image.Source>
+                        </Image>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Leaf Calendar" />
+                            <TextBlock
+                                Style="{StaticResource LeafSecondaryTextStyle}"
+                                Text="{x:Bind local:AboutPage.VersionText}"
+                                AutomationProperties.AutomationId="AboutVersion" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
 
-            <!-- Links (fixed addresses only) -->
-            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Links" />
-            <controls:SettingRow Glyph="&#xE943;" Header="Source code" Description="Leaf Calendar is open source. See the code, report a problem, or get the latest release.">
-                <HyperlinkButton
-                    Content="View on GitHub"
-                    Click="OnGitHubClick"
-                    AutomationProperties.AutomationId="GitHubLink" />
-            </controls:SettingRow>
+                <!-- Links (fixed addresses only) -->
+                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Links" />
+                <controls:SettingRow Glyph="&#xE943;" Header="Source code" Description="Leaf Calendar is open source. See the code, report a problem, or get the latest release.">
+                    <HyperlinkButton
+                        Content="View on GitHub"
+                        Click="OnGitHubClick"
+                        AutomationProperties.AutomationId="GitHubLink" />
+                </controls:SettingRow>
 
-            <!-- Troubleshooting -->
-            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Troubleshooting" />
-            <controls:SettingRow Glyph="&#xE9F9;" Header="Logs" Description="Leaf's log never includes your events, guests, or searches.">
-                <Button
-                    Content="Open log folder"
-                    Click="OnOpenLogsClick"
-                    AutomationProperties.AutomationId="OpenLogsButton" />
-            </controls:SettingRow>
-            <controls:SettingRow Glyph="&#xEBE8;" Header="Detailed logging" Description="Record the steps before a problem, with crash details, so it can be traced. Crash files can include bits of what was on screen. Turn it off when you're done.">
-                <ToggleSwitch
-                    x:Name="DetailedLoggingSwitch"
-                    Style="{StaticResource LeafCardToggleSwitchStyle}"
-                    Toggled="OnDetailedLoggingToggled"
-                    AutomationProperties.Name="Detailed logging"
-                    AutomationProperties.AutomationId="DetailedLoggingSwitch" />
-            </controls:SettingRow>
-        </StackPanel>
+                <!-- Troubleshooting -->
+                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Troubleshooting" />
+                <controls:SettingRow Glyph="&#xE9F9;" Header="Logs" Description="Leaf's log never includes your events, guests, or searches.">
+                    <Button
+                        Content="Open log folder"
+                        Click="OnOpenLogsClick"
+                        AutomationProperties.AutomationId="OpenLogsButton" />
+                </controls:SettingRow>
+                <controls:SettingRow Glyph="&#xEBE8;" Header="Detailed logging" Description="Record the steps before a problem, with crash details, so it can be traced. Crash files can include bits of what was on screen. Turn it off when you're done.">
+                    <ToggleSwitch
+                        x:Name="DetailedLoggingSwitch"
+                        Style="{StaticResource LeafCardToggleSwitchStyle}"
+                        Toggled="OnDetailedLoggingToggled"
+                        AutomationProperties.Name="Detailed logging"
+                        AutomationProperties.AutomationId="DetailedLoggingSwitch" />
+                </controls:SettingRow>
+            </StackPanel>
+        </Grid>
     </ScrollViewer>
 </Page>

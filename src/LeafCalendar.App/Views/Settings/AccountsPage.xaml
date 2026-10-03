@@ -7,159 +7,164 @@
     xmlns:local="using:LeafCalendar.App.Views.Settings">
 
     <ScrollViewer x:Name="PageScroll">
-        <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
-            <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Accounts" />
+        <!-- The column sits in a plain Grid, not straight in the scroller: a scroller's content is placed by its scroll
+             engine from its desired width (its natural content width, since MaxWidth counts as a set width), so a
+             capped, stretched column straight in the scroller lands right of center once the window is wider than it -->
+        <Grid>
+            <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
+                <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Accounts" />
 
-            <!-- Status -->
-            <InfoBar
-                CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
-                Margin="0,0,0,12"
-                Severity="{x:Bind local:AccountsPage.SeverityFor(ViewModel.MessageKind), Mode=OneWay}"
-                IsOpen="{x:Bind ViewModel.HasMessage, Mode=OneWay}"
-                Message="{x:Bind ViewModel.Message, Mode=OneWay}"
-                AutomationProperties.LiveSetting="{x:Bind local:AccountsPage.LiveFor(ViewModel.MessageKind), Mode=OneWay}"
-                AutomationProperties.AutomationId="AccountsMessage" />
+                <!-- Status -->
+                <InfoBar
+                    CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
+                    Margin="0,0,0,12"
+                    Severity="{x:Bind local:AccountsPage.SeverityFor(ViewModel.MessageKind), Mode=OneWay}"
+                    IsOpen="{x:Bind ViewModel.HasMessage, Mode=OneWay}"
+                    Message="{x:Bind ViewModel.Message, Mode=OneWay}"
+                    AutomationProperties.LiveSetting="{x:Bind local:AccountsPage.LiveFor(ViewModel.MessageKind), Mode=OneWay}"
+                    AutomationProperties.AutomationId="AccountsMessage" />
 
-            <!-- Google Accounts -->
-            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Google accounts" />
-            <!-- Add (always first; while the browser is open, Cancel sits next to the progress ring) -->
-            <controls:SettingRow Glyph="&#xE8FA;" Header="Add a Google account" Description="Sign in with Google in your browser. Leaf then syncs its calendars.">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <ProgressRing
-                        Width="20"
-                        Height="20"
-                        Margin="0,0,4,0"
-                        IsActive="{x:Bind ViewModel.IsAdding, Mode=OneWay}"
-                        AutomationProperties.Name="Adding account"
-                        AutomationProperties.AutomationId="AddAccountProgress" />
-                    <Button
-                        Content="Cancel"
-                        Command="{x:Bind ViewModel.CancelSignInCommand}"
-                        Visibility="{x:Bind ViewModel.IsSigningIn, Mode=OneWay}"
-                        AutomationProperties.Name="Cancel sign-in"
-                        AutomationProperties.AutomationId="CancelSignInButton" />
-                    <Button
-                        Style="{StaticResource AccentButtonStyle}"
-                        Content="Add Google account"
-                        Command="{x:Bind ViewModel.AddAccountCommand}"
-                        AutomationProperties.AutomationId="AddAccountButton" />
-                </StackPanel>
-            </controls:SettingRow>
-            <TextBlock
-                Style="{StaticResource LeafSecondaryTextStyle}"
-                Margin="0,4,0,0"
-                Text="No accounts yet. Add your Google account to see your calendars."
-                Visibility="{x:Bind ViewModel.HasNoAccounts, Mode=OneWay}" />
-            <!-- One Expander Per Account (its options inside, like Windows' accounts) -->
-            <controls:PinnedItemsControl x:Name="AccountList" IsTabStop="False" AutomationProperties.AutomationId="AccountsList">
-                <controls:PinnedItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel Spacing="4" />
-                    </ItemsPanelTemplate>
-                </controls:PinnedItemsControl.ItemsPanel>
-                <controls:PinnedItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:AccountSettingsRow">
-                        <Expander
-                            Style="{StaticResource LeafSettingExpanderStyle}"
-                            IsExpanded="{x:Bind IsExpanded, Mode=TwoWay}"
-                            AutomationProperties.Name="{x:Bind Email}"
-                            AutomationProperties.AutomationId="{x:Bind ExpanderId}">
-                            <Expander.Header>
-                                <controls:SettingRow
-                                    Style="{StaticResource LeafExpanderHeaderRowStyle}"
-                                    Glyph="&#xE77B;"
-                                    Header="{x:Bind Email}"
-                                    Description="{x:Bind Summary}" />
-                            </Expander.Header>
-                            <StackPanel>
-                                <controls:SettingRow
-                                    Style="{StaticResource LeafExpanderItemRowStyle}"
-                                    BorderThickness="0"
-                                    Header="Google Meet by default"
-                                    Description="Add a Google Meet link to new events in this account.">
-                                    <ToggleSwitch
-                                        Style="{StaticResource LeafCardToggleSwitchStyle}"
-                                        IsOn="{x:Bind IsOn, Mode=TwoWay}"
-                                        AutomationProperties.Name="Google Meet by default"
-                                        AutomationProperties.AutomationId="{x:Bind SwitchId}" />
-                                </controls:SettingRow>
-                                <controls:SettingRow
-                                    Style="{StaticResource LeafExpanderItemRowStyle}"
-                                    Header="Disconnect"
-                                    Description="Sign out and remove this account's calendars from this PC. Your Google Calendar isn't changed.">
-                                    <Button
-                                        Content="Disconnect"
-                                        Tag="{x:Bind AccountId}"
-                                        Click="OnDisconnectClick"
-                                        AutomationProperties.AutomationId="{x:Bind DisconnectId}" />
-                                </controls:SettingRow>
-                            </StackPanel>
-                        </Expander>
-                    </DataTemplate>
-                </controls:PinnedItemsControl.ItemTemplate>
-            </controls:PinnedItemsControl>
-            <!-- /One Expander Per Account -->
-            <controls:SettingRow Glyph="&#xE77B;" Header="Main account" Description="Listed first, and used to look up people's free/busy times.">
-                <ComboBox
-                    x:Name="MainAccountBox"
-                    MinWidth="180"
-                    SelectionChanged="OnMainAccountChanged"
-                    AutomationProperties.Name="Main account"
-                    AutomationProperties.AutomationId="MainAccountBox" />
-            </controls:SettingRow>
-
-            <!-- New Events -->
-            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="New events" />
-            <controls:SettingRow Glyph="&#xE787;" Header="Default calendar" Description="Where new events go. Leaf uses this instead of Google's default.">
-                <ComboBox
-                    x:Name="DefaultCalendarBox"
-                    MinWidth="180"
-                    SelectionChanged="OnDefaultCalendarChanged"
-                    AutomationProperties.Name="Default calendar"
-                    AutomationProperties.AutomationId="DefaultCalendarComboBox">
-                    <!-- The calendar's name, and under it the account it's in (when there's more than one account) -->
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate x:DataType="local:DefaultCalendarChoice">
-                            <StackPanel AutomationProperties.Name="{x:Bind Name}">
-                                <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
-                                <TextBlock
-                                    Style="{StaticResource CaptionTextBlockStyle}"
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                    Text="{x:Bind Email}"
-                                    TextTrimming="CharacterEllipsis"
-                                    Visibility="{x:Bind HasEmail}" />
-                            </StackPanel>
+                <!-- Google Accounts -->
+                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Google accounts" />
+                <!-- Add (always first; while the browser is open, Cancel sits next to the progress ring) -->
+                <controls:SettingRow Glyph="&#xE8FA;" Header="Add a Google account" Description="Sign in with Google in your browser. Leaf then syncs its calendars.">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ProgressRing
+                            Width="20"
+                            Height="20"
+                            Margin="0,0,4,0"
+                            IsActive="{x:Bind ViewModel.IsAdding, Mode=OneWay}"
+                            AutomationProperties.Name="Adding account"
+                            AutomationProperties.AutomationId="AddAccountProgress" />
+                        <Button
+                            Content="Cancel"
+                            Command="{x:Bind ViewModel.CancelSignInCommand}"
+                            Visibility="{x:Bind ViewModel.IsSigningIn, Mode=OneWay}"
+                            AutomationProperties.Name="Cancel sign-in"
+                            AutomationProperties.AutomationId="CancelSignInButton" />
+                        <Button
+                            Style="{StaticResource AccentButtonStyle}"
+                            Content="Add Google account"
+                            Command="{x:Bind ViewModel.AddAccountCommand}"
+                            AutomationProperties.AutomationId="AddAccountButton" />
+                    </StackPanel>
+                </controls:SettingRow>
+                <TextBlock
+                    Style="{StaticResource LeafSecondaryTextStyle}"
+                    Margin="0,4,0,0"
+                    Text="No accounts yet. Add your Google account to see your calendars."
+                    Visibility="{x:Bind ViewModel.HasNoAccounts, Mode=OneWay}" />
+                <!-- One Expander Per Account (its options inside, like Windows' accounts) -->
+                <controls:PinnedItemsControl x:Name="AccountList" IsTabStop="False" AutomationProperties.AutomationId="AccountsList">
+                    <controls:PinnedItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="4" />
+                        </ItemsPanelTemplate>
+                    </controls:PinnedItemsControl.ItemsPanel>
+                    <controls:PinnedItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AccountSettingsRow">
+                            <Expander
+                                Style="{StaticResource LeafSettingExpanderStyle}"
+                                IsExpanded="{x:Bind IsExpanded, Mode=TwoWay}"
+                                AutomationProperties.Name="{x:Bind Email}"
+                                AutomationProperties.AutomationId="{x:Bind ExpanderId}">
+                                <Expander.Header>
+                                    <controls:SettingRow
+                                        Style="{StaticResource LeafExpanderHeaderRowStyle}"
+                                        Glyph="&#xE77B;"
+                                        Header="{x:Bind Email}"
+                                        Description="{x:Bind Summary}" />
+                                </Expander.Header>
+                                <StackPanel>
+                                    <controls:SettingRow
+                                        Style="{StaticResource LeafExpanderItemRowStyle}"
+                                        BorderThickness="0"
+                                        Header="Google Meet by default"
+                                        Description="Add a Google Meet link to new events in this account.">
+                                        <ToggleSwitch
+                                            Style="{StaticResource LeafCardToggleSwitchStyle}"
+                                            IsOn="{x:Bind IsOn, Mode=TwoWay}"
+                                            AutomationProperties.Name="Google Meet by default"
+                                            AutomationProperties.AutomationId="{x:Bind SwitchId}" />
+                                    </controls:SettingRow>
+                                    <controls:SettingRow
+                                        Style="{StaticResource LeafExpanderItemRowStyle}"
+                                        Header="Disconnect"
+                                        Description="Sign out and remove this account's calendars from this PC. Your Google Calendar isn't changed.">
+                                        <Button
+                                            Content="Disconnect"
+                                            Tag="{x:Bind AccountId}"
+                                            Click="OnDisconnectClick"
+                                            AutomationProperties.AutomationId="{x:Bind DisconnectId}" />
+                                    </controls:SettingRow>
+                                </StackPanel>
+                            </Expander>
                         </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-            </controls:SettingRow>
+                    </controls:PinnedItemsControl.ItemTemplate>
+                </controls:PinnedItemsControl>
+                <!-- /One Expander Per Account -->
+                <controls:SettingRow Glyph="&#xE77B;" Header="Main account" Description="Listed first, and used to look up people's free/busy times.">
+                    <ComboBox
+                        x:Name="MainAccountBox"
+                        MinWidth="180"
+                        SelectionChanged="OnMainAccountChanged"
+                        AutomationProperties.Name="Main account"
+                        AutomationProperties.AutomationId="MainAccountBox" />
+                </controls:SettingRow>
 
-            <!-- Sync -->
-            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Sync" />
-            <controls:SettingRow Glyph="&#xE72C;" Header="Sync now" Description="Leaf syncs on its own. Sync now to get the latest changes from Google right away.">
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                    <ProgressRing
-                        Width="20"
-                        Height="20"
-                        IsActive="{x:Bind ViewModel.IsSyncing, Mode=OneWay}"
-                        AutomationProperties.Name="Syncing"
-                        AutomationProperties.AutomationId="SyncNowProgress" />
+                <!-- New Events -->
+                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="New events" />
+                <controls:SettingRow Glyph="&#xE787;" Header="Default calendar" Description="Where new events go. Leaf uses this instead of Google's default.">
+                    <ComboBox
+                        x:Name="DefaultCalendarBox"
+                        MinWidth="180"
+                        SelectionChanged="OnDefaultCalendarChanged"
+                        AutomationProperties.Name="Default calendar"
+                        AutomationProperties.AutomationId="DefaultCalendarComboBox">
+                        <!-- The calendar's name, and under it the account it's in (when there's more than one account) -->
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="local:DefaultCalendarChoice">
+                                <StackPanel AutomationProperties.Name="{x:Bind Name}">
+                                    <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="{x:Bind Email}"
+                                        TextTrimming="CharacterEllipsis"
+                                        Visibility="{x:Bind HasEmail}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </controls:SettingRow>
+
+                <!-- Sync -->
+                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Sync" />
+                <controls:SettingRow Glyph="&#xE72C;" Header="Sync now" Description="Leaf syncs on its own. Sync now to get the latest changes from Google right away.">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <ProgressRing
+                            Width="20"
+                            Height="20"
+                            IsActive="{x:Bind ViewModel.IsSyncing, Mode=OneWay}"
+                            AutomationProperties.Name="Syncing"
+                            AutomationProperties.AutomationId="SyncNowProgress" />
+                        <Button
+                            Content="Sync now"
+                            Command="{x:Bind ViewModel.SyncNowCommand}"
+                            AutomationProperties.AutomationId="SyncNowButton" />
+                    </StackPanel>
+                </controls:SettingRow>
+
+                <!-- OAuth Client -->
+                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Google Cloud OAuth client" />
+                <controls:SettingRow Glyph="&#xE8D7;" Header="OAuth client" Description="{x:Bind ViewModel.ClientId, Mode=OneWay}">
                     <Button
-                        Content="Sync now"
-                        Command="{x:Bind ViewModel.SyncNowCommand}"
-                        AutomationProperties.AutomationId="SyncNowButton" />
-                </StackPanel>
-            </controls:SettingRow>
-
-            <!-- OAuth Client -->
-            <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Google Cloud OAuth client" />
-            <controls:SettingRow Glyph="&#xE8D7;" Header="OAuth client" Description="{x:Bind ViewModel.ClientId, Mode=OneWay}">
-                <Button
-                    Content="Change OAuth client"
-                    Click="OnChangeClientClick"
-                    IsEnabled="{x:Bind ViewModel.IsNotBusy, Mode=OneWay}"
-                    AutomationProperties.AutomationId="ChangeClientButton" />
-            </controls:SettingRow>
-        </StackPanel>
+                        Content="Change OAuth client"
+                        Click="OnChangeClientClick"
+                        IsEnabled="{x:Bind ViewModel.IsNotBusy, Mode=OneWay}"
+                        AutomationProperties.AutomationId="ChangeClientButton" />
+                </controls:SettingRow>
+            </StackPanel>
+        </Grid>
     </ScrollViewer>
 </Page>
