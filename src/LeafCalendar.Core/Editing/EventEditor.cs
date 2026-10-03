@@ -125,6 +125,24 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         return PermissionsCore(conn, null, occurrence);
     }
 
+    /// <summary>
+    /// Why the event can't be changed, as the end of a sentence (<see cref="EventJson.ReadOnlyReason"/>; "it's no
+    /// longer on your calendar" when it's gone), or null when it can.
+    /// </summary>
+    public string? ReadOnlyReason(CalendarOccurrence occurrence)
+    {
+        ArgumentNullException.ThrowIfNull(occurrence);
+
+        using var conn = database.Open();
+        if (EventStore.Get(conn, null, occurrence.AccountId, occurrence.CalendarId, occurrence.EventId) is not { } stored)
+        {
+            return "it's no longer on your calendar";
+        }
+
+        var role = CalendarStore.GetForAccount(conn, occurrence.AccountId).FirstOrDefault(c => c.Id == occurrence.CalendarId)?.AccessRole ?? "reader";
+        return EventJson.ReadOnlyReason(stored.RawJson, role);
+    }
+
     // =========================================================================
     // EDITS
     // =========================================================================

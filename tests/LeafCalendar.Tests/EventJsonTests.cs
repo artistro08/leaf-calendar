@@ -6,6 +6,19 @@ namespace LeafCalendar.Tests;
 
 public class EventJsonTests
 {
+    [Theory]
+    [InlineData("""{"id":"a"}""", "reader", "it's on a calendar you can only view")]
+    [InlineData("""{"id":"a"}""", "freeBusyReader", "it's on a calendar you can only view")]
+    [InlineData("""{"id":"a","organizer":{"email":"boss@example.com"},"attendees":[{"email":"me@example.com","self":true}]}""", "writer", "only its organizer can change it")]
+    [InlineData("""{"id":"a","organizer":{"email":"boss@example.com"},"attendees":[{"email":"me@example.com","self":true}],"guestsCanModify":true}""", "writer", null)]
+    [InlineData("""{"id":"a","organizer":{"email":"me@example.com","self":true},"attendees":[{"email":"x@example.com"}]}""", "owner", null)]
+    [InlineData("""{"id":"a"}""", "owner", null)]
+    public void ReadOnlyReason_SaysWhy(string json, string role, string? expected)
+    {
+        Assert.Equal(expected, EventJson.ReadOnlyReason(json, role));
+        Assert.Equal(expected is null, EventJson.CanEdit(json, role));
+    }
+
     static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
     const string Meeting = """

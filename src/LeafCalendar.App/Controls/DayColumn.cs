@@ -5,6 +5,7 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 
 namespace LeafCalendar.App.Controls;
@@ -29,6 +30,9 @@ public sealed partial class DayColumn : Canvas
     readonly Ellipse _nowDot = new() { Width = 10, Height = 10, Fill = LeafBrushes.NowLine };
     readonly List<EventBlock> _blocks = [];
     readonly Border _ghost = new() { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+
+    // The drag ghost's shadow lands on this, under everything (a receiver can't be the ghost's ancestor)
+    readonly Rectangle _floor = new() { IsHitTestVisible = false };
     readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 2, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
     readonly Canvas _offHours = new() { IsHitTestVisible = false };
 
@@ -75,8 +79,15 @@ public sealed partial class DayColumn : Canvas
         Children.Add(_nowLine);
         Children.Add(_nowDot);
 
-        // Drag Ghost (its label is what UI tests find, by date)
-        _ghost.Child = _ghostLabel;
+        // Drag Ghost (its label is what UI tests find, by date), with a drop shadow onto the floor
+        _floor.Fill = LeafBrushes.Transparent;
+        Children.Insert(0, _floor);
+        SetZIndex(_floor, -1);
+        var shadow = new ThemeShadow();
+        shadow.Receivers.Add(_floor);
+        _ghost.Child       = _ghostLabel;
+        _ghost.Shadow      = shadow;
+        _ghost.Translation = new System.Numerics.Vector3(0, 0, 24);
         Children.Add(_ghost);
         SetZIndex(_ghost, 20);
 
@@ -156,6 +167,8 @@ public sealed partial class DayColumn : Canvas
         // Events (drawn at the same minimum length DayLayout uses for overlap, so short events never collide). The
         // grid's stand-ins are laid out with them: a new event's range is one more overlapping column, drawn as the ghost
         var standIn    = _owner.StandIn;
+        _floor.Width   = width;
+        _floor.Height  = _owner.BodyHeight;
         var blocks     = DayLayout.Layout(Date, _owner.WithPreviews(vm.Cache.ForDay(Date)), vm.Zone);
         var shown      = 0;
         var ghostShown = false;

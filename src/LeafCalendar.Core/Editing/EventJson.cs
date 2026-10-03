@@ -90,21 +90,28 @@ public static class EventJson
 
     /// <summary>True when you may change the event: an owner or writer calendar, and you organize it, guests may modify it, or it has no guests.</summary>
     /// <exception cref="JsonException">The JSON is invalid.</exception>
-    public static bool CanEdit(string rawJson, string accessRole)
+    public static bool CanEdit(string rawJson, string accessRole) => ReadOnlyReason(rawJson, accessRole) is null;
+
+    /// <summary>
+    /// Why you can't change the event, as the end of a sentence ("it's on a calendar you can only view", "only its
+    /// organizer can change it"), or null when you can.
+    /// </summary>
+    /// <exception cref="JsonException">The JSON is invalid.</exception>
+    public static string? ReadOnlyReason(string rawJson, string accessRole)
     {
         if (accessRole is not ("owner" or "writer"))
         {
-            return false;
+            return "it's on a calendar you can only view";
         }
 
         using var doc = JsonDocument.Parse(rawJson);
         var root = doc.RootElement;
         if (Get(root, "organizer") is not { } organizer || Flag(organizer, "self"))
         {
-            return true;
+            return null;
         }
 
-        return Flag(root, "guestsCanModify") || Get(root, "attendees") is not { ValueKind: JsonValueKind.Array };
+        return Flag(root, "guestsCanModify") || Get(root, "attendees") is not { ValueKind: JsonValueKind.Array } ? null : "only its organizer can change it";
     }
 
     /// <summary>True when you're a guest (not the organizer), so Yes / No / Maybe applies.</summary>

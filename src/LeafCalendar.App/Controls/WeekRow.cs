@@ -7,6 +7,7 @@ using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Windows.UI.Text;
 
@@ -325,6 +326,9 @@ public sealed partial class WeekRow : Canvas
         readonly MonthGridView _owner;
         readonly Ellipse _dot = new() { Width = 7, Height = 7, VerticalAlignment = VerticalAlignment.Center };
         readonly TextBlock _text = new() { FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+
+        // The chip's give while a read-only event is dragged (ElasticNudge); created here and never read back
+        readonly TranslateTransform _pull = new();
         readonly ToolTip _tip = new();
         CalendarOccurrence? _occurrence;
         string _time = "";
@@ -333,8 +337,9 @@ public sealed partial class WeekRow : Canvas
         {
             _owner       = owner;
             ToolTipService.SetToolTip(this, _tip);
-            Height       = MonthGridView.ChipHeight - 2;
-            CornerRadius = new CornerRadius(4);
+            Height          = MonthGridView.ChipHeight - 2;
+            CornerRadius    = new CornerRadius(4);
+            RenderTransform = _pull;
             Padding      = new Thickness(6, 0, 6, 0);
 
             var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
@@ -383,7 +388,7 @@ public sealed partial class WeekRow : Canvas
             {
                 if (_occurrence is { } o && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed && e.Pointer.PointerDeviceType != PointerDeviceType.Touch)
                 {
-                    _owner.BeginChipDrag(o, e);
+                    _owner.BeginChipDrag(o, e, _pull);
                 }
             };
         }
