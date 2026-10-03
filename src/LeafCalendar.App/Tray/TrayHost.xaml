@@ -216,14 +216,22 @@
                             </ScrollViewer>
                             <!-- /Agenda -->
 
-                            <!-- Footer (New event at the right) -->
+                            <!-- Footer (New event at the left, Open calendar at the right) -->
                             <Border Grid.Row="3" Padding="16,12" Background="{ThemeResource LeafFlyoutFooterBrush}" CornerRadius="0,0,8,8">
-                                <Button HorizontalAlignment="Right" Click="OnNewEventClick" AutomationProperties.Name="New event" AutomationProperties.AutomationId="FlyoutNewEvent">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon FontSize="14" Glyph="&#xE710;" AutomationProperties.AccessibilityView="Raw" />
-                                        <TextBlock Text="New event" />
-                                    </StackPanel>
-                                </Button>
+                                <Grid ColumnSpacing="8" ColumnDefinitions="Auto,*,Auto">
+                                    <Button Click="OnNewEventClick" AutomationProperties.Name="New event" AutomationProperties.AutomationId="FlyoutNewEvent">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon FontSize="14" Glyph="&#xE710;" AutomationProperties.AccessibilityView="Raw" />
+                                            <TextBlock Text="New event" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Column="2" Click="OnFlyoutOpenClick" AutomationProperties.Name="Open calendar" AutomationProperties.AutomationId="FlyoutOpenCalendar">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon FontSize="14" Glyph="&#xE787;" AutomationProperties.AccessibilityView="Raw" />
+                                            <TextBlock Text="Open calendar" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
                             </Border>
                         </Grid>
                         <!-- /Panel -->

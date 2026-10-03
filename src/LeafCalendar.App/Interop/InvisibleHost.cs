@@ -55,5 +55,15 @@ internal static class InvisibleHost
     /// </summary>
     public static bool TakeForeground(Window window) => Foreground.Take(Handle(window));
 
+    /// <summary>
+    /// True when the screen point (physical pixels) is on one of <paramref name="window"/>'s own popups (or the host itself):
+    /// the window under it is owned, at the root, by the host.
+    /// </summary>
+    public static bool IsOnPopup(Window window, int x, int y)
+    {
+        var under = PInvoke.WindowFromPoint(new System.Drawing.Point(x, y));
+        return !under.IsNull && PInvoke.GetAncestor(under, GET_ANCESTOR_FLAGS.GA_ROOTOWNER) == Handle(window);
+    }
+
     static HWND Handle(Window window) => new(WindowNative.GetWindowHandle(window));
 }

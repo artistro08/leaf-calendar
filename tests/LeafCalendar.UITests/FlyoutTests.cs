@@ -51,6 +51,37 @@ public sealed class FlyoutTests : IDisposable
     }
 
     [Fact]
+    public void Footer_NewEventLeft_OpenCalendarRight_OpensTheWindow()
+    {
+        using var leaf = Launch();
+        leaf.MainWindow.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
+        leaf.PostTrayMessage(LeafApp.TraySelect);
+
+        var newEvent = leaf.WaitForPopup("FlyoutNewEvent").BoundingRectangle;
+        var open     = leaf.WaitForPopup("FlyoutOpenCalendar");
+        Assert.True(newEvent.Right < open.BoundingRectangle.Left, "New event isn't left of Open calendar.");
+
+        open.AsButton().Invoke();
+
+        Assert.True(Retry.WhileFalse(() => leaf.IsInFront, TimeSpan.FromSeconds(10)).Success, "Open calendar didn't bring the window up.");
+        Assert.True(Retry.WhileTrue(() => leaf.PopupExists("FlyoutNewEvent"), TimeSpan.FromSeconds(5)).Success, "The flyout stayed open.");
+    }
+
+    [Fact]
+    public void ClickOutside_ClosesTheFlyout()
+    {
+        using var leaf = Launch();
+        leaf.PostTrayMessage(LeafApp.TraySelect);
+        leaf.WaitForPopup("FlyoutNewEvent");
+
+        // A Left Click On The Main Window's Top Left, Away From The Flyout By The Taskbar
+        var window = leaf.MainWindow.BoundingRectangle;
+        Mouse.Click(new System.Drawing.Point(window.Left + 200, window.Top + 200));
+
+        Assert.True(Retry.WhileTrue(() => leaf.PopupExists("FlyoutNewEvent"), TimeSpan.FromSeconds(5)).Success, "The flyout stayed open after a click outside it.");
+    }
+
+    [Fact]
     public void TrayRightClick_Repeatedly_OpensTheMenuEveryTime()
     {
         using var leaf = Launch();
