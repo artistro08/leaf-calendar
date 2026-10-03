@@ -1,5 +1,6 @@
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Settings;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Animation;
@@ -86,7 +87,24 @@ public sealed partial class SettingsPage : Page
         // Follow The Calendar's Settings (pages show them)
         _calendar.LayoutChanged    += OnLayoutChanged;
         _calendar.CalendarsChanged += OnCalendarsChanged;
-        Show(args.Section);
+
+        // The First Page Once The View Has Its Size: shown now, while the frame is still being laid out (it was collapsed, and
+        // the drill-in is starting), the navigation picks its pane mode from a stale width and the page's centered column
+        // keeps that width (it's cut off at the right until the window is resized)
+        if (IsLoaded)
+        {
+            Show(args.Section);
+        }
+        else
+        {
+            void OnLoaded(object sender, RoutedEventArgs e)
+            {
+                Loaded -= OnLoaded;
+                Show(args.Section);
+            }
+
+            Loaded += OnLoaded;
+        }
     }
 
     /// <summary>A setting changed (from a page, a menu, or a shortcut).</summary>
