@@ -55,7 +55,8 @@
 
                 <!-- Upcoming -->
                 <StackPanel x:Name="UpcomingView" Spacing="8">
-                    <Grid ColumnSpacing="8" ColumnDefinitions="*,Auto">
+                    <!-- Header (hidden with "Done for today", which says it all; one calendar's list keeps it for Show all) -->
+                    <Grid x:Name="UpcomingHeaderRow" ColumnSpacing="8" ColumnDefinitions="*,Auto">
                         <TextBlock
                             x:Name="UpcomingHeader"
                             VerticalAlignment="Center"
@@ -101,11 +102,15 @@
                                         <Button
                                             Grid.Column="2"
                                             VerticalAlignment="Center"
-                                            Content="Join"
                                             Click="{x:Bind Join}"
                                             Visibility="{x:Bind local:DetailsPanel.Visible(CanJoin)}"
                                             AutomationProperties.Name="Join"
-                                            AutomationProperties.AutomationId="{x:Bind JoinId}" />
+                                            AutomationProperties.AutomationId="{x:Bind JoinId}">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <controls:MeetingLogo Provider="{x:Bind Provider}" />
+                                                <TextBlock Text="Join" />
+                                            </StackPanel>
+                                        </Button>
                                     </Grid>
                                 </Button>
                             </DataTemplate>
@@ -140,9 +145,15 @@
                             VerticalAlignment="Stretch"
                             Style="{StaticResource AccentButtonStyle}"
                             CornerRadius="4,0,0,4"
-                            Content="Join meeting"
                             Click="OnJoinClick"
-                            AutomationProperties.AutomationId="DetailsJoinButton" />
+                            AutomationProperties.Name="Join meeting"
+                            AutomationProperties.AutomationId="DetailsJoinButton">
+                            <!-- The service's logo and name -->
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <controls:MeetingLogo x:Name="JoinLogo" />
+                                <TextBlock x:Name="JoinText" Text="Join meeting" />
+                            </StackPanel>
+                        </Button>
                         <Button
                             x:Name="JoinMenuButton"
                             Grid.Column="1"

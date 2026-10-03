@@ -27,7 +27,7 @@
                 <x:Double x:Key="TitleBarMinDragRegionWidth">0</x:Double>
             </TitleBar.Resources>
             <TitleBar.IconSource>
-                <ImageIconSource ImageSource="ms-appx:///Assets/Square44x44Logo.png" />
+                <ImageIconSource ImageSource="ms-appx:///Assets/AppLogo16.png" />
             </TitleBar.IconSource>
         </TitleBar>
 

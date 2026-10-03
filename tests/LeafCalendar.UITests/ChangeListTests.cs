@@ -198,6 +198,7 @@ public sealed class ChangeListTests : IDisposable
 
         Assert.True(Retry.WhileFalse(() => Shows(leaf, "UpcomingEmpty"), Wait).Success, "No empty state with nothing coming up.");
         Assert.Equal("Done for today", leaf.WaitFor("UpcomingEmptyTitle").Name);
+        Assert.False(Shows(leaf, "UpcomingHeader"), "The Upcoming title shows over Done for today.");
     }
 
     // =========================================================================

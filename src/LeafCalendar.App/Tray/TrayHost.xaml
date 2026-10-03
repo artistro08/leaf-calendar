@@ -139,7 +139,7 @@
                                         AutomationProperties.Name="Join"
                                         AutomationProperties.AutomationId="FlyoutJoinButton">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <FontIcon FontSize="14" Glyph="&#xE714;" AutomationProperties.AccessibilityView="Raw" />
+                                            <controls:MeetingLogo x:Name="NextJoinLogo" />
                                             <TextBlock Text="Join" />
                                         </StackPanel>
                                     </Button>
@@ -188,11 +188,15 @@
                                                                         <Button
                                                                             Grid.Column="2"
                                                                             VerticalAlignment="Center"
-                                                                            Content="Join"
                                                                             Visibility="{x:Bind JoinVisibility}"
                                                                             Click="{x:Bind Join}"
                                                                             AutomationProperties.Name="Join"
-                                                                            AutomationProperties.AutomationId="{x:Bind JoinId}" />
+                                                                            AutomationProperties.AutomationId="{x:Bind JoinId}">
+                                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                                <controls:MeetingLogo Provider="{x:Bind Provider}" />
+                                                                                <TextBlock Text="Join" />
+                                                                            </StackPanel>
+                                                                        </Button>
                                                                     </Grid>
                                                                 </Button>
                                                             </DataTemplate>

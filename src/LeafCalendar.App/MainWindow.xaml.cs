@@ -131,6 +131,9 @@ public sealed partial class MainWindow : Window
             }
         };
 
+        // Window Icon (its own multi-size icon, like Settings, so the taskbar button never scales the package logo)
+        AppWindow.SetIcon(App.IconPath);
+
         // Title Bar
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
