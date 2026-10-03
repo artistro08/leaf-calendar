@@ -89,13 +89,20 @@ public static partial class DateQuery
             return TryShift(today, counted.Groups[3].Success ? -count : count, counted.Groups[2].Value, out date);
         }
 
-        // Weekday, Optionally "next"
-        var next    = input.StartsWith("next ", StringComparison.Ordinal);
-        var weekday = next ? input[5..].Trim() : input;
+        // Weekday, Optionally "next" (a week on) Or "after next" (two weeks on): "friday", "next fri", "friday after next"
+        var next      = input.StartsWith("next ", StringComparison.Ordinal);
+        var afterNext = input.EndsWith(" after next", StringComparison.Ordinal);
+        var weekday   = next ? input[5..].Trim() : afterNext ? input[..^11].Trim() : input;
         if (WeekdayOf(weekday) is { } day)
         {
-            date = today.AddDays(((int)day - (int)today.DayOfWeek + 7) % 7 + (next ? 7 : 0));
+            date = today.AddDays(((int)day - (int)today.DayOfWeek + 7) % 7 + (next ? 7 : afterNext ? 14 : 0));
             return true;
+        }
+
+        // "Week After Next", "Month After Next"
+        if (AfterNext().Match(input) is { Success: true } twoOn)
+        {
+            return TryShift(today, 2, twoOn.Groups[1].Value, out date);
         }
 
         // With A Year
@@ -167,6 +174,9 @@ public static partial class DateQuery
 
     [GeneratedRegex(@"^(next|last) (week|month|year)$")]
     private static partial Regex NextLast();
+
+    [GeneratedRegex(@"^(week|month|year) after next$")]
+    private static partial Regex AfterNext();
 
     // "two sundays from now", "3 fridays", "a monday from today"
     [GeneratedRegex(@"^(?:in )?(a|an|[0-9]{1,3}) ([a-z]{3,9}?)s?(?: from (?:now|today)| ahead)?$")]
