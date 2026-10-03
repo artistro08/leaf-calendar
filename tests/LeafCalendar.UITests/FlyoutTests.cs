@@ -51,6 +51,20 @@ public sealed class FlyoutTests : IDisposable
     }
 
     [Fact]
+    public void ClickOutside_ClosesTheFlyout()
+    {
+        using var leaf = Launch();
+        leaf.PostTrayMessage(LeafApp.TraySelect);
+        leaf.WaitForPopup("FlyoutNewEvent");
+
+        // A Left Click On The Main Window's Top Left, Away From The Flyout By The Taskbar
+        var window = leaf.MainWindow.BoundingRectangle;
+        Mouse.Click(new System.Drawing.Point(window.Left + 200, window.Top + 200));
+
+        Assert.True(Retry.WhileTrue(() => leaf.PopupExists("FlyoutNewEvent"), TimeSpan.FromSeconds(5)).Success, "The flyout stayed open after a click outside it.");
+    }
+
+    [Fact]
     public void TrayRightClick_Repeatedly_OpensTheMenuEveryTime()
     {
         using var leaf = Launch();

@@ -48,3 +48,6 @@ SendInput
 GetWindowThreadProcessId
 AttachThreadInput
 BringWindowToTop
+MSLLHOOKSTRUCT
+WindowFromPoint
+GetAncestor

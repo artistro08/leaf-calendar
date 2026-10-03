@@ -39,7 +39,8 @@ public sealed partial class TrayHost : Window
     static readonly TimeSpan EnterDuration = TimeSpan.FromMilliseconds(250);
     static readonly TimeSpan ExitDuration  = TimeSpan.FromMilliseconds(167);
 
-    // The icon click that closed the flyout (by taking focus) arrives just after the close, so it mustn't reopen it
+    // The icon click that closed the flyout or menu (by taking focus, or a press outside) arrives just after the close,
+    // so it mustn't reopen the flyout
     const long ReopenGuardMs = 300;
 
     readonly AppLog _log;
@@ -48,6 +49,7 @@ public sealed partial class TrayHost : Window
     AgendaModel? _model;
     Storyboard? _motion;
     long _agendaClosedAt;
+    long _dismissedAt;
     bool _exitFinished;
     bool _shuttingDown;
 
@@ -61,6 +63,9 @@ public sealed partial class TrayHost : Window
 
         // A host shown for the first time loads its content a moment later, so the open waits for it
         Root.Loaded += (_, _) => RunPendingOpen();
+
+        // A Press Outside Closes The Menu Or Flyout (watched only while one is open)
+        Menu.Opened += (_, _) => WatchPresses();
 
         // Only Quit Really Closes It
         AppWindow.Closing += (_, e) =>
@@ -133,7 +138,7 @@ public sealed partial class TrayHost : Window
     /// <summary>Opens the flyout next to the tray icon (or at the primary taskbar's far end when its place is unknown).</summary>
     public void ShowAgenda(AgendaModel model, PixelRect? icon, AppTheme theme)
     {
-        if (Agenda.IsOpen || Environment.TickCount64 - _agendaClosedAt < ReopenGuardMs)
+        if (Agenda.IsOpen || Environment.TickCount64 - _agendaClosedAt < ReopenGuardMs || Environment.TickCount64 - _dismissedAt < ReopenGuardMs)
         {
             return;
         }
@@ -217,6 +222,7 @@ public sealed partial class TrayHost : Window
     public void Shutdown()
     {
         _shuttingDown = true;
+        MouseDownWatch.Stop();
         Close();
     }
 
@@ -340,6 +346,7 @@ public sealed partial class TrayHost : Window
 
     void OnAgendaOpened(object sender, object e)
     {
+        WatchPresses();
         _exitFinished = false;
         Slide(HiddenOffset(), new Point(0, 0), 0, 1, EnterDuration, enter: true, onDone: null);
         AgendaOpened?.Invoke(this, EventArgs.Empty);
@@ -369,6 +376,7 @@ public sealed partial class TrayHost : Window
         // The rows stay for the next open (UpdateAgenda refills them); only the model goes
         _model = null;
         HideHostIfIdle();
+        StopWatchingIfIdle();
         AgendaClosed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -438,7 +446,66 @@ public sealed partial class TrayHost : Window
         }
     }
 
-    void OnMenuClosed(object sender, object e) => HideHostIfIdle();
+    void OnMenuClosed(object sender, object e)
+    {
+        HideHostIfIdle();
+        StopWatchingIfIdle();
+    }
+
+    // =========================================================================
+    // PRESSES OUTSIDE
+    // =========================================================================
+
+    // While the menu or flyout is open, any mouse press off them closes it. Light dismiss alone missed some: it needs the
+    // host to lose the foreground, which Windows doesn't always report. A press on the tray icon closes it too, and the
+    // icon's own click that follows doesn't open the flyout again
+    void WatchPresses()
+    {
+        if (!MouseDownWatch.IsWatching && !MouseDownWatch.Start(OnPressed))
+        {
+            _log.Info("tray.watch.refused");
+        }
+    }
+
+    void StopWatchingIfIdle()
+    {
+        if (!Menu.IsOpen && !Agenda.IsOpen)
+        {
+            MouseDownWatch.Stop();
+        }
+    }
+
+    // Raised inside the hook (on this thread): only the cheap check here, the close after it returns
+    void OnPressed(int x, int y)
+    {
+        if (InvisibleHost.IsOnPopup(this, x, y))
+        {
+            return;
+        }
+
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            try
+            {
+                if (!Menu.IsOpen && !Agenda.IsOpen)
+                {
+                    return;
+                }
+
+                _dismissedAt = Environment.TickCount64;
+                if (Menu.IsOpen)
+                {
+                    Menu.Hide();
+                }
+
+                HideAgenda();
+            }
+            catch (Exception ex)
+            {
+                _log.Info("tray.dismiss.failed", $"error={ex.GetType().Name}");
+            }
+        });
+    }
 
     // A click handler, so nothing may escape
     void OnOpenClick(object sender, RoutedEventArgs e)

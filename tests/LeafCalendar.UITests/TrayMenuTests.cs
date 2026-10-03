@@ -59,6 +59,20 @@ public sealed class TrayMenuTests : IDisposable
     }
 
     [Fact]
+    public void ClickOutside_ClosesTheMenu()
+    {
+        using var leaf = Launch();
+        leaf.RightClickTrayIcon();
+        leaf.WaitForPopup("TrayMenuOpen");
+
+        // A Left Click On The Main Window's Top Left, Away From The Menu By The Taskbar
+        var window = leaf.MainWindow.BoundingRectangle;
+        Mouse.Click(new System.Drawing.Point(window.Left + 200, window.Top + 200));
+
+        Assert.True(Retry.WhileTrue(() => leaf.PopupExists("TrayMenuOpen"), TimeSpan.FromSeconds(5)).Success, "The menu stayed open after a click outside it.");
+    }
+
+    [Fact]
     public void Escape_ClosesTheMenuAndHidesItsHost()
     {
         using var leaf = Launch();
