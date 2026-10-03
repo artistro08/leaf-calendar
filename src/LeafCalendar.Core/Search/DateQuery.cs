@@ -36,8 +36,9 @@ public static partial class DateQuery
 
         input = Spaces().Replace(Ordinal().Replace(input.Replace(',', ' ').Replace('.', ' '), "$1"), " ").Trim();
 
-        // Longer Short Names Than .NET's Three Letters ("sept 8", "tues", "thurs")
+        // Longer Short Names Than .NET's Three Letters ("sept 8", "tues", "thurs"), And Numbers In Words ("two weeks")
         input = LongerShortNames().Replace(input, m => m.Value[..3]);
+        input = NumberWords().Replace(input, m => NumberOf(m.Value).ToString(CultureInfo.InvariantCulture));
 
         // Relative Words
         switch (input)
@@ -163,4 +164,14 @@ public static partial class DateQuery
     // A month or weekday written with more than its first three letters but not in full
     [GeneratedRegex(@"\b(sept|tues|thur|thurs|weds)\b")]
     private static partial Regex LongerShortNames();
+
+    // One to twenty, and the tens to ninety, as words
+    [GeneratedRegex(@"\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b")]
+    private static partial Regex NumberWords();
+
+    static readonly string[] Units = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"];
+    static readonly string[] Tens  = ["thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+
+    static int NumberOf(string word) =>
+        Array.IndexOf(Units, word) is var unit && unit >= 0 ? unit + 1 : (Array.IndexOf(Tens, word) + 3) * 10;
 }
