@@ -167,6 +167,9 @@ public sealed partial class CommandMenu : UserControl
     readonly Dictionary<CommandRow, UIElement> _containers = [];
     List<CommandRow> _rows = [];
 
+    // Jump to date: the chip shows, the box asks for a date, and only the date row is offered
+    bool _dateMode;
+
     /// <summary>Creates the menu; <paramref name="run"/> gets the picked row and whether to jump (Alt+Enter).</summary>
     public CommandMenu(CalendarViewModel vm, Action<CommandRow, bool> run)
     {
@@ -202,15 +205,24 @@ public sealed partial class CommandMenu : UserControl
     public void Reset()
     {
         _search.Cancel();
+        _dateMode                        = false;
+        ModeChip.Visibility              = Visibility.Collapsed;
         CommandSearchBox.Text            = "";
         CommandSearchBox.PlaceholderText = SearchPrompt;
         Show(null, [], [.. CommandCatalog.Defaults.Select(CommandRow.ForAction)]);
     }
 
-    /// <summary>Jump to date: the box asks for a date in words (what's typed is read as one, as always).</summary>
+    /// <summary>
+    /// Jump to date: the chip shows the action, the box asks for a date in words, and only the date row is offered.
+    /// Backspace on the empty box leaves the mode.
+    /// </summary>
     public void AskForDate()
     {
         _search.Cancel();
+        _dateMode                        = true;
+        ModeGlyph.Glyph                  = CommandRow.ForAction(CommandCatalog.All.Single(c => c.Id == "go-to-date")).Glyph;
+        ModeText.Text                    = "Jump to date";
+        ModeChip.Visibility              = Visibility.Visible;
         CommandSearchBox.Text            = "";
         CommandSearchBox.PlaceholderText = DatePrompt;
         Show(null, [], []);
@@ -234,6 +246,12 @@ public sealed partial class CommandMenu : UserControl
         var text         = CommandSearchBox.Text;
         var today        = _vm.Today;
         var date         = DateQuery.TryParse(text, today, out var day) ? CommandRow.ForDate(day, today) : null;
+        if (_dateMode)
+        {
+            Show(date, [], []);
+            return;
+        }
+
         var actions      = CommandCatalog.Match(text).Select(CommandRow.ForAction).ToList();
         var actionsFirst = CommandCatalog.NamesAnAction(text); // an action named by what's typed leads and is selected
         var (zone, use24h) = (_vm.Zone, _vm.Settings.Use24HourTime);
@@ -332,6 +350,12 @@ public sealed partial class CommandMenu : UserControl
 
             case VirtualKey.Enter:
                 RunSelected(jump: KeyState.IsDown(VirtualKey.Menu));
+                e.Handled = true;
+                break;
+
+            // Backspace On The Empty Box Leaves Jump To Date
+            case VirtualKey.Back when _dateMode && CommandSearchBox.Text.Length == 0:
+                Reset();
                 e.Handled = true;
                 break;
         }

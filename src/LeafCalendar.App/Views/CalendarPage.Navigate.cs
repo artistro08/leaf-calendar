@@ -73,8 +73,9 @@ public sealed partial class CalendarPage
     // Called once when the page opens: the zone bars
     void AttachNavigate()
     {
+        // At The Bottom, With The Other Toasts (first, above the notice)
         _travelBar = new TimeTravelBar(ViewModel);
-        IslandBars.Children.Add(_travelBar);
+        Toasts.Children.Insert(0, _travelBar);
         ViewModel.PropertyChanged += OnNavigatePropertyChanged;
         ViewModel.LayoutChanged   += OnNavigateLayoutChanged;
     }
@@ -86,7 +87,7 @@ public sealed partial class CalendarPage
         ViewModel.LayoutChanged   -= OnNavigateLayoutChanged;
         if (_travelBar is not null)
         {
-            IslandBars.Children.Remove(_travelBar);
+            Toasts.Children.Remove(_travelBar);
             _travelBar = null;
         }
 
@@ -192,6 +193,13 @@ public sealed partial class CalendarPage
     // Runs the picked row (the menu closes first, so focus is back on the calendar for what the row opens)
     void RunCommandRow(CommandRow row, bool jump)
     {
+        // Jump To Date Stays In The Menu: it asks for the date there
+        if (row.Item is { Command: Core.Views.CalendarCommand.GoToDate })
+        {
+            _commandMenu?.AskForDate();
+            return;
+        }
+
         _commandFlyout?.Hide();
 
         // A Date Or An Event Hides A Showing Editor, Like Closing The Panel (the edit is kept; C or E brings it back)
@@ -482,8 +490,42 @@ public sealed partial class CalendarPage
                 box.Text = picked.ToString();
             }
         };
+        // Enter: a highlighted suggestion is picked (else the first one); Enter on a pick goes. Esc: a typed search is
+        // cleared; Esc on an empty box closes (the dialog's own Esc)
+        var went = false;
+        box.QuerySubmitted += (sender, args) =>
+        {
+            if (args.ChosenSuggestion is not null)
+            {
+                return;
+            }
+
+            if (picked is not null)
+            {
+                went = true;
+                dialog.Hide();
+            }
+            else if (rows.Count > 0 && Controls.ZoneSuggestions.Chosen(rows, suggestions, rows[0]) is { } first)
+            {
+                picked                        = first;
+                dialog.IsPrimaryButtonEnabled = true;
+                sender.Text                   = first.ToString();
+            }
+        };
+        box.PreviewKeyDown += (sender, e) =>
+        {
+            if (e.Key == Windows.System.VirtualKey.Escape && box.Text.Length > 0)
+            {
+                picked                        = null;
+                dialog.IsPrimaryButtonEnabled = false;
+                box.Text                      = "";
+                box.ItemsSource               = null;
+                e.Handled                     = true;
+            }
+        };
         dialog.Opened += (_, _) => box.Focus(FocusState.Programmatic);
 
-        return await dialog.ShowAsync() == ContentDialogResult.Primary ? picked?.Id : null;
+        var result = await dialog.ShowAsync();
+        return went || result == ContentDialogResult.Primary ? picked?.Id : null;
     }
 }
