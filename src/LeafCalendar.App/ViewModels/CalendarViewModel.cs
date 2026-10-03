@@ -18,7 +18,7 @@ namespace LeafCalendar.App.ViewModels;
 /// An upcoming event in the details panel; <see cref="CanJoin"/> shows its Join button. The buttons x:Bind their
 /// clicks to <see cref="Open"/> and <see cref="Join"/>, so nothing is read back from a control's Tag.
 /// </summary>
-public sealed record UpcomingItem(CalendarOccurrence Occurrence, string Title, string When, string Relative, string Color, bool CanJoin, Action<CalendarOccurrence> OnOpen, Action<CalendarOccurrence> OnJoin)
+public sealed record UpcomingItem(CalendarOccurrence Occurrence, string Title, string When, string Relative, string Color, bool CanJoin, MeetingProvider? Provider, Action<CalendarOccurrence> OnOpen, Action<CalendarOccurrence> OnJoin)
 {
     /// <summary>Automation ID of the Join button.</summary>
     public string JoinId => $"UpcomingJoin_{Occurrence.EventId}";
@@ -149,8 +149,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         Cache    = new EventWindowCache(LoadAsync, Zone, DrawnFirst);
         Cache.Changed += (_, _) =>
         {
-            // The Data Changed: one calendar's upcoming list is read again
+            // The Data Changed: one calendar's upcoming list is read again, and meeting links looked up again
             ForgetCalendarSoon();
+            _providers.Clear();
             RefreshUpcoming();
             OccurrencesChanged?.Invoke(this, EventArgs.Empty);
         };
@@ -1023,6 +1024,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
                 o.IsAllDay ? "All day" : TimeLabels.Relative(o.Start, o.End, now),
                 EventColors.ResolveAccent(o.ColorId, o.CalendarColor),
                 o.HasConference,
+                ProviderOf(o),
                 Select,
                 occurrence => Fire(() => JoinAsync(occurrence), "calendar.join.failed")))];
     }
@@ -2158,6 +2160,27 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         RefreshUpcoming();
     }
 
+    // Each event's meeting service for its Join button's logo, looked up once per event (forgotten when the data changes)
+    readonly Dictionary<(string, string, string), MeetingProvider?> _providers = [];
+
+    MeetingProvider? ProviderOf(CalendarOccurrence o)
+    {
+        if (!o.HasConference)
+        {
+            return null;
+        }
+
+        var key = (o.AccountId, o.CalendarId, o.EventId);
+        if (!_providers.TryGetValue(key, out var provider))
+        {
+            using var conn = _services.Database.Open();
+            provider = Core.Alerts.JoinPicker.MeetingLink(conn, o) is { } link ? LinkSafety.ProviderOf(link) : null;
+            _providers[key] = provider;
+        }
+
+        return provider;
+    }
+
     void RefreshUpcoming()
     {
         var now   = Now;
@@ -2167,7 +2190,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             .Where(o => !o.IsAllDay && o.End > now && o.Start < now + TimeSpan.FromHours(Settings.UpcomingHours))
             .OrderBy(o => o.Start)
             .Take(20)
-            .Select(o => new UpcomingItem(o, o.Title, TimeLabels.Range(o.Start, o.End, Zone, Settings.Use24HourTime), TimeLabels.Relative(o.Start, o.End, now), EventColors.ResolveAccent(o.ColorId, o.CalendarColor), o.HasConference, Select, occurrence => Fire(() => JoinAsync(occurrence), "calendar.join.failed")))
+            .Select(o => new UpcomingItem(o, o.Title, TimeLabels.Range(o.Start, o.End, Zone, Settings.Use24HourTime), TimeLabels.Relative(o.Start, o.End, now), EventColors.ResolveAccent(o.ColorId, o.CalendarColor), o.HasConference, ProviderOf(o), Select, occurrence => Fire(() => JoinAsync(occurrence), "calendar.join.failed")))
             .ToList();
 
         // One Calendar's Events Still Being Read: the list waits for them

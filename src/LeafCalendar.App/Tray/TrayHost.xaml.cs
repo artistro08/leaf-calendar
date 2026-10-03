@@ -182,6 +182,7 @@ public sealed partial class TrayHost : Window
         NextTitle.Text             = next?.Item.Title ?? "";
         NextWhen.Text              = next is null ? "" : $"{next.Item.When} · {next.Countdown}";
         NextJoinButton.Visibility  = next?.Item.Link is null ? Visibility.Collapsed : Visibility.Visible;
+        NextJoinLogo.Provider      = next?.Item.Link is { } link ? LinkSafety.ProviderOf(link) : null;
 
         // Agenda
         List<AgendaDayRow> days = [.. model.Days.Select(d => new AgendaDayRow(d.Header, [.. d.Items.Select(Row)]))];
@@ -308,6 +309,7 @@ public sealed partial class TrayHost : Window
             item.When,
             LeafBrushes.FromHex(EventColors.ResolveAccent(o.ColorId, o.CalendarColor)),
             item.Link is null ? Visibility.Collapsed : Visibility.Visible,
+            item.Link is { } link ? LinkSafety.ProviderOf(link) : null,
             $"FlyoutEvent_{o.EventId}_{start}",
             $"FlyoutJoin_{o.EventId}_{start}",
             () => Request(OpenEventRequested, o),

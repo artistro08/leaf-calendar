@@ -207,7 +207,9 @@ public sealed partial class DetailsPanel : UserControl
         // Join (it shows where it really goes)
         var call = d.ConferenceUri is { } uri ? LinkSafety.DisplayForm(uri) ?? "" : "";
         JoinGroup.Visibility    = Visible(d.ConferenceUri is not null);
-        JoinButton.Content      = JoinLabel(d.ConferenceUri);
+        JoinText.Text           = JoinLabel(d.ConferenceUri);
+        JoinLogo.Provider       = d.ConferenceUri is { } link ? LinkSafety.ProviderOf(link) : null;
+        AutomationProperties.SetName(JoinButton, JoinText.Text);
         ToolTipService.SetToolTip(JoinButton, $"Join (Ctrl+J)\n{call}");
 
         // Location And Call
