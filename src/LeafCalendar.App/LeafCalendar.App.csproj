@@ -44,7 +44,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- Package Logos (tools/make-icons.ps1), The Window Icon, And The Tray Glyphs With Their License -->
-        <Content Include="Assets\**\*.png;Assets\LeafCalendar.ico;Assets\Tray\NOTICE.txt" CopyToOutputDirectory="PreserveNewest" />
+        <!-- Package Logos, The Window Icon, And The Daily Tray Icons (all from tools/make-icons.ps1) -->
+        <Content Include="Assets\**\*.png;Assets\LeafCalendar.ico" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 </Project>

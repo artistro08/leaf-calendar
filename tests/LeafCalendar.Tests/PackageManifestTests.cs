@@ -32,7 +32,8 @@ public class PackageManifestTests
         Assert.DoesNotContain(references, r => r is "Microsoft.WindowsAppSDK.AI" or "Microsoft.WindowsAppSDK.ML" or "Microsoft.WindowsAppSDK.Search" or "Microsoft.WindowsAppSDK.Widgets");
     }
 
-    // Icons: Every Manifest Image At Every Scale, The Taskbar Sizes, The Window Icon, And Both Tray Glyph Themes (tools/make-icons.ps1)
+    // Icons: Every Manifest Image At Every Scale, The Taskbar Sizes, And The Window Icon (tools/make-icons.ps1; the daily
+    // tray icons are checked in TrayGlyphTests)
     [Fact]
     public void Assets_HoldEveryIcon()
     {
@@ -40,13 +41,10 @@ public class PackageManifestTests
         var manifest = Read("src", "LeafCalendar.App", "Package.appxmanifest");
         string[] images      = ["StoreLogo", "Square150x150Logo", "Square44x44Logo", "Wide310x150Logo", "SplashScreen"];
         int[]    scales      = [100, 125, 150, 200, 400];
-        int[]    targetSizes = [16, 24, 32, 48, 256];
-        int[]    traySizes   = [16, 20, 24, 32];
+        int[]    targetSizes = [16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256];
         var expected = images.SelectMany(i => scales.Select(s => $"{i}.scale-{s}.png"))
             .Concat(targetSizes.SelectMany(s => (string[])[$"Square44x44Logo.targetsize-{s}.png", $"Square44x44Logo.targetsize-{s}_altform-unplated.png"]))
-            .Concat(traySizes.SelectMany(s => (string[])[$"Tray/tray-dark-taskbar-{s}.png", $"Tray/tray-light-taskbar-{s}.png"]))
-            .Append("LeafCalendar.ico")
-            .Append("Tray/NOTICE.txt");
+            .Append("LeafCalendar.ico");
 
         Assert.All(images, i => Assert.Contains($@"Assets\{i}.png", manifest, StringComparison.Ordinal));
         Assert.All(expected, f => Assert.True(File.Exists(Path.Combine(assets, f)), $"Missing Assets/{f}"));

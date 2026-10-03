@@ -29,9 +29,9 @@ namespace LeafCalendar.App.Interop;
 /// window procedure: it would end the process.
 /// </para>
 /// <para>
-/// The art is the Fluent UI System Icons "Leaf One" glyph (MIT, see Assets/Tray/NOTICE.txt), white on a dark taskbar
-/// and dark on a light one; a theme switch reloads it. A fixed <c>NIF_GUID</c> identity, which only survives updates
-/// on a signed package, is still to come.
+/// The art is today's date (<see cref="SetDay"/>), white in dark mode and black in light mode (a theme switch reloads
+/// it), drawn at the taskbar's exact small-icon size (<see cref="TrayGlyph"/>), so it's never scaled. A fixed
+/// <c>NIF_GUID</c> identity, which only survives updates on a signed package, is still to come.
 /// </para>
 /// </remarks>
 internal sealed unsafe class TrayIcon : IDisposable
@@ -50,9 +50,6 @@ internal sealed unsafe class TrayIcon : IDisposable
     const uint NotifyIconVersion4  = 4;
     const uint IconResourceVersion = 0x00030000;
 
-    // Tray Glyph Sizes Drawn In Assets/Tray (tools/make-icons.ps1)
-    static readonly int[] GlyphSizes = [16, 20, 24, 32];
-
     static TrayIcon? s_current;
 
     readonly AppLog _log;
@@ -60,20 +57,25 @@ internal sealed unsafe class TrayIcon : IDisposable
     readonly uint _taskbarCreated;
     HICON _icon;
     int _iconSize;
+    int _day;
     string _tooltip = "Leaf Calendar";
     bool _disposed;
 
-    /// <summary>Creates the hidden window and adds the icon. Only one may exist.</summary>
+    /// <summary>Creates the hidden window and adds the icon showing <paramref name="day"/> (1–31). Only one may exist.</summary>
     /// <exception cref="InvalidOperationException">A tray icon already exists.</exception>
     /// <exception cref="Win32Exception">The window couldn't be created.</exception>
-    public TrayIcon(AppLog log)
+    public TrayIcon(AppLog log, int day)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(day, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(day, 31);
+
         if (s_current is not null)
         {
             throw new InvalidOperationException("Only one tray icon may exist.");
         }
 
         _log      = log;
+        _day      = day;
         s_current = this;
 
         try
@@ -133,6 +135,22 @@ internal sealed unsafe class TrayIcon : IDisposable
 
     /// <summary>The hidden window (global shortcuts are registered on it).</summary>
     public nint Handle => _hwnd;
+
+    /// <summary>Shows another day of the month (1–31) on the icon; the same day does nothing.</summary>
+    public void SetDay(int day)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(day, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(day, 31);
+        if (_disposed || day == _day)
+        {
+            return;
+        }
+
+        _day = day;
+        LoadIcon();
+        var data = Data(NOTIFY_ICON_DATA_FLAGS.NIF_ICON);
+        PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_MODIFY, in data);
+    }
 
     /// <summary>Changes the tooltip (at most 127 characters are shown).</summary>
     public void SetTooltip(string text)
@@ -204,8 +222,8 @@ internal sealed unsafe class TrayIcon : IDisposable
         return data;
     }
 
-    // The Leaf glyph for the taskbar's theme (white on a dark taskbar, dark on a light one), from the drawn size that
-    // fits the taskbar's small-icon size (the next one up, else the largest), turned into an icon at that size
+    // Today's date for the system theme (white in dark mode, black in light mode), drawn at the taskbar's small-icon size
+    // (else the next size up, else the largest), turned into an icon at that size
     void LoadIcon()
     {
         // Remembered even when the load fails, so a failed size isn't retried on every setting change
@@ -213,9 +231,7 @@ internal sealed unsafe class TrayIcon : IDisposable
         _iconSize = size;
         try
         {
-            var drawn = GlyphSizes.FirstOrDefault(s => s >= size, GlyphSizes[^1]);
-            var theme = TaskbarIsLight() ? "light-taskbar" : "dark-taskbar";
-            var png   = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Assets", "Tray", $"tray-{theme}-{drawn}.png"));
+            var png = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Assets", "Tray", TrayGlyph.FileName(_day, TaskbarIsLight(), size)));
             HICON icon;
             fixed (byte* bits = png)
             {
