@@ -49,8 +49,6 @@ public sealed partial class WeekRow : Canvas
                 Content = number,
                 Padding = new Thickness(6, 1, 6, 1),
                 MinWidth = 24,
-                Height = 22,
-                CornerRadius = new CornerRadius(11),
                 BorderThickness = new Thickness(0),
             };
             day.Click += (_, _) =>
@@ -82,7 +80,7 @@ public sealed partial class WeekRow : Canvas
         DoubleTapped += (_, e) =>
         {
             var at = e.GetPosition(this);
-            if (at.Y < MonthGridView.DayNumberHeight)
+            if (at.Y < _owner.Metrics.DayNumberHeight)
             {
                 return;
             }
@@ -113,6 +111,7 @@ public sealed partial class WeekRow : Canvas
         var dates = _owner.ColumnDates(WeekStart);
         var colW = _owner.ColumnWidth;
         var height = _owner.RowHeight;
+        var metrics = _owner.Metrics;
 
         _dates = dates;
         Width = colW * dates.Count;
@@ -121,7 +120,7 @@ public sealed partial class WeekRow : Canvas
         // Cells
         for (var c = 0; c < _cells.Count; c++)
         {
-            RenderCell(c, colW, height, dark);
+            RenderCell(c, colW, height, metrics.DayButtonHeight, dark);
         }
 
         // Week Number, By The Week's Middle Day (ISO weeks start Monday, so a Sunday-start week's first day belongs to the week before)
@@ -133,7 +132,7 @@ public sealed partial class WeekRow : Canvas
         // Chips (a day with more than fits gives its last lane to "+N more")
         var items = dates.SelectMany(vm.Cache.ForDay).DistinctBy(o => o.Key).ToList();
         var blocks = SpanLayout.Layout(dates, items, vm.Zone, includeTimed: true);
-        var maxLanes = Math.Max(1, (int)((height - MonthGridView.DayNumberHeight - 4) / MonthGridView.ChipHeight));
+        var maxLanes = Math.Max(1, (int)((height - metrics.DayNumberHeight - 4) / metrics.ChipHeight));
         var full = new bool[dates.Count];
         var overflow = new int[dates.Count];
         var shown = 0;
@@ -160,7 +159,7 @@ public sealed partial class WeekRow : Canvas
                     Children.Add(chip);
                 }
 
-                _chips[shown++].Bind(b, colW, dark);
+                _chips[shown++].Bind(b, colW, metrics, dark);
                 continue;
             }
 
@@ -181,7 +180,7 @@ public sealed partial class WeekRow : Canvas
         {
             if (overflow[c] > 0)
             {
-                More(mores++, dates[c], overflow[c], c * colW, MonthGridView.DayNumberHeight + (maxLanes - 1) * MonthGridView.ChipHeight);
+                More(mores++, dates[c], overflow[c], c * colW, metrics.DayNumberHeight + (maxLanes - 1) * metrics.ChipHeight, metrics.ChipHeight - 2);
             }
         }
 
@@ -208,7 +207,7 @@ public sealed partial class WeekRow : Canvas
 
     // One day cell: its left and top lines, the weekend tint, and the day number (columns past the shown days hide). The
     // first column has no left line: the grid's edge against the window is edge enough
-    private void RenderCell(int c, double colW, double height, bool dark)
+    private void RenderCell(int c, double colW, double height, double dayHeight, bool dark)
     {
         var (left, top, tint, day, number) = _cells[c];
         var shown = c < _dates.Count;
@@ -235,8 +234,10 @@ public sealed partial class WeekRow : Canvas
         SetLeft(top, x);
         SetLeft(tint, x);
 
-        // Day Number
+        // Day Number (a pill as tall as the text size needs)
         var isToday = date == _owner.ViewModel.Today;
+        day.Height = dayHeight;
+        day.CornerRadius = new CornerRadius(dayHeight / 2);
         number.Text = date.Day == 1 ? date.ToString("MMM d", CultureInfo.GetCultureInfo("en-US")) : date.Day.ToString(CultureInfo.InvariantCulture);
         number.FontWeight = isToday ? FontWeights.SemiBold : FontWeights.Normal;
         day.Background = isToday ? LeafBrushes.Accent(dark) : LeafBrushes.Transparent;
@@ -246,13 +247,13 @@ public sealed partial class WeekRow : Canvas
         SetLeft(day, x + 4);
     }
 
-    // Shows the pooled "+N more" link at <paramref name="index"/> for <paramref name="date"/>
-    private void More(int index, DateOnly date, int count, double x, double y)
+    // Shows the pooled "+N more" link at <paramref name="index"/> for <paramref name="date"/>, <paramref name="height"/> tall
+    private void More(int index, DateOnly date, int count, double x, double y, double height)
     {
         // Reuse A Pooled Link
         if (index == _mores.Count)
         {
-            var created = new HyperlinkButton { FontSize = 12, Padding = new Thickness(6, 0, 6, 0), Height = MonthGridView.ChipHeight - 2 };
+            var created = new HyperlinkButton { FontSize = 12, Padding = new Thickness(6, 0, 6, 0) };
             created.Click += (_, _) => ShowDay(created, _moreDates[index]);
             _mores.Add(created);
             _moreDates.Add(date);
@@ -263,6 +264,7 @@ public sealed partial class WeekRow : Canvas
         _moreDates[index] = date;
         var text = string.Create(CultureInfo.InvariantCulture, $"+{count} more");
         link.Content = text;
+        link.Height = height;
         link.Visibility = Visibility.Visible;
         AutomationProperties.SetAutomationId(link, $"More_{date:yyyy-MM-dd}");
         AutomationProperties.SetName(link, $"{text}, {TimeLabels.LongDate(date)}");
@@ -355,7 +357,6 @@ public sealed partial class WeekRow : Canvas
         {
             _owner = owner;
             ToolTipService.SetToolTip(this, _tip);
-            Height = MonthGridView.ChipHeight - 2;
             CornerRadius = new CornerRadius(4);
             RenderTransform = _pull;
             Padding = new Thickness(6, 0, 6, 0);
@@ -416,8 +417,8 @@ public sealed partial class WeekRow : Canvas
             };
         }
 
-        /// <summary>Shows block <paramref name="b"/>'s event in its lane and columns.</summary>
-        public void Bind(SpanBlock b, double colW, bool dark)
+        /// <summary>Shows block <paramref name="b"/>'s event in its lane and columns, sized by <paramref name="metrics"/>.</summary>
+        public void Bind(SpanBlock b, double colW, MonthMetrics metrics, bool dark)
         {
             var vm = _owner.ViewModel;
             var o = b.Occurrence;
@@ -449,6 +450,7 @@ public sealed partial class WeekRow : Canvas
 
             // Chip
             Width = Math.Max(b.ColumnSpan * colW - 6, 8);
+            Height = metrics.ChipHeight - 2;
             Background = filled ? LeafBrushes.FromHex(palette.Fill) : LeafBrushes.Transparent;
             BorderBrush = LeafBrushes.FromHex(palette.Accent);
             BorderThickness = filled ? LeafBrushes.CardBorder(selected) : new Thickness(0);
@@ -460,7 +462,7 @@ public sealed partial class WeekRow : Canvas
             AutomationProperties.SetItemStatus(this, past ? "Past" : "");
 
             SetLeft(this, b.FirstColumn * colW + 3);
-            SetTop(this, MonthGridView.DayNumberHeight + b.Lane * MonthGridView.ChipHeight);
+            SetTop(this, metrics.DayNumberHeight + b.Lane * metrics.ChipHeight);
         }
 
         /// <summary>Hides the unused chip; one under the pointer stops being the event X toggles.</summary>

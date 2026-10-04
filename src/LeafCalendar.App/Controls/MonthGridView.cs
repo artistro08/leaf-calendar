@@ -9,6 +9,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
 using Windows.System;
+using Windows.UI.ViewManagement;
 
 namespace LeafCalendar.App.Controls;
 
@@ -26,16 +27,10 @@ namespace LeafCalendar.App.Controls;
 /// </remarks>
 public sealed partial class MonthGridView : Grid, IDisposable
 {
-    /// <summary>Smallest week row height.</summary>
-    public const double MinRowHeight = 96;
-
-    /// <summary>Chip height (one lane).</summary>
-    public const double ChipHeight = 20;
-
-    /// <summary>Space for the day number at the top of a cell.</summary>
-    public const double DayNumberHeight = 26;
-
     private const int WeeksEachSide = 260;
+
+    // Kept in a field: WinRT stops raising TextScaleFactorChanged once the instance is collected
+    private readonly UISettings _uiSettings = new();
 
     private readonly CalendarViewModel _vm;
     private readonly Grid _weekdays = new() { Height = 32 };
@@ -101,11 +96,14 @@ public sealed partial class MonthGridView : Grid, IDisposable
             BuildWeekdayHeader();
             (_root = XamlRoot).Changed += OnXamlRootChanged;
             LeafBrushes.ContrastChanged += OnContrastChanged;
+            _uiSettings.TextScaleFactorChanged += OnTextScaleChanged;
+            ApplyTextScale(_uiSettings.TextScaleFactor);
         };
         Unloaded += (_, _) =>
         {
             _root?.Changed -= OnXamlRootChanged;
             LeafBrushes.ContrastChanged -= OnContrastChanged;
+            _uiSettings.TextScaleFactorChanged -= OnTextScaleChanged;
         };
         ActualThemeChanged += (_, _) =>
         {
@@ -148,6 +146,9 @@ public sealed partial class MonthGridView : Grid, IDisposable
 
     /// <summary>Week row height.</summary>
     public double RowHeight { get; private set; } = 120;
+
+    /// <summary>The chip, day number and smallest row heights for the current Windows text size.</summary>
+    public MonthMetrics Metrics { get; private set; } = MonthMetrics.For(1);
 
     /// <summary>Day column width.</summary>
     public double ColumnWidth => Math.Max(40, (_scroll.ViewportWidth > 0 ? _scroll.ViewportWidth : _scroll.ActualWidth) / ViewNavigator.VisibleColumnCount(Core.Settings.CalendarViewMode.Month, 0, _vm.Settings.ShowWeekends));
@@ -219,7 +220,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
 
         // Whole-Pixel Rows
         var scale = XamlRoot?.RasterizationScale ?? 1;
-        var height = Math.Max(MinRowHeight, Math.Floor(viewport * scale / 6) / scale);
+        var height = Math.Max(Metrics.MinRowHeight, Math.Floor(viewport * scale / 6) / scale);
         var width = ColumnWidth;
         if (!force && height == RowHeight && width == _layoutWidth)
         {
@@ -246,6 +247,22 @@ public sealed partial class MonthGridView : Grid, IDisposable
         BuildWeekdayHeader();
         RenderAll();
     });
+
+    // The Windows Text Size Changed (arrives off the UI thread, like the contrast change)
+    private void OnTextScaleChanged(UISettings sender, object args) => DispatcherQueue.TryEnqueue(() => ApplyTextScale(sender.TextScaleFactor));
+
+    // Rows repaint only when the heights really changed (Loaded runs this too, and most loads keep the same size)
+    private void ApplyTextScale(double textScale)
+    {
+        var metrics = MonthMetrics.For(textScale);
+        if (metrics == Metrics)
+        {
+            return;
+        }
+
+        Metrics = metrics;
+        Relayout(force: true);
+    }
 
     private void BuildWeekdayHeader()
     {
