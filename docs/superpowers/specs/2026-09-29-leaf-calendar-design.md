@@ -242,6 +242,7 @@ Anyone can send an invite, so event content is treated as hostile.
 - Cadence:
   - Every 15 seconds while the main window or flyout is visible.
   - Every 60 seconds while in the tray.
+  - Every 5 minutes while in the tray when Windows is on Energy Saver or the internet connection is metered. Leaving Energy Saver or the metered connection (or opening a window or the flyout) syncs at once instead of waiting out the 5 minutes. Reminders keep their own timing, since they read only the local database.
   - Immediately on window/flyout open, resume from sleep, network reconnect, and one minute before each reminder fires.
 - `410 Gone` (token expired): full resync of that calendar. The outbox is untouched.
 - The calendar list, colors, and settings sync on startup and every 15 minutes.

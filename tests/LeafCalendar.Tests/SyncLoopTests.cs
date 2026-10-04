@@ -49,9 +49,37 @@ public sealed class SyncLoopTests : IDisposable
     [Theory]
     [InlineData(SyncMode.Visible, 15)]
     [InlineData(SyncMode.Tray, 60)]
+    [InlineData(SyncMode.Saver, 300)]
     public void IntervalFor_Mode_ReturnsSpecCadence(SyncMode mode, int seconds)
     {
         Assert.Equal(TimeSpan.FromSeconds(seconds), SyncLoop.IntervalFor(mode));
+    }
+
+    [Theory]
+    [InlineData(true, false, false, SyncMode.Visible)]
+    [InlineData(true, true, true, SyncMode.Visible)]
+    [InlineData(false, false, false, SyncMode.Tray)]
+    [InlineData(false, true, false, SyncMode.Saver)]
+    [InlineData(false, false, true, SyncMode.Saver)]
+    public void ModeFor_OnScreenWinsThenSaverThenTray(bool visible, bool energySaver, bool metered, SyncMode expected) =>
+        Assert.Equal(expected, SyncLoop.ModeFor(visible, energySaver, metered));
+
+    [Fact]
+    public async Task Mode_SaverToTray_DoesNotWaitOutTheLongInterval()
+    {
+        await using var loop = CreateLoop();
+        loop.Mode = SyncMode.Saver;
+        loop.Start();
+        Assert.Equal(1, await NextRunAsync());
+
+        // A minute on Saver is too soon for the next sync
+        await SettleAsync();
+        _time.Advance(TimeSpan.FromSeconds(61));
+        await AssertNoRunAsync();
+
+        // Back to the tray pace: the wait ends now, not 4 minutes later
+        loop.Mode = SyncMode.Tray;
+        Assert.Equal(2, await NextRunAsync());
     }
 
     [Fact]

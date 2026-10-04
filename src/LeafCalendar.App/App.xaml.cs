@@ -303,6 +303,10 @@ public partial class App : Application
         AttachSync();
         RefreshTooltip();
 
+        // Energy Saver Or A Metered Connection Changes The Tray's Sync Pace (both events arrive off the UI thread)
+        Windows.System.Power.PowerManager.EnergySaverStatusChanged += (_, _) => _dispatcher?.TryEnqueue(() => UpdateSyncMode());
+        Windows.Networking.Connectivity.NetworkInformation.NetworkStatusChanged += _ => _dispatcher?.TryEnqueue(() => UpdateSyncMode());
+
         // Windows Restarts Leaf Into The Tray After An Update Or A Crash, So Reminders Go On (a sign-in restart is the
         // startup task's; UI tests' fake profiles don't register)
         if (services.Options.FakeGoogle is null)
@@ -571,7 +575,8 @@ public partial class App : Application
         GoToTray();
     }
 
-    // 60-second polling, efficiency mode, and a trimmed working set
+    // Tray-pace polling (60 s, or 5 minutes on Energy Saver or a metered connection), efficiency mode, and a trimmed
+    // working set
     private void GoToTray()
     {
         UpdateSyncMode();
@@ -709,8 +714,8 @@ public partial class App : Application
         }
     }
 
-    // 15 s while a window or the flyout is on screen, 60 s in the tray or minimized (spec 5.3); opening the flyout syncs
-    // at once
+    // 15 s while a window or the flyout is on screen, 60 s in the tray or minimized, 5 minutes there on Energy Saver or a
+    // metered connection (spec 5.3); opening the flyout syncs at once
     private void UpdateSyncMode(bool flyoutOpened = false)
     {
         // Runs from the flyout's open and close events, so nothing may escape
@@ -719,7 +724,7 @@ public partial class App : Application
             var visible = _window is { IsMinimized: false } || _host?.IsAgendaOpen == true;
             if (_services?.Google is { } google)
             {
-                google.Loop.Mode = visible ? SyncMode.Visible : SyncMode.Tray;
+                google.Loop.Mode = SyncLoop.ModeFor(visible, IsEnergySaverOn(), IsMetered());
                 if (flyoutOpened)
                 {
                     google.Loop.TriggerNow();
@@ -733,6 +738,15 @@ public partial class App : Application
             _log?.Info("tray.syncmode.failed", $"error={ex.GetType().Name}");
         }
     }
+
+    // Windows' Energy Saver (Windows 11's battery saver)
+    private static bool IsEnergySaverOn() =>
+        Windows.System.Power.PowerManager.EnergySaverStatus == Windows.System.Power.EnergySaverStatus.On;
+
+    // A metered internet connection (fixed or variable cost); no connection counts as unmetered (the loop is offline anyway)
+    private static bool IsMetered() =>
+        Windows.Networking.Connectivity.NetworkInformation.GetInternetConnectionProfile()?.GetConnectionCost().NetworkCostType
+            is Windows.Networking.Connectivity.NetworkCostType.Fixed or Windows.Networking.Connectivity.NetworkCostType.Variable;
 
     // =========================================================================
     // NOTIFICATION CLICKS
