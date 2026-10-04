@@ -492,6 +492,32 @@ public sealed class SyncEngineTests : IDisposable
         Assert.Equal([true, false], flips);
     }
 
+    // Syncing stays in the background: the offline icon only shows once 3 syncs in a row couldn't reach Google, and a
+    // sync that gets through hides it again
+    [Fact]
+    public async Task SyncAllAsync_ThreeFailedSyncsInARow_ShowsOffline()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var offline = true;
+        var shown = new List<bool>();
+        _h.Google.On(_ => offline, _ => throw new HttpRequestException("No connection"));
+        _h.RouteStandardGoogle();
+        _h.Engine.OfflineChanged += (_, _) => shown.Add(_h.Engine.ShowsOffline);
+
+        await _h.Engine.SyncAllAsync(ct);
+        await _h.Engine.SyncAllAsync(ct);
+        Assert.True(_h.Engine.IsOffline);
+        Assert.False(_h.Engine.ShowsOffline);
+
+        await _h.Engine.SyncAllAsync(ct);
+        Assert.True(_h.Engine.ShowsOffline);
+
+        offline = false;
+        await _h.Engine.SyncAllAsync(ct);
+        Assert.False(_h.Engine.ShowsOffline);
+        Assert.Equal([false, true, false], shown);
+    }
+
     [Fact]
     public async Task SyncAllAsync_GoogleError_IsNotOffline()
     {

@@ -43,6 +43,8 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     private bool _reached;
     private bool _unreachable;
     private volatile bool _offline;
+    private volatile bool _showsOffline;
+    private int _failedInARow;
     private volatile string? _refusal;
 
     /// <summary>Raised after a sync in which Google refused edits for good (they were undone locally). The argument is how many.</summary>
@@ -59,7 +61,7 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     /// <summary>Raised after a sync that wrote anything. Raised on the syncing thread, after the sync lock is released.</summary>
     public event EventHandler? DataChanged;
 
-    /// <summary>Raised on the syncing thread when <see cref="IsOffline"/> flips.</summary>
+    /// <summary>Raised on the syncing thread when <see cref="IsOffline"/> or <see cref="ShowsOffline"/> flips.</summary>
     public event EventHandler? OfflineChanged;
 
     /// <summary>
@@ -67,6 +69,15 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     /// answer from Google isn't offline: Google was reached.
     /// </summary>
     public bool IsOffline => _offline;
+
+    /// <summary>How many syncs in a row must fail to reach Google before <see cref="ShowsOffline"/> turns on.</summary>
+    public const int FailuresBeforeShown = 3;
+
+    /// <summary>
+    /// True once <see cref="FailuresBeforeShown"/> syncs in a row couldn't reach Google, until one gets through. Syncing
+    /// stays in the background: one dropped sync (a blip, a wake from sleep) shows nothing.
+    /// </summary>
+    public bool ShowsOffline => _showsOffline;
 
     /// <summary>
     /// Google's reason for the first error answer in the last sync (for example <c>accessNotConfigured</c> when the
@@ -158,13 +169,20 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     private (bool Changed, int Rejected, bool? Offline) End()
     {
         var offline = _unreachable && !_reached;
-        if (offline == _offline)
+        _failedInARow = offline ? _failedInARow + 1 : 0;
+        var shows = _failedInARow >= FailuresBeforeShown;
+        if (offline == _offline && shows == _showsOffline)
         {
             return (_changed, _rejected, null);
         }
 
+        if (offline != _offline)
+        {
+            log.Info("sync.offline", $"offline={offline}");
+        }
+
         _offline = offline;
-        log.Info("sync.offline", $"offline={offline}");
+        _showsOffline = shows;
         return (_changed, _rejected, offline);
     }
 

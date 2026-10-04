@@ -71,21 +71,11 @@
                             Orientation="Horizontal"
                             Spacing="4"
                             Visibility="Collapsed">
-                            <!-- Sync Status (one 32 DIP slot, shown only when something needs attention, one state at a time:
-                                 a sync you asked for, then conflicts, then offline, then changes waiting. Offline with changes waiting, the waiting button
-                                 takes the offline glyph and sits exactly over the offline one, so both can be read at once) -->
+                            <!-- Sync Status (one 32 DIP slot, shown only when something needs attention, one state at a time: conflicts, then
+                                 offline, then changes waiting. Syncing itself stays in the background: offline and waiting show only once 3 syncs
+                                 in a row couldn't reach Google. Offline with changes waiting, the waiting button takes the offline glyph and sits
+                                 exactly over the offline one, so both can be read at once) -->
                             <Grid x:Name="SyncStatus" Width="32" Height="32" Visibility="Collapsed">
-                                <!-- Syncing (a sync you asked for: the command menu's Sync now, this slot's buttons, the tray) -->
-                                <ProgressRing
-                                    x:Name="SyncingRing"
-                                    Width="16"
-                                    Height="16"
-                                    IsActive="False"
-                                    Visibility="Collapsed"
-                                    ToolTipService.ToolTip="Syncing with Google"
-                                    AutomationProperties.Name="Syncing with Google"
-                                    AutomationProperties.LiveSetting="Polite"
-                                    AutomationProperties.AutomationId="SyncingIndicator" />
                                 <Button
                                     x:Name="ConflictsButton"
                                     Style="{StaticResource LeafBareIconButtonStyle}"
@@ -121,7 +111,7 @@
                                     AutomationProperties.LiveSetting="Polite"
                                     AutomationProperties.AutomationId="PendingChangesIndicator">
                                     <Grid>
-                                        <FontIcon x:Name="WaitingGlyph" Glyph="&#xE895;" FontSize="16" />
+                                        <FontIcon Glyph="&#xF384;" FontSize="16" />
                                         <!-- The negative margin lets the badge overlap the top-right corner of its 32 DIP icon button -->
                                         <InfoBadge
                                             x:Name="WaitingBadge"

@@ -251,7 +251,7 @@ git commit -m "fix(outbox): a write Google failed waits 30 s, doubling to 15 min
 
 ### Task 2: Slower Tray Sync On Energy Saver Or A Metered Connection
 
-While Leaf is only in the tray it syncs every 60 s, even on Energy Saver or a metered connection. **Owner decision needed before starting:** the slow interval. This plan uses 5 minutes (the audit's suggestion). Reminders are not affected: the alert pass reads only the local database and keeps its own timing.
+While Leaf is only in the tray it syncs every 60 s, even on Energy Saver or a metered connection. The owner chose a 5-minute slow interval (2026-10-04). Reminders are not affected: the alert pass reads only the local database and keeps its own timing.
 
 **Files:**
 - Modify: `src/LeafCalendar.Core/Sync/SyncLoop.cs` (`SyncMode.Saver`, `IntervalFor`, new `SyncLoop.ModeFor`)

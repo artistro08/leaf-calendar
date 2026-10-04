@@ -325,17 +325,16 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool IsOffline { get; set; }
 
-    /// <summary>True while a sync you asked for (the command menu, the sync status button, the tray) is running.</summary>
+    /// <summary>True once 3 syncs in a row couldn't reach Google (the title bar's offline and waiting icons show only then).</summary>
+    [ObservableProperty]
+    public partial bool ShowsOffline { get; set; }
+
+    /// <summary>True while a sync you asked for (the command menu, the sync status button, the tray) is running. Nothing shows it: syncing stays in the background.</summary>
     [ObservableProperty]
     public partial bool IsSyncing { get; private set; }
 
-    // Syncs you asked for that haven't finished (they can overlap; the indicator shows until the last one ends)
+    // Syncs you asked for that haven't finished
     private int _syncsRunning;
-
-    /// <summary>
-    /// Shown at least this long, so a quick sync still reads as "it synced" rather than a flicker.
-    /// </summary>
-    public static readonly TimeSpan MinimumSyncIndicator = TimeSpan.FromMilliseconds(600);
 
     /// <summary>
     /// Syncs every account with Google now, the calendar lists included, with <see cref="IsSyncing"/> set while it runs,
@@ -359,9 +358,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         IsSyncing = true;
         try
         {
-            // Off The UI Thread; The Indicator Stays Up For At Least Its Minimum
-            var sync = Task.Run(() => google.Sync.SyncAllAsync(refreshCalendarLists: true, _life.Token));
-            await Task.WhenAll(sync, Task.Delay(MinimumSyncIndicator, _life.Token));
+            // Off The UI Thread
+            await Task.Run(() => google.Sync.SyncAllAsync(refreshCalendarLists: true, _life.Token));
         }
         catch (OperationCanceledException) when (_life.IsCancellationRequested)
         {
@@ -2142,6 +2140,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
 
         IsOffline = _attachedSync?.IsOffline ?? false;
+        ShowsOffline = _attachedSync?.ShowsOffline ?? false;
     }
 
     private DateOnly DayOf(CalendarOccurrence o) => o.IsAllDay ? o.AllDayStart : LocalDate(o.Start);
@@ -2181,6 +2180,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
 
         IsOffline = _attachedSync?.IsOffline ?? false;
+        ShowsOffline = _attachedSync?.ShowsOffline ?? false;
 
         // Once Google Is Ready, Older Accounts Learn Whether They're Workspace Ones (once a session; then the editor sees it)
         if (_services.Google is { } google && !_domainsChecked)

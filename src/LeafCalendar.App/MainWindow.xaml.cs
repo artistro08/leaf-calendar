@@ -57,11 +57,6 @@ public sealed partial class MainWindow : Window
     private readonly OverlappedPresenter _presenter = OverlappedPresenter.Create();
     private readonly CalendarViewModel _calendar;
 
-    // Changes waiting (online) show only once they've waited this long
-    private static readonly TimeSpan WaitingDelay = TimeSpan.FromSeconds(2);
-    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _waitingTimer;
-    private bool _waitingDue;
-
     // The window's size while restored (not maximized or minimized), saved on close
     private Core.Views.WindowSize _restoredSize;
 
@@ -83,15 +78,6 @@ public sealed partial class MainWindow : Window
         _calendar = calendar;
         InitializeComponent();
 
-        // Sync Status Waiting Delay
-        _waitingTimer = DispatcherQueue.CreateTimer();
-        _waitingTimer.Interval = WaitingDelay;
-        _waitingTimer.IsRepeating = false;
-        _waitingTimer.Tick += (_, _) =>
-        {
-            _waitingDue = true;
-            ShowSyncState();
-        };
         ToolbarSlide.RenderTransform = _toolbarShift;
 
         // Shortcuts are handled at the root so they work wherever focus is
@@ -194,7 +180,6 @@ public sealed partial class MainWindow : Window
             // the tray). Settings goes with the window.
             CloseSettings();
             (ContentFrame.Content as CalendarPage)?.Detach();
-            _waitingTimer.Stop();
             _calendar.LayoutChanged -= OnCalendarLayoutChanged;
             _calendar.PropertyChanged -= OnCalendarPropertyChanged;
 
@@ -800,7 +785,7 @@ public sealed partial class MainWindow : Window
         {
             UpdateEventActions();
         }
-        else if (e.PropertyName is nameof(CalendarViewModel.ConflictCount) or nameof(CalendarViewModel.PendingCount) or nameof(CalendarViewModel.IsOffline) or nameof(CalendarViewModel.IsSyncing))
+        else if (e.PropertyName is nameof(CalendarViewModel.ConflictCount) or nameof(CalendarViewModel.PendingCount) or nameof(CalendarViewModel.ShowsOffline))
         {
             ShowSyncState();
         }
@@ -821,22 +806,10 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        // Waiting (Online): only after it has lasted WaitingDelay
-        if (vm.PendingCount == 0)
-        {
-            _waitingTimer.Stop();
-            _waitingDue = false;
-        }
-        else if (!vm.IsOffline && !_waitingDue && !_waitingTimer.IsRunning)
-        {
-            _waitingTimer.Start();
-        }
-
-        // A Sync You Asked For Shows Its Progress Ring In The Slot Until It Ends; then the slot shows what it found
-        var syncing = vm.IsSyncing;
-        var conflicts = !syncing && vm.ConflictCount > 0;
-        var offline = !syncing && !conflicts && vm.IsOffline;
-        var waiting = !syncing && !conflicts && vm.PendingCount > 0 && (vm.IsOffline || _waitingDue);
+        // Syncing Stays In The Background: offline and changes waiting show only once 3 syncs in a row couldn't reach Google
+        var conflicts = vm.ConflictCount > 0;
+        var offline = !conflicts && vm.ShowsOffline;
+        var waiting = !conflicts && vm.ShowsOffline && vm.PendingCount > 0;
         var count = vm.PendingCount == 1 ? "1 change waiting to sync" : string.Create(CultureInfo.InvariantCulture, $"{vm.PendingCount} changes waiting to sync");
         var review = vm.ConflictCount == 1 ? "1 change needs your review" : string.Create(CultureInfo.InvariantCulture, $"{vm.ConflictCount} changes need your review");
         var away = vm.PendingCount == 0
@@ -855,17 +828,13 @@ public sealed partial class MainWindow : Window
 
         // Waiting
         WaitingBadge.Value = vm.PendingCount;
-        WaitingGlyph.Glyph = vm.IsOffline ? "" : "";
         WaitingButton.Visibility = waiting ? Visibility.Visible : Visibility.Collapsed;
-        SetWords(WaitingButton, count, vm.IsOffline ? away : $"{count}. Select to try now.");
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(WaitingButton, vm.IsOffline ? away : "");
+        SetWords(WaitingButton, count, away);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(WaitingButton, away);
 
-        // Syncing
-        SyncingRing.IsActive = syncing;
-        SyncingRing.Visibility = syncing ? Visibility.Visible : Visibility.Collapsed;
 
         // Show The Slot And Re-Punch The Title Bar's Click-Through Holes
-        SyncStatus.Visibility = syncing || conflicts || offline || waiting ? Visibility.Visible : Visibility.Collapsed;
+        SyncStatus.Visibility = conflicts || offline || waiting ? Visibility.Visible : Visibility.Collapsed;
         CalendarToolbar.UpdateLayout();
         AppTitleBar.RecomputeDragRegions();
     }
