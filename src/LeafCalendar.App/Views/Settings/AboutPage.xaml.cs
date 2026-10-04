@@ -8,7 +8,7 @@ using Windows.ApplicationModel;
 
 namespace LeafCalendar.App.Views.Settings;
 
-/// <summary>Settings › About: the app's name and version (from the package), the GitHub link, the third-party notices, the log folder, and Detailed logging.</summary>
+/// <summary>Settings › About: the app's name and version (from the package), the GitHub link, the privacy statement, the third-party notices, the log folder, and Detailed logging.</summary>
 public sealed partial class AboutPage : Page
 {
     // Fixed Address (opened through LeafServices.LaunchAsync, which checks it and never throws)
@@ -16,6 +16,7 @@ public sealed partial class AboutPage : Page
 
     // Shipped In The Package (opened through LeafServices.OpenPackageFileAsync, which never throws)
     private static readonly Uri Notices = new("ms-appx:///Assets/ThirdPartyNotices.txt");
+    private static readonly Uri Privacy = new("ms-appx:///PRIVACY.md");
 
     private LeafServices _services = null!;
     private SettingsContext _context = null!;
@@ -55,6 +56,8 @@ public sealed partial class AboutPage : Page
     private void OnGitHubClick(object sender, RoutedEventArgs e) => _ = _services.LaunchAsync(GitHub);
 
     private void OnNoticesClick(object sender, RoutedEventArgs e) => _ = _services.OpenPackageFileAsync(Notices);
+
+    private void OnPrivacyClick(object sender, RoutedEventArgs e) => _ = _services.OpenPackageFileAsync(Privacy);
 
     // Leaf's own log folder (OpenFolderAsync never throws)
     private void OnOpenLogsClick(object sender, RoutedEventArgs e) => _ = _services.OpenFolderAsync(Path.GetDirectoryName(_services.Log.FilePath)!);

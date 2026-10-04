@@ -18,6 +18,7 @@ namespace LeafCalendar.Core.Tray;
 public sealed record HotkeySettings
 {
     private const int VkTab = 0x09;
+    private const int VkF12 = 0x7B;
 
     /// <summary>No keys.</summary>
     public HotkeySettings()
@@ -127,6 +128,31 @@ public sealed record HotkeySettings
         return hotkey.ToString() is not ("Win+L" or "Alt+F4");
     }
 
+    /// <summary>
+    /// Why the shortcut dialog refuses the combination, as it says it ("Invalid shortcut. It must start with the Windows
+    /// key, Ctrl, or Alt."), or null when it's valid or nothing is pressed yet.
+    /// </summary>
+    public string? InvalidReason()
+    {
+        if (IsEmpty() || IsValid())
+        {
+            return null;
+        }
+
+        if (!(Alt || Ctrl || Win))
+        {
+            return "Invalid shortcut. It must start with the Windows key, Ctrl, or Alt.";
+        }
+
+        // Windows' own: Win+L, Alt+F4, and F12 (kept for debuggers)
+        if (Code == VkF12 || ToString() is "Win+L" or "Alt+F4")
+        {
+            return $"Invalid shortcut. Windows keeps {ToString()} for itself.";
+        }
+
+        return "Invalid shortcut. It must end with a letter, a number, or an F key.";
+    }
+
     /// <summary>No modifier and no key.</summary>
     public bool IsEmpty() => !Alt && !Ctrl && !Win && !Shift && Code == 0;
 
@@ -188,7 +214,7 @@ public sealed record HotkeySettings
         0x28 => "Down",
         0x2D => "Insert",
         0x2E => "Delete",
-        0x7B => "F12",
+        VkF12 => "F12",
         _ => string.Create(CultureInfo.InvariantCulture, $"Key {key:X2}"),
     };
 }

@@ -11,6 +11,8 @@
 // - Reset sets Leaf's default shortcut and Clear turns the shortcut off (PowerToys clears both ways).
 // - Raises HotkeySettingsChanged, DialogOpening, and DialogClosed, so the page saves the shortcut and lets go of Leaf's
 //   own shortcuts while the dialog listens (and registers them again after, restoring the old one if the new one fails).
+// - The dialog is titled after the setting, says why a combination is invalid, opens with focus on the keys, and its
+//   caps are Leaf's quiet key chips (PowerToys' are accent-filled).
 // - Native AOT: the focused-button check reads the automation peer's class name instead of comparing CLR types; key
 //   caps are added in code instead of through an ItemsControl; no telemetry, conflict window, or right-click disable.
 
@@ -31,8 +33,8 @@ using Windows.Win32.UI.Input.KeyboardAndMouse;
 namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
-/// PowerToys' shortcut picker: a button showing the shortcut as key caps (or "Assign shortcut"), which opens the
-/// "Activation shortcut" dialog. While the dialog is open a low-level keyboard hook captures the keys before Windows and
+/// PowerToys' shortcut picker: a button showing the shortcut as key caps (or "Assign shortcut"), which opens a dialog
+/// titled after the setting ("Join meeting shortcut"). While the dialog is open a low-level keyboard hook captures the keys before Windows and
 /// other apps see them, so any combination can be pressed; Save is on only for a valid one that isn't taken.
 /// </summary>
 public sealed partial class ShortcutControl : UserControl, IDisposable
@@ -68,7 +70,6 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
         // We create the Dialog in C# because doing it in XAML is giving WinUI/XAML Island bugs when using dark theme.
         _shortcutDialog = new ContentDialog
         {
-            Title = "Activation shortcut",
             Content = _c,
             PrimaryButtonText = "Save",
             CloseButtonText = "Cancel",
@@ -77,8 +78,6 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
         _shortcutDialog.PrimaryButtonClick += ShortcutDialog_PrimaryButtonClick;
         _shortcutDialog.Opened += ShortcutDialog_Opened;
         _shortcutDialog.Closing += ShortcutDialog_Closing;
-
-        AutomationProperties.SetName(EditButton, "Activation shortcut");
     }
 
     /// <summary>The shortcut was saved, reset, or cleared (<see cref="HotkeySettings"/> has it; empty means none).</summary>
@@ -136,12 +135,14 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
         set => AutomationProperties.SetAutomationId(EditButton, value);
     }
 
-    /// <summary>The button's accessible name (the setting's header).</summary>
+    /// <summary>The button's accessible name (the setting's header); the dialog's title names it too ("Join meeting shortcut").</summary>
     public string ButtonName
     {
         get => AutomationProperties.GetName(EditButton);
         set => AutomationProperties.SetName(EditButton, value);
     }
+
+    private string DialogTitle => $"{ButtonName} shortcut";
 
     private void KeyEventHandler(int key, bool matchValue, int matchValueCode)
     {
@@ -297,7 +298,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
             }
             else
             {
-                _c.IsError = true;
+                ShowInvalid(_internalSettings);
             }
         }
 
@@ -308,7 +309,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
 
             if (!ComboIsValid(_lastValidSettings))
             {
-                DisableKeys();
+                DisableKeys(_lastValidSettings);
             }
             else
             {
@@ -351,9 +352,16 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
         _c.IsError = false;
     }
 
-    private void DisableKeys()
+    private void DisableKeys(HotkeySettings? settings)
     {
         _shortcutDialog.IsPrimaryButtonEnabled = false;
+        ShowInvalid(settings);
+    }
+
+    // Leaf: the bar says why the keys can't be a shortcut, not just that they can't
+    private void ShowInvalid(HotkeySettings? settings)
+    {
+        _c.ErrorMessage = settings?.InvalidReason() ?? "Invalid shortcut";
         _c.IsError = true;
     }
 
@@ -372,12 +380,15 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
     {
         if (!ComboIsValid(_hotkeySettings))
         {
-            DisableKeys();
+            DisableKeys(_hotkeySettings);
         }
         else
         {
             EnableKeys();
         }
+
+        // Leaf: focus on the keys, not Reset (the dialog's first control), whose tooltip would cover them
+        _c.FocusKeys();
 
         // Reset the status on entering the hotkey each time.
         _modifierKeysOnEntering.Clear();
@@ -454,6 +465,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
 
             _window = Win32Interop.GetWindowFromWindowId(XamlRoot.ContentIslandEnvironment.AppWindowId);
             DialogOpening?.Invoke(this, EventArgs.Empty);
+            _shortcutDialog.Title = DialogTitle;
             _shortcutDialog.XamlRoot = this.XamlRoot;
             _shortcutDialog.RequestedTheme = this.ActualTheme;
             await _shortcutDialog.ShowAsync();
@@ -476,7 +488,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
                 {
                     XamlRoot = root,
                     RequestedTheme = ActualTheme,
-                    Title = "Activation shortcut",
+                    Title = DialogTitle,
                     Content = "Leaf couldn't listen to the keyboard, so the shortcut can't be changed right now. Try again.",
                     CloseButtonText = "OK",
                 }.ShowAsync();
@@ -611,11 +623,10 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
                     Padding = new Thickness(8, 8, 8, 8),
                     VerticalAlignment = VerticalAlignment.Center,
                     Content = key,
-                    CornerRadius = new CornerRadius(4),
                     IsTabStop = false,
                     RenderKeyAsGlyph = true,
                     State = _hasConflict ? KeyVisualState.Warning : KeyVisualState.Normal,
-                    Style = (Style)Application.Current.Resources["AccentKeyVisualStyle"],
+                    Style = (Style)Application.Current.Resources["LeafKeyChipStyle"],
                 };
                 AutomationProperties.SetAccessibilityView(keyVisual, AccessibilityView.Raw);
                 PreviewKeysControl.Children.Add(keyVisual);

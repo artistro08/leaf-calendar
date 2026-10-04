@@ -81,7 +81,7 @@ public sealed class ChangeListTests : IDisposable
         var add = leaf.WaitInSettings("AddAccountButton").BoundingRectangle;
         var account = leaf.WaitInSettings($"AccountExpander_{SeededProfile.AccountId}").BoundingRectangle;
 
-        Assert.True(add.Bottom < account.Top, "Add a Google account isn't the first row.");
+        Assert.True(add.Bottom < account.Top, "Add Google account isn't the first row.");
     }
 
     // =========================================================================

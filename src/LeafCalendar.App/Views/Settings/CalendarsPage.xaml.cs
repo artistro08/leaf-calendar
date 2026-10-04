@@ -43,6 +43,12 @@ public sealed partial class CalendarsPage : Page
     /// <summary>x:Bind helper: the "More options" button's accessible name.</summary>
     public static string MoreName(string calendar) => $"More options for {calendar}";
 
+    /// <summary>x:Bind helper: the show/hide switch's accessible name ("Show Family").</summary>
+    public static string ShowName(string calendar) => $"Show {calendar}";
+
+    /// <summary>x:Bind helper: an account header's chevron, pointing like an Expander's (down while folded, up while open).</summary>
+    public static string ExpanderChevron(bool expanded) => expanded ? "" : "";
+
     /// <summary>x:Bind helper: the color button's accessible name.</summary>
     public static string ColorName(string calendar) => $"Color for {calendar}";
 

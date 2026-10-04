@@ -12,9 +12,8 @@
             <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
                 <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Tray" />
 
-                <!-- Icon -->
-                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Icon" />
-                <controls:SettingRow Glyph="&#xE7E7;" Header="Show the tray icon" Description="Off, Leaf still runs in the background: sync, reminders, and the global shortcuts keep working. Open it again by launching it; quit it from the command menu.">
+                <!-- Icon (first on the page, so no group header: "Icon" only repeated the row) -->
+                <controls:SettingRow Glyph="&#xE91C;" Header="Show the tray icon" Description="When it's off, Leaf keeps running in the background, so sync, reminders, and the global shortcuts still work. To open Leaf, launch it again. To quit, use the command menu.">
                     <ToggleSwitch
                         x:Name="IconSwitch"
                         Style="{StaticResource LeafCardToggleSwitchStyle}"
@@ -25,7 +24,7 @@
 
                 <!-- Flyout -->
                 <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Flyout" />
-                <controls:SettingRow x:Name="DaysRow" Glyph="&#xE787;" Header="Days in the agenda">
+                <controls:SettingRow x:Name="DaysRow" Glyph="&#xE8FD;" Header="Days in the agenda">
                     <NumberBox
                         x:Name="DaysBox"
                         MinWidth="180"
@@ -43,15 +42,13 @@
                         AutomationProperties.Name="Include all-day events"
                         AutomationProperties.AutomationId="FlyoutAllDaySwitch" />
                 </controls:SettingRow>
-
-                <!-- Next Event -->
-                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Next event" />
-                <controls:SettingRow Glyph="&#xE916;" Header="Next-event lookahead" Description="How far ahead the flyout header and the tray icon's tooltip look for your next event.">
+                <!-- Next Meeting (part of the flyout group: a "Next event" header over this one row only repeated it) -->
+                <controls:SettingRow Glyph="&#xE916;" Header="Next meeting" Description="How far ahead the flyout header and the tray icon's tooltip look for your next meeting.">
                     <ComboBox
                         x:Name="LookaheadBox"
                         MinWidth="180"
                         SelectionChanged="OnLookaheadChanged"
-                        AutomationProperties.Name="Next-event lookahead"
+                        AutomationProperties.Name="Next meeting"
                         AutomationProperties.AutomationId="LookaheadComboBox">
                         <ComboBoxItem Content="15 minutes" />
                         <ComboBoxItem Content="30 minutes" />

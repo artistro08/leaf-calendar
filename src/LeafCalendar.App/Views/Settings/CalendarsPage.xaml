@@ -28,7 +28,8 @@
                             <StackPanel Spacing="4">
                                 <!-- Account Header (click to fold the account's calendars away, the sidebar follows; the -8 margin and
                                      8 padding keep the email on the cards' left edge with the hover fill reaching past it, and the
-                                     margin plus padding keep the group header's 24 above the text) -->
+                                     margin plus padding keep the group header's 24 above the text. The chevron points like an
+                                     Expander's: down while folded, up while open) -->
                                 <Button
                                     Margin="-8,16,0,0"
                                     Padding="8"
@@ -46,7 +47,7 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{x:Bind Email, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
-                                        <FontIcon Grid.Column="1" FontSize="12" Glyph="{x:Bind Chevron, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
+                                        <FontIcon Grid.Column="1" FontSize="12" Glyph="{x:Bind local:CalendarsPage.ExpanderChevron(IsExpanded), Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
                                     </Grid>
                                 </Button>
                                 <controls:PinnedItemsControl ItemsSource="{x:Bind Calendars}" IsTabStop="False" Visibility="{x:Bind IsExpanded, Mode=OneWay}">
@@ -57,7 +58,7 @@
                                     </controls:PinnedItemsControl.ItemsPanel>
                                     <controls:PinnedItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:CalendarRow">
-                                            <!-- Calendar Row (color picker, then the show/hide switch) -->
+                                            <!-- Calendar Row (color picker, then the show/hide switch with its "Show in Leaf" label) -->
                                             <controls:SettingRow Header="{x:Bind Name, Mode=OneWay}" Description="{x:Bind local:CalendarsPage.ColorSource(Info), Mode=OneWay}">
                                                 <StackPanel Orientation="Horizontal" Spacing="16">
                                                     <DropDownButton
@@ -68,14 +69,19 @@
                                                         AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.ColorId(Info)}">
                                                         <Ellipse Width="16" Height="16" Fill="{x:Bind local:CalendarsPage.BrushFor(Color), Mode=OneWay}" />
                                                     </DropDownButton>
-                                                    <ToggleSwitch
-                                                        Style="{StaticResource LeafCardToggleSwitchStyle}"
-                                                        IsOn="{x:Bind IsVisible, Mode=OneWay}"
-                                                        Toggled="OnVisibleToggled"
-                                                        Tag="{x:Bind}"
-                                                        ToolTipService.ToolTip="Show in Leaf"
-                                                        AutomationProperties.Name="{x:Bind Name, Mode=OneWay}"
-                                                        AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.VisibleId(Info)}" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                                        <TextBlock
+                                                            VerticalAlignment="Center"
+                                                            Text="Show in Leaf"
+                                                            AutomationProperties.AccessibilityView="Raw" />
+                                                        <ToggleSwitch
+                                                            Style="{StaticResource LeafCardToggleSwitchStyle}"
+                                                            IsOn="{x:Bind IsVisible, Mode=OneWay}"
+                                                            Toggled="OnVisibleToggled"
+                                                            Tag="{x:Bind}"
+                                                            AutomationProperties.Name="{x:Bind local:CalendarsPage.ShowName(Name), Mode=OneWay}"
+                                                            AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.VisibleId(Info)}" />
+                                                    </StackPanel>
                                                     <Button
                                                         Style="{StaticResource LeafIconButtonStyle}"
                                                         Click="OnMoreClick"

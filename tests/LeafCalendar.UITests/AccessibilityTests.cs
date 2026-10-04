@@ -59,7 +59,7 @@ public sealed class AccessibilityTests : IDisposable
         "SettingsCalendars" => ("", leaf => OpenSettings(leaf, "Calendars"), [$"CalendarMore_{Family}"]),
         "SettingsTimeZones" => ("", leaf => OpenSettings(leaf, "TimeZones"), ["TimeZoneSearch", "PrimaryZoneExpander"]),
         "SettingsAccounts" => ("", leaf => OpenSettings(leaf, "Accounts"), ["AddAccountButton", "DefaultCalendarComboBox", "SyncNowButton", "ChangeClientButton"]),
-        "SettingsAbout" => ("", leaf => OpenSettings(leaf, "About"), ["GitHubLink", "OpenLogsButton"]),
+        "SettingsAbout" => ("", leaf => OpenSettings(leaf, "About"), ["GitHubLink", "PrivacyButton", "OpenLogsButton"]),
 
         // Milestone 4 (the tray icon is driven with the shell's own messages, as TrayTests does)
         "TrayFlyout" => (TrayNow, OpenFlyout, ["FlyoutJoinButton", "FlyoutNewEvent"]),

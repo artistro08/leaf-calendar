@@ -43,6 +43,17 @@ public class PackageManifestTests
         Assert.Equal("leaf-calendar", (string?)extension.Element(uap + "Protocol")?.Attribute("Name"));
     }
 
+    // The Privacy Statement Ships At The Package Root (Settings › About opens ms-appx:///PRIVACY.md)
+    [Fact]
+    public void Package_ShipsThePrivacyStatement()
+    {
+        var content = XDocument.Parse(Read("src", "LeafCalendar.App", "LeafCalendar.App.csproj"))
+            .Descendants("Content").SingleOrDefault(c => (string?)c.Attribute("Link") == "PRIVACY.md");
+
+        Assert.NotNull(content);
+        Assert.True(File.Exists(Path.Combine(RepoRoot(), "src", "LeafCalendar.App", (string)content.Attribute("Include")!)), "PRIVACY.md isn't where the project points.");
+    }
+
     // Icons: Every Manifest Image At Every Scale, The Taskbar Sizes, And The Window Icon (tools/make-icons.ps1; the daily
     // tray icons are checked in TrayGlyphTests)
     [Fact]
