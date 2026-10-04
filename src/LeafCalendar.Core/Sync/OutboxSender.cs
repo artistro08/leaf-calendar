@@ -80,11 +80,14 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
                 continue;
             }
 
-            // Held, Backing Off After A Failed Try, Behind A Held Or Conflicted Edit Of The Same Event, Or Waiting For The Entry It Depends On
-            if (waiting.Contains(entry.EventId) || entry.NotBefore > now || entry.RetryAfter > now || (entry.DependsOn is { } dependsOn && Reload(dependsOn) is not null))
+            // Backing Off After A Failed Try; a wait past the longest backoff means the clock was set back since, so it's over
+            var backingOff = entry.RetryAfter > now && entry.RetryAfter <= now + OutboxStore.Backoff(int.MaxValue);
+
+            // Held, Backing Off, Behind A Held Or Conflicted Edit Of The Same Event, Or Waiting For The Entry It Depends On
+            if (waiting.Contains(entry.EventId) || entry.NotBefore > now || backingOff || (entry.DependsOn is { } dependsOn && Reload(dependsOn) is not null))
             {
                 // Backing Off After A Failure That Stopped The Pass (the network, a rate limit, the account): it still does, so the order holds
-                if (entry.RetryAfter > now && StopsThePass(entry.LastError))
+                if (backingOff && StopsThePass(entry.LastError))
                 {
                     break;
                 }

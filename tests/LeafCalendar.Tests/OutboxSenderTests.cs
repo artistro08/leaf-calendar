@@ -682,6 +682,22 @@ public sealed class OutboxSenderTests : IDisposable
     }
 
     [Fact]
+    public async Task Send_BackoffBeyondTheLongestOne_TheClockWentBack_SendsNow()
+    {
+        // The failed try was stamped two hours ahead of today's clock (the PC's clock was set back since), which no backoff reaches
+        var seq = Queue("evt-single", OutboxOperation.Patch, """{"summary":"A"}""");
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","etag":"\"E1\"","status":"confirmed","summary":"A","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""");
+        using (var conn = _h.Db.Database.Open())
+        {
+            OutboxStore.RecordAttempt(conn, seq, "network", _h.Time.GetUtcNow().AddHours(2));
+        }
+
+        await Send();
+
+        Assert.Empty(Pending());
+    }
+
+    [Fact]
     public async Task Send_503Backoff_OtherEventsStillGoOnTheNextPass()
     {
         // A 5xx is Google failing on this one entry: while it backs off, an edit of another event made since goes

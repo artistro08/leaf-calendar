@@ -33,7 +33,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
     private readonly UISettings _uiSettings = new();
 
     private readonly CalendarViewModel _vm;
-    private readonly Grid _weekdays = new() { Height = 32 };
+    private readonly Grid _weekdays = new() { Height = MonthMetrics.For(1).WeekdayHeaderHeight };
     private readonly ScrollViewer _scroll = new() { HorizontalScrollMode = ScrollMode.Disabled, ZoomMode = ZoomMode.Disabled };
     // One column of fixed-size rows: positions are exact (index × height), unlike StackLayout's estimates,
     // which put rows off by part of a row after the row height changes
@@ -261,6 +261,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
         }
 
         Metrics = metrics;
+        _weekdays.Height = metrics.WeekdayHeaderHeight;
         Relayout(force: true);
     }
 

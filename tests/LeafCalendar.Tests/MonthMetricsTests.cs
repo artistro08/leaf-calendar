@@ -9,7 +9,7 @@ public class MonthMetricsTests
     {
         var m = MonthMetrics.For(1.0);
 
-        Assert.Equal(new MonthMetrics(20, 26, 22, 96), m);
+        Assert.Equal(new MonthMetrics(20, 26, 22, 96, 32), m);
     }
 
     [Theory]
@@ -24,6 +24,9 @@ public class MonthMetricsTests
         Assert.True(m.DayButtonHeight >= Math.Ceiling(16 * scale) + 6);
         Assert.True(m.DayNumberHeight >= m.DayButtonHeight + 4);
         Assert.True(m.MinRowHeight >= m.DayNumberHeight + 3 * m.ChipHeight);
+
+        // The weekday names keep the 16 px around them they have at 100% (8 above, 8 below to the line)
+        Assert.True(m.WeekdayHeaderHeight >= Math.Ceiling(16 * scale) + 16);
     }
 
     [Fact]

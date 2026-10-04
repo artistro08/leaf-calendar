@@ -48,7 +48,6 @@ public sealed partial class WeekRow : Canvas
             {
                 Content = number,
                 Padding = new Thickness(6, 1, 6, 1),
-                MinWidth = 24,
                 BorderThickness = new Thickness(0),
             };
             day.Click += (_, _) =>
@@ -234,9 +233,10 @@ public sealed partial class WeekRow : Canvas
         SetLeft(top, x);
         SetLeft(tint, x);
 
-        // Day Number (a pill as tall as the text size needs)
+        // Day Number (a pill as tall as the text size needs, and at least as wide, so a single digit stays round)
         var isToday = date == _owner.ViewModel.Today;
         day.Height = dayHeight;
+        day.MinWidth = dayHeight + 2;
         day.CornerRadius = new CornerRadius(dayHeight / 2);
         number.Text = date.Day == 1 ? date.ToString("MMM d", CultureInfo.GetCultureInfo("en-US")) : date.Day.ToString(CultureInfo.InvariantCulture);
         number.FontWeight = isToday ? FontWeights.SemiBold : FontWeights.Normal;

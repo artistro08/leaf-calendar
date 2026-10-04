@@ -61,6 +61,9 @@ public partial class App : Application
     private bool _trayStarted;
     private bool _quitting;
 
+    // Whether the internet connection is metered, read off the UI thread on each network change
+    private volatile bool _metered;
+
     /// <summary>Loads XAML resources and hooks crash logging.</summary>
     public App()
     {
@@ -307,9 +310,11 @@ public partial class App : Application
         AttachSync();
         RefreshTooltip();
 
-        // Energy Saver Or A Metered Connection Changes The Tray's Sync Pace (both events arrive off the UI thread)
+        // Energy Saver Or A Metered Connection Changes The Tray's Sync Pace (both events arrive off the UI thread). The
+        // connection's cost is read there and on the pool now, never on the UI thread: it can stall on some VPN setups.
         Windows.System.Power.PowerManager.EnergySaverStatusChanged += (_, _) => _dispatcher?.TryEnqueue(() => UpdateSyncMode());
-        Windows.Networking.Connectivity.NetworkInformation.NetworkStatusChanged += _ => _dispatcher?.TryEnqueue(() => UpdateSyncMode());
+        Windows.Networking.Connectivity.NetworkInformation.NetworkStatusChanged += _ => OnNetworkChanged();
+        _ = Task.Run(OnNetworkChanged);
 
         // Windows Restarts Leaf Into The Tray After An Update Or A Crash, So Reminders Go On (a sign-in restart is the
         // startup task's; UI tests' fake profiles don't register)
@@ -368,7 +373,8 @@ public partial class App : Application
     private int TrayDay() => TimeZoneInfo.ConvertTime(_services?.Time.GetUtcNow() ?? DateTimeOffset.UtcNow, _zone.Zone).Day;
 
     // "Standup in 12 min" (spec 8.1), within the tray lookahead setting. The read runs on the thread pool: the flyout's
-    // mouse hook runs on this thread, and a synthetic 2,000-event profile measured 25-55 ms per tray read here.
+    // mouse hook runs on this thread, and a synthetic 2,000-event profile measured medians of 31.5 ms (tooltip) and
+    // 54.8 ms (agenda) per tray read here.
     private async void RefreshTooltip()
     {
         // async void: anything that escapes here would end the process (runs from the minute clock and syncs)
@@ -760,7 +766,7 @@ public partial class App : Application
             var visible = _window is { IsMinimized: false } || _host?.IsAgendaOpen == true;
             if (_services?.Google is { } google)
             {
-                google.Loop.Mode = SyncLoop.ModeFor(visible, IsEnergySaverOn(), IsMetered());
+                google.Loop.Mode = SyncLoop.ModeFor(visible, IsEnergySaverOn(), _metered);
                 if (flyoutOpened)
                 {
                     google.Loop.TriggerNow();
@@ -775,14 +781,43 @@ public partial class App : Application
         }
     }
 
-    // Windows' Energy Saver (Windows 11's battery saver)
-    private static bool IsEnergySaverOn() =>
-        Windows.System.Power.PowerManager.EnergySaverStatus == Windows.System.Power.EnergySaverStatus.On;
+    // Windows' Energy Saver (Windows 11's battery saver); a failed read counts as off
+    private static bool IsEnergySaverOn()
+    {
+        try
+        {
+            return Windows.System.Power.PowerManager.EnergySaverStatus == Windows.System.Power.EnergySaverStatus.On;
+        }
+#pragma warning disable CA1031 // Any WinRT failure means "not on", so the pace still updates
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return false;
+        }
+    }
 
-    // A metered internet connection (fixed or variable cost); no connection counts as unmetered (the loop is offline anyway)
-    private static bool IsMetered() =>
-        Windows.Networking.Connectivity.NetworkInformation.GetInternetConnectionProfile()?.GetConnectionCost().NetworkCostType
-            is Windows.Networking.Connectivity.NetworkCostType.Fixed or Windows.Networking.Connectivity.NetworkCostType.Variable;
+    // The Connection Changed (off the UI thread): its cost is read here, then the pace updates on the UI thread
+    private void OnNetworkChanged()
+    {
+        _metered = IsMetered();
+        _dispatcher?.TryEnqueue(() => UpdateSyncMode());
+    }
+
+    // A metered internet connection (fixed or variable cost); no connection, or a failed read, counts as unmetered
+    private static bool IsMetered()
+    {
+        try
+        {
+            return Windows.Networking.Connectivity.NetworkInformation.GetInternetConnectionProfile()?.GetConnectionCost().NetworkCostType
+                is Windows.Networking.Connectivity.NetworkCostType.Fixed or Windows.Networking.Connectivity.NetworkCostType.Variable;
+        }
+#pragma warning disable CA1031 // Any WinRT failure means "not metered", so the pace still updates
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return false;
+        }
+    }
 
     // =========================================================================
     // NOTIFICATION CLICKS

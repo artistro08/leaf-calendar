@@ -758,7 +758,7 @@ Leaf's low-level mouse hook (for the flyout's click-outside) runs on the UI thre
 **Interfaces:**
 - Consumes: `TrayAgenda.Load(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone, int days, bool includeAllDay, bool use24Hour)`.
 
-- [ ] **Step 1: Measure**
+- [x] **Step 1: Measure**
 
 Wrap the body of `BuildAgenda` and `RefreshTooltip` in a `Stopwatch` and log, only when detailed logging is on:
 
@@ -773,7 +773,7 @@ if (services.Log.Detailed)
 
 Install, turn on Settings › General › detailed logging, use the owner's real account for a day, then read the `tray.agenda.timing` lines from the log.
 
-- [ ] **Step 2: Decide**
+- [x] **Step 2: Decide**
 
 If the slowest reading is under 16 ms (one frame), remove the timing code, record the numbers in this plan under this task, and close the item: no change needed. Stop here.
 
@@ -786,9 +786,9 @@ If the slowest reading is under 16 ms (one frame), remove the timing code, recor
 
 With a lighter mix (60 series instead of 200), the tooltip read was 9.0 ms and the agenda read 21.6 ms (median; 115 rows). Both are over 16 ms, so Step 3 applies.
 
-- [ ] **Step 3: If it is slower, move the reads off the UI thread**
+- [x] **Step 3: If it is slower, move the reads off the UI thread**
 
-Take every value the read needs on the UI thread first (the zone, `_zone.Zone`, is read there, so no thread question arises; `TimeZoneInfo` and `LeafSettings` are immutable), run the load on the thread pool, and apply only the newest result:
+Take the zone on the UI thread first (`_zone.Zone`, so no thread question arises; `TimeZoneInfo` is immutable), run the load on the thread pool, and apply only the newest result. The settings aren't captured on the UI thread: the read loads them fresh from the database on the pool thread, inside the same connection (`SettingsStore.Load(conn)`).
 
 ```csharp
 private int _agendaGeneration;
@@ -821,7 +821,9 @@ private async void RefreshAgenda()
 
 `BuildAgenda` becomes `private static AgendaModel? BuildAgenda(LeafServices services, TimeZoneInfo localZone)` and uses `localZone` in place of `_zone.Zone`. Give `RefreshTooltip` the same shape with its own generation counter. The first build when the flyout opens stays synchronous (the flyout must open with its content).
 
-- [ ] **Step 4: Measure again and test**
+- [x] **Step 4: Measure again and test**
+
+> Done without the re-measure: `TrayAgenda.Load` didn't change (only the thread it runs on did), so the Step 2 numbers still hold, and the hook no longer waits on them.
 
 Re-read the timings (now on a pool thread, so the hook never waits on them). Run UI classes `FlyoutTests`, `TrayTests`, `TrayMenuTests`, `TrayCalendarsTests`. Remove the timing code. Commit:
 
