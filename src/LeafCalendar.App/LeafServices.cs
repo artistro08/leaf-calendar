@@ -96,6 +96,12 @@ public sealed class LeafServices : IAsyncDisposable
     /// <summary>Google services, or null before the OAuth client is set up.</summary>
     public GoogleServices? Google { get; private set; }
 
+    /// <summary>
+    /// True while the saved secrets couldn't be read at startup (or a reload) and a timer is trying again, so
+    /// <see cref="Google"/> is null for that reason, not because Leaf is offline or not set up.
+    /// </summary>
+    public bool SecretsUnavailable => Volatile.Read(ref _secretsRetry) is not null;
+
     /// <summary>Raised after <see cref="ReloadGoogleAsync"/> replaces <see cref="Google"/>.</summary>
     public event EventHandler? GoogleChanged;
 

@@ -15,8 +15,8 @@ namespace LeafCalendar.Core.Auth;
 /// doesn't open. Writes go to <c>secrets.bin.tmp</c> and replace the file in one move, so a crash never leaves half a file.
 /// A damaged file, or one made for another user or profile, reads as empty; the next write first moves it aside to
 /// <c>secrets.bin.unreadable</c>. Any other failure to read it (DPAPI failing for a passing reason, a locked file) throws
-/// <see cref="InvalidDataException"/>, which sync treats as "try later", so nobody is marked signed out and nothing
-/// overwrites the file. Every call takes one lock, because the sync loop and the UI both use tokens.
+/// <see cref="InvalidDataException"/> (marked, so <see cref="SecretsUnavailable.Is"/> tells it apart), which sync treats as
+/// "try later", so nobody is marked signed out and nothing overwrites the file. Every call takes one lock, because the sync loop and the UI both use tokens.
 /// </remarks>
 /// <seealso href="https://learn.microsoft.com/windows/win32/api/dpapi/nf-dpapi-cryptunprotectdata"/>
 public sealed class ProtectedFileTokenStore : ITokenStore
@@ -49,17 +49,6 @@ public sealed class ProtectedFileTokenStore : ITokenStore
 
     /// <summary>True once <c>secrets.bin</c> has been written (secrets from the Credential Locker were moved, or saved since).</summary>
     public bool Exists => File.Exists(_path);
-
-    /// <summary>True when <c>secrets.bin</c> exists but can never be read (damaged, or made for another user or profile).</summary>
-    /// <exception cref="InvalidDataException">It can't be read right now (it may be fine).</exception>
-    public bool IsUnreadable()
-    {
-        lock (_gate)
-        {
-            Load(out var unreadable);
-            return unreadable;
-        }
-    }
 
     /// <inheritdoc />
     public OAuthClientCredentials? GetClientCredentials()
@@ -192,7 +181,7 @@ public sealed class ProtectedFileTokenStore : ITokenStore
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            throw new InvalidDataException("The saved sign-in secrets couldn't be read right now.", ex);
+            throw SecretsUnavailable.Create("The saved sign-in secrets couldn't be read right now.", ex);
         }
 
         try
@@ -205,7 +194,7 @@ public sealed class ProtectedFileTokenStore : ITokenStore
         }
         catch (CryptographicException ex) when (ex.HResult is not (ErrorInvalidData or ErrorInvalidParameter or NteBadData))
         {
-            throw new InvalidDataException("The saved sign-in secrets couldn't be decrypted right now.", ex);
+            throw SecretsUnavailable.Create("The saved sign-in secrets couldn't be decrypted right now.", ex);
         }
         catch (Exception ex) when (ex is CryptographicException or JsonException)
         {

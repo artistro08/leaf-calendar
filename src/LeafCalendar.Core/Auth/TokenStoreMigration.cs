@@ -9,56 +9,54 @@ public static class TokenStoreMigration
     /// Picks the profile's secret store, moving the Credential Locker's secrets into <paramref name="file"/> once.
     /// </summary>
     /// <remarks>
-    /// <para>Once <c>secrets.bin</c> exists, it's the store, whatever the Locker holds. Deleting the Locker's leftovers is only
-    /// tidying up: a failure is logged and tried again on the next start. Two exceptions: when <c>secrets.bin</c> is bad
-    /// data (it can never be read), the leftovers rebuild it, as in a first move; when it can't be read right now, the
-    /// leftovers are kept until it can.</para>
-    /// <para>Before that (or to rebuild), the Locker's secrets are written to <c>secrets.bin</c> in one write, and only then deleted from the
-    /// Locker. When that write fails, this run uses the Locker (untouched), and the next start tries again. When the Locker
-    /// can't be opened or read, there's nothing to lose, so the file store is used.</para>
+    /// <para>The Locker's secrets that <c>secrets.bin</c> lacks (an account it has no refresh token for, and the OAuth client
+    /// when it has none) are written to it in one write, and only then is the Locker emptied. <c>secrets.bin</c>'s own
+    /// secrets are never replaced: they're newer (a sign-in since the move). So a first move, a move a passing Locker
+    /// failure put off while the user set Leaf up again, and a rebuild of a <c>secrets.bin</c> that's bad data (it reads as
+    /// empty) are one path. When <c>secrets.bin</c> can't be read right now, nothing is touched until it can.</para>
+    /// <para>When that write fails, this run uses the Locker (untouched) if <c>secrets.bin</c> holds nothing, or
+    /// <c>secrets.bin</c> otherwise (the Locker keeps its leftovers); the next start tries again. When the Locker can't be
+    /// opened or read, the file store is used and the Locker is left as it is. Emptying the Locker is best effort: a failure
+    /// is logged and tried again on the next start.</para>
     /// <para>Never throws, so startup can't fail here. Logs only event names and exception type names, never a secret.</para>
     /// </remarks>
     /// <param name="file">The profile's <c>secrets.bin</c> store.</param>
     /// <param name="openLocker">Opens the profile's Credential Locker store (it can throw, so it's opened here).</param>
     /// <param name="log">The app log.</param>
-    /// <returns><paramref name="file"/>, or the Locker store when the move couldn't be written.</returns>
+    /// <returns><paramref name="file"/>, or the Locker store when the move couldn't be written and the file holds nothing.</returns>
     public static ITokenStore Open(ProtectedFileTokenStore file, Func<ITokenStore> openLocker, AppLog log)
     {
         ArgumentNullException.ThrowIfNull(file);
         ArgumentNullException.ThrowIfNull(openLocker);
         ArgumentNullException.ThrowIfNull(log);
 
-        // Already Moved: the Locker's leftovers are only tidied up, unless secrets.bin is bad data and they can rebuild it
-        var rebuilding = file.Exists;
-        if (rebuilding)
+        // What secrets.bin Holds (nothing before the move; bad data reads as empty)
+        var moved = file.Exists;
+        HashSet<string> saved;
+        bool hasClient;
+        try
         {
-            try
-            {
-                if (!file.IsUnreadable())
-                {
-                    CleanUp(openLocker, log);
-                    return file;
-                }
-            }
-            catch (InvalidDataException)
-            {
-                // Can't Be Read Right Now (it may be fine): the leftovers stay until it can
-                return file;
-            }
+            saved = [.. file.GetAccountIds()];
+            hasClient = file.GetClientCredentials() is not null;
+        }
+        catch (InvalidDataException)
+        {
+            // Can't Be Read Right Now (it may be fine): the leftovers stay until it can
+            return file;
         }
 
-        // Read The Locker
+        // Read What The File Lacks From The Locker
         ITokenStore locker;
         OAuthClientCredentials? client;
         Dictionary<string, string> tokens;
         try
         {
             locker = openLocker();
-            client = locker.GetClientCredentials();
+            client = hasClient ? null : locker.GetClientCredentials();
             tokens = new(StringComparer.Ordinal);
             foreach (var accountId in locker.GetAccountIds())
             {
-                if (locker.GetRefreshToken(accountId) is { } token)
+                if (!saved.Contains(accountId) && locker.GetRefreshToken(accountId) is { } token)
                 {
                     tokens[accountId] = token;
                 }
@@ -70,42 +68,38 @@ public static class TokenStoreMigration
             return file;
         }
 
-        if (client is null && tokens.Count == 0)
-        {
-            return file;
-        }
-
         // One Write, Then The Locker Copy Goes
-        try
+        if (client is not null || tokens.Count > 0)
         {
-            file.Import(client, tokens);
-        }
-        catch (Exception ex)
-        {
-            log.Info("auth.secrets.migrate.failed", $"error={ex.GetType().Name}");
-            return locker;
+            try
+            {
+                file.Import(client, tokens);
+            }
+            catch (Exception ex)
+            {
+                log.Info("auth.secrets.migrate.failed", $"error={ex.GetType().Name}");
+                return saved.Count == 0 && !hasClient ? locker : file;
+            }
+
+            log.Info(moved ? "auth.secrets.rebuilt" : "auth.secrets.migrated");
         }
 
-        log.Info(rebuilding ? "auth.secrets.rebuilt" : "auth.secrets.migrated");
-        CleanUp(() => locker, log);
+        CleanUp(locker, log);
         return file;
     }
 
-    // Best effort: whatever is left is deleted on the next start
-    private static void CleanUp(Func<ITokenStore> openLocker, AppLog log)
+    // Best effort: whatever is left is deleted on the next start. The client is always cleared, so half of one (the ID
+    // gone, the secret left, which reads as no client) goes too.
+    private static void CleanUp(ITokenStore locker, AppLog log)
     {
         try
         {
-            var locker = openLocker();
             foreach (var accountId in locker.GetAccountIds())
             {
                 locker.RemoveRefreshToken(accountId);
             }
 
-            if (locker.GetClientCredentials() is not null)
-            {
-                locker.ClearClientCredentials();
-            }
+            locker.ClearClientCredentials();
         }
         catch (Exception ex)
         {

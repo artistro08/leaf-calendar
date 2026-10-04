@@ -124,6 +124,71 @@ public sealed class TokenStoreMigrationTests : IDisposable
     }
 
     [Fact]
+    public void Open_LockerUnreadableOnTheFirstStart_ThenSetUpAgain_NextStartKeepsEveryAccount()
+    {
+        // First Start After The Update: the Locker can't be read for a moment, so the empty file store is used
+        var locker = new FlakyLocker(Seeded()) { ReadsFail = true };
+        Assert.Same(_file, TokenStoreMigration.Open(_file, () => locker, _log));
+
+        // Sent To Setup, the user saves the client again and signs one account in again
+        _file.SetClientCredentials(Client);
+        _file.SetRefreshToken("a", "1//a-new");
+
+        // Next Start: the Locker reads, and what secrets.bin lacks comes over before the Locker is emptied
+        locker.ReadsFail = false;
+        Assert.Same(_file, TokenStoreMigration.Open(_file, () => locker, _log));
+
+        Assert.Equal(Client, _file.GetClientCredentials());
+        Assert.Equal("1//a-new", _file.GetRefreshToken("a"));
+        Assert.Equal("1//b", _file.GetRefreshToken("b"));
+        Assert.Empty(locker.GetAccountIds());
+        Assert.Null(locker.GetClientCredentials());
+    }
+
+    [Fact]
+    public void Open_AddingTheLockerLeftoversFails_KeepsTheFileStore_AndTheLeftovers()
+    {
+        _file.SetClientCredentials(Client);
+        _file.SetRefreshToken("a", "1//a-new");
+        var locker = Seeded();
+
+        // The temp file is held open, so the write fails
+        using (new FileStream(Path.Combine(_folder.Path, "profiles", "default", "secrets.bin.tmp"), FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            Assert.Same(_file, TokenStoreMigration.Open(_file, () => locker, _log));
+        }
+
+        Assert.Equal(["a"], _file.GetAccountIds());
+        Assert.Equal(["a", "b"], locker.GetAccountIds().Order(StringComparer.Ordinal));
+        Assert.Single(LogLines("auth.secrets.migrate.failed error=IOException"));
+    }
+
+    [Fact]
+    public void Open_FileHasTokensButNoClient_TakesTheLockerClient()
+    {
+        _file.SetRefreshToken("a", "1//a-new");
+        var locker = Seeded();
+
+        Assert.Same(_file, TokenStoreMigration.Open(_file, () => locker, _log));
+
+        Assert.Equal(Client, _file.GetClientCredentials());
+        Assert.Equal("1//a-new", _file.GetRefreshToken("a"));
+        Assert.Equal("1//b", _file.GetRefreshToken("b"));
+        Assert.Empty(locker.GetAccountIds());
+    }
+
+    [Fact]
+    public void Open_LockerHoldsHalfAClient_ClearsIt()
+    {
+        // Only the client secret is left, which the Locker reports as no client
+        var locker = new FlakyLocker(new InMemoryTokenStore());
+
+        Assert.Same(_file, TokenStoreMigration.Open(_file, () => locker, _log));
+
+        Assert.True(locker.ClientCleared);
+    }
+
+    [Fact]
     public void Open_WriteFails_UsesTheLocker_AndLeavesItIntact()
     {
         // The profile "folder" is a file, so the secrets can't be written
@@ -160,6 +225,8 @@ public sealed class TokenStoreMigrationTests : IDisposable
 
         public int RemovalsBeforeFailure { get; set; } = int.MaxValue;
 
+        public bool ClientCleared { get; private set; }
+
         public OAuthClientCredentials? GetClientCredentials() => Read(inner.GetClientCredentials);
 
         public void SetClientCredentials(OAuthClientCredentials credentials) => inner.SetClientCredentials(credentials);
@@ -168,6 +235,7 @@ public sealed class TokenStoreMigrationTests : IDisposable
         {
             Removing();
             inner.ClearClientCredentials();
+            ClientCleared = true;
         }
 
         public string? GetRefreshToken(string accountId) => Read(() => inner.GetRefreshToken(accountId));

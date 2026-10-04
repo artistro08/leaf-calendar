@@ -146,12 +146,25 @@ public sealed class ProtectedFileTokenStoreTests : IDisposable
         var before = File.ReadAllBytes(path);
         var store = new ProtectedFileTokenStore(_folder.Path, (_, _) => throw new CryptographicException(unchecked((int)0x8009000B)));
 
-        Assert.Throws<InvalidDataException>(() => store.GetRefreshToken("acct-1"));
-        Assert.Throws<InvalidDataException>(() => store.SetRefreshToken("acct-2", "1//b"));
-        Assert.Throws<InvalidDataException>(() => store.GetClientCredentials());
+        Assert.True(SecretsUnavailable.Is(Assert.Throws<InvalidDataException>(() => store.GetRefreshToken("acct-1"))));
+        Assert.True(SecretsUnavailable.Is(Assert.Throws<InvalidDataException>(() => store.SetRefreshToken("acct-2", "1//b"))));
+        Assert.True(SecretsUnavailable.Is(Assert.Throws<InvalidDataException>(() => store.GetClientCredentials())));
 
         Assert.Equal(before, File.ReadAllBytes(path));
         Assert.False(File.Exists(path + ".unreadable"));
+        Assert.Equal("1//a", _store.GetRefreshToken("acct-1"));
+    }
+
+    [Fact]
+    public void FileLocked_ThrowsSecretsUnavailable_AndKeepsTheFile()
+    {
+        _store.SetRefreshToken("acct-1", "1//a");
+
+        using (new FileStream(Path.Combine(_folder.Path, "secrets.bin"), FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            Assert.True(SecretsUnavailable.Is(Assert.Throws<InvalidDataException>(() => _store.GetRefreshToken("acct-1"))));
+        }
+
         Assert.Equal("1//a", _store.GetRefreshToken("acct-1"));
     }
 

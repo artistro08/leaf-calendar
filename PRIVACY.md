@@ -44,6 +44,8 @@ In `secrets.bin`, in the same folder, encrypted with Windows data protection (DP
 - Your OAuth client ID and secret.
 - One sign-in token per Google account (a refresh token). Short-lived access tokens stay in memory and are never saved.
 
+If `secrets.bin` ever can't be read (damaged, or made for another Windows user), Leaf moves it aside to `secrets.bin.unreadable`, still encrypted, before saving a new one.
+
 Older versions of Leaf kept these in Windows Credential Locker. The first time an updated Leaf starts, it moves them into `secrets.bin` and deletes them from Credential Locker.
 
 Leaf also shows Windows notifications for reminders, meetings, and invitations. Windows keeps those in its notification center until you clear them.
