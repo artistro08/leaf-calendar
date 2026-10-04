@@ -51,7 +51,7 @@ Leaf also shows Windows notifications for reminders, meetings, and invitations. 
 ## Removing Your Data
 
 - **Disconnect an account** (Settings › Accounts, open the account, then Disconnect): Leaf asks Google to revoke its access, deletes that account's sign-in token, and deletes its calendars and events from your PC. Your Google Calendar itself isn't changed.
-- **Uninstall Leaf**: Windows deletes Leaf's app data folder, with the database, settings, log, crash files, and your sign-in secrets (OAuth client ID and secret, and sign-in tokens). Uninstalling doesn't tell Google, so to revoke Leaf's access too, disconnect your accounts first or remove it at Google (below).
+- **Uninstall Leaf**: Windows deletes Leaf's app data folder, with the database, settings, log, crash files, and your sign-in secrets (OAuth client ID and secret, and sign-in tokens) once Leaf has moved them there. Uninstalling doesn't tell Google, so to revoke Leaf's access too, disconnect your accounts first or remove it at Google (below).
 - **At Google**: you can remove Leaf's access at any time at [myaccount.google.com/permissions](https://myaccount.google.com/permissions), and delete the OAuth client in your Google Cloud project.
 
 ## Questions

@@ -11,32 +11,51 @@ namespace LeafCalendar.Core.Auth;
 /// <remarks>
 /// The profile folder is under the package's <c>LocalState</c>, so Windows deletes the secrets when Leaf is uninstalled.
 /// The file is one JSON document (client ID, client secret, and a refresh token per account ID), encrypted with the
-/// profile name as extra entropy, so a copy in another profile folder doesn't open. Writes go to <c>secrets.bin.tmp</c>
-/// and replace the file in one move, so a crash never leaves half a file. A damaged or unreadable file reads as empty,
-/// and the next write replaces it. Every call takes one lock, because the sync loop and the UI both use tokens.
+/// profile name (lowercase, as profiles are case-insensitive) as extra entropy, so a copy in another profile folder
+/// doesn't open. Writes go to <c>secrets.bin.tmp</c> and replace the file in one move, so a crash never leaves half a file.
+/// A damaged file, or one made for another user or profile, reads as empty; the next write first moves it aside to
+/// <c>secrets.bin.unreadable</c>. Any other failure to read it (DPAPI failing for a passing reason, a locked file) throws
+/// <see cref="InvalidDataException"/>, which sync treats as "try later", so nobody is marked signed out and nothing
+/// overwrites the file. Every call takes one lock, because the sync loop and the UI both use tokens.
 /// </remarks>
-/// <seealso href="https://learn.microsoft.com/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata"/>
+/// <seealso href="https://learn.microsoft.com/windows/win32/api/dpapi/nf-dpapi-cryptunprotectdata"/>
 public sealed class ProtectedFileTokenStore : ITokenStore
 {
+    // DPAPI's answers for data it can never decrypt: not DPAPI data at all, or made for another user or entropy
+    private const int ErrorInvalidData = 13;
+    private const int ErrorInvalidParameter = 87;
+    private const int NteBadData = unchecked((int)0x80090005);
+
     private readonly Lock _gate = new();
     private readonly string _directory;
     private readonly string _path;
     private readonly byte[] _entropy;
+    private readonly Func<byte[], byte[], byte[]> _unprotect;
 
     /// <summary>Creates the store for a profile folder (<c>…\LocalState\profiles\{profile}</c>); the folder is created on the first write.</summary>
     public ProtectedFileTokenStore(string profileDirectory)
+        : this(profileDirectory, Dpapi.Unprotect)
+    {
+    }
+
+    // Tests: a decrypt that fails the way a real one can
+    internal ProtectedFileTokenStore(string profileDirectory, Func<byte[], byte[], byte[]> unprotect)
     {
         _directory = Path.TrimEndingDirectorySeparator(profileDirectory);
         _path = Path.Combine(_directory, "secrets.bin");
-        _entropy = Encoding.UTF8.GetBytes("LeafCalendar/" + Path.GetFileName(_directory));
+        _entropy = Encoding.UTF8.GetBytes("LeafCalendar/" + Path.GetFileName(_directory).ToLowerInvariant());
+        _unprotect = unprotect;
     }
+
+    /// <summary>True once <c>secrets.bin</c> has been written (secrets from the Credential Locker were moved, or saved since).</summary>
+    public bool Exists => File.Exists(_path);
 
     /// <inheritdoc />
     public OAuthClientCredentials? GetClientCredentials()
     {
         lock (_gate)
         {
-            var file = Load();
+            var file = Load(out _);
             return file.ClientId is null || file.ClientSecret is null ? null : new OAuthClientCredentials(file.ClientId, file.ClientSecret);
         }
     }
@@ -48,7 +67,8 @@ public sealed class ProtectedFileTokenStore : ITokenStore
 
         lock (_gate)
         {
-            Save(Load() with { ClientId = credentials.ClientId, ClientSecret = credentials.ClientSecret });
+            var file = Load(out var unreadable);
+            Save(file with { ClientId = credentials.ClientId, ClientSecret = credentials.ClientSecret }, unreadable);
         }
     }
 
@@ -57,7 +77,8 @@ public sealed class ProtectedFileTokenStore : ITokenStore
     {
         lock (_gate)
         {
-            Save(Load() with { ClientId = null, ClientSecret = null });
+            var file = Load(out var unreadable);
+            Save(file with { ClientId = null, ClientSecret = null }, unreadable);
         }
     }
 
@@ -66,7 +87,7 @@ public sealed class ProtectedFileTokenStore : ITokenStore
     {
         lock (_gate)
         {
-            return Load().Refresh.GetValueOrDefault(accountId);
+            return Load(out _).Refresh.GetValueOrDefault(accountId);
         }
     }
 
@@ -75,9 +96,9 @@ public sealed class ProtectedFileTokenStore : ITokenStore
     {
         lock (_gate)
         {
-            var file = Load();
+            var file = Load(out var unreadable);
             file.Refresh[accountId] = refreshToken;
-            Save(file);
+            Save(file, unreadable);
         }
     }
 
@@ -86,10 +107,10 @@ public sealed class ProtectedFileTokenStore : ITokenStore
     {
         lock (_gate)
         {
-            var file = Load();
+            var file = Load(out var unreadable);
             if (file.Refresh.Remove(accountId))
             {
-                Save(file);
+                Save(file, unreadable);
             }
         }
     }
@@ -99,7 +120,32 @@ public sealed class ProtectedFileTokenStore : ITokenStore
     {
         lock (_gate)
         {
-            return [.. Load().Refresh.Keys];
+            return [.. Load(out _).Refresh.Keys];
+        }
+    }
+
+    /// <summary>
+    /// Saves an OAuth client (when not null) and refresh tokens in one write, so a move from the Credential Locker lands
+    /// whole or not at all.
+    /// </summary>
+    public void Import(OAuthClientCredentials? client, IReadOnlyDictionary<string, string> refreshTokens)
+    {
+        ArgumentNullException.ThrowIfNull(refreshTokens);
+
+        lock (_gate)
+        {
+            var file = Load(out var unreadable);
+            if (client is not null)
+            {
+                file = file with { ClientId = client.ClientId, ClientSecret = client.ClientSecret };
+            }
+
+            foreach (var (accountId, token) in refreshTokens)
+            {
+                file.Refresh[accountId] = token;
+            }
+
+            Save(file, unreadable);
         }
     }
 
@@ -117,24 +163,50 @@ public sealed class ProtectedFileTokenStore : ITokenStore
         }
     }
 
-    // Missing, damaged, or made for another user or profile: empty. Other IO errors (a locked file) are thrown, so a
-    // passing failure can't make the next write drop every other secret.
-    private SecretsFile Load()
+    // Missing: empty. Damaged, or made for another user or profile: empty, and unreadable, so the next write moves it aside.
+    // Anything else might pass, so it throws instead: an empty answer would mark accounts signed out, and a write over it
+    // would drop every other secret.
+    private SecretsFile Load(out bool unreadable)
     {
+        unreadable = false;
+
+        byte[] data;
         try
         {
-            var json = Dpapi.Unprotect(File.ReadAllBytes(_path), _entropy);
-            var file = JsonSerializer.Deserialize(json, LeafJsonContext.Default.SecretsFile);
-            return file is null ? Empty() : file with { Refresh = new(file.Refresh ?? [], StringComparer.Ordinal) };
+            data = File.ReadAllBytes(_path);
         }
-        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException or CryptographicException or JsonException)
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
             return Empty();
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new InvalidDataException("The saved sign-in secrets couldn't be read right now.", ex);
+        }
+
+        try
+        {
+            var file = JsonSerializer.Deserialize(_unprotect(data, _entropy), LeafJsonContext.Default.SecretsFile);
+            if (file is not null)
+            {
+                return file with { Refresh = new(file.Refresh ?? [], StringComparer.Ordinal) };
+            }
+        }
+        catch (CryptographicException ex) when (ex.HResult is not (ErrorInvalidData or ErrorInvalidParameter or NteBadData))
+        {
+            throw new InvalidDataException("The saved sign-in secrets couldn't be decrypted right now.", ex);
+        }
+        catch (Exception ex) when (ex is CryptographicException or JsonException)
+        {
+            // Bad data: it can never be read, so it reads as empty
+        }
+
+        unreadable = true;
+        return Empty();
     }
 
     // Temp File, Then One Move: a crash leaves the old file or the new one, never half of either
-    private void Save(SecretsFile file)
+    private void Save(SecretsFile file, bool replacesUnreadable)
     {
         var bytes = Dpapi.Protect(JsonSerializer.SerializeToUtf8Bytes(file, LeafJsonContext.Default.SecretsFile), _entropy);
         var temp = _path + ".tmp";
@@ -144,6 +216,12 @@ public sealed class ProtectedFileTokenStore : ITokenStore
         {
             stream.Write(bytes);
             stream.Flush(flushToDisk: true);
+        }
+
+        // An Unreadable File Is Kept Aside (the latest one), never just overwritten
+        if (replacesUnreadable && File.Exists(_path))
+        {
+            File.Move(_path, _path + ".unreadable", overwrite: true);
         }
 
         File.Move(temp, _path, overwrite: true);

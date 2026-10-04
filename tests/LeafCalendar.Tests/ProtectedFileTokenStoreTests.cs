@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using LeafCalendar.Core.Auth;
 using LeafCalendar.Tests.Support;
 
@@ -106,6 +107,69 @@ public sealed class ProtectedFileTokenStoreTests : IDisposable
         Assert.Null(_store.GetClientCredentials());
         _store.SetRefreshToken("acc", "1//token");
         Assert.Equal("1//token", _store.GetRefreshToken("acc"));
+    }
+
+    [Fact]
+    public void CorruptFile_IsMovedAsideBeforeTheNextWrite()
+    {
+        File.WriteAllBytes(Path.Combine(_folder.Path, "secrets.bin.unreadable"), [9]);
+        File.WriteAllBytes(Path.Combine(_folder.Path, "secrets.bin"), [1, 2, 3]);
+
+        Assert.Empty(_store.GetAccountIds());
+        Assert.Equal([1, 2, 3], File.ReadAllBytes(Path.Combine(_folder.Path, "secrets.bin")));
+
+        _store.SetRefreshToken("acc", "1//token");
+
+        Assert.Equal([1, 2, 3], File.ReadAllBytes(Path.Combine(_folder.Path, "secrets.bin.unreadable")));
+    }
+
+    [Fact]
+    public void Dpapi_BadData_FailsWithTheCodesTheStoreReadsAsEmpty()
+    {
+        // Not DPAPI data at all: ERROR_INVALID_PARAMETER
+        Assert.Equal(87, Assert.Throws<CryptographicException>(() => Dpapi.Unprotect([1, 2, 3], [1])).HResult);
+
+        // Another profile's (or user's) data: ERROR_INVALID_DATA
+        var data = Dpapi.Protect([1, 2, 3], [1]);
+        Assert.Equal(13, Assert.Throws<CryptographicException>(() => Dpapi.Unprotect(data, [2])).HResult);
+    }
+
+    [Fact]
+    public void DecryptFails_ForAnotherReason_ThrowsAndKeepsTheFile()
+    {
+        // NTE_BAD_KEY_STATE: the user's key isn't available yet (a password change not synced, for one)
+        _store.SetRefreshToken("acct-1", "1//a");
+        var path = Path.Combine(_folder.Path, "secrets.bin");
+        var before = File.ReadAllBytes(path);
+        var store = new ProtectedFileTokenStore(_folder.Path, (_, _) => throw new CryptographicException(unchecked((int)0x8009000B)));
+
+        Assert.Throws<InvalidDataException>(() => store.GetRefreshToken("acct-1"));
+        Assert.Throws<InvalidDataException>(() => store.SetRefreshToken("acct-2", "1//b"));
+        Assert.Throws<InvalidDataException>(() => store.GetClientCredentials());
+
+        Assert.Equal(before, File.ReadAllBytes(path));
+        Assert.False(File.Exists(path + ".unreadable"));
+        Assert.Equal("1//a", _store.GetRefreshToken("acct-1"));
+    }
+
+    [Fact]
+    public void ProfileName_DifferentCase_ReadsTheSameFile()
+    {
+        new ProtectedFileTokenStore(Path.Combine(_folder.Path, "Default")).SetRefreshToken("acct-1", "1//a");
+
+        Assert.Equal("1//a", new ProtectedFileTokenStore(Path.Combine(_folder.Path, "default")).GetRefreshToken("acct-1"));
+    }
+
+    [Fact]
+    public void Import_WritesClientAndTokensInOneFile()
+    {
+        Assert.False(_store.Exists);
+
+        _store.Import(new("one.apps.googleusercontent.com", "secret-1"), new Dictionary<string, string> { ["a"] = "1//a", ["b"] = "1//b" });
+
+        Assert.True(_store.Exists);
+        Assert.Equal(new OAuthClientCredentials("one.apps.googleusercontent.com", "secret-1"), _store.GetClientCredentials());
+        Assert.Equal(["a", "b"], _store.GetAccountIds().Order(StringComparer.Ordinal));
     }
 
     [Fact]

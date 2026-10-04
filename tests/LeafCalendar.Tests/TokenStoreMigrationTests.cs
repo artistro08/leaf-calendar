@@ -1,67 +1,160 @@
 using LeafCalendar.Core.Auth;
+using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Tests.Support;
 
 namespace LeafCalendar.Tests;
 
-public sealed class TokenStoreMigrationTests
+public sealed class TokenStoreMigrationTests : IDisposable
 {
-    [Fact]
-    public void Migrate_FromLocker_MovesEverySecretOnce()
+    private static readonly OAuthClientCredentials Client = new("id.apps.googleusercontent.com", "secret");
+
+    private readonly TempFolder _folder = new();
+    private readonly AppLog _log;
+    private readonly ProtectedFileTokenStore _file;
+
+    public TokenStoreMigrationTests()
     {
-        var from = new InMemoryTokenStore();
-        from.SetClientCredentials(new("id.apps.googleusercontent.com", "secret"));
-        from.SetRefreshToken("a", "1//a");
-        from.SetRefreshToken("b", "1//b");
-        var to = new InMemoryTokenStore();
+        _log = new AppLog(Path.Combine(_folder.Path, "Logs"), TimeProvider.System);
+        _file = new ProtectedFileTokenStore(Path.Combine(_folder.Path, "profiles", "default"));
+    }
 
-        Assert.True(TokenStoreMigration.Migrate(from, to));
-        Assert.False(TokenStoreMigration.Migrate(from, to));
+    public void Dispose() => _folder.Dispose();
 
-        Assert.Equal(new OAuthClientCredentials("id.apps.googleusercontent.com", "secret"), to.GetClientCredentials());
-        Assert.Equal("1//a", to.GetRefreshToken("a"));
-        Assert.Equal("1//b", to.GetRefreshToken("b"));
-        Assert.Equal(["a", "b"], to.GetAccountIds().Order(StringComparer.Ordinal));
-        Assert.Empty(from.GetAccountIds());
-        Assert.Null(from.GetClientCredentials());
+    [Fact]
+    public void Open_FromLocker_MovesEverySecretOnce()
+    {
+        var locker = Seeded();
+
+        Assert.Same(_file, TokenStoreMigration.Open(_file, () => locker, _log));
+        Assert.Same(_file, TokenStoreMigration.Open(_file, () => locker, _log));
+
+        Assert.Equal(Client, _file.GetClientCredentials());
+        Assert.Equal("1//a", _file.GetRefreshToken("a"));
+        Assert.Equal("1//b", _file.GetRefreshToken("b"));
+        Assert.Empty(locker.GetAccountIds());
+        Assert.Null(locker.GetClientCredentials());
+        Assert.Single(LogLines("auth.secrets.migrated"));
     }
 
     [Fact]
-    public void Migrate_NothingInTheLocker_ReturnsFalse()
+    public void Open_NothingInTheLocker_UsesTheFileStore_AndWritesNothing()
     {
-        var to = new InMemoryTokenStore();
-        to.SetRefreshToken("a", "1//new");
+        Assert.Same(_file, TokenStoreMigration.Open(_file, () => new InMemoryTokenStore(), _log));
 
-        Assert.False(TokenStoreMigration.Migrate(new InMemoryTokenStore(), to));
-        Assert.Equal("1//new", to.GetRefreshToken("a"));
+        Assert.False(_file.Exists);
+        Assert.Empty(LogLines("auth.secrets."));
     }
 
     [Fact]
-    public void Migrate_WriteFails_KeepsTheLockerCopy()
+    public void Open_ARemovalFailsHalfway_KeepsTheFileStoreWithEverySecret()
     {
-        var from = new InMemoryTokenStore();
-        from.SetClientCredentials(new("id.apps.googleusercontent.com", "secret"));
-        from.SetRefreshToken("a", "1//a");
+        var locker = new FlakyLocker(Seeded()) { RemovalsBeforeFailure = 1 };
 
-        Assert.ThrowsAny<IOException>(() => TokenStoreMigration.Migrate(from, new ThrowingTokenStore()));
-        Assert.Equal("1//a", from.GetRefreshToken("a"));
-        Assert.NotNull(from.GetClientCredentials());
+        Assert.Same(_file, TokenStoreMigration.Open(_file, () => locker, _log));
+
+        Assert.Equal(Client, _file.GetClientCredentials());
+        Assert.Equal(["a", "b"], _file.GetAccountIds().Order(StringComparer.Ordinal));
+        Assert.Single(LogLines("auth.secrets.cleanup.failed error=IOException"));
+
+        // The next start only finishes the cleanup
+        locker.RemovalsBeforeFailure = int.MaxValue;
+        Assert.Same(_file, TokenStoreMigration.Open(_file, () => locker, _log));
+        Assert.Empty(locker.GetAccountIds());
+        Assert.Null(locker.GetClientCredentials());
+        Assert.Single(LogLines("auth.secrets.migrated"));
     }
 
-    // A new store whose disk is full: every write fails
-    private sealed class ThrowingTokenStore : ITokenStore
+    [Fact]
+    public void Open_LockerUnreadable_OnAMigratedProfile_UsesTheFileStore()
     {
-        public OAuthClientCredentials? GetClientCredentials() => null;
+        _file.SetRefreshToken("a", "1//a");
+        var locker = new FlakyLocker(Seeded()) { ReadsFail = true };
 
-        public void SetClientCredentials(OAuthClientCredentials credentials) => throw new IOException("disk full");
+        Assert.Same(_file, TokenStoreMigration.Open(_file, () => locker, _log));
+        Assert.Same(_file, TokenStoreMigration.Open(_file, () => throw new InvalidOperationException("no vault"), _log));
 
-        public void ClearClientCredentials() => throw new IOException("disk full");
+        Assert.Equal("1//a", _file.GetRefreshToken("a"));
+    }
 
-        public string? GetRefreshToken(string accountId) => null;
+    [Fact]
+    public void Open_LockerUnreadable_BeforeMigrating_UsesTheFileStore()
+    {
+        var locker = new FlakyLocker(Seeded()) { ReadsFail = true };
 
-        public void SetRefreshToken(string accountId, string refreshToken) => throw new IOException("disk full");
+        Assert.Same(_file, TokenStoreMigration.Open(_file, () => locker, _log));
+        Assert.Same(_file, TokenStoreMigration.Open(_file, () => throw new InvalidOperationException("no vault"), _log));
 
-        public void RemoveRefreshToken(string accountId) => throw new IOException("disk full");
+        Assert.False(_file.Exists);
+        Assert.Equal(2, LogLines("auth.secrets.locker.unreadable").Count);
+    }
 
-        public IReadOnlyList<string> GetAccountIds() => [];
+    [Fact]
+    public void Open_WriteFails_UsesTheLocker_AndLeavesItIntact()
+    {
+        // The profile "folder" is a file, so the secrets can't be written
+        var blocked = Path.Combine(_folder.Path, "blocked");
+        File.WriteAllBytes(blocked, []);
+        var file = new ProtectedFileTokenStore(blocked);
+        var locker = Seeded();
+
+        Assert.Same(locker, TokenStoreMigration.Open(file, () => locker, _log));
+
+        Assert.Equal(Client, locker.GetClientCredentials());
+        Assert.Equal(["a", "b"], locker.GetAccountIds().Order(StringComparer.Ordinal));
+        Assert.Single(LogLines("auth.secrets.migrate.failed error=IOException"));
+    }
+
+    private static InMemoryTokenStore Seeded()
+    {
+        var locker = new InMemoryTokenStore();
+        locker.SetClientCredentials(Client);
+        locker.SetRefreshToken("a", "1//a");
+        locker.SetRefreshToken("b", "1//b");
+        return locker;
+    }
+
+    private List<string> LogLines(string text) =>
+        File.Exists(_log.FilePath) ? [.. File.ReadAllLines(_log.FilePath).Where(l => l.Contains(text, StringComparison.Ordinal))] : [];
+
+    // A Credential Locker that can fail to read, or fail after some removals
+    private sealed class FlakyLocker(InMemoryTokenStore inner) : ITokenStore
+    {
+        private int _removals;
+
+        public bool ReadsFail { get; set; }
+
+        public int RemovalsBeforeFailure { get; set; } = int.MaxValue;
+
+        public OAuthClientCredentials? GetClientCredentials() => Read(inner.GetClientCredentials);
+
+        public void SetClientCredentials(OAuthClientCredentials credentials) => inner.SetClientCredentials(credentials);
+
+        public void ClearClientCredentials()
+        {
+            Removing();
+            inner.ClearClientCredentials();
+        }
+
+        public string? GetRefreshToken(string accountId) => Read(() => inner.GetRefreshToken(accountId));
+
+        public void SetRefreshToken(string accountId, string refreshToken) => inner.SetRefreshToken(accountId, refreshToken);
+
+        public void RemoveRefreshToken(string accountId)
+        {
+            Removing();
+            inner.RemoveRefreshToken(accountId);
+        }
+
+        public IReadOnlyList<string> GetAccountIds() => Read(inner.GetAccountIds);
+
+        private T Read<T>(Func<T> read) => ReadsFail ? throw new UnauthorizedAccessException("vault locked") : read();
+
+        private void Removing()
+        {
+            if (_removals++ >= RemovalsBeforeFailure)
+            {
+                throw new IOException("vault busy");
+            }
+        }
     }
 }
