@@ -58,6 +58,14 @@ jobs:
           if (-not (Test-Path $key)) { New-Item -Path $key | Out-Null }
           Set-ItemProperty -Path $key -Name AllowDevelopmentWithoutDevLicense -Type DWord -Value 1
 
+      # The Tests' Machine: the runner's 1024 x 768 screen is smaller than Leaf's minimum window, and its UTC clock moves
+      # the fake "now" off the hours the tests were written for, so match the PC they pass on (1920 x 1080, US Central)
+      - name: Set screen size and time zone
+        shell: pwsh
+        run: |
+          Set-DisplayResolution -Width 1920 -Height 1080 -Force
+          tzutil /s "Central Standard Time"
+
       - run: pwsh tools/dev-register.ps1
 
       - run: dotnet test --project tests/LeafCalendar.UITests/LeafCalendar.UITests.csproj -c Debug
