@@ -73,7 +73,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     private readonly AllDayCanvas _allDay;
     private readonly TimeZoneGutter _gutter;
     private readonly StackPanel _zoneLabels = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 4) };
-    private readonly TextBlock _weekNumber = new() { FontSize = 11, Margin = new Thickness(30, 6, 0, 0) };
+    private readonly TextBlock _weekNumber = new() { FontSize = 11, Margin = new Thickness(8, 6, 0, 0) };
     // The line under the all-day row, across the corner and the days, so the row always has a bottom edge whatever the
     // grid below is scrolled to
     private readonly Border _allDayRule = new() { Height = 1, VerticalAlignment = VerticalAlignment.Bottom, IsHitTestVisible = false };
@@ -146,16 +146,17 @@ public sealed partial class TimeGridView : Grid, IDisposable
         };
         Children.Add(Corner);
 
-        // Time Zones (opens Settings › Time zones)
+        // Time Zones (opens Settings › Time zones): right-aligned, so its glyph ends 8 from the corner's right edge, where
+        // the zone label under it ends (the labels are right-aligned, 8 in); the week number takes the left
         var addZone = new Button
         {
             Content = new FontIcon { Glyph = "", FontSize = 10 },
             Padding = new Thickness(4),
             Background = LeafBrushes.Transparent,
             BorderThickness = new Thickness(0),
-            HorizontalAlignment = HorizontalAlignment.Left,
+            HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(4, 4, 0, 0),
+            Margin = new Thickness(0, 4, 4, 0),
         };
         AutomationProperties.SetAutomationId(addZone, "AddTimeZoneButton");
         AutomationProperties.SetName(addZone, "Time zones");

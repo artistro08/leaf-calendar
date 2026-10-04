@@ -74,7 +74,7 @@ public sealed class DetailsActionsTests : IDisposable
 
         Assert.True(Retry.WhileFalse(() => Clipboard.Text() == "https://meet.google.com/abc-defg-hij", TimeSpan.FromSeconds(5)).Success, $"The clipboard holds \"{Clipboard.Text()}\".");
         var notice = leaf.WaitFor("NoticeBar");
-        Assert.True(Retry.WhileFalse(() => notice.FindAllDescendants().Prepend(notice).Any(e => e.Properties.Name.ValueOrDefault == "Link copied"), TimeSpan.FromSeconds(5)).Success);
+        Assert.True(Retry.WhileFalse(() => notice.FindAllDescendants().Prepend(notice).Any(e => e.Properties.Name.ValueOrDefault == "Link copied."), TimeSpan.FromSeconds(5)).Success);
     }
 
     [Fact]

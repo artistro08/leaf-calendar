@@ -206,6 +206,18 @@ public sealed class TrayAgendaTests : IDisposable
         Assert.Equal("", DisplayText.Clean(null, 5));
     }
 
+    // Every Notice Ends With A Period, Unless It Already Ends A Sentence
+    [Theory]
+    [InlineData("Event deleted", "Event deleted.")]
+    [InlineData("Event deleted · 1 couldn't be changed", "Event deleted · 1 couldn't be changed.")]
+    [InlineData("Couldn't delete. Try again.", "Couldn't delete. Try again.")]
+    [InlineData("Show Leaf in that time zone?", "Show Leaf in that time zone?")]
+    [InlineData("Done!", "Done!")]
+    [InlineData("Syncing…", "Syncing…")]
+    [InlineData("Copied ", "Copied.")]
+    [InlineData("", "")]
+    public void Sentence_EndsWithAPeriodOnce(string text, string expected) => Assert.Equal(expected, DisplayText.Sentence(text));
+
     [Theory]
     [InlineData("­")]
     [InlineData("͏")]

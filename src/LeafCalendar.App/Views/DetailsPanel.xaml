@@ -50,13 +50,16 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
+        <!-- Headings: each view's first heading is centered on the 28 DIP row right under the title bar, the row the
+             sidebar's month title sits in, whatever its size ("Upcoming" centered in the row; a 20 DIP title fills it) -->
         <ScrollViewer x:Name="ContentScroll" AutomationProperties.AutomationId="DetailsScroll">
-            <Grid Margin="16,8,16,16">
+            <Grid Margin="16,0,16,16">
 
                 <!-- Upcoming -->
                 <StackPanel x:Name="UpcomingView" Spacing="8">
-                    <!-- Header (hidden with "Done for today", which says it all; one calendar's list keeps it for Show all) -->
-                    <Grid x:Name="UpcomingHeaderRow" ColumnSpacing="8" ColumnDefinitions="*,Auto">
+                    <!-- Header (hidden with "Done for today", which says it all; one calendar's list keeps it for Show all,
+                         which overhangs the 28 DIP row by 2 above and below) -->
+                    <Grid x:Name="UpcomingHeaderRow" MinHeight="28" ColumnSpacing="8" ColumnDefinitions="*,Auto">
                         <TextBlock
                             x:Name="UpcomingHeader"
                             VerticalAlignment="Center"
@@ -67,6 +70,8 @@
                         <HyperlinkButton
                             x:Name="UpcomingShowAll"
                             Grid.Column="1"
+                            Margin="0,-2"
+                            VerticalAlignment="Center"
                             Content="Show all calendars"
                             Click="OnUpcomingShowAllClick"
                             Visibility="Collapsed"
@@ -76,8 +81,11 @@
                         <controls:PinnedItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:UpcomingItem">
                                 <!-- Row: opens the event (spans the full width with the tray's hover fill; Join sits inside it,
-                                     so the row keeps its highlight behind Join while the pointer is on Join too) -->
+                                     so the row keeps its highlight behind Join while the pointer is on Join too). The row
+                                     reaches 8 past the content edges, so its text lines up under the heading and Join ends on
+                                     the panel's 16 DIP inset, while the hover fill still has room around them -->
                                 <Button
+                                    Margin="-8,0"
                                     Padding="8,4"
                                     HorizontalAlignment="Stretch"
                                     HorizontalContentAlignment="Stretch"
@@ -285,6 +293,22 @@
                 <!-- Several Selected -->
                 <StackPanel x:Name="SelectionView" Spacing="12" Visibility="Collapsed">
                     <TextBlock x:Name="SelectionSummary" Style="{StaticResource SubtitleTextBlockStyle}" AutomationProperties.AutomationId="SelectionSummary" />
+
+                    <!-- Which Ones (in time order, each title over its day and time, by its color bar; the panel scrolls when there are many) -->
+                    <controls:PinnedItemsControl x:Name="SelectionList" AutomationProperties.Name="Selected events" AutomationProperties.AutomationId="SelectionList">
+                        <controls:PinnedItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SelectedRow">
+                                <Grid Padding="0,4" ColumnSpacing="8" ColumnDefinitions="Auto,*">
+                                    <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{x:Bind local:DetailsPanel.Brush(Color)}" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{x:Bind When}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </controls:PinnedItemsControl.ItemTemplate>
+                    </controls:PinnedItemsControl>
+
                     <TextBlock Text="Drag one to move them all. Right-click for color, copy, and delete." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     <Button Content="Delete" Click="OnDeleteClick" AutomationProperties.AutomationId="SelectionDeleteButton" />
                 </StackPanel>

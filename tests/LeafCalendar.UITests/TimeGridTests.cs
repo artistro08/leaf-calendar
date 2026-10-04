@@ -178,7 +178,7 @@ public sealed class TimeGridTests : IDisposable
         leaf.WaitFor("Event_evt-single_202610011300");
 
         leaf.WaitFor("ViewModeButton").AsButton().Invoke();
-        leaf.WaitForAnywhere("ViewDay").AsMenuItem().Invoke();
+        leaf.WaitForAnywhere("ViewDay").Click(); // a radio item: no Invoke pattern
 
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ViewModeButton").Name.Contains("Day", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success);
         Assert.NotNull(leaf.WaitFor("DayHeader_2026-10-01"));
@@ -201,7 +201,7 @@ public sealed class TimeGridTests : IDisposable
     private static void SwitchToDayView(LeafApp leaf)
     {
         leaf.WaitFor("ViewModeButton").AsButton().Invoke();
-        leaf.WaitForAnywhere("ViewDay").AsMenuItem().Invoke();
+        leaf.WaitForAnywhere("ViewDay").Click(); // a radio item: no Invoke pattern
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ViewModeButton").Name.Contains("Day", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success);
     }
 
@@ -353,6 +353,18 @@ public sealed class TimeGridTests : IDisposable
 
         Assert.NotEmpty(labels);
         Assert.All(labels, label => Assert.False(label.BoundingRectangle.IntersectsWith(chevron), $"The all-day chevron {chevron} overlaps {label.AutomationId} {label.BoundingRectangle}."));
+    }
+
+    // The time zones "+" ends where the zone label under it ends (its glyph sits 4 in from the button's right edge)
+    [Fact]
+    public void TimeZonesButton_LinesUpWithTheZoneLabel()
+    {
+        using var leaf = Launch();
+        var plus = leaf.WaitFor("AddTimeZoneButton").BoundingRectangle;
+        var label = leaf.WaitFor("ZoneLabel_Local").BoundingRectangle;
+
+        Assert.True(Math.Abs(plus.Right - 4 * leaf.Scale - label.Right) <= 2, $"The + ends at {plus.Right - 4 * leaf.Scale}, the zone label at {label.Right}.");
+        Assert.True(plus.Bottom <= label.Top, $"The + {plus} isn't above the zone label {label}.");
     }
 
     [Fact]

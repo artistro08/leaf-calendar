@@ -80,6 +80,18 @@ public static class DisplayText
         return clean[..cut].TrimEnd() + "\u2026";
     }
 
+    /// <summary>
+    /// A notice or bar message as a sentence: it ends with a period unless it already ends with one, a question mark, an
+    /// exclamation mark, or an ellipsis, so every message at the bottom of the calendar ends the same way.
+    /// </summary>
+    /// <param name="text">The message, such as "Event deleted" or "Couldn't delete. Try again.".</param>
+    /// <returns>The message ending in its punctuation ("Event deleted."); empty stays empty.</returns>
+    public static string Sentence(string text)
+    {
+        var trimmed = text.TrimEnd();
+        return trimmed.Length == 0 || trimmed[^1] is '.' or '?' or '!' or '…' ? trimmed : trimmed + ".";
+    }
+
     // Format Characters (Bidi Marks/Embeddings/Isolates, Zero-Width, Soft Hyphen, Invisible Operators, ...) Except The Joiner Emoji Need And The Non-Joiner Persian Needs;
     // Plus The Combining Grapheme Joiner, Line/Paragraph Separators, And XML Noncharacters
     private static bool IsInvisible(char c) =>

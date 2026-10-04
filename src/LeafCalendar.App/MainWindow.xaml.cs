@@ -311,7 +311,9 @@ public sealed partial class MainWindow : Window
             }
             else
             {
+                // Focus goes with the Back button that hides, so it rests on the calendar (not Windows' first pick)
                 CloseSettings();
+                DispatcherQueue.TryEnqueue(() => (ContentFrame.Content as CalendarPage)?.FocusCalendar());
             }
         }
         else
@@ -715,6 +717,18 @@ public sealed partial class MainWindow : Window
         };
         ViewModeLabel.Text = view;
         DetailsToggle.IsChecked = s.DetailsPanelOpen;
+
+        // The View Menu Marks The View Showing (none of them for a custom count past 9); set, never read back
+        var days = s.ViewMode == CalendarViewMode.Days ? s.CustomDayCount : 0;
+        ViewDayItem.IsChecked = s.ViewMode == CalendarViewMode.Day;
+        ViewWeekItem.IsChecked = s.ViewMode == CalendarViewMode.Week;
+        ViewMonthItem.IsChecked = s.ViewMode == CalendarViewMode.Month;
+        RadioMenuFlyoutItem[] dayItems = [ViewDays2Item, ViewDays3Item, ViewDays4Item, ViewDays5Item, ViewDays6Item, ViewDays7Item, ViewDays8Item, ViewDays9Item];
+        for (var i = 0; i < dayItems.Length; i++)
+        {
+            dayItems[i].IsChecked = days == i + 2;
+        }
+
         AutomationProperties.SetName(ViewModeButton, view);
 
         // Pager Arrows Point The Way The View Moves (month scrolls up and down; ← and → still page it): they turn a

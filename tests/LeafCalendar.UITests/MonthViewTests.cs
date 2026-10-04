@@ -23,7 +23,7 @@ public sealed class MonthViewTests : IDisposable
         {
             leaf.WaitFor("Event_evt-single_202610011300");
             leaf.WaitFor("ViewModeButton").AsButton().Invoke();
-            leaf.WaitForAnywhere("ViewMonth").AsMenuItem().Invoke();
+            leaf.WaitForAnywhere("ViewMonth").Click(); // a radio item: no Invoke pattern
             leaf.WaitFor("MonthGrid");
             return leaf;
         }

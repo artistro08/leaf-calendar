@@ -92,7 +92,28 @@ public sealed partial class CalendarPage : Page
 
         // A Click In The Details Panel Means The Instant E's Editor Is In Use (later keys are typing, not a second key)
         Details.AddHandler(PointerPressedEvent, new PointerEventHandler((_, _) => _editorFromE = false), handledEventsToo: true);
+
+        // The Toasts Are Raised Over The Calendar Like Flyouts (the zone and overlay bars are raised as they're added)
+        Float(SharingHint);
+        Float(NoticeBar);
+
+        // Focus Starts On The Calendar (after Windows' own first pick, which was the mini month's first chevron; not out of
+        // a box or menu something already opened)
+        Loaded += (_, _) => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            if (!ShortcutsBlocked())
+            {
+                FocusCalendar();
+            }
+        });
     }
+
+    /// <summary>
+    /// Rests keyboard focus on the calendar itself, which draws no focus ring: shortcuts and the arrow keys drive the
+    /// calendar from there, and Space or Enter press nothing. Tab moves on to the sidebar as usual.
+    /// </summary>
+    /// <returns>True when the calendar took focus (false while it's hidden, such as behind Settings).</returns>
+    public bool FocusCalendar() => Focus(FocusState.Programmatic);
 
     /// <summary>The page's view model.</summary>
     public CalendarViewModel ViewModel => _args.ViewModel;
