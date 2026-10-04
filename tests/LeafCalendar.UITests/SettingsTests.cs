@@ -164,7 +164,7 @@ public sealed class SettingsTests : IDisposable
 
         leaf.MainWindow.Close();
 
-        Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
+        Assert.True(Retry.WhileTrue(() => leaf.MainWindowCount() > 0, TimeSpan.FromSeconds(10)).Success);
         Assert.False(leaf.App.HasExited);
 
         // Opened Again From The Tray: The Calendar, Not Settings

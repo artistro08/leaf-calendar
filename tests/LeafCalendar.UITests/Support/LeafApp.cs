@@ -32,9 +32,15 @@ public sealed class LeafApp : IDisposable
     /// <summary>The running app.</summary>
     public Application App { get; }
 
-    /// <summary>The main window (waits up to 20 s). Found by title, so onboarding is never mistaken for it.</summary>
-    public Window MainWindow => TopLevelWindow("Leaf Calendar", TimeSpan.FromSeconds(20))
+    /// <summary>
+    /// The main window (waits up to 20 s). Found by its title bar (its title is the dates on screen, which change), so
+    /// onboarding, whose title bar has another ID, is never mistaken for it.
+    /// </summary>
+    public Window MainWindow => Retry.WhileNull(FindMainWindow, TimeSpan.FromSeconds(20)).Result
         ?? throw new InvalidOperationException("Leaf's main window didn't appear.");
+
+    /// <summary>How many main windows are open right now (0 or 1).</summary>
+    public int MainWindowCount() => App.GetAllTopLevelWindows(_automation).Count(IsMainWindow);
 
     /// <summary>The Settings view's navigation, in the main window in place of the calendar (waits up to 15 s).</summary>
     public AutomationElement SettingsView =>
@@ -136,6 +142,10 @@ public sealed class LeafApp : IDisposable
             ?? throw new InvalidOperationException("The account expander has no Disconnect button.");
         button.AsButton().Invoke();
     }
+
+    private Window? FindMainWindow() => App.GetAllTopLevelWindows(_automation).FirstOrDefault(IsMainWindow);
+
+    private static bool IsMainWindow(Window window) => window.FindFirstDescendant(cf => cf.ByAutomationId("AppTitleBar")) is not null;
 
     private Window? TopLevelWindow(string title, TimeSpan timeout) =>
         Retry.WhileNull(() => App.GetAllTopLevelWindows(_automation).FirstOrDefault(w => NameOf(w) == title), timeout).Result;

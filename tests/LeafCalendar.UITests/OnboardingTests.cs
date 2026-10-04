@@ -168,7 +168,7 @@ public sealed class OnboardingTests : IDisposable
     {
         try
         {
-            return !leaf.App.HasExited && leaf.WindowCount("Leaf Calendar") > 0;
+            return !leaf.App.HasExited && leaf.MainWindowCount() > 0;
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException)
         {
@@ -329,7 +329,7 @@ public sealed class OnboardingTests : IDisposable
             Assert.Equal("2 calendars · 8 events", leaf.WaitInOnboarding("OnboardingSyncSummary").Name);
             Assert.True(leaf.WaitInOnboarding("OnboardingPrimaryButton").IsEnabled);
             Assert.False(leaf.InOnboarding("OnboardingBackButton"));
-            Assert.Equal(0, leaf.WindowCount("Leaf Calendar"));
+            Assert.Equal(0, leaf.MainWindowCount());
 
             leaf.OnboardingPrimary();
 

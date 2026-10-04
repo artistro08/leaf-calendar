@@ -93,6 +93,30 @@ public static class ViewNavigator
             : $"{first.ToString("MMM yyyy", English)} – {lastInclusive.ToString("MMM yyyy", English)}";
     }
 
+    /// <summary>
+    /// The days on screen as the window's title (what the taskbar shows): "Sunday, October 4, 2026" for one day,
+    /// "Oct 5 – 11, 2026" or "Sep 28 – Oct 4, 2026" for a range, and "Dec 28, 2026 – Jan 3, 2027" across a year.
+    /// </summary>
+    /// <param name="first">The first day on screen.</param>
+    /// <param name="lastInclusive">The last day on screen.</param>
+    /// <returns>The title, in English like the rest of the view titles.</returns>
+    public static string DateRangeTitle(DateOnly first, DateOnly lastInclusive)
+    {
+        if (first == lastInclusive)
+        {
+            return first.ToString("dddd, MMMM d, yyyy", English);
+        }
+
+        if (first.Year != lastInclusive.Year)
+        {
+            return $"{first.ToString("MMM d, yyyy", English)} – {lastInclusive.ToString("MMM d, yyyy", English)}";
+        }
+
+        return first.Month == lastInclusive.Month
+            ? $"{first.ToString("MMM d", English)} – {lastInclusive.ToString("d, yyyy", English)}"
+            : $"{first.ToString("MMM d", English)} – {lastInclusive.ToString("MMM d, yyyy", English)}";
+    }
+
     /// <summary>"October 2026".</summary>
     public static string MonthTitle(DateOnly anyDay) => anyDay.ToString("MMMM yyyy", English);
 

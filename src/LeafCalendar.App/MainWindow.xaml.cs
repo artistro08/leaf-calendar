@@ -260,6 +260,7 @@ public sealed partial class MainWindow : Window
         ApplyTheme(_calendar.Settings.Theme);
 
         ShowSyncState();
+        KeepWindowTitle();
 
         ContentFrame.Navigate(typeof(CalendarPage), new CalendarPageArgs(_calendar, ToggleTheme));
         ContentFrame.BackStack.Clear();
@@ -280,6 +281,7 @@ public sealed partial class MainWindow : Window
             SettingsFrame.Visibility = Visibility.Visible;
             ContentFrame.Visibility = Visibility.Collapsed;
             AppTitleBar.Title = "Settings";
+            KeepWindowTitle();
             SettingsFrame.Navigate(typeof(SettingsPage), new SettingsPageArgs(_services, _calendar, section), new DrillInNavigationTransitionInfo());
             _settings = SettingsFrame.Content as SettingsPage;
             UpdateChrome();
@@ -304,8 +306,13 @@ public sealed partial class MainWindow : Window
         SettingsFrame.Visibility = Visibility.Collapsed;
         ContentFrame.Visibility = Visibility.Visible;
         AppTitleBar.Title = "";
+        KeepWindowTitle();
         UpdateChrome();
     }
+
+    // The window title is the days on screen, so the taskbar shows the dates; the stock TitleBar copies its own text
+    // into the window title, so this runs again after the title bar changes
+    private void KeepWindowTitle() => Title = _calendar.WindowTitle;
 
     // The title bar's Back: the OAuth client form goes back to Accounts (sliding back, like Cancel), Settings to the calendar,
     // and the calendar back from a command-menu jump
@@ -785,7 +792,11 @@ public sealed partial class MainWindow : Window
 
     private void OnCalendarPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(CalendarViewModel.SelectedInfo) or nameof(CalendarViewModel.Editing) or nameof(CalendarViewModel.Selection))
+        if (e.PropertyName is nameof(CalendarViewModel.WindowTitle))
+        {
+            KeepWindowTitle();
+        }
+        else if (e.PropertyName is nameof(CalendarViewModel.SelectedInfo) or nameof(CalendarViewModel.Editing) or nameof(CalendarViewModel.Selection))
         {
             UpdateEventActions();
         }

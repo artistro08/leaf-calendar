@@ -144,7 +144,7 @@ public sealed class FlyoutTests : IDisposable
     {
         using var leaf = Launch();
         leaf.MainWindow.Close();
-        Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
+        Assert.True(Retry.WhileTrue(() => leaf.MainWindowCount() > 0, TimeSpan.FromSeconds(10)).Success);
 
         leaf.PostTrayMessage(LeafApp.TraySelect);
         leaf.WaitForPopup("FlyoutEvent_evt-meeting_202610011800").AsButton().Invoke();

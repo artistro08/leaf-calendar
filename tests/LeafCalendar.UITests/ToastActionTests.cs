@@ -78,7 +78,7 @@ public sealed class ToastActionTests : IDisposable
     {
         using var leaf = Launch();
         leaf.MainWindow.Close();
-        Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
+        Assert.True(Retry.WhileTrue(() => leaf.MainWindowCount() > 0, TimeSpan.FromSeconds(10)).Success);
 
         Click(Meeting(ToastAction.Open));
 

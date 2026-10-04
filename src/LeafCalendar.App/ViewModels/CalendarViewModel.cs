@@ -282,6 +282,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string PeriodTitle { get; set; }
 
+    /// <summary>The window title: the days on screen ("Oct 5 – 11, 2026"; month view: "October 2026"), which the taskbar shows.</summary>
+    [ObservableProperty]
+    public partial string WindowTitle { get; set; } = "Leaf Calendar";
+
     /// <summary>The selected event, or null.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelection))]
@@ -512,6 +516,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
         PeriodStart = Mode == CalendarViewMode.Month ? ViewNavigator.MonthStartOf(focus ?? first) : first;
         PeriodTitle = ViewNavigator.MonthTitle(Mode == CalendarViewMode.Month ? focus ?? first : first);
+        WindowTitle = Mode == CalendarViewMode.Month ? PeriodTitle : ViewNavigator.DateRangeTitle(first, lastExclusive.AddDays(-1));
 
         var months = (ViewNavigator.MonthStartOf(first), ViewNavigator.MonthStartOf(lastExclusive.AddDays(-1)));
         if (months == _ensuredMonths)

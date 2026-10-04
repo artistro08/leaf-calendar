@@ -4,6 +4,7 @@ using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
+using LeafCalendar.Core.Settings;
 using LeafCalendar.UITests.Support;
 
 namespace LeafCalendar.UITests;
@@ -31,6 +32,32 @@ public sealed class CalendarShellTests : IDisposable
         Assert.Contains("2026", leaf.WaitFor("PeriodTitle").Name, StringComparison.Ordinal);
     }
 
+    // The window title (what the taskbar and Alt+Tab show) is the days on screen and follows the calendar; the title bar
+    // inside the window stays as it was, and Settings doesn't change the window title
+    [Fact]
+    public void WindowTitle_IsTheDaysOnScreen()
+    {
+        var profile = SeededProfile.Create(new LeafSettings { ViewMode = CalendarViewMode.Day });
+        try
+        {
+            using var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+            var window = leaf.MainWindow;
+            Assert.True(Retry.WhileFalse(() => window.Name == "Thursday, October 1, 2026", TimeSpan.FromSeconds(10)).Success, $"The window title is \"{window.Name}\".");
+
+            leaf.Press(VirtualKeyShort.KEY_J);
+            Assert.True(Retry.WhileFalse(() => window.Name == "Friday, October 2, 2026", TimeSpan.FromSeconds(10)).Success, $"After Next the window title is \"{window.Name}\".");
+
+            leaf.OpenSettings();
+            Assert.Equal("Friday, October 2, 2026", window.Name);
+            leaf.CloseSettings();
+            Assert.Equal("Friday, October 2, 2026", window.Name);
+        }
+        finally
+        {
+            LeafApp.DeleteProfile(profile);
+        }
+    }
+
     // First run: 1277 × 814 DIPs (the owner's own size), no bigger than the work area. Closed at another size, the
     // window opens at that size the next time (in DIPs: it opens on the monitor under the pointer, whatever its scale)
     [Fact]
@@ -49,7 +76,7 @@ public sealed class CalendarShellTests : IDisposable
             width = 1500 / first.Scale;
             height = 900 / first.Scale;
             first.MainWindow.Close();
-            Assert.True(Retry.WhileTrue(() => first.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
+            Assert.True(Retry.WhileTrue(() => first.MainWindowCount() > 0, TimeSpan.FromSeconds(10)).Success);
         }
 
         using var leaf = Launch();

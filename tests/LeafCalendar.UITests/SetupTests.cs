@@ -30,7 +30,7 @@ public class SetupTests
 
             Assert.NotNull(leaf.WaitInOnboarding("OnboardingTitleBar"));
             Assert.NotNull(leaf.WaitInOnboarding("OnboardingWelcome"));
-            Assert.Equal(0, leaf.WindowCount("Leaf Calendar"));
+            Assert.Equal(0, leaf.MainWindowCount());
         }
         finally
         {

@@ -108,4 +108,12 @@ public class ViewNavigatorTests
     {
         Assert.Equal(D(2026, 10, 1), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Month, D(2026, 10, 1), 7, D(2026, 10, 15)));
     }
+
+    [Theory]
+    [InlineData(2026, 10, 4, 2026, 10, 4, "Sunday, October 4, 2026")]
+    [InlineData(2026, 10, 5, 2026, 10, 11, "Oct 5 – 11, 2026")]
+    [InlineData(2026, 9, 28, 2026, 10, 4, "Sep 28 – Oct 4, 2026")]
+    [InlineData(2026, 12, 28, 2027, 1, 3, "Dec 28, 2026 – Jan 3, 2027")]
+    public void DateRangeTitle_NamesTheDaysOnScreen(int y1, int m1, int d1, int y2, int m2, int d2, string expected) =>
+        Assert.Equal(expected, ViewNavigator.DateRangeTitle(D(y1, m1, d1), D(y2, m2, d2)));
 }

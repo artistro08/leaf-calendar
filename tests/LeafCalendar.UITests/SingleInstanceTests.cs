@@ -47,7 +47,7 @@ public sealed class SingleInstanceTests : IDisposable
 
             Assert.Equal([leaf.App.ProcessId], LeafApp.ProcessIds(profile));
             Assert.Equal(1, leaf.WindowCount("Set up Leaf Calendar"));
-            Assert.Equal(0, leaf.WindowCount("Leaf Calendar"));
+            Assert.Equal(0, leaf.MainWindowCount());
             Assert.True(Retry.WhileFalse(() => LeafApp.IsForeground(leaf.OnboardingWindow), TimeSpan.FromSeconds(10)).Success);
         }
         finally
