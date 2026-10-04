@@ -53,6 +53,28 @@ public static class TimeZoneCatalog
         ("Etc/UTC", "UTC", ["GMT", "Coordinated Universal Time", "Z"]),
     ];
 
+    // IANA IDs with an old spelling of their city (IANA's "backward" names, which Windows still hands out), by today's name
+    static readonly Dictionary<string, string> RenamedCities = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Europe/Kiev"]        = "Kyiv",
+        ["Asia/Calcutta"]      = "Kolkata",
+        ["Asia/Katmandu"]      = "Kathmandu",
+        ["Asia/Rangoon"]       = "Yangon",
+        ["America/Godthab"]    = "Nuuk",
+        ["Asia/Saigon"]        = "Ho Chi Minh City",
+        ["Asia/Ho_Chi_Minh"]   = "Ho Chi Minh City",
+        ["Asia/Dacca"]         = "Dhaka",
+        ["Asia/Thimbu"]        = "Thimphu",
+        ["Asia/Ulan_Bator"]    = "Ulaanbaatar",
+        ["Asia/Ashkhabad"]     = "Ashgabat",
+        ["Asia/Macao"]         = "Macau",
+        ["Asia/Ujung_Pandang"] = "Makassar",
+        ["Atlantic/Faeroe"]    = "Faroe",
+        ["Pacific/Enderbury"]  = "Kanton",
+        ["Pacific/Truk"]       = "Chuuk",
+        ["Pacific/Ponape"]     = "Pohnpei",
+    };
+
     static readonly Lazy<IReadOnlyList<Entry>> AllEntries = new(BuildEntries);
 
     /// <summary>A zone's IANA ID (what Google wants), converting a Windows ID such as "Eastern Standard Time".</summary>
@@ -145,11 +167,14 @@ public static class TimeZoneCatalog
             : string.Create(CultureInfo.InvariantCulture, $"UTC{sign}{abs.Hours}:{abs.Minutes:00}");
     }
 
-    /// <summary>A zone's city name (curated, else the last part of the IANA ID).</summary>
+    /// <summary>
+    /// A zone's city name (curated, else today's name for a renamed IANA ID, else the last part of the IANA ID). Only the
+    /// name shown changes: the ID, which settings store and search matches too, stays as Windows gives it.
+    /// </summary>
     public static string CityFor(string id)
     {
         var curated = Array.Find(Cities, c => c.Id == id);
-        return curated.City ?? id[(id.LastIndexOf('/') + 1)..].Replace('_', ' ');
+        return curated.City ?? RenamedCities.GetValueOrDefault(id) ?? id[(id.LastIndexOf('/') + 1)..].Replace('_', ' ');
     }
 
     /// <summary>The column label: the custom label, else the city.</summary>

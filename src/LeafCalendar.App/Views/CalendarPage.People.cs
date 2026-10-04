@@ -43,6 +43,17 @@ public sealed partial class CalendarPage
         ViewModel.PropertyChanged          -= OnPeoplePropertyChanged;
         Sidebar.ShareAvailabilityRequested -= OnShareAvailabilityRequested;
 
+        // Sharing Opened The Details Panel For Itself, So What's Saved Goes Back To How It Was (a reopened window or the next
+        // launch starts from that, and sharing opens the panel again)
+        if (_detailsBeforeSharing is { } before)
+        {
+            _detailsBeforeSharing = null;
+            if (ViewModel.Settings.DetailsPanelOpen != before)
+            {
+                ViewModel.Remember(s => s with { DetailsPanelOpen = before });
+            }
+        }
+
         if (_overlayBar is not null)
         {
             Toasts.Children.Remove(_overlayBar);

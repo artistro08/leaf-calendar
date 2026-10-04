@@ -137,7 +137,7 @@ public sealed partial class AllDayCanvas : Canvas
             SetLeft(chip, (first + b.FirstColumn) * width + 2);
             SetTop(chip, b.Lane * TimeGridView.AllDayLaneHeight + 2);
             AutomationProperties.SetAutomationId(chip, string.Create(CultureInfo.InvariantCulture, $"AllDay_{b.Occurrence.EventId}_{start:yyyyMMdd}"));
-            AutomationProperties.SetName(chip, vm.CardName(b.Occurrence, "All day"));
+            AutomationProperties.SetName(chip, vm.CardName(b.Occurrence, ChipTime(b.Occurrence)));
 
             // Past Events Fade (still readable)
             var past = vm.IsPast(b.Occurrence);
@@ -256,6 +256,10 @@ public sealed partial class AllDayCanvas : Canvas
         }
     }
 
+    // "All day", or the times of a timed event long enough to be drawn here (24 hours or more)
+    string ChipTime(CalendarOccurrence o) =>
+        o.IsAllDay ? "All day" : TimeLabels.Range(o.Start, o.End, _owner.ViewModel.Zone, _owner.ViewModel.Settings.Use24HourTime);
+
     void AddChip()
     {
         var text = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -282,16 +286,20 @@ public sealed partial class AllDayCanvas : Canvas
 
             e.Handled = true;
         };
-        // Hover Tooltip: title, time, and location, filled in as the pointer arrives (the location is a lookup)
+        // Hover Tooltip: the title as the pointer arrives, so a pass over the row costs nothing; the title, time, and
+        // location once it opens (the location is a database lookup)
         var tip = new ToolTip();
         ToolTipService.SetToolTip(chip, tip);
         chip.PointerEntered += (_, _) =>
         {
-            var vm = _owner.ViewModel;
-            vm.PointerEvent = _shown.GetValueOrDefault(chip);
-            if (vm.PointerEvent is { } o)
+            _owner.ViewModel.PointerEvent = _shown.GetValueOrDefault(chip);
+            tip.Content                   = _owner.ViewModel.PointerEvent?.Title;
+        };
+        tip.Opened += (_, _) =>
+        {
+            if (_shown.GetValueOrDefault(chip) is { } o)
             {
-                tip.Content = vm.HoverText(o, o.IsAllDay ? "All day" : TimeLabels.Range(o.Start, o.End, vm.Zone, vm.Settings.Use24HourTime));
+                tip.Content = _owner.ViewModel.HoverText(o, ChipTime(o));
             }
         };
         chip.PointerExited  += (_, _) => _owner.ViewModel.PointerEvent = null;

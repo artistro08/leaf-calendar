@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Hosting;
 
 namespace LeafCalendar.App.ViewModels;
 
@@ -124,21 +125,35 @@ public sealed partial class AccountsViewModel : ObservableObject
         MessageKind = AccountsMessageKind.Progress;
     }
 
-    /// <summary>Reloads rows from the database.</summary>
+    /// <summary>Reloads rows from the database; a failed read is logged and shown, and the rows already showing stay.</summary>
     public void Refresh()
     {
-        Accounts.Clear();
-        using var conn = _services.Database.Open();
-
-        foreach (var account in AccountStore.GetAll(conn))
+        // Read First, So A Busy Or Failed Database Leaves The List As It Was
+        List<AccountRow> rows = [];
+        try
         {
-            var calendars = CalendarStore.GetForAccount(conn, account.Id).Where(c => !c.Hidden).ToList();
-            var events    = calendars.Sum(c => EventStore.Count(conn, account.Id, c.Id));
-            var summary   = account.Status == AccountStatus.NeedsSignIn
-                ? "Needs sign-in"
-                : $"{calendars.Count} calendars · {events} events";
+            using var conn = _services.Database.Open();
+            foreach (var account in AccountStore.GetAll(conn))
+            {
+                var calendars = CalendarStore.GetForAccount(conn, account.Id).Where(c => !c.Hidden).ToList();
+                var events    = calendars.Sum(c => EventStore.Count(conn, account.Id, c.Id));
+                var summary   = account.Status == AccountStatus.NeedsSignIn
+                    ? "Needs sign-in"
+                    : $"{calendars.Count} calendars · {events} events";
 
-            Accounts.Add(new AccountRow(account.Id, account.Email, summary));
+                rows.Add(new AccountRow(account.Id, account.Email, summary));
+            }
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex)
+        {
+            ShowError("accounts.refresh.failed", ex);
+            return;
+        }
+
+        Accounts.Clear();
+        foreach (var row in rows)
+        {
+            Accounts.Add(row);
         }
 
         HasNoAccounts = Accounts.Count == 0;
@@ -160,10 +175,11 @@ public sealed partial class AccountsViewModel : ObservableObject
     /// <summary>Edits of an account Google doesn't have yet (disconnecting would lose them).</summary>
     public int UnsentFor(string accountId) => _services.Conflicts.UnsentFor(accountId);
 
-    /// <summary>Disconnects an account (after the page confirms).</summary>
+    /// <summary>Disconnects an account (after the page confirms); not while a sign-in or sync runs, whose finish clears the busy state.</summary>
     public async Task DisconnectAsync(string accountId)
     {
-        if (_services.Google is not { } google)
+        // A Sign-In Or Sync Already Running Owns The Busy State (it may have started while the dialog was open)
+        if (IsBusy || _services.Google is not { } google)
         {
             return;
         }
@@ -185,6 +201,15 @@ public sealed partial class AccountsViewModel : ObservableObject
         {
             ShowError("account.disconnect.failed", ex);
         }
+    }
+
+    // A new account's first sync saved at least one calendar and left it signed in
+    bool FirstSyncWorked(string accountId)
+    {
+        using var conn = _services.Database.Open();
+        var calendars  = CalendarStore.GetForAccount(conn, accountId).Count(c => !c.Hidden);
+        var status     = AccountStore.GetAll(conn).FirstOrDefault(a => a.Id == accountId)?.Status ?? AccountStatus.NeedsSignIn;
+        return OnboardingFlow.FirstSyncWorked(calendars, status);
     }
 
     // The list here and the main window's calendars
@@ -251,6 +276,14 @@ public sealed partial class AccountsViewModel : ObservableObject
 
                 // Sync Off The UI Thread; Property Updates Resume On It After The Await
                 await Task.Run(() => google.Sync.SyncAccountAsync(account.Id, CancellationToken.None));
+
+                // The Sync Swallows Google And Network Failures, So Judge It By What It Saved
+                if (!FirstSyncWorked(account.Id))
+                {
+                    ShowFailure("Couldn't reach Google. Check your connection and try again.");
+                    return;
+                }
+
                 Show(AccountsMessageKind.Success, $"Signed in as {account.Email}. Its calendars are in Leaf now.");
             }
             finally

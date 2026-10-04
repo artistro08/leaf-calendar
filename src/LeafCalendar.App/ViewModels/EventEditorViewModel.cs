@@ -859,7 +859,8 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     {
         // No pick (the list is being swapped) keeps the event where it is
         var calendar = CalendarIndex >= 0 && CalendarIndex < Calendars.Count ? Calendars[CalendarIndex] : null;
-        var startDay = Day(StartDate) ?? DateOnly.FromDateTime(Before.Start.UtcDateTime);
+        // A cleared start date keeps the loaded day as shown (the event's own clock, not UTC's)
+        var startDay = Day(StartDate) ?? _loadedWhen.StartDay.GetValueOrDefault();
         var endDay   = Day(EndDate) ?? startDay;
 
         // Untouched times keep the loaded instants and zone exactly (no round trip through the pickers); another zone keeps

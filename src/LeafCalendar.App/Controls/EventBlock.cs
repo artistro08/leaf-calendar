@@ -123,7 +123,13 @@ public sealed partial class EventBlock : Grid
         {
             _owner?.ViewModel.PointerEvent = _occurrence;
 
-            // Hover Tooltip: title, time, and location, filled in as the pointer arrives (the location is a lookup)
+            // Hover Tooltip: the title as the pointer arrives, so a pass over the grid costs nothing
+            _tip.Content = _occurrence?.Title;
+        };
+
+        // The Title, Time, And Location Once The Tooltip Opens (the location is a database lookup)
+        _tip.Opened += (_, _) =>
+        {
             if (_occurrence is { } o && _owner is { } owner)
             {
                 _tip.Content = owner.ViewModel.HoverText(o, _timeText);

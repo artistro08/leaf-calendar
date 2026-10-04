@@ -405,6 +405,13 @@ public sealed partial class TrayHost : Window
     // Slide and fade together; the storyboard is this method's own (never read back from the panel)
     void Slide(Point from, Point to, double fromOpacity, double toOpacity, TimeSpan duration, bool enter, Action? onDone)
     {
+        // With Windows animations off it still runs as a storyboard, but takes no time: an earlier slide's held end values
+        // would otherwise win over plain property sets
+        if (!new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
+        {
+            duration = TimeSpan.Zero;
+        }
+
         _motion?.Stop();
         var storyboard = new Storyboard();
         storyboard.Children.Add(Animate(PanelShift, "X", from.X, to.X, duration, enter));

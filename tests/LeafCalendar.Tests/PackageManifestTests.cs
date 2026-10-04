@@ -32,6 +32,17 @@ public class PackageManifestTests
         Assert.DoesNotContain(references, r => r is "Microsoft.WindowsAppSDK.AI" or "Microsoft.WindowsAppSDK.ML" or "Microsoft.WindowsAppSDK.Search" or "Microsoft.WindowsAppSDK.Widgets");
     }
 
+    // The Sign-In Pages' "Open Leaf Calendar" Link (leaf-calendar:) Opens Leaf
+    [Fact]
+    public void Manifest_RegistersLeafCalendarProtocol()
+    {
+        XNamespace uap = "http://schemas.microsoft.com/appx/manifest/uap/windows10";
+        var extension  = XDocument.Parse(Read("src", "LeafCalendar.App", "Package.appxmanifest"))
+            .Descendants(uap + "Extension").Single(e => (string?)e.Attribute("Category") == "windows.protocol");
+
+        Assert.Equal("leaf-calendar", (string?)extension.Element(uap + "Protocol")?.Attribute("Name"));
+    }
+
     // Icons: Every Manifest Image At Every Scale, The Taskbar Sizes, And The Window Icon (tools/make-icons.ps1; the daily
     // tray icons are checked in TrayGlyphTests)
     [Fact]

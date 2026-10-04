@@ -10,7 +10,7 @@ namespace LeafCalendar.App.Notifications;
 /// <para>
 /// Leaf is packaged, so Windows activates the COM class declared in Package.appxmanifest when a notification is clicked.
 /// While Leaf runs, the click arrives here as <see cref="Invoked"/>; when it doesn't, Windows starts Leaf and
-/// <see cref="Program"/> hands the click to the App. Windows Do Not Disturb and Focus apply on their own; Leaf has no
+/// <see cref="Program"/> registers before reading the click, then hands it to the App. Windows Do Not Disturb and Focus apply on their own; Leaf has no
 /// pause switch (spec 1.4).
 /// </para>
 /// <para>
@@ -30,7 +30,10 @@ internal sealed class Notifier(LeafServices services) : IDisposable
 
     bool IsFake => services.Options.FakeGoogle is not null;
 
-    /// <summary>Registers with Windows: the click handler first, then the registration, as Windows App SDK requires.</summary>
+    /// <summary>
+    /// Registers with Windows: the click handler first, then the registration, as Windows App SDK requires. When a click
+    /// started Leaf, <see cref="Program"/> already registered, so this only takes over the clicks.
+    /// </summary>
     public void Register()
     {
         if (IsFake || _registered)
@@ -41,7 +44,15 @@ internal sealed class Notifier(LeafServices services) : IDisposable
         try
         {
             AppNotificationManager.Default.NotificationInvoked += OnInvoked;
-            AppNotificationManager.Default.Register();
+            if (Program.NotificationsRegistered)
+            {
+                Program.ReleaseNotifications();
+            }
+            else
+            {
+                AppNotificationManager.Default.Register();
+            }
+
             _registered = true;
         }
         catch (Exception ex)

@@ -47,12 +47,13 @@ public sealed partial class SetupViewModel : ObservableObject
         }
 
         // Save And Reload: a failure here must not terminate the process (the log gets the
-        // exception type and redacted message only, never the secret)
+        // exception type and redacted message only, never the secret). The secret box clears only once the reload
+        // worked, so Try again still has it.
         try
         {
             _tokens.SetClientCredentials(new OAuthClientCredentials(ClientId.Trim(), ClientSecret.Trim()));
-            ClientSecret = "";
             await _onSaved();
+            ClientSecret = "";
         }
         catch (Exception ex)
         {

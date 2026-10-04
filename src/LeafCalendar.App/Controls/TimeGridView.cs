@@ -306,7 +306,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     /// <summary>Scrolls so <paramref name="date"/> is the first visible column.</summary>
     public void ScrollToDate(DateOnly date, bool animate)
     {
-        if (!_strip.Contains(date))
+        if (!CanLead(date))
         {
             BuildStrip(date);
         }
@@ -364,6 +364,10 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _firstIndex    = _strip.IndexOf(around);
         _reportedIndex = -1;
     }
+
+    // True when the body can scroll so the date is the first column (the strip's last few days can't
+    // be: the body stops a full view before its end)
+    bool CanLead(DateOnly date) => _strip.Contains(date) && _strip.IndexOf(date) <= _strip.Count - _vm.VisibleColumns;
 
     // Sizes the columns for the space available and keeps the same first day. Resizing the window calls
     // this for every step of the drag, so it does nothing unless the column width or body height really
@@ -595,7 +599,13 @@ public sealed partial class TimeGridView : Grid, IDisposable
         // Extra time zones label each local hour of the first day (their offsets can differ across a DST change)
         if (_vm.Settings.TimeZones.Count > 0)
         {
-            _gutter.Render(first);
+            _gutter.Render(first, onlyIfChanged: true);
+        }
+
+        // The Local Zone's Label Follows The First Day Across A DST Change
+        if (_initialized && LocalZoneLabel() != _localZoneLabel)
+        {
+            RenderCorner();
         }
 
     }
@@ -621,7 +631,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
         if (horizontal)
         {
-            _bodyScroll.ChangeView(_bodyScroll.HorizontalOffset + delta, null, null, false);
+            // A tilt right is positive; Shift+wheel down is negative but means later days, as over the body
+            _bodyScroll.ChangeView(_bodyScroll.HorizontalOffset + (point.IsHorizontalMouseWheel ? delta : -delta), null, null, false);
             return;
         }
 
@@ -688,7 +699,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
     void ShowAllDayChevron(bool animate)
     {
         var angle = _allDayExpanded ? 180 : 0;
-        AutomationProperties.SetName(_allDayExpand, _allDayExpanded ? "Show fewer all-day events" : "Show all all-day events");
+        var name  = _allDayExpanded ? "Show fewer all-day events" : "Show all all-day events";
+        AutomationProperties.SetName(_allDayExpand, name);
+        ToolTipService.SetToolTip(_allDayExpand, name);
         if (!animate || !new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
         {
             _allDayTurn.Angle = angle;
@@ -774,6 +787,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
         running.Begin();
     }
 
+    // This PC's zone as the first shown day's clock reads (EST in a January week, even in October), and the one drawn
+    string _localZoneLabel = "";
+
+    string LocalZoneLabel() => ZoneAbbreviation.For(_vm.Zone, DragMath.Instant(_strip[_firstIndex], 12 * 60, _vm.Zone));
+
     void RenderCorner()
     {
         var dark = IsDark;
@@ -781,7 +799,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
         // Extra zones oldest first, then this PC's zone next to the days (the gutter's column order)
         var zones = _vm.Settings.TimeZones.Select(z => (z.Id, Label: TimeZoneCatalog.ShortLabel(z))).ToList();
-        zones.Add(("Local", ZoneAbbreviation.For(_vm.Zone, _vm.Now)));
+        _localZoneLabel = LocalZoneLabel();
+        zones.Add(("Local", _localZoneLabel));
 
         foreach (var (id, label) in zones)
         {
@@ -859,7 +878,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         // A View Switch: the new layout starts on its new first day, so nothing scrolls across from the old one
         if (_vm.SwitchingTo is { } switching)
         {
-            if (!_strip.Contains(switching))
+            if (!CanLead(switching))
             {
                 BuildStrip(switching);
             }
@@ -953,6 +972,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
         public Point BoxPointer { get; set; }
         public bool Started { get; set; }
         public bool Duplicate { get; set; }
+
+        // An Alt+Drag Of An Event You Can't Change: it only ever copies, even once Alt is let go
+        public bool CopyOnly { get; init; }
         public (DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? Target { get; set; }
     }
 
@@ -967,7 +989,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     /// <summary>
     /// A timed event was pressed: dragging moves it, or resizes it from the bottom edge. An event you can't change gives
-    /// a little (<paramref name="pull"/>, its card's transform) and springs back, with a notice saying why.
+    /// a little (<paramref name="pull"/>, its card's transform) and springs back, with a notice saying why, unless Alt is
+    /// down: then the drag makes a copy.
     /// </summary>
     public void BeginEventDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e, bool resize, TranslateTransform pull)
     {
@@ -978,17 +1001,20 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
-        if (!_vm.CanEdit(occurrence))
+        // An Event You Can't Change Can Still Be Alt+Dragged To A Copy (in a calendar you can write to)
+        var copyOnly = !_vm.CanEdit(occurrence);
+        if (copyOnly && !KeyState.IsDown(Windows.System.VirtualKey.Menu))
         {
             _drag = new DragSession(DragKind.Nudge, e.GetCurrentPoint(this).Position) { Occurrence = occurrence, Pull = pull };
             return;
         }
 
         var (day, minutes) = BodyPosition(e);
-        _drag = new DragSession(resize ? DragKind.Resize : DragKind.Move, e.GetCurrentPoint(this).Position)
+        _drag = new DragSession(resize && !copyOnly ? DragKind.Resize : DragKind.Move, e.GetCurrentPoint(this).Position)
         {
             Occurrence = occurrence,
             GrabbedAt  = DragMath.Instant(day, minutes, _vm.Zone),
+            CopyOnly   = copyOnly,
         };
     }
 
@@ -1026,11 +1052,13 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     /// <summary>
     /// An all-day chip was pressed: dragging moves it across days, or into the grid to become timed. An event you can't
-    /// change gives a little (<paramref name="pull"/>, the chip's transform) and springs back, with a notice saying why.
+    /// change gives a little (<paramref name="pull"/>, the chip's transform) and springs back, with a notice saying why,
+    /// unless Alt is down: then the drag makes a copy.
     /// </summary>
     public void BeginAllDayDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e, TranslateTransform pull)
     {
-        if (!_vm.CanEdit(occurrence))
+        var copyOnly = !_vm.CanEdit(occurrence);
+        if (copyOnly && !KeyState.IsDown(Windows.System.VirtualKey.Menu))
         {
             _drag = new DragSession(DragKind.Nudge, e.GetCurrentPoint(this).Position) { Occurrence = occurrence, Pull = pull };
             return;
@@ -1040,6 +1068,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         {
             Occurrence = occurrence,
             GrabbedDay = DayAt(e.GetCurrentPoint(_allDay).Position.X),
+            CopyOnly   = copyOnly,
         };
     }
 
@@ -1144,7 +1173,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
         // Redraw The Ghost Only When The Snapped Target Or Copy Mode Changes
         var target    = TargetFor(drag, e);
-        var duplicate = drag.Kind is DragKind.Move or DragKind.AllDay && KeyState.IsDown(Windows.System.VirtualKey.Menu);
+        var duplicate = drag.CopyOnly || (drag.Kind is DragKind.Move or DragKind.AllDay && KeyState.IsDown(Windows.System.VirtualKey.Menu));
         if (target.Equals(drag.Target) && duplicate == drag.Duplicate)
         {
             return;
@@ -1241,7 +1270,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
         // Alt+Drag Duplicates (a resize always resizes). Alt is also read as the pointer moves: by the time the
         // release is handled, the key state can already show Alt up when it's let go right after the button
-        if ((drag.Duplicate || KeyState.IsDown(Windows.System.VirtualKey.Menu)) && drag.Kind != DragKind.Resize)
+        if ((drag.Duplicate || drag.CopyOnly || KeyState.IsDown(Windows.System.VirtualKey.Menu)) && drag.Kind != DragKind.Resize)
         {
             _vm.Duplicate(o, target.Start, target.End, target.IsAllDay);
             return;

@@ -140,10 +140,13 @@ public sealed class LeafApp : IDisposable
     Window? TopLevelWindow(string title, TimeSpan timeout) =>
         Retry.WhileNull(() => App.GetAllTopLevelWindows(_automation).FirstOrDefault(w => NameOf(w) == title), timeout).Result;
 
-    /// <summary>The registered package.</summary>
-    public static Windows.ApplicationModel.Package Package =>
+    // Looked up once per run: listing every installed package is slow, and polls read the package's folder often
+    static readonly Lazy<Windows.ApplicationModel.Package> _package = new(() =>
         new PackageManager().FindPackagesForUser(string.Empty).FirstOrDefault(p => p.Id.Name == PackageName)
-        ?? throw new InvalidOperationException("Leaf Calendar isn't registered. Run tools/dev-register.ps1 first.");
+        ?? throw new InvalidOperationException("Leaf Calendar isn't registered. Run tools/dev-register.ps1 first."));
+
+    /// <summary>The registered package.</summary>
+    public static Windows.ApplicationModel.Package Package => _package.Value;
 
     /// <summary>True when the registered build is Native AOT (no managed LeafCalendar.dll).</summary>
     public static bool IsNativeAot => !File.Exists(Path.Combine(Package.InstalledLocation.Path, "LeafCalendar.dll"));

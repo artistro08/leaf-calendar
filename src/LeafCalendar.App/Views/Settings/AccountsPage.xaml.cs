@@ -126,18 +126,32 @@ public sealed partial class AccountsPage : Page
         var settings = _context.Calendar.Settings;
         var accounts = ViewModel.Accounts.ToList();
 
+        // Same Accounts As Shown: only the pick follows the settings (a refill would close an open dropdown, and rebuilt
+        // expanders would send keyboard and Narrator focus back to the top of the page)
+        var unchanged = _accountRows.Count == accounts.Count && _accountRows.Zip(accounts).All(p =>
+            p.First.AccountId == p.Second.Id && p.First.Email == p.Second.Email && p.First.Summary == p.Second.Summary
+            && p.First.IsOn == settings.MeetByDefaultAccounts.Contains(p.Second.Id));
+
         _loading = true;
-        _accountIds.Clear();
-        _accountIds.AddRange(accounts.Select(a => a.Id));
-        MainAccountBox.Items.Clear();
-        foreach (var account in accounts)
+        if (!unchanged)
         {
-            MainAccountBox.Items.Add(account.Email);
+            _accountIds.Clear();
+            _accountIds.AddRange(accounts.Select(a => a.Id));
+            MainAccountBox.Items.Clear();
+            foreach (var account in accounts)
+            {
+                MainAccountBox.Items.Add(account.Email);
+            }
         }
 
         MainAccountBox.SelectedIndex = accounts.Count == 0 ? -1 : Math.Max(_accountIds.IndexOf(settings.MainAccountId ?? ""), 0);
         MainAccountBox.IsEnabled     = accounts.Count > 1;
         _loading = false;
+
+        if (unchanged)
+        {
+            return;
+        }
 
         // The Account Expanders (rebuilt with fresh counts; the open ones stay open)
         var expanded = _accountRows.Where(r => r.IsExpanded).Select(r => r.AccountId).ToHashSet(StringComparer.Ordinal);
@@ -202,7 +216,7 @@ public sealed partial class AccountsPage : Page
     // Disconnect deletes local data (and any edits Google doesn't have yet), so confirm first
     async void OnDisconnectClick(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: string accountId })
+        if (sender is not Button { Tag: string accountId } || ViewModel.IsBusy)
         {
             return;
         }

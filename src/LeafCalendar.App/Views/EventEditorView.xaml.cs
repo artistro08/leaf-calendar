@@ -338,6 +338,12 @@ public sealed partial class EventEditorView : UserControl
             return;
         }
 
+        // Enter in an empty box adds nothing (and isn't an invalid address)
+        if (string.IsNullOrWhiteSpace(args.QueryText))
+        {
+            return;
+        }
+
         // The submitted text itself (the box's two-way text can lag right after typing)
         editor.GuestInput = args.QueryText;
         editor.AddGuest();

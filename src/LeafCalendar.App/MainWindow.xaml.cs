@@ -65,6 +65,12 @@ public sealed partial class MainWindow : Window
 
     // The window's size while restored (not maximized or minimized), saved on close
     Core.Views.WindowSize _restoredSize;
+
+    // Whether the window was maximized when last not minimized, saved on close
+    bool _wasMaximized;
+
+    // Whether the window was minimized at the last change, so MinimizedChanged is raised once per change
+    bool _wasMinimized;
     Storyboard? _toolbarSlide;
     (double Right, double Toggle, bool Sidebar, bool Calendar)? _titleBarLayout;
 
@@ -137,12 +143,26 @@ public sealed partial class MainWindow : Window
         var opening = (_calendar.Settings.MainWindowSize ?? Core.Views.WindowSize.MainDefault).AtLeast(MinimumWidth, MinimumHeight);
         ApplyMinimumSize();
         _restoredSize = opening with { Maximized = false };
+        _wasMaximized = opening.Maximized;
         Interop.WindowPlacement.Restore(AppWindow, _presenter, opening);
         AppWindow.Changed += (_, e) =>
         {
             if (e.DidSizeChange && _presenter.State == OverlappedPresenterState.Restored)
             {
                 _restoredSize = Interop.WindowPlacement.SizeOf(AppWindow);
+            }
+
+            // Maximized Or Not, As Last Shown (a minimized window comes back the way it was, so minimizing keeps it)
+            if (_presenter.State != OverlappedPresenterState.Minimized)
+            {
+                _wasMaximized = _presenter.State == OverlappedPresenterState.Maximized;
+            }
+
+            // Minimized Or Back (the App polls at the tray's pace while nothing is on screen)
+            if (IsMinimized != _wasMinimized)
+            {
+                _wasMinimized = IsMinimized;
+                MinimizedChanged?.Invoke(this, EventArgs.Empty);
             }
         };
 
@@ -180,12 +200,18 @@ public sealed partial class MainWindow : Window
             _calendar.PropertyChanged -= OnCalendarPropertyChanged;
 
             // Remember The Size For Next Time (the restored size, and whether it was maximized)
-            var size = _restoredSize with { Maximized = _presenter.State == OverlappedPresenterState.Maximized };
+            var size = _restoredSize with { Maximized = _wasMaximized };
             _calendar.Remember(s => s with { MainWindowSize = size }, inBackground: false);
         };
 
         ShowCalendar();
     }
+
+    /// <summary>Raised when the window is minimized, or comes back from minimized.</summary>
+    public event EventHandler? MinimizedChanged;
+
+    /// <summary>True while the window is minimized (nothing of it is on screen).</summary>
+    public bool IsMinimized => _presenter.State == OverlappedPresenterState.Minimized;
 
     /// <summary>Restores the window if it's minimized and brings it to the front (another launch was redirected here).</summary>
     public void BringToFront()
@@ -724,6 +750,10 @@ public sealed partial class MainWindow : Window
         var animate     = _pagersVertical is not null;
         _pagersVertical = vertical;
         var angle       = vertical ? 90 : 0;
+
+        // With Windows animations off the turn still runs as a storyboard, but takes no time: an earlier spin's held
+        // end value would otherwise win over a plain Angle set
+        var spinTime    = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled ? 167 : 0;
         if (_previousTurn is null || _nextTurn is null)
         {
             PreviousGlyph.RenderTransform = _previousTurn = new RotateTransform();
@@ -741,7 +771,7 @@ public sealed partial class MainWindow : Window
             var spin = new DoubleAnimation
             {
                 To             = angle,
-                Duration       = TimeSpan.FromMilliseconds(167),
+                Duration       = TimeSpan.FromMilliseconds(spinTime),
                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
             };
             Storyboard.SetTarget(spin, turn);

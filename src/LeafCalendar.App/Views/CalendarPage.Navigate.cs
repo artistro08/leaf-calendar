@@ -202,8 +202,8 @@ public sealed partial class CalendarPage
 
         _commandFlyout?.Hide();
 
-        // A Date Or An Event Hides A Showing Editor, Like Closing The Panel (the edit is kept; C or E brings it back)
-        if (row.Kind is CommandRowKind.Event or CommandRowKind.Date && ViewModel.Editing is not null && IsDetailsOpen)
+        // A Row Hides A Showing Editor, Like Closing The Panel (the edit is kept; C or E brings it back)
+        if (EditorShowing)
         {
             SetDetailsOpen(false, animate: true);
         }

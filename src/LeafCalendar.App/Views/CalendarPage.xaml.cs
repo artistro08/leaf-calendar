@@ -272,8 +272,9 @@ public sealed partial class CalendarPage : Page
             return;
         }
 
-        // An Edit Ended (Cancel, Esc, Another Event) Ends A Waiting "E Then ..." Too, So The Timer Can't Reopen It
-        if (e.PropertyName == nameof(CalendarViewModel.Editing) && ViewModel.Editing is null && _editorFromE)
+        // An Edit Ended (Cancel, Esc, Another Event) Ends A Waiting "E Then ..." Too, So The Timer Can't Reopen It (also
+        // after a click in the panel already marked the instant E's editor as in use)
+        if (e.PropertyName == nameof(CalendarViewModel.Editing) && ViewModel.Editing is null && (_editorFromE || _keys.IsPending))
         {
             _editorFromE = false;
             _sequenceTimer.Stop();
@@ -296,10 +297,11 @@ public sealed partial class CalendarPage : Page
 
     void OnDetailsOpenRequested(object? sender, EventArgs e) => SetDetailsOpen(true, animate: true);
 
-    // The keyboard buttons (the sidebar's, or the window's bottom-left one while it's closed): the same cheat sheet as ?
-    void OnShortcutsRequested(object? sender, EventArgs e) => RunCommand(CalendarCommand.ShortcutSheet);
+    // The keyboard buttons (the sidebar's, or the window's bottom-left one while it's closed): the same cheat sheet as ?,
+    // even while the editor shows (the sheet doesn't touch the edit)
+    void OnShortcutsRequested(object? sender, EventArgs e) => ShowShortcutSheet();
 
-    void OnShortcutsClick(object sender, RoutedEventArgs e) => RunCommand(CalendarCommand.ShortcutSheet);
+    void OnShortcutsClick(object sender, RoutedEventArgs e) => ShowShortcutSheet();
 
     // A tap on empty calendar space clears the selection and ends an edit (events and chips mark their own taps handled)
     void OnViewHostTapped(object sender, TappedRoutedEventArgs e) => ViewModel.ClearSelection();
@@ -352,7 +354,7 @@ public sealed partial class CalendarPage : Page
                 return true;
             }
 
-            var second = _keys.Resolve(e.Key.ToString(), Controls.KeyState.IsDown(VirtualKey.Control), Controls.KeyState.IsDown(VirtualKey.Shift), Controls.KeyState.IsDown(VirtualKey.Menu));
+            var second = ResolveShortcut(e.Key);
             _editorFromE = false;
             _sequenceTimer.Stop();
             switch (second.Command)
@@ -388,12 +390,19 @@ public sealed partial class CalendarPage : Page
         }
 
         // A Hidden Editor Doesn't Block Shortcuts (the editor handles its own keys while it shows)
-        if (ViewModel.Editing is not null && IsDetailsOpen)
+        if (EditorShowing)
         {
             return false;
         }
 
         if (ShortcutsBlocked())
+        {
+            return false;
+        }
+
+        // Plain Left And Right Move Between Days While Focus Is In The Mini Month (a grid that moves focus with the arrows)
+        if (e.Key is VirtualKey.Left or VirtualKey.Right && !Controls.KeyState.IsDown(VirtualKey.Menu)
+            && FocusWithin(element => element is UIElement { XYFocusKeyboardNavigation: XYFocusKeyboardNavigationMode.Enabled }))
         {
             return false;
         }
@@ -412,7 +421,7 @@ public sealed partial class CalendarPage : Page
             return true;
         }
 
-        var result = _keys.Resolve(e.Key.ToString(), Controls.KeyState.IsDown(VirtualKey.Control), Controls.KeyState.IsDown(VirtualKey.Shift), Controls.KeyState.IsDown(VirtualKey.Menu));
+        var result = ResolveShortcut(e.Key);
         _sequenceTimer.Stop();
         if (result.Command == CalendarCommand.SequenceStarted)
         {
@@ -424,9 +433,10 @@ public sealed partial class CalendarPage : Page
                 return true;
             }
 
-            // E Edits At Once When The One Selected Event Can Be Changed (an invite waits for the second key)
+            // E Edits At Once When The One Selected Event Can Be Changed (an invite waits for the second key; not while
+            // sharing, where the share panel stands in the editor's place)
             _sequenceTimer.Start();
-            if (ViewModel.SelectedInfo is { CanEdit: true })
+            if (ViewModel.SelectedInfo is { CanEdit: true } && !ViewModel.IsSharing)
             {
                 ViewModel.BeginEdit();
                 _editorFromE = ViewModel.Editing is not null;
@@ -463,8 +473,9 @@ public sealed partial class CalendarPage : Page
             return;
         }
 
-        // The Editor Handles Its Own Keys While It Shows, So Menu Commands Wait Too
-        if (ViewModel.Editing is not null && IsDetailsOpen)
+        // The Editor Handles Its Own Keys While It Shows, So Menu Commands Wait Too (the title bar's search button still
+        // opens the menu: a row picked there hides the editor first)
+        if (EditorShowing && command is not (CalendarCommand.CommandMenu or CalendarCommand.Search))
         {
             return;
         }
@@ -479,7 +490,7 @@ public sealed partial class CalendarPage : Page
     /// <returns>True when the calendar moved.</returns>
     public bool TryNavigateHistory(bool back)
     {
-        if ((ViewModel.Editing is not null && IsDetailsOpen) || ShortcutsBlocked())
+        if (EditorShowing || ShortcutsBlocked())
         {
             return false;
         }
@@ -487,11 +498,28 @@ public sealed partial class CalendarPage : Page
         return back ? ViewModel.GoBack() : ViewModel.GoForward();
     }
 
+    // The editor is on screen: the details panel is open and showing it, not the share panel in its place
+    bool EditorShowing => ViewModel.Editing is not null && IsDetailsOpen && !ViewModel.IsSharing;
+
     // Typing, or focus in a flyout, menu, or dialog
     bool ShortcutsBlocked()
     {
         var focused = FocusManager.GetFocusedElement(XamlRoot);
         return focused is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox || IsInOpenPopup(focused);
+    }
+
+    // True when the focused element, or something it sits in, matches (a focused link, not in the visual tree, never does)
+    bool FocusWithin(Func<DependencyObject, bool> match)
+    {
+        for (DependencyObject? current = FocusManager.GetFocusedElement(XamlRoot) as UIElement; current is not null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (match(current))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // Nothing changed since it opened: the same calendar, and no field Google would be sent (every field of the draft)
@@ -506,6 +534,13 @@ public sealed partial class CalendarPage : Page
         or VirtualKey.Menu or VirtualKey.LeftMenu or VirtualKey.RightMenu
         or VirtualKey.LeftWindows or VirtualKey.RightWindows;
 
+    // A key press as a shortcut; a punctuation key brings the character it types on this layout, so ? is whichever key types "?"
+    ShortcutResult ResolveShortcut(VirtualKey key)
+    {
+        var shift = Controls.KeyState.IsDown(VirtualKey.Shift);
+        return _keys.Resolve(key.ToString(), Controls.KeyState.IsDown(VirtualKey.Control), shift, Controls.KeyState.IsDown(VirtualKey.Menu), Controls.KeyState.Typed(key, shift));
+    }
+
     void Execute(ShortcutResult result)
     {
         var vm = ViewModel;
@@ -518,6 +553,12 @@ public sealed partial class CalendarPage : Page
             or CalendarCommand.EditTimeZone or CalendarCommand.ParticipantOverlay)
         {
             vm.ShowMessage("Select one event");
+            return;
+        }
+
+        // Sharing Marks Times, So Nothing Opens An Editor Behind The Share Panel (the grids refuse to create too)
+        if (vm.IsSharing && result.Command is CalendarCommand.CreateEvent or CalendarCommand.EditEvent or CalendarCommand.EditDuration)
+        {
             return;
         }
 
@@ -591,8 +632,35 @@ public sealed partial class CalendarPage : Page
         NoticeBar.Message     = notice.Text;
         UndoButton.Visibility = notice.CanUndo ? Visibility.Visible : Visibility.Collapsed;
         NoticeBar.IsOpen      = true;
-        _noticeTimer.Start();
+        ResumeNoticeTimer();
     }
+
+    // The Notice Waits While The Pointer Or Focus Is On It (its Undo doesn't vanish from under you), then hides 5 s later
+    bool _noticePointerOver;
+
+    void ResumeNoticeTimer()
+    {
+        if (ViewModel.Notice is not null && !_noticePointerOver && !FocusWithin(element => ReferenceEquals(element, NoticeBar)))
+        {
+            _noticeTimer.Start();
+        }
+    }
+
+    void OnNoticePointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        _noticePointerOver = true;
+        _noticeTimer.Stop();
+    }
+
+    void OnNoticePointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        _noticePointerOver = false;
+        ResumeNoticeTimer();
+    }
+
+    void OnNoticeGotFocus(object sender, RoutedEventArgs e) => _noticeTimer.Stop();
+
+    void OnNoticeLostFocus(object sender, RoutedEventArgs e) => ResumeNoticeTimer();
 
     void OnUndoClick(object sender, RoutedEventArgs e) => ViewModel.Undo();
 
@@ -658,7 +726,7 @@ public sealed partial class CalendarPage : Page
     const float ZoomOutFrom      = 1.05f;
     const float DrillFadeFrom    = 0.5f;
     static readonly TimeSpan DrillDuration = TimeSpan.FromMilliseconds(167);
-    static readonly TimeSpan FadeDuration  = TimeSpan.FromMilliseconds(117);
+    static readonly TimeSpan FadeDuration  = TimeSpan.FromMilliseconds(83);
 
     // Only a change of span animates (a layout change that keeps it, like the hour zoom, doesn't). It starts at once:
     // the view switch lays the new view out on its new days directly (CalendarViewModel.SwitchingTo), so there's no

@@ -21,9 +21,10 @@ namespace LeafCalendar.Core.Hosting;
 /// (<c>CalendarViewModel.Now</c>) still follows <c>--start-date</c> or the real clock.</item>
 /// <item><c>--toast-action &lt;arguments&gt;</c> acts as if a notification with those arguments was clicked (UI tests, through the single-instance redirect). It's honored only with <c>--fake-google</c>.</item>
 /// <item><c>--gc-stress</c> runs a full garbage collection every few milliseconds, so an object Windows still uses after .NET let go of it fails right away (crash tests). It's honored only with <c>--fake-google</c>.</item>
+/// <item><c>--restarted</c> marks Windows' restart of a running Leaf after an update or a crash: it starts in the tray, without the window.</item>
 /// </list>
 /// </remarks>
-public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoogle = null, DateOnly? StartDate = null, DateTimeOffset? Now = null, string? ToastAction = null, bool GcStress = false)
+public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoogle = null, DateOnly? StartDate = null, DateTimeOffset? Now = null, string? ToastAction = null, bool GcStress = false, bool Restarted = false)
 {
     /// <summary>Parses arguments (without the executable path).</summary>
     public static LaunchOptions Parse(IReadOnlyList<string> args)
@@ -35,6 +36,7 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
         DateTimeOffset? now = null;
         string? toast       = null;
         var gcStress        = false;
+        var restarted       = false;
 
         for (var i = 0; i < args.Count; i++)
         {
@@ -67,6 +69,10 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
                 case "--gc-stress":
                     gcStress = true;
                     break;
+
+                case "--restarted":
+                    restarted = true;
+                    break;
             }
         }
 
@@ -77,7 +83,7 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
             fake = null;
         }
 
-        return new LaunchOptions(profile, trayProbe, fake, fake is null ? null : date, fake is null ? null : now, fake is null ? null : toast, fake is not null && gcStress);
+        return new LaunchOptions(profile, trayProbe, fake, fake is null ? null : date, fake is null ? null : now, fake is null ? null : toast, fake is not null && gcStress, restarted);
     }
 
     /// <summary>

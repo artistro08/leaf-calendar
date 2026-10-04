@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Search;
+using LeafCalendar.Core.Views;
 
 namespace LeafCalendar.App.ViewModels;
 
@@ -17,6 +18,9 @@ public sealed partial class CalendarViewModel
     // The events read for the menu's search (null until read, or after they changed), and the read in progress
     EventSearch.Index? _searchIndex;
     Task? _searchIndexBuild;
+
+    // Bumped when the data changes, so a read that started before the change isn't kept
+    int _searchIndexGeneration;
 
     // Read again after this long, so the rows kept are the ones nearest to now
     static readonly TimeSpan SearchIndexLife = TimeSpan.FromMinutes(15);
@@ -37,14 +41,21 @@ public sealed partial class CalendarViewModel
 
     async Task BuildSearchIndexAsync()
     {
-        var now = Now;
+        var now        = Now;
+        var generation = _searchIndexGeneration;
         try
         {
-            _searchIndex = await Task.Run(() =>
+            var index = await Task.Run(() =>
             {
                 using var conn = _services.Database.Open();
                 return EventSearch.Index.Build(conn, now);
             });
+
+            // The Data Changed During The Read: the next search reads again
+            if (generation == _searchIndexGeneration)
+            {
+                _searchIndex = index;
+            }
         }
         catch (Exception ex) when (IsEditFailure(ex))
         {
@@ -129,6 +140,9 @@ public sealed partial class CalendarViewModel
 
         // Jump: Reveal's steps, on the event's own day (an all-day event's date, not its UTC midnight's local day)
         var before = PeriodStart;
+
+        // Back Returns To Where You Were, Scrolled There Or Not (scrolling records no history)
+        _history.Visit(new ViewPlace(Mode, Settings.CustomDayCount, before));
         NavigateTo(DayOf(occurrence));
         Select(occurrence);
         ScrollToTimeRequested?.Invoke(this, occurrence.Start);

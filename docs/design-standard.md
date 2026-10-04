@@ -41,7 +41,7 @@ Each rule names where it comes from. **Conflict** marks a rule where the referen
 | Title bar | Stock `TitleBar` control, `ExtendsContentIntoTitleBar = true`, `SetTitleBar(AppTitleBar)` | Leaf, Layers, Sony |
 | Title bar height | `AppWindow.TitleBar.PreferredHeightOption = Tall` and `<x:Double x:Key="TitleBarCompactHeight">48</x:Double>`, so caption buttons match the 48 DIP bar | Leaf `MainWindow.xaml(.cs)`; Layers `SettingsWindow.xaml` |
 | Title bar icon | App icon via `TitleBar.IconSource` (`ImageIconSource`) and `AppWindow.SetIcon` (an `.ico`) | Leaf; Layers; Sony `SettingsWindow.xaml.cs` |
-| Title text | App name for the main window, "`<App>` Settings" style for secondary windows (Leaf's settings window uses "Settings" per the brief) | Layers "Layers Settings"; Sony "Sony Control Settings"; Leaf brief item 4 |
+| Title text | App name for the main window, "`<App>` Settings" style for secondary windows (Leaf's Settings view sets the main title bar's title to "Settings" per the brief) | Layers "Layers Settings"; Sony "Sony Control Settings"; Leaf brief item 4 |
 | Theme on the caption buttons | `AppWindow.TitleBar.PreferredTheme` follows the app theme | Leaf `MainWindow.xaml.cs` |
 | Instances | One window of each kind. Opening it again activates the existing one. Closing a secondary window destroys it to free memory. | Layers `SettingsWindow.Open`; Leaf brief item 4 |
 | Placement of a new secondary window | Centered on the work area of the monitor under the cursor. Move it there first, then size it from that monitor's DPI (sizing first gets scaled twice). | Layers `SettingsWindow.xaml.cs` `Open` and spec "Opening on a monitor with another scale" |
@@ -67,13 +67,12 @@ Each rule names where it comes from. **Conflict** marks a rule where the referen
 
 | Window | Size (DIP) | Resizable | Source |
 | --- | --- | --- | --- |
-| Main window | Minimum 1086 × 540 (computed from the panes and the title bar toolbar, including its 32 DIP sync status slot, see `MainWindow.MinimumWidth`). Default when nothing is remembered: 1280 × 820. | Yes | Leaf `MainWindow.xaml.cs`; default from MA `MainWindow.RestorePlacement` |
-| Settings | Opens at 1000 × 720 | Yes (see conflict) | Sony `SettingsWindow.xaml.cs` |
+| Main window | Minimum 1086 × 540 (computed from the panes and the title bar toolbar, including its 32 DIP sync status slot, see `MainWindow.MinimumWidth`). Default when nothing is remembered: 1277 × 814 (`Core/Views/WindowSize.MainDefault`). | Yes | Leaf `MainWindow.xaml.cs`, `WindowSize.cs`; default from MA `MainWindow.RestorePlacement` |
 | Onboarding | About 520 × 640 client, centered | No, Close only | Leaf brief item 5 |
 | Tray flyout | Fixed 360 wide, height fixed to the tallest page, capped to the work area; 12 DIP from the taskbar and screen edge | No | Sony spec "Frame" and "Placement" |
 | Dialog content | Stock `ContentDialog` sizes | — | All |
 
-> **Conflict (settings window size):** Layers is fixed 760 × 595, not resizable. Sony opens at 1000 × 720 and uses that as its minimum. The brief wants the pane to auto-collapse when narrow, which needs a resizable window. **Use Sony's 1000 × 720 opening size, resizable, with a minimum of 640 × 500** so the pane can collapse (see Settings Window pattern). Every page must still work at the minimum (MA rule: "Make every page work down to the minimum window size ... with scrolling wherever content can overflow").
+Settings is not a window: it's a view in the main window, shown in place of the calendar, so it uses the main window's size and its minimum of 1086 × 540, and it sets the main title bar's title to "Settings" (see Settings View pattern). Every page must still work at the minimum (MA rule: "Make every page work down to the minimum window size ... with scrolling wherever content can overflow"). (Leaf `MainWindow.ShowSettings`.)
 
 ---
 
@@ -89,13 +88,13 @@ Use these values only: **2, 4, 8, 12, 16, 24, 32** (plus 36 for the settings con
 | Icon to text inside a button | 8 | Layers Play Animation; MA Home Assistant button; Sony footer |
 | Label stack (header, description) | 0 to 4 | Sony `AppPage.xaml`; MA `LoginPage.xaml` |
 | Stack spacing inside a section | 8 | Layers `GeneralPage.xaml`; MA `SettingsPage.xaml`; Sony |
-| Between sections, or form fields on a page | 16 | Layers; MA; Leaf `SetupPage.xaml` |
-| Page padding, main window pages | 32 (current Leaf pages), 24 on dense pages | Leaf `SetupPage.xaml`, `AccountsPage.xaml`; MA pages `24,16,24,24` |
-| Settings content inset | `Padding="36,24"` on the frame | Sony `SettingsWindow.xaml` |
+| Between sections, or form fields on a page | 16 | Layers; MA; Leaf `OnboardingStepPage.xaml` |
+| Page padding, main window pages | 32 (current Leaf pages), 24 on dense pages | Leaf `OnboardingStepPage.xaml`; MA pages `24,16,24,24` |
+| Settings content inset | `Padding="36,24"` on the page panel (`LeafSettingsPagePanelStyle`) | Leaf `Styles/LeafTheme.xaml`; Sony `SettingsWindow.xaml` |
 | Card padding | 16 | Sony `SettingsCardStyle`; MA settings cards |
 | Side panel inner inset | 16 | Leaf `DetailsPanel.xaml` |
 | Flyout page padding | 20 (device page), 24 (empty state) | Sony `FlyoutView.xaml` |
-| Readable column cap | `MaxWidth="560"` for forms and prose, 900 for settings pages | Leaf `SetupPage.xaml`; Sony settings pages |
+| Readable column cap | `MaxWidth="560"` for forms and prose, 1072 for settings pages (`LeafSettingsPagePanelStyle`) | Leaf `Styles/LeafTheme.xaml`; Sony settings pages |
 
 ### Structure
 
@@ -196,7 +195,7 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 
 | Kind | Control / style | When | Source |
 | --- | --- | --- | --- |
-| Primary action | `Button` + `AccentButtonStyle` | One per surface: Save, Sign in, Next, Open Leaf Calendar | Leaf `SetupPage.xaml`; MA `LoginPage.xaml` |
+| Primary action | `Button` + `AccentButtonStyle` | One per surface: Save, Sign in, Next, Open Leaf Calendar | Leaf `OnboardingWindow.xaml`, `ClientPage.xaml`; MA `LoginPage.xaml` |
 | Secondary action | `Button` (default style) | Cancel, Sync now, Disconnect | Leaf `AccountsPage.xaml`; Sony |
 | Title bar icon | `LeafBareIconButtonStyle` 32×32 | Title bar only, no fill ever | Leaf |
 | Icon button elsewhere | `LeafIconButtonStyle` (32, or 28 in the mini month): 83 ms fade to `SubtleFillColorSecondary` | Sidebar, panels | Leaf |
@@ -218,7 +217,7 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 
 ### Inputs
 
-- `TextBox`/`PasswordBox` with `Header` (sentence case) and an example `PlaceholderText` ("name@example.com", "Add a city or zone (Tokyo, NYC, UTC)"). Secrets always in `PasswordBox`. (Leaf `SetupPage.xaml`, `TimeZonePanel.xaml`; MA `LoginPage.xaml`.)
+- `TextBox`/`PasswordBox` with `Header` (sentence case) and an example `PlaceholderText` ("name@example.com", "Add a city or zone (Tokyo, NYC, UTC)"). Secrets always in `PasswordBox`. (Leaf `ClientPage.xaml`, `TimeZonesPage.xaml`; MA `LoginPage.xaml`.)
 - Enter submits the form's primary action. (MA `OnPasswordKeyDown`.)
 
 ### Lists
@@ -238,7 +237,7 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 - Rows are 44 tall in an 8 inset list: a 20 glyph (actions, secondary text color) or a 16 color square with radius 4 (events) in a 28 column, then the title and its secondary detail side by side on one line, then the shortcut as a key chip (`ControlFillColorSecondaryBrush`, 1 px divider stroke, radius 4, Caption). The selection is the stock rounded fill without the accent pill.
 - Results group under Caption section headers ("Go to", "Events", "Actions"), 28 tall; the arrow keys skip them and they can't be clicked.
 - The footer (`LeafFlyoutFooterBrush`, 1 px top divider) says what the selected row is and shows "Open Enter", plus "Go to event Alt Enter" on events. Nothing found shows a 24 search glyph over "No events or actions match."
-- While the menu is open the window dims behind it (`SmokeFillColorDefaultBrush`, 167 ms fade, title bar row included); a click outside, Esc, or a pick closes both.
+- While the menu is open the window dims behind it (`SmokeFillColorDefaultBrush`, title bar row included); the dim appears and disappears at once with the menu, no fade; a click outside, Esc, or a pick closes both.
 - Up/Down move the selection while focus stays in the box. Enter runs the selected row; Alt+Enter jumps the calendar to an event.
 
 ### Cards and Setting Rows
@@ -268,13 +267,13 @@ The Windows 11 Settings row, the one pattern for every setting:
 
 ---
 
-## 8. Settings Window Pattern
+## 8. Settings View Pattern
 
-- Its own window, single instance, Mica, stock `TitleBar` with the app icon and title "Settings", pane toggle in the title bar (`IsPaneToggleButtonVisible="True"`, toggles `NavigationView.IsPaneOpen`). (Leaf brief item 4; Sony and Layers `SettingsWindow.xaml`.)
-- Stock `NavigationView`: `IsSettingsVisible="False"`, `IsBackButtonVisible="Collapsed"`, its own pane toggle hidden, `OpenPaneLength="240"`. `PaneDisplayMode="Auto"` so it stays expanded at normal widths and collapses when narrow (set `ExpandedModeThresholdWidth` to about 800 so the 1000 wide window opens expanded). (Sony; brief item 4.)
-- Menu items have a `FontIcon` (16) and a sentence-case name. **About** goes in `FooterMenuItems`. First item selected on open, shown without a transition (`SuppressNavigationTransitionInfo`), later pages with the stock drill-in. (Layers `SettingsWindow.xaml.cs`; Sony.)
+- A view in the main window, not a window of its own: `MainWindow.ShowSettings` shows `SettingsPage` in `SettingsFrame` in place of the calendar and sets the main title bar's title to "Settings". The main title bar is its chrome: its pane toggle (hamburger) toggles `NavigationView.IsPaneOpen`, and its Back returns to the calendar. (Leaf `MainWindow.xaml.cs`; brief item 4.)
+- Stock `NavigationView`: `IsSettingsVisible="False"`, `IsBackButtonVisible="Collapsed"`, its own pane toggle hidden, `OpenPaneLength="240"`. `PaneDisplayMode="Auto"` so it stays expanded at normal widths and collapses when narrow (`ExpandedModeThresholdWidth` 800). (Sony; brief item 4.)
+- Menu items have a `FontIcon` (16) and a sentence-case name. **About** goes in `FooterMenuItems`. The requested page (`SettingsPageArgs.Section`, General by default) is selected on open, shown without a transition (`SuppressNavigationTransitionInfo`), later pages with the stock drill-in. (Leaf `SettingsPage.xaml.cs`; Layers; Sony.)
 - Items and pages set from concrete lists in code (AOT). (Layers.)
-- Content: `Frame` with `Padding="36,24"`. Each page: `ScrollViewer` → `StackPanel MaxWidth="900" Spacing="4"` → page title (`TitleTextBlockStyle`, bottom margin 16) → groups. (Sony `SettingsWindow.xaml`, `AppPage.xaml`.)
+- Content: a `Frame` with no padding; each page insets its own content, so its scroll bar sits at the window's right edge. Each page: `ScrollViewer` → `Grid` (so the capped column centers) → `StackPanel` with `LeafSettingsPagePanelStyle` (`MaxWidth` 1072, `Padding="36,24"`, `Spacing` 4) → page title (`LeafSettingsPageTitleStyle`: `TitleTextBlockStyle`, bottom margin 16) → groups. (Leaf `SettingsPage.xaml`, `LeafTheme.xaml`; Sony `AppPage.xaml`.)
 - Groups: a `BodyStrongTextBlockStyle` header with `Margin="0,24,0,8"` (0 top on the first) over a stack of setting rows 4 apart. (Section headers: all three apps; 4 DIP row gap: Windows 11 Settings.)
 - Every change saves immediately. No Save/Apply buttons. (Layers spec "Every change saves immediately"; Sony view model two-way bindings.)
 - Pages for Leaf: General, Calendars, Time zones, Notifications, Tray, Shortcuts, Accounts, About (footer). (Brief item 4.)
@@ -291,8 +290,8 @@ From the brief (item 5), with the reference apps filling in how it looks:
 - Its own small window, about 520 × 640 client DIPs, centered on the monitor under the cursor, not resizable, Close only, Mica, stock `TitleBar` (icon + "Leaf Calendar"). Shown instead of the main window until an account exists. (Brief; Layers placement.)
 - Steps in a `Frame`: Welcome → Google Cloud OAuth client → Sign in → Syncing → Done. Forward navigates with `SlideNavigationTransitionInfo { Effect = FromRight }`, Back with `FromLeft`. (Brief.)
 - Step layout, top to bottom, `Padding="32"`, `Spacing="16"`: hero glyph (32 to 48), step title (`SubtitleTextBlockStyle`), one-line description (Caption, secondary), then the step's controls. (MA `LoginPage.xaml`.)
-- Instructions are a short numbered list with the link inline ("1. Open Google Cloud Console and create a project."). Keep the existing `SetupPage` guide text as it is. (Leaf `SetupPage.xaml`.)
-- Errors show in an `InfoBar` (`Severity="Error"`, `IsClosable="False"`) above the primary button; work in progress shows an indeterminate `ProgressBar` or a 20 DIP `ProgressRing` with a Caption status line. (MA `LoginPage.xaml`; Leaf `SetupPage.xaml`, `AccountsPage.xaml`.)
+- Instructions are a short numbered list with the link inline ("1. Open Google Cloud Console and create a project."). Keep the existing guide text as it is. (Leaf `OnboardingStepPage.xaml`.)
+- Errors show in an `InfoBar` (`Severity="Error"`, `IsClosable="False"`) above the primary button; work in progress shows an indeterminate `ProgressBar` or a 20 DIP `ProgressRing` with a Caption status line. (MA `LoginPage.xaml`; Leaf `OnboardingStepPage.xaml`, `AccountsPage.xaml`.)
 - Footer pinned at the bottom: a 1 DIP top divider (or the flyout footer strip brush), `Padding="24,16"`. Back (default button) on the left, the step's primary action (Accent) on the right, and a `PipsPager` centered, re-templated so each pip is a 24 × 3 rounded line: selected `AccentFillColorDefaultBrush`, others `ControlStrongFillColorDefaultBrush`. (Brief; Sony footer strip.)
 - Primary actions: "Get started", "Next", "Sign in with Google", "Open Leaf Calendar" (enabled only when sync finishes). (Brief.)
 - Closing early asks first (see Dialogs).
@@ -308,7 +307,7 @@ From the brief (item 5), with the reference apps filling in how it looks:
 - `DefaultButton`: **Close** for destructive actions, **Primary** for harmless ones. (Leaf `AccountsPage.xaml.cs` vs `MainWindow.xaml.cs`; MA "Remove from library" vs "New playlist".)
 - Non-blocking messages use an `InfoBar`, not a dialog: inline for page errors, bottom-center of the island for undo notices ("Event deleted · Undo"). Transient command failures auto-dismiss after 5 s. (Leaf `CalendarPage.xaml`; Sony spec "States".)
 - Real notifications are Windows toasts, never in-app popups. (Leaf spec 2.)
-- Mode bars (time travel, people overlay, share availability) are cards or informational `InfoBar`s stacked at the top of the calendar island (`IslandBars`), 16 DIPs from its sides. (Leaf `CalendarPage.xaml`.)
+- Mode bars (time travel, people overlay, the share availability hint) are informational `InfoBar`s stacked bottom-center of the calendar island with the notices (`Toasts`), 16 DIPs from its bottom. The share availability controls live in the right panel. (Leaf `CalendarPage.xaml`, `ShareSlotsPanel.cs`.)
 
 > **Conflict:** Leaf's `ScopeDialog` uses "OK"; MA and Leaf's other dialogs use verbs. **Use verbs** in new dialogs. Existing `ScopeDialog` stays as it is.
 
@@ -399,14 +398,15 @@ Don't change existing work to close these. They're notes for new screens.
 - Command menu, cheat sheet, island bars.
 - Contrast themes: every code-built brush and event card comes from the system's contrast colors (`LeafBrushes.HighContrast`, `CardPalette`), and the calendar redraws when a contrast theme turns on or off. (`Controls/LeafBrushes.cs`)
 - Narrator names on every screen, event cards read "title, time, calendar" (plus past or declined), the sync status announces itself, and the mini month is one Tab stop with arrow keys inside. (`AccessibilityTests`)
+- Remembered main window size and maximized state, falling back to 1277 × 814. (`MainWindow.xaml.cs`, `LeafSettings.MainWindowSize`)
+- Setup runs in its own onboarding window, and Accounts is a page in Settings. (`Views/Onboarding`, `Views/Settings/AccountsPage.xaml`)
+- The theme choice lives in Settings › General; the view picker menu holds only the view modes. (`GeneralPage.xaml`, `MainWindow.xaml`)
 
 **Known gaps (new work should do better, existing screens stay)**
 
-1. No remembered window placement; MA restores size, position and maximized state and falls back to 1280 × 820.
+1. The main window's position isn't remembered; MA restores size, position and maximized state.
 2. `ScopeDialog` uses "OK" instead of a verb.
-3. `SetupPage` and `AccountsPage` are main-window pages today; the brief moves them to the onboarding and settings windows.
-4. Theme and view options live in the view picker menu; the brief moves the settings ones to Settings › General.
-5. Tray art is a placeholder (the app logo) until Milestone 6.
+3. Tray art is a placeholder (the app logo) until Milestone 6.
 
 ---
 

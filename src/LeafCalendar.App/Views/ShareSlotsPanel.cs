@@ -103,6 +103,7 @@ public sealed partial class ShareSlotsPanel : UserControl
 
         // Layout: the scrolling times under the title bar row (a UserControl doesn't apply its own padding), the footer pinned
         var scroll = new ScrollViewer { Content = stack };
+        ScrollIndicator.ShowOnHover(scroll);
         var layout = new Grid { Margin = new Thickness(0, 48, 0, 0) };
         layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });

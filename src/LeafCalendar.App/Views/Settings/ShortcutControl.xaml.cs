@@ -536,6 +536,14 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
 
     private void C_ResetClick(object sender, RoutedEventArgs e)
     {
+        // Leaf: a default the other shortcut, Windows or another app holds is said, the same as typed keys, not saved
+        if (DefaultHotkeySettings.ToHotkey() is { } fallback && CheckConflict?.Invoke(fallback) is { } message)
+        {
+            c.ConflictMessage = message;
+            c.HasConflict = true;
+            return;
+        }
+
         // Leaf: Reset is the default shortcut
         hotkeySettings = DefaultHotkeySettings with { };
         SetKeys();

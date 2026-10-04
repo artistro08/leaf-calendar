@@ -174,6 +174,7 @@ public partial class App : Application
                 // Left Setup Without An Account: the app is exiting, so the services go with it
                 if (!_trayStarted)
                 {
+                    QuitStep("instance", () => AppInstance.GetCurrent().UnregisterKey());
                     _services = null;
                     await DisposeServicesAsync(services);
                 }
@@ -184,10 +185,10 @@ public partial class App : Application
         {
             StartTray(services);
 
-            // Started By Windows At Sign-In (minimized unless Settings says to open the window), Or By A Notification
-            // Click: the tray, plus what the click asked for
+            // Started By Windows At Sign-In (minimized unless Settings says to open the window), Restarted By Windows After
+            // An Update Or A Crash, Or By A Notification Click: the tray, plus what the click asked for
             var signInMinimized = Program.StartKind == ExtendedActivationKind.StartupTask && !CurrentSettings().OpenWindowAtSignIn;
-            if (signInMinimized || Program.StartKind == ExtendedActivationKind.AppNotification)
+            if (signInMinimized || options.Restarted || Program.StartKind == ExtendedActivationKind.AppNotification)
             {
                 GoToTray();
                 if (Program.StartKind == ExtendedActivationKind.AppNotification)
@@ -293,9 +294,22 @@ public partial class App : Application
         _minuteTimer.Start();
 
         // Sync Changes Refresh The Tooltip (the Google services are rebuilt when the OAuth client changes)
-        services.GoogleChanged += (_, _) => _dispatcher.TryEnqueue(AttachSync);
+        services.GoogleChanged += (_, _) => _dispatcher.TryEnqueue(() =>
+        {
+            AttachSync();
+
+            // The new loop starts at the tray's pace; it takes the window's and flyout's pace now
+            UpdateSyncMode();
+        });
         AttachSync();
         RefreshTooltip();
+
+        // Windows Restarts Leaf Into The Tray After An Update Or A Crash, So Reminders Go On (a sign-in restart is the
+        // startup task's; UI tests' fake profiles don't register)
+        if (services.Options.FakeGoogle is null)
+        {
+            _ = Windows.Win32.PInvoke.RegisterApplicationRestart($"--profile {services.Options.Profile} --restarted", Windows.Win32.System.Recovery.REGISTER_APPLICATION_RESTART_FLAGS.RESTART_NO_REBOOT);
+        }
     }
 
     void AttachSync()
@@ -420,6 +434,7 @@ public partial class App : Application
                 _dispatcher?.TryEnqueue(ReleaseIfHidden);
             }
         };
+        window.MinimizedChanged += (_, _) => UpdateSyncMode();
         _window = window;
         EfficiencyMode.Set(false);
         window.Activate();
@@ -486,6 +501,8 @@ public partial class App : Application
                 HandleToast(toast);
                 return;
 
+            // The leaf-calendar: Link (the sign-in pages' "Open Leaf Calendar"), A Second Launch, Or Anything Else Just
+            // Brings Leaf Forward (a link's address is never read, so a page can't make Leaf do anything else)
             default:
                 BringToFront();
                 return;
@@ -523,8 +540,10 @@ public partial class App : Application
             };
 
             // A Calendar Hidden Or Shown In Leaf Leaves Or Joins The Tray Right Away (the tray shows what Leaf shows)
+            // Its Alerts Re-Plan Too (hidden calendars and default reminders feed the plan)
             _calendar.CalendarsChanged += (_, _) =>
             {
+                _alerts?.Invalidate();
                 RefreshTooltip();
                 RefreshAgenda();
             };
@@ -690,13 +709,14 @@ public partial class App : Application
         }
     }
 
-    // 15 s while a window or the flyout is on screen, 60 s in the tray (spec 5.3); opening the flyout syncs at once
+    // 15 s while a window or the flyout is on screen, 60 s in the tray or minimized (spec 5.3); opening the flyout syncs
+    // at once
     void UpdateSyncMode(bool flyoutOpened = false)
     {
         // Runs from the flyout's open and close events, so nothing may escape
         try
         {
-            var visible = _window is not null || _host?.IsAgendaOpen == true;
+            var visible = _window is { IsMinimized: false } || _host?.IsAgendaOpen == true;
             if (_services?.Google is { } google)
             {
                 google.Loop.Mode = visible ? SyncMode.Visible : SyncMode.Tray;
@@ -740,8 +760,9 @@ public partial class App : Application
             return;
         }
 
-        // Another Profile's Notification (every profile shares Leaf's notification identity)
-        if (toast.Profile != services.Options.Profile)
+        // Another Profile's Notification (every profile shares Leaf's notification identity; names ignore case, like
+        // Program's single-instance key)
+        if (!string.Equals(toast.Profile, services.Options.Profile, StringComparison.OrdinalIgnoreCase))
         {
             services.Log.Info("notification.other-profile");
             return;
@@ -909,6 +930,7 @@ public partial class App : Application
         try
         {
             // Each Step On Its Own, So One Failure Can't Skip The Database And Sync Teardown
+            QuitStep("restart", () => _ = Windows.Win32.PInvoke.UnregisterApplicationRestart());
             QuitStep("timer", () => _minuteTimer?.Stop());
             QuitStep("alerts", () => _alerts?.Dispose());
             QuitStep("notifier", () => _notifier?.Dispose());
@@ -925,6 +947,9 @@ public partial class App : Application
                 _calendar?.Dispose();
                 _calendar = null;
             });
+
+            // Let Go Of The Single-Instance Key Before The Slow Teardown, So A Launch Now Starts Fresh Instead Of Redirecting Here
+            QuitStep("instance", () => AppInstance.GetCurrent().UnregisterKey());
             if (_services is { } services)
             {
                 _services = null;
@@ -957,6 +982,7 @@ public partial class App : Application
     // Nothing to show: the services go, then the app ends
     async Task ExitQuietlyAsync(LeafServices services)
     {
+        QuitStep("instance", () => AppInstance.GetCurrent().UnregisterKey());
         await DisposeServicesAsync(services);
         Exit();
     }

@@ -25,14 +25,20 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     // How often the Syncing step reads back what the sync has saved so far
     static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(500);
 
+    // How long the primary action stays off after a step change (Windows' default double-click time), so the second
+    // click of a double-click doesn't run the new step's action
+    static readonly TimeSpan SettleTime = TimeSpan.FromMilliseconds(500);
+
     readonly LeafServices _services;
     readonly OnboardingFlow _flow = new();
     readonly CancellationTokenSource _cancel = new();
     readonly DispatcherQueueTimer _progress;
+    readonly DispatcherQueueTimer _settle;
     CancellationTokenSource? _signIn;
     Account? _account;
     bool _closed;
     bool _progressFailed;
+    bool _settling;
 
     /// <summary>Starts on Welcome. The client step's form prefills a saved client ID. The dispatcher runs the sync progress timer.</summary>
     public OnboardingViewModel(LeafServices services, DispatcherQueue dispatcher)
@@ -43,6 +49,15 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         _progress          = dispatcher.CreateTimer();
         _progress.Interval = ProgressInterval;
         _progress.Tick    += (_, _) => ShowProgress();
+
+        _settle             = dispatcher.CreateTimer();
+        _settle.Interval    = SettleTime;
+        _settle.IsRepeating = false;
+        _settle.Tick       += (_, _) =>
+        {
+            _settling = false;
+            Changed();
+        };
     }
 
     /// <summary>The step moved: true going forward, false going back. The window slides the new step in.</summary>
@@ -66,8 +81,8 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     /// <summary>The primary button's text.</summary>
     public string PrimaryText => _flow.PrimaryText;
 
-    /// <summary>True when the primary button is enabled.</summary>
-    public bool CanRunPrimary => _flow.CanRunPrimary;
+    /// <summary>True when the primary button is enabled (off for a moment after each step change).</summary>
+    public bool CanRunPrimary => _flow.CanRunPrimary && !_settling;
 
     /// <summary>True when Back shows.</summary>
     public bool CanGoBack => _flow.CanGoBack;
@@ -105,7 +120,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     /// </summary>
     public async Task RunPrimaryAsync()
     {
-        if (!_flow.CanRunPrimary)
+        if (!CanRunPrimary)
         {
             return;
         }
@@ -171,6 +186,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
 
         _closed = true;
         _progress.Stop();
+        _settle.Stop();
         _cancel.Cancel();
         if (!_flow.IsBusy)
         {
@@ -397,6 +413,13 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
 
     void Move(bool moved, bool forward)
     {
+        // The Primary Action Waits Out A Double-Click (the button shows off until the settle timer ticks)
+        if (moved && !_closed)
+        {
+            _settling = true;
+            _settle.Start();
+        }
+
         Changed();
         if (moved && !_closed)
         {

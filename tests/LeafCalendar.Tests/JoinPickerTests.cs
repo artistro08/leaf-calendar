@@ -112,6 +112,70 @@ public sealed class JoinPickerTests : IDisposable
         Assert.Null(Find());
     }
 
+    // A colleague's calendar you can only see, under an account listed before yours (so its copy of a shared meeting comes first)
+    const string ColleagueAccount = "000000000000";
+    const string Colleague = "colleague@example.com";
+
+    void AddColleagueCalendar()
+    {
+        using var conn = _db.Database.Open();
+        AccountStore.Upsert(conn, new Account(ColleagueAccount, "aaa@example.com", "A", null, AccountStatus.Ok));
+        CalendarStore.ReplaceForAccount(conn, ColleagueAccount, [new CalendarListEntry { Id = Colleague, Summary = "Colleague", AccessRole = "reader", Selected = true }]);
+    }
+
+    [Fact]
+    public void Find_ColleaguesMeetingYoureNotIn_Skipped()
+    {
+        // On their calendar Google marks the colleague as "self"
+        AddColleagueCalendar();
+        Store(ColleagueAccount, Colleague, """
+            {"id":"evt-theirs","status":"confirmed","summary":"Theirs","hangoutLink":"https://meet.google.com/ttt-tttt-ttt",
+             "attendees":[{"email":"colleague@example.com","self":true,"responseStatus":"accepted"},{"email":"boss@example.com","responseStatus":"accepted"}],
+             "start":{"dateTime":"2026-10-01T18:03:00Z"},"end":{"dateTime":"2026-10-01T18:30:00Z"}}
+            """);
+
+        Assert.Null(Find());
+    }
+
+    [Fact]
+    public void Find_YourMeetingAlsoOnAColleaguesCalendar_JoinsWithYourCopy()
+    {
+        AddColleagueCalendar();
+        Store(ColleagueAccount, Colleague, """
+            {"id":"evt-both","iCalUID":"both@google.com","status":"confirmed","summary":"Both","hangoutLink":"https://meet.google.com/bbb-bbbb-bbb",
+             "attendees":[{"email":"colleague@example.com","self":true,"responseStatus":"accepted"},{"email":"leaf.tester@gmail.com","responseStatus":"accepted"}],
+             "start":{"dateTime":"2026-10-01T18:03:00Z"},"end":{"dateTime":"2026-10-01T18:30:00Z"}}
+            """);
+        Store(Account, Primary, """
+            {"id":"evt-both","iCalUID":"both@google.com","status":"confirmed","summary":"Both","hangoutLink":"https://meet.google.com/bbb-bbbb-bbb",
+             "attendees":[{"email":"colleague@example.com","responseStatus":"accepted"},{"email":"leaf.tester@gmail.com","self":true,"responseStatus":"accepted"}],
+             "start":{"dateTime":"2026-10-01T18:03:00Z"},"end":{"dateTime":"2026-10-01T18:30:00Z"}}
+            """);
+
+        Assert.Equal("https://meet.google.com/bbb-bbbb-bbb?authuser=leaf.tester%40gmail.com", Find()!.AbsoluteUri);
+    }
+
+    [Fact]
+    public void Find_NoGuestsOnACalendarYouDontOwn_Skipped()
+    {
+        // Family is a calendar you can edit but don't own
+        Store(Account, "family123@group.calendar.google.com", """{"id":"evt-family","status":"confirmed","summary":"Family call","hangoutLink":"https://meet.google.com/fff-ffff-fff","start":{"dateTime":"2026-10-01T18:03:00Z"},"end":{"dateTime":"2026-10-01T18:30:00Z"}}""");
+
+        Assert.Null(Find());
+    }
+
+    [Fact]
+    public void Find_YourMeetingWithGuests_Joins()
+    {
+        Store(Account, Primary, """
+            {"id":"evt-mine","status":"confirmed","summary":"Mine","hangoutLink":"https://meet.google.com/mmm-mmmm-mmm",
+             "attendees":[{"email":"leaf.tester@gmail.com","self":true,"responseStatus":"tentative"},{"email":"boss@example.com","responseStatus":"accepted"}],
+             "start":{"dateTime":"2026-10-01T18:03:00Z"},"end":{"dateTime":"2026-10-01T18:30:00Z"}}
+            """);
+
+        Assert.NotNull(Find());
+    }
+
     [Fact]
     public void Find_ZoomLinkInTheDescription_OpensAsIs()
     {
@@ -193,5 +257,9 @@ public sealed class JoinPickerTests : IDisposable
         using var conn = _db.Database.Open();
         Assert.Null(JoinPicker.Find(conn, Now, TimeZoneInfo.Utc));
         Assert.Null(JoinPicker.FindNext(conn, Now, TimeZoneInfo.Utc, TimeSpan.FromHours(8)));
+
+        // The tray's and a toast's Join read this too, so they don't open it blind either
+        var odd = Assert.Single(OccurrenceQuery.Load(conn, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 2), TimeZoneInfo.Utc, includeDeclined: false), o => o.EventId == "evt-odd");
+        Assert.Null(JoinPicker.MeetingLink(conn, odd));
     }
 }

@@ -148,6 +148,25 @@ public sealed class SignInFlowTests : IDisposable
         Assert.Empty(AccountStore.GetAll(conn));
     }
 
+    // A Wrong Client ID Or Secret Can Never Work On Retry, So The Message Says Where To Fix It
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, "invalid_client")]
+    [InlineData(HttpStatusCode.BadRequest, "invalid_client")]
+    [InlineData(HttpStatusCode.Unauthorized, "unauthorized_client")]
+    [InlineData(HttpStatusCode.Unauthorized, "deleted_client")]
+    public async Task RunAsync_TokenEndpointRejectsClient_SaysToCheckTheClient(HttpStatusCode status, string code)
+    {
+        _google.On(HttpMethod.Post, TokenUrl, status, $$"""{"error":"{{code}}","error_description":"Unauthorized"}""");
+
+        var error = await Assert.ThrowsAsync<SignInException>(
+            () => CreateFlow(GoogleRedirects(Approve)).RunAsync(null, TestContext.Current.CancellationToken));
+
+        Assert.Equal(
+            "Google didn't accept the OAuth client's ID or secret. Check them in setup's Connect your Google Cloud client step, or in Settings › Accounts › Change OAuth client.",
+            error.Message);
+        Assert.Empty(_store.GetAccountIds());
+    }
+
     [Fact]
     public async Task RunAsync_TokenRequestTimesOut_FailsWithSignInException()
     {

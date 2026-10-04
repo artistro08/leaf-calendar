@@ -31,6 +31,25 @@ public sealed partial class DetailsPanel : UserControl
     {
         InitializeComponent();
         ScrollIndicator.ShowOnHover(ContentScroll);
+
+        // The Description's Real-Host Notes Follow A Theme Or Contrast Theme Change (contrast is raised off the UI thread)
+        ActualThemeChanged += (_, _) => RecolorHostNotes();
+        Loaded             += (_, _) => LeafBrushes.ContrastChanged += OnContrastChanged;
+        Unloaded           += (_, _) => LeafBrushes.ContrastChanged -= OnContrastChanged;
+    }
+
+    void OnContrastChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(RecolorHostNotes);
+
+    // The real-host notes in the description shown now
+    readonly List<Run> _hostNotes = [];
+
+    void RecolorHostNotes()
+    {
+        var brush = LeafBrushes.SecondaryText(ActualTheme == ElementTheme.Dark);
+        foreach (var note in _hostNotes)
+        {
+            note.Foreground = brush;
+        }
     }
 
     /// <summary>x:Bind helper: a brush for a hex color.</summary>
@@ -213,7 +232,8 @@ public sealed partial class DetailsPanel : UserControl
         ToolTipService.SetToolTip(JoinButton, $"Join (Ctrl+J)\n{call}");
 
         // Location And Call
-        LocationText.Text         = d.Location ?? "";
+        // Shown cleaned, so a line break or bidi mark can't draw a fake line; Maps still searches the raw value
+        LocationText.Text         = Core.Tray.DisplayText.Clean(d.Location, 1000);
         LocationRow.Visibility    = Visible(d.Location is { Length: > 0 });
         ConferenceText.Text       = $"Video call: {call}";
         ConferenceText.Visibility = Visible(d.ConferenceUri is not null);
@@ -305,6 +325,7 @@ public sealed partial class DetailsPanel : UserControl
     {
         DescriptionBlock.Blocks.Clear();
         DescriptionBlock.Visibility = Visible(runs.Count > 0);
+        _hostNotes.Clear();
 
         var paragraph = new Paragraph();
         var linkStart = 0;
@@ -329,7 +350,9 @@ public sealed partial class DetailsPanel : UserControl
             var linkEnds = run.Link is { } link && (r == runs.Count - 1 || runs[r + 1].Link?.AbsoluteUri != link.AbsoluteUri);
             if (linkEnds && LinkSafety.HostNote(run.Link!, string.Concat(runs.Skip(linkStart).Take(r - linkStart + 1).Select(x => x.Text))) is { } host)
             {
-                paragraph.Inlines.Add(new Run { Text = $" ({host})", Foreground = LeafBrushes.SecondaryText(ActualTheme == ElementTheme.Dark) });
+                var note = new Run { Text = $" ({host})", Foreground = LeafBrushes.SecondaryText(ActualTheme == ElementTheme.Dark) };
+                _hostNotes.Add(note);
+                paragraph.Inlines.Add(note);
             }
 
             if (run.Link is null || linkEnds)

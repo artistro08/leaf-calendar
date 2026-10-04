@@ -349,10 +349,19 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-        package.SetText(AvailabilityText.Compose(Settings.ShareMessage, text));
-        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
-        Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
+        try
+        {
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText(AvailabilityText.Compose(Settings.ShareMessage, text));
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+            Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
+        }
+        catch (System.Runtime.InteropServices.COMException ex)
+        {
+            // Another app holds the clipboard (a remote session, a clipboard manager): say so, and sharing goes on
+            Fail("share.copy.failed", ex);
+            return;
+        }
 
         _services.Log.Info("share.copy", $"slots={_slots.Count} calendars={_shareCalendars.Count}");
         StopSharing();

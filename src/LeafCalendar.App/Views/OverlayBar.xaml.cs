@@ -4,6 +4,7 @@ using LeafCalendar.Core.People;
 using LeafCalendar.Core.Settings;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 
 namespace LeafCalendar.App.Views;
@@ -64,12 +65,69 @@ public sealed partial class OverlayBar : UserControl
         Hint.Visibility = Hint.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         // Chips
-        var dark = ActualTheme == ElementTheme.Dark;
+        var dark        = ActualTheme == ElementTheme.Dark;
+        var focusedChip = FocusedChipIndex();
         Chips.ItemsSource = vm.OverlayPeople
             .Select(p => new OverlayChip(p.Email, p.Name, p.State == PersonBusyState.Unknown, LeafBrushes.Person(p.ColorIndex, dark), vm.RemoveOverlayPerson))
             .ToList();
 
         Visibility = Visibility.Visible;
+
+        // The Rebuilt Chips Drop A Focused Remove Button, So Focus Goes Back To The One Now In Its Place (or Clear, past the last)
+        if (focusedChip >= 0)
+        {
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => FocusChip(focusedChip));
+        }
+    }
+
+    // The chip holding focus, or -1
+    int FocusedChipIndex()
+    {
+        if (XamlRoot is null)
+        {
+            return -1;
+        }
+
+        for (DependencyObject? current = FocusManager.GetFocusedElement(XamlRoot) as UIElement; current is not null && current != Chips; current = VisualTreeHelper.GetParent(current))
+        {
+            if (Chips.IndexFromContainer(current) is var index and >= 0)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    void FocusChip(int index)
+    {
+        if (Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        Chips.UpdateLayout();
+        if (Chips.ContainerFromIndex(index) is { } container && FindButton(container) is { } remove)
+        {
+            remove.Focus(FocusState.Keyboard);
+            return;
+        }
+
+        ClearButton.Focus(FocusState.Keyboard);
+    }
+
+    static Button? FindButton(DependencyObject parent)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if ((child as Button ?? FindButton(child)) is { } button)
+            {
+                return button;
+            }
+        }
+
+        return null;
     }
 
     void OnClearClick(object sender, RoutedEventArgs e) => _vm?.ClearOverlay();

@@ -304,7 +304,9 @@ public sealed partial class CommandMenu : UserControl
         _containers.Clear();
         CommandResults.ItemsSource   = _rows;
         CommandResults.SelectedIndex = index >= 0 ? index : _rows.FindIndex(r => r.Kind != CommandRowKind.Header);
-        CommandEmptyPanel.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        // The Empty State Says Nothing Matched (an empty box asking for a date has matched nothing yet, so it stays hidden)
+        CommandEmptyPanel.Visibility = _rows.Count == 0 && !(_dateMode && CommandSearchBox.Text.Length == 0) ? Visibility.Visible : Visibility.Collapsed;
         ResultsScroll.ChangeView(null, 0, null, disableAnimation: true);
         ShowHints();
     }

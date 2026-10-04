@@ -40,13 +40,18 @@ public sealed partial class PaneGlyph : UserControl
         Width     = GlyphWidth;
         Height    = GlyphHeight;
         Content   = new Canvas { Children = { _panel, _outline }, RenderTransform = _snap };
-        LayoutUpdated += (_, _) => SnapToPixels();
+        // Re-Snapped Only When The Glyph Moves (LayoutUpdated would come for every layout pass in the window)
+        EffectiveViewportChanged += (_, _) => SnapToPixels();
         RegisterPropertyChangedCallback(ForegroundProperty, (_, _) => Paint());
 
         // Theme And Contrast Changes Repaint Once They've Settled (an inherited color changes without a callback)
         ActualThemeChanged += (_, _) => DispatcherQueue.TryEnqueue(Paint);
         void OnContrast(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(Paint);
-        void OnRootChanged(XamlRoot sender, XamlRootChangedEventArgs e) => Paint();
+        void OnRootChanged(XamlRoot sender, XamlRootChangedEventArgs e)
+        {
+            Paint();
+            SnapToPixels();
+        }
 
         // Listed Once While On Screen (Loaded can come again without an Unloaded between)
         Loaded   += (_, _) =>
@@ -59,6 +64,7 @@ public sealed partial class PaneGlyph : UserControl
             }
 
             Paint();
+            SnapToPixels();
         };
         Unloaded += (_, _) =>
         {

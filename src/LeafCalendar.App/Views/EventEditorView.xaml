@@ -121,7 +121,7 @@
                                 <Ellipse Width="10" Height="10" VerticalAlignment="Center" Fill="{x:Bind local:EventEditorView.Brush(Color)}" />
                                 <StackPanel>
                                     <TextBlock Text="{x:Bind Name}" />
-                                    <TextBlock Text="{x:Bind AccountEmail}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind ShowAccount}" />
+                                    <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{x:Bind AccountEmail}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind ShowAccount}" />
                                 </StackPanel>
                             </StackPanel>
                         </DataTemplate>
@@ -191,8 +191,8 @@
                         <ComboBoxItem Content="On a date" />
                         <ComboBoxItem Content="After a number of times" />
                     </ComboBox>
-                    <CalendarDatePicker HorizontalAlignment="Stretch" Date="{x:Bind Editor.EndsOn, Mode=TwoWay}" Visibility="{x:Bind Editor.ShowEndsOn, Mode=OneWay}" AutomationProperties.AutomationId="EditorEndsOn" />
-                    <NumberBox Minimum="1" Maximum="999" SpinButtonPlacementMode="Compact" Value="{x:Bind Editor.EndsAfter, Mode=TwoWay}" Visibility="{x:Bind Editor.ShowEndsAfter, Mode=OneWay}" AutomationProperties.AutomationId="EditorEndsAfter" />
+                    <CalendarDatePicker HorizontalAlignment="Stretch" Date="{x:Bind Editor.EndsOn, Mode=TwoWay}" Visibility="{x:Bind Editor.ShowEndsOn, Mode=OneWay}" AutomationProperties.Name="On a date" AutomationProperties.AutomationId="EditorEndsOn" />
+                    <NumberBox Minimum="1" Maximum="999" SpinButtonPlacementMode="Compact" Value="{x:Bind Editor.EndsAfter, Mode=TwoWay}" Visibility="{x:Bind Editor.ShowEndsAfter, Mode=OneWay}" AutomationProperties.Name="After a number of times" AutomationProperties.AutomationId="EditorEndsAfter" />
                 </StackPanel>
                 <!-- /Repeat -->
 

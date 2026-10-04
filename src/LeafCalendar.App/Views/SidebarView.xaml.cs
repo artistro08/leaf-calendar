@@ -219,10 +219,11 @@ public sealed partial class SidebarView : UserControl
         }
 
         var dark      = ActualTheme == ElementTheme.Dark;
+        var contrast  = LeafBrushes.HighContrast;
         var weekStart = _viewModel?.Settings.WeekStart ?? DayOfWeek.Sunday;
         var today     = _viewModel?.Today ?? DateOnly.FromDateTime(DateTime.Today);
         var first     = ViewNavigator.WeekStartOf(_miniMonth, weekStart);
-        var shown     = _viewModel is { Mode: not Core.Settings.CalendarViewMode.Month } vm ? (Start: vm.PeriodStart, End: vm.PeriodStart.AddDays(vm.VisibleColumns)) : default;
+        var shown     = _viewModel is { Mode: not Core.Settings.CalendarViewMode.Month } vm ? vm.VisibleDays().ToHashSet() : [];
 
         MiniMonthTitle.Text = ViewNavigator.MonthTitle(_miniMonth);
 
@@ -245,13 +246,17 @@ public sealed partial class SidebarView : UserControl
             button.Tag      = date.ToString("O", System.Globalization.CultureInfo.InvariantCulture);
 
             // Visible-Days Band (rounded where the strip starts and ends, or wraps to the next row)
-            var inBand   = date >= shown.Start && date < shown.End;
+            var inBand   = shown.Contains(date);
             var column   = i % 7;
-            var roundL   = date == shown.Start || column == 0 ? 14 : 0;
-            var roundR   = date.AddDays(1) == shown.End || column == 6 ? 14 : 0;
+            var roundL   = !shown.Contains(date.AddDays(-1)) || column == 0 ? 14 : 0;
+            var roundR   = !shown.Contains(date.AddDays(1)) || column == 6 ? 14 : 0;
             var band     = _dayBands[i];
-            band.Background   = inBand ? LeafBrushes.FromHex(dark ? "#14FFFFFF" : "#0F000000") : null;
+            band.Background   = inBand && !contrast ? LeafBrushes.FromHex(dark ? "#14FFFFFF" : "#0F000000") : null;
             band.CornerRadius = new CornerRadius(roundL, roundR, roundR, roundL);
+
+            // A Contrast Theme Outlines The Strip In The System's Highlight Color Instead (a tint would vanish)
+            band.BorderBrush     = inBand && contrast ? LeafBrushes.Accent(dark) : null;
+            band.BorderThickness = inBand && contrast ? new Thickness(roundL > 0 ? 1 : 0, 1, roundR > 0 ? 1 : 0, 1) : default;
 
             // Today (an accent circle from its style, in the theme's own accent and on-accent colors). Other days
             // carry their text color themselves, so no hover or press state can repaint the number.
@@ -292,15 +297,19 @@ public sealed partial class SidebarView : UserControl
             return;
         }
 
-        // A Fold Still Running Ends Where It Was Going First
+        // A Fold Still Running Ends Where It Was Going First (a fold-away commits, so this click reopens it)
+        var viewModel = _viewModel;
         if (_folds.Remove(list, out var running))
         {
-            running.SkipToFill();
-            running.Stop();
-            FinishFold(list, running);
+            running.Fold.SkipToFill();
+            running.Fold.Stop();
+            FinishFold(list, running.Fold);
+            if (!running.Expand)
+            {
+                viewModel.SetAccountExpanded(group.AccountId, false);
+            }
         }
 
-        var viewModel = _viewModel;
         var expand    = !group.IsExpanded;
         if (!new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
         {
@@ -350,12 +359,12 @@ public sealed partial class SidebarView : UserControl
         // The Accounts Below Follow The List Frame By Frame, So Their Own Slide Is Off Meanwhile
         CalendarList.ItemContainerTransitions = new TransitionCollection();
         list.Height = from;
-        _folds[list] = fold;
+        _folds[list] = (fold, expand);
         fold.Begin();
     }
 
-    // Folds running, by the list they slide
-    readonly Dictionary<ListViewBase, Storyboard> _folds = [];
+    // Folds running, by the list they slide, and whether each is opening (true) or folding away
+    readonly Dictionary<ListViewBase, (Storyboard Fold, bool Expand)> _folds = [];
 
     // How long an account's calendars take to slide open or shut
     static readonly TimeSpan FoldDuration = TimeSpan.FromMilliseconds(250);
@@ -376,6 +385,9 @@ public sealed partial class SidebarView : UserControl
         if (_viewModel is not null && sender is CheckBox { Tag: CalendarRow row } box)
         {
             _viewModel.SetCalendarHidden(row.Info, hidden: box.IsChecked != true);
+
+            // A Save That Failed Leaves The Row Unchanged, So The Box Goes Back To What's Stored
+            box.IsChecked = row.IsVisible;
         }
     }
 

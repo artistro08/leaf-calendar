@@ -151,9 +151,30 @@ public readonly record struct ShortcutResult(CalendarCommand Command, int Days =
 /// <summary>Maps a key chord to a calendar command. Keys are <c>VirtualKey.ToString()</c> values.</summary>
 public static class ShortcutMap
 {
-    /// <summary>Resolves a chord; the only Alt chords are Alt+Left and Alt+Right (back and forward).</summary>
-    public static ShortcutResult Resolve(string key, bool ctrl, bool shift, bool alt)
+    /// <summary>
+    /// Resolves a chord; the only Alt chords are Alt+Left and Alt+Right (back and forward).
+    /// </summary>
+    /// <remarks>
+    /// The punctuation shortcuts (? / . , - and =) are defined by the character they type, and punctuation keys sit on
+    /// different keys from one layout to the next. So for a punctuation key (<c>VK_OEM_*</c>) the app passes
+    /// <paramref name="typed"/>, the character the key types on the user's layout with Shift as held, and the shortcut
+    /// follows that character: on a French layout Shift+, types "?" and opens the cheat sheet, while on a German layout
+    /// the US "/" key types "#" and does nothing. Ctrl++ zooms in like Ctrl+=, for layouts where + has its own key.
+    /// Without <paramref name="typed"/> (unknown), the US key codes apply.
+    /// </remarks>
+    /// <param name="key">The <c>VirtualKey.ToString()</c> value.</param>
+    /// <param name="ctrl">True while Ctrl is held.</param>
+    /// <param name="shift">True while Shift is held.</param>
+    /// <param name="alt">True while Alt is held.</param>
+    /// <param name="typed">For a punctuation key, the character it types on the current layout; null for every other key.</param>
+    public static ShortcutResult Resolve(string key, bool ctrl, bool shift, bool alt, char? typed = null)
     {
+        // Punctuation Follows The Character It Types (as the US key and Shift that type it there)
+        if (typed is { } character)
+        {
+            (key, shift) = UsKeyTyping(character);
+        }
+
         // Alt: Only Back And Forward (Windows' own history keys)
         if (alt)
         {
@@ -245,6 +266,18 @@ public static class ShortcutMap
             _                   => default,
         };
     }
+
+    // The US key code and Shift state that type a shortcut's character; any other character matches no shortcut
+    static (string Key, bool Shift) UsKeyTyping(char typed) => typed switch
+    {
+        '=' or '+' => ("187", false),
+        ','        => ("188", false),
+        '-'        => ("189", false),
+        '.'        => ("190", false),
+        '/'        => ("191", false),
+        '?'        => ("191", true),
+        _          => ("", false),
+    };
 
     static int? DigitOf(string key) =>
         key.Length == 7 && key.StartsWith("Number", StringComparison.Ordinal) && char.IsAsciiDigit(key[6]) ? key[6] - '0'

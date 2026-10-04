@@ -17,8 +17,6 @@ namespace LeafCalendar.App.Controls;
 /// </summary>
 public sealed partial class DayColumn : Canvas
 {
-    static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
-
     // The app's icon button look, read once (as SidebarView reads its day styles)
     static readonly Lazy<Style> IconButtonStyle = new(() => (Style)Application.Current.Resources["LeafIconButtonStyle"]);
 
@@ -373,7 +371,7 @@ public sealed partial class DayColumn : Canvas
             text.Foreground    = LeafBrushes.PrimaryText(dark);
             SetTop(border, top / 60 * _owner.HourHeight);
 
-            var when = $"{TimeZoneInfo.ConvertTime(b.Start, vm.Zone).ToString("h:mm tt", English)}–{TimeZoneInfo.ConvertTime(b.End, vm.Zone).ToString("h:mm tt", English)}";
+            var when = TimeLabels.Range(b.Start, b.End, vm.Zone, vm.Settings.Use24HourTime);
             AutomationProperties.SetAutomationId(border, $"OverlayBlock_{b.Email}_{n - 1}");
             AutomationProperties.SetName(border, $"{b.Email} busy {when}" + (b.Title is { } t ? $": {t}" : ""));
         }

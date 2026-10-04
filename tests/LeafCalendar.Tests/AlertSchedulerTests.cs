@@ -108,7 +108,7 @@ public sealed class AlertSchedulerTests : IDisposable
         Assert.Single(_due);
         first.Dispose();
 
-        // Restart A Minute Later: the one-hour look-back sees the 17:50 reminder, and the ledger stops it
+        // Restart A Minute Later: the pass sees the 17:50 reminder again, and the ledger stops it
         At(17, 51);
         Scheduler().Check();
 
@@ -132,7 +132,7 @@ public sealed class AlertSchedulerTests : IDisposable
     [Fact]
     public void Check_WokeAfterMeetingEnded_SkipsIt()
     {
-        // A Half-Hour Meeting (18:00-18:30Z), so its reminder and join are still inside the look-back on wake
+        // A Half-Hour Meeting (18:00-18:30Z), so it has ended a quarter hour before the wake
         Store(Meeting.Replace("T19:00", "T18:30", StringComparison.Ordinal));
         var scheduler = Scheduler();
         At(17, 40);
@@ -295,13 +295,13 @@ public sealed class AlertSchedulerTests : IDisposable
     }
 
     [Fact]
-    public void Check_WokeAfterMeetingEndedOutsideTheLookBack_SkipsIt()
+    public void Check_WokeLongAfterMeetingEnded_SkipsIt()
     {
         var scheduler = Scheduler();
         At(17, 40);
         scheduler.Check();
 
-        // Asleep From 17:40 To 19:30: the reminder and the join are both past the look-back, and the meeting is over
+        // Asleep From 17:40 To 19:30: the reminder and the join both came due, but the meeting is over
         At(19, 30);
         scheduler.Check();
 
@@ -309,7 +309,7 @@ public sealed class AlertSchedulerTests : IDisposable
     }
 
     [Fact]
-    public void Check_WokeNinetyMinutesIntoALongMeeting_ShowsJoinNowPastTheLookBack()
+    public void Check_WokeNinetyMinutesIntoALongMeeting_ShowsJoinNow()
     {
         // A Two-Hour Meeting (18:00-20:00Z): its join came due 90 minutes before the wake, and it's still running
         Store(Meeting.Replace("T19:00", "T20:00", StringComparison.Ordinal));
@@ -321,6 +321,62 @@ public sealed class AlertSchedulerTests : IDisposable
         scheduler.Check();
 
         Assert.Equal(AlertKind.JoinNow, Assert.Single(_due).Kind);
+    }
+
+    [Fact]
+    public void Check_WokeHoursAfterTheReminder_ShowsItWhileTheEventRuns()
+    {
+        // A Four-Hour Workshop Without A Link (18:00-22:00Z), Reminders At 17:10, 17:30, And 17:50
+        Store("""
+            {"id":"evt-workshop","status":"confirmed","summary":"Workshop","start":{"dateTime":"2026-10-01T18:00:00Z"},"end":{"dateTime":"2026-10-01T22:00:00Z"},
+             "reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":50},{"method":"popup","minutes":30},{"method":"popup","minutes":10}]}}
+            """);
+        var scheduler = Scheduler();
+        scheduler.Check();
+
+        // Asleep From 17:00 To 21:00: all three came due hours ago, the workshop still runs, and it shows once
+        At(21, 0);
+        scheduler.Check();
+        At(21, 1);
+        scheduler.Check();
+
+        var alert = Assert.Single(_due, a => a.Occurrence.EventId == "evt-workshop");
+        Assert.Equal(10, alert.MinutesBefore);
+    }
+
+    [Fact]
+    public void Check_AllDayEvent_MissedReminderShowsUntilTheEndOfItsDay()
+    {
+        // All Day On Oct 1 With A 60-Minute Popup (Sep 30 23:00Z): woken at 21:00 it still shows, but not once the day is over
+        Store("""
+            {"id":"evt-day","status":"confirmed","summary":"Offsite","start":{"date":"2026-10-01"},"end":{"date":"2026-10-02"},
+             "reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":60}]}}
+            """);
+        Store("""
+            {"id":"evt-over","status":"confirmed","summary":"Yesterday","start":{"date":"2026-09-30"},"end":{"date":"2026-10-01"},
+             "reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":60}]}}
+            """);
+        At(21, 0);
+        Scheduler().Check();
+
+        Assert.Equal("evt-day", Assert.Single(_due).Occurrence.EventId);
+    }
+
+    [Fact]
+    public void Check_RunningSinceMonthsAgo_ShowsItsReminderOnce()
+    {
+        // A Timed Block Since May, Still Running: its 10-minute default reminder came due in April
+        Store("""
+            {"id":"evt-phase","status":"confirmed","summary":"Project phase",
+             "start":{"dateTime":"2026-05-01T09:00:00Z"},"end":{"dateTime":"2026-11-01T09:00:00Z"}}
+            """);
+        At(17, 0);
+        Scheduler().Check();
+        Scheduler().Check();
+
+        var alert = Assert.Single(_due);
+        Assert.Equal("evt-phase", alert.Occurrence.EventId);
+        Assert.Equal(AlertKind.Reminder, alert.Kind);
     }
 
     [Fact]

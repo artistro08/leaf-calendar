@@ -36,6 +36,12 @@ internal static class ElasticNudge
         transform.X = 0;
         transform.Y = 0;
 
+        // With Windows Animation Effects Off It Just Goes Back
+        if (!new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
+        {
+            return;
+        }
+
         var storyboard = new Storyboard();
         storyboard.Children.Add(Animate(transform, "X", fromX));
         storyboard.Children.Add(Animate(transform, "Y", fromY));

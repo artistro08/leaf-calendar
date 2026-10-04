@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
+using FlaUI.Core.Tools;
 
 namespace LeafCalendar.UITests.Support;
 
@@ -48,7 +49,7 @@ static class Clipboard
     /// <summary>Empties the clipboard, so a later read can't pass on old text.</summary>
     public static void Clear()
     {
-        Assert.True(NativeMethods.OpenClipboard(0), "Couldn't open the clipboard.");
+        Assert.True(Open(), "Couldn't open the clipboard.");
         NativeMethods.EmptyClipboard();
         NativeMethods.CloseClipboard();
     }
@@ -69,7 +70,7 @@ static class Clipboard
         var end         = fragmentEnd + Encoding.UTF8.GetByteCount(After);
         var page        = string.Format(CultureInfo.InvariantCulture, Header, start, end, fragment, fragmentEnd) + Before + html + After;
 
-        Assert.True(NativeMethods.OpenClipboard(0), "Couldn't open the clipboard.");
+        Assert.True(Open(), "Couldn't open the clipboard.");
         try
         {
             NativeMethods.EmptyClipboard();
@@ -81,6 +82,9 @@ static class Clipboard
             NativeMethods.CloseClipboard();
         }
     }
+
+    // Opens the clipboard, waiting out an app that holds it for a moment (clipboard history reads each copy right away)
+    static bool Open() => Retry.WhileFalse(() => NativeMethods.OpenClipboard(0), TimeSpan.FromSeconds(2)).Success;
 
     // Hands the clipboard a moveable global copy of the bytes (the clipboard owns it once set)
     static void Put(uint format, byte[] bytes)

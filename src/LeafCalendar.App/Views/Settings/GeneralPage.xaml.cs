@@ -243,8 +243,17 @@ public sealed partial class GeneralPage : Page
     // In the custom view the new count shows right away; otherwise it's kept for when that view is picked
     void OnDaysChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
-        if (_loading || double.IsNaN(args.NewValue))
+        if (_loading)
         {
+            return;
+        }
+
+        // A cleared box goes back to the saved value
+        if (double.IsNaN(args.NewValue))
+        {
+            _loading      = true;
+            DaysBox.Value = Calendar.Settings.CustomDayCount;
+            _loading      = false;
             return;
         }
 

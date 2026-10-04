@@ -154,6 +154,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             ForgetCalendarSoon();
             _providers.Clear();
             _searchIndex = null;
+            _searchIndexGeneration++;
             RefreshUpcoming();
             OccurrencesChanged?.Invoke(this, EventArgs.Empty);
         };
@@ -481,7 +482,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         var todayShown = Mode == CalendarViewMode.Month
             ? ViewNavigator.MonthStartOf(Today) == PeriodStart
             : Today >= PeriodStart && Today < PeriodStart.AddDays(VisibleColumns);
-        var anchor = SelectedInfo?.Occurrence is { } selected ? LocalDate(selected.Start) : todayShown ? Today : PeriodStart;
+        var anchor = SelectedInfo?.Occurrence is { } selected ? DayOf(selected) : todayShown ? Today : PeriodStart;
 
         // The Views Relayout Straight Onto The New Period (the navigation that follows finds them already there)
         SwitchingTo = ViewNavigator.PeriodStart(mode, anchor, Settings.WeekStart);
@@ -653,10 +654,17 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public void ToggleDeclined() => Update(s => s with { ShowDeclined = !s.ShowDeclined }, reloadData: true);
 
     /// <summary>Makes the grid taller (positive) or shorter (negative).</summary>
-    public void ZoomBy(double delta) => Update(s => s with { HourHeight = s.HourHeight + delta });
+    public void ZoomBy(double delta) => Zoom(s => s with { HourHeight = s.HourHeight + delta });
 
     /// <summary>Default grid height.</summary>
-    public void ZoomReset() => Update(s => s with { HourHeight = LeafSettings.DefaultHourHeight });
+    public void ZoomReset() => Zoom(s => s with { HourHeight = LeafSettings.DefaultHourHeight });
+
+    // Every wheel notch relayouts at once and saves off the UI thread, so a sync holding the database never stalls the wheel
+    void Zoom(Func<LeafSettings, LeafSettings> change)
+    {
+        Remember(change);
+        LayoutChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     // =========================================================================
     // SELECTION
@@ -768,9 +776,15 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Shows or hides a calendar in Leaf.</summary>
     public void SetCalendarHidden(CalendarInfo calendar, bool hidden)
     {
-        using (var conn = _services.Database.Open())
+        // A Full Or Busy Database Shows A Notice; The Reload Puts The List Back As Stored
+        try
         {
+            using var conn = _services.Database.Open();
             CalendarStore.SetHidden(conn, calendar.AccountId, calendar.Id, hidden);
+        }
+        catch (Exception ex) when (IsEditFailure(ex))
+        {
+            Fail("calendar.hide.failed", ex);
         }
 
         ReloadCalendars();
@@ -779,9 +793,14 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Sets Leaf's color for a calendar (null restores Google's).</summary>
     public void SetCalendarColor(CalendarInfo calendar, string? color)
     {
-        using (var conn = _services.Database.Open())
+        try
         {
+            using var conn = _services.Database.Open();
             CalendarStore.SetColor(conn, calendar.AccountId, calendar.Id, color);
+        }
+        catch (Exception ex) when (IsEditFailure(ex))
+        {
+            Fail("calendar.color.failed", ex);
         }
 
         ReloadCalendars();
@@ -815,9 +834,14 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Saves the order of an account's calendars.</summary>
     public void ReorderCalendars(string accountId, IReadOnlyList<string> calendarIds)
     {
-        using (var conn = _services.Database.Open())
+        try
         {
+            using var conn = _services.Database.Open();
             CalendarStore.Reorder(conn, accountId, calendarIds);
+        }
+        catch (Exception ex) when (IsEditFailure(ex))
+        {
+            Fail("calendar.reorder.failed", ex);
         }
 
         ReloadCalendars();
@@ -1071,10 +1095,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// </summary>
     public async Task RefreshAsync()
     {
+        // A request made while this read runs may not be in it, so it waits for the refresh its edit started
+        var pending = _reselect?.Match;
         await Cache.RefreshAsync(_life.Token);
 
         // An Edit Asked To Select Its Event Once It's Reloaded
-        if (_reselect is { } reselect)
+        if (_reselect is { } reselect && ReferenceEquals(reselect.Match, pending))
         {
             _reselect = null;
             if (Cache.ForDay(reselect.Day).FirstOrDefault(reselect.Match) is { } edited)
@@ -1698,8 +1724,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
-    // The days on screen (hidden weekends skipped)
-    IEnumerable<DateOnly> VisibleDays()
+    /// <summary>The days on screen (hidden weekends skipped), for select-all and the mini month's band.</summary>
+    public IEnumerable<DateOnly> VisibleDays()
     {
         if (Mode == CalendarViewMode.Month)
         {
@@ -1777,13 +1803,14 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Joins a meeting (Ctrl+J and the Join buttons): <paramref name="occurrence"/> when given, else the selected event
-    /// when it has a link, else the first upcoming one that does. Meet links get the event's account (spec 8.5).
+    /// when it has a link, else the first upcoming one on a known meeting host (opened blind, like the tray's). Meet links
+    /// get the event's account (spec 8.5).
     /// </summary>
     public async Task JoinAsync(CalendarOccurrence? occurrence = null)
     {
         var target = occurrence
             ?? (SelectedInfo is { Details.ConferenceUri: not null } selected ? selected.Occurrence : null)
-            ?? Upcoming.FirstOrDefault(u => u.CanJoin)?.Occurrence;
+            ?? Upcoming.FirstOrDefault(u => u.CanJoin && u.Provider is not null)?.Occurrence;
 
         if (target is null || LoadDetails(target)?.ConferenceUri is not { } link)
         {

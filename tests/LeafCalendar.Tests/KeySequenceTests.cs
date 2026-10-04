@@ -27,6 +27,15 @@ public class KeySequenceTests
     }
 
     [Fact]
+    public void Resolve_TypedCharacter_ReachesShortcutMap()
+    {
+        var keys = new KeySequence(_time);
+
+        // French: Shift and the US "," key type "?"
+        Assert.Equal(CalendarCommand.ShortcutSheet, keys.Resolve("188", ctrl: false, shift: true, alt: false, typed: '?').Command);
+    }
+
+    [Fact]
     public void EThenN_AfterTimeout_IsNextEvent()
     {
         var keys = new KeySequence(_time);

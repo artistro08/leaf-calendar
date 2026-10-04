@@ -9,8 +9,10 @@ $tool = Join-Path ([IO.Path]::GetTempPath()) 'leaf-make-icons'
 
 # Renderer (npm, outside the repo)
 New-Item -ItemType Directory -Force $tool | Out-Null
-if (-not (Test-Path (Join-Path $tool 'node_modules/@resvg/resvg-js'))) {
-    npm install --prefix $tool --no-save --silent '@resvg/resvg-js@2' | Out-Host
+$resvg     = '2.6.2'
+$installed = Join-Path $tool 'node_modules/@resvg/resvg-js/package.json'
+if (-not (Test-Path $installed) -or (Get-Content $installed -Raw | ConvertFrom-Json).version -ne $resvg) {
+    npm install --prefix $tool --no-save --silent --ignore-scripts "@resvg/resvg-js@$resvg" | Out-Host
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 

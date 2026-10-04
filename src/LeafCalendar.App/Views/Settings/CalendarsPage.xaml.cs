@@ -58,6 +58,7 @@ public sealed partial class CalendarsPage : Page
         _context = (SettingsContext)e.Parameter;
         _context.Host.CalendarsChanged        += OnCalendarsChanged;
         _context.Calendar.AccountFoldingChanged += OnCalendarsChanged;
+        _context.Host.Closed                  += OnHostClosed;
         Rebuild();
     }
 
@@ -65,6 +66,15 @@ public sealed partial class CalendarsPage : Page
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         _context.Host.CalendarsChanged        -= OnCalendarsChanged;
+        _context.Calendar.AccountFoldingChanged -= OnCalendarsChanged;
+        _context.Host.Closed                  -= OnHostClosed;
+    }
+
+    // Settings Left On This Page (back to the calendar, or the window closed): the page isn't navigated from, so the
+    // app-lifetime view model's event is let go here, or it would keep the whole Settings view alive
+    void OnHostClosed(object? sender, EventArgs e)
+    {
+        _context.Host.Closed                  -= OnHostClosed;
         _context.Calendar.AccountFoldingChanged -= OnCalendarsChanged;
     }
 
@@ -117,15 +127,24 @@ public sealed partial class CalendarsPage : Page
         _colorRow    = row;
         foreach (var hex in EventColors.CalendarPalette)
         {
+            var color  = LeafBrushes.FromHex(hex).Color;
+            var ring   = LeafBrushes.PrimaryText(ActualTheme == ElementTheme.Dark);
             var swatch = new Button
             {
                 Width           = 26,
                 Height          = 26,
                 Padding         = new Thickness(0),
                 CornerRadius    = new CornerRadius(13),
-                Background      = LeafBrushes.FromHex(hex),
+                Background      = new SolidColorBrush(color),
+                BorderBrush     = ring,
                 BorderThickness = new Thickness(string.Equals(hex, row.Color, StringComparison.OrdinalIgnoreCase) ? 2 : 0),
             };
+
+            // Hover And Press Tint The Color Instead Of Replacing It (the current one's ring stays too)
+            swatch.Resources["ButtonBackgroundPointerOver"]  = new SolidColorBrush(color) { Opacity = 0.8 };
+            swatch.Resources["ButtonBackgroundPressed"]      = new SolidColorBrush(color) { Opacity = 0.6 };
+            swatch.Resources["ButtonBorderBrushPointerOver"] = ring;
+            swatch.Resources["ButtonBorderBrushPressed"]     = ring;
             AutomationProperties.SetAutomationId(swatch, $"ColorSwatch_{hex[1..]}");
             AutomationProperties.SetName(swatch, hex);
             swatch.Click += (_, _) =>

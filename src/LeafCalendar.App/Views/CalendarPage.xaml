@@ -70,7 +70,7 @@
                     TextTrimming="CharacterEllipsis"
                     AutomationProperties.AutomationId="PeriodTitle" />
 
-                <!-- Island Bars (time travel, people overlay; each track adds its own bar from code) -->
+                <!-- Island Bars (empty: nothing adds to it now; the time travel and people overlay bars sit in Toasts) -->
                 <StackPanel x:Name="IslandBars" Grid.Row="1" />
 
                 <!-- View -->
@@ -82,7 +82,7 @@
                     AutomationProperties.LandmarkType="Main"
                     AutomationProperties.AutomationId="ViewHost" />
 
-                <!-- Floating Cards (share availability: bottom right, over the view) -->
+                <!-- Floating Cards (empty: nothing adds to it now; share availability's controls are in the right panel) -->
                 <Grid
                     x:Name="FloatingCards"
                     Grid.Row="2"
@@ -113,6 +113,10 @@
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         IsClosable="True"
                         Closed="OnNoticeClosed"
+                        PointerEntered="OnNoticePointerEntered"
+                        PointerExited="OnNoticePointerExited"
+                        GotFocus="OnNoticeGotFocus"
+                        LostFocus="OnNoticeLostFocus"
                         AutomationProperties.LiveSetting="Polite"
                         AutomationProperties.AutomationId="NoticeBar">
                         <InfoBar.ActionButton>

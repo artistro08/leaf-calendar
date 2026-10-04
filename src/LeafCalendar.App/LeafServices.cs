@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using LeafCalendar.App.Interop;
 using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Data;
@@ -44,7 +45,10 @@ public sealed class LeafServices : IAsyncDisposable
         Shortcuts = new GlobalShortcuts(Log);
 
         Tokens = new CredentialLockerTokenStore(options.Profile);
-        _http  = new HttpClient(new GoogleRetryHandler(Time) { InnerHandler = new SocketsHttpHandler() });
+        _http  = new HttpClient(new GoogleRetryHandler(Time) { InnerHandler = new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All } });
+
+        // Google only compresses its answers when the user agent says "gzip" too
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("LeafCalendar (gzip)");
 
         // Sync Triggers
         NetworkInformation.NetworkStatusChanged += OnNetworkStatusChanged;

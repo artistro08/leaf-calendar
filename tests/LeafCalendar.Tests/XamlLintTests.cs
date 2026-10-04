@@ -184,7 +184,8 @@ public class XamlLintTests
         AssertNone(Failures(file, "spacing", hits));
     }
 
-    // Every value set for one of these properties: attributes, <Setter Property Value>, <Prop.Name> text, and <Thickness>/<CornerRadius> elements
+    // Every value set for one of these properties: attributes, <Setter Property Value>, <Prop.Name> text, and <Thickness>/<CornerRadius>
+    // elements (a <Thickness> is never a corner radius)
     static IEnumerable<(XElement Element, string Value)> Metrics(XDocument doc, params string[] names)
     {
         foreach (var e in doc.Descendants())
@@ -200,7 +201,8 @@ public class XamlLintTests
             }
 
             var isPropertyElement = e.Name.LocalName.Contains('.', StringComparison.Ordinal) && names.Contains(e.Name.LocalName[(e.Name.LocalName.LastIndexOf('.') + 1)..]);
-            if ((isPropertyElement || e.Name.LocalName is "Thickness" or "CornerRadius") && !e.HasElements && e.Value.Trim().Length > 0)
+            var isValueElement    = e.Name.LocalName == "CornerRadius" || (e.Name.LocalName == "Thickness" && !names.Contains("CornerRadius"));
+            if ((isPropertyElement || isValueElement) && !e.HasElements && e.Value.Trim().Length > 0)
             {
                 yield return (e, e.Value.Trim());
             }
@@ -262,7 +264,7 @@ public class XamlLintTests
             .Where(e => e.Name.LocalName == "ScrollViewer")
             .SelectMany(e => e.Elements().Where(c => !c.Name.LocalName.Contains('.')).Take(1))
             .Where(c => Attr(c, "Width") is not null || Attr(c, "MinWidth") is not null || Attr(c, "MaxWidth") is not null || Attr(c, "Style")?.Contains("LeafSettingsPagePanelStyle", StringComparison.Ordinal) == true)
-            .Select(c => (c, Attr(c, "AutomationProperties.AutomationId") ?? Attr(c, "x:Name") ?? c.Name.LocalName));
+            .Select(c => (c, Attr(c, "AutomationProperties.AutomationId") ?? (string?)c.Attribute(X + "Name") ?? c.Name.LocalName));
 
         AssertNone(Failures(file, "scroller-content-width", hits));
     }

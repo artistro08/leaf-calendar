@@ -102,6 +102,13 @@ public sealed class SignInFlow(
 
             user = await oauth.GetUserInfoAsync(tokens.AccessToken, ct);
         }
+
+        // The OAuth Client Was Rejected (wrong ID or secret, deleted, or not allowed): retrying can't help, fixing it can
+        catch (GoogleApiException ex) when (ex.Reason is "invalid_client" or "unauthorized_client" or "deleted_client")
+        {
+            log.Error("signin.exchange-failed", ex);
+            throw Fail("client-rejected", "Google didn't accept the OAuth client's ID or secret. Check them in setup's Connect your Google Cloud client step, or in Settings › Accounts › Change OAuth client.");
+        }
         catch (Exception ex) when (ex is HttpRequestException or GoogleApiException or InvalidGrantException or InvalidDataException or JsonException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
         {
             log.Error("signin.exchange-failed", ex);

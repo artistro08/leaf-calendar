@@ -40,9 +40,11 @@ public sealed record Alert(AlertKind Kind, CalendarOccurrence Occurrence, DateTi
 /// the all-day defaults. Minutes outside 0–40,320 (Google's range) are ignored.
 /// </para>
 /// <para>
-/// A timed event with a meeting link also gets "Join now" at its start. Instances come from
-/// <see cref="OccurrenceQuery"/>, so repeating events keep their local time across daylight saving, changed instances
-/// use their own row, declined events and hidden calendars are left out, and a canceled instance has no alerts.
+/// A timed meeting of yours (<see cref="JoinPicker.IsMine"/>) with a meeting link also gets "Join now" at its start, so a
+/// colleague's meetings on a calendar you can see never do. Instances come from <see cref="OccurrenceQuery"/>, so repeating
+/// events keep their local time across daylight saving, changed instances use their own row, declined events and hidden
+/// calendars are left out, and a canceled instance has no alerts. An event on several calendars reminds from its first
+/// copy, as the views show it, and joins from its first copy that's yours.
 /// </para>
 /// </remarks>
 public static class AlertPlanner
@@ -50,23 +52,30 @@ public static class AlertPlanner
     /// <summary>Google's longest reminder: four weeks.</summary>
     public const int MaxMinutes = 40320;
 
-    /// <summary>The alerts with <paramref name="from"/> &lt; fire time ≤ <paramref name="to"/>, by fire time, then kind.</summary>
-    public static IReadOnlyList<Alert> Plan(SqliteConnection conn, DateTimeOffset from, DateTimeOffset to, TimeZoneInfo zone)
+    /// <summary>
+    /// The alerts with <paramref name="from"/> &lt; fire time ≤ <paramref name="to"/>, by fire time, then kind. With
+    /// <paramref name="includeMissed"/>, also every reminder that came due at or before <paramref name="from"/> for an
+    /// instance that hasn't ended by then (however long ago it came due).
+    /// </summary>
+    public static IReadOnlyList<Alert> Plan(SqliteConnection conn, DateTimeOffset from, DateTimeOffset to, TimeZoneInfo zone, bool includeMissed = false)
     {
         // Instances That Can Have An Alert In The Window: starting up to four weeks after it (the longest reminder)
         var fromDate = LocalDate(from, zone).AddDays(-1);
         var toDate   = LocalDate(to, zone).AddDays(MaxMinutes / 1440 + 2);
-        var defaults = CalendarStore.PopupDefaults(conn);
-        var rows     = new Dictionary<(string, string, string), RowAlerts?>();
-        var alerts   = new List<Alert>();
+        var defaults  = CalendarStore.PopupDefaults(conn);
+        var calendars = CalendarStore.GetAll(conn).ToDictionary(c => (c.AccountId, c.Id));
+        var rows      = new Dictionary<(string, string, string), RowAlerts?>();
+        var reminded  = new HashSet<(string, long)>();
+        var joined    = new HashSet<(string, long)>();
+        var alerts    = new List<Alert>();
 
-        foreach (var o in OccurrenceQuery.Load(conn, fromDate, toDate, zone, includeDeclined: false))
+        foreach (var o in OccurrenceQuery.Load(conn, fromDate, toDate, zone, includeDeclined: false, keepSharedCopies: true))
         {
             // One Parse Per Stored Row (a series' instances share their master's)
             var id = (o.AccountId, o.CalendarId, o.EventId);
             if (!rows.TryGetValue(id, out var row))
             {
-                rows[id] = row = Read(conn, o);
+                rows[id] = row = Read(conn, o, calendars.GetValueOrDefault((o.AccountId, o.CalendarId)));
             }
 
             if (row is null)
@@ -74,22 +83,24 @@ public static class AlertPlanner
                 continue;
             }
 
-            // Reminders
-            IReadOnlyList<int> minutes = !row.UseDefault ? row.Overrides
+            // Reminders (a shared event's other copies have none)
+            IReadOnlyList<int> minutes = !First(reminded, o) ? []
+                : !row.UseDefault ? row.Overrides
                 : o.IsAllDay ? []
                 : defaults.GetValueOrDefault((o.AccountId, o.CalendarId)) ?? [];
             var anchor = o.StartIn(zone);
+            var missed = includeMissed && o.EndIn(zone) > from;
             foreach (var m in minutes)
             {
                 var at = anchor.AddMinutes(-m);
-                if (at > from && at <= to)
+                if ((at > from || missed) && at <= to)
                 {
                     alerts.Add(new Alert(AlertKind.Reminder, o, at, m, row.Link));
                 }
             }
 
-            // Join Now
-            if (!o.IsAllDay && row.Link is not null && o.Start > from && o.Start <= to)
+            // Join Now, Only For Your Own Meetings (the first copy that's yours)
+            if (!o.IsAllDay && row.Link is not null && row.IsMine && o.Start > from && o.Start <= to && First(joined, o))
             {
                 alerts.Add(new Alert(AlertKind.JoinNow, o, o.Start, 0, row.Link));
             }
@@ -104,8 +115,12 @@ public static class AlertPlanner
 
     static DateOnly LocalDate(DateTimeOffset instant, TimeZoneInfo zone) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, zone).DateTime);
 
-    // The row's reminder choice and meeting link; null when it's gone or unreadable (Google's JSON, so that's rare)
-    static RowAlerts? Read(SqliteConnection conn, CalendarOccurrence o)
+    // True for the first copy seen of an event (same iCalendar UID and start), as OccurrenceQuery keeps it; events without a UID always
+    internal static bool First(HashSet<(string, long)> seen, CalendarOccurrence o) =>
+        o.ICalUid is null || seen.Add((o.ICalUid, o.Start.ToUnixTimeMilliseconds()));
+
+    // The row's reminder choice, meeting link, and whether it's yours; null when it's gone or unreadable (Google's JSON, so that's rare)
+    static RowAlerts? Read(SqliteConnection conn, CalendarOccurrence o, CalendarInfo? calendar)
     {
         if (EventStore.Get(conn, o.AccountId, o.CalendarId, o.EventId) is not { } stored)
         {
@@ -137,7 +152,8 @@ public static class AlertPlanner
                 }
             }
 
-            return new RowAlerts(useDefault, overrides, EventDetailsParser.Parse(stored.RawJson).ConferenceUri);
+            // A Toast's Join Opens Blind, So Only A Known Meeting Host's Link
+            return new RowAlerts(useDefault, overrides, JoinPicker.KnownHost(EventDetailsParser.Parse(stored.RawJson).ConferenceUri), JoinPicker.IsMine(stored.RawJson, calendar));
         }
         catch (JsonException)
         {
@@ -145,5 +161,5 @@ public static class AlertPlanner
         }
     }
 
-    sealed record RowAlerts(bool UseDefault, IReadOnlyList<int> Overrides, Uri? Link);
+    sealed record RowAlerts(bool UseDefault, IReadOnlyList<int> Overrides, Uri? Link, bool IsMine);
 }

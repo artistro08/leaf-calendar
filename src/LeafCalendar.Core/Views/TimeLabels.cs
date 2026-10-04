@@ -78,7 +78,10 @@ public static class TimeLabels
     /// <summary>"Thursday, October 1".</summary>
     public static string LongDate(DateOnly day) => day.ToString("dddd, MMMM d", English);
 
-    /// <summary>"in 12 min", "in 2 h", "Now", or "Ended".</summary>
+    /// <summary>
+    /// "in 12 min" (minutes rounded up, under an hour), "in 2 h" (whole hours, up to 47), "in 3 days" (whole days, from
+    /// 48 hours), "Now", or "Ended".
+    /// </summary>
     public static string Relative(DateTimeOffset start, DateTimeOffset end, DateTimeOffset now)
     {
         if (now >= end)
@@ -91,9 +94,13 @@ public static class TimeLabels
             return "Now";
         }
 
-        var until = start - now;
-        return until.TotalMinutes < 60
-            ? string.Create(CultureInfo.InvariantCulture, $"in {(int)Math.Ceiling(until.TotalMinutes)} min")
-            : string.Create(CultureInfo.InvariantCulture, $"in {(int)Math.Floor(until.TotalHours)} h");
+        // Whole Minutes, Rounded Up (59.5 minutes is an hour, never "60 min")
+        var minutes = (long)Math.Ceiling((start - now).TotalMinutes);
+        return minutes switch
+        {
+            < 60      => string.Create(CultureInfo.InvariantCulture, $"in {minutes} min"),
+            < 48 * 60 => string.Create(CultureInfo.InvariantCulture, $"in {minutes / 60} h"),
+            _         => string.Create(CultureInfo.InvariantCulture, $"in {minutes / (24 * 60)} days"),
+        };
     }
 }

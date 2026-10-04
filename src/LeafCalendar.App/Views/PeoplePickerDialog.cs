@@ -21,6 +21,7 @@ public static class PeoplePickerDialog
     {
         var picked      = new List<Contact>();
         var suggestions = new List<(ContactSuggestion View, Contact Person)>();
+        var removes     = new List<Button>();
         using var search = new LatestSearch<ContactResults>();
 
         // Box
@@ -101,7 +102,14 @@ public static class PeoplePickerDialog
         async Task SuggestAsync()
         {
             var text = box.Text.Trim();
-            if (text.Length == 0 || await search.RunAsync(ct => vm.SearchPeopleAsync(text, ct)) is not { } results)
+            if (text.Length == 0)
+            {
+                search.Cancel();
+                return;
+            }
+
+            // A result for text that's no longer in the box (a person was added, or the box changed) is dropped
+            if (await search.RunAsync(ct => vm.SearchPeopleAsync(text, ct)) is not { } results || box.Text.Trim() != text)
             {
                 return;
             }
@@ -132,6 +140,7 @@ public static class PeoplePickerDialog
         void Add(Contact person)
         {
             chosen = null;
+            search.Cancel();
             if (picked.Count >= FreeBusyLookup.MaxPeople || picked.Exists(p => string.Equals(p.Email, person.Email, StringComparison.OrdinalIgnoreCase)))
             {
                 box.Text = "";
@@ -148,6 +157,7 @@ public static class PeoplePickerDialog
         void Render()
         {
             list.Children.Clear();
+            removes.Clear();
             foreach (var person in picked)
             {
                 var label = person.Name.Length > 0 ? $"{person.Name} <{person.Email}>" : person.Email;
@@ -172,9 +182,16 @@ public static class PeoplePickerDialog
                 ToolTipService.SetToolTip(remove, $"Remove {person.Email}");
                 remove.Click += (_, _) =>
                 {
+                    var index = picked.IndexOf(person);
+                    var how   = remove.FocusState == FocusState.Keyboard ? FocusState.Keyboard : FocusState.Programmatic;
                     picked.Remove(person);
                     Render();
+
+                    // Focus stays in the list: the row now in this one's place, the one above it, or the box when none are left
+                    Control next = picked.Count > 0 ? removes[Math.Min(index, picked.Count - 1)] : box;
+                    next.Focus(how);
                 };
+                removes.Add(remove);
                 Grid.SetColumn(remove, 1);
                 row.Children.Add(remove);
                 list.Children.Add(row);

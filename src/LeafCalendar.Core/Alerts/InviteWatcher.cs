@@ -172,8 +172,7 @@ public static class InviteWatcher
                 return false;
             }
 
-            if (root.TryGetProperty("organizer", out var organizer) && organizer.ValueKind == JsonValueKind.Object
-                && organizer.TryGetProperty("self", out var mine) && mine.ValueKind == JsonValueKind.True)
+            if (IsOrganizer(root))
             {
                 return false;
             }
@@ -183,25 +182,39 @@ public static class InviteWatcher
                 sequence = n;
             }
 
-            if (!root.TryGetProperty("attendees", out var attendees) || attendees.ValueKind != JsonValueKind.Array)
-            {
-                return false;
-            }
-
-            foreach (var attendee in attendees.EnumerateArray())
-            {
-                if (attendee.ValueKind == JsonValueKind.Object
-                    && attendee.TryGetProperty("self", out var self) && self.ValueKind == JsonValueKind.True)
-                {
-                    return attendee.TryGetProperty("responseStatus", out var status) && status.ValueKind == JsonValueKind.String && status.GetString() == "needsAction";
-                }
-            }
-
-            return false;
+            return SelfResponse(root) == "needsAction";
         }
         catch (JsonException)
         {
             return false;
         }
+    }
+
+    /// <summary>True when the organizer is the calendar holding this copy (Google's <c>organizer.self</c>).</summary>
+    internal static bool IsOrganizer(JsonElement root) =>
+        root.TryGetProperty("organizer", out var organizer) && organizer.ValueKind == JsonValueKind.Object
+        && organizer.TryGetProperty("self", out var self) && self.ValueKind == JsonValueKind.True;
+
+    /// <summary>
+    /// The reply ("accepted", "needsAction", ...) of the attendee Google marks <c>self</c>: the owner of the calendar
+    /// holding this copy, so you only on your own calendar. Null when there's no such attendee (or no reply).
+    /// </summary>
+    internal static string? SelfResponse(JsonElement root)
+    {
+        if (!root.TryGetProperty("attendees", out var attendees) || attendees.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        foreach (var attendee in attendees.EnumerateArray())
+        {
+            if (attendee.ValueKind == JsonValueKind.Object
+                && attendee.TryGetProperty("self", out var self) && self.ValueKind == JsonValueKind.True)
+            {
+                return attendee.TryGetProperty("responseStatus", out var status) && status.ValueKind == JsonValueKind.String ? status.GetString() : null;
+            }
+        }
+
+        return null;
     }
 }

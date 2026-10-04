@@ -106,7 +106,7 @@ public sealed class PeopleOverlayTests : IDisposable
         var block = leaf.WaitFor($"OverlayBlock_{Dana}_0");
         AssertBlockAt(block, Column(leaf, "2026-10-01"), LineY(dentist, 11), HourPixels(dentist));
         // Named in the zone on screen (Windows' zone), whatever this machine's zone is
-        Assert.StartsWith($"{Dana} busy {TimeZoneInfo.ConvertTime(Et(10, 1, 11), TimeZoneInfo.Local).ToString("h:mm tt", System.Globalization.CultureInfo.GetCultureInfo("en-US"))}", block.Name, StringComparison.Ordinal);
+        Assert.StartsWith($"{Dana} busy {LeafCalendar.Core.Views.TimeLabels.Range(Et(10, 1, 11), Et(10, 1, 12), TimeZoneInfo.Local, use24h: false)}", block.Name, StringComparison.Ordinal);
     }
 
     [Fact]

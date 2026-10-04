@@ -62,11 +62,26 @@ public sealed class ConflictResolverTests : IDisposable
     {
         var fields = ConflictDiff.Compare(Mine, Googles, NewYork, use24h: false);
 
-        Assert.Equal(["Title", "When", "Location", "Description", "Guests", "Repeats", "Color"], fields.Select(f => f.Field));
+        Assert.Equal(["Title", "When", "Location", "Description", "Guests", "Repeats", "Color", "Reminder", "Show as", "Visibility", "Video call"], fields.Select(f => f.Field));
         Assert.Equal(["Title", "When", "Location"], fields.Where(f => f.Differs).Select(f => f.Field));
         Assert.Equal("Mine", fields[0].Mine);
         Assert.Equal("Google's", fields[0].Google);
         Assert.Equal("Thursday, October 1 · 11 AM – 12 PM", fields[1].Google);
+    }
+
+    [Fact]
+    public void Compare_ChangedRemindersShowAsVisibilityAndCall_FlagsThem()
+    {
+        const string local  = """{"id":"evt-single","summary":"Same","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"},"reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":60},{"method":"popup","minutes":10}]},"transparency":"transparent","visibility":"confidential"}""";
+        const string google = """{"id":"evt-single","summary":"Same","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"},"reminders":{"useDefault":true},"conferenceData":{"entryPoints":[{"entryPointType":"video","uri":"https://meet.google.com/abc-defg-hij"}],"conferenceSolution":{"key":{"type":"hangoutsMeet"}}}}""";
+
+        var fields = ConflictDiff.Compare(local, google, NewYork, use24h: false).ToDictionary(f => f.Field);
+
+        Assert.Equal(["Reminder", "Show as", "Visibility", "Video call"], fields.Values.Where(f => f.Differs).Select(f => f.Field));
+        Assert.Equal(("10 min, 1 hr", "Use calendar default"), (fields["Reminder"].Mine, fields["Reminder"].Google));
+        Assert.Equal(("Free", "Busy"), (fields["Show as"].Mine, fields["Show as"].Google));
+        Assert.Equal(("Private", "Default visibility"), (fields["Visibility"].Mine, fields["Visibility"].Google));
+        Assert.Equal(("No video call", "Video call: meet.google.com"), (fields["Video call"].Mine, fields["Video call"].Google));
     }
 
     [Fact]

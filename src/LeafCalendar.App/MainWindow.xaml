@@ -242,8 +242,8 @@
         </TitleBar>
         <!-- /Title Bar -->
 
-        <!-- Command Menu Dim (over the whole window, title bar row included, while the command menu is open; it fades in
-             and out, and the menu's own light dismiss closes it on a click here) -->
+        <!-- Command Menu Dim (over the whole window, title bar row included, while the command menu is open; it appears and
+             disappears at once with the menu, and the menu's own light dismiss closes it on a click here) -->
         <Border
             x:Name="CommandMenuDim"
             Grid.RowSpan="2"

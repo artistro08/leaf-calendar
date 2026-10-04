@@ -30,6 +30,7 @@ public sealed partial class WeekRow : Canvas
     readonly List<MonthChip> _chips = [];
     readonly List<HyperlinkButton> _mores = [];
     readonly List<DateOnly> _moreDates = [];
+    readonly TextBlock _weekNumber = new() { FontSize = 11, TextAlignment = TextAlignment.Right, IsHitTestVisible = false };
     IReadOnlyList<DateOnly> _dates = [];
 
     /// <summary>Creates a row owned by <paramref name="owner"/>.</summary>
@@ -72,6 +73,10 @@ public sealed partial class WeekRow : Canvas
             Children.Add(cell.Day);
             SetTop(day, 3);
         }
+
+        // Week Number (at the right of the first day's number strip; click-through, like the lines)
+        Children.Add(_weekNumber);
+        SetTop(_weekNumber, 6);
 
         // Double-Click An Empty Cell: a new all-day event that day (chips mark their own taps handled; the day number strip is skipped)
         DoubleTapped += (_, e) =>
@@ -119,6 +124,12 @@ public sealed partial class WeekRow : Canvas
             RenderCell(c, colW, height, dark);
         }
 
+        // Week Number, By The Week's Middle Day (ISO weeks start Monday, so a Sunday-start week's first day belongs to the week before)
+        _weekNumber.Visibility = vm.Settings.ShowWeekNumbers ? Visibility.Visible : Visibility.Collapsed;
+        _weekNumber.Text       = string.Create(CultureInfo.InvariantCulture, $"W{ViewNavigator.WeekNumber(WeekStart.AddDays(3))}");
+        _weekNumber.Foreground = LeafBrushes.SecondaryText(dark);
+        _weekNumber.Width      = Math.Max(0, colW - 8);
+
         // Chips (a day with more than fits gives its last lane to "+N more")
         var items    = dates.SelectMany(vm.Cache.ForDay).DistinctBy(o => o.Key).ToList();
         var blocks   = SpanLayout.Layout(dates, items, vm.Zone, includeTimed: true);
@@ -161,7 +172,7 @@ public sealed partial class WeekRow : Canvas
 
         for (var i = shown; i < _chips.Count; i++)
         {
-            _chips[i].Visibility = Visibility.Collapsed;
+            _chips[i].Hide();
         }
 
         // "+N More"
@@ -262,7 +273,7 @@ public sealed partial class WeekRow : Canvas
     {
         var vm   = _owner.ViewModel;
         var list = new StackPanel { Spacing = 2, MinWidth = 220 };
-        list.Children.Add(new TextBlock { Text = TimeLabels.LongDate(date), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) });
+        list.Children.Add(new TextBlock { Text = TimeLabels.LongDate(date), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8) });
 
         var flyout = new Flyout();
         var dark   = ActualTheme == ElementTheme.Dark;
@@ -272,7 +283,9 @@ public sealed partial class WeekRow : Canvas
             var past    = vm.IsPast(o);
             var palette = LeafBrushes.CardPalette(EventColors.ResolveAccent(o.ColorId, o.CalendarColor), dark, past, selected: false);
             var row     = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new ColumnDefinition { Width = GridLength.Auto }, new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) } } };
-            var dot     = new Ellipse { Width = 7, Height = 7, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 6, 0, 0), Fill = LeafBrushes.FromHex(palette.Accent) };
+
+            // Off-Scale 6 Is Optical: it centers the 7 DIP dot on the first text line (about 19 DIP tall)
+            var dot    = new Ellipse { Width = 7, Height = 7, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 6, 0, 0), Fill = LeafBrushes.FromHex(palette.Accent) };
             var lines   = new StackPanel();
             lines.Children.Add(new TextBlock
             {
@@ -333,6 +346,9 @@ public sealed partial class WeekRow : Canvas
         CalendarOccurrence? _occurrence;
         string _time = "";
 
+        // The pointer is over this chip (between its Entered and Exited)
+        bool _hovered;
+
         public MonthChip(MonthGridView owner)
         {
             _owner       = owner;
@@ -370,10 +386,15 @@ public sealed partial class WeekRow : Canvas
             // Hover Tooltip: title, time, and location, filled in as the pointer arrives (the location is a lookup)
             PointerEntered += (_, _) =>
             {
+                _hovered                      = true;
                 _owner.ViewModel.PointerEvent = _occurrence;
                 _tip.Content                  = _occurrence is { } o ? _owner.ViewModel.HoverText(o, _time) : null;
             };
-            PointerExited  += (_, _) => _owner.ViewModel.PointerEvent = null;
+            PointerExited  += (_, _) =>
+            {
+                _hovered                      = false;
+                _owner.ViewModel.PointerEvent = null;
+            };
             DoubleTapped   += (_, e) =>
             {
                 if (_occurrence is { } o)
@@ -405,8 +426,16 @@ public sealed partial class WeekRow : Canvas
             var filled   = spanning || selected; // a selected chip is filled with its color at full strength (the highlight pair in a contrast theme)
             var first    = SpanLayout.CoveredDates(o, vm.Zone).First;
 
+            var changed = _occurrence?.Key != o.Key;
             _occurrence = o;
             _time       = o.IsAllDay ? "All day" : TimeLabels.Range(o.Start, o.End, vm.Zone, vm.Settings.Use24HourTime);
+
+            // Rebound Under A Still Pointer (no Entered or Exited comes): X and the tooltip follow the new event
+            if (_hovered && changed)
+            {
+                vm.PointerEvent = o;
+                _tip.Content    = vm.HoverText(o, _time);
+            }
 
             // Text And Dot
             _text.Text            = spanning ? o.Title : $"{TimeLabels.Compact(o.Start, vm.Zone, vm.Settings.Use24HourTime)} {o.Title}";
@@ -430,6 +459,18 @@ public sealed partial class WeekRow : Canvas
 
             SetLeft(this, b.FirstColumn * colW + 3);
             SetTop(this, MonthGridView.DayNumberHeight + b.Lane * MonthGridView.ChipHeight);
+        }
+
+        /// <summary>Hides the unused chip; one under the pointer stops being the event X toggles.</summary>
+        public void Hide()
+        {
+            if (_hovered)
+            {
+                _hovered                      = false;
+                _owner.ViewModel.PointerEvent = null;
+            }
+
+            Visibility = Visibility.Collapsed;
         }
     }
 }

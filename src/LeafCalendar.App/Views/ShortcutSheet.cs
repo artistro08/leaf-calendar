@@ -1,7 +1,6 @@
 using LeafCalendar.App.Controls;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Views;
-using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -16,8 +15,6 @@ namespace LeafCalendar.App.Views;
 /// </summary>
 public static class ShortcutSheet
 {
-    const double CaptionSize = 12;
-
     /// <summary>Width of the main window's panel.</summary>
     public const double PanelWidth = 400;
 
@@ -128,6 +125,18 @@ public static class ShortcutSheet
 
         filter.TextChanged += (_, _) => Fill(list, filter.Text, settings, colors);
         Fill(list, "", settings, colors);
+
+        // The Rows Again In The New Colors When The Theme Or A Contrast Theme Changes While The Sheet Is Open
+        void Refill()
+        {
+            colors = Colors.For(content.ActualTheme == ElementTheme.Dark);
+            Fill(list, filter.Text, settings, colors);
+        }
+
+        EventHandler onContrast = (_, _) => content.DispatcherQueue.TryEnqueue(Refill);
+        content.ActualThemeChanged += (_, _) => Refill();
+        content.Loaded             += (_, _) => LeafBrushes.ContrastChanged += onContrast;
+        content.Unloaded           += (_, _) => LeafBrushes.ContrastChanged -= onContrast;
         return (content, filter);
     }
     // The matching rows by section, then the global shortcuts, then the footnote
@@ -172,7 +181,7 @@ public static class ShortcutSheet
         list.Children.Add(new TextBlock
         {
             Text         = ShortcutCatalog.Footnote,
-            FontSize     = CaptionSize,
+            Style        = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
             Foreground   = colors.Secondary,
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0, 16, 0, 0),
@@ -195,7 +204,7 @@ public static class ShortcutSheet
     static TextBlock Header(string text, bool first) => new()
     {
         Text       = text,
-        FontWeight = FontWeights.SemiBold,
+        Style      = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"],
         Margin     = new Thickness(0, first ? 0 : 16, 0, 4),
     };
 
@@ -212,7 +221,7 @@ public static class ShortcutSheet
 
         // "Off" (a global shortcut that isn't set) is a word, not a key
         UIElement legend = keys == "Off"
-            ? new TextBlock { Text = keys, FontSize = CaptionSize, Foreground = colors.Secondary, VerticalAlignment = VerticalAlignment.Center }
+            ? new TextBlock { Text = keys, Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"], Foreground = colors.Secondary, VerticalAlignment = VerticalAlignment.Center }
             : ShortcutLegend.Build(keys, colors.Secondary);
         Grid.SetColumn((FrameworkElement)legend, 1);
         grid.Children.Add(legend);

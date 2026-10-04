@@ -33,6 +33,12 @@ public sealed partial class TimeZonesPage : Page
         ZoneList.ItemsSource = _rows;
     }
 
+    /// <summary>x:Bind helper: a zone's label box accessible name.</summary>
+    public static string LabelName(string city) => $"Column label for {city}";
+
+    /// <summary>x:Bind helper: a zone's remove button accessible name.</summary>
+    public static string RemoveName(string city) => $"Remove {city}";
+
     /// <inheritdoc />
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
@@ -81,7 +87,7 @@ public sealed partial class TimeZonesPage : Page
         ZonePromptSwitch.IsEnabled = !FollowWindowsZoneSwitch.IsOn;
     }
 
-    // On: follow Windows again. Off: nothing changes until a zone is picked
+    // On: follow Windows again. Off: the zone the box shows is kept (picking the same zone again raises no change)
     void OnFollowWindowsToggled(object sender, RoutedEventArgs e)
     {
         UpdatePrimaryState();
@@ -89,6 +95,11 @@ public sealed partial class TimeZonesPage : Page
         {
             PrimaryZoneBox.Show(TimeZoneCatalog.IanaId(_vm.UserZone), _vm.Now);
             _context.Save(s => s with { PrimaryTimeZone = null });
+            UpdatePrimarySummary();
+        }
+        else if (!_loading && !FollowWindowsZoneSwitch.IsOn && PrimaryZoneBox.ZoneId is { } id)
+        {
+            _context.Save(s => s with { PrimaryTimeZone = id });
             UpdatePrimarySummary();
         }
     }

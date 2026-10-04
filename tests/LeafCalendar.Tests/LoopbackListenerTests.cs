@@ -48,6 +48,45 @@ public class LoopbackListenerTests
     }
 
     [Fact]
+    public async Task WaitForCallbackAsync_GoogleReturnsError_ReturnsQueryAndDidNotFinishPage()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var listener = new LoopbackListener();
+        var wait = listener.WaitForCallbackAsync("xyz", ct);
+
+        using var response = await Http.GetAsync(new Uri(listener.RedirectUri, "?error=leaf_marker_%3Cb%3E&state=xyz"), ct);
+        var query = await wait;
+        var page  = await response.Content.ReadAsStringAsync(ct);
+
+        // Canceled Or Refused: Not "Signed In", And Nothing From The Query Is Echoed
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Sign-in didn't finish", page, StringComparison.Ordinal);
+        Assert.Contains("go back to Leaf Calendar to try again", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("You're signed in", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("leaf_marker", page[page.IndexOf("<body", StringComparison.Ordinal)..], StringComparison.Ordinal); // body only: a local ad blocker may add scripts naming the URL to the head
+        Assert.Equal("leaf_marker_<b>", query["error"]);
+    }
+
+    [Theory]
+    [InlineData("?code=abc&state=xyz")]
+    [InlineData("?error=access_denied&state=xyz")]
+    public async Task WaitForCallbackAsync_EitherPage_LinksBackToLeaf(string reply)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var listener = new LoopbackListener();
+        var wait = listener.WaitForCallbackAsync("xyz", ct);
+
+        using var response = await Http.GetAsync(new Uri(listener.RedirectUri, reply), ct);
+        await wait;
+        var page = await response.Content.ReadAsStringAsync(ct);
+
+        // The Button Works On Its Own; The Page Also Tries The Link Once When It Loads
+        Assert.Contains("<a href=\"leaf-calendar:\"", page, StringComparison.Ordinal);
+        Assert.Contains("Open Leaf Calendar", page, StringComparison.Ordinal);
+        Assert.Contains("<meta http-equiv=\"refresh\" content=\"0;url=leaf-calendar:\">", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task WaitForCallbackAsync_FaviconThenRedirect_IgnoresFavicon()
     {
         var ct = TestContext.Current.CancellationToken;

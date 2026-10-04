@@ -63,8 +63,8 @@ public static class ConflictDialog
         {
             var mine   = Cell(field.Mine, dark);
             var google = Cell(field.Google, dark);
-            AutomationProperties.SetAutomationId(mine, $"ConflictMine_{field.Field}");
-            AutomationProperties.SetAutomationId(google, $"ConflictGoogle_{field.Field}");
+            AutomationProperties.SetAutomationId(mine, $"ConflictMine_{field.Field.Replace(" ", "", StringComparison.Ordinal)}");
+            AutomationProperties.SetAutomationId(google, $"ConflictGoogle_{field.Field.Replace(" ", "", StringComparison.Ordinal)}");
             if (field.Differs)
             {
                 AutomationProperties.SetItemStatus(mine, "differs");

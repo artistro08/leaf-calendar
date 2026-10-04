@@ -165,8 +165,9 @@ public sealed partial class MonthGridView : Grid, IDisposable
     /// <summary>Scrolls so the month containing <paramref name="date"/> fills the view.</summary>
     public void ScrollToDate(DateOnly date, bool animate)
     {
+        // A week the body can't scroll to the top (the strip's last few: it stops a full view before its end) rebuilds too
         var index = WeekIndexOf(ViewNavigator.MonthStartOf(date));
-        if (index < 0)
+        if (index < 0 || index > _weeks.Count - 7)
         {
             BuildWeeks(date);
             index = WeekIndexOf(ViewNavigator.MonthStartOf(date));

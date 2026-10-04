@@ -10,8 +10,9 @@ $app  = Join-Path $root 'src/LeafCalendar.App'
 # The AOT linker setup calls vswhere.exe by bare name
 $env:PATH += ";${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
 
-# Publish
-Remove-Item (Join-Path $app 'AppPackages') -Recurse -Force -ErrorAction SilentlyContinue
+# Publish (the registered layout lives outside AppPackages, so clearing it never breaks that registration)
+$packages = Join-Path $app 'AppPackages'
+if (Test-Path $packages) { Remove-Item $packages -Recurse -Force }
 dotnet publish (Join-Path $app 'LeafCalendar.App.csproj') -c Release -r win-x64 -p:Platform=x64 `
     -p:GenerateAppxPackageOnBuild=true -p:AppxPackageSigningEnabled=false
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -22,17 +23,19 @@ Write-Host "MSIX: $($msix.FullName)"
 if (-not $Register) { return }
 
 # Unpack And Register
-$layout = Join-Path $app 'AppPackages/aot-layout'
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-# A running Leaf locks the last layout's files, so close it before overwriting them
-Get-Process LeafCalendar -ErrorAction SilentlyContinue | ForEach-Object { $_ | Stop-Process -Force; $_.WaitForExit() }
-if (Test-Path $layout) { Remove-Item $layout -Recurse -Force }
-[IO.Compression.ZipFile]::ExtractToDirectory($msix.FullName, $layout)
-
+$layout = [IO.Path]::GetFullPath((Join-Path $app 'bin/aot-layout'))
 $existing = Get-AppxPackage LeafCalendar
 if ($existing -and -not $existing.IsDevelopmentMode) {
     throw 'Leaf is installed from a package; uninstall it from Settings > Apps first.'
 }
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+# A Leaf running from the last layout locks its files, so close it before overwriting them
+Get-Process LeafCalendar -ErrorAction SilentlyContinue | Where-Object Path -like "$layout\*" |
+    ForEach-Object { $_ | Stop-Process -Force; $_.WaitForExit() }
+if (Test-Path $layout) { Remove-Item $layout -Recurse -Force }
+[IO.Compression.ZipFile]::ExtractToDirectory($msix.FullName, $layout)
+
 if ($existing -and $existing.InstallLocation -ne $layout) {
     Write-Warning "Replacing Leaf Calendar registered from $($existing.InstallLocation). Your accounts and settings are kept."
     Remove-AppxPackage $existing.PackageFullName -PreserveApplicationData
