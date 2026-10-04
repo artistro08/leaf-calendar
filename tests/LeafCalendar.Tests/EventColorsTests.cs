@@ -30,6 +30,17 @@ public class EventColorsTests
         }
     }
 
+    // Every Calendar Color Has Its Own Name, And The Palette Follows The Named List In Order
+    [Fact]
+    public void CalendarColorNames_AllTwentyFour_NamedOnceInPaletteOrder()
+    {
+        Assert.Equal(24, EventColors.CalendarColorNames.Count);
+        Assert.Equal(EventColors.CalendarColorNames.Select(c => c.Hex), EventColors.CalendarPalette);
+        Assert.Equal(24, EventColors.CalendarColorNames.Select(c => c.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(24, EventColors.CalendarPalette.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Contains(("#9FE1E7", "Light cyan"), EventColors.CalendarColorNames);
+    }
+
     [Fact]
     public void Blend_HalfWay_AveragesChannels()
     {

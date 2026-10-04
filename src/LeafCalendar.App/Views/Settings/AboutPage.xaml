@@ -54,6 +54,12 @@
                         Click="OnGitHubClick"
                         AutomationProperties.AutomationId="GitHubLink" />
                 </controls:SettingRow>
+                <controls:SettingRow Glyph="&#xE8A5;" Header="Third-party notices" Description="Licenses for the open source software Leaf uses.">
+                    <Button
+                        Content="Open notices"
+                        Click="OnNoticesClick"
+                        AutomationProperties.AutomationId="NoticesButton" />
+                </controls:SettingRow>
 
                 <!-- Troubleshooting -->
                 <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Troubleshooting" />

@@ -2405,4 +2405,7 @@ public sealed partial class ZoneRow(string id, string city, string detail) : Obs
 
     /// <summary>Automation ID of the remove button.</summary>
     public string RemoveId => $"ZoneRemove_{Id}";
+
+    /// <summary>Automation ID of the "More options" button (Move up, Move down).</summary>
+    public string MoreId => $"ZoneMore_{Id}";
 }

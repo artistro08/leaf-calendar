@@ -44,14 +44,20 @@ public static partial class EventColors
         ("7", "Peacock"), ("8", "Graphite"), ("9", "Blueberry"), ("10", "Basil"), ("11", "Tomato"),
     ];
 
-    /// <summary>Google Calendar's 24 calendar colors, offered in the sidebar color picker.</summary>
-    public static IReadOnlyList<string> CalendarPalette { get; } =
+    /// <summary>
+    /// Google Calendar's 24 calendar colors with plain names for Narrator and tooltips, in picker order. Google's own
+    /// names for these colors couldn't be matched to their hex codes, so the names describe the color.
+    /// </summary>
+    public static IReadOnlyList<(string Hex, string Name)> CalendarColorNames { get; } =
     [
-        "#AC725E", "#D06B64", "#F83A22", "#FA573C", "#FF7537", "#FFAD46",
-        "#42D692", "#16A765", "#7BD148", "#B3DC6C", "#FBE983", "#FAD165",
-        "#92E1C0", "#9FE1E7", "#9FC6E7", "#4986E7", "#9A9CFF", "#B99AFF",
-        "#C2C2C2", "#CABDBF", "#CCA6AC", "#F691B2", "#CD74E6", "#A47AE2",
+        ("#AC725E", "Brown"), ("#D06B64", "Dusty red"), ("#F83A22", "Red"), ("#FA573C", "Red orange"), ("#FF7537", "Orange"), ("#FFAD46", "Light orange"),
+        ("#42D692", "Mint"), ("#16A765", "Green"), ("#7BD148", "Lime"), ("#B3DC6C", "Light green"), ("#FBE983", "Light yellow"), ("#FAD165", "Yellow"),
+        ("#92E1C0", "Seafoam"), ("#9FE1E7", "Light cyan"), ("#9FC6E7", "Light blue"), ("#4986E7", "Blue"), ("#9A9CFF", "Periwinkle"), ("#B99AFF", "Light purple"),
+        ("#C2C2C2", "Light gray"), ("#CABDBF", "Warm gray"), ("#CCA6AC", "Dusty pink"), ("#F691B2", "Pink"), ("#CD74E6", "Orchid"), ("#A47AE2", "Purple"),
     ];
+
+    /// <summary>Google Calendar's 24 calendar colors, offered in the sidebar color picker.</summary>
+    public static IReadOnlyList<string> CalendarPalette { get; } = [.. CalendarColorNames.Select(c => c.Hex)];
 
     /// <summary>The event's own color when it has one, else its calendar's, else Google blue (uppercase hex).</summary>
     public static string ResolveAccent(string? colorId, string calendarColor)

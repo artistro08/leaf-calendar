@@ -43,6 +43,7 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     private bool _reached;
     private bool _unreachable;
     private volatile bool _offline;
+    private volatile string? _refusal;
 
     /// <summary>Raised after a sync in which Google refused edits for good (they were undone locally). The argument is how many.</summary>
     public event EventHandler<int>? ChangesRejected;
@@ -66,6 +67,13 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     /// answer from Google isn't offline: Google was reached.
     /// </summary>
     public bool IsOffline => _offline;
+
+    /// <summary>
+    /// Google's reason for the first error answer in the last sync (for example <c>accessNotConfigured</c> when the
+    /// Google Calendar API is off in the user's Cloud project), "" when Google refused without one, or null when Google
+    /// refused nothing. Only the machine-readable reason is kept, never the error text.
+    /// </summary>
+    public string? LastRefusal => _refusal;
 
     /// <summary>Syncs every account that can sync; the calendar list only when it's due.</summary>
     public Task SyncAllAsync(CancellationToken ct) => SyncAllAsync(false, ct);
@@ -142,6 +150,7 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
         _reached = false;
         _unreachable = false;
         _conflicts = 0;
+        _refusal = null;
         _signInsNeeded.Clear();
     }
 
@@ -236,7 +245,7 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
         }
         catch (Exception ex) when (IsSyncFailure(ex, ct))
         {
-            _unreachable |= IsNoConnection(ex, ct);
+            NoteFailure(ex, ct);
             log.Error("sync.account.failed", ex);
         }
     }
@@ -257,8 +266,18 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
         }
         catch (Exception ex) when (IsSyncFailure(ex, ct))
         {
-            _unreachable |= IsNoConnection(ex, ct);
+            NoteFailure(ex, ct);
             log.Error("sync.calendar.failed", ex);
+        }
+    }
+
+    // Guarded by _gate: a connection failure counts toward offline; Google's first refusal keeps its reason
+    private void NoteFailure(Exception ex, CancellationToken ct)
+    {
+        _unreachable |= IsNoConnection(ex, ct);
+        if (ex is GoogleApiException api)
+        {
+            _refusal ??= api.Reason ?? "";
         }
     }
 

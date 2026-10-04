@@ -205,6 +205,20 @@ public class OnboardingFlowTests
         Assert.Equal(worked, OnboardingFlow.FirstSyncWorked(calendars, status));
     }
 
+    // "Couldn't Reach Google" Only When Google Wasn't Reached; An Answer From Google Points At The Cloud Project
+    [Theory]
+    [InlineData(true, null, "Couldn't reach Google")]
+    [InlineData(true, "accessNotConfigured", "Couldn't reach Google")]
+    [InlineData(false, "accessNotConfigured", "The Google Calendar API isn't turned on")]
+    [InlineData(false, "SERVICE_DISABLED", "The Google Calendar API isn't turned on")]
+    [InlineData(false, "forbidden", "Google refused the request")]
+    [InlineData(false, "", "Google refused the request")]
+    [InlineData(false, null, "Google refused the request")]
+    public void FirstSyncError_OfflineOrGooglesReason_PicksTheMessage(bool offline, string? reason, string starts)
+    {
+        Assert.StartsWith(starts, OnboardingFlow.FirstSyncError(offline, reason), StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(OnboardingStep.SignIn, true, true)]
     [InlineData(OnboardingStep.SignIn, false, false)]

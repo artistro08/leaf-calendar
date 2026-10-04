@@ -261,9 +261,11 @@ public sealed partial class WeekRow : Canvas
 
         var link = _mores[index];
         _moreDates[index] = date;
-        link.Content = string.Create(CultureInfo.InvariantCulture, $"+{count} more");
+        var text = string.Create(CultureInfo.InvariantCulture, $"+{count} more");
+        link.Content = text;
         link.Visibility = Visibility.Visible;
         AutomationProperties.SetAutomationId(link, $"More_{date:yyyy-MM-dd}");
+        AutomationProperties.SetName(link, $"{text}, {TimeLabels.LongDate(date)}");
         SetLeft(link, x + 2);
         SetTop(link, y);
     }

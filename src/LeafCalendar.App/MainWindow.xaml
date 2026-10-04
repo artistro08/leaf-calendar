@@ -95,6 +95,7 @@
                                     AutomationProperties.AutomationId="ConflictsButton">
                                     <Grid>
                                         <FontIcon Glyph="&#xE7BA;" FontSize="16" />
+                                        <!-- The negative margin lets the badge overlap the top-right corner of its 32 DIP icon button -->
                                         <InfoBadge
                                             x:Name="ConflictsBadge"
                                             Margin="0,-6,-8,0"
@@ -121,6 +122,7 @@
                                     AutomationProperties.AutomationId="PendingChangesIndicator">
                                     <Grid>
                                         <FontIcon x:Name="WaitingGlyph" Glyph="&#xE895;" FontSize="16" />
+                                        <!-- The negative margin lets the badge overlap the top-right corner of its 32 DIP icon button -->
                                         <InfoBadge
                                             x:Name="WaitingBadge"
                                             Margin="0,-6,-8,0"

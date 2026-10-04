@@ -280,7 +280,7 @@ public sealed partial class AccountsViewModel : ObservableObject
                 // The Sync Swallows Google And Network Failures, So Judge It By What It Saved
                 if (!FirstSyncWorked(account.Id))
                 {
-                    ShowFailure("Couldn't reach Google. Check your connection and try again.");
+                    ShowFailure(OnboardingFlow.FirstSyncError(google.Sync.IsOffline, google.Sync.LastRefusal));
                     return;
                 }
 

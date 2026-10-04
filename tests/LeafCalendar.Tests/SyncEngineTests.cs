@@ -503,6 +503,26 @@ public sealed class SyncEngineTests : IDisposable
         Assert.False(_h.Engine.IsOffline);
     }
 
+    // Google Answering With An Error Keeps Its Reason (the API off in the Cloud project), And A Clean Sync Clears It
+    [Fact]
+    public async Task SyncAccountAsync_ApiNotTurnedOn_KeepsGooglesReasonUntilASyncWorks()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var refused = true;
+        _h.Google.On(
+            r => refused && r.Uri.AbsoluteUri.StartsWith(SyncHarness.ListUrl, StringComparison.Ordinal),
+            _ => FakeHttpHandler.Json(HttpStatusCode.Forbidden, """{"error":{"code":403,"message":"Google Calendar API has not been used in project 1 before or it is disabled.","errors":[{"domain":"usageLimits","reason":"accessNotConfigured","message":"Access Not Configured."}]}}"""));
+        _h.RouteStandardGoogle();
+
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        Assert.Equal("accessNotConfigured", _h.Engine.LastRefusal);
+        Assert.False(_h.Engine.IsOffline);
+
+        refused = false;
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        Assert.Null(_h.Engine.LastRefusal);
+    }
+
     [Fact]
     public async Task SyncAllAsync_Conflict_RaisesConflictsFound()
     {

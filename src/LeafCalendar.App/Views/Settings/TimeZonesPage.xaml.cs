@@ -4,6 +4,7 @@ using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 
@@ -11,7 +12,7 @@ namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
 /// Settings › Time zones: Leaf's primary time zone (Windows' by default, or a zone Leaf keeps, with an offer to switch
-/// when Windows' zone changes), then the extra time-zone columns (up to four), added, renamed, reordered (drag), and
+/// when Windows' zone changes), then the extra time-zone columns (up to four), added, renamed, reordered (drag, or Move up and Move down in a row's "More options"), and
 /// removed. Changes save immediately and the grid follows. The "+" in the grid's corner opens this page.
 /// </summary>
 public sealed partial class TimeZonesPage : Page
@@ -38,6 +39,9 @@ public sealed partial class TimeZonesPage : Page
 
     /// <summary>x:Bind helper: a zone's remove button accessible name.</summary>
     public static string RemoveName(string city) => $"Remove {city}";
+
+    /// <summary>x:Bind helper: a zone's "More options" button accessible name.</summary>
+    public static string MoreName(string city) => $"More options for {city}";
 
     /// <inheritdoc />
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -172,6 +176,41 @@ public sealed partial class TimeZonesPage : Page
             _rows.Remove(row);
             Save();
         }
+    }
+
+    // Move Up And Move Down (the keyboard's way to reorder), off at the ends of the list; saved like a drag
+    private void OnMoreClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ZoneRow row } button)
+        {
+            return;
+        }
+
+        var index = _rows.IndexOf(row);
+        var menu = new MenuFlyout();
+        menu.Items.Add(MenuItem("Move up", "ZoneMenu_MoveUp", index > 0, () => Move(row, -1)));
+        menu.Items.Add(MenuItem("Move down", "ZoneMenu_MoveDown", index >= 0 && index < _rows.Count - 1, () => Move(row, 1)));
+        menu.ShowAt(button);
+    }
+
+    private static MenuFlyoutItem MenuItem(string text, string automationId, bool enabled, Action click)
+    {
+        var item = new MenuFlyoutItem { Text = text, IsEnabled = enabled };
+        AutomationProperties.SetAutomationId(item, automationId);
+        item.Click += (_, _) => click();
+        return item;
+    }
+
+    private void Move(ZoneRow row, int by)
+    {
+        var index = _rows.IndexOf(row);
+        if (index < 0 || index + by < 0 || index + by >= _rows.Count)
+        {
+            return;
+        }
+
+        _rows.Move(index, index + by);
+        Save();
     }
 
     private void OnLabelLostFocus(object sender, RoutedEventArgs e)

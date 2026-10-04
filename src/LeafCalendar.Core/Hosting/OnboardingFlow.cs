@@ -36,6 +36,9 @@ public sealed class OnboardingFlow
     /// <summary>How many steps there are (the step indicator's page count).</summary>
     public const int StepCount = 5;
 
+    /// <summary>Shown when Google couldn't be reached at all.</summary>
+    public const string NoConnection = "Couldn't reach Google. Check your connection and try again.";
+
     /// <summary>The step showing now.</summary>
     public OnboardingStep Step { get; private set; }
 
@@ -104,6 +107,19 @@ public sealed class OnboardingFlow
     /// judged by the result: every Google account has at least its primary calendar, and it must still be signed in.
     /// </summary>
     public static bool FirstSyncWorked(int calendarCount, AccountStatus status) => calendarCount > 0 && status == AccountStatus.Ok;
+
+    /// <summary>
+    /// What a failed first sync says. "Couldn't reach Google" only when Google couldn't be reached at all
+    /// (<paramref name="offline"/>); when Google answered, that it refused, with the likely fix: the Google Calendar
+    /// API turned on in the user's Cloud project. Google's <paramref name="reason"/> (from
+    /// <see cref="Sync.SyncEngine.LastRefusal"/>) picks the wording; Google's error text is never shown.
+    /// </summary>
+    public static string FirstSyncError(bool offline, string? reason) => (offline, reason) switch
+    {
+        (true, _) => NoConnection,
+        (_, "accessNotConfigured" or "SERVICE_DISABLED") => "The Google Calendar API isn't turned on in your Google Cloud project. Turn it on in the Google Cloud console, then try again.",
+        _ => "Google refused the request. Make sure the Google Calendar API is turned on in your Google Cloud project, then try again.",
+    };
 
     /// <summary>What a sync found so far, for the Syncing and Done steps ("2 calendars · 6 events").</summary>
     public static string Summary(int calendars, int events) =>

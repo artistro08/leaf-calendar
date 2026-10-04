@@ -129,7 +129,7 @@
                     </controls:PinnedListView.ItemContainerStyle>
                     <controls:PinnedListView.ItemTemplate>
                         <DataTemplate x:DataType="vm:ZoneRow">
-                            <!-- Zone Row (label box, then remove) -->
+                            <!-- Zone Row (label box, more options, then remove) -->
                             <controls:SettingRow Glyph="&#xE76F;" Header="{x:Bind City}" Description="{x:Bind Detail}">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBox
@@ -140,6 +140,15 @@
                                         LostFocus="OnLabelLostFocus"
                                         AutomationProperties.Name="{x:Bind local:TimeZonesPage.LabelName(City)}"
                                         AutomationProperties.AutomationId="{x:Bind LabelBoxId}" />
+                                    <Button
+                                        Style="{StaticResource LeafIconButtonStyle}"
+                                        Click="OnMoreClick"
+                                        Tag="{x:Bind}"
+                                        ToolTipService.ToolTip="More options"
+                                        AutomationProperties.Name="{x:Bind local:TimeZonesPage.MoreName(City)}"
+                                        AutomationProperties.AutomationId="{x:Bind MoreId}">
+                                        <FontIcon Glyph="&#xE712;" FontSize="16" />
+                                    </Button>
                                     <Button
                                         Style="{StaticResource LeafIconButtonStyle}"
                                         Click="OnRemoveClick"

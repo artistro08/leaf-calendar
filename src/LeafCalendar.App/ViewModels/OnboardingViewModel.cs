@@ -17,7 +17,7 @@ namespace LeafCalendar.App.ViewModels;
 public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
 {
     // Shown when a step fails for a reason the user can't act on
-    private const string NoConnection = "Couldn't reach Google. Check your connection and try again.";
+    private const string NoConnection = OnboardingFlow.NoConnection;
 
     // Where the OAuth client is created (the setup guide's link)
     private static readonly Uri ConsoleUri = new("https://console.cloud.google.com/");
@@ -325,7 +325,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
             if (!OnboardingFlow.FirstSyncWorked(calendars, status))
             {
                 _flow.SyncFailed();
-                Fail(NoConnection);
+                Fail(OnboardingFlow.FirstSyncError(google.Sync.IsOffline, google.Sync.LastRefusal));
                 return;
             }
 

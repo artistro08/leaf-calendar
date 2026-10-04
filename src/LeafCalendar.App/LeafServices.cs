@@ -258,6 +258,32 @@ public sealed class LeafServices : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Opens a file shipped in Leaf's package (the third-party notices, from Settings › About) in its default app.
+    /// <paramref name="appUri"/> is a fixed <c>ms-appx:///</c> address, never one from event, contact, or calendar
+    /// content. In fake-Google mode nothing opens: <c>file:&lt;uri&gt;</c> is appended to <c>launched.txt</c>, as
+    /// <see cref="LaunchAsync"/> does for links. A launch that fails is logged by error type and reported as false, never thrown.
+    /// </summary>
+    public async Task<bool> OpenPackageFileAsync(Uri appUri)
+    {
+        try
+        {
+            if (Options.FakeGoogle is not null)
+            {
+                await File.AppendAllTextAsync(Path.Combine(Paths.ProfileDirectory, "launched.txt"), "file:" + appUri.OriginalString + Environment.NewLine);
+                return true;
+            }
+
+            var file = await Windows.Storage.StorageFile.GetFileFromApplicationUriAsync(appUri);
+            return await Launcher.LaunchFileAsync(file);
+        }
+        catch (Exception ex)
+        {
+            Log.Info("file.launch.failed", string.Create(CultureInfo.InvariantCulture, $"error={ex.GetType().Name} hresult=0x{ex.HResult:X8}"));
+            return false;
+        }
+    }
+
     private GoogleServices? CreateGoogle()
     {
         if (Tokens.GetClientCredentials() is not { } credentials)

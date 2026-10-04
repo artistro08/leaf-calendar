@@ -125,10 +125,12 @@ public sealed partial class CalendarsPage : Page
         var flyout = new Flyout();
         _colorFlyout = flyout;
         _colorRow = row;
-        foreach (var hex in EventColors.CalendarPalette)
+        foreach (var (hex, colorName) in EventColors.CalendarColorNames)
         {
             var color = LeafBrushes.FromHex(hex).Color;
             var ring = LeafBrushes.PrimaryText(ActualTheme == ElementTheme.Dark);
+            var current = string.Equals(hex, row.Color, StringComparison.OrdinalIgnoreCase);
+            var name = current ? $"{colorName}, current" : colorName;
             var swatch = new Button
             {
                 Width = 26,
@@ -137,7 +139,7 @@ public sealed partial class CalendarsPage : Page
                 CornerRadius = new CornerRadius(13),
                 Background = new SolidColorBrush(color),
                 BorderBrush = ring,
-                BorderThickness = new Thickness(string.Equals(hex, row.Color, StringComparison.OrdinalIgnoreCase) ? 2 : 0),
+                BorderThickness = new Thickness(current ? 2 : 0),
             };
 
             // Hover And Press Tint The Color Instead Of Replacing It (the current one's ring stays too)
@@ -146,7 +148,8 @@ public sealed partial class CalendarsPage : Page
             swatch.Resources["ButtonBorderBrushPointerOver"] = ring;
             swatch.Resources["ButtonBorderBrushPressed"] = ring;
             AutomationProperties.SetAutomationId(swatch, $"ColorSwatch_{hex[1..]}");
-            AutomationProperties.SetName(swatch, hex);
+            AutomationProperties.SetName(swatch, name);
+            ToolTipService.SetToolTip(swatch, name);
             swatch.Click += (_, _) =>
             {
                 flyout.Hide();
