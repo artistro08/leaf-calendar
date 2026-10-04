@@ -777,6 +777,15 @@ Install, turn on Settings › General › detailed logging, use the owner's real
 
 If the slowest reading is under 16 ms (one frame), remove the timing code, record the numbers in this plan under this task, and close the item: no change needed. Stop here.
 
+**Measured 2026-10-04** (controller ruling: a synthetic benchmark in place of the owner's account; a scratch logic test, deleted after). One account, 20 calendars, 2,000 events within 90 days of "now" (200 repeating series started up to a year back, 200 all-day, 1,600 timed; 738 with a Meet or Zoom link), default tray settings (3 flyout days with all-day events, 60-minute lookahead). Each timing covers the whole read: open the connection, load the settings, `TrayAgenda.Load`. Median of 20 runs after 3 warm-ups, Debug build on the owner's PC:
+
+| Read | Median | Min | Max |
+| --- | --- | --- | --- |
+| `RefreshTooltip` (2 days, timed only) | 31.5 ms | 25.3 ms | 40.1 ms |
+| `BuildAgenda` (3 days + the next event's 2 days; 332 rows) | 54.8 ms | 52.0 ms | 65.6 ms |
+
+With a lighter mix (60 series instead of 200), the tooltip read was 9.0 ms and the agenda read 21.6 ms (median; 115 rows). Both are over 16 ms, so Step 3 applies.
+
 - [ ] **Step 3: If it is slower, move the reads off the UI thread**
 
 Take every value the read needs on the UI thread first (the zone, `_zone.Zone`, is read there, so no thread question arises; `TimeZoneInfo` and `LeafSettings` are immutable), run the load on the thread pool, and apply only the newest result:

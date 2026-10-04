@@ -53,6 +53,10 @@ public partial class App : Application
 
     // The tray settings (and the day) the tooltip and agenda were last refreshed for
     private (int, bool, int, bool, string? Zone, DateTime Today) _trayKey;
+
+    // Each tray read off the UI thread takes the next number; only the newest one's result is shown
+    private int _tooltipGeneration;
+    private int _agendaGeneration;
     private AppLog? _log;
     private bool _trayStarted;
     private bool _quitting;
@@ -363,29 +367,53 @@ public partial class App : Application
     // Today's day of the month on the PC clock (the taskbar's date), for the tray icon
     private int TrayDay() => TimeZoneInfo.ConvertTime(_services?.Time.GetUtcNow() ?? DateTimeOffset.UtcNow, _zone.Zone).Day;
 
-    // "Standup in 12 min" (spec 8.1), within the tray lookahead setting
-    private void RefreshTooltip()
+    // "Standup in 12 min" (spec 8.1), within the tray lookahead setting. The read runs on the thread pool: the flyout's
+    // mouse hook runs on this thread, and a synthetic 2,000-event profile measured 25-55 ms per tray read here.
+    private async void RefreshTooltip()
     {
-        if (_services is not { } services || _tray is null)
-        {
-            return;
-        }
-
+        // async void: anything that escapes here would end the process (runs from the minute clock and syncs)
         try
         {
-            using var conn = services.Database.Open();
-            _tray.SetTooltip(TrayAgenda.Tooltip(LoadNext(conn, SettingsStore.Load(conn), services.Time.GetUtcNow())));
+            if (_services is not { } services || _tray is null)
+            {
+                return;
+            }
+
+            var generation = ++_tooltipGeneration;
+            var zone = _zone.Zone;
+            var tooltip = await Task.Run(() => LoadTooltip(services, zone));
+
+            // An Older Refresh Finishing Late Never Replaces A Newer One (and Quit may have taken the icon meanwhile)
+            if (generation == _tooltipGeneration && tooltip is not null && _tray is { } tray)
+            {
+                tray.SetTooltip(tooltip);
+            }
         }
         catch (Exception ex)
         {
-            // Runs from the minute clock and syncs, so nothing may escape; the type only, never content
+            _log?.Info("tray.tooltip.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // The tooltip's text, or null when the database can't be read (runs on the thread pool; the zone comes from the UI thread)
+    private static string? LoadTooltip(LeafServices services, TimeZoneInfo localZone)
+    {
+        try
+        {
+            using var conn = services.Database.Open();
+            return TrayAgenda.Tooltip(LoadNext(conn, SettingsStore.Load(conn), services.Time.GetUtcNow(), localZone));
+        }
+        catch (Exception ex)
+        {
+            // The type only, never content
             services.Log.Info("tray.tooltip.failed", $"error={ex.GetType().Name}");
+            return null;
         }
     }
 
     // The flyout header's and tooltip's next event: timed events within the lookahead (its own two days, so a one-day agenda still sees past midnight)
-    private NextUp? LoadNext(SqliteConnection conn, LeafSettings settings, DateTimeOffset now) =>
-        TrayAgenda.Next(TrayAgenda.Load(conn, now, DisplayZone.Resolve(null, settings.PrimaryTimeZone, _zone.Zone), TrayAgenda.NextDays, includeAllDay: false, settings.Use24HourTime), now, TimeSpan.FromMinutes(settings.TrayLookaheadMinutes));
+    private static NextUp? LoadNext(SqliteConnection conn, LeafSettings settings, DateTimeOffset now, TimeZoneInfo localZone) =>
+        TrayAgenda.Next(TrayAgenda.Load(conn, now, DisplayZone.Resolve(null, settings.PrimaryTimeZone, localZone), TrayAgenda.NextDays, includeAllDay: false, settings.Use24HourTime), now, TimeSpan.FromMinutes(settings.TrayLookaheadMinutes));
 
     // The saved settings (the view model may not exist while Leaf is only in the tray)
     private LeafSettings CurrentSettings()
@@ -604,7 +632,9 @@ public partial class App : Application
                 return;
             }
 
-            if (BuildAgenda() is { } model)
+            // The First Build Stays On This Thread, So The Flyout Opens With Its Content (a refresh still running is now stale)
+            ++_agendaGeneration;
+            if (_services is { } services && BuildAgenda(services, _zone.Zone) is { } model)
             {
                 host.ShowAgenda(model, _tray?.IconRect(), CurrentSettings().Theme, byKeyboard);
             }
@@ -615,12 +645,23 @@ public partial class App : Application
         }
     }
 
-    // A sync or the minute clock while the flyout is open (nothing may escape either)
-    private void RefreshAgenda()
+    // A sync or the minute clock while the flyout is open (async void, so nothing may escape); the read runs on the
+    // thread pool, like the tooltip's
+    private async void RefreshAgenda()
     {
         try
         {
-            if (_host is { IsAgendaOpen: true } host && BuildAgenda() is { } model)
+            if (_host is not { IsAgendaOpen: true } host || _services is not { } services)
+            {
+                return;
+            }
+
+            var generation = ++_agendaGeneration;
+            var zone = _zone.Zone;
+            var model = await Task.Run(() => BuildAgenda(services, zone));
+
+            // An Older Refresh Finishing Late Never Replaces A Newer One, And A Closed Flyout Stays Closed
+            if (generation == _agendaGeneration && model is not null && !_quitting && host.IsAgendaOpen)
             {
                 host.UpdateAgenda(model);
             }
@@ -631,21 +672,16 @@ public partial class App : Application
         }
     }
 
-    // The agenda (days and all-day per the Tray settings) and its header
-    private AgendaModel? BuildAgenda()
+    // The agenda (days and all-day per the Tray settings) and its header; any thread (the zone comes from the UI thread)
+    private static AgendaModel? BuildAgenda(LeafServices services, TimeZoneInfo localZone)
     {
-        if (_services is not { } services)
-        {
-            return null;
-        }
-
         try
         {
             using var conn = services.Database.Open();
             var settings = SettingsStore.Load(conn);
             var now = services.Time.GetUtcNow();
-            var days = TrayAgenda.Load(conn, now, DisplayZone.Resolve(null, settings.PrimaryTimeZone, _zone.Zone), settings.FlyoutDays, settings.FlyoutAllDay, settings.Use24HourTime);
-            return new AgendaModel(days, LoadNext(conn, settings, now), TrayAgenda.NothingNext(settings.TrayLookaheadMinutes));
+            var days = TrayAgenda.Load(conn, now, DisplayZone.Resolve(null, settings.PrimaryTimeZone, localZone), settings.FlyoutDays, settings.FlyoutAllDay, settings.Use24HourTime);
+            return new AgendaModel(days, LoadNext(conn, settings, now, localZone), TrayAgenda.NothingNext(settings.TrayLookaheadMinutes));
         }
         catch (Exception ex)
         {
