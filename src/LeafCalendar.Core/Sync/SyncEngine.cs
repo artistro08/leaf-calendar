@@ -89,7 +89,10 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     /// <summary>Syncs every account that can sync; the calendar list only when it's due.</summary>
     public Task SyncAllAsync(CancellationToken ct) => SyncAllAsync(false, ct);
 
-    /// <summary>Syncs every account that can sync. <paramref name="refreshCalendarLists"/> forces a calendar-list refresh ("Sync now").</summary>
+    /// <summary>
+    /// Syncs every account that can sync. <paramref name="refreshCalendarLists"/> is "Sync now": it forces a
+    /// calendar-list refresh and tries edits waiting out a backoff at once.
+    /// </summary>
     public async Task SyncAllAsync(bool refreshCalendarLists, CancellationToken ct)
     {
         bool changed;
@@ -106,6 +109,12 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
             using (var conn = database.Open())
             {
                 accounts = AccountStore.GetAll(conn);
+
+                // Sync Now: edits backing off after a failed try go now
+                if (refreshCalendarLists)
+                {
+                    OutboxStore.ClearBackoff(conn);
+                }
             }
 
             foreach (var account in accounts.Where(a => a.Status == AccountStatus.Ok))

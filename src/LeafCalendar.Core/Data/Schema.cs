@@ -147,4 +147,12 @@ internal static class Schema
     public const string V7 = """
         ALTER TABLE calendars ADD COLUMN google_shown INTEGER;
         """;
+
+    /// <summary>
+    /// Version 8: <c>outbox.retry_after</c>, when a write Google failed (a 5xx, the network) is tried again. Kept apart
+    /// from <c>not_before</c>, the delete undo window: a write that failed may already be saved on Google.
+    /// </summary>
+    public const string V8 = """
+        ALTER TABLE outbox ADD COLUMN retry_after INTEGER;
+        """;
 }

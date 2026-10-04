@@ -255,7 +255,7 @@ Anyone can send an invite, so event content is treated as hostile.
 4. Patches and deletes send `If-Match: <base etag>`. A `412 Precondition Failed` becomes a conflict.
 5. New events use a client-generated ID (base32hex, per Google's rules), so retrying a create after a dropped connection can't produce duplicates.
 6. Google Meet links requested offline are sent as `conferenceData.createRequest` when online. The link appears after Google creates it.
-7. Rate limits (`429`, `403 rateLimitExceeded`) and `5xx` retry with exponential backoff and jitter.
+7. Rate limits (`429`, `403 rateLimitExceeded`) and `5xx` retry with exponential backoff and jitter. Writes are never retried inside one request: a failed write (a `5xx`, a rate limit, the network) stays in the outbox and waits 30 s, doubling to at most 15 minutes, before its next try. Sync now, a reconnect, or a resume tries it at once.
 
 ### 5.5 Conflicts
 

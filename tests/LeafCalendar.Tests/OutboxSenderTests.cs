@@ -156,6 +156,7 @@ public sealed class OutboxSenderTests : IDisposable
         await Send();
         Assert.Equal(1, Assert.Single(Pending()).Attempts);
 
+        _h.Time.Advance(OutboxStore.Backoff(1));
         await Send();
 
         Assert.Equal(2, _h.Google.Requests.Count(r => r.Method == HttpMethod.Post && r.Uri.AbsoluteUri.StartsWith(SyncHarness.PrimaryEventsUrl + "?", StringComparison.Ordinal)));
@@ -179,6 +180,7 @@ public sealed class OutboxSenderTests : IDisposable
         _h.Google.On(r => r.Method == HttpMethod.Patch && r.Uri.AbsoluteUri.StartsWith(SingleUrl + "?", StringComparison.Ordinal), _ => FakeHttpHandler.Json(HttpStatusCode.OK, MineOnGoogle));
 
         await Send();
+        _h.Time.Advance(OutboxStore.Backoff(1));
         await Send();
 
         var ids = _h.Google.Requests.Where(r => r.Method == HttpMethod.Patch).Select(r => (string?)JsonNode.Parse(r.Body!)!["conferenceData"]!["createRequest"]!["requestId"]).ToList();
@@ -661,6 +663,22 @@ public sealed class OutboxSenderTests : IDisposable
         var stuck = Assert.Single(Pending());
         Assert.Equal("evt-single", stuck.EventId);
         Assert.Equal("status 503", stuck.LastError);
+    }
+
+    [Fact]
+    public async Task Send_GoogleFailsWithA503_WaitsOutTheBackoffBeforeTryingAgain()
+    {
+        // Google answers 503 to the patch; the entry stays, and isn't tried again until 30 s later
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"A"}""");
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.ServiceUnavailable, """{"error":{"code":503,"errors":[{"reason":"backendError"}]}}""");
+
+        await Send();
+        await Send();
+        Assert.Single(_h.Google.Requests, r => r.Method == HttpMethod.Patch);
+
+        _h.Time.Advance(TimeSpan.FromSeconds(31));
+        await Send();
+        Assert.Equal(2, _h.Google.Requests.Count(r => r.Method == HttpMethod.Patch));
     }
 
     [Theory]

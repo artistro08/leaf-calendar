@@ -13,7 +13,7 @@ namespace LeafCalendar.Core.Google;
 /// HttpClient's default 100-second timeout (which would read as offline). Other failures
 /// return right away with their body still readable. Only GET and HEAD are retried: a write may have
 /// been saved before the error, so replaying it could duplicate it or report a false conflict. Writes
-/// fail fast and the outbox tries them again on the next sync.
+/// fail fast and the outbox tries them again after its backoff (<see cref="Data.OutboxStore.Backoff"/>).
 /// </remarks>
 /// <seealso href="https://developers.google.com/workspace/calendar/api/guides/errors"/>
 public sealed class GoogleRetryHandler(TimeProvider time) : DelegatingHandler

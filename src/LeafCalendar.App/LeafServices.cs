@@ -296,13 +296,30 @@ public sealed class LeafServices : IAsyncDisposable
         return google;
     }
 
-    private void OnNetworkStatusChanged(object sender) => Google?.Loop.TriggerNow();
+    private void OnNetworkStatusChanged(object sender) => RetryNow();
 
     private void OnSuspendStatusChanged(object? sender, object e)
     {
         if (PowerManager.SystemSuspendStatus is SystemSuspendStatus.AutoResume or SystemSuspendStatus.ManualResume)
         {
-            Google?.Loop.TriggerNow();
+            RetryNow();
         }
+    }
+
+    // A Reconnect Or Resume: edits backing off after a failed try go on this sync
+    private void RetryNow()
+    {
+        // A system event handler, so nothing may escape; the type only, never content
+        try
+        {
+            using var conn = Database.Open();
+            OutboxStore.ClearBackoff(conn);
+        }
+        catch (Exception ex)
+        {
+            Log.Info("outbox.backoff.clear.failed", $"error={ex.GetType().Name}");
+        }
+
+        Google?.Loop.TriggerNow();
     }
 }

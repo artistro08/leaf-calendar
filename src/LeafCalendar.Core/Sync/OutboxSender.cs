@@ -31,13 +31,13 @@ public readonly record struct SendReport(bool Changed, int Conflicts, int Reject
 /// Google's can't be read) and the entry (and later ones for that event) are dropped and reported.</item>
 /// <item>Network failure, <c>401</c> (also a failed token refresh), <c>429</c>, a usage-limit or account-wide
 /// <c>403</c>, a <c>4xx</c> without Google's reason, or <c>5xx</c> (writes are never auto-retried), including while
-/// reading Google's copy after a conflict or refusal: the entry stays pending with its error recorded and the next
-/// sync tries again. A <c>5xx</c> or unreadable answer holds only that event; anything else stops the pass so the
-/// order holds. The report of what was already done is still returned.</item>
+/// reading Google's copy after a conflict or refusal: the entry stays pending with its error recorded and waits out
+/// its backoff (<see cref="OutboxStore.Backoff"/>) before the next try. A <c>5xx</c> or unreadable answer holds only
+/// that event; anything else stops the pass so the order holds. The report of what was already done is still returned.</item>
 /// <item>A move answered "not found" whose event is already in its destination: an earlier try got through.</item>
 /// <item>An entry whose calendar is no longer in the account, conflicted or not: dropped.</item>
 /// </list>
-/// Held entries (the undo window), entries behind a held or conflicted entry for the same event, and entries
+/// Held entries (the undo window or a backoff), entries behind a held or conflicted entry for the same event, and entries
 /// whose <see cref="OutboxEntry.DependsOn"/> is still in the outbox wait. A refused entry drops its dependents.
 /// Only sequence numbers and statuses are logged.
 /// </remarks>
@@ -79,8 +79,8 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
                 continue;
             }
 
-            // Held, Behind A Held Or Conflicted Edit Of The Same Event, Or Waiting For The Entry It Depends On
-            if (waiting.Contains(entry.EventId) || entry.NotBefore > now || (entry.DependsOn is { } dependsOn && Reload(dependsOn) is not null))
+            // Held, Backing Off After A Failed Try, Behind A Held Or Conflicted Edit Of The Same Event, Or Waiting For The Entry It Depends On
+            if (waiting.Contains(entry.EventId) || entry.NotBefore > now || entry.RetryAfter > now || (entry.DependsOn is { } dependsOn && Reload(dependsOn) is not null))
             {
                 waiting.Add(entry.EventId);
                 continue;
@@ -416,12 +416,12 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
         tx.Commit();
     }
 
-    // Kept pending with the error; the next sync tries again
+    // Kept pending with the error; a sync after its backoff tries again
     private void Defer(OutboxEntry entry, Exception ex)
     {
         var error = ex is GoogleApiException api ? $"status {(int)api.Status}" : "network";
         using var conn = database.Open();
-        OutboxStore.RecordAttempt(conn, entry.Seq, error);
+        OutboxStore.RecordAttempt(conn, entry.Seq, error, time.GetUtcNow());
         log.Info("outbox.deferred", $"seq={entry.Seq} error={error}");
     }
 
@@ -465,7 +465,6 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
     }
 
     // Only Google failing on this one entry (a 5xx, an answer Leaf can't read) lets the rest of the queue go on
-    // ponytail: in a Google-wide 5xx outage each waiting event is tried once per pass; add backoff from attempts if that bites
     private static bool StopsThePass(Exception ex) =>
         ex is not (JsonException or GoogleApiException { Status: >= HttpStatusCode.InternalServerError });
 

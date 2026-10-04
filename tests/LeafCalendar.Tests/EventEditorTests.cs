@@ -287,6 +287,21 @@ public sealed class EventEditorTests : IDisposable
     }
 
     [Fact]
+    public void Undo_AfterABackedOffWrite_KeepsIt()
+    {
+        // A delete that got a 5xx may already be on Google: backing off must not make Undo treat it as still held
+        var receipt = _editor.Delete([Occurrence("evt-single", Oct1)], EditScope.This, sendUpdates: true);
+        _time.Advance(EventEditor.UndoWindow);
+        using (var conn = _db.Database.Open())
+        {
+            OutboxStore.RecordAttempt(conn, receipt.Seqs[0], "status 503", _time.GetUtcNow());
+        }
+
+        Assert.Equal(UndoResult.Recreated, _editor.Undo(receipt));
+        Assert.Equal(OutboxOperation.Delete, Outbox()[0].Operation);
+    }
+
+    [Fact]
     public void Undo_AfterSend_CopyKeepsGuestsAsksForNewMeetAndResetsReplies()
     {
         Seed("""{"id":"evt-guests","status":"confirmed","etag":"\"7\"","summary":"Sync","start":{"dateTime":"2026-10-01T15:00:00Z"},"end":{"dateTime":"2026-10-01T16:00:00Z"},"organizer":{"email":"leaf.tester@gmail.com","self":true},"attendees":[{"email":"leaf.tester@gmail.com","self":true,"organizer":true,"responseStatus":"accepted"},{"email":"sam@example.com","responseStatus":"accepted","comment":"See you"}],"hangoutLink":"https://meet.google.com/abc-defg-hij","conferenceData":{"conferenceId":"abc-defg-hij","conferenceSolution":{"key":{"type":"hangoutsMeet"}},"entryPoints":[{"entryPointType":"video","uri":"https://meet.google.com/abc-defg-hij"}]}}""");
