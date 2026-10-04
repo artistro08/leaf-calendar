@@ -26,7 +26,7 @@
                         <ComboBoxItem Content="Dark" AutomationProperties.AutomationId="ThemeDark" />
                     </ComboBox>
                 </controls:SettingRow>
-                <controls:SettingRow Glyph="&#xE8BF;" Header="Expand the all-day section" Description="Show every all-day event when Leaf opens, not just the first few.">
+                <controls:SettingRow Glyph="&#xE740;" Header="Expand the all-day section" Description="Show every all-day event when Leaf opens, not just the first few.">
                     <ToggleSwitch
                         x:Name="AllDayExpandedSwitch"
                         Style="{StaticResource LeafCardToggleSwitchStyle}"
@@ -37,7 +37,7 @@
 
                 <!-- Calendar View -->
                 <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Calendar view" />
-                <controls:SettingRow Glyph="&#xE8BF;" Header="Days in the custom view" Description="From 1 to 31 days.">
+                <controls:SettingRow Glyph="&#xE80A;" Header="Days in the custom view" Description="From 1 to 31 days.">
                     <NumberBox
                         x:Name="DaysBox"
                         MinWidth="180"
@@ -48,16 +48,25 @@
                         AutomationProperties.Name="Days in the custom view"
                         AutomationProperties.AutomationId="CustomDaysNumberBox" />
                 </controls:SettingRow>
-                <controls:SettingRow Glyph="&#xE71E;" Header="Hour height" Description="How tall each hour is in the day and week views. Ctrl+Plus, Ctrl+Minus, and Ctrl+0 change it too.">
-                    <Slider
-                        x:Name="HourHeightSlider"
-                        Width="180"
-                        StepFrequency="8"
-                        TickFrequency="8"
-                        TickPlacement="Outside"
-                        ValueChanged="OnHourHeightChanged"
-                        AutomationProperties.Name="Hour height"
-                        AutomationProperties.AutomationId="HourHeightSlider" />
+                <controls:SettingRow Glyph="&#xECE7;" Header="Hour height" Description="How tall each hour is in the day and week views. Ctrl+Plus, Ctrl+Minus, and Ctrl+0 change it too.">
+                    <!-- The Value, Then The Slider (the slider stays 180 wide, like the row controls around it) -->
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock
+                            x:Name="HourHeightValue"
+                            VerticalAlignment="Center"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            AutomationProperties.AccessibilityView="Raw"
+                            AutomationProperties.AutomationId="HourHeightValue" />
+                        <Slider
+                            x:Name="HourHeightSlider"
+                            Width="180"
+                            StepFrequency="8"
+                            TickFrequency="8"
+                            TickPlacement="Outside"
+                            ValueChanged="OnHourHeightChanged"
+                            AutomationProperties.Name="Hour height"
+                            AutomationProperties.AutomationId="HourHeightSlider" />
+                    </StackPanel>
                 </controls:SettingRow>
                 <controls:SettingRow Glyph="&#xE8C0;" Header="Show weekends" Description="Show Saturday and Sunday in the week and month views. Ctrl+Shift+E turns them on or off.">
                     <ToggleSwitch
@@ -75,7 +84,7 @@
                         AutomationProperties.Name="Show declined events"
                         AutomationProperties.AutomationId="DeclinedSwitch" />
                 </controls:SettingRow>
-                <controls:SettingRow Glyph="&#xE1D3;" Header="Show week numbers" Description="Show the ISO week number next to each week.">
+                <controls:SettingRow Glyph="&#xF2C7;" Header="Show week numbers" Description="Show the ISO week number next to each week.">
                     <ToggleSwitch
                         x:Name="WeekNumbersSwitch"
                         Style="{StaticResource LeafCardToggleSwitchStyle}"
@@ -83,7 +92,7 @@
                         AutomationProperties.Name="Show week numbers"
                         AutomationProperties.AutomationId="WeekNumbersSwitch" />
                 </controls:SettingRow>
-                <controls:SettingRow Glyph="&#xE823;" Header="Upcoming meetings" Description="How far ahead the details panel looks when no event is selected.">
+                <controls:SettingRow Glyph="&#xEC92;" Header="Upcoming meetings" Description="How far ahead the details panel looks when no event is selected.">
                     <ComboBox
                         x:Name="UpcomingHoursBox"
                         MinWidth="180"
@@ -94,7 +103,7 @@
 
                 <!-- Date And Time -->
                 <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Date and time" />
-                <controls:SettingRow Glyph="&#xE787;" Header="First day of the week">
+                <controls:SettingRow Glyph="&#xE8D1;" Header="First day of the week">
                     <ComboBox
                         x:Name="WeekStartBox"
                         MinWidth="180"
@@ -117,61 +126,79 @@
 
                 <!-- Working Hours -->
                 <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Working hours" />
-                <controls:SettingRow Glyph="&#xE823;" Header="Shade outside working hours" Description="Google doesn't share your working hours with apps, so set them here.">
-                    <ToggleSwitch
-                        x:Name="WorkingHoursSwitch"
-                        Style="{StaticResource LeafCardToggleSwitchStyle}"
-                        Toggled="OnWorkingHoursToggled"
-                        AutomationProperties.Name="Shade outside working hours"
-                        AutomationProperties.AutomationId="WorkingHoursSwitch" />
-                </controls:SettingRow>
-                <!-- The Rows Below Are Off As One While Shading Is Off -->
-                <ContentControl x:Name="WorkingHoursRows" HorizontalContentAlignment="Stretch" IsTabStop="False">
-                    <StackPanel Spacing="4">
-                        <!-- Stock Time Pickers At Their Full 242 DIP Width, So Hour, Minute, And AM/PM Each Get Room -->
-                        <controls:SettingRow Header="Start">
-                            <TimePicker
-                                x:Name="WorkingStartPicker"
-                                MinuteIncrement="15"
-                                TimeChanged="OnWorkingStartChanged"
-                                AutomationProperties.Name="Working hours start"
-                                AutomationProperties.AutomationId="WorkingStartPicker" />
+                <!-- Shade Outside Working Hours (an expander, like Startup: the switch in its header, Start, End, and Work days
+                     inside, off as one while shading is off) -->
+                <Expander
+                    x:Name="WorkingHoursExpander"
+                    Style="{StaticResource LeafSettingExpanderStyle}"
+                    AutomationProperties.Name="Shade outside working hours"
+                    AutomationProperties.AutomationId="WorkingHoursExpander">
+                    <Expander.Header>
+                        <controls:SettingRow
+                            Style="{StaticResource LeafExpanderHeaderRowStyle}"
+                            Glyph="&#xE821;"
+                            Header="Shade outside working hours"
+                            Description="Google doesn't share your working hours with apps, so set them here.">
+                            <ToggleSwitch
+                                x:Name="WorkingHoursSwitch"
+                                Style="{StaticResource LeafCardToggleSwitchStyle}"
+                                Toggled="OnWorkingHoursToggled"
+                                AutomationProperties.Name="Shade outside working hours"
+                                AutomationProperties.AutomationId="WorkingHoursSwitch" />
                         </controls:SettingRow>
-                        <controls:SettingRow Header="End">
-                            <StackPanel Spacing="8" HorizontalAlignment="Right">
+                    </Expander.Header>
+                    <ContentControl x:Name="WorkingHoursRows" HorizontalContentAlignment="Stretch" IsTabStop="False">
+                        <StackPanel>
+                            <!-- Stock Time Pickers At Their Full 242 DIP Width, So Hour, Minute, And AM/PM Each Get Room -->
+                            <controls:SettingRow
+                                Style="{StaticResource LeafExpanderItemRowStyle}"
+                                BorderThickness="0"
+                                Header="Start">
                                 <TimePicker
-                                    x:Name="WorkingEndPicker"
+                                    x:Name="WorkingStartPicker"
                                     MinuteIncrement="15"
-                                    TimeChanged="OnWorkingEndChanged"
-                                    AutomationProperties.Name="Working hours end"
-                                    AutomationProperties.AutomationId="WorkingEndPicker" />
-                                <TextBlock
-                                    x:Name="WorkingHoursError"
-                                    Style="{StaticResource CaptionTextBlockStyle}"
-                                    Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                                    Text="Pick an end time after the start time."
-                                    Visibility="Collapsed"
-                                    AutomationProperties.LiveSetting="Assertive"
-                                    AutomationProperties.AutomationId="WorkingHoursError" />
-                            </StackPanel>
-                        </controls:SettingRow>
-                        <!-- Work Days (a dropdown of checkboxes, one per day in the week's order; the button says which) -->
-                        <controls:SettingRow Header="Work days">
-                            <DropDownButton
-                                x:Name="WorkDaysButton"
-                                MinWidth="180"
-                                AutomationProperties.Name="Work days"
-                                AutomationProperties.AutomationId="WorkDaysButton">
-                                <DropDownButton.Flyout>
-                                    <Flyout Placement="BottomEdgeAlignedRight">
-                                        <StackPanel x:Name="WorkDaysPanel" MinWidth="160" Spacing="4" />
-                                    </Flyout>
-                                </DropDownButton.Flyout>
-                            </DropDownButton>
-                        </controls:SettingRow>
-                    </StackPanel>
-                </ContentControl>
-                <!-- /Working Hours -->
+                                    TimeChanged="OnWorkingStartChanged"
+                                    AutomationProperties.Name="Working hours start"
+                                    AutomationProperties.AutomationId="WorkingStartPicker" />
+                            </controls:SettingRow>
+                            <controls:SettingRow Style="{StaticResource LeafExpanderItemRowStyle}" Header="End">
+                                <StackPanel Spacing="8" HorizontalAlignment="Right">
+                                    <TimePicker
+                                        x:Name="WorkingEndPicker"
+                                        MinuteIncrement="15"
+                                        TimeChanged="OnWorkingEndChanged"
+                                        AutomationProperties.Name="Working hours end"
+                                        AutomationProperties.AutomationId="WorkingEndPicker" />
+                                    <TextBlock
+                                        x:Name="WorkingHoursError"
+                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                        Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                        Text="Pick an end time after the start time."
+                                        Visibility="Collapsed"
+                                        AutomationProperties.LiveSetting="Assertive"
+                                        AutomationProperties.AutomationId="WorkingHoursError" />
+                                </StackPanel>
+                            </controls:SettingRow>
+                            <!-- Work Days (a dropdown of checkboxes, one per day in the week's order; the button says which,
+                                 left-aligned like a combo box's choice) -->
+                            <controls:SettingRow Style="{StaticResource LeafExpanderItemRowStyle}" Header="Work days">
+                                <DropDownButton
+                                    x:Name="WorkDaysButton"
+                                    MinWidth="180"
+                                    HorizontalContentAlignment="Left"
+                                    AutomationProperties.Name="Work days"
+                                    AutomationProperties.AutomationId="WorkDaysButton">
+                                    <DropDownButton.Flyout>
+                                        <Flyout Placement="BottomEdgeAlignedRight">
+                                            <StackPanel x:Name="WorkDaysPanel" MinWidth="160" Spacing="4" />
+                                        </Flyout>
+                                    </DropDownButton.Flyout>
+                                </DropDownButton>
+                            </controls:SettingRow>
+                        </StackPanel>
+                    </ContentControl>
+                </Expander>
+                <!-- /Shade Outside Working Hours -->
 
                 <!-- Locations -->
                 <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Locations" />

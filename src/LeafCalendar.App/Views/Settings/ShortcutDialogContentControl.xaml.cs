@@ -16,7 +16,7 @@ using Microsoft.UI.Xaml.Controls;
 
 namespace LeafCalendar.App.Views.Settings;
 
-/// <summary>The "Activation shortcut" dialog's content: the tip, the pressed keys as key caps, Reset and Clear, and the warnings.</summary>
+/// <summary>The shortcut dialog's content: the tip, the pressed keys as key caps (or a prompt), Reset and Clear, and the problems and warnings.</summary>
 public sealed partial class ShortcutDialogContentControl : UserControl
 {
     /// <summary>Identifies <see cref="IsError"/>.</summary>
@@ -24,9 +24,11 @@ public sealed partial class ShortcutDialogContentControl : UserControl
     /// <summary>Identifies <see cref="IsWarningAltGr"/>.</summary>
     public static readonly DependencyProperty IsWarningAltGrProperty = DependencyProperty.Register("IsWarningAltGr", typeof(bool), typeof(ShortcutDialogContentControl), new PropertyMetadata(false));
     /// <summary>Identifies <see cref="HasConflict"/>.</summary>
-    public static readonly DependencyProperty HasConflictProperty = DependencyProperty.Register("HasConflict", typeof(bool), typeof(ShortcutDialogContentControl), new PropertyMetadata(false));
+    public static readonly DependencyProperty HasConflictProperty = DependencyProperty.Register("HasConflict", typeof(bool), typeof(ShortcutDialogContentControl), new PropertyMetadata(false, OnIsErrorChanged));
     /// <summary>Identifies <see cref="ConflictMessage"/>.</summary>
     public static readonly DependencyProperty ConflictMessageProperty = DependencyProperty.Register("ConflictMessage", typeof(string), typeof(ShortcutDialogContentControl), new PropertyMetadata(string.Empty));
+    /// <summary>Identifies <see cref="ErrorMessage"/>.</summary>
+    public static readonly DependencyProperty ErrorMessageProperty = DependencyProperty.Register("ErrorMessage", typeof(string), typeof(ShortcutDialogContentControl), new PropertyMetadata("Invalid shortcut"));
 
     private List<object>? _keys;
 
@@ -42,7 +44,7 @@ public sealed partial class ShortcutDialogContentControl : UserControl
     /// <summary>Clear was clicked.</summary>
     public event RoutedEventHandler? ClearClick;
 
-    /// <summary>The combination is taken (by the other shortcut, or by Windows or another app).</summary>
+    /// <summary>The combination is taken (by the other shortcut, or by Windows or another app): Save is off, so the caps turn red like an invalid one.</summary>
     public bool HasConflict
     {
         get => (bool)GetValue(HasConflictProperty);
@@ -70,18 +72,28 @@ public sealed partial class ShortcutDialogContentControl : UserControl
     /// <summary>The keys as text ("Ctrl+Alt+J", "No keys"), the key area's accessible name.</summary>
     public string KeysName
     {
-        get => AutomationProperties.GetName(KeysControl);
-        set => AutomationProperties.SetName(KeysControl, value);
+        get => AutomationProperties.GetName(KeysArea);
+        set => AutomationProperties.SetName(KeysArea, value);
     }
 
-    /// <summary>The combination can't be used (the caps turn red and "Invalid shortcut" shows).</summary>
+    /// <summary>The combination can't be used (the caps turn red and <see cref="ErrorMessage"/> shows).</summary>
     public bool IsError
     {
         get => (bool)GetValue(IsErrorProperty);
         set => SetValue(IsErrorProperty, value);
     }
 
-    /// <summary>Ctrl+Alt without Win: the Alt Gr warning shows.</summary>
+    /// <summary>Why the combination can't be used ("Invalid shortcut. It must start with the Windows key, Ctrl, or Alt.").</summary>
+    public string ErrorMessage
+    {
+        get => (string)GetValue(ErrorMessageProperty);
+        set => SetValue(ErrorMessageProperty, value);
+    }
+
+    /// <summary>Puts keyboard focus on the key area (the dialog's first focusable control is Reset, whose tooltip would cover the caps).</summary>
+    public void FocusKeys() => KeysArea.Focus(FocusState.Programmatic);
+
+    /// <summary>Ctrl+Alt without Win: the AltGr warning shows.</summary>
     public bool IsWarningAltGr
     {
         get => (bool)GetValue(IsWarningAltGrProperty);
@@ -121,13 +133,14 @@ public sealed partial class ShortcutDialogContentControl : UserControl
 
     private static void OnIsErrorChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) => ((ShortcutDialogContentControl)d).DrawKeys();
 
-    // The Key Caps (PowerToys' KeysControl item template) And Clear, Shown Only With Keys To Clear. Caps already on
-    // screen are updated in place; only a missing one is made and only a surplus one removed
+    // The Key Caps (PowerToys' KeysControl item template), Or The Prompt With None, And Clear, On Only With Keys To
+    // Clear (off, not hidden, so Reset and Clear keep their places). Caps already on screen are updated in place; only a
+    // missing one is made and only a surplus one removed
     private void DrawKeys()
     {
         var keys = _keys ?? [];
         var caps = KeysControl.Children;
-        var state = IsError ? KeyVisualState.Error : KeyVisualState.Normal;
+        var state = IsError || HasConflict ? KeyVisualState.Error : KeyVisualState.Normal;
 
         while (caps.Count > keys.Count)
         {
@@ -148,19 +161,19 @@ public sealed partial class ShortcutDialogContentControl : UserControl
             {
                 Padding = new Thickness(20, 16, 20, 16),
                 Content = keys[index],
-                CornerRadius = new CornerRadius(8),
                 FontSize = 16,
                 FontWeight = FontWeights.SemiBold,
                 IsTabStop = false,
                 RenderKeyAsGlyph = true,
                 State = state,
-                Style = (Style)Application.Current.Resources["AccentKeyVisualStyle"],
+                Style = (Style)Application.Current.Resources["LeafKeyChipStyle"],
             };
             AutomationProperties.SetAccessibilityView(keyVisual, AccessibilityView.Raw);
             caps.Add(keyVisual);
         }
 
-        ClearBtn.Visibility = _keys is { Count: > 0 } ? Visibility.Visible : Visibility.Collapsed;
+        KeysPrompt.Visibility = keys.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ClearBtn.IsEnabled = keys.Count > 0;
     }
 
     private void ResetBtn_Click(object sender, RoutedEventArgs e)

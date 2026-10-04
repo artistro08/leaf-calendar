@@ -152,73 +152,15 @@
         </Setter>
     </Style>
 
+    <!-- Leaf Key Chip (the shortcut caps on the Shortcuts page and in its dialog, like the command menu's: a quiet control
+         fill, a 1 px divider stroke, radius 4; Save stays the one accent. The Invalid and Warning states are the default's) -->
     <Style
-        x:Key="AccentKeyVisualStyle"
+        x:Key="LeafKeyChipStyle"
         BasedOn="{StaticResource DefaultKeyVisualStyle}"
         TargetType="commoncontrols:KeyVisual">
-        <Setter Property="Background" Value="{ThemeResource AccentFillColorDefaultBrush}" />
-        <Setter Property="Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource AccentControlElevationBorderBrush}" />
-        <Setter Property="BackgroundSizing" Value="OuterBorderEdge" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="commoncontrols:KeyVisual">
-                    <Grid
-                        x:Name="KeyHolder"
-                        MinWidth="{TemplateBinding MinWidth}"
-                        MinHeight="{TemplateBinding MinHeight}"
-                        HorizontalAlignment="{TemplateBinding HorizontalAlignment}"
-                        VerticalAlignment="{TemplateBinding VerticalAlignment}"
-                        AutomationProperties.AccessibilityView="Raw"
-                        Background="{TemplateBinding Background}"
-                        BackgroundSizing="{TemplateBinding BackgroundSizing}"
-                        BorderBrush="{TemplateBinding BorderBrush}"
-                        BorderThickness="{TemplateBinding BorderThickness}"
-                        CornerRadius="{TemplateBinding CornerRadius}">
-                        <Grid.BackgroundTransition>
-                            <BrushTransition Duration="0:0:0.083" />
-                        </Grid.BackgroundTransition>
-                        <commoncontrols:KeyCharPresenter
-                            x:Name="KeyPresenter"
-                            Margin="{TemplateBinding Padding}"
-                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                            Content="{TemplateBinding PresenterContent}"
-                            Style="{TemplateBinding PresenterStyle}"
-                            FontSize="{TemplateBinding FontSize}"
-                            FontWeight="{TemplateBinding FontWeight}"
-                            Foreground="{TemplateBinding Foreground}" />
-                        <VisualStateManager.VisualStateGroups>
-                            <VisualStateGroup x:Name="CommonStates">
-                                <VisualState x:Name="Normal" />
-                                <VisualState x:Name="Disabled">
-                                    <VisualState.Setters>
-                                        <Setter Target="KeyHolder.Background" Value="{ThemeResource AccentButtonBackgroundDisabled}" />
-                                        <Setter Target="KeyHolder.BorderBrush" Value="{ThemeResource AccentButtonBorderBrushDisabled}" />
-                                        <Setter Target="KeyPresenter.Foreground" Value="{ThemeResource AccentButtonForegroundDisabled}" />
-                                    </VisualState.Setters>
-                                </VisualState>
-                                <VisualState x:Name="Invalid">
-                                    <VisualState.Setters>
-                                        <Setter Target="KeyHolder.Background" Value="{ThemeResource SystemFillColorCriticalBackgroundBrush}" />
-                                        <Setter Target="KeyHolder.BorderBrush" Value="{ThemeResource SystemFillColorCriticalBrush}" />
-                                        <Setter Target="KeyHolder.BorderThickness" Value="1" />
-                                        <Setter Target="KeyPresenter.Foreground" Value="{ThemeResource SystemFillColorCriticalBrush}" />
-                                    </VisualState.Setters>
-                                </VisualState>
-                                <VisualState x:Name="Warning">
-                                    <VisualState.Setters>
-                                        <Setter Target="KeyHolder.Background" Value="{ThemeResource SystemFillColorCautionBackgroundBrush}" />
-                                        <Setter Target="KeyHolder.BorderBrush" Value="{ThemeResource SystemFillColorCautionBrush}" />
-                                        <Setter Target="KeyHolder.BorderThickness" Value="1" />
-                                        <Setter Target="KeyPresenter.Foreground" Value="{ThemeResource SystemFillColorCautionBrush}" />
-                                    </VisualState.Setters>
-                                </VisualState>
-                            </VisualStateGroup>
-                        </VisualStateManager.VisualStateGroups>
-                    </Grid>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
+        <Setter Property="Background" Value="{ThemeResource ControlFillColorSecondaryBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource DividerStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="4" />
     </Style>
 </ResourceDictionary>

@@ -20,7 +20,7 @@
                     TextWrapping="Wrap"
                     Text="Leaf asks for your calendars, your contacts and other contacts (read-only), and your Google Workspace directory (directory.readonly, read-only, for coworker suggestions). If your consent screen lists its scopes, add these."
                     AutomationProperties.AutomationId="ClientScopesText" />
-                <controls:SettingRow Glyph="&#xE8D7;" Header="Client ID" Description="From your Desktop app OAuth client in Google Cloud Console.">
+                <controls:SettingRow Glyph="&#xE8EC;" Header="Client ID" Description="From your Desktop app OAuth client in Google Cloud Console.">
                     <TextBox
                         Width="320"
                         PlaceholderText="123-abc.apps.googleusercontent.com"

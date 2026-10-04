@@ -46,5 +46,8 @@
     <ItemGroup>
         <!-- Package Logos, The Window Icon, And The Daily Tray Icons (all from tools/make-icons.ps1) -->
         <Content Include="Assets\**\*.png;Assets\LeafCalendar.ico;Assets\ThirdPartyNotices.txt" CopyToOutputDirectory="PreserveNewest" />
+
+        <!-- The Privacy Statement (the repo root's file, shipped as ms-appx:///PRIVACY.md for Settings › About) -->
+        <Content Include="..\..\PRIVACY.md" Link="PRIVACY.md" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 </Project>

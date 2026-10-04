@@ -85,10 +85,11 @@ public sealed partial class TimeZonesPage : Page
         ? TimeZoneCatalog.CityFor(id)
         : $"Same as Windows ({TimeZoneCatalog.CityFor(_vm.UserZone.Id)})";
 
+    // Following Windows: the box shows Windows' zone, off, and the prompt row is hidden (its saved choice is kept)
     private void UpdatePrimaryState()
     {
         PrimaryZoneBox.IsEnabled = !FollowWindowsZoneSwitch.IsOn;
-        ZonePromptSwitch.IsEnabled = !FollowWindowsZoneSwitch.IsOn;
+        ZonePromptRow.Visibility = FollowWindowsZoneSwitch.IsOn ? Visibility.Collapsed : Visibility.Visible;
     }
 
     // On: follow Windows again. Off: the zone the box shows is kept (picking the same zone again raises no change)
