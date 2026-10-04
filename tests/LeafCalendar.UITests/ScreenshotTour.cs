@@ -62,6 +62,12 @@ public sealed class ScreenshotTour : IDisposable
                             var title = string.Concat((window.Properties.Name.ValueOrDefault ?? "popup").Split(Path.GetInvalidFileNameChars())).Replace(' ', '_');
                             window.CaptureToFile(Path.Combine(folder, $"{screen}-{theme.ToString().ToLowerInvariant()}-{width}-{title}.png"));
                         }
+
+                        // The Tray Flyout And Menu Open In Popups Of Their Own (no window to capture), so the screen around them
+                        if (screen.StartsWith("Tray", StringComparison.Ordinal))
+                        {
+                            FlaUI.Core.Capturing.Capture.Screen().ToFile(Path.Combine(folder, $"{screen}-{theme.ToString().ToLowerInvariant()}-{width}-screen.png"));
+                        }
                     }
                     catch (Exception ex) when (ex is InvalidOperationException or TimeoutException or System.Runtime.InteropServices.COMException)
                     {
@@ -216,6 +222,14 @@ public sealed class ScreenshotTour : IDisposable
                 l.WaitForAnywhere("CommandSearchBox").Focus();
                 FlaUI.Core.Input.Keyboard.Type("dent");
             }),
+            ("MeetWith", t => new LeafSettings { Theme = t }, l => { l.WaitFor(dentist); l.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.KEY_F); l.WaitForAnywhere("PeoplePickerBox"); }),
+
+            // Wide Windows (2200 x 1100 screen pixels): at 125% scale 1366 x 768 is barely past the minimum
+            ("WideWeek", t => new LeafSettings { Theme = t }, l => l.WaitFor(dentist)),
+            ("WideMonth", t => new LeafSettings { Theme = t, ViewMode = CalendarViewMode.Month }, l => l.WaitFor("PeriodTitle")),
+            ("WideDetails", t => new LeafSettings { Theme = t }, l => l.WaitFor(dentist).Click()),
+            ("WideEditor", t => new LeafSettings { Theme = t }, l => { l.WaitFor(dentist).Click(); l.WaitFor("DetailsEditButton").AsButton().Invoke(); l.WaitFor("EditorTitle"); }),
+            ("WideSettings", t => new LeafSettings { Theme = t }, l => { l.WaitFor(dentist); l.OpenSettings("General"); }),
         };
 
         Directory.CreateDirectory(folder);
@@ -231,7 +245,8 @@ public sealed class ScreenshotTour : IDisposable
                 try
                 {
                     using var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
-                    Place(leaf, 1366, 768);
+                    var wide = screen.StartsWith("Wide", StringComparison.Ordinal);
+                    Place(leaf, wide ? 2200 : 1366, wide ? 1100 : 768);
                     open(leaf);
                     Thread.Sleep(800);
                     CaptureAll(leaf, folder, $"more-{screen}-{name}");
@@ -246,9 +261,17 @@ public sealed class ScreenshotTour : IDisposable
                 }
             }
 
-            // Onboarding (a profile with no account), the welcome step and the OAuth client step
+            // Onboarding (a profile with no account, only the theme saved), the welcome step and the OAuth client step
             var fresh = LeafApp.NewProfile();
             _profiles.Add(fresh);
+            var database = new Core.Data.LeafDatabase(Path.Combine(LeafApp.ProfileFolder(fresh), "leaf.db"));
+            database.Migrate();
+            using (var conn = database.Open())
+            {
+                Core.Settings.SettingsStore.Save(conn, new LeafSettings { Theme = theme });
+            }
+
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             try
             {
                 using var leaf = LeafApp.Launch(fresh, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
