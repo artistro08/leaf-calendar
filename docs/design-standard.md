@@ -212,7 +212,7 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 
 - On/off setting: `ToggleSwitch` at the right edge of a setting row, with **no On/Off text** (`OnContent=""`, `OffContent=""`, `MinWidth="0"`, `HorizontalAlignment="Right"`). The label is the row's header. (Sony `CardToggleSwitchStyle`.)
 - Visibility of a thing in a list: `CheckBox` (the sidebar calendars, tinted with the calendar color). (Leaf `SidebarView.xaml`, brief ruling 1.)
-- One of a few (≤ 5): `ComboBox`, `MinWidth="180"`, right edge of the row. One of 2–3 inline: `RadioButton`s (dialogs) or `RadioMenuFlyoutItem` (menus). (Sony `AppPage.xaml`; Leaf `ScopeDialog.cs`, theme menu.)
+- One of a few (≤ 5): `ComboBox`, `Width="240"`, right edge of the row. Every compact row control (`ComboBox`, `NumberBox`, `Slider`, `DropDownButton`, a short label `TextBox`) is 240 wide, never growing with its text; long text inputs (a client ID or secret, a time zone picker or search) are 320. One of 2–3 inline: `RadioButton`s (dialogs) or `RadioMenuFlyoutItem` (menus). (Sony `AppPage.xaml`; Leaf `ScopeDialog.cs`, theme menu.)
 - Numbers: `NumberBox` with `SpinButtonPlacementMode="Compact"`; ranges: `Slider` with ticks. (Leaf `EventEditorView.xaml`; Layers duration slider.)
 
 > **Conflict (toggle labels):** MA uses `ToggleSwitch Header="..."` with "On/Off" beside the knob; Layers sets `OnContent`/`OffContent` to the label ("Run on Startup"). **Use Sony's card switch with no text**, because it's how Windows 11 Settings does it and the brief says to copy Windows Settings.
@@ -238,10 +238,10 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 - A stock `Flyout` at the window's top center, 640 wide, styled after PowerToys Command Palette: a search row (16 search glyph, then a borderless, fill-less `TextBox` at 16 with no focus underline), a divider, a `ListView` of results, and a footer strip. (Leaf `Views/CommandMenu.xaml`.)
 - Rows are 44 tall in an 8 inset list: a 20 glyph (actions, secondary text color) or a 16 color square with radius 4 (events) in a 28 column, then the title and its secondary detail side by side on one line, then the shortcut as a key chip (`ControlFillColorSecondaryBrush`, 1 px divider stroke, radius 4, Caption). The selection is the stock rounded fill without the accent pill.
 - The search glyph sits centered in the rows' 28 glyph column and the typed text starts where row titles do; the footer's label starts under the section headers and its Enter cap ends under the rows' key caps.
-- Results group under Caption section headers ("Go to", "Events", "Actions"), 28 tall (40 below another section, so groups don't run together); the arrow keys skip them and they can't be clicked. Every action is listed (no cap). The theme action offers the theme that isn't showing ("Use dark theme" / "Use light theme"). Settings pages read as paths ("Settings › General"). Actions that open more UI end with "…". A typed date for today, tomorrow, or yesterday reads "Go to today", and a date row that repeats "Go to today" isn't shown.
+- Results group under Caption section headers ("Go to", "Events", "Actions"), 28 tall (40 below another section, so groups don't run together); the arrow keys skip them and they can't be clicked. Every action is listed (no cap). The theme action switches to the theme that isn't showing ("Use dark theme" / "Use light theme"); the one showing is listed after it as "(in use)" and runs nothing. A list taller than its cap ends on a whole row, and with no rows it's gone. Settings pages read as paths ("Settings › General"). Actions that open more UI end with "…". A typed date for today, tomorrow, or yesterday reads "Go to today", and a date row that repeats "Go to today" isn't shown.
 - The footer (`LeafFlyoutFooterBrush`, 1 px top divider) says what the selected row is and what Enter does to it: "Open Enter" (events), "Run Enter" (actions), "Go Enter" (dates), plus "Go to event Alt Enter" on events. Nothing found shows a 24 search glyph over "No events, actions, or dates match." and offers "Create event “<typed words>”", which opens the editor with that title.
 - Jump to date: the mode chip replaces the search glyph, the box shows examples ("Try nov 5th, 10 weeks, next fri, or 3 days ago"), the one date row has no header, the footer stays while the box is empty, and text that isn't a date says "Leaf can't read that as a date."
-- Key caps show every key as a word (Shift, Ctrl, Alt, Left, Right) except Enter, Backspace, and Win, which draw their glyphs; small punctuation marks (". , ; : ' ` -") are drawn larger so they read.
+- Key caps show every key as a word (Shift, Ctrl, Alt, Left, Right) except Enter, Backspace, and Win, which draw their glyphs; small punctuation marks (". , ; : ' ` -") are drawn larger so they read, each moved to the cap's optical middle.
 - While the menu is open the window dims behind it (`SmokeFillColorDefaultBrush`, title bar row included); the dim appears and disappears at once with the menu, no fade; a click outside, Esc, or a pick closes both.
 - Up/Down move the selection while focus stays in the box. Enter runs the selected row; Alt+Enter jumps the calendar to an event.
 
@@ -258,7 +258,7 @@ The Windows 11 Settings row, the one pattern for every setting:
             <TextBlock Text="App theme" />
             <TextBlock Style="{StaticResource SecondaryTextStyle}" Text="Choose how Leaf looks." />
         </StackPanel>
-        <ComboBox Grid.Column="2" MinWidth="180" VerticalAlignment="Center" />
+        <ComboBox Grid.Column="2" Width="240" VerticalAlignment="Center" />
     </Grid>
 </Border>
 ```

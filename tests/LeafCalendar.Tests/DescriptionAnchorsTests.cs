@@ -57,7 +57,7 @@ public class DescriptionAnchorsTests
         Assert.Equal([null, Doc], DescriptionAnchors.Resolve([("Design doc", Doc)], [("Design", 0), ("Design doc", 0)]));
     }
 
-    // Anchors Past The Slot Count Share A Tint But Still Go In Order
+    // Anchors Past The Slot Count Share A Slot But Still Go In Order
     [Fact]
     public void Resolve_MoreLinksThanSlots_GoInOrder()
     {
@@ -66,19 +66,5 @@ public class DescriptionAnchorsTests
         var targets = DescriptionAnchors.Resolve(anchors, [("x", 0), ("x", 0)]);
 
         Assert.Equal([anchors[0].Item2, anchors[DescriptionAnchors.Slots].Item2], targets);
-    }
-
-    [Fact]
-    public void Tint_RoundTripsEverySlot_AndRejectsOtherColors()
-    {
-        (byte R, byte G, byte B) accent = (0x00, 0x5F, 0xB8);
-
-        for (var slot = 0; slot < DescriptionAnchors.Slots; slot++)
-        {
-            Assert.Equal(slot, DescriptionAnchors.SlotOf(DescriptionAnchors.Tint(accent, slot), accent));
-        }
-
-        Assert.Null(DescriptionAnchors.SlotOf((0xFF, 0xFF, 0xFF), accent));
-        Assert.Null(DescriptionAnchors.SlotOf((0x00, 0x5F, 0xBC), accent));
     }
 }

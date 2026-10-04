@@ -57,7 +57,8 @@ public static class CommandCatalog
     /// <summary>
     /// The actions matching every typed word, best first (all of them, so a group like the Settings pages is never cut
     /// short); <see cref="Defaults"/> when nothing is typed. <paramref name="dark"/> is the theme showing now: only the
-    /// other theme is offered, so typing "dark" in dark theme never switches to light.
+    /// other theme switches, so typing "dark" in dark theme never switches to light; it finds "Use dark theme (in use)",
+    /// which runs nothing.
     /// </summary>
     /// <remarks>
     /// Each word scores 3 when the title starts with it, 2 when a title word does, 1 when the title contains it or a
@@ -110,6 +111,12 @@ public static class CommandCatalog
         });
     }
 
-    // Every action but the theme that's already showing
-    private static List<CommandItem> Offered(bool dark) => [.. All.Where(c => c.Id != (dark ? "theme-dark" : "theme-light"))];
+    // Every action, with the theme that's already showing last, marked in use, and running nothing (no command, and its
+    // ID isn't an action the app runs), so "dark" in dark theme finds it instead of offering "Create event “dark”"
+    private static List<CommandItem> Offered(bool dark)
+    {
+        var current = dark ? "theme-dark" : "theme-light";
+        var inUse = All.Single(c => c.Id == current);
+        return [.. All.Where(c => c.Id != current), inUse with { Title = $"{inUse.Title} (in use)", Keys = "", Command = CalendarCommand.None }];
+    }
 }

@@ -109,8 +109,8 @@ public sealed class DragTests : IDisposable
         Assert.True(Retry.WhileTrue(() => leaf.Exists("Ghost_2026-10-02"), TimeSpan.FromSeconds(5)).Success, "The ghost stayed after the editor closed.");
     }
 
-    // A new event over the dentist (C at 8 AM) is drawn on top at the day's full width with its title and time; the
-    // dentist keeps its own width under it
+    // A new event over the dentist (C at 8 AM) is drawn on top with its title and time, over all but the day's left
+    // quarter, where the dentist still shows; the dentist keeps its own width under it
     [Fact]
     public void NewEventOverAnEvent_DrawsOnTop_AndLeavesItsWidth()
     {
@@ -130,8 +130,10 @@ public sealed class DragTests : IDisposable
         Assert.True(box.Top < dentist.Bottom && dentist.Top < box.Bottom, $"The new event ({box}) isn't over the dentist ({dentist}).");
         Assert.True(Retry.WhileFalse(() => ghost.Name.StartsWith("Lunch", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success, $"The ghost reads \"{ghost.Name}\".");
 
-        // Both span the day (less its 8 DIP right inset, and the ghost label's border and margins), not half of it each
-        Assert.True(box.Width >= day.Width - 32 * leaf.Scale, $"The ghost ({box}) doesn't span the day ({day}).");
+        // The ghost spans the day's right three quarters (less its 8 DIP right inset, and the ghost label's border and
+        // margins), its left quarter left to the dentist under it; the dentist spans the day, not half of it
+        Assert.True(box.Width >= day.Width * 3 / 4 - 32 * leaf.Scale, $"The ghost ({box}) doesn't span the day's right three quarters ({day}).");
+        Assert.True(box.Left - dentist.Left >= day.Width / 4 - 8 * leaf.Scale, $"The ghost ({box}) covers the dentist's left edge ({dentist}).");
         Assert.True(dentist.Width >= day.Width - 16 * leaf.Scale, $"The dentist ({dentist}) was squeezed beside the new event (day {day}).");
     }
 

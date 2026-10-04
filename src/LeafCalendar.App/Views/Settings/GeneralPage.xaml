@@ -17,7 +17,7 @@
                 <controls:SettingRow Glyph="&#xE790;" Header="App theme" Description="Choose how Leaf looks.">
                     <ComboBox
                         x:Name="ThemeBox"
-                        MinWidth="180"
+                        Width="240"
                         SelectionChanged="OnThemeChanged"
                         AutomationProperties.Name="App theme"
                         AutomationProperties.AutomationId="ThemeComboBox">
@@ -40,7 +40,7 @@
                 <controls:SettingRow Glyph="&#xE80A;" Header="Days in the custom view" Description="From 1 to 31 days.">
                     <NumberBox
                         x:Name="DaysBox"
-                        MinWidth="180"
+                        Width="240"
                         Minimum="1"
                         Maximum="31"
                         SpinButtonPlacementMode="Compact"
@@ -49,7 +49,7 @@
                         AutomationProperties.AutomationId="CustomDaysNumberBox" />
                 </controls:SettingRow>
                 <controls:SettingRow Glyph="&#xECE7;" Header="Hour height" Description="How tall each hour is in the day and week views. Ctrl+Plus, Ctrl+Minus, and Ctrl+0 change it too.">
-                    <!-- The Value, Then The Slider (the slider stays 180 wide, like the row controls around it) -->
+                    <!-- The Value, Then The Slider (the slider is 240 wide, like the row controls around it) -->
                     <StackPanel Orientation="Horizontal" Spacing="12">
                         <TextBlock
                             x:Name="HourHeightValue"
@@ -59,7 +59,7 @@
                             AutomationProperties.AutomationId="HourHeightValue" />
                         <Slider
                             x:Name="HourHeightSlider"
-                            Width="180"
+                            Width="240"
                             StepFrequency="8"
                             TickFrequency="8"
                             TickPlacement="Outside"
@@ -92,10 +92,10 @@
                         AutomationProperties.Name="Show week numbers"
                         AutomationProperties.AutomationId="WeekNumbersSwitch" />
                 </controls:SettingRow>
-                <controls:SettingRow Glyph="&#xEC92;" Header="Upcoming meetings" Description="How far ahead the details panel looks when no event is selected.">
+                <controls:SettingRow Glyph="&#xE890;" Header="Upcoming meetings" Description="How far ahead the details panel looks when no event is selected.">
                     <ComboBox
                         x:Name="UpcomingHoursBox"
-                        MinWidth="180"
+                        Width="240"
                         SelectionChanged="OnUpcomingHoursChanged"
                         AutomationProperties.Name="Upcoming meetings"
                         AutomationProperties.AutomationId="UpcomingHoursBox" />
@@ -106,7 +106,7 @@
                 <controls:SettingRow Glyph="&#xE8D1;" Header="First day of the week">
                     <ComboBox
                         x:Name="WeekStartBox"
-                        MinWidth="180"
+                        Width="240"
                         SelectionChanged="OnWeekStartChanged"
                         AutomationProperties.Name="First day of the week"
                         AutomationProperties.AutomationId="WeekStartComboBox">
@@ -184,7 +184,7 @@
                             <controls:SettingRow Style="{StaticResource LeafExpanderItemRowStyle}" Header="Work days">
                                 <DropDownButton
                                     x:Name="WorkDaysButton"
-                                    MinWidth="180"
+                                    Width="240"
                                     HorizontalContentAlignment="Left"
                                     AutomationProperties.Name="Work days"
                                     AutomationProperties.AutomationId="WorkDaysButton">
@@ -205,7 +205,7 @@
                 <controls:SettingRow Glyph="&#xE707;" Header="Open locations in">
                     <ComboBox
                         x:Name="MapProviderBox"
-                        MinWidth="180"
+                        Width="240"
                         SelectionChanged="OnMapProviderChanged"
                         AutomationProperties.Name="Open locations in"
                         AutomationProperties.AutomationId="MapProviderBox">

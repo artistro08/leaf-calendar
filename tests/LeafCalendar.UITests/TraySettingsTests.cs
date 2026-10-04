@@ -180,12 +180,23 @@ public sealed class TraySettingsTests : IDisposable
         // Reset Picks The Default
         leaf.WaitInSettings("JoinShortcutButton").AsButton().Invoke();
         leaf.WaitForAnywhere("ShortcutReset").AsButton().Invoke();
-        // (or, where another app holds the default on this PC, the old one comes back with a note)
-        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("JoinShortcutButton").Properties.HelpText.ValueOrDefault == LeafSettings.DefaultJoinShortcut || leaf.AnyTextContains($"{LeafSettings.DefaultJoinShortcut} was taken by another app"), TimeSpan.FromSeconds(5)).Success);
+        // (or, where another app holds the default on this PC, such as the owner's own Leaf, the dialog says so and
+        // saves nothing, and Cancel closes it; or the old one comes back with a note)
+        var taken = $"Windows or another app is using {LeafSettings.DefaultJoinShortcut}.";
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("JoinShortcutButton").Properties.HelpText.ValueOrDefault == LeafSettings.DefaultJoinShortcut || leaf.AnyTextContains($"{LeafSettings.DefaultJoinShortcut} was taken by another app") || leaf.AnyTextContains(taken), TimeSpan.FromSeconds(5)).Success);
+        if (leaf.AnyTextContains(taken))
+        {
+            leaf.WaitForAnywhere("CloseButton").AsButton().Invoke();
+        }
 
         // Turning It Off Leaves No Shortcut (once the first dialog is gone: only one can be open)
+        // (its title goes before it's done closing, and a press until then opens nothing, so the press is repeated)
         Assert.True(Retry.WhileTrue(() => leaf.AnyTextContains("Join meeting shortcut"), TimeSpan.FromSeconds(5)).Success, "The first dialog didn't close.");
-        leaf.WaitInSettings("JoinShortcutButton").AsButton().Invoke();
+        Assert.True(Retry.WhileFalse(() =>
+        {
+            leaf.WaitInSettings("JoinShortcutButton").AsButton().Invoke();
+            return Retry.WhileFalse(() => leaf.ExistsAnywhere("ShortcutClear"), TimeSpan.FromSeconds(2)).Success;
+        }, TimeSpan.FromSeconds(10)).Success, "The picker didn't open again.");
         leaf.WaitForAnywhere("ShortcutClear").AsButton().Invoke();
         Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("JoinShortcutButton").Properties.HelpText.ValueOrDefault == "None", TimeSpan.FromSeconds(5)).Success);
     }

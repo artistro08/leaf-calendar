@@ -82,8 +82,8 @@
                             <DataTemplate x:DataType="vm:UpcomingItem">
                                 <!-- Row: opens the event (spans the full width with the tray's hover fill; Join sits inside it,
                                      so the row keeps its highlight behind Join while the pointer is on Join too). The row
-                                     reaches 8 past the content edges, so its text lines up under the heading and Join ends on
-                                     the panel's 16 DIP inset, while the hover fill still has room around them -->
+                                     reaches 8 past the content edges, so its color bar lines up under the heading and Join ends
+                                     on the panel's 16 DIP inset, while the hover fill still has room around them -->
                                 <Button
                                     Margin="-8,0"
                                     Padding="8,4"

@@ -282,6 +282,9 @@ public sealed partial class CalendarsPage : Page
             DefaultButton = ContentDialogButton.Primary,
         };
 
+        // Focus Starts On The First Reminder (or Add reminder with none), Without The Ring Windows Gave Add reminder
+        dialog.Opened += (_, _) => ((Control?)boxes.FirstOrDefault() ?? add).Focus(FocusState.Programmatic);
+
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
         {
             return;

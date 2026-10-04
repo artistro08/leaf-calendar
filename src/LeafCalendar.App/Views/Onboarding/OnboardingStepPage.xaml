@@ -24,7 +24,7 @@
             <!-- /Welcome -->
 
             <!-- Google Cloud OAuth Client -->
-            <StackPanel x:Name="ClientStep" Spacing="16" Visibility="Collapsed" AutomationProperties.Name="Connect your Google Cloud client" AutomationProperties.AutomationId="OnboardingClient">
+            <StackPanel x:Name="ClientStep" Spacing="12" Visibility="Collapsed" AutomationProperties.Name="Connect your Google Cloud client" AutomationProperties.AutomationId="OnboardingClient">
                 <FontIcon HorizontalAlignment="Left" FontSize="48" Glyph="&#xE8D7;" AutomationProperties.AccessibilityView="Raw" />
                 <StackPanel Spacing="4">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Connect your Google Cloud client" />
@@ -32,9 +32,10 @@
                 </StackPanel>
 
                 <!-- Setup Guide (Google Cloud console as of 2025, where the consent screen and clients live under Google Auth
-                     Platform; numbers hang to the left of their wrapped lines; the link opens a fixed address) -->
-                <StackPanel Spacing="8" AutomationProperties.Name="Setup guide" AutomationProperties.AutomationId="SetupGuideText">
-                    <Grid ColumnSpacing="4" ColumnDefinitions="Auto,*">
+                     Platform; numbers hang to the left of their wrapped lines, in one 14 DIP column so every step's text starts
+                     on the same edge; the link opens a fixed address) -->
+                <StackPanel Spacing="4" AutomationProperties.Name="Setup guide" AutomationProperties.AutomationId="SetupGuideText">
+                    <Grid ColumnSpacing="4" ColumnDefinitions="14,*">
                         <TextBlock Text="1." />
                         <TextBlock Grid.Column="1" TextWrapping="Wrap">
                             Open
@@ -44,15 +45,15 @@
                             and create a project.
                         </TextBlock>
                     </Grid>
-                    <Grid ColumnSpacing="4" ColumnDefinitions="Auto,*">
+                    <Grid ColumnSpacing="4" ColumnDefinitions="14,*">
                         <TextBlock Text="2." />
                         <TextBlock Grid.Column="1" TextWrapping="Wrap" Text="In APIs &amp; Services › Library, enable the Google Calendar API and the People API." />
                     </Grid>
-                    <Grid ColumnSpacing="4" ColumnDefinitions="Auto,*">
+                    <Grid ColumnSpacing="4" ColumnDefinitions="14,*">
                         <TextBlock Text="3." />
                         <TextBlock Grid.Column="1" TextWrapping="Wrap" Text="In Google Auth Platform, click Get started and choose External as the audience. Then, in Audience, click Publish app. While it's in Testing, Google signs you out every 7 days." />
                     </Grid>
-                    <Grid ColumnSpacing="4" ColumnDefinitions="Auto,*">
+                    <Grid ColumnSpacing="4" ColumnDefinitions="14,*">
                         <TextBlock Text="4." />
                         <TextBlock Grid.Column="1" TextWrapping="Wrap" Text="In Google Auth Platform › Clients, create a client of type Desktop app. Paste its Client ID and Client secret below. Google shows the secret only once." />
                     </Grid>
@@ -65,9 +66,10 @@
                 </StackPanel>
                 <!-- /Setup Guide -->
 
-                <!-- Credentials, side by side so both show without scrolling (Enter in the ID moves to the secret; Enter in the
-                     secret runs Next, which stays off until both have text) -->
-                <Grid ColumnSpacing="12" ColumnDefinitions="*,*">
+                <!-- Credentials, full width so a whole Client ID shows (the step's tighter 12 and the guide's 4 keep both above
+                     the footer without scrolling). Enter in the ID moves to the secret; Enter in the secret runs Next, which
+                     stays off until both have text -->
+                <StackPanel Spacing="8">
                     <TextBox
                         x:Name="ClientIdBox"
                         Header="Client ID"
@@ -77,12 +79,11 @@
                         AutomationProperties.AutomationId="ClientIdBox" />
                     <PasswordBox
                         x:Name="ClientSecretBox"
-                        Grid.Column="1"
                         Header="Client secret"
                         Password="{x:Bind ViewModel.Client.ClientSecret, Mode=TwoWay}"
                         KeyDown="OnClientSecretKeyDown"
                         AutomationProperties.AutomationId="ClientSecretBox" />
-                </Grid>
+                </StackPanel>
                 <InfoBar
                     CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                     Severity="Error"

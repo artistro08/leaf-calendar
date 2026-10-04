@@ -106,9 +106,9 @@ public sealed partial class CalendarPage : Page
         // A Click In The Details Panel Means The Instant E's Editor Is In Use (later keys are typing, not a second key)
         Details.AddHandler(PointerPressedEvent, new PointerEventHandler((_, _) => _editorFromE = false), handledEventsToo: true);
 
-        // The Toasts Are Raised Over The Calendar Like Flyouts (the zone and overlay bars are raised as they're added)
-        Float(SharingHint);
-        Float(NoticeBar);
+        // The Toasts Are Raised Over The Calendar Like Flyouts While Open (the zone and overlay bars are raised as they're added)
+        FloatWhileOpen(SharingHint);
+        FloatWhileOpen(NoticeBar);
 
         // Focus Starts On The Calendar (after Windows' own first pick, which was the mini month's first chevron; not out of
         // a box or menu something already opened)

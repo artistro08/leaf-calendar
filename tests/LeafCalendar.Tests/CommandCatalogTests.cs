@@ -78,12 +78,28 @@ public sealed class CommandCatalogTests
         Assert.Equal(title, match.Single(c => c.Id == id).Title);
     }
 
+    // "dark" in dark theme finds the dark theme marked in use (it runs nothing), never a switch to light, and never
+    // nothing at all, where Enter would create an event titled "dark"
     [Fact]
-    public void Match_DarkWhileDark_NeverOffersLight()
+    public void Match_DarkWhileDark_ShowsItInUse_NeverOffersLight()
     {
-        Assert.DoesNotContain(CommandCatalog.Match("dark", dark: true), c => c.Command == CalendarCommand.ToggleTheme);
-        Assert.False(CommandCatalog.NamesAnAction("dark", dark: true));
+        var match = CommandCatalog.Match("dark", dark: true);
+
+        Assert.DoesNotContain(match, c => c.Command == CalendarCommand.ToggleTheme);
+        var inUse = Assert.Single(match);
+        Assert.Equal(("theme-dark", "Use dark theme (in use)", "", CalendarCommand.None), (inUse.Id, inUse.Title, inUse.Keys, inUse.Command));
+        Assert.True(CommandCatalog.NamesAnAction("dark", dark: true));
         Assert.Equal("theme-dark", CommandCatalog.Match("dark", dark: false)[0].Id);
+        Assert.Equal("Use light theme (in use)", Assert.Single(CommandCatalog.Match("light", dark: false)).Title);
+    }
+
+    // "theme" leads with the theme that switches; the one in use comes after it
+    [Fact]
+    public void Match_Theme_PutsTheSwitchBeforeTheThemeInUse()
+    {
+        var themes = CommandCatalog.Match("theme", dark: true).Where(c => c.Id.StartsWith("theme-", StringComparison.Ordinal)).Select(c => c.Id).ToList();
+
+        Assert.Equal(["theme-light", "theme-dark"], themes);
     }
 
     [Fact]

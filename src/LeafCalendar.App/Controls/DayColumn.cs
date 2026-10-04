@@ -31,7 +31,8 @@ public sealed partial class DayColumn : Canvas
 
     // The drag ghost's shadow lands on this, under everything (a receiver can't be the ghost's ancestor)
     private readonly Rectangle _floor = new() { IsHitTestVisible = false };
-    private readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 2, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+    // (13 tall lines, so a narrow day's wrapped "(No title)" and its time still fit an hour at the default height)
+    private readonly TextBlock _ghostLabel = new() { FontSize = 11, LineHeight = 13, LineStackingStrategy = LineStackingStrategy.BlockLineHeight, Margin = new Thickness(6, 2, 4, 0), TextWrapping = TextWrapping.WrapWholeWords, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly Canvas _offHours = new() { IsHitTestVisible = false };
 
     // Marking times to share: diagonal lines over the day's empty time (under the events and the picked times)
@@ -195,16 +196,20 @@ public sealed partial class DayColumn : Canvas
             _blocks[i].Visibility = Visibility.Collapsed;
         }
 
-        // The New Event's Ghost: on top of the events at the day's full width, so the ones under it keep their own width
-        // and the ghost reads whole (its title, or "(No title)", then its time on the day it starts). A new event on
-        // another day leaves no ghost here
+        // The New Event's Ghost: on top of the events, so the ones under it keep their own width, and its title (or
+        // "(No title)") wraps over its time on the day it starts. Over an event it leaves the left quarter of the day
+        // showing, so the event under it still shows its color bar and the start of its title. A new event on another
+        // day leaves no ghost here
         if (_owner.StandIn is { } standIn)
         {
             if (DayLayout.Layout(Date, [standIn], vm.Zone) is [var g])
             {
                 var title = string.IsNullOrWhiteSpace(standIn.Title) ? EventDetailsParser.NoTitle : standIn.Title;
                 var time = standIn.Start >= OccurrenceQuery.LocalMidnight(Date, vm.Zone) ? "\n" + TimeLabels.GridRange(standIn.Start, standIn.End, vm.Zone, vm.Settings.Use24HourTime) : "";
-                SetGhost(g.StartMinute, Math.Max(g.EndMinute, g.StartMinute + DragMath.SnapMinutes), title + time);
+                var end = Math.Max(g.EndMinute, g.StartMinute + DragMath.SnapMinutes);
+                var usable = width - 2 - RightInset;
+                var inset = blocks.Any(b => b.StartMinute < end && b.EndMinute > g.StartMinute) ? Math.Round(usable / 4) : 0;
+                PlaceGhost(2 + inset, Math.Max(usable - inset, 10), g.StartMinute, end, title + time);
             }
             else
             {

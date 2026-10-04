@@ -40,11 +40,13 @@ public sealed class CommandMenuTests : IDisposable
     private static string Id(AutomationElement e) => e.Properties.AutomationId.ValueOrDefault ?? "";
 
     // The result rows' automation IDs, top to bottom
-    private static List<string> RowIds(LeafApp leaf) =>
+    // (none while the list is gone: with no rows it collapses; rows scrolled out of view have no bounds, so they go last)
+    private static List<string> RowIds(LeafApp leaf) => !leaf.ExistsAnywhere("CommandResults") ? [] :
         [.. leaf.WaitForAnywhere("CommandResults")
             .FindAllDescendants()
             .Where(e => Id(e).StartsWith("CommandResult_", StringComparison.Ordinal) || Id(e).StartsWith("SearchResult_", StringComparison.Ordinal))
-            .OrderBy(e => e.BoundingRectangle.Top)
+            .OrderBy(e => e.BoundingRectangle.IsEmpty)
+            .ThenBy(e => e.BoundingRectangle.Top)
             .Select(Id)];
 
     // Waits until the first row is the expected one (typing settles for 120 ms before the search runs)
@@ -337,7 +339,8 @@ public sealed class CommandMenuTests : IDisposable
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("EditorTitle").AsTextBox().Text == "zzzzqq", Wait).Success, "The new event isn't titled zzzzqq.");
     }
 
-    // The theme row offers the theme that isn't showing, so running it and typing "theme" again offers the other one
+    // The theme row leads with the theme that isn't showing (the one showing follows it, marked in use), so running it
+    // and typing "theme" again leads with the other one
     [Fact]
     public void ThemeRow_OffersTheThemeNotShowing()
     {
@@ -347,7 +350,7 @@ public sealed class CommandMenuTests : IDisposable
         Keyboard.Type("theme");
         Assert.True(Retry.WhileFalse(() => RowIds(leaf) is [var id, ..] && id.StartsWith("CommandResult_theme-", StringComparison.Ordinal), Wait).Success);
         var first = RowIds(leaf)[0];
-        Assert.Single(RowIds(leaf), id => id.StartsWith("CommandResult_theme-", StringComparison.Ordinal));
+        Assert.Equal(2, RowIds(leaf).Count(id => id.StartsWith("CommandResult_theme-", StringComparison.Ordinal)));
         Keyboard.Type(VirtualKeyShort.RETURN);
 
         OpenMenu(leaf);

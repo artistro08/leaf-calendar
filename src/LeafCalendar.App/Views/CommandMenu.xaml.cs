@@ -215,7 +215,41 @@ public sealed partial class CommandMenu : UserControl
     public const double ResultsMaxHeight = 416;
 
     /// <summary>Caps the results list at the given height (at most <see cref="ResultsMaxHeight"/>), so the menu never runs past a short window.</summary>
-    public void LimitResultsHeight(double height) => ResultsScroll.MaxHeight = Math.Min(ResultsMaxHeight, height);
+    public void LimitResultsHeight(double height)
+    {
+        _limit = Math.Min(ResultsMaxHeight, height);
+        FitResults();
+    }
+
+    // The results list's cap from the window (LimitResultsHeight)
+    private double _limit = ResultsMaxHeight;
+
+    // The list's padding above the first row and below the last
+    private const double ListPadding = 8;
+
+    // A row's height as OnRowChanging sets it: 44, or a header's 28 at the top and 40 under another section
+    private static double RowHeight(CommandRow row, int index) => row.Kind != CommandRowKind.Header ? 44 : index == 0 ? 28 : 40;
+
+    // The list ends on a whole row: a list taller than its cap is cut after the last row that fits, never through one.
+    // With no rows it's gone, so no empty padding sits over the footer
+    private void FitResults()
+    {
+        ResultsScroll.Visibility = _rows.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        var height = ListPadding;
+        for (var i = 0; i < _rows.Count; i++)
+        {
+            var next = height + RowHeight(_rows[i], i);
+            if (next + ListPadding > _limit)
+            {
+                ResultsScroll.MaxHeight = height;
+                return;
+            }
+
+            height = next;
+        }
+
+        ResultsScroll.MaxHeight = _limit;
+    }
 
     // What the box asks for: anything, or (Jump to date, whose chip already names it) a date in words
     private const string SearchPrompt = "Search events, or type a command or a date";
@@ -357,6 +391,7 @@ public sealed partial class CommandMenu : UserControl
         // The Empty State Says What Didn't Match: Jump To Date Reads Only Dates
         CommandEmptyText.Text = _dateMode ? "Leaf can't read that as a date." : "No events, actions, or dates match.";
         CommandEmptyPanel.Visibility = nothing ? Visibility.Visible : Visibility.Collapsed;
+        FitResults();
         ResultsScroll.ChangeView(null, 0, null, disableAnimation: true);
         ShowHints();
     }
@@ -372,7 +407,7 @@ public sealed partial class CommandMenu : UserControl
         }
 
         var header = row.Kind == CommandRowKind.Header;
-        var height = !header ? 44 : args.ItemIndex == 0 ? 28 : 40;
+        var height = RowHeight(row, args.ItemIndex);
         args.ItemContainer.MinHeight = height;
         args.ItemContainer.Height = height;
         args.ItemContainer.IsHitTestVisible = !header;

@@ -417,8 +417,8 @@
                             SelectionChanged="OnDescriptionSelectionChanged" />
 
                         <!-- Description Toolbar (hidden when the description is read-only). The toggles show "on" the Windows
-                             way: a subtle fill behind the glyph (secondary, tertiary while pressed), the same fill as a hover;
-                             the glyph stays full strength. Light and Dark each alias the theme brushes, so each theme gets its
+                             way: a fill behind the glyph, the control-alt quarternary fill (tertiary while pressed), clearly
+                             stronger than a hover's subtle fill in both themes; the glyph stays full strength. Light and Dark each alias the theme brushes, so each theme gets its
                              own (an alias in a lone Default dictionary resolves once, to the dark brush, in light theme too) -->
                         <Grid x:Name="DescriptionToolbar" VerticalAlignment="Top" RowDefinitions="Auto,Auto">
                             <Grid.Resources>
@@ -428,9 +428,9 @@
                                             <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
                                             <StaticResource x:Key="ToggleButtonBackgroundPointerOver" ResourceKey="SubtleFillColorSecondaryBrush" />
                                             <StaticResource x:Key="ToggleButtonBackgroundPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
-                                            <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="SubtleFillColorSecondaryBrush" />
-                                            <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="SubtleFillColorSecondaryBrush" />
-                                            <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="ControlAltFillColorQuarternaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="ControlAltFillColorQuarternaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="ControlAltFillColorTertiaryBrush" />
                                             <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="Transparent" />
                                             <SolidColorBrush x:Key="ToggleButtonBorderBrushPointerOver" Color="Transparent" />
                                             <SolidColorBrush x:Key="ToggleButtonBorderBrushPressed" Color="Transparent" />
@@ -445,9 +445,9 @@
                                             <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
                                             <StaticResource x:Key="ToggleButtonBackgroundPointerOver" ResourceKey="SubtleFillColorSecondaryBrush" />
                                             <StaticResource x:Key="ToggleButtonBackgroundPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
-                                            <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="SubtleFillColorSecondaryBrush" />
-                                            <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="SubtleFillColorSecondaryBrush" />
-                                            <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="ControlAltFillColorQuarternaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="ControlAltFillColorQuarternaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="ControlAltFillColorTertiaryBrush" />
                                             <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="Transparent" />
                                             <SolidColorBrush x:Key="ToggleButtonBorderBrushPointerOver" Color="Transparent" />
                                             <SolidColorBrush x:Key="ToggleButtonBorderBrushPressed" Color="Transparent" />

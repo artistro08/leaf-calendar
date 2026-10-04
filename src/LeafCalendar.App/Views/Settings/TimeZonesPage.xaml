@@ -131,11 +131,11 @@
                     </controls:PinnedListView.ItemContainerStyle>
                     <controls:PinnedListView.ItemTemplate>
                         <DataTemplate x:DataType="vm:ZoneRow">
-                            <!-- Zone Row (label box, more options, then remove) -->
+                            <!-- Zone Row (label box, more options, then remove: 240 + 8 + 32 + 8 + 32, as wide as the search above) -->
                             <controls:SettingRow Glyph="&#xE76F;" Header="{x:Bind City}" Description="{x:Bind Detail}">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBox
-                                        Width="180"
+                                        Width="240"
                                         Text="{x:Bind Label, Mode=TwoWay}"
                                         PlaceholderText="{x:Bind City}"
                                         MaxLength="24"

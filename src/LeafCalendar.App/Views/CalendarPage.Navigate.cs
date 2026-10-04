@@ -75,8 +75,8 @@ public sealed partial class CalendarPage
         // At The Bottom, With The Other Toasts (first, above the notice)
         _travelBar = new TimeTravelBar(ViewModel);
         Toasts.Children.Insert(0, _travelBar);
-        Float(_travelBar.TravelBar);
-        Float(_travelBar.ZoneSwitchBar);
+        FloatWhileOpen(_travelBar.TravelBar);
+        FloatWhileOpen(_travelBar.ZoneSwitchBar);
         ViewModel.PropertyChanged += OnNavigatePropertyChanged;
         ViewModel.LayoutChanged += OnNavigateLayoutChanged;
     }
@@ -328,7 +328,9 @@ public sealed partial class CalendarPage
 
         var (panel, filter) = ShortcutSheet.Panel(this, ViewModel.Settings, CloseShortcutSheet);
         panel.HorizontalAlignment = HorizontalAlignment.Left;
-        panel.Margin = new Thickness(16);
+
+        // 32 from the top clears the corner's time zones button (4 down, about 22 tall), which the card cut through at 16
+        panel.Margin = new Thickness(16, 32, 16, 16);
         Grid.SetRow(panel, 2);
         Float(panel);
         Island.Children.Add(panel);
@@ -426,8 +428,25 @@ public sealed partial class CalendarPage
     }
 
     // Raises a card (the cheat sheet, a toast at the bottom) 32 over the calendar view, which takes its shadow
-    private void Float(UIElement card)
+    private void Float(UIElement card) => Raise(card, raised: true);
+
+    // A bar at the bottom is raised only while it's open: a closed InfoBar keeps its place in the toasts, and raised it
+    // left a ghost shadow on the calendar
+    private void FloatWhileOpen(InfoBar bar)
     {
+        bar.RegisterPropertyChangedCallback(InfoBar.IsOpenProperty, (_, _) => Raise(bar, bar.IsOpen));
+        Raise(bar, bar.IsOpen);
+    }
+
+    private void Raise(UIElement card, bool raised)
+    {
+        if (!raised)
+        {
+            card.Translation = System.Numerics.Vector3.Zero;
+            card.Shadow = null;
+            return;
+        }
+
         card.Translation = new System.Numerics.Vector3(0, 0, 32);
         var shadow = new ThemeShadow();
         shadow.Receivers.Add(ViewHost);

@@ -428,10 +428,14 @@ public sealed partial class TrayHost : Window
         _exitFinished = false;
         Slide(HiddenOffset(), new Point(0, 0), 0, 1, EnterDuration, enter: true, onDone: null);
 
-        // Opened By A Click: the first control keeps focus (Tab and Enter still work) without the keyboard's ring
-        if (_agendaByPointer && FocusManager.FindFirstFocusableElement(AgendaPanel) is Control first)
+        // Focus Starts On Join When The Next Meeting Has One (so Enter joins, as before the next meeting got its own row),
+        // else on the first control; opened by a click, it's there without the keyboard's ring (Tab and Enter still work)
+        var start = NextJoinButton.Visibility == Visibility.Visible && NextPanel.Visibility == Visibility.Visible
+            ? NextJoinButton
+            : FocusManager.FindFirstFocusableElement(AgendaPanel) as Control;
+        if (start is not null)
         {
-            FocusWithoutRing(first);
+            DispatcherQueue.TryEnqueue(() => start.Focus(_agendaByPointer ? FocusState.Pointer : FocusState.Keyboard));
         }
 
         AgendaOpened?.Invoke(this, EventArgs.Empty);

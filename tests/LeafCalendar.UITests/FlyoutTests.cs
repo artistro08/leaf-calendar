@@ -124,6 +124,8 @@ public sealed class FlyoutTests : IDisposable
     [Fact]
     public void NothingComingUp_SaysItOnce()
     {
+        // The weekly standup (Mon, Wed, Fri) would fill any 3 days the flyout lists, so it ends before December here
+        _google.EditOnGoogle(SeededProfile.Email, "evt-weekly", e => e["recurrence"] = new System.Text.Json.Nodes.JsonArray("RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;UNTIL=20261031T000000Z"));
         using var leaf = Launch("2026-12-01T09:00:00-05:00");
 
         leaf.PostTrayMessage(LeafApp.TraySelect);

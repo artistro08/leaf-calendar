@@ -17,8 +17,7 @@ public static class ShortcutLegend
     private const double CapMinWidth = 24;
     private const double Gap = 4;
 
-    // Keys whose mark is a speck at Caption size (". , ; : ' ` -"): drawn larger, with the cap's vertical padding given
-    // up so the cap stays as tall as its neighbors (16 of text either way)
+    // Keys whose mark is a speck at Caption size (". , ; : ' ` -"): drawn larger and centered in the cap (MarkPadding)
     private const string SmallMarks = ".,;:'`-";
     private const double MarkFontSize = 16;
 
@@ -62,7 +61,7 @@ public static class ShortcutLegend
                     FontSize = mark ? MarkFontSize : CapFontSize,
                     FontWeight = mark ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
                     MinWidth = CapMinWidth,
-                    Padding = mark ? new Thickness(8, 0, 8, 0) : new Thickness(8, 2, 8, 2),
+                    Padding = mark ? MarkPadding(part.Text[0]) : new Thickness(8, 2, 8, 2),
                     CornerRadius = new CornerRadius(4),
                 });
                 continue;
@@ -92,4 +91,14 @@ public static class ShortcutLegend
 
         return legend;
     }
+
+    // A mark sits where its font puts it (a period on the baseline, a comma's tail below it, a quote up top), so each is
+    // moved to the cap's optical middle: the 16 DIP line (about 21 tall) gives up 1 so the cap stays as tall as its
+    // neighbors (16 of text and 2 + 2 of padding), and the rest shifts the mark up or down
+    private static Thickness MarkPadding(char mark) => mark switch
+    {
+        '.' or ',' or ';' => new Thickness(8, -5, 8, 4),
+        '\'' or '`' => new Thickness(8, 1, 8, -2),
+        _ => new Thickness(8, -2, 8, 1),
+    };
 }

@@ -154,7 +154,7 @@
                 <TextBlock Text="Add a Google account to see your events here." Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
                 <Button
                     Style="{StaticResource AccentButtonStyle}"
-                    Content="Add a Google account"
+                    Content="Add Google account"
                     HorizontalAlignment="Center"
                     Click="OnAddAccountClick"
                     AutomationProperties.AutomationId="EmptyAddAccountButton" />

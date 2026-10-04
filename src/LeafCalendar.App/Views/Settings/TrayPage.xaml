@@ -27,7 +27,7 @@
                 <controls:SettingRow x:Name="DaysRow" Glyph="&#xE8FD;" Header="Days in the agenda">
                     <NumberBox
                         x:Name="DaysBox"
-                        MinWidth="180"
+                        Width="240"
                         Minimum="1"
                         SpinButtonPlacementMode="Compact"
                         ValueChanged="OnDaysChanged"
@@ -46,7 +46,7 @@
                 <controls:SettingRow Glyph="&#xE916;" Header="Next meeting" Description="How far ahead the flyout header and the tray icon's tooltip look for your next meeting.">
                     <ComboBox
                         x:Name="LookaheadBox"
-                        MinWidth="180"
+                        Width="240"
                         SelectionChanged="OnLookaheadChanged"
                         AutomationProperties.Name="Next meeting"
                         AutomationProperties.AutomationId="LookaheadComboBox">

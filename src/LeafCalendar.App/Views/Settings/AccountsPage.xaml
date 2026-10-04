@@ -107,7 +107,7 @@
                 <controls:SettingRow Glyph="&#xE734;" Header="Main account" Description="Listed first, and used to look up people's free/busy times.">
                     <ComboBox
                         x:Name="MainAccountBox"
-                        MinWidth="180"
+                        Width="240"
                         SelectionChanged="OnMainAccountChanged"
                         AutomationProperties.Name="Main account"
                         AutomationProperties.AutomationId="MainAccountBox" />
@@ -133,7 +133,7 @@
                 <controls:SettingRow Glyph="&#xED0E;" Header="Default calendar" Description="Where new events go. Leaf uses this instead of Google's default.">
                     <ComboBox
                         x:Name="DefaultCalendarBox"
-                        MinWidth="180"
+                        Width="240"
                         SelectionChanged="OnDefaultCalendarChanged"
                         AutomationProperties.Name="Default calendar"
                         AutomationProperties.AutomationId="DefaultCalendarComboBox">
