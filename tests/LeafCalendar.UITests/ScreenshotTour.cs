@@ -159,7 +159,6 @@ public sealed class ScreenshotTour : IDisposable
             using var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
             leaf.WaitFor("SettingsButton");
             var settings = leaf.OpenSettings("Shortcuts");
-            leaf.MainWindow.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
             settings.Patterns.Transform.Pattern.Move(40, 40);
             settings.Patterns.Transform.Pattern.Resize(1100, 800);
             settings.SetForeground();
@@ -182,6 +181,171 @@ public sealed class ScreenshotTour : IDisposable
             Thread.Sleep(600);
             settings.CaptureToFile(Path.Combine(folder, $"shortcut-dialog-taken-{name}.png"));
             leaf.WaitForAnywhere("CloseButton").AsButton().Invoke();
+        }
+    }
+
+    /// <summary>
+    /// The screens the main tour doesn't reach, in light and dark at 1366 × 768: the day, month and 4-day views, the view
+    /// menu, an event's right-click menu, a new event, the undo notice after a delete, the offline icons after 3 failed
+    /// syncs, search results in the command menu, and onboarding's first two steps. Set LEAF_SCREENSHOTS to run it.
+    /// </summary>
+    [Fact]
+    public void Capture_MoreScreens()
+    {
+        var folder = Environment.GetEnvironmentVariable("LEAF_SCREENSHOTS");
+        if (string.IsNullOrEmpty(folder))
+        {
+            Assert.Skip("Set LEAF_SCREENSHOTS to a folder to capture the extra screens.");
+        }
+
+        const string dentist = "Event_evt-single_202610011300";
+        var screens = new (string Name, Func<AppTheme, LeafSettings> Settings, Action<LeafApp> Open)[]
+        {
+            ("DayView", t => new LeafSettings { Theme = t, ViewMode = CalendarViewMode.Day }, l => l.WaitFor(dentist)),
+            ("MonthView", t => new LeafSettings { Theme = t, ViewMode = CalendarViewMode.Month }, l => l.WaitFor("PeriodTitle")),
+            ("FourDays", t => new LeafSettings { Theme = t, ViewMode = CalendarViewMode.Days, CustomDayCount = 4 }, l => l.WaitFor(dentist)),
+            ("ViewMenu", t => new LeafSettings { Theme = t }, l => { l.WaitFor(dentist); l.WaitFor("ViewModeButton").Click(); l.WaitForAnywhere("ViewDay"); }),
+            ("EventMenu", t => new LeafSettings { Theme = t }, l => l.WaitFor(dentist).RightClick()),
+            ("NewEvent", t => new LeafSettings { Theme = t }, l => { l.WaitFor(dentist); l.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.KEY_C); l.WaitFor("EditorTitle"); }),
+            ("DeleteUndo", t => new LeafSettings { Theme = t }, l => { l.WaitFor(dentist).Click(); l.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.DELETE); }),
+            ("Offline", t => new LeafSettings { Theme = t }, l => { l.WaitFor(dentist); _google.Offline = true; l.SyncUntilOffline(); }),
+            ("Search", t => new LeafSettings { Theme = t }, l =>
+            {
+                l.WaitFor(dentist);
+                l.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.CONTROL, FlaUI.Core.WindowsAPI.VirtualKeyShort.KEY_K);
+                l.WaitForAnywhere("CommandSearchBox").Focus();
+                FlaUI.Core.Input.Keyboard.Type("dent");
+            }),
+        };
+
+        Directory.CreateDirectory(folder);
+        var failed = new List<string>();
+        foreach (var theme in new[] { AppTheme.Light, AppTheme.Dark })
+        {
+            var name = theme.ToString().ToLowerInvariant();
+            foreach (var (screen, settings, open) in screens)
+            {
+                _google.Offline = false;
+                var profile = SeededProfile.Create(settings(theme));
+                _profiles.Add(profile);
+                try
+                {
+                    using var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+                    Place(leaf, 1366, 768);
+                    open(leaf);
+                    Thread.Sleep(800);
+                    CaptureAll(leaf, folder, $"more-{screen}-{name}");
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or TimeoutException or System.Runtime.InteropServices.COMException)
+                {
+                    failed.Add($"{screen} {theme}: {ex.Message}");
+                }
+                finally
+                {
+                    LeafApp.DeleteProfile(profile);
+                }
+            }
+
+            // Onboarding (a profile with no account), the welcome step and the OAuth client step
+            var fresh = LeafApp.NewProfile();
+            _profiles.Add(fresh);
+            try
+            {
+                using var leaf = LeafApp.Launch(fresh, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+                leaf.WaitInOnboarding("OnboardingPrimaryButton");
+                Thread.Sleep(800);
+                CaptureAll(leaf, folder, $"more-OnboardingWelcome-{name}");
+                leaf.OnboardingPrimary();
+                Thread.Sleep(1200);
+                CaptureAll(leaf, folder, $"more-OnboardingClient-{name}");
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or TimeoutException or System.Runtime.InteropServices.COMException)
+            {
+                failed.Add($"Onboarding {theme}: {ex.Message}");
+            }
+        }
+
+        Assert.True(failed.Count == 0, string.Join(Environment.NewLine, failed));
+    }
+
+    /// <summary>
+    /// The command menu with what people type, in light and dark: nothing, an event, actions by name, a date in words,
+    /// a view, a setting, nothing found, and the Jump to date mode. Each query is captured as typed, then run with Enter
+    /// and captured again. Every query starts from a fresh launch, so what one command did never shows in the next.
+    /// Set LEAF_SCREENSHOTS to run it.
+    /// </summary>
+    [Fact]
+    public void Capture_CommandMenu()
+    {
+        var folder = Environment.GetEnvironmentVariable("LEAF_SCREENSHOTS");
+        if (string.IsNullOrEmpty(folder))
+        {
+            Assert.Skip("Set LEAF_SCREENSHOTS to a folder to capture the command menu.");
+        }
+
+        // The Query, And Whether The Menu Opens In Jump To Date Mode ("." on the calendar)
+        (string Query, bool JumpToDate)[] queries =
+        [
+            ("", false), ("dent", false), ("design", false), ("new", false), ("settings", false), ("today", false),
+            ("month", false), ("next friday", false), ("oct 15", false), ("sync", false), ("dark", false), ("zzzzqq", false),
+            ("", true), ("two weeks from now", true),
+        ];
+        Directory.CreateDirectory(folder);
+        var failed = new List<string>();
+        foreach (var theme in new[] { AppTheme.Light, AppTheme.Dark })
+        {
+            var name = theme.ToString().ToLowerInvariant();
+            for (var i = 0; i < queries.Length; i++)
+            {
+                var (query, jump) = queries[i];
+                var label = $"palette-{i:00}-{(jump ? "jump-" : "")}{(query.Length == 0 ? "empty" : string.Concat(query.Split(' ')))}-{name}";
+                var profile = SeededProfile.Create(new LeafSettings { Theme = theme });
+                _profiles.Add(profile);
+                try
+                {
+                    using var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+                    Place(leaf, 1366, 768);
+                    leaf.WaitFor("Event_evt-single_202610011300");
+                    if (jump)
+                    {
+                        leaf.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.OEM_PERIOD);
+                    }
+                    else
+                    {
+                        leaf.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.CONTROL, FlaUI.Core.WindowsAPI.VirtualKeyShort.KEY_K);
+                    }
+
+                    leaf.WaitForAnywhere("CommandSearchBox").Focus();
+                    FlaUI.Core.Input.Keyboard.Type(query);
+                    Thread.Sleep(700);
+                    CaptureAll(leaf, folder, label + "-typed");
+
+                    // Run It
+                    FlaUI.Core.Input.Keyboard.Type(FlaUI.Core.WindowsAPI.VirtualKeyShort.RETURN);
+                    Thread.Sleep(1500);
+                    CaptureAll(leaf, folder, label + "-ran");
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or TimeoutException or System.Runtime.InteropServices.COMException)
+                {
+                    failed.Add($"{label}: {ex.Message}");
+                }
+                finally
+                {
+                    LeafApp.DeleteProfile(profile);
+                }
+            }
+        }
+
+        Assert.True(failed.Count == 0, string.Join(Environment.NewLine, failed));
+    }
+
+    // Every window the app has open (the main window, popups, onboarding), one file each
+    private static void CaptureAll(LeafApp leaf, string folder, string prefix)
+    {
+        foreach (var window in leaf.AllWindows())
+        {
+            var title = string.Concat((window.Properties.Name.ValueOrDefault ?? "popup").Split(Path.GetInvalidFileNameChars())).Replace(' ', '_');
+            window.CaptureToFile(Path.Combine(folder, $"{prefix}-{title}.png"));
         }
     }
 

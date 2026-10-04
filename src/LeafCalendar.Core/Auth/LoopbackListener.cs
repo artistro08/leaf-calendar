@@ -63,8 +63,29 @@ public sealed class LoopbackListener : IDisposable
     {
         while (true)
         {
-            using var client = await _listener.AcceptTcpClientAsync(ct);
-            await using var stream = client.GetStream();
+            // A Caller That Reset Before It Was Accepted Fails The Accept On Some Windows Setups; the redirect may still come
+            TcpClient accepted;
+            try
+            {
+                accepted = await _listener.AcceptTcpClientAsync(ct);
+            }
+            catch (SocketException) when (!ct.IsCancellationRequested)
+            {
+                continue;
+            }
+
+            using var client = accepted;
+            NetworkStream connected;
+            try
+            {
+                connected = client.GetStream();
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException or SocketException)
+            {
+                continue;
+            }
+
+            await using var stream = connected;
 
             // Read Request With A Per-Connection Timeout
             using var readTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
