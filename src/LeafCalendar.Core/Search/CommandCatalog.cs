@@ -15,7 +15,7 @@ public static class CommandCatalog
     /// <summary>Every action, in the order shown when scores tie.</summary>
     public static IReadOnlyList<CommandItem> All { get; } =
     [
-        new("create-event", "Create event", "C", CalendarCommand.CreateEvent, Keywords: "new add"),
+        new("create-event", "Create event…", "C", CalendarCommand.CreateEvent, Keywords: "new add"),
         new("go-to-date", "Jump to date…", ".", CalendarCommand.GoToDate, Keywords: "go calendar"),
         new("today", "Go to today", "T", CalendarCommand.Today),
         new("view-day", "Switch to day view", "D", CalendarCommand.DayView, Keywords: "view"),
@@ -26,22 +26,23 @@ public static class CommandCatalog
         new("overlay", "Overlay a teammate's calendar…", "P", CalendarCommand.PeopleOverlay, Keywords: "people person busy"),
         new("meet-with", "Meet with…", "F", CalendarCommand.MeetWith, Keywords: "people find time schedule"),
         new("time-travel", "Time travel to a time zone…", "Z", CalendarCommand.TimeTravel, Keywords: "zone timezone"),
-        new("share", "Share availability", "S", CalendarCommand.ShareAvailability, Keywords: "free slots copy"),
+        new("share", "Share availability…", "S", CalendarCommand.ShareAvailability, Keywords: "free slots copy"),
         new("toggle-weekends", "Show or hide weekends", "Ctrl+Shift+E", CalendarCommand.ToggleWeekends, Keywords: "toggle"),
         new("toggle-declined", "Show or hide declined events", "Ctrl+Shift+D", CalendarCommand.ToggleDeclined, Keywords: "toggle"),
         new("toggle-week-numbers", "Show or hide week numbers", "", Keywords: "toggle"),
         new("toggle-24-hour", "Turn 24-hour time on or off", "", Keywords: "toggle clock"),
         new("toggle-working-hours", "Show or hide working hours", "", Keywords: "toggle shading"),
-        new("toggle-theme", "Switch between light and dark", "Ctrl+Shift+L", CalendarCommand.ToggleTheme, Keywords: "theme"),
-        new("settings", "Settings", "Ctrl+,", CalendarCommand.OpenSettings, Keywords: "open preferences options"),
-        new("settings-general", "Settings: General", "", Keywords: "preferences"),
-        new("settings-calendars", "Settings: Calendars", "", Keywords: "preferences colors"),
-        new("settings-time-zones", "Settings: Time zones", "", Keywords: "preferences"),
-        new("settings-notifications", "Settings: Notifications", "", Keywords: "preferences reminders"),
-        new("settings-tray", "Settings: Tray", "", Keywords: "preferences"),
-        new("settings-shortcuts", "Settings: Shortcuts", "", Keywords: "preferences keys"),
-        new("settings-accounts", "Settings: Accounts", "", Keywords: "preferences google"),
-        new("settings-about", "Settings: About", "", Keywords: "version licenses logs"),
+        new("theme-dark", "Use dark theme", "Ctrl+Shift+L", CalendarCommand.ToggleTheme, Keywords: "mode appearance toggle switch"),
+        new("theme-light", "Use light theme", "Ctrl+Shift+L", CalendarCommand.ToggleTheme, Keywords: "mode appearance toggle switch"),
+        new("settings", "Settings…", "Ctrl+,", CalendarCommand.OpenSettings, Keywords: "open preferences options"),
+        new("settings-general", "Settings › General", "", Keywords: "preferences"),
+        new("settings-calendars", "Settings › Calendars", "", Keywords: "preferences colors"),
+        new("settings-time-zones", "Settings › Time zones", "", Keywords: "preferences"),
+        new("settings-notifications", "Settings › Notifications", "", Keywords: "preferences reminders"),
+        new("settings-tray", "Settings › Tray", "", Keywords: "preferences"),
+        new("settings-shortcuts", "Settings › Shortcuts", "", Keywords: "preferences keys"),
+        new("settings-accounts", "Settings › Accounts", "", Keywords: "preferences google"),
+        new("settings-about", "Settings › About", "", Keywords: "version licenses logs"),
         new("shortcuts", "Show keyboard shortcuts", "?", CalendarCommand.ShortcutSheet, Keywords: "keys help cheat sheet"),
         new("sync", "Sync now", "", Keywords: "refresh"),
         new("back", "Go back", "Alt+Left", CalendarCommand.NavigateBack),
@@ -54,13 +55,15 @@ public static class CommandCatalog
         [.. new[] { "create-event", "go-to-date", "share", "meet-with", "overlay", "time-travel", "settings", "shortcuts" }.Select(id => All.Single(c => c.Id == id))];
 
     /// <summary>
-    /// The actions matching every typed word, best first (at most <paramref name="max"/>); <see cref="Defaults"/> when nothing is typed.
+    /// The actions matching every typed word, best first (all of them, so a group like the Settings pages is never cut
+    /// short); <see cref="Defaults"/> when nothing is typed. <paramref name="dark"/> is the theme showing now: only the
+    /// other theme is offered, so typing "dark" in dark theme never switches to light.
     /// </summary>
     /// <remarks>
     /// Each word scores 3 when the title starts with it, 2 when a title word does, 1 when the title contains it or a
     /// keyword starts with it. A word that scores 0 drops the action. Ties keep <see cref="All"/>'s order.
     /// </remarks>
-    public static IReadOnlyList<CommandItem> Match(string? query, int max = 8)
+    public static IReadOnlyList<CommandItem> Match(string? query, bool dark = false)
     {
         // Nothing Typed
         var words = EventSearch.Words(query).Select(w => w.ToLowerInvariant()).ToList();
@@ -69,13 +72,14 @@ public static class CommandCatalog
             return Defaults;
         }
 
-        // Score Every Action; Any Missed Word Drops It
+        // Score Every Offered Action; Any Missed Word Drops It
+        var offered = Offered(dark);
         var scored = new List<(CommandItem Item, int Score, int Order)>();
-        for (var i = 0; i < All.Count; i++)
+        for (var i = 0; i < offered.Count; i++)
         {
-            var title = All[i].Title.ToLowerInvariant();
+            var title = offered[i].Title.ToLowerInvariant();
             var titleWords = title.Split(' ');
-            var keywords = All[i].Keywords.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var keywords = offered[i].Keywords.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             var scores = words.Select(w =>
                 title.StartsWith(w, StringComparison.Ordinal) ? 3
                 : titleWords.Any(t => t.StartsWith(w, StringComparison.Ordinal)) ? 2
@@ -84,24 +88,28 @@ public static class CommandCatalog
 
             if (!scores.Contains(0))
             {
-                scored.Add((All[i], scores.Sum(), i));
+                scored.Add((offered[i], scores.Sum(), i));
             }
         }
 
-        return [.. scored.OrderByDescending(s => s.Score).ThenBy(s => s.Order).Take(max).Select(s => s.Item)];
+        return [.. scored.OrderByDescending(s => s.Score).ThenBy(s => s.Order).Select(s => s.Item)];
     }
 
     /// <summary>
-    /// True when the typed words name an action: every word starts a word of some action's title ("sett", "jump to").
-    /// A match through keywords alone ("go" for Jump to date) doesn't count, so events still come first for it.
+    /// True when the typed words name an offered action (see <see cref="Match"/> for <paramref name="dark"/>): every
+    /// word starts a word of its title ("sett", "jump to"). A match through keywords alone ("go" for Jump to date)
+    /// doesn't count, so events still come first for it.
     /// </summary>
-    public static bool NamesAnAction(string? query)
+    public static bool NamesAnAction(string? query, bool dark = false)
     {
         var words = EventSearch.Words(query).Select(w => w.ToLowerInvariant()).ToList();
-        return words.Count > 0 && All.Any(item =>
+        return words.Count > 0 && Offered(dark).Any(item =>
         {
             var titleWords = item.Title.ToLowerInvariant().Split(' ');
             return words.All(w => titleWords.Any(t => t.StartsWith(w, StringComparison.Ordinal)));
         });
     }
+
+    // Every action but the theme that's already showing
+    private static List<CommandItem> Offered(bool dark) => [.. All.Where(c => c.Id != (dark ? "theme-dark" : "theme-light"))];
 }

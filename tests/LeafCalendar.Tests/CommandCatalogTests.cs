@@ -66,4 +66,44 @@ public sealed class CommandCatalogTests
     [InlineData("", false)]
     [InlineData(null, false)]
     public void NamesAnAction_TitleWordsOnly(string? query, bool expected) => Assert.Equal(expected, CommandCatalog.NamesAnAction(query));
+
+    [Theory]
+    [InlineData(false, "theme-dark", "Use dark theme")]
+    [InlineData(true, "theme-light", "Use light theme")]
+    public void Match_Theme_OffersOnlyTheOtherTheme(bool dark, string id, string title)
+    {
+        var match = CommandCatalog.Match("theme", dark);
+
+        Assert.Equal(id, Assert.Single(match, c => c.Command == CalendarCommand.ToggleTheme).Id);
+        Assert.Equal(title, match.Single(c => c.Id == id).Title);
+    }
+
+    [Fact]
+    public void Match_DarkWhileDark_NeverOffersLight()
+    {
+        Assert.DoesNotContain(CommandCatalog.Match("dark", dark: true), c => c.Command == CalendarCommand.ToggleTheme);
+        Assert.False(CommandCatalog.NamesAnAction("dark", dark: true));
+        Assert.Equal("theme-dark", CommandCatalog.Match("dark", dark: false)[0].Id);
+    }
+
+    [Fact]
+    public void Match_Settings_ListsEveryPage()
+    {
+        var ids = CommandCatalog.Match("settings").Select(c => c.Id).ToList();
+
+        Assert.Equal(CommandCatalog.All.Count(c => c.Id.StartsWith("settings", StringComparison.Ordinal)), ids.Count);
+        Assert.Contains("settings-about", ids);
+    }
+
+    [Fact]
+    public void SettingsPages_UseAPathArrow() =>
+        Assert.All(CommandCatalog.All.Where(c => c.Id.StartsWith("settings-", StringComparison.Ordinal)), c => Assert.StartsWith("Settings › ", c.Title, StringComparison.Ordinal));
+
+    [Fact]
+    public void Ellipsis_OnlyOnActionsThatOpenMoreUi()
+    {
+        string[] opensMore = ["create-event", "go-to-date", "overlay", "meet-with", "time-travel", "share", "settings"];
+
+        Assert.All(CommandCatalog.All, c => Assert.Equal(opensMore.Contains(c.Id), c.Title.EndsWith('…')));
+    }
 }

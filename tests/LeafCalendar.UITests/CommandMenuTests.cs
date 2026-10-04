@@ -258,11 +258,12 @@ public sealed class CommandMenuTests : IDisposable
         Keyboard.Type(VirtualKeyShort.ESCAPE);
         Assert.True(Retry.WhileTrue(() => leaf.Exists("CommandMenuDim"), Wait).Success, "The dim stayed after Esc.");
 
-        // Open, Then Pick A Row (the date)
+        // Open, Then Pick A Row ("today" lists Go to today once: no date row repeats it)
         OpenMenu(leaf);
         Assert.NotNull(leaf.WaitFor("CommandMenuDim"));
         Keyboard.Type("today");
-        WaitForFirstRow(leaf, "CommandResult_date");
+        WaitForFirstRow(leaf, "CommandResult_today");
+        Assert.DoesNotContain("CommandResult_date", RowIds(leaf));
         Keyboard.Type(VirtualKeyShort.RETURN);
         Assert.True(Retry.WhileTrue(() => leaf.Exists("CommandMenuDim"), Wait).Success, "The dim stayed after a pick.");
     }
@@ -273,8 +274,8 @@ public sealed class CommandMenuTests : IDisposable
         using var leaf = Launch();
         OpenMenu(leaf);
 
-        // A Date, Then Actions: Down From The Date Lands On The First Action, Not The "Actions" Header
-        Keyboard.Type("today");
+        // A Date, Then Actions ("2 days" is both): Down From The Date Lands On The First Action, Not The "Actions" Header
+        Keyboard.Type("2 days");
         WaitForFirstRow(leaf, "CommandResult_date");
         Assert.True(leaf.ExistsAnywhere("CommandHeader_actions"));
         Keyboard.Type(VirtualKeyShort.DOWN);
@@ -310,13 +311,78 @@ public sealed class CommandMenuTests : IDisposable
         OpenMenu(leaf);
         Keyboard.Type("%_\\'‮" + new string('x', 300));
         Assert.NotNull(leaf.WaitForAnywhere("CommandEmpty"));
-        Assert.Empty(RowIds(leaf));
+        Assert.Equal(["CommandResult_create-event-titled"], RowIds(leaf));
 
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type(VirtualKeyShort.BACK);
         Keyboard.Type("dentist");
 
         WaitForFirstRow(leaf, "SearchResult_evt-single");
+    }
+
+    // Nothing matches: the empty state says so, and offers the typed words as a new event's title
+    [Fact]
+    public void NothingMatches_OffersToCreateTheEvent()
+    {
+        using var leaf = Launch();
+
+        OpenMenu(leaf);
+        Keyboard.Type("zzzzqq");
+        WaitForFirstRow(leaf, "CommandResult_create-event-titled");
+        Assert.Equal("No events, actions, or dates match.", leaf.WaitForAnywhere("CommandEmpty").Name);
+        Assert.Equal("Create event “zzzzqq”", leaf.WaitForAnywhere("CommandResult_create-event-titled").Name);
+        Assert.Equal("Run", leaf.WaitForAnywhere("CommandFooterVerb").Name);
+        Keyboard.Type(VirtualKeyShort.RETURN);
+
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("EditorTitle").AsTextBox().Text == "zzzzqq", Wait).Success, "The new event isn't titled zzzzqq.");
+    }
+
+    // The theme row offers the theme that isn't showing, so running it and typing "theme" again offers the other one
+    [Fact]
+    public void ThemeRow_OffersTheThemeNotShowing()
+    {
+        using var leaf = Launch();
+
+        OpenMenu(leaf);
+        Keyboard.Type("theme");
+        Assert.True(Retry.WhileFalse(() => RowIds(leaf) is [var id, ..] && id.StartsWith("CommandResult_theme-", StringComparison.Ordinal), Wait).Success);
+        var first = RowIds(leaf)[0];
+        Assert.Single(RowIds(leaf), id => id.StartsWith("CommandResult_theme-", StringComparison.Ordinal));
+        Keyboard.Type(VirtualKeyShort.RETURN);
+
+        OpenMenu(leaf);
+        Keyboard.Type("theme");
+        WaitForFirstRow(leaf, first == "CommandResult_theme-dark" ? "CommandResult_theme-light" : "CommandResult_theme-dark");
+    }
+
+    // "settings" lists every page (none cut by a cap), each as a path
+    [Fact]
+    public void Settings_ListsEveryPage()
+    {
+        using var leaf = Launch();
+
+        OpenMenu(leaf);
+        Keyboard.Type("settings");
+        WaitForFirstRow(leaf, "CommandResult_settings");
+
+        Assert.Equal("Settings › About", leaf.WaitForAnywhere("CommandResult_settings-about").Name);
+        Assert.Equal(9, RowIds(leaf).Count(id => id.StartsWith("CommandResult_settings", StringComparison.Ordinal)));
+    }
+
+    // Jump to date keeps its footer before a date is typed, and says when what's typed isn't a date
+    [Fact]
+    public void JumpToDate_KeepsItsFooter_AndSaysWhenItCantReadADate()
+    {
+        using var leaf = Launch();
+
+        leaf.Press(VirtualKeyShort.OEM_PERIOD);
+        Assert.NotNull(leaf.WaitForAnywhere("CommandModeChip"));
+        Assert.Equal("Go", leaf.WaitForAnywhere("CommandFooterVerb").Name);
+
+        Keyboard.Type("zzzzqq");
+        Assert.True(Retry.WhileFalse(() => leaf.ExistsAnywhere("CommandEmpty") && leaf.WaitForAnywhere("CommandEmpty").Name == "Leaf can't read that as a date.", Wait).Success);
+        Assert.Empty(RowIds(leaf));
+        Assert.Equal("Go", leaf.WaitForAnywhere("CommandFooterVerb").Name);
     }
 
     [Fact]

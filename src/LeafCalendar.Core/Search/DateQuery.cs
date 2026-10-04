@@ -151,9 +151,18 @@ public static partial class DateQuery
         }
     }
 
-    /// <summary>"Mon, Oct 12", plus ", 2027" when the year isn't today's.</summary>
-    public static string Label(DateOnly date, DateOnly today) =>
-        date.ToString(date.Year == today.Year ? "ddd, MMM d" : "ddd, MMM d, yyyy", English);
+    /// <summary>"Today", "Tomorrow", or "Yesterday"; otherwise "Mon, Oct 12", plus ", 2027" when the year isn't today's.</summary>
+    public static string Label(DateOnly date, DateOnly today) => (date.DayNumber - today.DayNumber) switch
+    {
+        0 => "Today",
+        1 => "Tomorrow",
+        -1 => "Yesterday",
+        _ => date.ToString(date.Year == today.Year ? "ddd, MMM d" : "ddd, MMM d, yyyy", English),
+    };
+
+    /// <summary>A date row's title, as a sentence: "Go to today", "Go to tomorrow", "Go to Mon, Oct 12".</summary>
+    public static string GoTo(DateOnly date, DateOnly today) =>
+        "Go to " + (Math.Abs(date.DayNumber - today.DayNumber) <= 1 ? Label(date, today).ToLowerInvariant() : Label(date, today));
 
     /// <summary>A full or 3-letter English weekday name.</summary>
     private static DayOfWeek? WeekdayOf(string text)

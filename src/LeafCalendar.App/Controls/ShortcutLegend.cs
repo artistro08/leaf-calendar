@@ -17,20 +17,25 @@ public static class ShortcutLegend
     private const double CapMinWidth = 24;
     private const double Gap = 4;
 
+    // Keys whose mark is a speck at Caption size (". , ; : ' ` -"): drawn larger, with the cap's vertical padding given
+    // up so the cap stays as tall as its neighbors (16 of text either way)
+    private const string SmallMarks = ".,;:'`-";
+    private const double MarkFontSize = 16;
+
     /// <summary>
-    /// What a key cap shows for a key as the cheat sheet writes it: Shift, Enter, Backspace, Win, and the arrows as their
-    /// virtual keys, so the cap draws their glyph (like the shortcut picker), and every other key as its name.
+    /// What a key cap shows for a key as the cheat sheet writes it: Enter, Backspace, and Win as their virtual keys, so
+    /// the cap draws their glyph (like the shortcut picker); the arrows as words ("Left", never a chevron that reads as
+    /// &lt; or &gt;); and every other key, Shift included, as its name.
     /// </summary>
     public static object CapContent(string key) => key switch
     {
-        "Shift" => (int)Windows.System.VirtualKey.Shift,
         "Enter" => (int)Windows.System.VirtualKey.Enter,
         "Backspace" => (int)Windows.System.VirtualKey.Back,
         "Win" => (int)Windows.System.VirtualKey.LeftWindows,
-        "Left" or "←" => (int)Windows.System.VirtualKey.Left,
-        "Right" or "→" => (int)Windows.System.VirtualKey.Right,
-        "Up" or "↑" => (int)Windows.System.VirtualKey.Up,
-        "Down" or "↓" => (int)Windows.System.VirtualKey.Down,
+        "←" => "Left",
+        "→" => "Right",
+        "↑" => "Up",
+        "↓" => "Down",
         _ => key,
     };
 
@@ -47,13 +52,17 @@ public static class ShortcutLegend
         {
             if (part.IsKey)
             {
+                // Only Virtual Keys Draw As Glyphs (a key named "Left" would otherwise turn into a chevron)
+                var content = CapContent(part.Text);
+                var mark = part.Text.Length == 1 && SmallMarks.Contains(part.Text[0], StringComparison.Ordinal);
                 legend.Children.Add(new KeyVisual
                 {
-                    Content = CapContent(part.Text),
-                    RenderKeyAsGlyph = true,
-                    FontSize = CapFontSize,
+                    Content = content,
+                    RenderKeyAsGlyph = content is int,
+                    FontSize = mark ? MarkFontSize : CapFontSize,
+                    FontWeight = mark ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
                     MinWidth = CapMinWidth,
-                    Padding = new Thickness(8, 2, 8, 2),
+                    Padding = mark ? new Thickness(8, 0, 8, 0) : new Thickness(8, 2, 8, 2),
                     CornerRadius = new CornerRadius(4),
                 });
                 continue;
