@@ -94,6 +94,18 @@ public sealed class CommandRow
         _ => "",
     };
 
+    /// <summary>What Enter does to the row, for the footer: "Open" an event, "Run" an action, "Go" to a date; empty for headers.</summary>
+    public string Verb => Kind switch
+    {
+        CommandRowKind.Event => "Open",
+        CommandRowKind.Action => "Run",
+        CommandRowKind.Date => "Go",
+        _ => "",
+    };
+
+    /// <summary>The new event's title on the "Create event “…”" row offered when nothing matches; empty on every other row.</summary>
+    public string EventTitle { get; private init; } = "";
+
     /// <summary>The event, for <see cref="CommandRowKind.Event"/>.</summary>
     public SearchHit? Hit { get; private init; }
 
@@ -123,13 +135,21 @@ public sealed class CommandRow
     public static CommandRow ForAction(CommandItem item) =>
         new(CommandRowKind.Action, item.Title, "", item.Keys, GlyphFor(item.Id), "", $"CommandResult_{item.Id}") { Item = item };
 
+    /// <summary>Create event, with the typed words as the new event's title (offered when nothing matches).</summary>
+    public static CommandRow ForNewEvent(string title) =>
+        new(CommandRowKind.Action, $"Create event “{title}”", "", "", GlyphFor("create-event"), "", "CommandResult_create-event-titled")
+        {
+            Item = CommandCatalog.All.Single(c => c.Id == "create-event"),
+            EventTitle = title,
+        };
+
     /// <summary>A section title.</summary>
     public static CommandRow ForHeader(string title) =>
         new(CommandRowKind.Header, title, "", "", "", "", "CommandHeader_" + title.Replace(' ', '-').ToLowerInvariant());
 
-    /// <summary>A typed date.</summary>
+    /// <summary>A typed date ("Go to Tue, Oct 20", "Go to today").</summary>
     public static CommandRow ForDate(DateOnly date, DateOnly today) =>
-        new(CommandRowKind.Date, "Go to " + DateQuery.Label(date, today), "", "", "", "", "CommandResult_date") { Date = date };
+        new(CommandRowKind.Date, DateQuery.GoTo(date, today), "", "", "", "", "CommandResult_date") { Date = date };
 
     // The design standard's glyphs where it names one, Segoe Fluent Icons otherwise
     private static string GlyphFor(string id) => id switch
@@ -140,7 +160,7 @@ public sealed class CommandRow
         "overlay" or "meet-with" => "",
         "time-travel" => "",
         "share" => "",
-        "toggle-theme" => "",
+        "theme-dark" or "theme-light" => "",
         "shortcuts" or "settings-shortcuts" => "",
         "settings-about" => "",
         "sync" => "",
@@ -197,9 +217,9 @@ public sealed partial class CommandMenu : UserControl
     /// <summary>Caps the results list at the given height (at most <see cref="ResultsMaxHeight"/>), so the menu never runs past a short window.</summary>
     public void LimitResultsHeight(double height) => ResultsScroll.MaxHeight = Math.Min(ResultsMaxHeight, height);
 
-    // What the box asks for: anything, or (Jump to date) a date in words
+    // What the box asks for: anything, or (Jump to date, whose chip already names it) a date in words
     private const string SearchPrompt = "Search events, or type a command or a date";
-    private const string DatePrompt = "Jump to a date: nov 5th, 10 weeks, next fri, 3 days ago…";
+    private const string DatePrompt = "Try nov 5th, 10 weeks, next fri, or 3 days ago";
 
     /// <summary>Clears the box and shows the default actions.</summary>
     public void Reset()
@@ -207,14 +227,15 @@ public sealed partial class CommandMenu : UserControl
         _search.Cancel();
         _dateMode = false;
         ModeChip.Visibility = Visibility.Collapsed;
+        SearchGlyph.Visibility = Visibility.Visible;
         CommandSearchBox.Text = "";
         CommandSearchBox.PlaceholderText = SearchPrompt;
         Show(null, [], [.. CommandCatalog.Defaults.Select(CommandRow.ForAction)]);
     }
 
     /// <summary>
-    /// Jump to date: the chip shows the action, the box asks for a date in words, and only the date row is offered.
-    /// Backspace on the empty box leaves the mode.
+    /// Jump to date: the chip shows the action in place of the search glyph, the box asks for a date in words, and only
+    /// the date row is offered. Backspace on the empty box leaves the mode.
     /// </summary>
     public void AskForDate()
     {
@@ -223,6 +244,7 @@ public sealed partial class CommandMenu : UserControl
         ModeGlyph.Glyph = CommandRow.ForAction(CommandCatalog.All.Single(c => c.Id == "go-to-date")).Glyph;
         ModeText.Text = "Jump to date";
         ModeChip.Visibility = Visibility.Visible;
+        SearchGlyph.Visibility = Visibility.Collapsed;
         CommandSearchBox.Text = "";
         CommandSearchBox.PlaceholderText = DatePrompt;
         Show(null, [], []);
@@ -252,9 +274,17 @@ public sealed partial class CommandMenu : UserControl
             return;
         }
 
-        var actions = CommandCatalog.Match(text).Select(CommandRow.ForAction).ToList();
-        var actionsFirst = CommandCatalog.NamesAnAction(text); // an action named by what's typed leads and is selected
+        // The Theme Action Offers The Theme That Isn't Showing (the window's, which Ctrl+Shift+L flips)
+        var dark = XamlRoot?.Content is FrameworkElement { ActualTheme: ElementTheme.Dark };
+        var actions = CommandCatalog.Match(text, dark).Select(CommandRow.ForAction).ToList();
+        var actionsFirst = CommandCatalog.NamesAnAction(text, dark); // an action named by what's typed leads and is selected
         var (zone, use24h) = (_vm.Zone, _vm.Settings.Use24HourTime);
+
+        // A Date Row For Today Would Repeat "Go to today", So Only The Action Shows
+        if (date?.Date == today && actions.Exists(a => a.Item?.Id == "today"))
+        {
+            date = null;
+        }
 
         if (EventSearch.Words(text).Count == 0)
         {
@@ -282,18 +312,37 @@ public sealed partial class CommandMenu : UserControl
     }
 
     // Each non-empty section under its header ("Go to", then "Events" and "Actions", in that order unless the typed
-    // words name an action), the first row selected
+    // words name an action), the first row selected. Jump to date shows its one date row with no header. When nothing
+    // matches, the typed words are offered as a new event's title
     private void Show(CommandRow? date, List<CommandRow> events, List<CommandRow> actions, bool actionsFirst = false)
     {
         List<CommandRow> rows = [];
-        var (first, second) = actionsFirst ? (("Actions", actions), ("Events", events)) : (("Events", events), ("Actions", actions));
-        foreach (var (title, section) in new[] { ("Go to", date is null ? [] : new List<CommandRow> { date }), first, second })
+        if (_dateMode)
         {
-            if (section.Count > 0)
+            if (date is not null)
             {
-                rows.Add(CommandRow.ForHeader(title));
-                rows.AddRange(section);
+                rows.Add(date);
             }
+        }
+        else
+        {
+            var (first, second) = actionsFirst ? (("Actions", actions), ("Events", events)) : (("Events", events), ("Actions", actions));
+            foreach (var (title, section) in new[] { ("Go to", date is null ? [] : new List<CommandRow> { date }), first, second })
+            {
+                if (section.Count > 0)
+                {
+                    rows.Add(CommandRow.ForHeader(title));
+                    rows.AddRange(section);
+                }
+            }
+        }
+
+        // Nothing Matched What's Typed (an empty box has matched nothing yet, so the empty state stays hidden)
+        var typed = string.Join(' ', EventSearch.Words(CommandSearchBox.Text));
+        var nothing = rows.Count == 0 && typed.Length > 0;
+        if (nothing && !_dateMode)
+        {
+            rows.Add(CommandRow.ForNewEvent(typed));
         }
 
         // The Selection Stays On The Same Row When It's Still Listed (events arriving under a chosen action don't move it)
@@ -305,14 +354,16 @@ public sealed partial class CommandMenu : UserControl
         CommandResults.ItemsSource = _rows;
         CommandResults.SelectedIndex = index >= 0 ? index : _rows.FindIndex(r => r.Kind != CommandRowKind.Header);
 
-        // The Empty State Says Nothing Matched (an empty box asking for a date has matched nothing yet, so it stays hidden)
-        CommandEmptyPanel.Visibility = _rows.Count == 0 && !(_dateMode && CommandSearchBox.Text.Length == 0) ? Visibility.Visible : Visibility.Collapsed;
+        // The Empty State Says What Didn't Match: Jump To Date Reads Only Dates
+        CommandEmptyText.Text = _dateMode ? "Leaf can't read that as a date." : "No events, actions, or dates match.";
+        CommandEmptyPanel.Visibility = nothing ? Visibility.Visible : Visibility.Collapsed;
         ResultsScroll.ChangeView(null, 0, null, disableAnimation: true);
         ShowHints();
     }
 
     // Each row's container, kept (by reference to our own row) so Up and Down can scroll it into view. Headers are 28
-    // high and can't be clicked or selected; rows are 44 high (containers are reused, so both are set every time)
+    // high (40 below another section, so groups don't run together) and can't be clicked or selected; rows are 44 high
+    // (containers are reused, so both are set every time)
     private void OnRowChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         if (_rows.Find(r => ReferenceEquals(r, args.Item)) is not { } row)
@@ -321,8 +372,9 @@ public sealed partial class CommandMenu : UserControl
         }
 
         var header = row.Kind == CommandRowKind.Header;
-        args.ItemContainer.MinHeight = header ? 28 : 44;
-        args.ItemContainer.Height = header ? 28 : 44;
+        var height = !header ? 44 : args.ItemIndex == 0 ? 28 : 40;
+        args.ItemContainer.MinHeight = height;
+        args.ItemContainer.Height = height;
         args.ItemContainer.IsHitTestVisible = !header;
         args.ItemContainer.IsTabStop = !header;
 
@@ -419,14 +471,16 @@ public sealed partial class CommandMenu : UserControl
 
     private void OnSelectionChanged(object sender, SelectionChangedEventArgs e) => ShowHints();
 
-    // What the selected row is, and Alt+Enter's hint for events; nothing when the list is empty
+    // What the selected row is, what Enter does to it, and Alt+Enter's hint for events; nothing when the list is empty,
+    // except in Jump to date, which keeps its footer (Date, Go) before a date is typed
     private void ShowHints()
     {
         var index = CommandResults.SelectedIndex;
         var row = index >= 0 && index < _rows.Count ? _rows[index] : null;
 
-        CommandFooter.Visibility = row is null ? Visibility.Collapsed : Visibility.Visible;
-        FooterKind.Text = row?.KindLabel ?? "";
+        CommandFooter.Visibility = row is null && !_dateMode ? Visibility.Collapsed : Visibility.Visible;
+        FooterKind.Text = row?.KindLabel ?? "Date";
+        FooterVerb.Text = row?.Verb ?? "Go";
         FooterJump.Visibility = row?.Kind == CommandRowKind.Event ? Visibility.Visible : Visibility.Collapsed;
     }
 }

@@ -3,7 +3,10 @@ namespace LeafCalendar.Core.Views;
 /// <summary>One cheat-sheet row: its section, the keys as the spec writes them, the action, and the command it runs (if any).</summary>
 public sealed record ShortcutRow(string Section, string Keys, string Action, CalendarCommand Command = CalendarCommand.None);
 
-/// <summary>The in-app shortcut cheat sheet (spec 8.7), copied verbatim in spec order.</summary>
+/// <summary>
+/// The in-app shortcut cheat sheet (spec 8.7), copied verbatim in spec order, except that the spec's two period rows
+/// ("← / →" and "J / K") are one.
+/// </summary>
 public static class ShortcutCatalog
 {
     /// <summary>The section headings, in spec order.</summary>
@@ -17,8 +20,7 @@ public static class ShortcutCatalog
     [
         // Navigation
         new("Navigation", "T", "Today", CalendarCommand.Today),
-        new("Navigation", "← / →", "Previous / next period", CalendarCommand.Previous),
-        new("Navigation", "J / K", "Next / previous period", CalendarCommand.Next),
+        new("Navigation", "← / → or K / J", "Previous / next period", CalendarCommand.Previous),
         new("Navigation", "N", "Next event", CalendarCommand.NextEvent),
         new("Navigation", "B or Shift+N", "Previous event", CalendarCommand.PreviousEvent),
         new("Navigation", ".", "Go to date", CalendarCommand.GoToDate),

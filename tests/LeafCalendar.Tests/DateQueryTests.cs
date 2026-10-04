@@ -95,4 +95,20 @@ public sealed class DateQueryTests
         Assert.Equal("Mon, Oct 12", DateQuery.Label(new DateOnly(2026, 10, 12), Today));
         Assert.Equal("Tue, Jan 5, 2027", DateQuery.Label(new DateOnly(2027, 1, 5), Today));
     }
+
+    [Fact]
+    public void Label_NamesTodayTomorrowAndYesterday()
+    {
+        Assert.Equal("Today", DateQuery.Label(Today, Today));
+        Assert.Equal("Tomorrow", DateQuery.Label(Today.AddDays(1), Today));
+        Assert.Equal("Yesterday", DateQuery.Label(Today.AddDays(-1), Today));
+    }
+
+    [Fact]
+    public void GoTo_ReadsAsASentence()
+    {
+        Assert.Equal("Go to today", DateQuery.GoTo(Today, Today));
+        Assert.Equal("Go to tomorrow", DateQuery.GoTo(Today.AddDays(1), Today));
+        Assert.Equal("Go to Mon, Oct 12", DateQuery.GoTo(new DateOnly(2026, 10, 12), Today));
+    }
 }

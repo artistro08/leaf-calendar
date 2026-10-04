@@ -56,7 +56,7 @@ public static class ShortcutSheet
 
         // Header (title and close button)
         var title = new TextBlock { Text = "Keyboard shortcuts", Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], VerticalAlignment = VerticalAlignment.Center };
-        var shut = new Button { Content = new FontIcon { Glyph = "", FontSize = 12 }, Style = (Style)Application.Current.Resources["LeafBareIconButtonStyle"], HorizontalAlignment = HorizontalAlignment.Right };
+        var shut = new Button { Content = new FontIcon { Glyph = "", FontSize = 16 }, Style = (Style)Application.Current.Resources["LeafBareIconButtonStyle"], HorizontalAlignment = HorizontalAlignment.Right };
         AutomationProperties.SetName(shut, "Close");
         AutomationProperties.SetAutomationId(shut, "ShortcutSheetClose");
         ToolTipService.SetToolTip(shut, "Close (Esc)");

@@ -218,6 +218,7 @@ public sealed partial class CalendarPage
                 break;
 
             case CommandRowKind.Action when row.Item is { } item:
+                var editorBefore = ViewModel.Editing;
                 if (item.Command != Core.Views.CalendarCommand.None)
                 {
                     RunCommand(item.Command, item.Days);
@@ -225,6 +226,12 @@ public sealed partial class CalendarPage
                 else
                 {
                     RunAction(item.Id);
+                }
+
+                // "Create Event “…”" Titles The New Event (a hidden editor it brought back keeps its own title)
+                if (row.EventTitle.Length > 0 && ViewModel.Editing is { } editor && editor != editorBefore)
+                {
+                    editor.Title = row.EventTitle;
                 }
 
                 break;
