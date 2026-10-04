@@ -225,7 +225,7 @@ public partial class App : Application
         try
         {
             _tray = new TrayIcon(services.Log, TrayDay(), services.Options.Profile, visible: !CurrentSettings().HideTrayIcon);
-            _tray.Invoked += (_, _) => ToggleAgenda();
+            _tray.Invoked += (_, byKeyboard) => ToggleAgenda(byKeyboard);
         }
         catch (Exception ex)
         {
@@ -269,7 +269,7 @@ public partial class App : Application
             }
             else
             {
-                ToggleAgenda();
+                ToggleAgenda(byKeyboard: true);
             }
         };
         if (_tray is not null)
@@ -582,8 +582,9 @@ public partial class App : Application
     // FLYOUT
     // =========================================================================
 
-    // Left-click or the flyout shortcut (raised from the tray window's procedure, so nothing may escape)
-    private void ToggleAgenda()
+    // Left-click, Enter on the icon, or the flyout shortcut (raised from the tray window's procedure, so nothing may
+    // escape); a click opens it without a focus ring
+    private void ToggleAgenda(bool byKeyboard)
     {
         if (_host is not { } host)
         {
@@ -600,7 +601,7 @@ public partial class App : Application
 
             if (BuildAgenda() is { } model)
             {
-                host.ShowAgenda(model, _tray?.IconRect(), CurrentSettings().Theme);
+                host.ShowAgenda(model, _tray?.IconRect(), CurrentSettings().Theme, byKeyboard);
             }
         }
         catch (Exception ex)
@@ -841,12 +842,13 @@ public partial class App : Application
     // TRAY ACTIONS
     // =========================================================================
 
-    // Right-click on the icon (raised from the tray window's procedure, so nothing may escape)
+    // Right-click on the icon (raised from the tray window's procedure, so nothing may escape); the join item names the
+    // meeting Join next meeting would open now, and is off when there's none
     private void ShowTrayMenu(int x, int y)
     {
         try
         {
-            _host?.ShowMenu(x, y, CurrentSettings().Theme);
+            _host?.ShowMenu(x, y, CurrentSettings().Theme, NextJoin());
         }
         catch (Exception ex)
         {
@@ -859,6 +861,28 @@ public partial class App : Application
     {
         ShowMainWindow();
         _dispatcher?.TryEnqueue(DispatcherQueuePriority.Low, () => _calendar?.BeginCreateNow());
+    }
+
+    // The meeting the menu's join item opens (the join rule, spec 8.5), or null; a failed read leaves the item off
+    private JoinTarget? NextJoin()
+    {
+        if (_services is not { } services)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var conn = services.Database.Open();
+            var now = services.Time.GetUtcNow();
+            return JoinPicker.Pick(JoinPicker.Candidates(conn, now, _zone.Zone), now);
+        }
+        catch (Exception ex)
+        {
+            // The type only, never content
+            services.Log.Info("tray.menu.join.failed", $"error={ex.GetType().Name}");
+            return null;
+        }
     }
 
     // Join next meeting: the join rule (spec 8.5) for the tray menu; the join shortcut passes a lookahead, so with nothing

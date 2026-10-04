@@ -23,7 +23,8 @@ namespace LeafCalendar.App.Views.Onboarding;
 [SuppressMessage("Design", "CA1001", Justification = "Windows aren't disposable; the view model is disposed when the window closes.")]
 public sealed partial class OnboardingWindow : Window
 {
-    // Client Size In DIPs (the design standard's onboarding window; the steps fit without scrolling at 100%)
+    // Client Size In DIPs (the design standard's onboarding window; every step's controls show without scrolling at 100%,
+    // the client step's two boxes side by side under its guide for that)
     private const double ClientWidth = 520;
     private const double ClientHeight = 640;
 

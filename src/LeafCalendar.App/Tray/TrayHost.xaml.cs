@@ -2,16 +2,22 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.Interop;
+using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Tray;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Windows.Foundation;
 using Windows.Graphics;
+using Windows.Win32;
 
 namespace LeafCalendar.App.Tray;
 
@@ -28,8 +34,10 @@ namespace LeafCalendar.App.Tray;
 /// <c>Flyout</c>. The host is created once and kept hidden, so the flyout opens at once; only Quit closes it.
 /// </para>
 /// <para>
-/// The flyout shows the next event with a large Join button, the agenda by day with a Join button per meeting, and "New
-/// event". Its rows are App records (AOT list rule) whose clicks are closures over their event (AOT read-back rule).
+/// The flyout shows the next event (with its calendar's color bar; a click opens it in the main window) and a large Join
+/// button, the agenda by day without that event, with a Join button per meeting beside its row, and "New event…".
+/// Everything sits on one 16 DIP inset. Its rows are App records (AOT list rule) whose clicks are closures over their
+/// event (AOT read-back rule). Opened by a click, the flyout and the menu take focus without the keyboard's focus ring.
 /// </para>
 /// </remarks>
 [SuppressMessage("Design", "CA1001", Justification = "Windows aren't disposable.")]
@@ -54,6 +62,8 @@ public sealed partial class TrayHost : Window
     private long _agendaDismissedAt;
     private bool _exitFinished;
     private bool _shuttingDown;
+    private bool _menuByPointer;
+    private bool _agendaByPointer;
 
     /// <summary>Creates the hidden host; a failed open is logged to <paramref name="log"/> by event name and error type.</summary>
     public TrayHost(AppLog log)
@@ -66,8 +76,15 @@ public sealed partial class TrayHost : Window
         // A host shown for the first time loads its content a moment later, so the open waits for it
         Root.Loaded += (_, _) => RunPendingOpen();
 
-        // A Press Outside Closes The Menu Or Flyout (watched only while one is open)
-        Menu.Opened += (_, _) => WatchPresses();
+        // A Press Outside Closes The Menu Or Flyout (watched only while one is open); a click-opened menu shows no focus ring
+        Menu.Opened += (_, _) =>
+        {
+            WatchPresses();
+            if (_menuByPointer)
+            {
+                FocusWithoutRing(MenuOpen);
+            }
+        };
 
         // Only Quit Really Closes It
         AppWindow.Closing += (_, e) =>
@@ -86,7 +103,7 @@ public sealed partial class TrayHost : Window
     /// <summary>New event (the menu or the flyout's footer).</summary>
     public event EventHandler? NewEventRequested;
 
-    /// <summary>Join next meeting.</summary>
+    /// <summary>The menu's join item ("Join Standup").</summary>
     public event EventHandler? JoinNextRequested;
 
     /// <summary>Sync now.</summary>
@@ -113,8 +130,11 @@ public sealed partial class TrayHost : Window
     /// <summary>True while the flyout is open.</summary>
     public bool IsAgendaOpen => Agenda.IsOpen;
 
-    /// <summary>Opens the menu for a right-click at a screen point (physical pixels), growing away from the taskbar.</summary>
-    public void ShowMenu(int x, int y, AppTheme theme)
+    /// <summary>
+    /// Opens the menu for a right-click at a screen point (physical pixels), growing away from the taskbar. Its join item
+    /// names <paramref name="join"/> ("Join Standup"), or reads "Join next meeting" and is off when there's nothing to join.
+    /// </summary>
+    public void ShowMenu(int x, int y, AppTheme theme, JoinTarget? join)
     {
         // The Icon Click That Just Closed The Menu (the press watch) Mustn't Open It Again On Its Release; one that closed
         // the flyout opens the menu as usual
@@ -130,7 +150,7 @@ public sealed partial class TrayHost : Window
             // host, or took the menu's focus, so the menu light-dismissed)
             if (Agenda.IsOpen)
             {
-                _menuAfterAgenda = () => ShowMenu(x, y, theme);
+                _menuAfterAgenda = () => ShowMenu(x, y, theme, join);
                 CloseAgendaAtOnce();
                 return;
             }
@@ -139,6 +159,14 @@ public sealed partial class TrayHost : Window
             {
                 Menu.Hide();
             }
+
+            // Join: the meeting it opens, or off with nothing to join (the click would only say so in a notification)
+            MenuJoin.Text = TrayAgenda.JoinMenuText(join);
+            MenuJoin.IsEnabled = join is not null;
+
+            // A Mouse Right-Click Comes With The Pointer On The Anchor; The Menu Key's Anchor Is The Icon, Wherever The
+            // Pointer Is (a click opens it without a focus ring)
+            _menuByPointer = PInvoke.GetCursorPos(out var cursor) && Math.Abs(cursor.X - x) <= 2 && Math.Abs(cursor.Y - y) <= 2;
 
             var screen = TrayScreen.At(x, y);
             var (ax, ay) = TrayPlacement.MenuAnchor(x, y, screen.Area, screen.Edge, screen.Scale);
@@ -151,8 +179,12 @@ public sealed partial class TrayHost : Window
         }
     }
 
-    /// <summary>Opens the flyout next to the tray icon (or at the primary taskbar's far end when its place is unknown).</summary>
-    public void ShowAgenda(AgendaModel model, PixelRect? icon, AppTheme theme)
+    /// <summary>
+    /// Opens the flyout next to the tray icon (or at the primary taskbar's far end when its place is unknown). Opened by
+    /// <paramref name="byKeyboard"/> (Enter on the icon, or the shortcut), its first control shows keyboard focus; by a
+    /// click it has focus without the ring.
+    /// </summary>
+    public void ShowAgenda(AgendaModel model, PixelRect? icon, AppTheme theme, bool byKeyboard)
     {
         if (Agenda.IsOpen || Environment.TickCount64 - _agendaClosedAt < ReopenGuardMs || Environment.TickCount64 - _agendaDismissedAt < ReopenGuardMs)
         {
@@ -171,6 +203,7 @@ public sealed partial class TrayHost : Window
             var panel = TrayPlacement.Flyout(screen.Area, screen.Edge, icon, screen.Scale);
             var (ax, ay) = TrayPlacement.FlyoutAnchor(TrayPlacement.Frame(panel, screen.Scale), screen.Edge);
             _edge = screen.Edge;
+            _agendaByPointer = !byKeyboard;
             AgendaPanel.Width = panel.Width / screen.Scale;
             AgendaPanel.Height = panel.Height / screen.Scale;
             Root.RequestedTheme = MainWindow.ElementThemeOf(theme);
@@ -195,20 +228,29 @@ public sealed partial class TrayHost : Window
     {
         _model = model;
 
-        // Next Up
+        // Next Up (with nothing listed either, one sentence says so: "Nothing coming up." here, none under the list)
         var next = model.Next;
+        var rest = TrayAgenda.WithoutNext(model.Days, next);
         NextPanel.Visibility = next is null ? Visibility.Collapsed : Visibility.Visible;
         NothingNextText.Visibility = next is null ? Visibility.Visible : Visibility.Collapsed;
-        NothingNextText.Text = model.NothingNext;
-        NextTitle.Text = next?.Item.Title ?? "";
-        NextWhen.Text = next is null ? "" : $"{next.Item.When} · {next.Countdown}";
-        NextJoinButton.Visibility = next?.Item.Link is null ? Visibility.Collapsed : Visibility.Visible;
-        NextJoinLogo.Provider = next?.Item.Link is { } link ? LinkSafety.ProviderOf(link) : null;
+        NothingNextText.Text = rest.Count == 0 ? "Nothing coming up." : model.NothingNext;
+        if (next is not null)
+        {
+            var item = next.Item;
+            NextTitle.Text = item.Title;
+            NextWhen.Text = $"{item.When} · {next.Countdown}";
+            NextBar.Fill = Accent(item.Occurrence);
+            AutomationProperties.SetName(NextButton, item.Title);
+            NextJoinButton.Visibility = item.Link is null ? Visibility.Collapsed : Visibility.Visible;
+            NextJoinLogo.Provider = item.Link is { } link ? LinkSafety.ProviderOf(link) : null;
+            AutomationProperties.SetName(NextJoinButton, JoinName(item));
+            ToolTipService.SetToolTip(NextJoinButton, JoinTip(item));
+        }
 
-        // Agenda
-        List<AgendaDayRow> days = [.. model.Days.Select(d => new AgendaDayRow(d.Header, [.. d.Items.Select(Row)]))];
+        // Agenda (the next meeting shows once, at the top; with it there and nothing else, "Nothing else coming up.")
+        List<AgendaDayRow> days = [.. rest.Select(d => new AgendaDayRow(d.Header, [.. d.Items.Select(Row)]))];
         AgendaDays.ItemsSource = days;
-        AgendaEmpty.Visibility = days.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        AgendaEmpty.Visibility = days.Count == 0 && next is not null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Closes the flyout (it slides out first).</summary>
@@ -329,9 +371,11 @@ public sealed partial class TrayHost : Window
         return new AgendaRow(
             item.Title,
             item.When,
-            LeafBrushes.FromHex(EventColors.ResolveAccent(o.ColorId, o.CalendarColor)),
+            Accent(o),
             item.Link is null ? Visibility.Collapsed : Visibility.Visible,
             item.Link is { } link ? LinkSafety.ProviderOf(link) : null,
+            JoinName(item),
+            JoinTip(item),
             $"FlyoutEvent_{o.EventId}_{start}",
             $"FlyoutJoin_{o.EventId}_{start}",
             () => Request(OpenEventRequested, o),
@@ -352,6 +396,24 @@ public sealed partial class TrayHost : Window
         }
     }
 
+    // The calendar's color, as the main window's Upcoming list shows it
+    private static SolidColorBrush Accent(CalendarOccurrence o) => LeafBrushes.FromHex(EventColors.ResolveAccent(o.ColorId, o.CalendarColor));
+
+    // "Join Standup" for Narrator (every row's Join would otherwise just be "Join")
+    private static string JoinName(AgendaItem item) => $"Join {item.Title}";
+
+    // Where Join really goes, like the details panel's Join ("meet.google.com/abc-defg-hij")
+    private static string? JoinTip(AgendaItem item) => item.Link is { } link ? LinkSafety.DisplayForm(link) : null;
+
+    // The next meeting itself: the main window on it, like a row
+    private void OnNextClick(object sender, RoutedEventArgs e)
+    {
+        if (_model?.Next is { } next)
+        {
+            Request(OpenEventRequested, next.Item.Occurrence);
+        }
+    }
+
     private void OnNextJoinClick(object sender, RoutedEventArgs e)
     {
         if (_model?.Next is { } next)
@@ -365,8 +427,20 @@ public sealed partial class TrayHost : Window
         WatchPresses();
         _exitFinished = false;
         Slide(HiddenOffset(), new Point(0, 0), 0, 1, EnterDuration, enter: true, onDone: null);
+
+        // Opened By A Click: the first control keeps focus (Tab and Enter still work) without the keyboard's ring
+        if (_agendaByPointer && FocusManager.FindFirstFocusableElement(AgendaPanel) is Control first)
+        {
+            FocusWithoutRing(first);
+        }
+
         AgendaOpened?.Invoke(this, EventArgs.Empty);
     }
+
+    // After the popup's own opening focus (which the host, never pointed at, shows as keyboard focus), focus again as by
+    // the pointer: no ring until a key moves it
+    private void FocusWithoutRing(Control control) =>
+        DispatcherQueue.TryEnqueue(() => control.Focus(FocusState.Pointer));
 
     // Esc, focus leaving, or HideAgenda: slide back behind the taskbar first, then close for real
     private void OnAgendaClosing(FlyoutBase sender, FlyoutBaseClosingEventArgs args)
@@ -538,7 +612,7 @@ public sealed partial class TrayHost : Window
         });
     }
 
-    // The flyout's Open calendar: the flyout closes, then the main window opens (a click handler, so nothing may escape)
+    // The flyout's Open Leaf Calendar: the flyout closes, then the main window opens (a click handler, so nothing may escape)
     private void OnFlyoutOpenClick(object sender, RoutedEventArgs e)
     {
         try

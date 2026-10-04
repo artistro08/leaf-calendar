@@ -38,9 +38,6 @@ public class XamlLintTests
         "Views/Settings/ShortcutDialogContentControl.xaml|binding|Child",
         "Views/Settings/ShortcutDialogContentControl.xaml|binding|Value",
 
-        // Tray flyout page padding is 20, copied from Sony's flyout (design standard, "Flyout page padding")
-        "Tray/TrayHost.xaml|spacing|20,20,20,16 (StackPanel in AgendaPanel)",
-
         // A 3 px tall pill and a 28 px circle: half the size is a circle end, which is not a corner radius
         "Styles/LeafTheme.xaml|radius|1.5",
         "Styles/LeafTheme.xaml|radius|14",

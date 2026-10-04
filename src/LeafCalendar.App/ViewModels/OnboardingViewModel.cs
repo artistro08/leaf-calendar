@@ -46,6 +46,16 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         _services = services;
         Client = new SetupViewModel(services.Tokens, OnClientSavedAsync, services.Log);
 
+        // Next Waits For Both Boxes (or a saved client kept as it is)
+        Client.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(SetupViewModel.ClientId) or nameof(SetupViewModel.ClientSecret))
+            {
+                UpdateClientReady();
+            }
+        };
+        UpdateClientReady();
+
         _progress = dispatcher.CreateTimer();
         _progress.Interval = ProgressInterval;
         _progress.Tick += (_, _) => ShowProgress();
@@ -424,6 +434,16 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         if (moved && !_closed)
         {
             StepChanged?.Invoke(this, forward);
+        }
+    }
+
+    // Only the primary button's state is told: a full refresh would push the boxes' own text back into them as they type
+    private void UpdateClientReady()
+    {
+        _flow.IsClientReady = OnboardingFlow.HasClientInput(Client.ClientId, Client.ClientSecret, _services.Tokens.GetClientCredentials());
+        if (!_closed)
+        {
+            OnPropertyChanged(nameof(CanRunPrimary));
         }
     }
 

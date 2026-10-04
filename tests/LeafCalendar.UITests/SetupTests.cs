@@ -56,6 +56,60 @@ public class SetupTests
         }
     }
 
+    // The owner's report: the secret box was below the fold of the 520 × 640 window. UIA clips a box to what shows, so a
+    // whole box is at least as tall as the 32 DIP Back button and ends above the footer
+    [Fact]
+    public void ClientStep_BothBoxesShowWithoutScrolling()
+    {
+        var profile = LeafApp.NewProfile();
+        try
+        {
+            using var leaf = LeafApp.Launch(profile);
+            leaf.WaitInOnboarding("OnboardingWelcome");
+            leaf.OnboardingPrimary();
+
+            var back = leaf.WaitInOnboarding("OnboardingBackButton").BoundingRectangle;
+            foreach (var id in new[] { "ClientIdBox", "ClientSecretBox" })
+            {
+                var box = leaf.WaitInOnboarding(id).BoundingRectangle;
+                Assert.True(box.Height >= back.Height && box.Bottom <= back.Top, $"{id} ({box}) is cut off above the footer ({back}).");
+            }
+        }
+        finally
+        {
+            LeafApp.DeleteProfile(profile);
+        }
+    }
+
+    [Fact]
+    public void ClientStep_NextWaitsForBothBoxes()
+    {
+        var profile = LeafApp.NewProfile();
+        try
+        {
+            using var leaf = LeafApp.Launch(profile);
+            leaf.WaitInOnboarding("OnboardingWelcome");
+            leaf.OnboardingPrimary();
+            var next = leaf.WaitInOnboarding("OnboardingPrimaryButton");
+
+            // Empty, then only the ID: off (past the step change's half-second settle)
+            Thread.Sleep(800);
+            Assert.False(next.IsEnabled, "Next is on with both boxes empty.");
+            leaf.WaitInOnboarding("ClientIdBox").AsTextBox().Enter("123-uitest.apps.googleusercontent.com");
+            Thread.Sleep(500);
+            Assert.False(next.IsEnabled, "Next is on without a secret.");
+
+            // Both: on
+            leaf.WaitInOnboarding("ClientSecretBox").Focus();
+            Keyboard.Type("GOCSPX-uitest");
+            Assert.True(Retry.WhileFalse(() => next.IsEnabled, TimeSpan.FromSeconds(5)).Success, "Next stayed off with both boxes filled.");
+        }
+        finally
+        {
+            LeafApp.DeleteProfile(profile);
+        }
+    }
+
     [Fact]
     public void Next_InvalidClientId_ShowsErrorAndStays()
     {
