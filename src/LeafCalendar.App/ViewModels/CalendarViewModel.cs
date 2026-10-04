@@ -52,6 +52,9 @@ public sealed record SelectedEventInfo(
     }}";
 }
 
+/// <summary>One of several selected events, listed under "2 events selected": its title, when, and color bar.</summary>
+public sealed record SelectedRow(string Title, string When, string Color);
+
 /// <summary>
 /// A guest in the details panel: address, a summary such as "Maybe · Optional · “Late”", and Google's display name if
 /// known. Like the editor's chip, a named guest shows the name with the address under it.
@@ -160,7 +163,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         };
 
         PeriodStart = ViewNavigator.PeriodStart(Settings.ViewMode, Today, Settings.WeekStart);
-        PeriodTitle = ViewNavigator.MonthTitle(PeriodStart);
+        PeriodTitle = Mode == CalendarViewMode.Month
+            ? ViewNavigator.MonthTitle(PeriodStart)
+            : ViewNavigator.PeriodTitle(PeriodStart, ViewNavigator.Step(Mode, PeriodStart, 1, Settings.CustomDayCount, Settings.ShowWeekends).AddDays(-1));
 
         // Seed History With The Opening Place
         _history.Visit(new ViewPlace(Mode, Settings.CustomDayCount, PeriodStart));
@@ -268,6 +273,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Events in the next <see cref="LeafSettings.UpcomingHours"/> hours (or one calendar's next 30 days, see <see cref="UpcomingCalendar"/>).</summary>
     public ObservableCollection<UpcomingItem> Upcoming { get; } = [];
 
+    /// <summary>
+    /// True while a timed event is still on or to come today, maybe past the <see cref="Upcoming"/> window, so an empty
+    /// list doesn't say "Done for today". Updated just before <see cref="Upcoming"/> changes.
+    /// </summary>
+    public bool LeftToday { get; private set; }
+
     /// <summary>Current view mode.</summary>
     public CalendarViewMode Mode => Settings.ViewMode;
 
@@ -278,7 +289,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial DateOnly PeriodStart { get; set; }
 
-    /// <summary>The island's title: the month and year of the first visible day (month view: the focused month), such as "October 2026".</summary>
+    /// <summary>
+    /// The island's title: the month and year on screen, such as "October 2026", or both months when the days span two
+    /// ("Sep – Oct 2026"); month view: the focused month.
+    /// </summary>
     [ObservableProperty]
     public partial string PeriodTitle { get; set; }
 
@@ -296,6 +310,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     /// <summary>Every selected event (one or more; the details panel shows the first when it's the only one).</summary>
     public IReadOnlyList<CalendarOccurrence> Selection => _selection;
+
+    /// <summary>The selected events in time order, as the details panel lists them: cleaned title, day and time, and color.</summary>
+    public List<SelectedRow> SelectionRows() =>
+        [.. _selection.OrderBy(o => o.StartIn(Zone)).Select(o => new SelectedRow(Core.Tray.DisplayText.Clean(o.Title, 200), WhenText(o), EventColors.ResolveAccent(o.ColorId, o.CalendarColor)))];
 
     /// <summary>
     /// Asks which events of a series an edit applies to. The flags offer "This and following" and "This event" (a repeat
@@ -513,7 +531,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
 
         PeriodStart = Mode == CalendarViewMode.Month ? ViewNavigator.MonthStartOf(focus ?? first) : first;
-        PeriodTitle = ViewNavigator.MonthTitle(Mode == CalendarViewMode.Month ? focus ?? first : first);
+        PeriodTitle = Mode == CalendarViewMode.Month ? ViewNavigator.MonthTitle(focus ?? first) : ViewNavigator.PeriodTitle(first, lastExclusive.AddDays(-1));
         WindowTitle = Mode == CalendarViewMode.Month ? PeriodTitle : ViewNavigator.DateRangeTitle(first, lastExclusive.AddDays(-1));
 
         var months = (ViewNavigator.MonthStartOf(first), ViewNavigator.MonthStartOf(lastExclusive.AddDays(-1)));
@@ -2093,11 +2111,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         Say($"This event can't be changed: {reason ?? "it's read-only"}.", canUndo: false);
     }
 
-    // Every notice counts as new (a repeat of the same text restarts the bar's timer), so it's cleared first
+    // Every notice counts as new (a repeat of the same text restarts the bar's timer), so it's cleared first. Each one ends
+    // with a period, like the bars beside it
     private void Say(string text, bool canUndo)
     {
         Notice = null;
-        Notice = new NoticeInfo(text, canUndo);
+        Notice = new NoticeInfo(Core.Tray.DisplayText.Sentence(text), canUndo);
     }
 
     private static bool IsEditFailure(Exception ex) =>
@@ -2275,6 +2294,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // Set before the list changes, so the panel reads it when the change arrives
+        LeftToday = Cache.ForDay(LocalDate(now)).Any(o => !o.IsAllDay && o.End > now);
         Upcoming.Clear();
         foreach (var item in items)
         {

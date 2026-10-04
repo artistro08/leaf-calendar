@@ -100,6 +100,7 @@ Use these values only: **2, 4, 8, 12, 16, 24, 32** (plus 36 for the settings con
 
 - Panes: sidebar 264, details 320 (growing with the window to 480 at 1920 wide, `CalendarPage.DetailsWidthFor`), as inline `SplitView`s on the window's Mica; the calendar island is `LayerFillColorDefaultBrush` with no border (its fill is the edge). (Leaf `CalendarPage.xaml`.)
 - Content under a 48 DIP title bar either starts in row 1, or runs under the title bar with `Padding="..,48,.."` to clear it. (Leaf `SidebarView.xaml`, `DetailsPanel.xaml`.)
+- A side panel's first heading is centered in the 28 DIP row right under the title bar, the row the sidebar's month title sits in, whatever its style: a section header is centered in it ("Upcoming", "Times to share"), a 20 DIP title (28 line height) fills it (an event's title, "2 events selected"). List rows under a heading line their text up with it; a row's hover fill reaches 8 DIP past the content edges (`Margin="-8,0"`). (Leaf `DetailsPanel.xaml`, `ShareSlotsPanel.cs`.)
 - Only the part that can overflow scrolls; headers and footers stay pinned. (Leaf sidebar "Only the calendar list scrolls"; Sony spec "Footer stays pinned".)
 - Size fixed windows so their main page doesn't scroll at 100%, but keep the `ScrollViewer` for small screens. (Layers spec SettingsWindow.)
 
@@ -160,6 +161,7 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 | Inactive/disabled text | `TextFillColorDisabledBrush`, or 0.4 opacity on custom templates |
 | Overlay person (people overlay, Meet with) | `LeafBrushes.Person(index, dark)` for the edge and title, `LeafBrushes.PersonFill(index, dark)` for the block (purple, magenta, teal, orange; values in `ChromeColors`); HighContrast uses `Highlight` |
 | Off-hours tint (working-hours shading) | `LeafBrushes.OffHours(dark)`: Light `#0A000000`, Dark `#29000000`; transparent in HighContrast |
+| Weekend tint | `LeafBrushes.WeekendFill(dark)`: Light `#06000000`, Dark `#20000000`; it darkens in both themes, so weekends read as shaded on their own and over the off-hours tint |
 
   Sources: MA `SettingsPage.xaml`; Leaf `CalendarPage.xaml`, `LeafTheme.xaml`; Layers `GeneralPage.xaml`, `TrayMenuHost.xaml` spec; Sony `AppStyles.xaml`, `FlyoutWindow.xaml`.
 - Calendar colors are Google's. Leaf's current-time line is `#E5484D`. (Leaf `LeafBrushes.cs`.)
@@ -309,7 +311,9 @@ From the brief (item 5), with the reference apps filling in how it looks:
 - Content: one or two plain sentences saying what happens and what doesn't ("Your Google Calendar isn't changed.").
 - Buttons: the primary button repeats the action verb ("Disconnect", "Remove", "Create", "Show", "Leave"); the close button is "Cancel", or a "Keep ..." phrase when Cancel would be unclear ("Keep setting up").
 - `DefaultButton`: **Close** for destructive actions, **Primary** for harmless ones. (Leaf `AccountsPage.xaml.cs` vs `MainWindow.xaml.cs`; MA "Remove from library" vs "New playlist".)
-- Non-blocking messages use an `InfoBar`, not a dialog: inline for page errors, bottom-center of the island for undo notices ("Event deleted · Undo"). Transient command failures auto-dismiss after 5 s. (Leaf `CalendarPage.xaml`; Sony spec "States".)
+- Non-blocking messages use an `InfoBar`, not a dialog: inline for page errors, bottom-center of the island for undo notices ("Event deleted." with Undo). Transient command failures auto-dismiss after 5 s. (Leaf `CalendarPage.xaml`; Sony spec "States".)
+- Every bar and notice message ends with a period, like descriptions (`DisplayText.Sentence` adds one to notices). (Leaf `CalendarViewModel.Say`.)
+- The bars and notices at the bottom of the island are raised like flyouts: `Translation` Z 32 with a `ThemeShadow` onto the calendar view, and the flyout border (`SurfaceStrokeColorDefaultBrush`, 1 px), so they stand out in dark theme too. (Leaf `CalendarPage.Float`.)
 - Real notifications are Windows toasts, never in-app popups. (Leaf spec 2.)
 - Mode bars (time travel, people overlay, the share availability hint) are informational `InfoBar`s stacked bottom-center of the calendar island with the notices (`Toasts`), 16 DIPs from its bottom. The share availability controls live in the right panel. (Leaf `CalendarPage.xaml`, `ShareSlotsPanel.cs`.)
 

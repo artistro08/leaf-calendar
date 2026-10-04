@@ -49,6 +49,23 @@ public class ChromeColorsTests
         Assert.True(ratio >= 4.5, $"primary text on off-hours {fill}: {ratio:0.00}:1");
     }
 
+    // Weekends Read As Shaded In Both Themes: Darker Than A Weekday, On The Bare Surface And Over Off-Hours Shading
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Weekend_IsShaded_OnSurfaceAndOverOffHours(bool dark)
+    {
+        var surface = ChromeColors.Surface(dark);
+        var offHours = Flatten(ChromeColors.OffHours(dark), surface);
+        foreach (var under in new[] { surface, offHours })
+        {
+            var weekend = Flatten(ChromeColors.WeekendFill(dark), under);
+            var darker = EventColors.ContrastRatio(weekend, "#000000") < EventColors.ContrastRatio(under, "#000000");
+            var ratio = EventColors.ContrastRatio(weekend, under);
+            Assert.True(darker && ratio >= 1.04, $"weekend {weekend} over {under}: {ratio:0.000}:1, darker {darker}");
+        }
+    }
+
     [Fact]
     public void Person_IndexesWrap() => Assert.Equal(ChromeColors.Person(0, dark: false), ChromeColors.Person(ChromeColors.PersonCount, dark: false));
 }

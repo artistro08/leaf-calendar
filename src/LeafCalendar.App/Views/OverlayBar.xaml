@@ -11,10 +11,12 @@
     <!-- Overlay Bar: who is overlaid on the time grid (P, F, E then F), one chip each, and Clear. A toast at the bottom of the
          calendar like the notice: solid, so the grid never shows through, and no wider than 640 (the chips scroll) -->
     <Border
+        x:Name="Card"
+        x:FieldModifier="internal"
         MaxWidth="640"
         Padding="12,8"
         Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
-        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+        BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
         BorderThickness="1"
         CornerRadius="8">
         <Grid ColumnSpacing="12">

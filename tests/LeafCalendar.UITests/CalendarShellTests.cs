@@ -32,6 +32,36 @@ public sealed class CalendarShellTests : IDisposable
         Assert.Contains("2026", leaf.WaitFor("PeriodTitle").Name, StringComparison.Ordinal);
     }
 
+    // Keyboard focus rests on the calendar itself (no ring), never the mini month's first chevron, where Windows' fallback
+    // put it: at startup, and after a command menu row runs
+    [Fact]
+    public void Focus_RestsOnTheCalendar_AtStartupAndAfterACommand()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300");
+        var chevron = leaf.WaitFor("MiniMonthPrevious");
+        var month = leaf.WaitFor("MiniMonthTitle");
+        string FocusedId() => leaf.Focused()?.Properties.AutomationId.ValueOrDefault ?? "";
+        Assert.True(Retry.WhileFalse(() => FocusedId() == "CalendarPage", TimeSpan.FromSeconds(5)).Success, $"Focus starts on '{FocusedId()}'.");
+
+        leaf.Press(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_K);
+        leaf.WaitForAnywhere("CommandSearchBox");
+        Keyboard.Type("2026-11-02");
+        leaf.WaitForAnywhere("CommandResult_date");
+        Thread.Sleep(300);
+        Keyboard.Type(VirtualKeyShort.RETURN);
+
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("PeriodTitle").Name == "November 2026", TimeSpan.FromSeconds(5)).Success);
+        Assert.True(Retry.WhileFalse(() => FocusedId() == "CalendarPage", TimeSpan.FromSeconds(5)).Success, $"After the command, focus is on '{FocusedId()}'.");
+
+        // Space Presses Nothing There (on the chevron it paged the mini month)
+        var shown = month.Name;
+        Keyboard.Type(VirtualKeyShort.SPACE);
+        Thread.Sleep(500);
+        Assert.False(chevron.Properties.HasKeyboardFocus.ValueOrDefault);
+        Assert.Equal(shown, month.Name);
+    }
+
     // The window title (what the taskbar and Alt+Tab show) is the days on screen and follows the calendar; the title bar
     // inside the window stays as it was, and Settings doesn't change the window title
     [Fact]
@@ -108,10 +138,17 @@ public sealed class CalendarShellTests : IDisposable
         using var leaf = Launch();
 
         leaf.WaitFor("ViewModeButton").AsButton().Invoke();
-        leaf.WaitForAnywhere("ViewMonth").AsMenuItem().Invoke();
+        Assert.Equal(ToggleState.On, leaf.WaitForAnywhere("ViewWeek").Patterns.Toggle.Pattern.ToggleState.Value);
+        leaf.WaitForAnywhere("ViewMonth").Click(); // a radio item: no Invoke pattern
 
         Assert.NotNull(leaf.WaitFor("MonthGrid"));
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ViewModeButton").Name == "Month", TimeSpan.FromSeconds(5)).Success);
+
+        // The Menu Marks The New View
+        leaf.WaitFor("ViewModeButton").AsButton().Invoke();
+        Assert.True(Retry.WhileFalse(() => leaf.WaitForAnywhere("ViewMonth").Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On, TimeSpan.FromSeconds(5)).Success);
+        Assert.Equal(ToggleState.Off, leaf.WaitForAnywhere("ViewWeek").Patterns.Toggle.Pattern.ToggleState.Value);
+        Keyboard.Type(VirtualKeyShort.ESCAPE);
     }
 
     [Fact]
@@ -135,7 +172,7 @@ public sealed class CalendarShellTests : IDisposable
     {
         using var leaf = Launch();
         leaf.WaitFor("ViewModeButton").Click();
-        leaf.WaitForAnywhere("ViewDay").AsMenuItem().Invoke();
+        leaf.WaitForAnywhere("ViewDay").Click(); // a radio item: no Invoke pattern
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ViewModeButton").Name.Contains("Day", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success);
 
         Mouse.MoveTo(leaf.WaitFor("ViewHost").GetClickablePoint());

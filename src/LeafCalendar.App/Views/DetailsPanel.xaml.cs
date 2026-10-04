@@ -85,15 +85,16 @@ public sealed partial class DetailsPanel : UserControl
 
     private void OnUpcomingChanged(object? sender, NotifyCollectionChangedEventArgs e) => UpdateUpcomingEmpty();
 
-    // Nothing coming up: "Done for today" centered in the panel (or, for one calendar's list, that it's quiet), only while
-    // the upcoming list is what the panel shows
+    // Nothing coming up: "Done for today" centered in the panel once nothing is left today ("All clear" while something
+    // still comes later today, past the window, or for one calendar's quiet list), only while the upcoming list is what the
+    // panel shows
     private void UpdateUpcomingEmpty()
     {
         var showing = ContentScroll.Visibility == Visibility.Visible && UpcomingView.Visibility == Visibility.Visible;
         var empty = showing && _vm?.Upcoming.Count == 0;
         UpcomingEmpty.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
         UpcomingHeaderRow.Visibility = empty && _vm?.UpcomingCalendar is null ? Visibility.Collapsed : Visibility.Visible;
-        UpcomingEmptyTitle.Text = _vm?.UpcomingCalendar is null ? "Done for today" : "All clear";
+        UpcomingEmptyTitle.Text = _vm is { UpcomingCalendar: null, LeftToday: false } ? "Done for today" : "All clear";
         UpcomingEmptyDetail.Text = _vm?.UpcomingCalendar is null
             ? string.Create(CultureInfo.InvariantCulture, $"Nothing in the next {_vm?.UpcomingHours ?? 8} hours.")
             : "Nothing in the next 30 days.";
@@ -183,6 +184,7 @@ public sealed partial class DetailsPanel : UserControl
             UpcomingView.Visibility = Visibility.Collapsed;
             DetailsView.Visibility = Visibility.Collapsed;
             SelectionSummary.Text = string.Create(CultureInfo.InvariantCulture, $"{count} events selected");
+            SelectionList.ItemsSource = _vm?.SelectionRows();
             UpdateUpcomingEmpty();
             return;
         }

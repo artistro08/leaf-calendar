@@ -27,8 +27,11 @@ public static class ChromeColors
     /// <summary>Hour and day divider lines.</summary>
     public static string GridLine(bool dark) => dark ? "#1FFFFFFF" : "#1A000000";
 
-    /// <summary>Weekend column tint.</summary>
-    public static string WeekendFill(bool dark) => dark ? "#08FFFFFF" : "#06000000";
+    /// <summary>
+    /// Weekend column tint. It darkens in both themes, like the off-hours tint it sits under, so a weekend reads as
+    /// shaded on its own and over off-hours (a lightening tint in dark canceled the off-hours shade out).
+    /// </summary>
+    public static string WeekendFill(bool dark) => dark ? "#20000000" : "#06000000";
 
     /// <summary>Hover fill for rows (the theme's SubtleFillColorSecondary).</summary>
     public static string Hover(bool dark) => dark ? "#0FFFFFFF" : "#09000000";

@@ -75,6 +75,8 @@ public sealed partial class CalendarPage
         // At The Bottom, With The Other Toasts (first, above the notice)
         _travelBar = new TimeTravelBar(ViewModel);
         Toasts.Children.Insert(0, _travelBar);
+        Float(_travelBar.TravelBar);
+        Float(_travelBar.ZoneSwitchBar);
         ViewModel.PropertyChanged += OnNavigatePropertyChanged;
         ViewModel.LayoutChanged += OnNavigateLayoutChanged;
     }
@@ -145,7 +147,11 @@ public sealed partial class CalendarPage
                 menu.FocusBox();
                 CommandMenuShown?.Invoke(this, true);
             };
-            flyout.Closed += (_, _) => CommandMenuShown?.Invoke(this, false);
+            flyout.Closed += (_, _) =>
+            {
+                CommandMenuShown?.Invoke(this, false);
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, ReturnFocusAfterMenu);
+            };
 
             (_commandFlyout, _commandMenu) = (flyout, menu);
         }
@@ -162,6 +168,7 @@ public sealed partial class CalendarPage
 
         // The Events Are Read For The Search Before The First Keystroke
         ViewModel.WarmSearch();
+        _beforeMenu = FocusManager.GetFocusedElement(XamlRoot);
         PlaceCommandAnchor();
         _commandMenu.Reset();
         _commandFlyout.ShowAt(_commandAnchor, new FlyoutShowOptions
@@ -172,6 +179,24 @@ public sealed partial class CalendarPage
     }
 
     private void OnCommandRootSizeChanged(object sender, SizeChangedEventArgs e) => PlaceCommandAnchor();
+
+    // What had focus when the command menu opened
+    private object? _beforeMenu;
+
+    // After the menu closes (and the picked row ran): focus the row put in a box, menu, or dialog stays, and focus the menu
+    // gave back to where it was stays; anything else (nothing, or Windows' fallback, the mini month's first chevron, whose
+    // ring then showed and which Space paged) rests on the calendar instead
+    private void ReturnFocusAfterMenu()
+    {
+        var before = _beforeMenu;
+        _beforeMenu = null;
+        if (ShortcutsBlocked() || (before is not null && ReferenceEquals(FocusManager.GetFocusedElement(XamlRoot), before)))
+        {
+            return;
+        }
+
+        FocusCalendar();
+    }
 
     // The menu's top is where a full size menu (search row, the results at their tallest, footer) would be centered
     // vertically, so it doesn't jump as the results grow and shrink; a short window clamps it and shortens the list
@@ -400,6 +425,7 @@ public sealed partial class CalendarPage
         }
     }
 
+    // Raises a card (the cheat sheet, a toast at the bottom) 32 over the calendar view, which takes its shadow
     private void Float(UIElement card)
     {
         card.Translation = new System.Numerics.Vector3(0, 0, 32);
