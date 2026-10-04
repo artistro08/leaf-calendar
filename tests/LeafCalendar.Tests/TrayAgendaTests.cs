@@ -1,4 +1,5 @@
 using System.Text.Json;
+using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.Settings;
@@ -177,6 +178,58 @@ public sealed class TrayAgendaTests : IDisposable
         {
             Assert.False(char.IsHighSurrogate(tooltip[i]) && (i + 1 == tooltip.Length || !char.IsLowSurrogate(tooltip[i + 1])));
         }
+    }
+
+    [Fact]
+    public void WithoutNext_TheNextMeetingShowsOnce()
+    {
+        var now = new DateTimeOffset(2026, 10, 1, 13, 55, 0, TimeSpan.FromHours(-4));
+        var days = Load(now);
+        var next = TrayAgenda.Next(days, now, TimeSpan.FromHours(1));
+
+        var rest = TrayAgenda.WithoutNext(days, next);
+
+        Assert.Equal("Design review", next!.Item.Title);
+        Assert.DoesNotContain(rest.SelectMany(d => d.Items), i => i.Title == "Design review");
+        Assert.Equal(["Lunch"], rest.SelectMany(d => d.Items).Select(i => i.Title));
+        Assert.Same(days, TrayAgenda.WithoutNext(days, null));
+    }
+
+    [Fact]
+    public void WithoutNext_ADayLeftEmpty_Goes()
+    {
+        var now = new DateTimeOffset(2026, 10, 1, 13, 55, 0, TimeSpan.FromHours(-4));
+        var days = Load(now);
+
+        var rest = TrayAgenda.WithoutNext(days, TrayAgenda.Next(days, now, TimeSpan.FromHours(1)));
+
+        Assert.Equal(["Tomorrow"], rest.Select(d => d.Header));
+    }
+
+    [Fact]
+    public void JoinMenuText_NamesTheMeetingTheJoinRulePicks()
+    {
+        var now = new DateTimeOffset(2026, 10, 1, 13, 55, 0, TimeSpan.FromHours(-4));
+        var review = Load(now)[0].Items.Single(i => i.Title == "Design review");
+        var target = new JoinTarget(review.Occurrence, review.Link!);
+
+        Assert.Equal("Join Design review", TrayAgenda.JoinMenuText(target));
+        Assert.Equal("Join next meeting", TrayAgenda.JoinMenuText(null));
+    }
+
+    [Fact]
+    public void JoinMenuText_LongOrBlankTitle_StaysShort()
+    {
+        Store("""{"id":"evt-long","status":"confirmed","summary":"Quarterly planning review with the whole product and design group","start":{"dateTime":"2026-10-01T11:00:00-04:00"},"end":{"dateTime":"2026-10-01T11:30:00-04:00"}}""");
+        Store("""{"id":"evt-blank","status":"confirmed","summary":"​","start":{"dateTime":"2026-10-01T11:00:00-04:00"},"end":{"dateTime":"2026-10-01T11:30:00-04:00"}}""");
+        var items = Load(Morning)[0].Items;
+        var link = new Uri("https://meet.google.com/abc-defg-hij");
+
+        var longText = TrayAgenda.JoinMenuText(new JoinTarget(items.Single(i => i.Occurrence.EventId == "evt-long").Occurrence, link));
+        var blankText = TrayAgenda.JoinMenuText(new JoinTarget(items.Single(i => i.Occurrence.EventId == "evt-blank").Occurrence, link));
+
+        Assert.Equal("Join Quarterly planning review with the whol…", longText);
+        Assert.Equal("Join (No title)", blankText);
     }
 
     [Theory]

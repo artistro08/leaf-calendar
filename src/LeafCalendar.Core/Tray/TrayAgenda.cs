@@ -37,6 +37,9 @@ public static class TrayAgenda
 
     private const int MaxTitle = 200;
 
+    // The menu's join item stays menu-sized
+    private const int MaxMenuTitle = 40;
+
     /// <summary>
     /// The agenda for <paramref name="days"/> days from today (local to <paramref name="zone"/>), from the calendars
     /// shown in Leaf (a calendar hidden there is left out here too).
@@ -86,6 +89,30 @@ public static class TrayAgenda
 
         return pick is null ? null : new NextUp(pick, TimeLabels.Relative(pick.Occurrence.Start, pick.Occurrence.End, now));
     }
+
+    /// <summary>
+    /// The flyout's day list without the header's event, so the next meeting shows once (at the top); a day it leaves
+    /// empty goes too. With no next event the days come back as they are.
+    /// </summary>
+    public static IReadOnlyList<AgendaDay> WithoutNext(IReadOnlyList<AgendaDay> days, NextUp? next)
+    {
+        if (next is null)
+        {
+            return days;
+        }
+
+        var key = next.Item.Occurrence.Key;
+        return [.. days
+            .Select(d => d with { Items = [.. d.Items.Where(i => i.Occurrence.Key != key)] })
+            .Where(d => d.Items.Count > 0)];
+    }
+
+    /// <summary>
+    /// The tray menu's join item: "Join Standup" for the meeting the join rule picks (titles past 40 characters end
+    /// with "…"), or "Join next meeting" when there's none, and the item is off.
+    /// </summary>
+    public static string JoinMenuText(JoinTarget? target) =>
+        target is null ? "Join next meeting" : "Join " + (DisplayText.Clean(target.Occurrence.Title, MaxMenuTitle) is { Length: > 0 } title ? title : EventDetailsParser.NoTitle);
 
     /// <summary>"Standup in 12 min", "Standup now", or "Leaf Calendar" when nothing is coming up; at most 127 characters.</summary>
     public static string Tooltip(NextUp? next)

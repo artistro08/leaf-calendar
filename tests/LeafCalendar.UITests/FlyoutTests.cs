@@ -20,9 +20,9 @@ public sealed class FlyoutTests : IDisposable
     }
 
     // 1:50 PM in New York on Oct 1: Design review (2 PM, Meet) is next, 10 minutes out
-    private LeafApp Launch()
+    private LeafApp Launch(string now = "2026-10-01T13:50:00-04:00")
     {
-        var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01 --now 2026-10-01T13:50:00-04:00");
+        var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01 --now {now}");
         leaf.WaitFor("Event_evt-meeting_202610011800");
         return leaf;
     }
@@ -51,19 +51,21 @@ public sealed class FlyoutTests : IDisposable
     }
 
     [Fact]
-    public void Footer_NewEventLeft_OpenCalendarRight_OpensTheWindow()
+    public void Footer_NewEventLeft_OpenLeafCalendarRight_OpensTheWindow()
     {
         using var leaf = Launch();
         leaf.MainWindow.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
         leaf.PostTrayMessage(LeafApp.TraySelect);
 
-        var newEvent = leaf.WaitForPopup("FlyoutNewEvent").BoundingRectangle;
+        var newEvent = leaf.WaitForPopup("FlyoutNewEvent");
         var open = leaf.WaitForPopup("FlyoutOpenCalendar");
-        Assert.True(newEvent.Right < open.BoundingRectangle.Left, "New event isn't left of Open calendar.");
+        Assert.Equal("New event…", newEvent.Name);
+        Assert.Equal("Open Leaf Calendar", open.Name);
+        Assert.True(newEvent.BoundingRectangle.Right < open.BoundingRectangle.Left, "New event isn't left of Open Leaf Calendar.");
 
         open.AsButton().Invoke();
 
-        Assert.True(Retry.WhileFalse(() => leaf.IsInFront, TimeSpan.FromSeconds(10)).Success, "Open calendar didn't bring the window up.");
+        Assert.True(Retry.WhileFalse(() => leaf.IsInFront, TimeSpan.FromSeconds(10)).Success, "Open Leaf Calendar didn't bring the window up.");
         Assert.True(Retry.WhileTrue(() => leaf.PopupExists("FlyoutNewEvent"), TimeSpan.FromSeconds(5)).Success, "The flyout stayed open.");
     }
 
@@ -100,8 +102,9 @@ public sealed class FlyoutTests : IDisposable
         }
     }
 
+    // The owner's ruling: the next meeting shows once, at the top, and the rest of the agenda follows
     [Fact]
-    public void TrayClick_ShowsTheNextMeetingAndTheAgenda()
+    public void TrayClick_ShowsTheNextMeetingOnce_AndTheRestOfTheAgenda()
     {
         using var leaf = Launch();
 
@@ -110,21 +113,36 @@ public sealed class FlyoutTests : IDisposable
         // (the times follow this PC's time zone, so only the countdown is checked)
         Assert.Equal("Design review", leaf.WaitForPopup("FlyoutNextTitle").Name);
         Assert.Matches(@" · in (9|10) min$", leaf.WaitForPopup("FlyoutNextWhen").Name);
-        Assert.NotNull(leaf.WaitForPopup("FlyoutJoinButton"));
-        Assert.NotNull(leaf.WaitForPopup("FlyoutEvent_evt-meeting_202610011800"));
-        Assert.NotNull(leaf.WaitForPopup("FlyoutJoin_evt-meeting_202610011800"));
+        Assert.Equal("Join Design review", leaf.WaitForPopup("FlyoutJoinButton").Name);
+        Assert.NotNull(leaf.WaitForPopup("FlyoutEvent_evt-family-play_202610022200"));
+        Assert.False(leaf.PopupExists("FlyoutEvent_evt-meeting_202610011800"), "The next meeting is listed again under it.");
+        Assert.False(leaf.PopupExists("FlyoutJoin_evt-meeting_202610011800"));
+        Assert.False(leaf.PopupExists("FlyoutAgendaEmpty"));
     }
 
+    // Nothing at all coming up: one sentence, not "Nothing in the next hour." over "Nothing coming up."
     [Fact]
-    public void NextHeader_SharesTheTitlesLeftEdge()
+    public void NothingComingUp_SaysItOnce()
+    {
+        using var leaf = Launch("2026-12-01T09:00:00-05:00");
+
+        leaf.PostTrayMessage(LeafApp.TraySelect);
+
+        Assert.Equal("Nothing coming up.", leaf.WaitForPopup("FlyoutNothingNext").Name);
+        Assert.False(leaf.PopupExists("FlyoutAgendaEmpty"));
+    }
+
+    // One 16 DIP inset everywhere: the header and the footer's first button start on the same edge
+    [Fact]
+    public void NextHeader_SharesTheFootersInset()
     {
         using var leaf = Launch();
 
         leaf.PostTrayMessage(LeafApp.TraySelect);
 
         var header = leaf.WaitForPopup("FlyoutNextHeader").BoundingRectangle;
-        var title = leaf.WaitForPopup("FlyoutNextTitle").BoundingRectangle;
-        Assert.True(Math.Abs(header.Left - title.Left) <= 1, $"\"Next\" starts at {header.Left}, the title at {title.Left}.");
+        var newEvent = leaf.WaitForPopup("FlyoutNewEvent").BoundingRectangle;
+        Assert.True(Math.Abs(header.Left - newEvent.Left) <= 1, $"\"Next\" starts at {header.Left}, New event at {newEvent.Left}.");
     }
 
     [Fact]
@@ -147,9 +165,41 @@ public sealed class FlyoutTests : IDisposable
         Assert.True(Retry.WhileTrue(() => leaf.MainWindowCount() > 0, TimeSpan.FromSeconds(10)).Success);
 
         leaf.PostTrayMessage(LeafApp.TraySelect);
-        leaf.WaitForPopup("FlyoutEvent_evt-meeting_202610011800").AsButton().Invoke();
+        leaf.WaitForPopup("FlyoutEvent_evt-family-play_202610022200").AsButton().Invoke();
+
+        Assert.True(Retry.WhileFalse(() => leaf.Exists("DetailsTitle") && leaf.WaitFor("DetailsTitle").Name == "School play", TimeSpan.FromSeconds(15)).Success);
+    }
+
+    // The owner's ruling: the next meeting at the top is clickable too, like a row
+    [Fact]
+    public void NextMeeting_WhileInTheTray_OpensTheMainWindowOnIt()
+    {
+        using var leaf = Launch();
+        leaf.MainWindow.Close();
+        Assert.True(Retry.WhileTrue(() => leaf.MainWindowCount() > 0, TimeSpan.FromSeconds(10)).Success);
+
+        leaf.PostTrayMessage(LeafApp.TraySelect);
+        var next = leaf.WaitForPopup("FlyoutNext");
+        Assert.Equal("Design review", next.Name);
+        next.AsButton().Invoke();
 
         Assert.True(Retry.WhileFalse(() => leaf.Exists("DetailsTitle") && leaf.WaitFor("DetailsTitle").Name == "Design review", TimeSpan.FromSeconds(15)).Success);
+    }
+
+    // Each Join is its own button beside its row (not inside it), named for its meeting
+    [Fact]
+    public void RowJoin_IsNamedForItsMeeting_AndSitsBesideTheRow()
+    {
+        _google.EditOnGoogle("family123@group.calendar.google.com", "evt-family-play", e => e["hangoutLink"] = "https://meet.google.com/pqr-stuv-wxy");
+        using var leaf = Launch();
+
+        leaf.PostTrayMessage(LeafApp.TraySelect);
+
+        var row = leaf.WaitForPopup("FlyoutEvent_evt-family-play_202610022200");
+        var join = leaf.WaitForPopup("FlyoutJoin_evt-family-play_202610022200");
+        Assert.Equal("Join School play", join.Name);
+        Assert.Null(row.FindFirstDescendant(cf => cf.ByAutomationId("FlyoutJoin_evt-family-play_202610022200")));
+        Assert.True(join.BoundingRectangle.Left >= row.BoundingRectangle.Right, $"Join ({join.BoundingRectangle}) overlaps its row ({row.BoundingRectangle}).");
     }
 
     [Fact]
@@ -164,7 +214,7 @@ public sealed class FlyoutTests : IDisposable
         Assert.True(Retry.WhileTrue(() => leaf.PopupExists("FlyoutRoot"), TimeSpan.FromSeconds(5)).Success);
     }
 
-    // New event sits at the footer's left end (Open calendar has the right)
+    // New event sits at the footer's left end (Open Leaf Calendar has the right)
     [Fact]
     public void NewEvent_OpensTheEditor()
     {
@@ -189,7 +239,7 @@ public sealed class FlyoutTests : IDisposable
 
         leaf.PostTrayMessage(LeafApp.TraySelect);
 
-        foreach (var id in new[] { "FlyoutNextTitle", "FlyoutEvent_evt-meeting_202610011800" })
+        foreach (var id in new[] { "FlyoutNextTitle", "FlyoutNext" })
         {
             var name = leaf.WaitForPopup(id).Name;
             Assert.StartsWith("</TextBlock><Button Content=\"x\"/> & \"quoted\" second line", name, StringComparison.Ordinal);

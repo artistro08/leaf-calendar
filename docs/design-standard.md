@@ -93,7 +93,7 @@ Use these values only: **2, 4, 8, 12, 16, 24, 32** (plus 36 for the settings con
 | Settings content inset | `Padding="36,24"` on the page panel (`LeafSettingsPagePanelStyle`) | Leaf `Styles/LeafTheme.xaml`; Sony `SettingsWindow.xaml` |
 | Card padding | 16 | Sony `SettingsCardStyle`; MA settings cards |
 | Side panel inner inset | 16 | Leaf `DetailsPanel.xaml` |
-| Flyout page padding | 20 (device page), 24 (empty state) | Sony `FlyoutView.xaml` |
+| Flyout page padding | 20 (device page), 24 (empty state); Leaf's tray flyout uses 16 for every part (header, list, footer) | Sony `FlyoutView.xaml`; Leaf `Tray/TrayHost.xaml` |
 | Readable column cap | `MaxWidth="560"` for forms and prose, 1072 for settings pages (`LeafSettingsPagePanelStyle`) | Leaf `Styles/LeafTheme.xaml`; Sony settings pages |
 
 ### Structure
@@ -293,7 +293,8 @@ From the brief (item 5), with the reference apps filling in how it looks:
 - Its own small window, about 520 × 640 client DIPs, centered on the monitor under the cursor, not resizable, Close only, Mica, stock `TitleBar` (icon + "Leaf Calendar"). Shown instead of the main window until an account exists. (Brief; Layers placement.)
 - Steps in a `Frame`: Welcome → Google Cloud OAuth client → Sign in → Syncing → Done. Forward navigates with `SlideNavigationTransitionInfo { Effect = FromRight }`, Back with `FromLeft`. (Brief.)
 - Step layout, top to bottom, `Padding="32"`, `Spacing="16"`: hero glyph (32 to 48), step title (`SubtitleTextBlockStyle`), one-line description (Caption, secondary), then the step's controls. (MA `LoginPage.xaml`.)
-- Instructions are a short numbered list with the link inline ("1. Open Google Cloud Console and create a project."). Keep the existing guide text as it is. (Leaf `OnboardingStepPage.xaml`.)
+- Instructions are a short numbered list with the link inline ("1. Open Google Cloud Console and create a project."), each number hanging to the left of its wrapped lines; a side note under the steps is Caption + secondary, so it doesn't read as another step. Menu paths follow Google Cloud console's current names ("Google Auth Platform › Clients"). (Leaf `OnboardingStepPage.xaml`.)
+- Primary actions stay off until the step has what they need (Next on the client step waits for both boxes, or a saved client). (Leaf `OnboardingFlow.HasClientInput`.)
 - Errors show in an `InfoBar` (`Severity="Error"`, `IsClosable="False"`) above the primary button; work in progress shows an indeterminate `ProgressBar` or a 20 DIP `ProgressRing` with a Caption status line. (MA `LoginPage.xaml`; Leaf `OnboardingStepPage.xaml`, `AccountsPage.xaml`.)
 - Footer pinned at the bottom: a 1 DIP top divider (or the flyout footer strip brush), `Padding="24,16"`. Back (default button) on the left, the step's primary action (Accent) on the right, and a `PipsPager` centered, re-templated so each pip is a 24 × 3 rounded line: selected `AccentFillColorDefaultBrush`, others `ControlStrongFillColorDefaultBrush`. (Brief; Sony footer strip.)
 - Primary actions: "Get started", "Next", "Sign in with Google", "Open Leaf Calendar" (enabled only when sync finishes). (Brief.)

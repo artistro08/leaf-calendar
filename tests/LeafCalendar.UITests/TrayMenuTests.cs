@@ -38,6 +38,8 @@ public sealed class TrayMenuTests : IDisposable
             Assert.NotNull(leaf.WaitForPopup(id));
         }
 
+        Assert.Equal("Open Leaf Calendar", leaf.WaitForPopup("TrayMenuOpen").Name);
+        Assert.Equal("New event…", leaf.WaitForPopup("TrayMenuNewEvent").Name);
         Assert.Equal("Settings…", leaf.WaitForPopup("TrayMenuSettings").Name);
     }
 
@@ -153,20 +155,25 @@ public sealed class TrayMenuTests : IDisposable
         using var leaf = Launch("2026-10-01T13:55:00-04:00");
 
         leaf.RightClickTrayIcon();
-        leaf.WaitForPopup("TrayMenuJoin").AsMenuItem().Invoke();
+        var join = leaf.WaitForPopup("TrayMenuJoin");
+        Assert.Equal("Join Design review", join.Name);
+        Assert.True(join.IsEnabled);
+        join.AsMenuItem().Invoke();
 
         Assert.True(Retry.WhileFalse(() => LeafApp.LaunchedLinks(_profile).Contains(MeetLink), TimeSpan.FromSeconds(10)).Success);
     }
 
+    // With nothing to join the item is off (it used to answer with a "No meeting to join" notification)
     [Fact]
-    public void JoinNext_NothingSoon_SaysSo()
+    public void JoinNext_NothingSoon_IsOff()
     {
         using var leaf = Launch("2026-10-01T11:00:00-04:00");
 
         leaf.RightClickTrayIcon();
-        leaf.WaitForPopup("TrayMenuJoin").AsMenuItem().Invoke();
+        var join = leaf.WaitForPopup("TrayMenuJoin");
 
-        LeafApp.WaitForNotification(_profile, l => l.StartsWith("show\tnotices\t", StringComparison.Ordinal) && l.Contains("No meeting to join", StringComparison.Ordinal), seconds: 10);
+        Assert.Equal("Join next meeting", join.Name);
+        Assert.False(join.IsEnabled);
         Assert.Empty(LeafApp.LaunchedLinks(_profile));
     }
 

@@ -13,17 +13,29 @@
         <Grid x:Name="MenuAnchor">
             <FlyoutBase.AttachedFlyout>
                 <MenuFlyout x:Name="Menu" ShouldConstrainToRootBounds="False" Closed="OnMenuClosed">
-                    <MenuFlyoutItem Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}" Text="Open Leaf Calendar" Click="OnOpenClick" AutomationProperties.AutomationId="TrayMenuOpen">
+                    <MenuFlyoutItem
+                        x:Name="MenuOpen"
+                        Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}"
+                        Text="Open Leaf Calendar"
+                        Click="OnOpenClick"
+                        AutomationProperties.AutomationId="TrayMenuOpen">
                         <MenuFlyoutItem.Icon>
                             <FontIcon FontSize="16" Glyph="&#xE787;" />
                         </MenuFlyoutItem.Icon>
                     </MenuFlyoutItem>
-                    <MenuFlyoutItem Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}" Text="New event" Click="OnNewEventClick" AutomationProperties.AutomationId="TrayMenuNewEvent">
+                    <MenuFlyoutItem Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}" Text="New event…" Click="OnNewEventClick" AutomationProperties.AutomationId="TrayMenuNewEvent">
                         <MenuFlyoutItem.Icon>
                             <FontIcon FontSize="16" Glyph="&#xE710;" />
                         </MenuFlyoutItem.Icon>
                     </MenuFlyoutItem>
-                    <MenuFlyoutItem Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}" Text="Join next meeting" Click="OnJoinNextClick" AutomationProperties.AutomationId="TrayMenuJoin">
+
+                    <!-- Join (named for the meeting the join rule picks, and off when there's none; set each time the menu opens) -->
+                    <MenuFlyoutItem
+                        x:Name="MenuJoin"
+                        Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}"
+                        Text="Join next meeting"
+                        Click="OnJoinNextClick"
+                        AutomationProperties.AutomationId="TrayMenuJoin">
                         <MenuFlyoutItem.Icon>
                             <FontIcon FontSize="16" Glyph="&#xE714;" />
                         </MenuFlyoutItem.Icon>
@@ -113,30 +125,45 @@
                                 </SystemBackdropElement.SystemBackdrop>
                             </SystemBackdropElement>
 
-                            <!-- Next Up -->
-                            <StackPanel Padding="20,20,20,16" Spacing="4">
-                                <!-- (the style's 9 DIP inset lines up with sidebar rows; here the header sits on the title's edge) -->
+                            <!-- Next Up (the same 16 DIP inset as the list and the footer) -->
+                            <StackPanel Padding="16" Spacing="4">
+                                <!-- (the style's 9 DIP inset lines up with sidebar rows; here the header sits on the panel's inset) -->
                                 <TextBlock
                                     Margin="0"
                                     Style="{StaticResource LeafSectionHeaderStyle}"
                                     Text="Next"
                                     AutomationProperties.AutomationId="FlyoutNextHeader" />
-                                <StackPanel x:Name="NextPanel" Spacing="4">
-                                    <TextBlock
-                                        x:Name="NextTitle"
-                                        Style="{StaticResource SubtitleTextBlockStyle}"
-                                        MaxLines="2"
-                                        TextTrimming="CharacterEllipsis"
-                                        TextWrapping="Wrap"
-                                        AutomationProperties.AutomationId="FlyoutNextTitle" />
-                                    <TextBlock x:Name="NextWhen" Style="{StaticResource LeafSecondaryTextStyle}" AutomationProperties.AutomationId="FlyoutNextWhen" />
+                                <StackPanel x:Name="NextPanel" Spacing="8">
+                                    <!-- Next Meeting: opens it in the main window, like a row (its padding hangs into the inset, so
+                                         its color bar sits on the header's edge) -->
+                                    <Button
+                                        x:Name="NextButton"
+                                        Margin="-8,0"
+                                        Padding="8,4"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch"
+                                        Style="{StaticResource SubtleButtonStyle}"
+                                        Click="OnNextClick"
+                                        AutomationProperties.AutomationId="FlyoutNext">
+                                        <Grid ColumnSpacing="8" ColumnDefinitions="Auto,*">
+                                            <Rectangle x:Name="NextBar" Width="3" RadiusX="1.5" RadiusY="1.5" />
+                                            <StackPanel Grid.Column="1" Spacing="4">
+                                                <TextBlock
+                                                    x:Name="NextTitle"
+                                                    Style="{StaticResource SubtitleTextBlockStyle}"
+                                                    MaxLines="2"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    TextWrapping="Wrap"
+                                                    AutomationProperties.AutomationId="FlyoutNextTitle" />
+                                                <TextBlock x:Name="NextWhen" Style="{StaticResource LeafSecondaryTextStyle}" AutomationProperties.AutomationId="FlyoutNextWhen" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Button>
                                     <Button
                                         x:Name="NextJoinButton"
-                                        Margin="0,12,0,0"
                                         HorizontalAlignment="Stretch"
                                         Style="{StaticResource AccentButtonStyle}"
                                         Click="OnNextJoinClick"
-                                        AutomationProperties.Name="Join"
                                         AutomationProperties.AutomationId="FlyoutJoinButton">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <controls:MeetingLogo x:Name="NextJoinLogo" />
@@ -162,43 +189,43 @@
                                                     <controls:PinnedItemsControl ItemsSource="{x:Bind Items}">
                                                         <controls:PinnedItemsControl.ItemTemplate>
                                                             <DataTemplate x:DataType="local:AgendaRow">
-                                                                <!-- Row: opens the event in the main window (spans the full width; Join sits inside it, so the
-                                                                     row keeps its highlight behind Join while the pointer is on Join too) -->
-                                                                <Button
-                                                                    Padding="8,4"
-                                                                    HorizontalAlignment="Stretch"
-                                                                    HorizontalContentAlignment="Stretch"
-                                                                    Style="{StaticResource SubtleButtonStyle}"
-                                                                    Click="{x:Bind Open}"
-                                                                    AutomationProperties.Name="{x:Bind Title}"
-                                                                    AutomationProperties.AutomationId="{x:Bind RowId}">
-                                                                    <Grid ColumnSpacing="12">
-                                                                        <Grid.ColumnDefinitions>
-                                                                            <ColumnDefinition Width="Auto" />
-                                                                            <ColumnDefinition Width="*" />
-                                                                            <ColumnDefinition Width="Auto" />
-                                                                        </Grid.ColumnDefinitions>
-                                                                        <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{x:Bind Accent}" />
-                                                                        <StackPanel Grid.Column="1">
-                                                                            <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
-                                                                            <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" Text="{x:Bind When}" />
-                                                                        </StackPanel>
-
-                                                                        <!-- Join (its own click; the row's doesn't run) -->
-                                                                        <Button
-                                                                            Grid.Column="2"
-                                                                            VerticalAlignment="Center"
-                                                                            Visibility="{x:Bind JoinVisibility}"
-                                                                            Click="{x:Bind Join}"
-                                                                            AutomationProperties.Name="Join"
-                                                                            AutomationProperties.AutomationId="{x:Bind JoinId}">
-                                                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                                                <controls:MeetingLogo Provider="{x:Bind Provider}" />
-                                                                                <TextBlock Text="Join" />
+                                                                <!-- Row And Join, side by side (sibling buttons, so Narrator and Tab meet each one on its own) -->
+                                                                <Grid ColumnSpacing="4" ColumnDefinitions="*,Auto">
+                                                                    <!-- Row: opens the event in the main window, with the calendar's color bar like the main
+                                                                         window's Upcoming list -->
+                                                                    <Button
+                                                                        Padding="8,4"
+                                                                        HorizontalAlignment="Stretch"
+                                                                        HorizontalContentAlignment="Stretch"
+                                                                        Style="{StaticResource SubtleButtonStyle}"
+                                                                        Click="{x:Bind Open}"
+                                                                        AutomationProperties.Name="{x:Bind Title}"
+                                                                        AutomationProperties.AutomationId="{x:Bind RowId}">
+                                                                        <Grid ColumnSpacing="8" ColumnDefinitions="Auto,*">
+                                                                            <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{x:Bind Accent}" />
+                                                                            <StackPanel Grid.Column="1">
+                                                                                <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
+                                                                                <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" Text="{x:Bind When}" />
                                                                             </StackPanel>
-                                                                        </Button>
-                                                                    </Grid>
-                                                                </Button>
+                                                                        </Grid>
+                                                                    </Button>
+
+                                                                    <!-- Join (its right edge on the panel's 16 DIP inset, like the footer's) -->
+                                                                    <Button
+                                                                        Grid.Column="1"
+                                                                        Margin="0,0,8,0"
+                                                                        VerticalAlignment="Center"
+                                                                        Visibility="{x:Bind JoinVisibility}"
+                                                                        Click="{x:Bind Join}"
+                                                                        ToolTipService.ToolTip="{x:Bind JoinTip}"
+                                                                        AutomationProperties.Name="{x:Bind JoinName}"
+                                                                        AutomationProperties.AutomationId="{x:Bind JoinId}">
+                                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                            <controls:MeetingLogo Provider="{x:Bind Provider}" />
+                                                                            <TextBlock Text="Join" />
+                                                                        </StackPanel>
+                                                                    </Button>
+                                                                </Grid>
                                                             </DataTemplate>
                                                         </controls:PinnedItemsControl.ItemTemplate>
                                                     </controls:PinnedItemsControl>
@@ -206,29 +233,30 @@
                                             </DataTemplate>
                                         </controls:PinnedItemsControl.ItemTemplate>
                                     </controls:PinnedItemsControl>
+                                    <!-- Empty List (one sentence: the header says when nothing at all is coming up) -->
                                     <TextBlock
                                         x:Name="AgendaEmpty"
                                         Margin="8,12"
                                         Style="{StaticResource LeafSecondaryTextStyle}"
-                                        Text="Nothing coming up."
+                                        Text="Nothing else coming up."
                                         AutomationProperties.AutomationId="FlyoutAgendaEmpty" />
                                 </StackPanel>
                             </ScrollViewer>
                             <!-- /Agenda -->
 
-                            <!-- Footer (New event at the left, Open calendar at the right) -->
+                            <!-- Footer (New event at the left, Open Leaf Calendar at the right) -->
                             <Border Grid.Row="3" Padding="16,12" Background="{ThemeResource LeafFlyoutFooterBrush}" CornerRadius="0,0,8,8">
                                 <Grid ColumnSpacing="8" ColumnDefinitions="Auto,*,Auto">
-                                    <Button Click="OnNewEventClick" AutomationProperties.Name="New event" AutomationProperties.AutomationId="FlyoutNewEvent">
+                                    <Button Click="OnNewEventClick" AutomationProperties.Name="New event…" AutomationProperties.AutomationId="FlyoutNewEvent">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon FontSize="14" Glyph="&#xE710;" AutomationProperties.AccessibilityView="Raw" />
-                                            <TextBlock Text="New event" />
+                                            <TextBlock Text="New event…" />
                                         </StackPanel>
                                     </Button>
-                                    <Button Grid.Column="2" Click="OnFlyoutOpenClick" AutomationProperties.Name="Open calendar" AutomationProperties.AutomationId="FlyoutOpenCalendar">
+                                    <Button Grid.Column="2" Click="OnFlyoutOpenClick" AutomationProperties.Name="Open Leaf Calendar" AutomationProperties.AutomationId="FlyoutOpenCalendar">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon FontSize="14" Glyph="&#xE787;" AutomationProperties.AccessibilityView="Raw" />
-                                            <TextBlock Text="Open calendar" />
+                                            <TextBlock Text="Open Leaf Calendar" />
                                         </StackPanel>
                                     </Button>
                                 </Grid>
