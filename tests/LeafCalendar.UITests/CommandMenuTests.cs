@@ -9,10 +9,10 @@ namespace LeafCalendar.UITests;
 
 public sealed class CommandMenuTests : IDisposable
 {
-    static readonly TimeSpan Wait = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan Wait = TimeSpan.FromSeconds(5);
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -20,7 +20,7 @@ public sealed class CommandMenuTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch()
+    private LeafApp Launch()
     {
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
         leaf.WaitFor("Event_evt-single_202610011300");
@@ -28,7 +28,7 @@ public sealed class CommandMenuTests : IDisposable
     }
 
     // Ctrl+K, then waits for the box to have focus
-    static AutomationElement OpenMenu(LeafApp leaf)
+    private static AutomationElement OpenMenu(LeafApp leaf)
     {
         leaf.Press(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_K);
         var box = leaf.WaitForAnywhere("CommandSearchBox");
@@ -37,10 +37,10 @@ public sealed class CommandMenuTests : IDisposable
     }
 
     // An element's automation ID, or "" for parts that don't support one (the list's scroll bar pieces)
-    static string Id(AutomationElement e) => e.Properties.AutomationId.ValueOrDefault ?? "";
+    private static string Id(AutomationElement e) => e.Properties.AutomationId.ValueOrDefault ?? "";
 
     // The result rows' automation IDs, top to bottom
-    static List<string> RowIds(LeafApp leaf) =>
+    private static List<string> RowIds(LeafApp leaf) =>
         [.. leaf.WaitForAnywhere("CommandResults")
             .FindAllDescendants()
             .Where(e => Id(e).StartsWith("CommandResult_", StringComparison.Ordinal) || Id(e).StartsWith("SearchResult_", StringComparison.Ordinal))
@@ -48,10 +48,10 @@ public sealed class CommandMenuTests : IDisposable
             .Select(Id)];
 
     // Waits until the first row is the expected one (typing settles for 120 ms before the search runs)
-    static void WaitForFirstRow(LeafApp leaf, string id) =>
+    private static void WaitForFirstRow(LeafApp leaf, string id) =>
         Assert.True(Retry.WhileFalse(() => RowIds(leaf) is [var first, ..] && first == id, Wait).Success, $"The first row isn't {id}; rows: {string.Join(", ", RowIds(leaf))}.");
 
-    static string PeriodTitle(LeafApp leaf) => leaf.WaitFor("PeriodTitle").Name;
+    private static string PeriodTitle(LeafApp leaf) => leaf.WaitFor("PeriodTitle").Name;
 
     // The menu sits centered over the window, and nothing in it scrolls sideways (it was 2 DIPs wider than its presenter)
     [Fact]
@@ -63,7 +63,7 @@ public sealed class CommandMenuTests : IDisposable
         var menu = leaf.WaitForAnywhere("CommandMenu");
         Thread.Sleep(500);
 
-        var box    = menu.BoundingRectangle;
+        var box = menu.BoundingRectangle;
         var client = leaf.ClientBounds;
         var offset = box.Left + box.Width / 2.0 - (client.Left + client.Width / 2.0);
         Assert.True(Math.Abs(offset) <= 2, $"The menu's center is {offset} px off the window's.");
@@ -74,7 +74,7 @@ public sealed class CommandMenuTests : IDisposable
 
         // Every Scroll Bar Around The Menu Is Vertical (the presenter's, the results')
         var popup = menu.Parent!.Parent ?? menu;
-        var bars  = popup.FindAllDescendants(cf => cf.ByControlType(ControlType.ScrollBar)).Where(b => !b.IsOffscreen && b.BoundingRectangle.Width > b.BoundingRectangle.Height).ToList();
+        var bars = popup.FindAllDescendants(cf => cf.ByControlType(ControlType.ScrollBar)).Where(b => !b.IsOffscreen && b.BoundingRectangle.Width > b.BoundingRectangle.Height).ToList();
         Assert.Empty(bars.Select(b => b.BoundingRectangle.ToString()));
     }
 
@@ -116,22 +116,22 @@ public sealed class CommandMenuTests : IDisposable
     public void SearchIcon_IsCenteredOverTheNextMonthButton_AndOpensTheMenu()
     {
         using var leaf = Launch();
-        var search  = leaf.WaitFor("SearchButton");
-        var next    = leaf.WaitFor("MiniMonthNext");
+        var search = leaf.WaitFor("SearchButton");
+        var next = leaf.WaitFor("MiniMonthNext");
         var sidebar = leaf.WaitFor("Sidebar");
         LeafApp.WaitUntilStill(sidebar);
         LeafApp.WaitUntilStill(next);
 
         // At The Right End Of The Sidebar's Title Bar Row, Centered Over Next Month
-        var searchBox  = search.BoundingRectangle;
-        var nextBox    = next.BoundingRectangle;
+        var searchBox = search.BoundingRectangle;
+        var nextBox = next.BoundingRectangle;
         var sidebarBox = sidebar.BoundingRectangle;
-        var client     = leaf.ClientBounds;
+        var client = leaf.ClientBounds;
         Assert.True(Math.Abs((searchBox.Left + searchBox.Right) / 2.0 - (nextBox.Left + nextBox.Right) / 2.0) <= 1,
             $"Search {searchBox} isn't centered over Next month {nextBox}.");
         // Inside The Right Half Of The 264 DIP Sidebar Pane (the 32 DIP icon is 4 wider than Next, so it can pass the
         // sidebar content's 5 DIP right padding by 2, but never the pane)
-        var paneLeft  = leaf.WaitFor("CalendarRoot").BoundingRectangle.Left;
+        var paneLeft = leaf.WaitFor("CalendarRoot").BoundingRectangle.Left;
         var paneRight = paneLeft + 264 * leaf.Scale;
         Assert.True(searchBox.Left >= paneLeft + 132 * leaf.Scale && searchBox.Right <= paneRight + 1,
             $"Search {searchBox} isn't in the right half of the sidebar pane ({paneLeft} to {paneRight}; sidebar {sidebarBox}).");
@@ -153,7 +153,7 @@ public sealed class CommandMenuTests : IDisposable
         Thread.Sleep(1000);
 
         var search = leaf.WaitFor("SearchButton");
-        var title  = leaf.WaitFor("PeriodTitle");
+        var title = leaf.WaitFor("PeriodTitle");
         Assert.False(search.IsOffscreen);
         Assert.True(search.IsEnabled);
         Assert.True(search.BoundingRectangle.Right <= title.BoundingRectangle.Left,
@@ -280,7 +280,7 @@ public sealed class CommandMenuTests : IDisposable
         Keyboard.Type(VirtualKeyShort.DOWN);
 
         var results = leaf.WaitForAnywhere("CommandResults");
-        var second  = RowIds(leaf)[1];
+        var second = RowIds(leaf)[1];
         Assert.True(Retry.WhileFalse(() => results.Patterns.Selection.Pattern.Selection.Value is [var selected]
             && selected.FindFirstDescendant(cf => cf.ByAutomationId(second)) is not null, Wait).Success, $"Down didn't select {second}.");
     }

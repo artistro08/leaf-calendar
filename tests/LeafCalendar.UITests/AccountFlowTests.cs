@@ -6,14 +6,14 @@ namespace LeafCalendar.UITests;
 
 public sealed class AccountFlowTests : IDisposable
 {
-    const string Email = "leaf.tester@gmail.com";
+    private const string Email = "leaf.tester@gmail.com";
 
-    readonly FakeGoogleServer _google = new();
+    private readonly FakeGoogleServer _google = new();
 
     public void Dispose() => _google.Dispose();
 
     // Onboarding signs the account in (and syncs it), then Settings › Accounts shows it
-    LeafApp LaunchAndAddAccount(string profile)
+    private LeafApp LaunchAndAddAccount(string profile)
     {
         var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri}");
         OnboardingTests.CompleteOnboarding(leaf);
@@ -22,14 +22,14 @@ public sealed class AccountFlowTests : IDisposable
         return leaf;
     }
 
-    static AutomationElement WaitForNameInSettings(LeafApp leaf, string name) =>
+    private static AutomationElement WaitForNameInSettings(LeafApp leaf, string name) =>
         Retry.WhileNull(() => leaf.SettingsView.FindFirstDescendant(cf => cf.ByName(name)), TimeSpan.FromSeconds(15)).Result
         ?? throw new InvalidOperationException($"'{name}' didn't appear in Settings.");
 
-    static bool InSettings(LeafApp leaf, string name) => leaf.SettingsView.FindFirstDescendant(cf => cf.ByName(name)) is not null;
+    private static bool InSettings(LeafApp leaf, string name) => leaf.SettingsView.FindFirstDescendant(cf => cf.ByName(name)) is not null;
 
     // Disconnect the only account and confirm
-    static void Disconnect(LeafApp leaf)
+    private static void Disconnect(LeafApp leaf)
     {
         leaf.PressDisconnectInSettings();
         leaf.WaitForAnywhere("PrimaryButton").AsButton().Invoke();

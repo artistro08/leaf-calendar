@@ -3,13 +3,13 @@ using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Views;
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
-using Microsoft.UI.Text;
 
 namespace LeafCalendar.App.Views;
 
@@ -21,23 +21,23 @@ namespace LeafCalendar.App.Views;
 public sealed partial class SidebarView : UserControl
 {
     // Mini Month Rows (the seven columns share the sidebar's width evenly)
-    const double MiniCellHeight   = 30;
-    const double MiniHeaderHeight = 24;
+    private const double MiniCellHeight = 30;
+    private const double MiniHeaderHeight = 24;
 
 
-    readonly TextBlock[] _weekdayLabels = new TextBlock[7];
-    readonly Button[] _dayButtons = new Button[42];
-    readonly TextBlock[] _dayLabels = new TextBlock[42];
-    readonly Border[] _dayBands = new Border[42];
-    readonly Style _dayStyle   = (Style)Application.Current.Resources["LeafMiniDayButtonStyle"];
-    readonly Style _todayStyle = (Style)Application.Current.Resources["LeafMiniTodayButtonStyle"];
+    private readonly TextBlock[] _weekdayLabels = new TextBlock[7];
+    private readonly Button[] _dayButtons = new Button[42];
+    private readonly TextBlock[] _dayLabels = new TextBlock[42];
+    private readonly Border[] _dayBands = new Border[42];
+    private readonly Style _dayStyle = (Style)Application.Current.Resources["LeafMiniDayButtonStyle"];
+    private readonly Style _todayStyle = (Style)Application.Current.Resources["LeafMiniTodayButtonStyle"];
 
     // Calendar List (bound once and kept in step in place; each realized checkbox with the row and color it was painted for)
-    readonly ObservableCollection<AccountGroup> _groups = [];
-    readonly Dictionary<CheckBox, (CalendarRow Row, string Color)> _painted = [];
-    readonly Dictionary<Microsoft.UI.Xaml.Controls.Primitives.SelectorItem, CalendarRow> _rowItems = [];
-    CalendarViewModel? _viewModel;
-    DateOnly _miniMonth;
+    private readonly ObservableCollection<AccountGroup> _groups = [];
+    private readonly Dictionary<CheckBox, (CalendarRow Row, string Color)> _painted = [];
+    private readonly Dictionary<Microsoft.UI.Xaml.Controls.Primitives.SelectorItem, CalendarRow> _rowItems = [];
+    private CalendarViewModel? _viewModel;
+    private DateOnly _miniMonth;
 
     /// <summary>Creates the sidebar.</summary>
     public SidebarView()
@@ -49,11 +49,11 @@ public sealed partial class SidebarView : UserControl
         ActualThemeChanged += (_, _) => RenderMiniMonth();
 
         // A Contrast Theme Turning On Or Off Redraws The Mini Month With The System's Colors (raised off the UI thread)
-        Loaded   += (_, _) => LeafBrushes.ContrastChanged += OnContrastChanged;
+        Loaded += (_, _) => LeafBrushes.ContrastChanged += OnContrastChanged;
         Unloaded += (_, _) => LeafBrushes.ContrastChanged -= OnContrastChanged;
     }
 
-    void OnContrastChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(RenderMiniMonth);
+    private void OnContrastChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(RenderMiniMonth);
 
     /// <summary>The share-availability button was clicked.</summary>
     public event EventHandler? ShareAvailabilityRequested;
@@ -69,13 +69,13 @@ public sealed partial class SidebarView : UserControl
     {
         _viewModel = viewModel;
 
-        _viewModel.CalendarsChanged      += OnCalendarsChanged;
+        _viewModel.CalendarsChanged += OnCalendarsChanged;
         _viewModel.AccountFoldingChanged += OnCalendarsChanged;
-        _viewModel.PropertyChanged       += OnViewModelPropertyChanged;
-        _viewModel.LayoutChanged         += OnLayoutChanged;
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        _viewModel.LayoutChanged += OnLayoutChanged;
 
         UpdateCalendarList();
-        ShowMonthOf(ViewNavigator.MiniMonthAnchor(_viewModel.Mode, _viewModel.PeriodStart, _viewModel.VisibleColumns, _viewModel.Today));
+        ShowMonthOf(ViewNavigator.MiniMonthAnchor(_viewModel.Mode, _viewModel.PeriodStart, _viewModel.VisibleColumns, _viewModel.Today, _viewModel.Settings.ShowWeekends));
     }
 
     /// <summary>Disconnects from the view model.</summary>
@@ -83,40 +83,40 @@ public sealed partial class SidebarView : UserControl
     {
         if (_viewModel is not null)
         {
-            _viewModel.CalendarsChanged      -= OnCalendarsChanged;
+            _viewModel.CalendarsChanged -= OnCalendarsChanged;
             _viewModel.AccountFoldingChanged -= OnCalendarsChanged;
-            _viewModel.PropertyChanged       -= OnViewModelPropertyChanged;
-            _viewModel.LayoutChanged         -= OnLayoutChanged;
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _viewModel.LayoutChanged -= OnLayoutChanged;
         }
 
         _viewModel = null;
     }
 
-    void OnCalendarsChanged(object? sender, EventArgs e) => UpdateCalendarList();
+    private void OnCalendarsChanged(object? sender, EventArgs e) => UpdateCalendarList();
 
     /// <summary>Dims the mini month, the calendar list, and the footer's icons while the window isn't the active one.</summary>
     public void SetWindowActive(bool active)
     {
         var opacity = active ? 1 : CalendarPage.InactiveOpacity;
-        MiniMonth.Opacity     = opacity;
+        MiniMonth.Opacity = opacity;
         ContentScroll.Opacity = opacity;
-        Footer.Opacity        = opacity;
+        Footer.Opacity = opacity;
     }
 
     // A new day, week start, or time zone moves today's circle and the weekday names
-    void OnLayoutChanged(object? sender, EventArgs e) => RenderMiniMonth();
+    private void OnLayoutChanged(object? sender, EventArgs e) => RenderMiniMonth();
 
-    void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(CalendarViewModel.PeriodStart) && _viewModel is not null)
         {
-            ShowMonthOf(ViewNavigator.MiniMonthAnchor(_viewModel.Mode, _viewModel.PeriodStart, _viewModel.VisibleColumns, _viewModel.Today));
+            ShowMonthOf(ViewNavigator.MiniMonthAnchor(_viewModel.Mode, _viewModel.PeriodStart, _viewModel.VisibleColumns, _viewModel.Today, _viewModel.Settings.ShowWeekends));
         }
     }
 
     // Every change lands here (a sync, a checkbox, a color, a reorder, an account added or removed). Rows are matched by
     // calendar ID and updated in place, so a checkbox only checks or unchecks, and only calendars that came or went animate.
-    void UpdateCalendarList()
+    private void UpdateCalendarList()
     {
         if (_viewModel is null)
         {
@@ -157,7 +157,7 @@ public sealed partial class SidebarView : UserControl
     // =========================================================================
 
     // Seven even columns: a weekday row, then six weeks of day buttons
-    void BuildMiniMonth()
+    private void BuildMiniMonth()
     {
         for (var c = 0; c < 7; c++)
         {
@@ -175,9 +175,9 @@ public sealed partial class SidebarView : UserControl
         {
             var label = new TextBlock
             {
-                FontSize            = 11,
+                FontSize = 11,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment   = VerticalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
             };
             Grid.SetColumn(label, c);
             MiniMonthDays.Children.Add(label);
@@ -193,7 +193,7 @@ public sealed partial class SidebarView : UserControl
             MiniMonthDays.Children.Add(band);
             _dayBands[i] = band;
 
-            var label  = new TextBlock();
+            var label = new TextBlock();
             var button = new Button { Style = _dayStyle, Content = label };
             _dayLabels[i] = label;
             button.Click += OnMiniDayClick;
@@ -204,54 +204,59 @@ public sealed partial class SidebarView : UserControl
         }
     }
 
-    void ShowMonthOf(DateOnly date)
+    private void ShowMonthOf(DateOnly date)
     {
         _miniMonth = ViewNavigator.MonthStartOf(date);
         RenderMiniMonth();
     }
 
     // Today on an accent circle, the visible days on a soft band, other months' days dimmed
-    void RenderMiniMonth()
+    private void RenderMiniMonth()
     {
         if (_miniMonth == default)
         {
             return;
         }
 
-        var dark      = ActualTheme == ElementTheme.Dark;
+        var dark = ActualTheme == ElementTheme.Dark;
+        var contrast = LeafBrushes.HighContrast;
         var weekStart = _viewModel?.Settings.WeekStart ?? DayOfWeek.Sunday;
-        var today     = _viewModel?.Today ?? DateOnly.FromDateTime(DateTime.Today);
-        var first     = ViewNavigator.WeekStartOf(_miniMonth, weekStart);
-        var shown     = _viewModel is { Mode: not Core.Settings.CalendarViewMode.Month } vm ? (Start: vm.PeriodStart, End: vm.PeriodStart.AddDays(vm.VisibleColumns)) : default;
+        var today = _viewModel?.Today ?? DateOnly.FromDateTime(DateTime.Today);
+        var first = ViewNavigator.WeekStartOf(_miniMonth, weekStart);
+        var shown = _viewModel is { Mode: not Core.Settings.CalendarViewMode.Month } vm ? vm.VisibleDays().ToHashSet() : [];
 
         MiniMonthTitle.Text = ViewNavigator.MonthTitle(_miniMonth);
 
         for (var c = 0; c < 7; c++)
         {
-            _weekdayLabels[c].Text       = TimeLabels.WeekdayShort(first.AddDays(c))[..2];
+            _weekdayLabels[c].Text = TimeLabels.WeekdayShort(first.AddDays(c))[..2];
             _weekdayLabels[c].Foreground = LeafBrushes.SecondaryText(dark);
         }
 
         for (var i = 0; i < 42; i++)
         {
-            var date    = first.AddDays(i);
-            var button  = _dayButtons[i];
-            var text    = _dayLabels[i];
+            var date = first.AddDays(i);
+            var button = _dayButtons[i];
+            var text = _dayLabels[i];
             var isToday = date == today;
 
-            text.Text       = date.Day.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            text.Text = date.Day.ToString(System.Globalization.CultureInfo.InvariantCulture);
             text.FontWeight = isToday ? FontWeights.SemiBold : FontWeights.Normal;
-            text.Opacity    = isToday || date.Month == _miniMonth.Month ? 1 : 0.45;
-            button.Tag      = date.ToString("O", System.Globalization.CultureInfo.InvariantCulture);
+            text.Opacity = isToday || date.Month == _miniMonth.Month ? 1 : 0.45;
+            button.Tag = date.ToString("O", System.Globalization.CultureInfo.InvariantCulture);
 
             // Visible-Days Band (rounded where the strip starts and ends, or wraps to the next row)
-            var inBand   = date >= shown.Start && date < shown.End;
-            var column   = i % 7;
-            var roundL   = date == shown.Start || column == 0 ? 14 : 0;
-            var roundR   = date.AddDays(1) == shown.End || column == 6 ? 14 : 0;
-            var band     = _dayBands[i];
-            band.Background   = inBand ? LeafBrushes.FromHex(dark ? "#14FFFFFF" : "#0F000000") : null;
+            var inBand = shown.Contains(date);
+            var column = i % 7;
+            var roundL = !shown.Contains(date.AddDays(-1)) || column == 0 ? 14 : 0;
+            var roundR = !shown.Contains(date.AddDays(1)) || column == 6 ? 14 : 0;
+            var band = _dayBands[i];
+            band.Background = inBand && !contrast ? LeafBrushes.FromHex(dark ? "#14FFFFFF" : "#0F000000") : null;
             band.CornerRadius = new CornerRadius(roundL, roundR, roundR, roundL);
+
+            // A Contrast Theme Outlines The Strip In The System's Highlight Color Instead (a tint would vanish)
+            band.BorderBrush = inBand && contrast ? LeafBrushes.Accent(dark) : null;
+            band.BorderThickness = inBand && contrast ? new Thickness(roundL > 0 ? 1 : 0, 1, roundR > 0 ? 1 : 0, 1) : default;
 
             // Today (an accent circle from its style, in the theme's own accent and on-accent colors). Other days
             // carry their text color themselves, so no hover or press state can repaint the number.
@@ -270,11 +275,11 @@ public sealed partial class SidebarView : UserControl
         }
     }
 
-    void OnMiniMonthPreviousClick(object sender, RoutedEventArgs e) => ShowMonthOf(_miniMonth.AddMonths(-1));
+    private void OnMiniMonthPreviousClick(object sender, RoutedEventArgs e) => ShowMonthOf(_miniMonth.AddMonths(-1));
 
-    void OnMiniMonthNextClick(object sender, RoutedEventArgs e) => ShowMonthOf(_miniMonth.AddMonths(1));
+    private void OnMiniMonthNextClick(object sender, RoutedEventArgs e) => ShowMonthOf(_miniMonth.AddMonths(1));
 
-    void OnMiniDayClick(object sender, RoutedEventArgs e)
+    private void OnMiniDayClick(object sender, RoutedEventArgs e)
     {
         if (_viewModel is null || sender is not Button { Tag: string tag })
         {
@@ -285,23 +290,27 @@ public sealed partial class SidebarView : UserControl
     }
 
     // An account header folds its calendars away or shows them again (Settings › Calendars follows)
-    void OnAccountHeaderClick(object sender, RoutedEventArgs e)
+    private void OnAccountHeaderClick(object sender, RoutedEventArgs e)
     {
         if (_viewModel is null || sender is not Button { Tag: AccountGroup group, Parent: Panel header } || header.Children.OfType<ListViewBase>().FirstOrDefault() is not { } list)
         {
             return;
         }
 
-        // A Fold Still Running Ends Where It Was Going First
+        // A Fold Still Running Ends Where It Was Going First (a fold-away commits, so this click reopens it)
+        var viewModel = _viewModel;
         if (_folds.Remove(list, out var running))
         {
-            running.SkipToFill();
-            running.Stop();
-            FinishFold(list, running);
+            running.Fold.SkipToFill();
+            running.Fold.Stop();
+            FinishFold(list, running.Fold);
+            if (!running.Expand)
+            {
+                viewModel.SetAccountExpanded(group.AccountId, false);
+            }
         }
 
-        var viewModel = _viewModel;
-        var expand    = !group.IsExpanded;
+        var expand = !group.IsExpanded;
         if (!new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
         {
             viewModel.SetAccountExpanded(group.AccountId, expand);
@@ -325,10 +334,10 @@ public sealed partial class SidebarView : UserControl
 
         var slide = new DoubleAnimation
         {
-            From                     = from,
-            To                       = to,
-            Duration                 = FoldDuration,
-            EasingFunction           = new CubicEase { EasingMode = EasingMode.EaseOut },
+            From = from,
+            To = to,
+            Duration = FoldDuration,
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
             EnableDependentAnimation = true,
         };
         Storyboard.SetTarget(slide, list);
@@ -336,8 +345,11 @@ public sealed partial class SidebarView : UserControl
         var fold = new Storyboard { Children = { slide } };
         fold.Completed += (_, _) =>
         {
-            if (_folds.Remove(list))
+            // Only While It's Still The List's Fold: one cut short by a click (SkipToFill) completes later, after the click's
+            // own fold took its place, and must leave that one alone
+            if (_folds.TryGetValue(list, out var current) && ReferenceEquals(current.Fold, fold))
             {
+                _folds.Remove(list);
                 if (!expand)
                 {
                     viewModel.SetAccountExpanded(group.AccountId, false);
@@ -350,18 +362,18 @@ public sealed partial class SidebarView : UserControl
         // The Accounts Below Follow The List Frame By Frame, So Their Own Slide Is Off Meanwhile
         CalendarList.ItemContainerTransitions = new TransitionCollection();
         list.Height = from;
-        _folds[list] = fold;
+        _folds[list] = (fold, expand);
         fold.Begin();
     }
 
-    // Folds running, by the list they slide
-    readonly Dictionary<ListViewBase, Storyboard> _folds = [];
+    // Folds running, by the list they slide, and whether each is opening (true) or folding away
+    private readonly Dictionary<ListViewBase, (Storyboard Fold, bool Expand)> _folds = [];
 
     // How long an account's calendars take to slide open or shut
-    static readonly TimeSpan FoldDuration = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan FoldDuration = TimeSpan.FromMilliseconds(250);
 
     // A fold ended: the list sizes to its rows again, and the accounts slide again once no fold runs
-    void FinishFold(ListViewBase list, Storyboard fold)
+    private void FinishFold(ListViewBase list, Storyboard fold)
     {
         fold.Stop();
         list.ClearValue(HeightProperty);
@@ -371,17 +383,20 @@ public sealed partial class SidebarView : UserControl
         }
     }
 
-    void OnVisibilityClick(object sender, RoutedEventArgs e)
+    private void OnVisibilityClick(object sender, RoutedEventArgs e)
     {
         if (_viewModel is not null && sender is CheckBox { Tag: CalendarRow row } box)
         {
             _viewModel.SetCalendarHidden(row.Info, hidden: box.IsChecked != true);
+
+            // A Save That Failed Leaves The Row Unchanged, So The Box Goes Back To What's Stored
+            box.IsChecked = row.IsVisible;
         }
     }
 
     // Color Each Checkbox With Its Calendar's Color: only the 20 px box's own fill and stroke. Setting the
     // CheckBox's Background paints its whole 32 px-tall root grid, which bled past the box when unchecked.
-    void OnCalendarRowChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    private void OnCalendarRowChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         if (args.ItemContainer.ContentTemplateRoot is not Grid { Children: [CheckBox box, ..] })
         {
@@ -410,7 +425,7 @@ public sealed partial class SidebarView : UserControl
     // =========================================================================
 
     // The right-click menu of one row; the row is captured here, so nothing is read back from the item
-    MenuFlyout MenuFor(CalendarRow row)
+    private MenuFlyout MenuFor(CalendarRow row)
     {
         var menu = new MenuFlyout();
         menu.Items.Add(MenuItem("Rename…", "", "CalendarMenu_Rename", () =>
@@ -425,7 +440,7 @@ public sealed partial class SidebarView : UserControl
         return menu;
     }
 
-    static MenuFlyoutItem MenuItem(string text, string glyph, string automationId, Action click)
+    private static MenuFlyoutItem MenuItem(string text, string glyph, string automationId, Action click)
     {
         var item = new MenuFlyoutItem { Text = text, Icon = new FontIcon { Glyph = glyph } };
         AutomationProperties.SetAutomationId(item, automationId);
@@ -433,13 +448,13 @@ public sealed partial class SidebarView : UserControl
         return item;
     }
 
-    void Paint(CheckBox box, CalendarRow row)
+    private void Paint(CheckBox box, CalendarRow row)
     {
         _painted[box] = (row, row.Color);
 
         // Hover and press lighten the color like Fluent's accent (90% and 80%), so the row hover shows on a checked box too
-        var brush   = LeafBrushes.FromHex(row.Color);
-        var hover   = new SolidColorBrush(brush.Color) { Opacity = 0.9 };
+        var brush = LeafBrushes.FromHex(row.Color);
+        var hover = new SolidColorBrush(brush.Color) { Opacity = 0.9 };
         var pressed = new SolidColorBrush(brush.Color) { Opacity = 0.8 };
         foreach (var (key, value) in new[]
         {
@@ -474,7 +489,7 @@ public sealed partial class SidebarView : UserControl
         }
     }
 
-    static void OnRepaintedBoxLoaded(object sender, RoutedEventArgs e)
+    private static void OnRepaintedBoxLoaded(object sender, RoutedEventArgs e)
     {
         var box = (CheckBox)sender;
         box.Loaded -= OnRepaintedBoxLoaded;
@@ -489,9 +504,9 @@ public sealed partial class SidebarView : UserControl
     // One hover for the whole row: its background fades in, and the checkbox shows its own hover state (the
     // checkbox only knows about the pointer over itself, so the row drives it). Enter and exit bubble up from
     // the checkbox and its name too, so an exit only counts once the pointer is really outside the row.
-    void OnRowPointerEntered(object sender, PointerRoutedEventArgs e) => SetRowHover(sender, hover: true);
+    private void OnRowPointerEntered(object sender, PointerRoutedEventArgs e) => SetRowHover(sender, hover: true);
 
-    void OnRowPointerExited(object sender, PointerRoutedEventArgs e)
+    private void OnRowPointerExited(object sender, PointerRoutedEventArgs e)
     {
         if (sender is not FrameworkElement row)
         {
@@ -502,7 +517,7 @@ public sealed partial class SidebarView : UserControl
         SetRowHover(sender, hover: at.X >= 0 && at.Y >= 0 && at.X < row.ActualWidth && at.Y < row.ActualHeight);
     }
 
-    static void SetRowHover(object sender, bool hover)
+    private static void SetRowHover(object sender, bool hover)
     {
         if (sender is not Grid { Children: [CheckBox box, ..] } row)
         {
@@ -513,10 +528,10 @@ public sealed partial class SidebarView : UserControl
         ShowCheckBoxHover(box, hover);
     }
 
-    static void ShowCheckBoxHover(CheckBox box, bool hover) =>
+    private static void ShowCheckBoxHover(CheckBox box, bool hover) =>
         VisualStateManager.GoToState(box, (box.IsChecked == true ? "Checked" : "Unchecked") + (hover ? "PointerOver" : "Normal"), true);
 
-    void OnCalendarsReordered(ListViewBase sender, DragItemsCompletedEventArgs args)
+    private void OnCalendarsReordered(ListViewBase sender, DragItemsCompletedEventArgs args)
     {
         if (_viewModel is null || sender.ItemsSource is not IEnumerable<CalendarRow> rows)
         {
@@ -530,9 +545,9 @@ public sealed partial class SidebarView : UserControl
         }
     }
 
-    void OnSettingsClick(object sender, RoutedEventArgs e) => _viewModel?.OpenSettings?.Invoke(SettingsSection.General);
+    private void OnSettingsClick(object sender, RoutedEventArgs e) => _viewModel?.OpenSettings?.Invoke(SettingsSection.General);
 
-    void OnShareClick(object sender, RoutedEventArgs e) => ShareAvailabilityRequested?.Invoke(this, EventArgs.Empty);
+    private void OnShareClick(object sender, RoutedEventArgs e) => ShareAvailabilityRequested?.Invoke(this, EventArgs.Empty);
 
-    void OnShortcutsClick(object sender, RoutedEventArgs e) => ShortcutsRequested?.Invoke(this, EventArgs.Empty);
+    private void OnShortcutsClick(object sender, RoutedEventArgs e) => ShortcutsRequested?.Invoke(this, EventArgs.Empty);
 }

@@ -6,26 +6,26 @@ namespace LeafCalendar.Tests;
 
 public class ToastContentTests
 {
-    static readonly DateTimeOffset Start = new(2026, 10, 1, 18, 0, 0, TimeSpan.Zero);
-    static readonly Uri Meet = new("https://meet.google.com/abc-defg-hij");
+    private static readonly DateTimeOffset Start = new(2026, 10, 1, 18, 0, 0, TimeSpan.Zero);
+    private static readonly Uri Meet = new("https://meet.google.com/abc-defg-hij");
 
-    static CalendarOccurrence Occurrence(string title = "Design review", bool allDay = false) =>
+    private static CalendarOccurrence Occurrence(string title = "Design review", bool allDay = false) =>
         new("109876543210", "leaf.tester@gmail.com", "evt-meet", null, null, Start, Start.AddHours(1), allDay, title, EventKind.Default, ResponseStatus.Accepted, "#4285F4", null, false, true);
 
-    static EventDetails Details(string title = "Design review", string? location = "Room 4", string? organizer = "boss@example.com") =>
+    private static EventDetails Details(string title = "Design review", string? location = "Room 4", string? organizer = "boss@example.com") =>
         new(title, location, "", EventKind.Default, ResponseStatus.NeedsAction, null, Meet, false, 3, organizer);
 
-    static Alert Reminder(Uri? link = null, string title = "Design review") =>
+    private static Alert Reminder(Uri? link = null, string title = "Design review") =>
         new(AlertKind.Reminder, Occurrence(title), Start.AddMinutes(-10), 10, link);
 
-    static XElement Parse(ToastMessage message) => XDocument.Parse(message.Xml).Root!;
+    private static XElement Parse(ToastMessage message) => XDocument.Parse(message.Xml).Root!;
 
-    static List<string> Texts(XElement toast) => [.. toast.Descendants("text").Select(t => t.Value)];
+    private static List<string> Texts(XElement toast) => [.. toast.Descendants("text").Select(t => t.Value)];
 
-    static List<XElement> Actions(XElement toast) => [.. toast.Descendants("action")];
+    private static List<XElement> Actions(XElement toast) => [.. toast.Descendants("action")];
 
     // Every element and attribute name, in order: what event text must never change
-    static List<string> Shape(XElement toast) =>
+    private static List<string> Shape(XElement toast) =>
         [.. toast.DescendantsAndSelf().Select(e => e.Name + "(" + string.Join(",", e.Attributes().Select(a => a.Name)) + ")")];
 
     [Fact]
@@ -34,8 +34,8 @@ public class ToastContentTests
         var hostile = "Standup</text><action content=\"Pwn\" arguments=\"x\"/><text>&\"'\r\n\u202E\u200B\u2066" + new string('x', 5000);
 
         var message = ToastContent.Reminder(Reminder(Meet, hostile), Details(hostile, location: "<b>Room</b>\u202E"), "Today \u00B7 2 PM \u2013 3 PM", "default", sound: true);
-        var toast   = Parse(message);
-        var benign  = Parse(ToastContent.Reminder(Reminder(Meet), Details(), "Today \u00B7 2 PM \u2013 3 PM", "default", sound: true));
+        var toast = Parse(message);
+        var benign = Parse(ToastContent.Reminder(Reminder(Meet), Details(), "Today \u00B7 2 PM \u2013 3 PM", "default", sound: true));
 
         var texts = Texts(toast);
         Assert.StartsWith("Standup</text><action", texts[0], StringComparison.Ordinal);
@@ -64,7 +64,7 @@ public class ToastContentTests
     [Fact]
     public void Reminder_WithLink_HasJoinSnoozeAndDismiss()
     {
-        var toast   = Parse(ToastContent.Reminder(Reminder(Meet), Details(), "Today \u00B7 2 PM \u2013 3 PM", "default", sound: true));
+        var toast = Parse(ToastContent.Reminder(Reminder(Meet), Details(), "Today \u00B7 2 PM \u2013 3 PM", "default", sound: true));
         var actions = Actions(toast);
 
         Assert.Equal("reminder", (string?)toast.Attribute("scenario"));
@@ -91,7 +91,7 @@ public class ToastContentTests
     public void Reminder_Click_OpensTheEvent()
     {
         var message = ToastContent.Reminder(Reminder(Meet), Details(), "Today", "work", sound: true);
-        var launch  = ToastArgs.Parse((string?)Parse(message).Attribute("launch"))!;
+        var launch = ToastArgs.Parse((string?)Parse(message).Attribute("launch"))!;
 
         Assert.Equal(new ToastArgs(ToastAction.Open, "work", "109876543210", "leaf.tester@gmail.com", "evt-meet", Start), launch);
         Assert.Equal(ToastContent.ReminderGroup, message.Group);
@@ -109,9 +109,9 @@ public class ToastContentTests
     [Fact]
     public void JoinNow_ReminderScenario_JoinAndDismissOnly()
     {
-        var alert   = new Alert(AlertKind.JoinNow, Occurrence(), Start, 0, Meet);
+        var alert = new Alert(AlertKind.JoinNow, Occurrence(), Start, 0, Meet);
         var message = ToastContent.JoinNow(alert, Details(), "Today \u00B7 2 PM \u2013 3 PM", "default", sound: true);
-        var toast   = Parse(message);
+        var toast = Parse(message);
         var actions = Actions(toast);
 
         Assert.Equal("reminder", (string?)toast.Attribute("scenario"));
@@ -127,7 +127,7 @@ public class ToastContentTests
     [Fact]
     public void Invite_Update_HasYesNoMaybe()
     {
-        var toast   = Parse(ToastContent.Invite(Occurrence(), Details(), isUpdate: true, "TAG", "Today \u00B7 2 PM \u2013 3 PM", "default", sound: true));
+        var toast = Parse(ToastContent.Invite(Occurrence(), Details(), isUpdate: true, "TAG", "Today \u00B7 2 PM \u2013 3 PM", "default", sound: true));
         var actions = Actions(toast);
 
         Assert.Equal("Updated invitation from boss@example.com", Texts(toast)[2]);
@@ -167,7 +167,7 @@ public class ToastContentTests
     public void Conflicts_CountAndReviewClick(int count, string title)
     {
         var message = ToastContent.Conflicts(count, "default", sound: true);
-        var toast   = Parse(message);
+        var toast = Parse(message);
 
         Assert.Equal(title, Texts(toast)[0]);
         Assert.Equal(ToastAction.ReviewConflicts, ToastArgs.Parse((string?)toast.Attribute("launch"))!.Action);
@@ -178,7 +178,7 @@ public class ToastContentTests
     public void SignIn_NamesTheAccountAndOpensSettings()
     {
         var message = ToastContent.SignIn("109876543210", "leaf.tester@gmail.com", "default", sound: true);
-        var toast   = Parse(message);
+        var toast = Parse(message);
 
         Assert.Equal("Sign in again", Texts(toast)[0]);
         Assert.Contains("leaf.tester@gmail.com", Texts(toast)[1], StringComparison.Ordinal);
@@ -268,8 +268,8 @@ public class ToastContentTests
     public void SignIn_HostileEmail_StaysPlainText()
     {
         var hostile = "x</text><action content=\"Pwn\" arguments=\"x\"/><text>‮​@evil.test";
-        var toast   = Parse(ToastContent.SignIn("1", hostile, "default", sound: true));
-        var benign  = Parse(ToastContent.SignIn("1", "a@b.test", "default", sound: true));
+        var toast = Parse(ToastContent.SignIn("1", hostile, "default", sound: true));
+        var benign = Parse(ToastContent.SignIn("1", "a@b.test", "default", sound: true));
 
         Assert.Equal(Shape(benign), Shape(toast));
         Assert.DoesNotContain('‮', Texts(toast)[1]);
@@ -280,8 +280,8 @@ public class ToastContentTests
     public void Invite_HostileOrganizer_StaysPlainText()
     {
         var hostile = "x</text><action content=\"Pwn\" arguments=\"x\"/><text>‮​@evil.test";
-        var toast   = Parse(ToastContent.Invite(Occurrence(), Details(organizer: hostile), false, "tag", "Today", "default", sound: true));
-        var benign  = Parse(ToastContent.Invite(Occurrence(), Details(), false, "tag", "Today", "default", sound: true));
+        var toast = Parse(ToastContent.Invite(Occurrence(), Details(organizer: hostile), false, "tag", "Today", "default", sound: true));
+        var benign = Parse(ToastContent.Invite(Occurrence(), Details(), false, "tag", "Today", "default", sound: true));
 
         Assert.Equal(Shape(benign), Shape(toast));
         Assert.DoesNotContain('‮', Texts(toast)[2]);

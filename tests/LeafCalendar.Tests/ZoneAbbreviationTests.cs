@@ -5,10 +5,10 @@ namespace LeafCalendar.Tests;
 public class ZoneAbbreviationTests
 {
     // Mid-July and mid-January, so each zone is on daylight time in one and standard time in the other
-    static readonly DateTimeOffset July    = new(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
-    static readonly DateTimeOffset January = new(2026, 1, 15, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset July = new(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset January = new(2026, 1, 15, 12, 0, 0, TimeSpan.Zero);
 
-    static TimeZoneInfo Zone(string id) => TimeZoneInfo.FindSystemTimeZoneById(id);
+    private static TimeZoneInfo Zone(string id) => TimeZoneInfo.FindSystemTimeZoneById(id);
 
     [Theory]
     [InlineData("America/New_York", "EDT", "EST")]

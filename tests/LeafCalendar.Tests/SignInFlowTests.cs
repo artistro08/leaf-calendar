@@ -10,19 +10,19 @@ namespace LeafCalendar.Tests;
 
 public sealed class SignInFlowTests : IDisposable
 {
-    const string TokenUrl    = "https://oauth2.googleapis.com/token";
-    const string RevokeUrl   = "https://oauth2.googleapis.com/revoke";
-    const string UserInfoUrl = "https://openidconnect.googleapis.com/v1/userinfo";
+    private const string TokenUrl = "https://oauth2.googleapis.com/token";
+    private const string RevokeUrl = "https://oauth2.googleapis.com/revoke";
+    private const string UserInfoUrl = "https://openidconnect.googleapis.com/v1/userinfo";
 
-    static readonly HttpClient Browser = new();
+    private static readonly HttpClient Browser = new();
 
-    readonly FakeHttpHandler _google = new();
-    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
-    readonly InMemoryTokenStore _store = new();
-    readonly TestDatabase _db = new();
-    readonly TempFolder _logs = new();
+    private readonly FakeHttpHandler _google = new();
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
+    private readonly InMemoryTokenStore _store = new();
+    private readonly TestDatabase _db = new();
+    private readonly TempFolder _logs = new();
 
-    readonly List<AccessTokenProvider> _providers = [];
+    private readonly List<AccessTokenProvider> _providers = [];
 
     public void Dispose()
     {
@@ -35,7 +35,7 @@ public sealed class SignInFlowTests : IDisposable
         _logs.Dispose();
     }
 
-    SignInFlow CreateFlow(Func<Uri, Task> openBrowser)
+    private SignInFlow CreateFlow(Func<Uri, Task> openBrowser)
     {
         var oauth = new GoogleOAuthClient(new HttpClient(_google), new("id.apps.googleusercontent.com", "GOCSPX-test"), _time);
         var tokens = new AccessTokenProvider(oauth, _store, _time);
@@ -44,17 +44,17 @@ public sealed class SignInFlowTests : IDisposable
     }
 
     // Acts like Google + the browser: reads the consent URL and hits the loopback redirect.
-    static Func<Uri, Task> GoogleRedirects(Func<IReadOnlyDictionary<string, string>, string> replyQuery) => consentUrl =>
+    private static Func<Uri, Task> GoogleRedirects(Func<IReadOnlyDictionary<string, string>, string> replyQuery) => consentUrl =>
     {
-        var query    = QueryString.Parse(consentUrl.Query);
+        var query = QueryString.Parse(consentUrl.Query);
         var redirect = new Uri(query["redirect_uri"]);
         _ = Task.Run(() => Browser.GetAsync(new Uri(redirect, "?" + replyQuery(query))));
         return Task.CompletedTask;
     };
 
-    static string Approve(IReadOnlyDictionary<string, string> q) => $"code=4%2Fauth-code&state={Uri.EscapeDataString(q["state"])}";
+    private static string Approve(IReadOnlyDictionary<string, string> q) => $"code=4%2Fauth-code&state={Uri.EscapeDataString(q["state"])}";
 
-    void GoogleAccepts(string tokenFixture = "token-response.json")
+    private void GoogleAccepts(string tokenFixture = "token-response.json")
     {
         _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read(tokenFixture));
         _google.On(HttpMethod.Get, UserInfoUrl, HttpStatusCode.OK, Fixture.Read("userinfo.json"));
@@ -71,7 +71,7 @@ public sealed class SignInFlowTests : IDisposable
         var account = await CreateFlow(url => { consentUrl = url; return redirect(url); }).RunAsync(null, TestContext.Current.CancellationToken);
 
         // Code exchanged with the matching PKCE verifier and redirect
-        var consent  = QueryString.Parse(consentUrl!.Query);
+        var consent = QueryString.Parse(consentUrl!.Query);
         var exchange = _google.Requests.Single(r => r.Uri.AbsoluteUri == TokenUrl);
         Assert.Equal("4/auth-code", exchange.Form("code"));
         Assert.Equal(consent["code_challenge"], Pkce.CreateChallenge(exchange.Form("code_verifier")!));
@@ -93,12 +93,12 @@ public sealed class SignInFlowTests : IDisposable
         // A Forged Reply Hits The Port Before Google's Real One
         Func<Uri, Task> forgedThenReal = consentUrl =>
         {
-            var query    = QueryString.Parse(consentUrl.Query);
+            var query = QueryString.Parse(consentUrl.Query);
             var redirect = new Uri(query["redirect_uri"]);
             _ = Task.Run(async () =>
             {
                 using var forged = await Browser.GetAsync(new Uri(redirect, "?code=4%2Fstolen&state=forged"));
-                using var real   = await Browser.GetAsync(new Uri(redirect, "?" + Approve(query)));
+                using var real = await Browser.GetAsync(new Uri(redirect, "?" + Approve(query)));
             });
             return Task.CompletedTask;
         };
@@ -146,6 +146,49 @@ public sealed class SignInFlowTests : IDisposable
         Assert.Empty(_store.GetAccountIds());
         using var conn = _db.Database.Open();
         Assert.Empty(AccountStore.GetAll(conn));
+    }
+
+    // A Wrong Client ID Or Secret Can Never Work On Retry, So The Message Says Where To Fix It
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, "invalid_client")]
+    [InlineData(HttpStatusCode.BadRequest, "invalid_client")]
+    [InlineData(HttpStatusCode.Unauthorized, "unauthorized_client")]
+    [InlineData(HttpStatusCode.Unauthorized, "deleted_client")]
+    public async Task RunAsync_TokenEndpointRejectsClient_SaysToCheckTheClient(HttpStatusCode status, string code)
+    {
+        _google.On(HttpMethod.Post, TokenUrl, status, $$"""{"error":"{{code}}","error_description":"Unauthorized"}""");
+
+        var error = await Assert.ThrowsAsync<SignInException>(
+            () => CreateFlow(GoogleRedirects(Approve)).RunAsync(null, TestContext.Current.CancellationToken));
+
+        Assert.Equal(
+            "Google didn't accept the OAuth client's ID or secret. Check them in setup's Connect your Google Cloud client step, or in Settings › Accounts › Change OAuth client.",
+            error.Message);
+        Assert.Empty(_store.GetAccountIds());
+    }
+
+    [Fact]
+    public async Task RunAsync_TokenRequestTimesOut_FailsWithSignInException()
+    {
+        _google.On(r => r.Uri.AbsoluteUri == TokenUrl, _ => throw new TaskCanceledException("timed out", new TimeoutException()));
+
+        var error = await Assert.ThrowsAsync<SignInException>(
+            () => CreateFlow(GoogleRedirects(Approve)).RunAsync(null, TestContext.Current.CancellationToken));
+
+        Assert.Equal("Google couldn't complete sign-in. Try again.", error.Message);
+        Assert.Empty(_store.GetAccountIds());
+    }
+
+    [Fact]
+    public async Task RunAsync_RevokeTimesOut_StillAsksForCalendarAccess()
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-response-no-calendar.json"));
+        _google.On(r => r.Uri.AbsoluteUri == RevokeUrl, _ => throw new TaskCanceledException("timed out", new TimeoutException()));
+
+        var error = await Assert.ThrowsAsync<SignInException>(
+            () => CreateFlow(GoogleRedirects(Approve)).RunAsync(null, TestContext.Current.CancellationToken));
+
+        Assert.Contains("calendar access", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

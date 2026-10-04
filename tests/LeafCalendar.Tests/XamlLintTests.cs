@@ -9,7 +9,7 @@ namespace LeafCalendar.Tests;
 /// </summary>
 public class XamlLintTests
 {
-    static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
+    private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
 
     /// <summary>Known exceptions: "file|rule|detail", each with the reason in a comment. Keep it short.</summary>
     public static readonly HashSet<string> Allowed =
@@ -46,15 +46,15 @@ public class XamlLintTests
         "Styles/LeafTheme.xaml|radius|14",
     ];
 
-    static readonly string[] ButtonTypes = ["Button", "ToggleButton", "HyperlinkButton", "RepeatButton", "AppBarButton", "AppBarToggleButton", "DropDownButton", "SplitButton"];
-    static readonly string[] IconTypes   = ["FontIcon", "SymbolIcon", "PathIcon", "BitmapIcon", "ImageIcon", "Image", "Viewbox"];
-    static readonly HashSet<double> Scale = [0, 1, 2, 4, 8, 12, 16, 24, 32, 36, 48];
-    static readonly HashSet<double> Radii = [0, 2, 4, 8];
+    private static readonly string[] ButtonTypes = ["Button", "ToggleButton", "HyperlinkButton", "RepeatButton", "AppBarButton", "AppBarToggleButton", "DropDownButton", "SplitButton"];
+    private static readonly string[] IconTypes = ["FontIcon", "SymbolIcon", "PathIcon", "BitmapIcon", "ImageIcon", "Image", "Viewbox"];
+    private static readonly HashSet<double> Scale = [0, 1, 2, 4, 8, 12, 16, 24, 32, 36, 48];
+    private static readonly HashSet<double> Radii = [0, 2, 4, 8];
 
-    static string AppFolder => Path.Combine(FindRepoRoot(), "src", "LeafCalendar.App");
+    private static string AppFolder => Path.Combine(FindRepoRoot(), "src", "LeafCalendar.App");
 
     // Walks up from the test binaries to the folder holding the solution file
-    static string FindRepoRoot()
+    private static string FindRepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "LeafCalendar.slnx")))
@@ -67,22 +67,22 @@ public class XamlLintTests
 
     public static TheoryData<string> Files() => [.. AllFiles()];
 
-    static IEnumerable<string> AllFiles() =>
+    private static IEnumerable<string> AllFiles() =>
         Directory.GetFiles(AppFolder, "*.xaml", SearchOption.AllDirectories)
             .Select(f => Path.GetRelativePath(AppFolder, f).Replace('\\', '/'))
             .Where(f => !f.StartsWith("bin/", StringComparison.Ordinal) && !f.StartsWith("obj/", StringComparison.Ordinal) && !f.StartsWith("AppPackages/", StringComparison.Ordinal));
 
-    static XDocument Load(string file) => XDocument.Load(Path.Combine(AppFolder, file), LoadOptions.SetLineInfo);
+    private static XDocument Load(string file) => XDocument.Load(Path.Combine(AppFolder, file), LoadOptions.SetLineInfo);
 
-    static string Where(string file, XElement e) => $"{file}:{((System.Xml.IXmlLineInfo)e).LineNumber} <{e.Name.LocalName}>";
+    private static string Where(string file, XElement e) => $"{file}:{((System.Xml.IXmlLineInfo)e).LineNumber} <{e.Name.LocalName}>";
 
-    static string? Attr(XElement e, string name) => e.Attributes().FirstOrDefault(a => a.Name.LocalName == name)?.Value;
+    private static string? Attr(XElement e, string name) => e.Attributes().FirstOrDefault(a => a.Name.LocalName == name)?.Value;
 
-    static List<string> Failures(string file, string rule, IEnumerable<(XElement Element, string Detail)> hits) =>
+    private static List<string> Failures(string file, string rule, IEnumerable<(XElement Element, string Detail)> hits) =>
         [.. hits.Where(h => !Allowed.Contains($"{file}|{rule}|{h.Detail}")).Select(h => $"{Where(file, h.Element)} {rule}: {h.Detail}")];
 
     // Fails with the full list of findings (Assert.Empty truncates long ones)
-    static void AssertNone(List<string> failures) => Assert.True(failures.Count == 0, Environment.NewLine + string.Join(Environment.NewLine, failures));
+    private static void AssertNone(List<string> failures) => Assert.True(failures.Count == 0, Environment.NewLine + string.Join(Environment.NewLine, failures));
 
     // Section 7 And 14: Icon-Only Buttons Have A Name And A Tooltip
     [Theory, MemberData(nameof(Files))]
@@ -98,17 +98,17 @@ public class XamlLintTests
     }
 
     // Every keyed Style in the app, by key (a button's Style can set its Content)
-    static Dictionary<string, XElement> Styles() =>
+    private static Dictionary<string, XElement> Styles() =>
         AllFiles().SelectMany(f => Load(f).Descendants().Where(e => e.Name.LocalName == "Style" && e.Attribute(X + "Key") is not null))
             .GroupBy(s => (string)s.Attribute(X + "Key")!).ToDictionary(g => g.Key, g => g.First());
 
     // A glyph is text made only of private-use codepoints (Segoe Fluent Icons)
-    static bool IsGlyph(string? text) => !string.IsNullOrWhiteSpace(text) && text.Trim().All(c => c is >= '' and <= '');
+    private static bool IsGlyph(string? text) => !string.IsNullOrWhiteSpace(text) && text.Trim().All(c => c is >= '' and <= '');
 
-    static bool IsIcon(XElement? e) => e is not null && IconTypes.Contains(e.Name.LocalName);
+    private static bool IsIcon(XElement? e) => e is not null && IconTypes.Contains(e.Name.LocalName);
 
     // Content as an attribute, a Button.Content property element, a direct child, or a Style setter
-    static bool IsIconOnly(XElement button, Dictionary<string, XElement> styles, int depth = 0)
+    private static bool IsIconOnly(XElement button, Dictionary<string, XElement> styles, int depth = 0)
     {
         if (Attr(button, "Content") is { } content)
         {
@@ -156,7 +156,7 @@ public class XamlLintTests
         foreach (var themes in Load(file).Descendants().Where(e => e.Name.LocalName == "ResourceDictionary.ThemeDictionaries"))
         {
             var byKey = themes.Elements().ToDictionary(d => (string?)d.Attribute(X + "Key") ?? "", d => d.Elements().Select(r => (string?)r.Attribute(X + "Key")).ToHashSet());
-            var keys  = byKey.Where(p => p.Key != "HighContrast").SelectMany(p => p.Value).ToHashSet();
+            var keys = byKey.Where(p => p.Key != "HighContrast").SelectMany(p => p.Value).ToHashSet();
             if (!byKey.TryGetValue("HighContrast", out var contrast))
             {
                 hits.Add((themes, "no HighContrast dictionary"));
@@ -184,8 +184,9 @@ public class XamlLintTests
         AssertNone(Failures(file, "spacing", hits));
     }
 
-    // Every value set for one of these properties: attributes, <Setter Property Value>, <Prop.Name> text, and <Thickness>/<CornerRadius> elements
-    static IEnumerable<(XElement Element, string Value)> Metrics(XDocument doc, params string[] names)
+    // Every value set for one of these properties: attributes, <Setter Property Value>, <Prop.Name> text, and <Thickness>/<CornerRadius>
+    // elements (a <Thickness> is never a corner radius)
+    private static IEnumerable<(XElement Element, string Value)> Metrics(XDocument doc, params string[] names)
     {
         foreach (var e in doc.Descendants())
         {
@@ -200,7 +201,8 @@ public class XamlLintTests
             }
 
             var isPropertyElement = e.Name.LocalName.Contains('.', StringComparison.Ordinal) && names.Contains(e.Name.LocalName[(e.Name.LocalName.LastIndexOf('.') + 1)..]);
-            if ((isPropertyElement || e.Name.LocalName is "Thickness" or "CornerRadius") && !e.HasElements && e.Value.Trim().Length > 0)
+            var isValueElement = e.Name.LocalName == "CornerRadius" || (e.Name.LocalName == "Thickness" && !names.Contains("CornerRadius"));
+            if ((isPropertyElement || isValueElement) && !e.HasElements && e.Value.Trim().Length > 0)
             {
                 yield return (e, e.Value.Trim());
             }
@@ -208,11 +210,11 @@ public class XamlLintTests
     }
 
     // Numbers in a "8,4" or "8 4" value; theme resources ({...}) and non-numbers give none
-    static IEnumerable<double> Numbers(string value) =>
+    private static IEnumerable<double> Numbers(string value) =>
         value.StartsWith('{') ? [] : value.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries).Select(v => double.TryParse(v, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : double.NaN).Where(n => !double.IsNaN(n));
 
     // Names the element for the allowlist: the nearest x:Name or AutomationId up the tree, plus the element's own tag
-    static string Context(XElement e)
+    private static string Context(XElement e)
     {
         var named = e.AncestorsAndSelf().Select(a => (string?)a.Attribute(X + "Name") ?? Attr(a, "AutomationId") ?? Attr(a, "AutomationProperties.AutomationId") ?? (string?)a.Attribute(X + "Key")).FirstOrDefault(n => n is not null);
         return $"{e.Name.LocalName} in {named ?? "(unnamed)"}";
@@ -262,7 +264,7 @@ public class XamlLintTests
             .Where(e => e.Name.LocalName == "ScrollViewer")
             .SelectMany(e => e.Elements().Where(c => !c.Name.LocalName.Contains('.')).Take(1))
             .Where(c => Attr(c, "Width") is not null || Attr(c, "MinWidth") is not null || Attr(c, "MaxWidth") is not null || Attr(c, "Style")?.Contains("LeafSettingsPagePanelStyle", StringComparison.Ordinal) == true)
-            .Select(c => (c, Attr(c, "AutomationProperties.AutomationId") ?? Attr(c, "x:Name") ?? c.Name.LocalName));
+            .Select(c => (c, Attr(c, "AutomationProperties.AutomationId") ?? (string?)c.Attribute(X + "Name") ?? c.Name.LocalName));
 
         AssertNone(Failures(file, "scroller-content-width", hits));
     }

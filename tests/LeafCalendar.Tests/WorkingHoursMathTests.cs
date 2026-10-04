@@ -5,12 +5,12 @@ namespace LeafCalendar.Tests;
 
 public sealed class WorkingHoursMathTests
 {
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
-    static readonly TimeZoneInfo Tokyo   = TimeZoneInfo.FindSystemTimeZoneById("Asia/Tokyo");
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly TimeZoneInfo Tokyo = TimeZoneInfo.FindSystemTimeZoneById("Asia/Tokyo");
 
     // 2026-10-01 is a Thursday; 2026-10-03 a Saturday
-    static readonly DateOnly Thursday = new(2026, 10, 1);
-    static readonly DateOnly Saturday = new(2026, 10, 3);
+    private static readonly DateOnly Thursday = new(2026, 10, 1);
+    private static readonly DateOnly Saturday = new(2026, 10, 3);
 
     [Fact]
     public void DaysLabel_NamesTheCommonSetsAndListsTheRestInWeekOrder()
@@ -54,5 +54,13 @@ public sealed class WorkingHoursMathTests
         // 4 PM-11 PM Friday New York is 5 AM-12 PM Saturday in Tokyo, so that Saturday is only partly shaded
         var hours = new WorkingHours { StartMinute = 960, EndMinute = 1380 };
         Assert.Equal([(0, 300), (720, 1440)], WorkingHoursMath.OffHours(hours, Saturday, NewYork, Tokyo));
+    }
+
+    [Fact]
+    public void Traveling_OnTheTravelClocksDaylightSavingDay_UsesItsWallClock()
+    {
+        // Sun Mar 8 2026 Los Angeles springs forward: Monday 9 AM Tokyo is 5 PM PDT and Tokyo's 5 PM is past LA's midnight
+        var losAngeles = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+        Assert.Equal([(0, 1020)], WorkingHoursMath.OffHours(new WorkingHours(), new DateOnly(2026, 3, 8), Tokyo, losAngeles));
     }
 }

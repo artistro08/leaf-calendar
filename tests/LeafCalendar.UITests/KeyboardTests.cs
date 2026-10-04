@@ -7,8 +7,8 @@ namespace LeafCalendar.UITests;
 
 public sealed class KeyboardTests : IDisposable
 {
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -16,7 +16,7 @@ public sealed class KeyboardTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch()
+    private LeafApp Launch()
     {
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
         leaf.WaitFor("Event_evt-single_202610011300");

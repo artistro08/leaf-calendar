@@ -8,10 +8,10 @@ namespace LeafCalendar.Tests;
 
 public sealed class RoomsTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
+    private const string Primary = "leaf.tester@gmail.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
 
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public RoomsTests()
     {
@@ -23,14 +23,14 @@ public sealed class RoomsTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    void Insert(string json, string account = "109876543210", string calendar = Primary)
+    private void Insert(string json, string account = "109876543210", string calendar = Primary)
     {
         using var conn = _db.Database.Open();
-        using var doc  = JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(json);
         EventStore.Apply(conn, null, account, calendar, doc.RootElement);
     }
 
-    static string With(string id, string start, string attendees) =>
+    private static string With(string id, string start, string attendees) =>
         $$"""{"id":"{{id}}","status":"confirmed","summary":"x","start":{"dateTime":"{{start}}"},"end":{"dateTime":"{{start}}"},"attendees":[{{attendees}}]}""";
 
     [Fact]

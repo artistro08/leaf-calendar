@@ -64,15 +64,15 @@
                                         <Run Text="{x:Bind Name}" /><Run Text="{x:Bind UnknownText}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     </TextBlock>
                                     <Button
-                                        Width="20"
-                                        Height="20"
+                                        Width="28"
+                                        Height="28"
                                         Padding="0"
                                         Style="{StaticResource LeafIconButtonStyle}"
                                         Click="{x:Bind Remove}"
                                         AutomationProperties.AutomationId="{x:Bind RemoveId}"
                                         AutomationProperties.Name="{x:Bind RemoveName}"
                                         ToolTipService.ToolTip="{x:Bind RemoveName}">
-                                        <FontIcon Glyph="&#xE711;" FontSize="10" />
+                                        <FontIcon Glyph="&#xE711;" FontSize="12" />
                                     </Button>
                                 </StackPanel>
                             </Border>
@@ -84,6 +84,7 @@
 
             <!-- Clear -->
             <Button
+                x:Name="ClearButton"
                 Grid.Column="2"
                 VerticalAlignment="Center"
                 Content="Clear"

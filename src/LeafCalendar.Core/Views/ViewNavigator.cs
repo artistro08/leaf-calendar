@@ -6,28 +6,30 @@ namespace LeafCalendar.Core.Views;
 /// <summary>Date math for the calendar views. English-only formatting (localization is deferred).</summary>
 public static class ViewNavigator
 {
-    static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
+    private static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
 
     /// <summary>How many day columns the view shows.</summary>
     public static int VisibleColumnCount(CalendarViewMode mode, int customDays, bool showWeekends) => mode switch
     {
-        CalendarViewMode.Day  => 1,
+        CalendarViewMode.Day => 1,
         CalendarViewMode.Days => Math.Clamp(customDays, 1, 31),
-        _                     => showWeekends ? 7 : 5,
+        _ => showWeekends ? 7 : 5,
     };
 
     /// <summary>
     /// The day the mini month should show: the period start in Month view; otherwise today when it is in the
-    /// visible span, else the middle of the span.
+    /// visible span, else the middle of the span. With weekends hidden, the span counts shown days only.
     /// </summary>
-    public static DateOnly MiniMonthAnchor(CalendarViewMode mode, DateOnly periodStart, int visibleColumns, DateOnly today)
+    public static DateOnly MiniMonthAnchor(CalendarViewMode mode, DateOnly periodStart, int visibleColumns, DateOnly today, bool showWeekends = true)
     {
         if (mode == CalendarViewMode.Month)
         {
             return periodStart;
         }
 
-        return today >= periodStart && today < periodStart.AddDays(visibleColumns) ? today : periodStart.AddDays(visibleColumns / 2);
+        var shown = Enumerable.Range(0, 62).Select(periodStart.AddDays).Where(d => showWeekends || !IsWeekend(d)).Take(visibleColumns).ToList();
+
+        return shown.Contains(today) ? today : shown[visibleColumns / 2];
     }
 
     /// <summary>The first day of the week containing <paramref name="date"/>.</summary>
@@ -40,9 +42,9 @@ public static class ViewNavigator
     /// <summary>Where the period containing <paramref name="anchor"/> starts.</summary>
     public static DateOnly PeriodStart(CalendarViewMode mode, DateOnly anchor, DayOfWeek weekStart) => mode switch
     {
-        CalendarViewMode.Week  => WeekStartOf(anchor, weekStart),
+        CalendarViewMode.Week => WeekStartOf(anchor, weekStart),
         CalendarViewMode.Month => MonthStartOf(anchor),
-        _                      => anchor,
+        _ => anchor,
     };
 
     /// <summary>
@@ -51,14 +53,14 @@ public static class ViewNavigator
     /// </summary>
     public static DateOnly Step(CalendarViewMode mode, DateOnly periodStart, int direction, int customDays, bool showWeekends = true) => mode switch
     {
-        CalendarViewMode.Day   => StepDays(periodStart, 1, direction, showWeekends),
-        CalendarViewMode.Week  => periodStart.AddDays(7 * direction),
+        CalendarViewMode.Day => StepDays(periodStart, 1, direction, showWeekends),
+        CalendarViewMode.Week => periodStart.AddDays(7 * direction),
         CalendarViewMode.Month => MonthStartOf(periodStart).AddMonths(direction),
-        _                      => StepDays(periodStart, Math.Clamp(customDays, 1, 31), direction, showWeekends),
+        _ => StepDays(periodStart, Math.Clamp(customDays, 1, 31), direction, showWeekends),
     };
 
     // Moves count shown days, skipping Saturday and Sunday when weekends are hidden
-    static DateOnly StepDays(DateOnly start, int count, int direction, bool showWeekends)
+    private static DateOnly StepDays(DateOnly start, int count, int direction, bool showWeekends)
     {
         if (showWeekends)
         {
@@ -91,6 +93,30 @@ public static class ViewNavigator
             : $"{first.ToString("MMM yyyy", English)} – {lastInclusive.ToString("MMM yyyy", English)}";
     }
 
+    /// <summary>
+    /// The days on screen as the window's title (what the taskbar shows): "Sunday, October 4, 2026" for one day,
+    /// "Oct 5 – 11, 2026" or "Sep 28 – Oct 4, 2026" for a range, and "Dec 28, 2026 – Jan 3, 2027" across a year.
+    /// </summary>
+    /// <param name="first">The first day on screen.</param>
+    /// <param name="lastInclusive">The last day on screen.</param>
+    /// <returns>The title, in English like the rest of the view titles.</returns>
+    public static string DateRangeTitle(DateOnly first, DateOnly lastInclusive)
+    {
+        if (first == lastInclusive)
+        {
+            return first.ToString("dddd, MMMM d, yyyy", English);
+        }
+
+        if (first.Year != lastInclusive.Year)
+        {
+            return $"{first.ToString("MMM d, yyyy", English)} – {lastInclusive.ToString("MMM d, yyyy", English)}";
+        }
+
+        return first.Month == lastInclusive.Month
+            ? $"{first.ToString("MMM d", English)} – {lastInclusive.ToString("d, yyyy", English)}"
+            : $"{first.ToString("MMM d", English)} – {lastInclusive.ToString("MMM d, yyyy", English)}";
+    }
+
     /// <summary>"October 2026".</summary>
     public static string MonthTitle(DateOnly anyDay) => anyDay.ToString("MMMM yyyy", English);
 
@@ -103,9 +129,9 @@ public static class ViewNavigator
     /// <summary>The first grid day and number of week rows needed to show the whole month.</summary>
     public static (DateOnly GridStart, int Weeks) MonthGrid(DateOnly anyDayInMonth, DayOfWeek weekStart)
     {
-        var first     = MonthStartOf(anyDayInMonth);
+        var first = MonthStartOf(anyDayInMonth);
         var gridStart = WeekStartOf(first, weekStart);
-        var last      = first.AddMonths(1).AddDays(-1);
+        var last = first.AddMonths(1).AddDays(-1);
 
         return (gridStart, (last.DayNumber - gridStart.DayNumber) / 7 + 1);
     }

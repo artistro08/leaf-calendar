@@ -10,10 +10,10 @@ namespace LeafCalendar.UITests;
 
 public sealed class DragTests : IDisposable
 {
-    const string Dentist = "Event_evt-single_202610011300";
+    private const string Dentist = "Event_evt-single_202610011300";
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -21,18 +21,18 @@ public sealed class DragTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     // The dentist is one hour long, so its card (an hour less 2 px) measures an hour on screen
-    static int HourPixels(AutomationElement dentist) => dentist.BoundingRectangle.Height + 2;
+    private static int HourPixels(AutomationElement dentist) => dentist.BoundingRectangle.Height + 2;
 
-    static DateTimeOffset Start(FakeWrite write)
+    private static DateTimeOffset Start(FakeWrite write)
     {
         using var body = JsonDocument.Parse(write.Body);
         return body.RootElement.GetProperty("start").GetProperty("dateTime").GetDateTimeOffset().ToUniversalTime();
     }
 
-    static DateTimeOffset End(FakeWrite write)
+    private static DateTimeOffset End(FakeWrite write)
     {
         using var body = JsonDocument.Parse(write.Body);
         return body.RootElement.GetProperty("end").GetProperty("dateTime").GetDateTimeOffset().ToUniversalTime();
@@ -56,7 +56,7 @@ public sealed class DragTests : IDisposable
     {
         using var leaf = Launch();
         var dentist = leaf.WaitFor(Dentist);
-        var box     = dentist.BoundingRectangle;
+        var box = dentist.BoundingRectangle;
 
         LeafApp.Drag(new Point(box.X + box.Width / 2, box.Bottom - 2), new Point(box.X + box.Width / 2, box.Bottom - 2 + HourPixels(dentist)));
 
@@ -70,11 +70,11 @@ public sealed class DragTests : IDisposable
     {
         using var leaf = Launch();
         var dentist = leaf.WaitFor(Dentist);
-        var hour    = HourPixels(dentist);
-        var column  = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
+        var hour = HourPixels(dentist);
+        var column = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
 
         // Oct 2, four to six hours after the dentist's start (a tenth of an hour in, so snapping is clear)
-        var x    = column.X + column.Width / 2;
+        var x = column.X + column.Width / 2;
         var from = dentist.BoundingRectangle.Y + 4 * hour + hour / 10;
         LeafApp.Drag(new Point(x, from), new Point(x, from + 2 * hour));
 
@@ -92,10 +92,10 @@ public sealed class DragTests : IDisposable
     {
         using var leaf = Launch();
         var dentist = leaf.WaitFor(Dentist);
-        var hour    = HourPixels(dentist);
-        var column  = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
-        var x       = column.X + column.Width / 2;
-        var from    = dentist.BoundingRectangle.Y + 4 * hour + hour / 10;
+        var hour = HourPixels(dentist);
+        var column = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
+        var x = column.X + column.Width / 2;
+        var from = dentist.BoundingRectangle.Y + 4 * hour + hour / 10;
 
         LeafApp.Drag(new Point(x, from), new Point(x, from + 2 * hour));
         leaf.WaitFor("EditorTitle");
@@ -128,7 +128,7 @@ public sealed class DragTests : IDisposable
     {
         using var leaf = Launch();
         var dentist = leaf.WaitFor(Dentist);
-        var hour    = HourPixels(dentist);
+        var hour = HourPixels(dentist);
         dentist.Click();
         leaf.Press(VirtualKeyShort.KEY_E);
         var title = leaf.WaitFor("EditorTitle").AsTextBox();
@@ -137,8 +137,8 @@ public sealed class DragTests : IDisposable
         Assert.True(Retry.WhileTrue(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(5)).Success);
 
         var column = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
-        var x      = column.X + column.Width / 2;
-        var from   = dentist.BoundingRectangle.Y + 4 * hour + hour / 10;
+        var x = column.X + column.Width / 2;
+        var from = dentist.BoundingRectangle.Y + 4 * hour + hour / 10;
         LeafApp.Drag(new Point(x, from), new Point(x, from + 2 * hour));
 
         Assert.True(Retry.WhileFalse(() => leaf.Exists("EventEditor"), TimeSpan.FromSeconds(5)).Success);
@@ -188,8 +188,8 @@ public sealed class DragTests : IDisposable
         using var leaf = Launch();
         var dentist = leaf.WaitFor(Dentist);
         LeafApp.WaitUntilStill(dentist);
-        var box   = dentist.BoundingRectangle;
-        var hour  = HourPixels(dentist);
+        var box = dentist.BoundingRectangle;
+        var hour = HourPixels(dentist);
         var start = new Point(box.X + box.Width / 2, box.Bottom - 2);
 
         LeafApp.MoveMouse(start);
@@ -220,7 +220,7 @@ public sealed class DragTests : IDisposable
     {
         using var leaf = Launch();
         var dentist = leaf.WaitFor(Dentist);
-        var hour    = HourPixels(dentist);
+        var hour = HourPixels(dentist);
         leaf.WaitFor("NextButton").AsButton().Invoke();
         var weekly = leaf.WaitFor("Event_evt-weekly_202610051330");
         LeafApp.WaitUntilStill(weekly);
@@ -239,7 +239,7 @@ public sealed class DragTests : IDisposable
     {
         using var leaf = Launch();
         var dentist = leaf.WaitFor(Dentist);
-        var column  = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
+        var column = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
 
         Mouse.DoubleClick(new Point(column.X + column.Width / 2, dentist.BoundingRectangle.Y + 3 * HourPixels(dentist)));
 

@@ -16,23 +16,23 @@ public static partial class EventColors
     /// <summary>How far a past card's colors (accent and fill) move toward the calendar surface; its text is not faded but picked against the faded fill.</summary>
     public const double PastFade = 0.45;
 
-    const string DarkSurface  = "#202020";
-    const string LightSurface = "#FFFFFF";
-    const string DarkText     = "#1A1A1A";
-    const string LightText    = "#FFFFFF";
+    private const string DarkSurface = "#202020";
+    private const string LightSurface = "#FFFFFF";
+    private const string DarkText = "#1A1A1A";
+    private const string LightText = "#FFFFFF";
 
     // Google Calendar event colors (colorId 1-11)
-    static readonly Dictionary<string, string> EventColorIds = new(StringComparer.Ordinal)
+    private static readonly Dictionary<string, string> EventColorIds = new(StringComparer.Ordinal)
     {
-        ["1"]  = "#7986CB",
-        ["2"]  = "#33B679",
-        ["3"]  = "#8E24AA",
-        ["4"]  = "#E67C73",
-        ["5"]  = "#F6BF26",
-        ["6"]  = "#F4511E",
-        ["7"]  = "#039BE5",
-        ["8"]  = "#616161",
-        ["9"]  = "#3F51B5",
+        ["1"] = "#7986CB",
+        ["2"] = "#33B679",
+        ["3"] = "#8E24AA",
+        ["4"] = "#E67C73",
+        ["5"] = "#F6BF26",
+        ["6"] = "#F4511E",
+        ["7"] = "#039BE5",
+        ["8"] = "#616161",
+        ["9"] = "#3F51B5",
         ["10"] = "#0B8043",
         ["11"] = "#D50000",
     };
@@ -44,14 +44,20 @@ public static partial class EventColors
         ("7", "Peacock"), ("8", "Graphite"), ("9", "Blueberry"), ("10", "Basil"), ("11", "Tomato"),
     ];
 
-    /// <summary>Google Calendar's 24 calendar colors, offered in the sidebar color picker.</summary>
-    public static IReadOnlyList<string> CalendarPalette { get; } =
+    /// <summary>
+    /// Google Calendar's 24 calendar colors with plain names for Narrator and tooltips, in picker order. Google's own
+    /// names for these colors couldn't be matched to their hex codes, so the names describe the color.
+    /// </summary>
+    public static IReadOnlyList<(string Hex, string Name)> CalendarColorNames { get; } =
     [
-        "#AC725E", "#D06B64", "#F83A22", "#FA573C", "#FF7537", "#FFAD46",
-        "#42D692", "#16A765", "#7BD148", "#B3DC6C", "#FBE983", "#FAD165",
-        "#92E1C0", "#9FE1E7", "#9FC6E7", "#4986E7", "#9A9CFF", "#B99AFF",
-        "#C2C2C2", "#CABDBF", "#CCA6AC", "#F691B2", "#CD74E6", "#A47AE2",
+        ("#AC725E", "Brown"), ("#D06B64", "Dusty red"), ("#F83A22", "Red"), ("#FA573C", "Red orange"), ("#FF7537", "Orange"), ("#FFAD46", "Light orange"),
+        ("#42D692", "Mint"), ("#16A765", "Green"), ("#7BD148", "Lime"), ("#B3DC6C", "Light green"), ("#FBE983", "Light yellow"), ("#FAD165", "Yellow"),
+        ("#92E1C0", "Seafoam"), ("#9FE1E7", "Light cyan"), ("#9FC6E7", "Light blue"), ("#4986E7", "Blue"), ("#9A9CFF", "Periwinkle"), ("#B99AFF", "Light purple"),
+        ("#C2C2C2", "Light gray"), ("#CABDBF", "Warm gray"), ("#CCA6AC", "Dusty pink"), ("#F691B2", "Pink"), ("#CD74E6", "Orchid"), ("#A47AE2", "Purple"),
     ];
+
+    /// <summary>Google Calendar's 24 calendar colors, offered in the sidebar color picker.</summary>
+    public static IReadOnlyList<string> CalendarPalette { get; } = [.. CalendarColorNames.Select(c => c.Hex)];
 
     /// <summary>The event's own color when it has one, else its calendar's, else Google blue (uppercase hex).</summary>
     public static string ResolveAccent(string? colorId, string calendarColor)
@@ -73,14 +79,14 @@ public static partial class EventColors
     public static EventPalette Palette(string accentHex, bool dark, bool past = false, bool selected = false)
     {
         var accent = Hex().IsMatch(accentHex) ? accentHex.ToUpperInvariant() : CalendarInfo.DefaultColor;
-        var fill   = selected ? accent : Blend(accent, dark ? DarkSurface : LightSurface, dark ? 0.62 : 0.78);
+        var fill = selected ? accent : Blend(accent, dark ? DarkSurface : LightSurface, dark ? 0.62 : 0.78);
         if (past && !selected)
         {
             accent = Blend(accent, ChromeColors.Surface(dark), PastFade);
-            fill   = Blend(fill, ChromeColors.Surface(dark), PastFade);
+            fill = Blend(fill, ChromeColors.Surface(dark), PastFade);
         }
 
-        var text   = ContrastRatio(LightText, fill) >= ContrastRatio(DarkText, fill) ? LightText : DarkText;
+        var text = ContrastRatio(LightText, fill) >= ContrastRatio(DarkText, fill) ? LightText : DarkText;
 
         // A Mid-Tone Accent Reaches 4.5:1 With Neither Text Color: deepen it (white text) or lighten it (dark text) until it does
         if (selected)
@@ -92,7 +98,7 @@ public static partial class EventColors
     }
 
     // The fill moved toward black (under white text) or white (under dark text) in small steps until the text reads at 4.5:1
-    static string Legible(string fill, string text)
+    private static string Legible(string fill, string text)
     {
         var toward = text == LightText ? "#000000" : "#FFFFFF";
         for (var step = 0; step < 20 && ContrastRatio(text, fill) < 4.5; step++)
@@ -124,7 +130,7 @@ public static partial class EventColors
         return (Math.Max(a, b) + 0.05) / (Math.Min(a, b) + 0.05);
     }
 
-    static double Luminance(string hex)
+    private static double Luminance(string hex)
     {
         var (r, g, b) = Channels(hex);
 
@@ -137,7 +143,7 @@ public static partial class EventColors
         return 0.2126 * Linear(r) + 0.7152 * Linear(g) + 0.0722 * Linear(b);
     }
 
-    static (int R, int G, int B) Channels(string hex) => (
+    private static (int R, int G, int B) Channels(string hex) => (
         int.Parse(hex.AsSpan(1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture),
         int.Parse(hex.AsSpan(3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture),
         int.Parse(hex.AsSpan(5, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture));

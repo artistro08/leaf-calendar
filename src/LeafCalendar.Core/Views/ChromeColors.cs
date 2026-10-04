@@ -46,8 +46,8 @@ public static class ChromeColors
     public static string OffHours(bool dark) => dark ? "#29000000" : "#0A000000";
 
     // People On The Overlay: Purple, Magenta, Teal, Orange
-    static readonly string[] PersonLight = ["#8764B8", "#C239B3", "#038387", "#CA5010"];
-    static readonly string[] PersonDark  = ["#B4A0FF", "#F48FE8", "#5FD3D6", "#FF9C62"];
+    private static readonly string[] PersonLight = ["#8764B8", "#C239B3", "#038387", "#CA5010"];
+    private static readonly string[] PersonDark = ["#B4A0FF", "#F48FE8", "#5FD3D6", "#FF9C62"];
 
     /// <summary>How many person colors there are (indexes wrap).</summary>
     public static int PersonCount => PersonLight.Length;

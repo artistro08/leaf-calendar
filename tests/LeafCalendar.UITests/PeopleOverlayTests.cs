@@ -12,16 +12,16 @@ namespace LeafCalendar.UITests;
 
 public sealed class PeopleOverlayTests : IDisposable
 {
-    const string Dentist = "Event_evt-single_202610011300";
-    const string Meeting = "Event_evt-meeting_202610011800";
-    const string Dana    = "dana@example.com";
-    const string Sam     = "sam@example.com";
-    const string Nobody  = "nobody@example.org";
+    private const string Dentist = "Event_evt-single_202610011300";
+    private const string Meeting = "Event_evt-meeting_202610011800";
+    private const string Dana = "dana@example.com";
+    private const string Sam = "sam@example.com";
+    private const string Nobody = "nobody@example.org";
 
-    static readonly TimeZoneInfo Eastern = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly TimeZoneInfo Eastern = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -29,27 +29,27 @@ public sealed class PeopleOverlayTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     // An Eastern wall-clock time
-    static DateTimeOffset Et(int month, int day, int hour, int minute = 0)
+    private static DateTimeOffset Et(int month, int day, int hour, int minute = 0)
     {
         var local = new DateTime(2026, month, day, hour, minute, 0);
         return new DateTimeOffset(local, Eastern.GetUtcOffset(local));
     }
 
     // The dentist runs 9-10 AM Eastern: its card (an hour less 2 px, 1 px below the 9:00 line) measures the grid
-    static int HourPixels(AutomationElement dentist) => dentist.BoundingRectangle.Height + 2;
+    private static int HourPixels(AutomationElement dentist) => dentist.BoundingRectangle.Height + 2;
 
-    static double LineY(AutomationElement dentist, int hour) => dentist.BoundingRectangle.Top - 1 + (hour - 9) * HourPixels(dentist);
+    private static double LineY(AutomationElement dentist, int hour) => dentist.BoundingRectangle.Top - 1 + (hour - 9) * HourPixels(dentist);
 
     // The text box inside the picker's AutoSuggestBox
-    static TextBox PickerEdit(LeafApp leaf) =>
+    private static TextBox PickerEdit(LeafApp leaf) =>
         Retry.WhileNull(() => leaf.WaitForAnywhere("PeoplePickerBox").FindFirstDescendant(cf => cf.ByControlType(ControlType.Edit)), TimeSpan.FromSeconds(10)).Result?.AsTextBox()
         ?? throw new InvalidOperationException("The people picker has no text box inside.");
 
     // Opens the picker with a key (P or F), adds each address with Enter, and presses the primary button
-    static void Pick(LeafApp leaf, VirtualKeyShort key, params string[] addresses)
+    private static void Pick(LeafApp leaf, VirtualKeyShort key, params string[] addresses)
     {
         leaf.WaitFor(Dentist);
         leaf.Press(key);
@@ -65,7 +65,7 @@ public sealed class PeopleOverlayTests : IDisposable
         leaf.WaitForAnywhere("PrimaryButton").AsButton().Invoke();
     }
 
-    static string ReadLog(string profile)
+    private static string ReadLog(string profile)
     {
         var log = Path.Combine(LeafApp.ProfileFolder(profile), "Logs", "leaf.log");
         Assert.True(File.Exists(log), "The app wrote no log.");
@@ -77,7 +77,7 @@ public sealed class PeopleOverlayTests : IDisposable
     // The block sits in the column, its top on the line, an hour tall (± 2 px)
     // A day's column on screen: it starts where the day's header does, and is as wide as the grid says (the header's
     // own box is only as wide as its text)
-    static Rectangle Column(LeafApp leaf, string date)
+    private static Rectangle Column(LeafApp leaf, string date)
     {
         var status = leaf.WaitFor("TimeGrid").Properties.ItemStatus.ValueOrDefault ?? "";
         var column = status.Split(';').Select(p => p.Split('=')).Where(p => p is ["column", _]).Select(p => double.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture)).Single();
@@ -85,7 +85,7 @@ public sealed class PeopleOverlayTests : IDisposable
         return new Rectangle(header.Left, header.Top, (int)Math.Round(column * leaf.Scale), header.Height);
     }
 
-    static void AssertBlockAt(AutomationElement block, Rectangle column, double top, int height)
+    private static void AssertBlockAt(AutomationElement block, Rectangle column, double top, int height)
     {
         var box = block.BoundingRectangle;
         Assert.True(box.Left >= column.Left - 1 && box.Right <= column.Right + 1, $"Block {box} isn't inside the column {column}.");
@@ -106,7 +106,7 @@ public sealed class PeopleOverlayTests : IDisposable
         var block = leaf.WaitFor($"OverlayBlock_{Dana}_0");
         AssertBlockAt(block, Column(leaf, "2026-10-01"), LineY(dentist, 11), HourPixels(dentist));
         // Named in the zone on screen (Windows' zone), whatever this machine's zone is
-        Assert.StartsWith($"{Dana} busy {TimeZoneInfo.ConvertTime(Et(10, 1, 11), TimeZoneInfo.Local).ToString("h:mm tt", System.Globalization.CultureInfo.GetCultureInfo("en-US"))}", block.Name, StringComparison.Ordinal);
+        Assert.StartsWith($"{Dana} busy {LeafCalendar.Core.Views.TimeLabels.Range(Et(10, 1, 11), Et(10, 1, 12), TimeZoneInfo.Local, use24h: false)}", block.Name, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -135,7 +135,9 @@ public sealed class PeopleOverlayTests : IDisposable
         var chip = leaf.WaitFor($"OverlayChip_{Dana}");
         Assert.True(Retry.WhileFalse(() => chip.Name.Contains("No free/busy info", StringComparison.Ordinal), TimeSpan.FromSeconds(10)).Success, $"The chip reads \"{chip.Name}\".");
         Assert.False(leaf.Exists($"OverlayBlock_{Dana}_0"));
-        Assert.True(leaf.AnyTextContains("Couldn't get busy times. Check your connection."), "The notice didn't say why.");
+
+        // The notice opens just after the chip changes, and hides itself 5 s later
+        Assert.True(Retry.WhileFalse(() => leaf.AnyTextContains("Couldn't get busy times. Check your connection."), TimeSpan.FromSeconds(4)).Success, "The notice didn't say why.");
     }
 
     // Enter adds the typed person and keeps the picker open (it has no default button)
@@ -165,14 +167,14 @@ public sealed class PeopleOverlayTests : IDisposable
     public void SharedWithDetails_ShowsTheirTitles()
     {
         // Free/busy marks the time busy; the shared calendar names it
-        _google.Busy[Dana]           = [(Et(10, 1, 13), Et(10, 1, 13, 30))];
+        _google.Busy[Dana] = [(Et(10, 1, 13), Et(10, 1, 13, 30))];
         _google.TeammateEvents[Dana] = new JsonArray(new JsonObject
         {
-            ["id"]      = "dana-1on1",
-            ["status"]  = "confirmed",
+            ["id"] = "dana-1on1",
+            ["status"] = "confirmed",
             ["summary"] = "1:1 with Sam",
-            ["start"]   = new JsonObject { ["dateTime"] = "2026-10-01T13:00:00-04:00" },
-            ["end"]     = new JsonObject { ["dateTime"] = "2026-10-01T13:30:00-04:00" },
+            ["start"] = new JsonObject { ["dateTime"] = "2026-10-01T13:00:00-04:00" },
+            ["end"] = new JsonObject { ["dateTime"] = "2026-10-01T13:30:00-04:00" },
         });
         using var leaf = Launch();
 
@@ -193,10 +195,10 @@ public sealed class PeopleOverlayTests : IDisposable
         Assert.NotNull(leaf.WaitFor($"OverlayChip_{Dana}"));
 
         // Drag 3-4 PM on Oct 1 (a tenth of an hour in, so snapping is clear)
-        var hour   = HourPixels(dentist);
+        var hour = HourPixels(dentist);
         var column = leaf.WaitFor("DayHeader_2026-10-01").BoundingRectangle;
-        var x      = column.X + column.Width / 2;
-        var from   = (int)LineY(dentist, 15) + hour / 10;
+        var x = column.X + column.Width / 2;
+        var from = (int)LineY(dentist, 15) + hour / 10;
         LeafApp.Drag(new Point(x, from), new Point(x, from + hour));
 
         leaf.WaitFor("EditorTitle").AsTextBox().Text = "Sync";
@@ -231,7 +233,7 @@ public sealed class PeopleOverlayTests : IDisposable
 
         Pick(leaf, VirtualKeyShort.KEY_P, Dana);
         var first = leaf.WaitFor($"OverlayBlock_{Dana}_0");
-        var oct1  = Column(leaf, "2026-10-01");
+        var oct1 = Column(leaf, "2026-10-01");
         Assert.True(first.BoundingRectangle.Left >= oct1.Left - 1 && first.BoundingRectangle.Right <= oct1.Right + 1);
         var queries = _google.FreeBusyQueries.Count;
 
@@ -254,7 +256,7 @@ public sealed class PeopleOverlayTests : IDisposable
     public void ClearAndRemove()
     {
         _google.Busy[Dana] = [(Et(10, 1, 11), Et(10, 1, 12))];
-        _google.Busy[Sam]  = [(Et(10, 1, 15), Et(10, 1, 16))];
+        _google.Busy[Sam] = [(Et(10, 1, 15), Et(10, 1, 16))];
         using var leaf = Launch();
 
         Pick(leaf, VirtualKeyShort.KEY_P, Dana, Sam);
@@ -294,7 +296,7 @@ public sealed class PeopleOverlayTests : IDisposable
         using var leaf = Launch();
         Pick(leaf, VirtualKeyShort.KEY_P, "pat@example.com");
 
-        var bar  = leaf.WaitFor("OverlayBar");
+        var bar = leaf.WaitFor("OverlayBar");
         var grid = leaf.WaitFor("TimeGrid").BoundingRectangle;
         Assert.True(
             Retry.WhileFalse(() => !bar.IsOffscreen && bar.BoundingRectangle.Top > grid.Top + grid.Height / 2, TimeSpan.FromSeconds(10)).Success,

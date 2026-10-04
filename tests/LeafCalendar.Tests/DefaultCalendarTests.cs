@@ -5,9 +5,9 @@ namespace LeafCalendar.Tests;
 
 public sealed class DefaultCalendarTests
 {
-    static readonly IReadOnlySet<string> Connected = new HashSet<string> { "a1", "a2" };
+    private static readonly IReadOnlySet<string> Connected = new HashSet<string> { "a1", "a2" };
 
-    static CalendarInfo Cal(string account, string id, string role, bool primary = false, bool hidden = false) =>
+    private static CalendarInfo Cal(string account, string id, string role, bool primary = false, bool hidden = false) =>
         new(account, id, id, null, role, primary, false, null, hidden, null, 0);
 
     [Fact]
@@ -60,6 +60,17 @@ public sealed class DefaultCalendarTests
         var pick = DefaultCalendar.Pick(calendars, Connected, new CalendarRef("a1", "family"), "a2");
 
         Assert.Equal("work", pick?.Id);
+    }
+
+    [Fact]
+    public void Pick_NoPreference_PrefersTheMainAccountsPrimary()
+    {
+        // Calendars come sorted by account email, so the main account isn't necessarily first
+        var calendars = new[] { Cal("a1", "anna", "owner", primary: true), Cal("a2", "zoe", "owner", primary: true) };
+
+        Assert.Equal("zoe", DefaultCalendar.Pick(calendars, Connected, null, mainAccountId: "a2")?.Id);
+        Assert.Equal("anna", DefaultCalendar.Pick(calendars, Connected, null, mainAccountId: "a1")?.Id);
+        Assert.Equal("anna", DefaultCalendar.Pick(calendars, Connected, null)?.Id);
     }
 
     [Fact]

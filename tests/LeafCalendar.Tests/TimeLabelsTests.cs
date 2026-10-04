@@ -4,9 +4,9 @@ namespace LeafCalendar.Tests;
 
 public class TimeLabelsTests
 {
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
-    static DateTimeOffset At(int hour, int minute) => new(2026, 10, 1, hour, minute, 0, TimeSpan.FromHours(-4));
+    private static DateTimeOffset At(int hour, int minute) => new(2026, 10, 1, hour, minute, 0, TimeSpan.FromHours(-4));
 
     [Theory]
     [InlineData(0, false, "12 AM")]
@@ -51,5 +51,19 @@ public class TimeLabelsTests
         Assert.Equal("in 2 h", TimeLabels.Relative(At(11, 0), At(12, 0), At(8, 50)));
         Assert.Equal("Now", TimeLabels.Relative(At(9, 0), At(10, 0), At(9, 30)));
         Assert.Equal("Ended", TimeLabels.Relative(At(9, 0), At(10, 0), At(10, 30)));
+    }
+
+    [Theory]
+    [InlineData(30, "in 1 min")]
+    [InlineData(59 * 60, "in 59 min")]
+    [InlineData(59 * 60 + 30, "in 1 h")]
+    [InlineData(60 * 60, "in 1 h")]
+    [InlineData(47 * 3600 + 59 * 60, "in 47 h")]
+    [InlineData(48 * 3600, "in 2 days")]
+    [InlineData(20 * 86400, "in 20 days")]
+    public void Relative_MinutesHoursThenDays(int seconds, string expected)
+    {
+        var now = At(8, 0);
+        Assert.Equal(expected, TimeLabels.Relative(now.AddSeconds(seconds), now.AddDays(30), now));
     }
 }

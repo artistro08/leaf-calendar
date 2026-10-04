@@ -8,7 +8,9 @@ namespace LeafCalendar.Core.Google;
 /// </summary>
 /// <remarks>
 /// Retries 429, any 5xx, and 403 when Google's reason is <c>rateLimitExceeded</c> or
-/// <c>userRateLimitExceeded</c>. Honors <c>Retry-After</c> up to 60 seconds. Other failures
+/// <c>userRateLimitExceeded</c>. Honors <c>Retry-After</c> up to 60 seconds. No try starts more than
+/// <see cref="RetryBudget"/> after the first; past that the last answer is returned, so the call ends inside
+/// HttpClient's default 100-second timeout (which would read as offline). Other failures
 /// return right away with their body still readable. Only GET and HEAD are retried: a write may have
 /// been saved before the error, so replaying it could duplicate it or report a false conflict. Writes
 /// fail fast and the outbox tries them again on the next sync.
@@ -19,7 +21,10 @@ public sealed class GoogleRetryHandler(TimeProvider time) : DelegatingHandler
     /// <summary>Total tries, including the first.</summary>
     public const int MaxAttempts = 5;
 
-    static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(60);
+
+    /// <summary>Latest a retry may start after the first try, leaving the last try 30 seconds of HttpClient's 100.</summary>
+    private static readonly TimeSpan RetryBudget = TimeSpan.FromSeconds(70);
 
     /// <inheritdoc />
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -30,6 +35,7 @@ public sealed class GoogleRetryHandler(TimeProvider time) : DelegatingHandler
             return await base.SendAsync(request, cancellationToken);
         }
 
+        var started = time.GetTimestamp();
         for (var attempt = 1; ; attempt++)
         {
             var response = await base.SendAsync(request, cancellationToken);
@@ -38,13 +44,19 @@ public sealed class GoogleRetryHandler(TimeProvider time) : DelegatingHandler
                 return response;
             }
 
+            // Out Of Time: Google's answer beats HttpClient's timeout
             var delay = GetDelay(attempt, response);
+            if (time.GetElapsedTime(started) + delay > RetryBudget)
+            {
+                return response;
+            }
+
             response.Dispose();
             await Task.Delay(delay, time, cancellationToken);
         }
     }
 
-    static async Task<bool> IsRetryableAsync(HttpResponseMessage response, CancellationToken ct)
+    private static async Task<bool> IsRetryableAsync(HttpResponseMessage response, CancellationToken ct)
     {
         var status = (int)response.StatusCode;
         if (response.StatusCode == HttpStatusCode.TooManyRequests || status is >= 500 and <= 599)
@@ -64,7 +76,7 @@ public sealed class GoogleRetryHandler(TimeProvider time) : DelegatingHandler
         return error?.Error?.Errors?.Any(e => e.Reason is "rateLimitExceeded" or "userRateLimitExceeded") == true;
     }
 
-    static TimeSpan GetDelay(int attempt, HttpResponseMessage response)
+    private static TimeSpan GetDelay(int attempt, HttpResponseMessage response)
     {
         if (response.Headers.RetryAfter?.Delta is { } retryAfter)
         {

@@ -15,7 +15,7 @@ public class PkceTests
     [Fact]
     public void CreateVerifier_Called_Returns43UrlSafeUniqueCharacters()
     {
-        var first  = Pkce.CreateVerifier();
+        var first = Pkce.CreateVerifier();
         var second = Pkce.CreateVerifier();
 
         Assert.Equal(43, first.Length);

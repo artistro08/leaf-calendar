@@ -27,7 +27,7 @@ public sealed class PowerSettingsTests
     public void Normalize_WorkingHoursBackwardsOrOutOfRange_ResetToDefaults()
     {
         var backwards = new LeafSettings { WorkingHours = new WorkingHours { StartMinute = 1000, EndMinute = 600 } }.Normalize();
-        var outside   = new LeafSettings { WorkingHours = new WorkingHours { StartMinute = -5, EndMinute = 2000 } }.Normalize();
+        var outside = new LeafSettings { WorkingHours = new WorkingHours { StartMinute = -5, EndMinute = 2000 } }.Normalize();
 
         Assert.Equal((540, 1020), (backwards.WorkingHours.StartMinute, backwards.WorkingHours.EndMinute));
         Assert.Equal((540, 1020), (outside.WorkingHours.StartMinute, outside.WorkingHours.EndMinute));
@@ -62,9 +62,9 @@ public sealed class PowerSettingsTests
     {
         var s = new LeafSettings
         {
-            MainAccountId         = "  ",
+            MainAccountId = "  ",
             MeetByDefaultAccounts = ["a", "a", " ", "b"],
-            CollapsedAccounts     = ["c", "", "c", "d"],
+            CollapsedAccounts = ["c", "", "c", "d"],
         }.Normalize();
 
         Assert.Null(s.MainAccountId);
@@ -78,9 +78,9 @@ public sealed class PowerSettingsTests
         // Record equality compares lists by reference, so Normalize keeps a list it didn't change (the pane-only fast path in Update relies on it)
         var s = new LeafSettings
         {
-            TimeZones             = [new("Asia/Tokyo", "HQ")],
+            TimeZones = [new("Asia/Tokyo", "HQ")],
             MeetByDefaultAccounts = ["a"],
-            CollapsedAccounts     = ["b"],
+            CollapsedAccounts = ["b"],
         }.Normalize();
 
         Assert.Equal(s, s.Normalize());
@@ -92,9 +92,9 @@ public sealed class PowerSettingsTests
     {
         var s = new LeafSettings
         {
-            MainAccountId         = "gone",
+            MainAccountId = "gone",
             MeetByDefaultAccounts = ["gone", "kept"],
-            CollapsedAccounts     = ["kept", "gone"],
+            CollapsedAccounts = ["kept", "gone"],
         };
 
         var pruned = s.ForAccounts(["kept"]);
@@ -186,7 +186,7 @@ public sealed class PowerSettingsTests
     {
         // Settings › Tray's calendar choice is gone (the tray follows what's shown in Leaf): an older row that has it still loads
         var json = """{"flyoutDays":5,"trayExcludedCalendars":[{"accountId":"a","calendarId":"x"}],"meetByDefaultAccounts":["a"]}""";
-        var s    = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
+        var s = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
 
         Assert.Equal(5, s.FlyoutDays);
         Assert.Equal(["a"], s.MeetByDefaultAccounts);
@@ -198,7 +198,7 @@ public sealed class PowerSettingsTests
     {
         // A settings row written by Milestone 4 has none of the new keys (camelCase, string enums, as LeafJsonContext writes)
         var json = """{"weekStart":"Monday","showWeekends":false,"viewMode":"Month","flyoutDays":5}""";
-        var s    = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
+        var s = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
 
         Assert.False(s.ShowWeekends);
         Assert.Equal(CalendarViewMode.Month, s.ViewMode);
@@ -213,7 +213,7 @@ public sealed class PowerSettingsTests
     {
         // Milestone 5 builds wrote an interface scale; the setting is gone, and the rest of the row still loads
         var json = """{"weekStart":"Monday","interfaceScale":1.25,"upcomingHours":4,"mapProvider":"Bing"}""";
-        var s    = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
+        var s = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
 
         Assert.Equal(DayOfWeek.Monday, s.WeekStart);
         Assert.Equal(4, s.UpcomingHours);

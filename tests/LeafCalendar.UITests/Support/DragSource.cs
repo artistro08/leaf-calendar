@@ -8,7 +8,7 @@ namespace LeafCalendar.UITests.Support;
 /// drop, on its own STA thread). The mouse button stays up, so the drag enters whatever is under the pointer and drops
 /// at once.
 /// </summary>
-static class DragSource
+internal static class DragSource
 {
     /// <summary>Drops <paramref name="data"/> at <paramref name="point"/> (screen pixels) and returns what the target took (None when it refused).</summary>
     public static System.Windows.Forms.DragDropEffects DropAt(System.Drawing.Point point, System.Windows.Forms.DataObject data)

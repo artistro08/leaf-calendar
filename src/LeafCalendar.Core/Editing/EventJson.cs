@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.People;
+using LeafCalendar.Core.Recurrence;
 
 namespace LeafCalendar.Core.Editing;
 
@@ -22,16 +23,22 @@ public static class EventJson
     public static string? FallbackZoneId { get; set; }
 
     // Fields Google owns or that belong to the original event; never copied into a new one
-    static readonly string[] GoogleOwned =
+    private static readonly string[] GoogleOwned =
     [
         "id", "etag", "iCalUID", "recurringEventId", "originalStartTime", "htmlLink", "created", "updated", "sequence",
         "creator", "organizer", "hangoutLink", "conferenceData", "kind", "status", "attendeesOmitted", "privateCopy", "locked",
     ];
 
     // Fields that share an event with other people; a private copy never carries them
-    static readonly string[] GuestFields =
+    private static readonly string[] GuestFields =
     [
         "attendees", "guestsCanModify", "guestsCanInviteOthers", "guestsCanSeeOtherGuests", "anyoneCanAddSelf",
+    ];
+
+    // Fields that make an event a special type; a private copy drops them when Google can't create that type there
+    private static readonly string[] TypeFields =
+    [
+        "eventType", "birthdayProperties", "workingLocationProperties", "focusTimeProperties", "outOfOfficeProperties",
     ];
 
     // =========================================================================
@@ -52,31 +59,31 @@ public static class EventJson
     {
         var details = EventDetailsParser.Parse(rawJson);
         using var doc = JsonDocument.Parse(rawJson);
-        var root        = doc.RootElement;
+        var root = doc.RootElement;
         var description = Str(root, "description") ?? "";
 
         return new EventDraft
         {
-            AccountId           = accountId,
-            CalendarId          = calendarId,
-            Title               = Str(root, "summary") ?? "",
-            Start               = start,
-            End                 = end,
-            IsAllDay            = isAllDay,
-            TimeZone            = Str(Get(root, "start"), "timeZone"),
-            Location            = Str(root, "location") ?? "",
-            Description         = DescriptionHtml.Normalize(description),
-            DescriptionTooLong  = DescriptionHtml.IsTooLong(description),
-            ColorId             = Str(root, "colorId"),
-            Guests              = Guests(root),
+            AccountId = accountId,
+            CalendarId = calendarId,
+            Title = Str(root, "summary") ?? "",
+            Start = start,
+            End = end,
+            IsAllDay = isAllDay,
+            TimeZone = Str(Get(root, "start"), "timeZone"),
+            Location = Str(root, "location") ?? "",
+            Description = DescriptionHtml.Normalize(description),
+            DescriptionTooLong = DescriptionHtml.IsTooLong(description),
+            ColorId = Str(root, "colorId"),
+            Guests = Guests(root),
             UseDefaultReminders = Get(Get(root, "reminders"), "useDefault") is not { ValueKind: JsonValueKind.False },
-            ReminderMinutes     = PopupMinutes(root),
-            Recurrence          = seriesRecurrence ?? Lines(root),
-            ConferenceUri       = details.ConferenceUri,
-            HasConference       = Get(root, "conferenceData") is { ValueKind: JsonValueKind.Object },
-            EventType           = details.Kind is EventKind.FocusTime or EventKind.OutOfOffice ? details.Kind : EventKind.Default,
-            IsFree              = Str(root, "transparency") == "transparent",
-            Visibility          = Str(root, "visibility") ?? "default",
+            ReminderMinutes = PopupMinutes(root),
+            Recurrence = seriesRecurrence ?? Lines(root),
+            ConferenceUri = details.ConferenceUri,
+            HasConference = Get(root, "conferenceData") is { ValueKind: JsonValueKind.Object },
+            EventType = details.Kind is EventKind.FocusTime or EventKind.OutOfOffice ? details.Kind : EventKind.Default,
+            IsFree = Str(root, "transparency") == "transparent",
+            Visibility = Str(root, "visibility") ?? "default",
         };
     }
 
@@ -145,10 +152,10 @@ public static class EventJson
 
         var body = new JsonObject
         {
-            ["id"]      = id,
+            ["id"] = id,
             ["summary"] = draft.Title,
-            ["start"]   = Time(draft.Start, draft.IsAllDay, ZoneFor(draft), clearOther: false),
-            ["end"]     = Time(draft.End, draft.IsAllDay, ZoneFor(draft), clearOther: false),
+            ["start"] = Time(draft.Start, draft.IsAllDay, ZoneFor(draft), clearOther: false),
+            ["end"] = Time(draft.End, draft.IsAllDay, ZoneFor(draft), clearOther: false),
         };
 
         if (draft.Location.Length > 0)
@@ -207,12 +214,12 @@ public static class EventJson
 
             if (draft.EventType == EventKind.FocusTime)
             {
-                body["eventType"]           = "focusTime";
+                body["eventType"] = "focusTime";
                 body["focusTimeProperties"] = new JsonObject { ["autoDeclineMode"] = "declineOnlyNewConflictingInvitations", ["chatStatus"] = "doNotDisturb" };
             }
             else
             {
-                body["eventType"]             = "outOfOffice";
+                body["eventType"] = "outOfOffice";
                 body["outOfOfficeProperties"] = new JsonObject { ["autoDeclineMode"] = "declineOnlyNewConflictingInvitations" };
             }
         }
@@ -221,11 +228,11 @@ public static class EventJson
     }
 
     /// <summary>A <c>conferenceData</c> asking Google for a new Meet link; the request ID makes a retry safe.</summary>
-    static JsonObject MeetRequest(string requestId) => new()
+    private static JsonObject MeetRequest(string requestId) => new()
     {
         ["createRequest"] = new JsonObject
         {
-            ["requestId"]             = requestId,
+            ["requestId"] = requestId,
             ["conferenceSolutionKey"] = new JsonObject { ["type"] = "hangoutsMeet" },
         },
     };
@@ -249,7 +256,7 @@ public static class EventJson
         {
             var switched = before.IsAllDay != after.IsAllDay;
             patch["start"] = Time(after.Start, after.IsAllDay, ZoneFor(after), switched);
-            patch["end"]   = Time(after.End, after.IsAllDay, ZoneFor(after), switched);
+            patch["end"] = Time(after.End, after.IsAllDay, ZoneFor(after), switched);
         }
 
         if (before.Location != after.Location)
@@ -279,7 +286,15 @@ public static class EventJson
         if (before.UseDefaultReminders != after.UseDefaultReminders
             || (!after.UseDefaultReminders && !before.ReminderMinutes.Order().SequenceEqual(after.ReminderMinutes.Order())))
         {
-            patch["reminders"] = Reminders(after);
+            var reminders = Reminders(after);
+
+            // A Patch Merges Into The Stored Reminders, So Going Back To Defaults Clears The Old Overrides (Google refuses both)
+            if (after.UseDefaultReminders)
+            {
+                reminders["overrides"] = new JsonArray();
+            }
+
+            patch["reminders"] = reminders;
         }
 
         if (!before.Recurrence.SequenceEqual(after.Recurrence))
@@ -337,17 +352,17 @@ public static class EventJson
     public static string MaterializeInstance(string masterJson, string instanceId, DateTimeOffset originalStart, bool isAllDay, DateTimeOffset start, DateTimeOffset end)
     {
         var instance = Parse(masterJson);
-        var zone     = (string?)(instance["start"] as JsonObject)?["timeZone"];
+        var zone = (string?)(instance["start"] as JsonObject)?["timeZone"];
         var masterId = (string?)instance["id"];
 
         instance.Remove("recurrence");
         instance.Remove("etag");
         instance.Remove("htmlLink");
-        instance["id"]                = instanceId;
-        instance["recurringEventId"]  = masterId;
+        instance["id"] = instanceId;
+        instance["recurringEventId"] = masterId;
         instance["originalStartTime"] = Time(originalStart, isAllDay, zone, clearOther: false);
-        instance["start"]             = Time(start, isAllDay, zone, clearOther: false);
-        instance["end"]               = Time(end, isAllDay, zone, clearOther: false);
+        instance["start"] = Time(start, isAllDay, zone, clearOther: false);
+        instance["end"] = Time(end, isAllDay, zone, clearOther: false);
 
         return instance.ToJsonString();
     }
@@ -356,9 +371,9 @@ public static class EventJson
     public static string CanceledInstance(string masterId, string instanceId, DateTimeOffset originalStart, bool isAllDay, string? timeZone) =>
         new JsonObject
         {
-            ["id"]                = instanceId,
-            ["status"]            = "cancelled",
-            ["recurringEventId"]  = masterId,
+            ["id"] = instanceId,
+            ["status"] = "cancelled",
+            ["recurringEventId"] = masterId,
             ["originalStartTime"] = Time(originalStart, isAllDay, timeZone, clearOther: false),
         }.ToJsonString();
 
@@ -401,15 +416,29 @@ public static class EventJson
     /// <summary>
     /// A private copy for paste and Alt+drag: <see cref="CloneForCreate"/> without the repeat, and without the
     /// guests or anything that would invite people (inserting an event with attendees puts it on their calendars
-    /// even when no email is sent). Title, times, location, description, color, and reminders are kept.
+    /// even when no email is sent). Title, times, location, description, color, and reminders are kept. Only a
+    /// timed copy of a focus time or out of office event keeps its type; any other special type (from Gmail, a
+    /// birthday, a working location) becomes an ordinary event, since Google refuses to create those.
     /// </summary>
+    /// <param name="rawJson">The source event as Google sent it.</param>
+    /// <param name="newId">The copy's ID.</param>
+    /// <param name="isAllDay">Whether the copy lands in the all-day row.</param>
     /// <exception cref="JsonException">The JSON is invalid or not an object.</exception>
-    public static string PrivateCopy(string rawJson, string newId)
+    public static string PrivateCopy(string rawJson, string newId, bool isAllDay = false)
     {
         var copy = Parse(CloneForCreate(rawJson, newId, keepRecurrence: false));
         foreach (var name in GuestFields)
         {
             copy.Remove(name);
+        }
+
+        // An Ordinary Event Unless Google Can Create The Type Here
+        if (isAllDay || (string?)(copy["eventType"] as JsonValue) is not ("focusTime" or "outOfOffice"))
+        {
+            foreach (var name in TypeFields)
+            {
+                copy.Remove(name);
+            }
         }
 
         return copy.ToJsonString();
@@ -425,7 +454,7 @@ public static class EventJson
     public static string QuietCopy(string rawJson, string newId)
     {
         var source = Parse(rawJson);
-        var copy   = Parse(CloneForCreate(rawJson, newId));
+        var copy = Parse(CloneForCreate(rawJson, newId));
 
         // Guests Answer Again
         if (copy["attendees"] is JsonArray attendees)
@@ -450,7 +479,7 @@ public static class EventJson
     /// <exception cref="JsonException">The JSON is invalid or not an object.</exception>
     public static bool HasMeet(string rawJson) => HasMeet(Parse(rawJson));
 
-    static bool HasMeet(JsonObject source)
+    private static bool HasMeet(JsonObject source)
     {
         var solution = (string?)(source["conferenceData"]?["conferenceSolution"]?["key"]?["type"] as JsonValue);
         return solution == "hangoutsMeet" || source["hangoutLink"] is not null;
@@ -474,13 +503,39 @@ public static class EventJson
         throw new FormatException("The row has no originalStartTime.");
     }
 
+    /// <summary>
+    /// A series copy's create body with an <c>EXDATE</c> line for each canceled day in <paramref name="snapshotJson"/>
+    /// (the old series' rows, as <see cref="Data.EventStore.Snapshot"/> gives them). A new ID doesn't carry the old
+    /// one's exceptions, so its deleted days would come back.
+    /// </summary>
+    /// <remarks>
+    /// ponytail: changed days (moved or retitled instances) aren't carried, only canceled ones; send them as patches behind the create if that's missed.
+    /// </remarks>
+    /// <exception cref="JsonException">The JSON is invalid or not an object.</exception>
+    public static string WithCanceledDays(string bodyJson, string snapshotJson)
+    {
+        var body = Parse(bodyJson);
+        if (body["recurrence"] is not JsonArray lines)
+        {
+            return bodyJson;
+        }
+
+        foreach (var canceled in JsonNode.Parse(snapshotJson)!.AsArray().OfType<JsonObject>().Where(r => r["recurringEventId"] is not null && (string?)r["status"] == "cancelled"))
+        {
+            var (start, isAllDay) = OriginalStartOf(canceled);
+            lines.Add((JsonNode?)JsonValue.Create(RecurrenceEdits.ExDateLine(start, isAllDay)));
+        }
+
+        return body.ToJsonString();
+    }
+
     /// <summary>The event with new start and end (replacing both objects).</summary>
     /// <exception cref="JsonException">The JSON is invalid or not an object.</exception>
     public static string WithTimes(string rawJson, DateTimeOffset start, DateTimeOffset end, bool isAllDay, string? timeZone)
     {
         var ev = Parse(rawJson);
         ev["start"] = Time(start, isAllDay, timeZone, clearOther: false);
-        ev["end"]   = Time(end, isAllDay, timeZone, clearOther: false);
+        ev["end"] = Time(end, isAllDay, timeZone, clearOther: false);
         return ev.ToJsonString();
     }
 
@@ -515,16 +570,17 @@ public static class EventJson
 
     /// <summary>
     /// A new event whose title contains "birthday" becomes a yearly all-day event on its local date (spec 7.2).
-    /// A draft that already repeats, or has another title, comes back unchanged.
+    /// A draft that already repeats, has another title, or is focus time or out of office (which must stay timed)
+    /// comes back unchanged.
     /// </summary>
     public static EventDraft ApplyBirthdayRule(EventDraft draft, TimeZoneInfo zone)
     {
-        if (draft.Recurrence.Count > 0 || !draft.Title.Contains("birthday", StringComparison.OrdinalIgnoreCase))
+        if (draft.Recurrence.Count > 0 || draft.EventType != EventKind.Default || !draft.Title.Contains("birthday", StringComparison.OrdinalIgnoreCase))
         {
             return draft;
         }
 
-        var day   = draft.IsAllDay ? DateOnly.FromDateTime(draft.Start.UtcDateTime) : DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(draft.Start, zone).DateTime);
+        var day = draft.IsAllDay ? DateOnly.FromDateTime(draft.Start.UtcDateTime) : DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(draft.Start, zone).DateTime);
         var start = new DateTimeOffset(day.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
 
         return draft with { IsAllDay = true, Start = start, End = start.AddDays(1), Recurrence = ["RRULE:FREQ=YEARLY"] };
@@ -533,20 +589,20 @@ public static class EventJson
     /// <summary>Google's word for a reply.</summary>
     public static string ResponseText(ResponseStatus response) => response switch
     {
-        ResponseStatus.Accepted  => "accepted",
+        ResponseStatus.Accepted => "accepted",
         ResponseStatus.Tentative => "tentative",
-        ResponseStatus.Declined  => "declined",
-        _                        => "needsAction",
+        ResponseStatus.Declined => "declined",
+        _ => "needsAction",
     };
 
     // =========================================================================
     // INTERNALS
     // =========================================================================
 
-    static JsonObject Parse(string rawJson) =>
+    private static JsonObject Parse(string rawJson) =>
         JsonNode.Parse(rawJson) as JsonObject ?? throw new JsonException("The event JSON is not an object.");
 
-    static void Merge(JsonObject target, JsonObject patch)
+    private static void Merge(JsonObject target, JsonObject patch)
     {
         foreach (var (name, value) in patch)
         {
@@ -567,7 +623,7 @@ public static class EventJson
     }
 
     // All-day: {"date"}; timed: {"dateTime" in the event's zone, "timeZone"}. clearOther nulls the other form when switching.
-    static JsonObject Time(DateTimeOffset instant, bool isAllDay, string? timeZone, bool clearOther)
+    private static JsonObject Time(DateTimeOffset instant, bool isAllDay, string? timeZone, bool clearOther)
     {
         if (isAllDay)
         {
@@ -582,7 +638,7 @@ public static class EventJson
         }
 
         var local = FindZone(timeZone) is { } zone ? TimeZoneInfo.ConvertTime(instant, zone) : instant;
-        var time  = new JsonObject { ["dateTime"] = local.ToString("yyyy-MM-dd'T'HH:mm:sszzz", CultureInfo.InvariantCulture) };
+        var time = new JsonObject { ["dateTime"] = local.ToString("yyyy-MM-dd'T'HH:mm:sszzz", CultureInfo.InvariantCulture) };
         if (timeZone is not null)
         {
             time["timeZone"] = timeZone;
@@ -597,7 +653,7 @@ public static class EventJson
     }
 
     // Google rejects an offset-only dateTime on a repeating timed event, so fall back to the primary zone if set, else this PC's zone
-    static string? ZoneFor(EventDraft draft)
+    private static string? ZoneFor(EventDraft draft)
     {
         if (draft.TimeZone is not null || draft.IsAllDay || draft.Recurrence.Count == 0)
         {
@@ -614,10 +670,10 @@ public static class EventJson
     }
 
     // The stored attendees with the editor's changes applied: unchanged guests keep every Google field, guests without an email are left alone
-    static JsonArray MergeAttendees(string rawJson, IReadOnlyList<Guest> before, IReadOnlyList<Guest> after)
+    private static JsonArray MergeAttendees(string rawJson, IReadOnlyList<Guest> before, IReadOnlyList<Guest> after)
     {
         var result = new JsonArray();
-        var kept   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var kept = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         if (Parse(rawJson)["attendees"] is JsonArray existing)
         {
@@ -637,7 +693,7 @@ public static class EventJson
                 }
 
                 var attendee = (JsonObject)raw.DeepClone();
-                var was      = before.FirstOrDefault(g => string.Equals(g.Email, email, StringComparison.OrdinalIgnoreCase));
+                var was = before.FirstOrDefault(g => string.Equals(g.Email, email, StringComparison.OrdinalIgnoreCase));
                 if (guest != was)
                 {
                     attendee["responseStatus"] = ResponseText(guest.Response);
@@ -670,7 +726,7 @@ public static class EventJson
         return result;
     }
 
-    static void SetOrRemove(JsonObject target, string name, JsonNode? value)
+    private static void SetOrRemove(JsonObject target, string name, JsonNode? value)
     {
         if (value is null)
         {
@@ -682,7 +738,7 @@ public static class EventJson
         }
     }
 
-    static JsonArray Attendees(IReadOnlyList<Guest> guests)
+    private static JsonArray Attendees(IReadOnlyList<Guest> guests)
     {
         var array = new JsonArray();
         foreach (var guest in guests)
@@ -722,7 +778,7 @@ public static class EventJson
     }
 
     // ponytail: custom reminders are popups only (they become Windows notifications); email reminders set elsewhere are dropped when reminders are edited
-    static JsonObject Reminders(EventDraft draft)
+    private static JsonObject Reminders(EventDraft draft)
     {
         var reminders = new JsonObject { ["useDefault"] = draft.UseDefaultReminders };
         if (!draft.UseDefaultReminders)
@@ -739,7 +795,7 @@ public static class EventJson
         return reminders;
     }
 
-    static JsonArray Strings(IReadOnlyList<string> values)
+    private static JsonArray Strings(IReadOnlyList<string> values)
     {
         var array = new JsonArray();
         foreach (var value in values)
@@ -750,10 +806,10 @@ public static class EventJson
         return array;
     }
 
-    static bool IsSelf(JsonObject attendee) =>
+    private static bool IsSelf(JsonObject attendee) =>
         attendee["self"] is JsonValue self && self.TryGetValue<bool>(out var isSelf) && isSelf;
 
-    static List<Guest> Guests(JsonElement root)
+    private static List<Guest> Guests(JsonElement root)
     {
         if (Get(root, "attendees") is not { ValueKind: JsonValueKind.Array } attendees)
         {
@@ -780,7 +836,7 @@ public static class EventJson
     /// <summary>The address suffix Google gives every room and resource calendar.</summary>
     internal const string RoomDomain = "@resource.calendar.google.com";
 
-    static IReadOnlyList<int> PopupMinutes(JsonElement root)
+    private static IReadOnlyList<int> PopupMinutes(JsonElement root)
     {
         if (Get(Get(root, "reminders"), "overrides") is not { ValueKind: JsonValueKind.Array } overrides)
         {
@@ -793,7 +849,7 @@ public static class EventJson
             .Order()];
     }
 
-    static IReadOnlyList<string> Lines(JsonElement root) =>
+    private static IReadOnlyList<string> Lines(JsonElement root) =>
         Get(root, "recurrence") is { ValueKind: JsonValueKind.Array } lines
             ? [.. lines.EnumerateArray().Where(l => l.ValueKind == JsonValueKind.String).Select(l => l.GetString()!)]
             : [];
@@ -801,21 +857,20 @@ public static class EventJson
     /// <summary>A reply from Google's word for it (anything unknown reads as "not answered").</summary>
     public static ResponseStatus ParseResponse(string? value) => value switch
     {
-        "accepted"  => ResponseStatus.Accepted,
+        "accepted" => ResponseStatus.Accepted,
         "tentative" => ResponseStatus.Tentative,
-        "declined"  => ResponseStatus.Declined,
-        _           => ResponseStatus.NeedsAction,
+        "declined" => ResponseStatus.Declined,
+        _ => ResponseStatus.NeedsAction,
     };
 
-    static TimeZoneInfo? FindZone(string? id) =>
-        id is not null && TimeZoneInfo.TryFindSystemTimeZoneById(id, out var zone) ? zone : null;
+    private static TimeZoneInfo? FindZone(string? id) => RecurrenceExpander.FindZone(id);
 
     // Property lookup that tolerates non-object parents (invites come from anyone)
-    static JsonElement? Get(JsonElement? element, string name) =>
+    private static JsonElement? Get(JsonElement? element, string name) =>
         element is { ValueKind: JsonValueKind.Object } parent && parent.TryGetProperty(name, out var value) ? value : null;
 
-    static string? Str(JsonElement? element, string name) =>
+    private static string? Str(JsonElement? element, string name) =>
         Get(element, name) is { ValueKind: JsonValueKind.String } value ? value.GetString() : null;
 
-    static bool Flag(JsonElement element, string name) => Get(element, name) is { ValueKind: JsonValueKind.True };
+    private static bool Flag(JsonElement element, string name) => Get(element, name) is { ValueKind: JsonValueKind.True };
 }

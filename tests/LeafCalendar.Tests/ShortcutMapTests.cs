@@ -91,6 +91,31 @@ public class ShortcutMapTests
         Assert.Equal(CalendarCommand.TimeTravel, ShortcutMap.Resolve("Z", false, false, false).Command);
     }
 
+    // Other Layouts: Punctuation Shortcuts Follow The Character The Key Types (Shift Included), Not The US Key Code
+    [Theory]
+    [InlineData("191", false, true, '?', CalendarCommand.ShortcutSheet)] // US: Shift+/ types "?"
+    [InlineData("191", false, false, '/', CalendarCommand.Search)]       // US: / types "/"
+    [InlineData("190", false, false, '.', CalendarCommand.GoToDate)]     // US
+    [InlineData("187", true, false, '=', CalendarCommand.ZoomIn)]        // US and French: Ctrl+=
+    [InlineData("189", true, false, '-', CalendarCommand.ZoomOut)]       // US and German: Ctrl+-
+    [InlineData("188", true, false, ',', CalendarCommand.OpenSettings)]  // US and French: Ctrl+,
+    [InlineData("219", false, true, '?', CalendarCommand.ShortcutSheet)] // German: Shift+ß types "?"
+    [InlineData("187", true, false, '+', CalendarCommand.ZoomIn)]        // German: Ctrl and the + key
+    [InlineData("188", false, true, '?', CalendarCommand.ShortcutSheet)] // French: Shift+, types "?"
+    [InlineData("191", false, true, '/', CalendarCommand.Search)]        // French: Shift+: types "/"
+    [InlineData("190", false, true, '.', CalendarCommand.GoToDate)]      // French: Shift+; types "."
+    public void Resolve_TypedCharacter_MatchesPunctuationOnAnyLayout(string key, bool ctrl, bool shift, char typed, CalendarCommand expected) =>
+        Assert.Equal(expected, ShortcutMap.Resolve(key, ctrl, shift, alt: false, typed).Command);
+
+    [Theory]
+    [InlineData("191", false, false, '#')]  // German: the US "/" key types "#"
+    [InlineData("191", false, true, '\'')]  // German: Shift+# types "'"
+    [InlineData("190", false, false, ';')]  // French: the US "." key types ";"
+    [InlineData("188", true, false, ';')]   // A layout whose US "," key types ";"
+    [InlineData("189", true, false, ')')]   // French: the US "-" key types ")"
+    public void Resolve_TypedCharacter_OtherPunctuation_ReturnsNone(string key, bool ctrl, bool shift, char typed) =>
+        Assert.Equal(CalendarCommand.None, ShortcutMap.Resolve(key, ctrl, shift, alt: false, typed).Command);
+
     [Fact]
     public void OtherAltChords_StayUnmapped()
     {

@@ -23,18 +23,24 @@ namespace LeafCalendar.UITests.Support;
 /// </summary>
 public sealed class LeafApp : IDisposable
 {
-    const string PackageName = "LeafCalendar";
+    private const string PackageName = "LeafCalendar";
 
-    readonly UIA3Automation _automation = new();
+    private readonly UIA3Automation _automation = new();
 
-    LeafApp(Application app) => App = app;
+    private LeafApp(Application app) => App = app;
 
     /// <summary>The running app.</summary>
     public Application App { get; }
 
-    /// <summary>The main window (waits up to 20 s). Found by title, so onboarding is never mistaken for it.</summary>
-    public Window MainWindow => TopLevelWindow("Leaf Calendar", TimeSpan.FromSeconds(20))
+    /// <summary>
+    /// The main window (waits up to 20 s). Found by its title bar (its title is the dates on screen, which change), so
+    /// onboarding, whose title bar has another ID, is never mistaken for it.
+    /// </summary>
+    public Window MainWindow => Retry.WhileNull(FindMainWindow, TimeSpan.FromSeconds(20)).Result
         ?? throw new InvalidOperationException("Leaf's main window didn't appear.");
+
+    /// <summary>How many main windows are open right now (0 or 1).</summary>
+    public int MainWindowCount() => App.GetAllTopLevelWindows(_automation).Count(IsMainWindow);
 
     /// <summary>The Settings view's navigation, in the main window in place of the calendar (waits up to 15 s).</summary>
     public AutomationElement SettingsView =>
@@ -96,13 +102,18 @@ public sealed class LeafApp : IDisposable
 
     /// <summary>
     /// Opens Settings from the sidebar's settings button and shows a page (<c>General</c>, <c>Calendars</c>, <c>TimeZones</c>,
-    /// <c>Accounts</c>, <c>About</c>). Settings shows in the main window, which is returned.
+    /// <c>Accounts</c>, <c>About</c>), or, while Settings already shows (the sidebar isn't on screen then), picks that page in
+    /// its navigation. Settings shows in the main window, which is returned.
     /// </summary>
     public Window OpenSettings(string page = "General")
     {
-        WaitFor("SettingsButton").AsButton().Invoke();
+        if (!IsSettingsOpen)
+        {
+            WaitFor("SettingsButton").AsButton().Invoke();
+        }
+
         var settings = SettingsView;
-        var item     = Retry.WhileNull(() => settings.FindFirstDescendant(cf => cf.ByAutomationId($"SettingsNav_{page}")), TimeSpan.FromSeconds(15)).Result
+        var item = Retry.WhileNull(() => settings.FindFirstDescendant(cf => cf.ByAutomationId($"SettingsNav_{page}")), TimeSpan.FromSeconds(15)).Result
             ?? throw new InvalidOperationException($"Settings page '{page}' isn't in the navigation.");
         item.Patterns.SelectionItem.Pattern.Select();
         return MainWindow;
@@ -123,6 +134,39 @@ public sealed class LeafApp : IDisposable
         }
     }
 
+    /// <summary>Runs "Sync now" from the command menu (Ctrl+K), on the calendar (the menu's only match is picked as it opens).</summary>
+    public void SyncNow()
+    {
+        Press(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_K);
+        WaitForAnywhere("CommandSearchBox").AsTextBox().Text = "sync now";
+        WaitForAnywhere("CommandResult_sync");
+        Keyboard.Type(VirtualKeyShort.RETURN);
+        if (!Retry.WhileTrue(() => ExistsAnywhere("CommandSearchBox"), TimeSpan.FromSeconds(5)).Success)
+        {
+            throw new InvalidOperationException("The command menu stayed open after Sync now.");
+        }
+    }
+
+    /// <summary>
+    /// With the fake Google refusing connections, runs Sync now until the title bar shows Leaf is offline: syncing stays in
+    /// the background, so the offline icon shows only once 3 syncs in a row couldn't reach Google, and the window's own
+    /// loop only syncs every 15 s. A sync asked for while one runs is the same sync, so it keeps asking (up to 60 s).
+    /// </summary>
+    public void SyncUntilOffline()
+    {
+        var watch = Stopwatch.StartNew();
+        while (!Exists("OfflineIndicator"))
+        {
+            if (watch.Elapsed > TimeSpan.FromSeconds(60))
+            {
+                throw new InvalidOperationException("Leaf never showed it was offline.");
+            }
+
+            SyncNow();
+            Retry.WhileFalse(() => Exists("OfflineIndicator"), TimeSpan.FromSeconds(2));
+        }
+    }
+
     /// <summary>In Settings › Accounts, opens the first account's expander and presses its Disconnect button.</summary>
     public void PressDisconnectInSettings()
     {
@@ -137,13 +181,20 @@ public sealed class LeafApp : IDisposable
         button.AsButton().Invoke();
     }
 
-    Window? TopLevelWindow(string title, TimeSpan timeout) =>
+    private Window? FindMainWindow() => App.GetAllTopLevelWindows(_automation).FirstOrDefault(IsMainWindow);
+
+    private static bool IsMainWindow(Window window) => window.FindFirstDescendant(cf => cf.ByAutomationId("AppTitleBar")) is not null;
+
+    private Window? TopLevelWindow(string title, TimeSpan timeout) =>
         Retry.WhileNull(() => App.GetAllTopLevelWindows(_automation).FirstOrDefault(w => NameOf(w) == title), timeout).Result;
 
-    /// <summary>The registered package.</summary>
-    public static Windows.ApplicationModel.Package Package =>
+    // Looked up once per run: listing every installed package is slow, and polls read the package's folder often
+    private static readonly Lazy<Windows.ApplicationModel.Package> LazyPackage = new(() =>
         new PackageManager().FindPackagesForUser(string.Empty).FirstOrDefault(p => p.Id.Name == PackageName)
-        ?? throw new InvalidOperationException("Leaf Calendar isn't registered. Run tools/dev-register.ps1 first.");
+        ?? throw new InvalidOperationException("Leaf Calendar isn't registered. Run tools/dev-register.ps1 first."));
+
+    /// <summary>The registered package.</summary>
+    public static Windows.ApplicationModel.Package Package => LazyPackage.Value;
 
     /// <summary>True when the registered build is Native AOT (no managed LeafCalendar.dll).</summary>
     public static bool IsNativeAot => !File.Exists(Path.Combine(Package.InstalledLocation.Path, "LeafCalendar.dll"));
@@ -278,7 +329,7 @@ public sealed class LeafApp : IDisposable
     {
         get
         {
-            var hwnd   = MainWindow.Properties.NativeWindowHandle.Value;
+            var hwnd = MainWindow.Properties.NativeWindowHandle.Value;
             var corner = new NativeMethods.PointStruct();
             NativeMethods.GetClientRect(hwnd, out var client);
             NativeMethods.ClientToScreen(hwnd, ref corner);
@@ -337,7 +388,7 @@ public sealed class LeafApp : IDisposable
             () =>
             {
                 Thread.Sleep(TimeSpan.FromMilliseconds(200));
-                var now     = element.BoundingRectangle;
+                var now = element.BoundingRectangle;
                 var settled = now == last && !element.IsOffscreen;
                 last = now;
                 return settled;
@@ -379,19 +430,19 @@ public sealed class LeafApp : IDisposable
     /// </summary>
     public static void MoveMouse(Point to)
     {
-        var left   = NativeMethods.GetSystemMetrics(NativeMethods.VirtualScreenLeft);
-        var top    = NativeMethods.GetSystemMetrics(NativeMethods.VirtualScreenTop);
-        var width  = NativeMethods.GetSystemMetrics(NativeMethods.VirtualScreenWidth);
+        var left = NativeMethods.GetSystemMetrics(NativeMethods.VirtualScreenLeft);
+        var top = NativeMethods.GetSystemMetrics(NativeMethods.VirtualScreenTop);
+        var width = NativeMethods.GetSystemMetrics(NativeMethods.VirtualScreenWidth);
         var height = NativeMethods.GetSystemMetrics(NativeMethods.VirtualScreenHeight);
-        var x      = (int)Math.Round((to.X - left) * 65535.0 / (width - 1));
-        var y      = (int)Math.Round((to.Y - top) * 65535.0 / (height - 1));
+        var x = (int)Math.Round((to.X - left) * 65535.0 / (width - 1));
+        var y = (int)Math.Round((to.Y - top) * 65535.0 / (height - 1));
         NativeMethods.mouse_event(NativeMethods.MouseEventMove | NativeMethods.MouseEventAbsolute | NativeMethods.MouseEventVirtualDesk, x, y, 0, 0);
     }
 
     /// <summary>Drags an element by (dx, dy) screen pixels, grabbing it <paramref name="fromTop"/> of the way down.</summary>
     public static void DragBy(AutomationElement element, int dx, int dy, double fromTop = 0.3, bool alt = false)
     {
-        var box   = element.BoundingRectangle;
+        var box = element.BoundingRectangle;
         var start = new Point(box.X + box.Width / 2, box.Y + (int)(box.Height * fromTop));
         Drag(start, new Point(start.X + dx, start.Y + dy), alt);
     }
@@ -477,7 +528,7 @@ public sealed class LeafApp : IDisposable
     /// <summary>True when an element with this ID is currently in one of this Leaf's windows or popups.</summary>
     public bool PopupExists(string automationId) => FindInPopups(automationId) is not null;
 
-    AutomationElement? FindInPopups(string automationId) =>
+    private AutomationElement? FindInPopups(string automationId) =>
         _automation.GetDesktop()
             .FindAllChildren(cf => cf.ByProcessId(App.ProcessId))
             .Select(w => w.Properties.AutomationId.ValueOrDefault == automationId ? w : w.FindFirstDescendant(cf => cf.ByAutomationId(automationId)))
@@ -512,7 +563,7 @@ public sealed class LeafApp : IDisposable
 
     // An element's name (a window's title), or empty when it's going away while being read (a closing window or
     // dialog answers with a COM error or "not supported")
-    static string NameOf(AutomationElement element)
+    private static string NameOf(AutomationElement element)
     {
         try
         {
@@ -525,7 +576,7 @@ public sealed class LeafApp : IDisposable
     }
 
     // The process's command line (ProcessCommandLineInformation), or empty when it can't be read
-    static string CommandLine(Process process)
+    private static string CommandLine(Process process)
     {
         const int ProcessCommandLineInformation = 60;
         try
@@ -559,17 +610,17 @@ public sealed class LeafApp : IDisposable
         }
     }
 
-    static class NativeMethods
+    private static class NativeMethods
     {
-        internal const uint MouseEventMove        = 0x0001;
+        internal const uint MouseEventMove = 0x0001;
         internal const uint MouseEventVirtualDesk = 0x4000;
-        internal const uint MouseEventAbsolute    = 0x8000;
-        internal const int VirtualScreenLeft      = 76;
-        internal const int VirtualScreenTop       = 77;
-        internal const int VirtualScreenWidth     = 78;
-        internal const int VirtualScreenHeight    = 79;
-        internal const int PrimaryScreenWidth     = 0;
-        internal const int PrimaryScreenHeight    = 1;
+        internal const uint MouseEventAbsolute = 0x8000;
+        internal const int VirtualScreenLeft = 76;
+        internal const int VirtualScreenTop = 77;
+        internal const int VirtualScreenWidth = 78;
+        internal const int VirtualScreenHeight = 79;
+        internal const int PrimaryScreenWidth = 0;
+        internal const int PrimaryScreenHeight = 1;
 
         [DllImport("user32.dll")]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

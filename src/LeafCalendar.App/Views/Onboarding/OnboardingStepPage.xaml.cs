@@ -44,10 +44,10 @@ public sealed partial class OnboardingStepPage : Page
 
         // Show This Step's Panel
         WelcomeStep.Visibility = Shown(args.Step == OnboardingStep.Welcome);
-        ClientStep.Visibility  = Shown(args.Step == OnboardingStep.Client);
-        SignInStep.Visibility  = Shown(args.Step == OnboardingStep.SignIn);
+        ClientStep.Visibility = Shown(args.Step == OnboardingStep.Client);
+        SignInStep.Visibility = Shown(args.Step == OnboardingStep.SignIn);
         SyncingStep.Visibility = Shown(args.Step == OnboardingStep.Syncing);
-        DoneStep.Visibility    = Shown(args.Step == OnboardingStep.Done);
+        DoneStep.Visibility = Shown(args.Step == OnboardingStep.Done);
 
         Bindings.Update();
     }
@@ -61,7 +61,7 @@ public sealed partial class OnboardingStepPage : Page
     }
 
     // Scrolls an open error into view (its own reference, never read back from the tree)
-    static void BringIntoViewWhenOpen(InfoBar error)
+    private static void BringIntoViewWhenOpen(InfoBar error)
     {
         if (!error.IsOpen)
         {
@@ -71,13 +71,13 @@ public sealed partial class OnboardingStepPage : Page
         error.StartBringIntoView();
     }
 
-    static Visibility Shown(bool shown) => shown ? Visibility.Visible : Visibility.Collapsed;
+    private static Visibility Shown(bool shown) => shown ? Visibility.Visible : Visibility.Collapsed;
 
     // Safe as async void: LaunchAsync logs a failed launch and returns false, it never throws
-    async void OnConsoleLinkClick(Hyperlink sender, HyperlinkClickEventArgs args) => await ViewModel.OpenConsoleAsync();
+    private async void OnConsoleLinkClick(Hyperlink sender, HyperlinkClickEventArgs args) => await ViewModel.OpenConsoleAsync();
 
     // Enter in the client ID moves on to the secret
-    void OnClientIdKeyDown(object sender, KeyRoutedEventArgs e)
+    private void OnClientIdKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == VirtualKey.Enter)
         {
@@ -87,7 +87,7 @@ public sealed partial class OnboardingStepPage : Page
     }
 
     // Enter in the secret runs the step's primary action (Next)
-    void OnClientSecretKeyDown(object sender, KeyRoutedEventArgs e)
+    private void OnClientSecretKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == VirtualKey.Enter)
         {

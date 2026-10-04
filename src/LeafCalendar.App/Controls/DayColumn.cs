@@ -17,40 +17,38 @@ namespace LeafCalendar.App.Controls;
 /// </summary>
 public sealed partial class DayColumn : Canvas
 {
-    static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
-
     // The app's icon button look, read once (as SidebarView reads its day styles)
-    static readonly Lazy<Style> IconButtonStyle = new(() => (Style)Application.Current.Resources["LeafIconButtonStyle"]);
+    private static readonly Lazy<Style> IconButtonStyle = new(() => (Style)Application.Current.Resources["LeafIconButtonStyle"]);
 
-    readonly TimeGridView _owner;
-    readonly Action<CalendarOccurrence> _select;
-    readonly Rectangle[] _hourLines = new Rectangle[24];
-    readonly Rectangle _divider = new() { Width = 1 };
-    readonly Rectangle _nowLine = new() { Height = 2, Fill = LeafBrushes.NowLine };
-    readonly Ellipse _nowDot = new() { Width = 10, Height = 10, Fill = LeafBrushes.NowLine };
-    readonly List<EventBlock> _blocks = [];
-    readonly Border _ghost = new() { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+    private readonly TimeGridView _owner;
+    private readonly Action<CalendarOccurrence> _select;
+    private readonly Rectangle[] _hourLines = new Rectangle[24];
+    private readonly Rectangle _divider = new() { Width = 1 };
+    private readonly Rectangle _nowLine = new() { Height = 2, Fill = LeafBrushes.NowLine };
+    private readonly Ellipse _nowDot = new() { Width = 10, Height = 10, Fill = LeafBrushes.NowLine };
+    private readonly List<EventBlock> _blocks = [];
+    private readonly Border _ghost = new() { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
 
     // The drag ghost's shadow lands on this, under everything (a receiver can't be the ghost's ancestor)
-    readonly Rectangle _floor = new() { IsHitTestVisible = false };
-    readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 2, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
-    readonly Canvas _offHours = new() { IsHitTestVisible = false };
+    private readonly Rectangle _floor = new() { IsHitTestVisible = false };
+    private readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 2, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly Canvas _offHours = new() { IsHitTestVisible = false };
 
     // Marking times to share: diagonal lines over the day's empty time (under the events and the picked times)
-    readonly Microsoft.UI.Xaml.Shapes.Path _hatch = Hatch.Create();
-    readonly List<Border> _offHourBlocks = [];
-    readonly Canvas _overlay = new() { IsHitTestVisible = false };
-    readonly List<(Border Block, TextBlock Title)> _overlayBlocks = [];
-    readonly Canvas _slots = new() { IsHitTestVisible = false };
-    readonly List<(Grid Slot, Rectangle Fill, Rectangle Edge)> _slotItems = [];
-    readonly Canvas _slotButtons = new();
-    readonly List<Button> _slotRemoves = [];
-    readonly List<int> _slotRemoveIndexes = [];
+    private readonly Microsoft.UI.Xaml.Shapes.Path _hatch = Hatch.Create();
+    private readonly List<Border> _offHourBlocks = [];
+    private readonly Canvas _overlay = new() { IsHitTestVisible = false };
+    private readonly List<(Border Block, TextBlock Title)> _overlayBlocks = [];
+    private readonly Canvas _slots = new() { IsHitTestVisible = false };
+    private readonly List<(Grid Slot, Rectangle Fill, Rectangle Edge)> _slotItems = [];
+    private readonly Canvas _slotButtons = new();
+    private readonly List<Button> _slotRemoves = [];
+    private readonly List<int> _slotRemoveIndexes = [];
 
     /// <summary>Creates a column owned by <paramref name="owner"/>.</summary>
     public DayColumn(TimeGridView owner)
     {
-        _owner  = owner;
+        _owner = owner;
         _select = o => KeyState.SelectClicked(_owner.ViewModel, o);
 
         // Off-Hours Shading (behind everything, even the hour lines)
@@ -74,7 +72,7 @@ public sealed partial class DayColumn : Canvas
 
         _divider.IsHitTestVisible = false;
         _nowLine.IsHitTestVisible = false;
-        _nowDot.IsHitTestVisible  = false;
+        _nowDot.IsHitTestVisible = false;
         Children.Add(_divider);
         Children.Add(_nowLine);
         Children.Add(_nowDot);
@@ -85,8 +83,8 @@ public sealed partial class DayColumn : Canvas
         SetZIndex(_floor, -1);
         var shadow = new ThemeShadow();
         shadow.Receivers.Add(_floor);
-        _ghost.Child       = _ghostLabel;
-        _ghost.Shadow      = shadow;
+        _ghost.Child = _ghostLabel;
+        _ghost.Shadow = shadow;
         _ghost.Translation = new System.Numerics.Vector3(0, 0, 24);
         Children.Add(_ghost);
         SetZIndex(_ghost, 20);
@@ -102,10 +100,9 @@ public sealed partial class DayColumn : Canvas
             }
         };
         DoubleTapped += (_, e) => _owner.CreateAt(Date, e.GetPosition(this).Y);
-        Tapped       += (_, e) =>
+        Tapped += (_, e) =>
         {
-            var zone = _owner.ViewModel.Zone;
-            _owner.ViewModel.CursorTime = DragMath.Snap(DragMath.Instant(Date, e.GetPosition(this).Y / _owner.HourHeight * 60, zone), zone);
+            _owner.ViewModel.CursorTime = DragMath.SnapOnDay(Date, e.GetPosition(this).Y / _owner.HourHeight * 60, _owner.ViewModel.Zone);
         };
     }
 
@@ -124,23 +121,23 @@ public sealed partial class DayColumn : Canvas
     /// <summary>Repaints for the current size, theme, data, and selection.</summary>
     public void Render()
     {
-        var dark   = _owner.IsDark;
-        var width  = _owner.ColumnWidth;
-        var hour   = _owner.HourHeight;
-        Width      = width;
-        Height     = _owner.BodyHeight;
+        var dark = _owner.IsDark;
+        var width = _owner.ColumnWidth;
+        var hour = _owner.HourHeight;
+        Width = width;
+        Height = _owner.BodyHeight;
         Background = ViewNavigator.IsWeekend(Date) ? LeafBrushes.WeekendFill(dark) : LeafBrushes.Transparent;
 
         // Grid Lines
         for (var h = 0; h < 24; h++)
         {
             _hourLines[h].Width = width;
-            _hourLines[h].Fill  = LeafBrushes.GridLine(dark);
+            _hourLines[h].Fill = LeafBrushes.GridLine(dark);
             SetTop(_hourLines[h], h * hour);
         }
 
         _divider.Height = Height;
-        _divider.Fill   = LeafBrushes.GridLine(dark);
+        _divider.Fill = LeafBrushes.GridLine(dark);
         Hatch.Draw(_hatch, _owner.ViewModel.IsSharing, width, Height, LeafBrushes.GridLine(dark));
 
         RenderOffHours();
@@ -151,7 +148,7 @@ public sealed partial class DayColumn : Canvas
 
     // Room right of the cards: 8 between days, and in Day view (one column, so its right edge is the grid's, under the
     // scroll indicator) enough to press and drag a new event there, clear of the indicator
-    double RightInset => _owner.ViewModel.VisibleColumns == 1 ? 28 : 8;
+    private double RightInset => _owner.ViewModel.VisibleColumns == 1 ? 28 : 8;
 
     /// <summary>
     /// Repaints the events (past ones fade) and the now line: what the time grid's minute clock redraws. The shading,
@@ -159,26 +156,26 @@ public sealed partial class DayColumn : Canvas
     /// </summary>
     public void RenderEventsAndNow()
     {
-        var vm    = _owner.ViewModel;
-        var dark  = _owner.IsDark;
+        var vm = _owner.ViewModel;
+        var dark = _owner.IsDark;
         var width = _owner.ColumnWidth;
-        var hour  = _owner.HourHeight;
+        var hour = _owner.HourHeight;
 
         // Events (drawn at the same minimum length DayLayout uses for overlap, so short events never collide). The
         // grid's stand-ins are laid out with them: a new event's range is one more overlapping column, drawn as the ghost
-        var standIn    = _owner.StandIn;
-        _floor.Width   = width;
-        _floor.Height  = _owner.BodyHeight;
-        var blocks     = DayLayout.Layout(Date, _owner.WithPreviews(vm.Cache.ForDay(Date)), vm.Zone);
-        var shown      = 0;
+        var standIn = _owner.StandIn;
+        _floor.Width = width;
+        _floor.Height = _owner.BodyHeight;
+        var blocks = DayLayout.Layout(Date, _owner.WithPreviews(vm.Cache.ForDay(Date)), vm.Zone);
+        var shown = 0;
         var ghostShown = false;
         EnsureBlocks(blocks.Count);
 
         for (var i = 0; i < blocks.Count; i++)
         {
-            var b       = blocks[i];
-            var usable  = width - 2 - RightInset;
-            var colW    = usable / b.ColumnCount;
+            var b = blocks[i];
+            var usable = width - 2 - RightInset;
+            var colW = usable / b.ColumnCount;
 
             // The New Event's Ghost, In Its Own Column
             if (ReferenceEquals(b.Occurrence, standIn))
@@ -189,14 +186,14 @@ public sealed partial class DayColumn : Canvas
                 continue;
             }
 
-            var card    = _blocks[shown++];
-            var height  = Math.Max(b.EndMinute - b.StartMinute, DayLayout.MinVisualMinutes) / 60 * hour - 2;
+            var card = _blocks[shown++];
+            var height = Math.Max(b.EndMinute - b.StartMinute, DayLayout.MinVisualMinutes) / 60 * hour - 2;
             // Marking Times To Share: every event looks past (they're taken; the day behind them wears diagonal lines)
-            var faded   = vm.IsPast(b.Occurrence) || vm.IsSharing;
+            var faded = vm.IsPast(b.Occurrence) || vm.IsSharing;
             var palette = LeafBrushes.CardPalette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, faded, vm.IsSelected(b.Occurrence));
 
-            card.Width      = Math.Max(colW - 2, 10);
-            card.Height     = height;
+            card.Width = Math.Max(colW - 2, 10);
+            card.Height = height;
             card.Visibility = Visibility.Visible;
             SetLeft(card, 2 + b.Column * colW);
             SetTop(card, b.StartMinute / 60 * hour + 1);
@@ -234,16 +231,16 @@ public sealed partial class DayColumn : Canvas
     }
 
     // The same event on several shown calendars: each calendar's bar color, faded or full as the card is
-    IReadOnlyList<string>? StripesFor(CalendarOccurrence occurrence, bool dark)
+    private IReadOnlyList<string>? StripesFor(CalendarOccurrence occurrence, bool dark)
     {
-        var vm      = _owner.ViewModel;
+        var vm = _owner.ViewModel;
         var accents = vm.Cache.StripesOf(occurrence);
         if (accents.Count < 2)
         {
             return null;
         }
 
-        var past     = vm.IsPast(occurrence) || vm.IsSharing;
+        var past = vm.IsPast(occurrence) || vm.IsSharing;
         var selected = vm.IsSelected(occurrence);
         return [.. accents.Select(a => LeafBrushes.CardPalette(a, dark, past, selected).Accent)];
     }
@@ -263,32 +260,32 @@ public sealed partial class DayColumn : Canvas
     public void SetTimeLabel(double endMinute, string label)
     {
         var y = endMinute / 60 * _owner.HourHeight;
-        _ghost.Width       = double.NaN;
-        _ghost.Height      = TimeLabelHeight;
+        _ghost.Width = double.NaN;
+        _ghost.Height = TimeLabelHeight;
         _ghost.BorderBrush = LeafBrushes.Transparent;
-        _ghost.Background  = LeafBrushes.GhostFill(_owner.IsDark);
-        _ghostLabel.Text   = label;
+        _ghost.Background = LeafBrushes.GhostFill(_owner.IsDark);
+        _ghostLabel.Text = label;
         SetLeft(_ghost, 2);
         SetTop(_ghost, y + 2 + TimeLabelHeight <= _owner.BodyHeight ? y + 2 : y - 2 - TimeLabelHeight);
-        _ghost.Visibility  = Visibility.Visible;
+        _ghost.Visibility = Visibility.Visible;
     }
 
     // Height of the resize time label (one line of the ghost's 11 px text)
-    const double TimeLabelHeight = 20;
+    private const double TimeLabelHeight = 20;
 
-    void PlaceGhost(double left, double width, double startMinute, double endMinute, string label, string? accentHex = null)
+    private void PlaceGhost(double left, double width, double startMinute, double endMinute, string label, string? accentHex = null)
     {
-        var hour  = _owner.HourHeight;
-        var dark  = _owner.IsDark;
+        var hour = _owner.HourHeight;
+        var dark = _owner.IsDark;
         var (border, fill) = LeafBrushes.GhostPalette(accentHex, dark);
-        _ghost.Width       = width;
-        _ghost.Height      = Math.Max((endMinute - startMinute) / 60 * hour - 2, 10);
+        _ghost.Width = width;
+        _ghost.Height = Math.Max((endMinute - startMinute) / 60 * hour - 2, 10);
         _ghost.BorderBrush = border;
-        _ghost.Background  = fill;
-        _ghostLabel.Text   = label;
+        _ghost.Background = fill;
+        _ghostLabel.Text = label;
         SetLeft(_ghost, left);
         SetTop(_ghost, startMinute / 60 * hour + 1);
-        _ghost.Visibility  = Visibility.Visible;
+        _ghost.Visibility = Visibility.Visible;
     }
 
     /// <summary>Hides the ghost.</summary>
@@ -296,11 +293,11 @@ public sealed partial class DayColumn : Canvas
 
     // Shades the time outside your working hours. Your hours (in your own zone) are laid onto the clock on screen
     // (ViewModel.Zone), so while traveling to Tokyo your 9 to 5 shows where it falls in Tokyo time
-    void RenderOffHours()
+    private void RenderOffHours()
     {
-        var vm    = _owner.ViewModel;
-        var hour  = _owner.HourHeight;
-        var fill  = LeafBrushes.OffHours(_owner.IsDark);
+        var vm = _owner.ViewModel;
+        var hour = _owner.HourHeight;
+        var fill = LeafBrushes.OffHours(_owner.IsDark);
         var spans = WorkingHoursMath.OffHours(vm.Settings.WorkingHours, Date, vm.UserZone, vm.Zone);
 
         for (var i = 0; i < spans.Count; i++)
@@ -313,11 +310,11 @@ public sealed partial class DayColumn : Canvas
             }
 
             var (start, end) = spans[i];
-            var shade        = _offHourBlocks[i];
+            var shade = _offHourBlocks[i];
             shade.Visibility = Visibility.Visible;
             shade.Background = fill;
-            shade.Width      = _owner.ColumnWidth;
-            shade.Height     = (end - start) / 60.0 * hour;
+            shade.Width = _owner.ColumnWidth;
+            shade.Height = (end - start) / 60.0 * hour;
             SetTop(shade, start / 60.0 * hour);
             AutomationProperties.SetAutomationId(shade, string.Create(CultureInfo.InvariantCulture, $"OffHours_{Date:yyyy-MM-dd}_{i}"));
 
@@ -337,12 +334,12 @@ public sealed partial class DayColumn : Canvas
     /// </summary>
     public void RenderOverlay()
     {
-        var vm       = _owner.ViewModel;
-        var dark     = _owner.IsDark;
+        var vm = _owner.ViewModel;
+        var dark = _owner.IsDark;
         var dayStart = OccurrenceQuery.LocalMidnight(Date, vm.Zone);
-        var dayEnd   = OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
-        var counts   = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var shown    = 0;
+        var dayEnd = OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var shown = 0;
 
         foreach (var b in vm.OverlayBlocks(DateTimeOffset.MinValue, DateTimeOffset.MaxValue))
         {
@@ -362,19 +359,19 @@ public sealed partial class DayColumn : Canvas
             }
 
             var (border, text) = _overlayBlocks[shown++];
-            var top    = b.Start <= dayStart ? 0 : _owner.MinutesIntoDay(b.Start);
+            var top = b.Start <= dayStart ? 0 : _owner.MinutesIntoDay(b.Start);
             var bottom = b.End >= dayEnd ? 24 * 60 : _owner.MinutesIntoDay(b.End);
 
-            border.Visibility  = Visibility.Visible;
-            border.Background  = LeafBrushes.PersonFill(b.ColorIndex, dark);
+            border.Visibility = Visibility.Visible;
+            border.Background = LeafBrushes.PersonFill(b.ColorIndex, dark);
             border.BorderBrush = LeafBrushes.Person(b.ColorIndex, dark);
-            border.Width       = Math.Max(_owner.ColumnWidth - 2, 4);
-            border.Height      = Math.Max((bottom - top) / 60 * _owner.HourHeight, 2);
-            text.Text          = b.Title ?? "";
-            text.Foreground    = LeafBrushes.PrimaryText(dark);
+            border.Width = Math.Max(_owner.ColumnWidth - 2, 4);
+            border.Height = Math.Max((bottom - top) / 60 * _owner.HourHeight, 2);
+            text.Text = b.Title ?? "";
+            text.Foreground = LeafBrushes.PrimaryText(dark);
             SetTop(border, top / 60 * _owner.HourHeight);
 
-            var when = $"{TimeZoneInfo.ConvertTime(b.Start, vm.Zone).ToString("h:mm tt", English)}–{TimeZoneInfo.ConvertTime(b.End, vm.Zone).ToString("h:mm tt", English)}";
+            var when = TimeLabels.Range(b.Start, b.End, vm.Zone, vm.Settings.Use24HourTime);
             AutomationProperties.SetAutomationId(border, $"OverlayBlock_{b.Email}_{n - 1}");
             AutomationProperties.SetName(border, $"{b.Email} busy {when}" + (b.Title is { } t ? $": {t}" : ""));
         }
@@ -391,14 +388,14 @@ public sealed partial class DayColumn : Canvas
     /// </summary>
     public void RenderSlots()
     {
-        var vm       = _owner.ViewModel;
-        var dark     = _owner.IsDark;
-        var accent   = LeafBrushes.Accent(dark);
+        var vm = _owner.ViewModel;
+        var dark = _owner.IsDark;
+        var accent = LeafBrushes.Accent(dark);
         var dayStart = OccurrenceQuery.LocalMidnight(Date, vm.Zone);
-        var dayEnd   = OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
-        var width    = Math.Max(_owner.ColumnWidth - 6, 10);
-        var shown    = 0;
-        var buttons  = 0;
+        var dayEnd = OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
+        var width = Math.Max(_owner.ColumnWidth - 6, 10);
+        var shown = 0;
+        var buttons = 0;
 
         for (var n = 0; n < vm.ShareSlots.Count; n++)
         {
@@ -421,15 +418,15 @@ public sealed partial class DayColumn : Canvas
             }
 
             var (box, inside, border) = _slotItems[shown++];
-            var top    = s.Start <= dayStart ? 0 : _owner.MinutesIntoDay(s.Start);
+            var top = s.Start <= dayStart ? 0 : _owner.MinutesIntoDay(s.Start);
             var bottom = s.End >= dayEnd ? 24 * 60 : _owner.MinutesIntoDay(s.End);
-            var y      = top / 60 * _owner.HourHeight;
+            var y = top / 60 * _owner.HourHeight;
 
             box.Visibility = Visibility.Visible;
-            box.Width      = width;
-            box.Height     = Math.Max((bottom - top) / 60 * _owner.HourHeight - 2, 4);
-            inside.Fill    = accent;
-            border.Stroke  = accent;
+            box.Width = width;
+            box.Height = Math.Max((bottom - top) / 60 * _owner.HourHeight - 2, 4);
+            inside.Fill = accent;
+            border.Stroke = accent;
             SetLeft(box, 2);
             SetTop(box, y + 1);
             AutomationProperties.SetAutomationId(box, $"ShareSlot_{n}");
@@ -443,14 +440,14 @@ public sealed partial class DayColumn : Canvas
 
             if (buttons == _slotRemoves.Count)
             {
-                var index  = _slotRemoves.Count;
+                var index = _slotRemoves.Count;
                 var remove = new Button
                 {
                     Content = new FontIcon { Glyph = "", FontSize = 10 },
-                    Width   = 20,
-                    Height  = 20,
+                    Width = 20,
+                    Height = 20,
                     Padding = new Thickness(0),
-                    Style   = IconButtonStyle.Value,
+                    Style = IconButtonStyle.Value,
                 };
                 AutomationProperties.SetName(remove, "Remove this time");
                 ToolTipService.SetToolTip(remove, "Remove this time");
@@ -479,7 +476,7 @@ public sealed partial class DayColumn : Canvas
         }
     }
 
-    void EnsureBlocks(int count)
+    private void EnsureBlocks(int count)
     {
         while (_blocks.Count < count)
         {

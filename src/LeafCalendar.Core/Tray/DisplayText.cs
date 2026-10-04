@@ -14,7 +14,8 @@ public static class DisplayText
     /// Bidi, zero-width, and every Unicode format character (soft hyphen, invisible operators, tag characters, and so
     /// on) are dropped, plus U+034F and the line/paragraph separators, and so are characters XML can't carry (a lone
     /// surrogate half, U+FFFE, U+FFFF), so the result is always safe to put in notification XML. The zero-width joiner
-    /// (U+200D) stays, because emoji sequences such as a woman technologist need it.
+    /// (U+200D) stays, because emoji sequences such as a woman technologist need it, and so does the zero-width
+    /// non-joiner (U+200C), which Persian and several Indic scripts need to spell words correctly.
     /// </remarks>
     public static string Clean(string? text, int max)
     {
@@ -79,8 +80,8 @@ public static class DisplayText
         return clean[..cut].TrimEnd() + "\u2026";
     }
 
-    // Format Characters (Bidi Marks/Embeddings/Isolates, Zero-Width, Soft Hyphen, Invisible Operators, ...) Except The Joiner Emoji Need;
+    // Format Characters (Bidi Marks/Embeddings/Isolates, Zero-Width, Soft Hyphen, Invisible Operators, ...) Except The Joiner Emoji Need And The Non-Joiner Persian Needs;
     // Plus The Combining Grapheme Joiner, Line/Paragraph Separators, And XML Noncharacters
-    static bool IsInvisible(char c) =>
-        c is not '\u200D' && (char.GetUnicodeCategory(c) == UnicodeCategory.Format || c is '\u034F' or '\u2028' or '\u2029' or '\uFFFE' or '\uFFFF');
+    private static bool IsInvisible(char c) =>
+        c is not ('\u200C' or '\u200D') && (char.GetUnicodeCategory(c) == UnicodeCategory.Format || c is '\u034F' or '\u2028' or '\u2029' or '\uFFFE' or '\uFFFF');
 }

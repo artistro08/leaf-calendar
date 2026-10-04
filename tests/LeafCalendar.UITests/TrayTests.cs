@@ -5,8 +5,8 @@ namespace LeafCalendar.UITests;
 
 public sealed class TrayTests : IDisposable
 {
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -14,7 +14,7 @@ public sealed class TrayTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     [Fact]
     public void CloseMainWindow_KeepsLeafInTheTray()
@@ -25,7 +25,7 @@ public sealed class TrayTests : IDisposable
 
         leaf.MainWindow.Close();
 
-        Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
+        Assert.True(Retry.WhileTrue(() => leaf.MainWindowCount() > 0, TimeSpan.FromSeconds(10)).Success);
         Thread.Sleep(TimeSpan.FromSeconds(2));
         Assert.False(leaf.App.HasExited);
         Assert.NotEqual(0, leaf.TrayWindow());
@@ -37,7 +37,7 @@ public sealed class TrayTests : IDisposable
         using var leaf = Launch();
         leaf.WaitFor("CalendarRoot");
         leaf.MainWindow.Close();
-        Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
+        Assert.True(Retry.WhileTrue(() => leaf.MainWindowCount() > 0, TimeSpan.FromSeconds(10)).Success);
 
         using var second = Launch();
         Assert.True(Retry.WhileFalse(() => second.App.HasExited, TimeSpan.FromSeconds(15)).Success);

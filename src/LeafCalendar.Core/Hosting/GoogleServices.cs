@@ -17,25 +17,25 @@ namespace LeafCalendar.Core.Hosting;
 /// </remarks>
 public sealed class GoogleServices : IAsyncDisposable
 {
-    readonly ITokenStore _tokenStore;
-    readonly LeafDatabase _database;
-    readonly AppLog _log;
-    readonly TimeProvider _time;
+    private readonly ITokenStore _tokenStore;
+    private readonly LeafDatabase _database;
+    private readonly AppLog _log;
+    private readonly TimeProvider _time;
 
     /// <summary>Wires the Google services.</summary>
     public GoogleServices(HttpClient http, OAuthClientCredentials credentials, ITokenStore tokenStore, LeafDatabase database, AppLog log, TimeProvider time, GoogleEndpoints? endpoints = null)
     {
         _tokenStore = tokenStore;
-        _database   = database;
-        _log        = log;
-        _time       = time;
+        _database = database;
+        _log = log;
+        _time = time;
 
-        OAuth        = new GoogleOAuthClient(http, credentials, time, endpoints);
+        OAuth = new GoogleOAuthClient(http, credentials, time, endpoints);
         AccessTokens = new AccessTokenProvider(OAuth, tokenStore, time);
-        Calendar     = new GoogleCalendarClient(http, AccessTokens, endpoints);
-        Contacts     = new ContactSearch(http, AccessTokens, log, endpoints);
-        Sync         = new SyncEngine(Calendar, database, log, time);
-        Loop         = new SyncLoop(Sync.SyncAllAsync, time, log);
+        Calendar = new GoogleCalendarClient(http, AccessTokens, endpoints);
+        Contacts = new ContactSearch(http, AccessTokens, log, endpoints);
+        Sync = new SyncEngine(Calendar, database, log, time);
+        Loop = new SyncLoop(Sync.SyncAllAsync, time, log);
     }
 
     /// <summary>An open "Join now" belonged to an account being disconnected; the argument is its tag, to withdraw from screen.</summary>

@@ -37,12 +37,12 @@ namespace LeafCalendar.App.Views.Settings;
 /// </summary>
 public sealed partial class ShortcutControl : UserControl, IDisposable
 {
-    private readonly nuint ignoreKeyEventFlag = 0x5555;
+    private readonly nuint _ignoreKeyEventFlag = 0x5555;
     private readonly HashSet<VirtualKey> _modifierKeysOnEntering = [];
-    private HotkeySettings? hotkeySettings;
-    private HotkeySettings internalSettings;
-    private HotkeySettings? lastValidSettings;
-    private HotkeySettingsControlHook? hook;
+    private HotkeySettings? _hotkeySettings;
+    private HotkeySettings _internalSettings;
+    private HotkeySettings? _lastValidSettings;
+    private HotkeySettingsControlHook? _hook;
     private bool _isActive;
     private bool _hasConflict;
     private bool _dialogOpen;
@@ -50,33 +50,33 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
     private nint _window;
 
     [ThreadStatic]
-    private static bool _isDialogOpen;
+    private static bool s_isDialogOpen;
 
-    private readonly ShortcutDialogContentControl c = new();
-    private readonly ContentDialog shortcutDialog;
+    private readonly ShortcutDialogContentControl _c = new();
+    private readonly ContentDialog _shortcutDialog;
 
     /// <summary>Creates the picker.</summary>
     public ShortcutControl()
     {
         InitializeComponent();
-        internalSettings = new HotkeySettings();
+        _internalSettings = new HotkeySettings();
 
-        c.ResetClick += C_ResetClick;
-        c.ClearClick += C_ClearClick;
+        _c.ResetClick += C_ResetClick;
+        _c.ClearClick += C_ClearClick;
         Unloaded += ShortcutControl_Unloaded;
 
         // We create the Dialog in C# because doing it in XAML is giving WinUI/XAML Island bugs when using dark theme.
-        shortcutDialog = new ContentDialog
+        _shortcutDialog = new ContentDialog
         {
             Title = "Activation shortcut",
-            Content = c,
+            Content = _c,
             PrimaryButtonText = "Save",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
         };
-        shortcutDialog.PrimaryButtonClick += ShortcutDialog_PrimaryButtonClick;
-        shortcutDialog.Opened += ShortcutDialog_Opened;
-        shortcutDialog.Closing += ShortcutDialog_Closing;
+        _shortcutDialog.PrimaryButtonClick += ShortcutDialog_PrimaryButtonClick;
+        _shortcutDialog.Opened += ShortcutDialog_Opened;
+        _shortcutDialog.Closing += ShortcutDialog_Closing;
 
         AutomationProperties.SetName(EditButton, "Activation shortcut");
     }
@@ -93,14 +93,14 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
     /// <summary>The shortcut on the button; empty (or null) for none.</summary>
     public HotkeySettings? HotkeySettings
     {
-        get => hotkeySettings;
+        get => _hotkeySettings;
         set
         {
-            if (hotkeySettings != value)
+            if (_hotkeySettings != value)
             {
-                hotkeySettings = value;
+                _hotkeySettings = value;
                 SetKeys();
-                c.Keys = HotkeySettings?.GetKeysList();
+                _c.Keys = HotkeySettings?.GetKeysList();
             }
         }
     }
@@ -156,7 +156,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
                     _ = _modifierKeysOnEntering.Remove(virtualKey);
                 }
 
-                internalSettings.Win = matchValue;
+                _internalSettings.Win = matchValue;
                 break;
             case VirtualKey.Control:
             case VirtualKey.LeftControl:
@@ -167,7 +167,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
                     _ = _modifierKeysOnEntering.Remove(VirtualKey.Control);
                 }
 
-                internalSettings.Ctrl = matchValue;
+                _internalSettings.Ctrl = matchValue;
                 break;
             case VirtualKey.Menu:
             case VirtualKey.LeftMenu:
@@ -178,7 +178,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
                     _ = _modifierKeysOnEntering.Remove(VirtualKey.Menu);
                 }
 
-                internalSettings.Alt = matchValue;
+                _internalSettings.Alt = matchValue;
                 break;
             case VirtualKey.Shift:
             case VirtualKey.LeftShift:
@@ -189,14 +189,14 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
                     _ = _modifierKeysOnEntering.Remove(VirtualKey.Shift);
                 }
 
-                internalSettings.Shift = matchValue;
+                _internalSettings.Shift = matchValue;
                 break;
             case VirtualKey.Escape:
-                internalSettings = new HotkeySettings();
-                shortcutDialog.IsPrimaryButtonEnabled = false;
+                _internalSettings = new HotkeySettings();
+                _shortcutDialog.IsPrimaryButtonEnabled = false;
                 return;
             default:
-                internalSettings.Code = matchValueCode;
+                _internalSettings.Code = matchValueCode;
                 break;
         }
     }
@@ -214,7 +214,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
             dwFlags = keyStatus,
 
             // Any keyevent with the extraInfo set to this value will be ignored by the keyboard hook and sent to the system instead.
-            dwExtraInfo = ignoreKeyEventFlag,
+            dwExtraInfo = _ignoreKeyEventFlag,
         };
 
         _ = PInvoke.SendInput(1, &input, sizeof(INPUT));
@@ -223,7 +223,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
     private bool FilterAccessibleKeyboardEvents(int key, nuint extraInfo)
     {
         // A keyboard event sent with this value in the extra Information field should be ignored by the hook so that it can be captured by the system instead.
-        if (extraInfo == ignoreKeyEventFlag)
+        if (extraInfo == _ignoreKeyEventFlag)
         {
             return false;
         }
@@ -232,16 +232,16 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
         if ((VirtualKey)key == VirtualKey.Tab)
         {
             // Shift was not pressed while entering and Shift is not pressed while leaving the hotkey control, treat it as a normal tab key press.
-            if (!internalSettings.Shift && !_modifierKeysOnEntering.Contains(VirtualKey.Shift) && !internalSettings.Win && !internalSettings.Alt && !internalSettings.Ctrl)
+            if (!_internalSettings.Shift && !_modifierKeysOnEntering.Contains(VirtualKey.Shift) && !_internalSettings.Win && !_internalSettings.Alt && !_internalSettings.Ctrl)
             {
                 return false;
             }
 
             // Shift was not pressed while entering but it was pressed while leaving the hotkey, therefore simulate a shift key press as the system does not know about shift being pressed in the hotkey.
-            else if (internalSettings.Shift && !_modifierKeysOnEntering.Contains(VirtualKey.Shift) && !internalSettings.Win && !internalSettings.Alt && !internalSettings.Ctrl)
+            else if (_internalSettings.Shift && !_modifierKeysOnEntering.Contains(VirtualKey.Shift) && !_internalSettings.Win && !_internalSettings.Alt && !_internalSettings.Ctrl)
             {
                 // This is to reset the shift key press within the control as it was not used within the control but rather was used to leave the hotkey.
-                internalSettings.Shift = false;
+                _internalSettings.Shift = false;
 
                 SendSingleKeyboardInput((short)VirtualKey.Shift, 0);
 
@@ -250,7 +250,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
 
             // Shift was pressed on entering and remained pressed, therefore only ignore the tab key so that it can be passed to the system.
             // As the shift key is already assumed to be pressed by the system while it entered the hotkey control, shift would still remain pressed, hence ignoring the tab input would simulate a Shift+Tab key press.
-            else if (!internalSettings.Shift && _modifierKeysOnEntering.Contains(VirtualKey.Shift) && !internalSettings.Win && !internalSettings.Alt && !internalSettings.Ctrl)
+            else if (!_internalSettings.Shift && _modifierKeysOnEntering.Contains(VirtualKey.Shift) && !_internalSettings.Win && !_internalSettings.Alt && !_internalSettings.Ctrl)
             {
                 return false;
             }
@@ -269,44 +269,44 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
     private void Hotkey_KeyDown(int key)
     {
         KeyEventHandler(key, true, key);
-        List<object> newKeys = internalSettings.GetKeysList();
-        if (c.Keys == null || !c.JudgeIfKeyValueSame(newKeys))
+        List<object> newKeys = _internalSettings.GetKeysList();
+        if (_c.Keys == null || !_c.JudgeIfKeyValueSame(newKeys))
         {
-            c.Keys = newKeys;
+            _c.Keys = newKeys;
         }
 
-        c.KeysName = KeysName(internalSettings);
-        c.ConflictMessage = string.Empty;
-        c.HasConflict = false;
+        _c.KeysName = KeysName(_internalSettings);
+        _c.ConflictMessage = string.Empty;
+        _c.HasConflict = false;
 
-        if (internalSettings.GetKeysList().Count == 0)
+        if (_internalSettings.GetKeysList().Count == 0)
         {
             // Empty, disable save button (Leaf: and no invalid bar left over from before Esc)
-            shortcutDialog.IsPrimaryButtonEnabled = false;
-            c.IsError = false;
+            _shortcutDialog.IsPrimaryButtonEnabled = false;
+            _c.IsError = false;
         }
-        else if (internalSettings.GetKeysList().Count == 1)
+        else if (_internalSettings.GetKeysList().Count == 1)
         {
             // 1 key, disable save button
-            shortcutDialog.IsPrimaryButtonEnabled = false;
+            _shortcutDialog.IsPrimaryButtonEnabled = false;
 
             // Check if the one key is a hotkey
-            if (internalSettings.Shift || internalSettings.Win || internalSettings.Alt || internalSettings.Ctrl)
+            if (_internalSettings.Shift || _internalSettings.Win || _internalSettings.Alt || _internalSettings.Ctrl)
             {
-                c.IsError = false;
+                _c.IsError = false;
             }
             else
             {
-                c.IsError = true;
+                _c.IsError = true;
             }
         }
 
         // Tab and Shift+Tab are accessible keys and should not be displayed in the hotkey control.
-        if (internalSettings.Code > 0 && !internalSettings.IsAccessibleShortcut())
+        if (_internalSettings.Code > 0 && !_internalSettings.IsAccessibleShortcut())
         {
-            lastValidSettings = internalSettings with { };
+            _lastValidSettings = _internalSettings with { };
 
-            if (!ComboIsValid(lastValidSettings))
+            if (!ComboIsValid(_lastValidSettings))
             {
                 DisableKeys();
             }
@@ -314,47 +314,47 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
             {
                 EnableKeys();
 
-                if (lastValidSettings.IsValid())
+                if (_lastValidSettings.IsValid())
                 {
-                    if (hotkeySettings != null && string.Equals(lastValidSettings.ToString(), hotkeySettings.ToString(), StringComparison.OrdinalIgnoreCase))
+                    if (_hotkeySettings != null && string.Equals(_lastValidSettings.ToString(), _hotkeySettings.ToString(), StringComparison.OrdinalIgnoreCase))
                     {
-                        c.HasConflict = false;
-                        c.ConflictMessage = string.Empty;
+                        _c.HasConflict = false;
+                        _c.ConflictMessage = string.Empty;
                     }
                     else
                     {
                         // Check for conflicts with the new hotkey settings
-                        CheckForConflicts(lastValidSettings);
+                        CheckForConflicts(_lastValidSettings);
                     }
                 }
             }
         }
 
-        c.IsWarningAltGr = internalSettings.Ctrl && internalSettings.Alt && !internalSettings.Win && (internalSettings.Code > 0);
+        _c.IsWarningAltGr = _internalSettings.Ctrl && _internalSettings.Alt && !_internalSettings.Win && (_internalSettings.Code > 0);
     }
 
     // Leaf: the other shortcut, or Windows or another app, may hold it; a taken combination can't be saved
     private void CheckForConflicts(HotkeySettings settings)
     {
         var message = settings.ToHotkey() is { } hotkey ? CheckConflict?.Invoke(hotkey) : null;
-        c.ConflictMessage = message ?? string.Empty;
-        c.HasConflict = message is not null;
+        _c.ConflictMessage = message ?? string.Empty;
+        _c.HasConflict = message is not null;
         if (message is not null)
         {
-            shortcutDialog.IsPrimaryButtonEnabled = false;
+            _shortcutDialog.IsPrimaryButtonEnabled = false;
         }
     }
 
     private void EnableKeys()
     {
-        shortcutDialog.IsPrimaryButtonEnabled = true;
-        c.IsError = false;
+        _shortcutDialog.IsPrimaryButtonEnabled = true;
+        _c.IsError = false;
     }
 
     private void DisableKeys()
     {
-        shortcutDialog.IsPrimaryButtonEnabled = false;
-        c.IsError = true;
+        _shortcutDialog.IsPrimaryButtonEnabled = false;
+        _c.IsError = true;
     }
 
     private void Hotkey_KeyUp(int key)
@@ -370,7 +370,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
 
     private void ShortcutDialog_Opened(ContentDialog sender, ContentDialogOpenedEventArgs args)
     {
-        if (!ComboIsValid(hotkeySettings))
+        if (!ComboIsValid(_hotkeySettings))
         {
             DisableKeys();
         }
@@ -409,54 +409,54 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
         }
 
         // Leaf: the hook lives only while the dialog is open
-        hook?.Dispose();
-        hook = new HotkeySettingsControlHook(Hotkey_KeyDown, Hotkey_KeyUp, Hotkey_IsActive, FilterAccessibleKeyboardEvents);
+        _hook?.Dispose();
+        _hook = new HotkeySettingsControlHook(Hotkey_KeyDown, Hotkey_KeyUp, Hotkey_IsActive, FilterAccessibleKeyboardEvents);
         _isActive = true;
 
         // Leaf: Windows refused the hook, so nothing can be pressed: close, and say so once the dialog is gone
-        if (!hook.IsHooked)
+        if (!_hook.IsHooked)
         {
             _hookFailed = true;
-            shortcutDialog.Hide();
+            _shortcutDialog.Hide();
         }
     }
 
     private async void OpenDialogButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_isDialogOpen)
+        if (s_isDialogOpen)
         {
             return;
         }
 
-        _isDialogOpen = true;
-        _dialogOpen   = true;
-        _hookFailed   = false;
+        s_isDialogOpen = true;
+        _dialogOpen = true;
+        _hookFailed = false;
         try
         {
             List<object> newKeys = HotkeySettings?.GetKeysList() ?? [];
 
-            if (c.Keys == null || !c.JudgeIfKeyValueSame(newKeys))
+            if (_c.Keys == null || !_c.JudgeIfKeyValueSame(newKeys))
             {
-                c.Keys = null;
-                c.Keys = newKeys;
+                _c.Keys = null;
+                _c.Keys = newKeys;
             }
 
-            internalSettings = new HotkeySettings();
-            lastValidSettings = hotkeySettings;
-            c.KeysName = KeysName(HotkeySettings);
-            c.HasConflict = false;
-            c.ConflictMessage = string.Empty;
-            c.IsError = false;
+            _internalSettings = new HotkeySettings();
+            _lastValidSettings = _hotkeySettings;
+            _c.KeysName = KeysName(HotkeySettings);
+            _c.HasConflict = false;
+            _c.ConflictMessage = string.Empty;
+            _c.IsError = false;
 
             // The logic is: warning should be visible if the shortcut contains Alt AND contains Ctrl AND NOT contains Win.
             // Additional key must be present, as this is a valid, previously used shortcut shown at dialog open. Check for presence of non-modifier-key is not necessary therefore
-            c.IsWarningAltGr = HotkeySettings is { Ctrl: true, Alt: true, Win: false };
+            _c.IsWarningAltGr = HotkeySettings is { Ctrl: true, Alt: true, Win: false };
 
             _window = Win32Interop.GetWindowFromWindowId(XamlRoot.ContentIslandEnvironment.AppWindowId);
             DialogOpening?.Invoke(this, EventArgs.Empty);
-            shortcutDialog.XamlRoot = this.XamlRoot;
-            shortcutDialog.RequestedTheme = this.ActualTheme;
-            await shortcutDialog.ShowAsync();
+            _shortcutDialog.XamlRoot = this.XamlRoot;
+            _shortcutDialog.RequestedTheme = this.ActualTheme;
+            await _shortcutDialog.ShowAsync();
         }
         catch (Exception)
         {
@@ -501,7 +501,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
 
         try
         {
-            shortcutDialog.Hide();
+            _shortcutDialog.Hide();
         }
         catch (Exception)
         {
@@ -522,9 +522,9 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
 
         _dialogOpen = false;
         _isActive = false;
-        hook?.Dispose();
-        hook = null;
-        _isDialogOpen = false;
+        _hook?.Dispose();
+        _hook = null;
+        s_isDialogOpen = false;
         DialogClosed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -536,35 +536,43 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
 
     private void C_ResetClick(object sender, RoutedEventArgs e)
     {
+        // Leaf: a default the other shortcut, Windows or another app holds is said, the same as typed keys, not saved
+        if (DefaultHotkeySettings.ToHotkey() is { } fallback && CheckConflict?.Invoke(fallback) is { } message)
+        {
+            _c.ConflictMessage = message;
+            _c.HasConflict = true;
+            return;
+        }
+
         // Leaf: Reset is the default shortcut
-        hotkeySettings = DefaultHotkeySettings with { };
+        _hotkeySettings = DefaultHotkeySettings with { };
         SetKeys();
 
-        lastValidSettings = hotkeySettings;
-        shortcutDialog.Hide();
+        _lastValidSettings = _hotkeySettings;
+        _shortcutDialog.Hide();
         HotkeySettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void C_ClearClick(object sender, RoutedEventArgs e)
     {
-        hotkeySettings = new HotkeySettings();
+        _hotkeySettings = new HotkeySettings();
         SetKeys();
 
-        lastValidSettings = hotkeySettings;
-        shortcutDialog.Hide();
+        _lastValidSettings = _hotkeySettings;
+        _shortcutDialog.Hide();
         HotkeySettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void ShortcutDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
-        if (ComboIsValid(lastValidSettings) && lastValidSettings is { } saved)
+        if (ComboIsValid(_lastValidSettings) && _lastValidSettings is { } saved)
         {
             HotkeySettings = saved;
             HotkeySettingsChanged?.Invoke(this, EventArgs.Empty);
         }
 
         SetKeys();
-        shortcutDialog.Hide();
+        _shortcutDialog.Hide();
     }
 
     private static bool ComboIsValid(HotkeySettings? settings)
@@ -582,9 +590,9 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
     private void ShortcutDialog_Closing(ContentDialog sender, ContentDialogClosingEventArgs args)
     {
         _isActive = false;
-        hook?.Dispose();
-        hook = null;
-        lastValidSettings = hotkeySettings;
+        _hook?.Dispose();
+        _hook = null;
+        _lastValidSettings = _hotkeySettings;
     }
 
     private void SetKeys()
@@ -625,8 +633,8 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
     /// <summary>Removes the keyboard hook if a dialog is still open.</summary>
     public void Dispose()
     {
-        hook?.Dispose();
-        hook = null;
+        _hook?.Dispose();
+        _hook = null;
     }
 
     // The keys as text for screen readers and tests: Leaf's text for a shortcut, else the caps joined ("Shift+J")

@@ -17,10 +17,10 @@ public class LatestSearchTests
     [Fact]
     public async Task RunAsync_NewerSearchStarts_CancelsTheOlderAndDropsItsResult()
     {
-        using var latest  = new LatestSearch<string>();
-        var slow    = new TaskCompletionSource<string>();
-        var token   = CancellationToken.None;
-        var older   = latest.RunAsync(ct =>
+        using var latest = new LatestSearch<string>();
+        var slow = new TaskCompletionSource<string>();
+        var token = CancellationToken.None;
+        var older = latest.RunAsync(ct =>
         {
             token = ct;
             return slow.Task;
@@ -38,7 +38,7 @@ public class LatestSearchTests
     public async Task RunAsync_OlderThrowsCanceled_ReturnsNull()
     {
         using var latest = new LatestSearch<string>();
-        var older  = latest.RunAsync(async ct =>
+        var older = latest.RunAsync(async ct =>
         {
             await Task.Delay(Timeout.Infinite, ct);
             return "never";
@@ -53,7 +53,7 @@ public class LatestSearchTests
     public async Task Cancel_DropsTheRunningSearch()
     {
         using var latest = new LatestSearch<string>();
-        var slow   = new TaskCompletionSource<string>();
+        var slow = new TaskCompletionSource<string>();
         var search = latest.RunAsync(_ => slow.Task);
 
         latest.Cancel();

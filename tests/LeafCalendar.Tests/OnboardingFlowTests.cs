@@ -6,10 +6,10 @@ namespace LeafCalendar.Tests;
 
 public class OnboardingFlowTests
 {
-    static readonly OAuthClientCredentials Saved = new("123-abc.apps.googleusercontent.com", "GOCSPX-saved");
+    private static readonly OAuthClientCredentials Saved = new("123-abc.apps.googleusercontent.com", "GOCSPX-saved");
 
     // A flow moved forward to a step
-    static OnboardingFlow At(OnboardingStep step)
+    private static OnboardingFlow At(OnboardingStep step)
     {
         var flow = new OnboardingFlow();
         while (flow.Step < step)
@@ -33,7 +33,7 @@ public class OnboardingFlowTests
     [Fact]
     public void Advance_GoesThroughEveryStepInOrder_AndStopsAtDone()
     {
-        var flow  = new OnboardingFlow();
+        var flow = new OnboardingFlow();
         var steps = new List<OnboardingStep> { flow.Step };
         while (flow.Advance())
         {
@@ -203,6 +203,20 @@ public class OnboardingFlowTests
     public void FirstSyncWorked_NeedsCalendarsAndASignedInAccount(int calendars, AccountStatus status, bool worked)
     {
         Assert.Equal(worked, OnboardingFlow.FirstSyncWorked(calendars, status));
+    }
+
+    // "Couldn't Reach Google" Only When Google Wasn't Reached; An Answer From Google Points At The Cloud Project
+    [Theory]
+    [InlineData(true, null, "Couldn't reach Google")]
+    [InlineData(true, "accessNotConfigured", "Couldn't reach Google")]
+    [InlineData(false, "accessNotConfigured", "The Google Calendar API isn't turned on")]
+    [InlineData(false, "SERVICE_DISABLED", "The Google Calendar API isn't turned on")]
+    [InlineData(false, "forbidden", "Google refused the request")]
+    [InlineData(false, "", "Google refused the request")]
+    [InlineData(false, null, "Google refused the request")]
+    public void FirstSyncError_OfflineOrGooglesReason_PicksTheMessage(bool offline, string? reason, string starts)
+    {
+        Assert.StartsWith(starts, OnboardingFlow.FirstSyncError(offline, reason), StringComparison.Ordinal);
     }
 
     [Theory]

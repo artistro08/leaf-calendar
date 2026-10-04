@@ -16,7 +16,7 @@ namespace LeafCalendar.App.Controls;
 internal sealed class ItemPins
 {
     // Containers By Reference (the same native container always comes back as the same .NET wrapper while we hold it)
-    readonly Dictionary<DependencyObject, object> _pins = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<DependencyObject, object> _pins = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>Pins <paramref name="item"/> to <paramref name="container"/> (replacing what it showed before).</summary>
     public void Pin(DependencyObject container, object? item)
@@ -37,7 +37,7 @@ internal sealed class ItemPins
 /// <summary>An <see cref="ItemsControl"/> whose items live as long as their containers (see <see cref="ItemPins"/>).</summary>
 public partial class PinnedItemsControl : ItemsControl
 {
-    readonly ItemPins _pins = new();
+    private readonly ItemPins _pins = new();
 
     /// <summary>Creates the control with the stock ItemsControl look.</summary>
     public PinnedItemsControl() => DefaultStyleKey = typeof(ItemsControl);
@@ -60,7 +60,7 @@ public partial class PinnedItemsControl : ItemsControl
 /// <summary>A <see cref="ListView"/> whose items live as long as their containers (see <see cref="ItemPins"/>).</summary>
 public partial class PinnedListView : ListView
 {
-    readonly ItemPins _pins = new();
+    private readonly ItemPins _pins = new();
 
     /// <summary>Creates the list with the stock ListView look.</summary>
     public PinnedListView() => DefaultStyleKey = typeof(ListView);
@@ -83,7 +83,7 @@ public partial class PinnedListView : ListView
 /// <summary>A <see cref="ComboBox"/> whose items live as long as their containers (see <see cref="ItemPins"/>).</summary>
 public partial class PinnedComboBox : ComboBox
 {
-    readonly ItemPins _pins = new();
+    private readonly ItemPins _pins = new();
 
     /// <summary>Creates the box with the stock ComboBox look.</summary>
     public PinnedComboBox() => DefaultStyleKey = typeof(ComboBox);

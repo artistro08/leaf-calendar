@@ -9,17 +9,17 @@ namespace LeafCalendar.Tests;
 
 public sealed class FreeBusyLookupTests : IDisposable
 {
-    const string Account  = "109876543210";
-    const string TokenUrl = "https://oauth2.googleapis.com/token";
+    private const string Account = "109876543210";
+    private const string TokenUrl = "https://oauth2.googleapis.com/token";
 
-    static readonly DateTimeOffset From = new(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
-    static readonly DateTimeOffset To   = new(2026, 10, 2, 0, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset From = new(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset To = new(2026, 10, 2, 0, 0, 0, TimeSpan.Zero);
 
-    readonly FakeHttpHandler  _handler = new();
-    readonly FakeTimeProvider _time    = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
-    readonly TempFolder       _folder  = new();
-    readonly AppLog           _log;
-    readonly FreeBusyLookup   _lookup;
+    private readonly FakeHttpHandler _handler = new();
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
+    private readonly TempFolder _folder = new();
+    private readonly AppLog _log;
+    private readonly FreeBusyLookup _lookup;
 
     public FreeBusyLookupTests()
     {
@@ -27,16 +27,16 @@ public sealed class FreeBusyLookupTests : IDisposable
 
         var store = new InMemoryTokenStore();
         store.SetRefreshToken(Account, "1//test-refresh-token");
-        var http  = new HttpClient(_handler);
+        var http = new HttpClient(_handler);
         var oauth = new GoogleOAuthClient(http, new("id.apps.googleusercontent.com", "secret"), _time);
 
-        _log    = new AppLog(_folder.Path, _time);
+        _log = new AppLog(_folder.Path, _time);
         _lookup = new FreeBusyLookup(new GoogleCalendarClient(http, new AccessTokenProvider(oauth, store, _time)), _log);
     }
 
     public void Dispose() => _folder.Dispose();
 
-    static DateTimeOffset Utc(int hour, int minute = 0) => new(2026, 10, 1, hour, minute, 0, TimeSpan.Zero);
+    private static DateTimeOffset Utc(int hour, int minute = 0) => new(2026, 10, 1, hour, minute, 0, TimeSpan.Zero);
 
     [Fact]
     public async Task Lookup_NotFound_IsUnknownNotFree()
@@ -147,6 +147,50 @@ public sealed class FreeBusyLookupTests : IDisposable
         var person = Assert.Single(await _lookup.LookupAsync(Account, ["dana@example.com"], From, To, TestContext.Current.CancellationToken));
 
         Assert.Equal([new BusyBlock(Utc(15), Utc(16), null)], person.Blocks);
+    }
+
+    [Fact]
+    public async Task Lookup_DetailsCallTimesOut_FallsBackToFreeBusy()
+    {
+        // HttpClient's own timeout throws TaskCanceledException though the caller never canceled
+        _handler.Respond(HttpMethod.Post, "freeBusy", 200, """{"calendars":{"dana@example.com":{"busy":[{"start":"2026-10-01T15:00:00Z","end":"2026-10-01T16:00:00Z"}]}}}""");
+        _handler.On(r => r.Method == HttpMethod.Get, _ => throw new TaskCanceledException("timed out"));
+
+        var person = Assert.Single(await _lookup.LookupAsync(Account, ["dana@example.com"], From, To, TestContext.Current.CancellationToken));
+
+        Assert.Equal([new BusyBlock(Utc(15), Utc(16), null)], person.Blocks);
+    }
+
+    [Fact]
+    public async Task Lookup_Canceled_Throws()
+    {
+        using var cts = new CancellationTokenSource();
+        _handler.Respond(HttpMethod.Post, "freeBusy", 200, """{"calendars":{"dana@example.com":{"busy":[]}}}""");
+        _handler.On(r => r.Method == HttpMethod.Get, _ =>
+        {
+            cts.Cancel();
+            throw new OperationCanceledException(cts.Token);
+        });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _lookup.LookupAsync(Account, ["dana@example.com"], From, To, cts.Token));
+    }
+
+    [Fact]
+    public async Task Lookup_MeetingThePersonDeclined_IsNotATitledBlock()
+    {
+        // Dana declined All-hands and accepted the 1:1, so free/busy has only the 1:1's half hour
+        _handler.Respond(HttpMethod.Post, "freeBusy", 200, """{"calendars":{"dana@example.com":{"busy":[{"start":"2026-10-01T13:30:00Z","end":"2026-10-01T14:00:00Z"}]}}}""");
+        _handler.Respond(HttpMethod.Get, "calendars/dana%40example.com/events", 200, """
+            {"items":[
+              {"id":"a","status":"confirmed","summary":"All-hands","attendees":[{"email":"boss@example.com","responseStatus":"accepted"},{"email":"dana@example.com","self":true,"responseStatus":"declined"}],
+               "start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}},
+              {"id":"b","status":"confirmed","summary":"1:1","attendees":[{"email":"boss@example.com","responseStatus":"declined"},{"email":"dana@example.com","self":true,"responseStatus":"accepted"}],
+               "start":{"dateTime":"2026-10-01T13:30:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}]}
+            """);
+
+        var person = Assert.Single(await _lookup.LookupAsync(Account, ["dana@example.com"], From, To, TestContext.Current.CancellationToken));
+
+        Assert.Equal([new BusyBlock(Utc(13, 30), Utc(14), "1:1")], person.Blocks);
     }
 
     [Fact]

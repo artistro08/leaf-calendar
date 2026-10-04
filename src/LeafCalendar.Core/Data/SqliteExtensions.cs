@@ -17,7 +17,7 @@ internal static class SqliteExtensions
     public static List<T> Query<T>(this SqliteConnection conn, SqliteTransaction? tx, string sql, Func<SqliteDataReader, T> map, params (string Name, object? Value)[] parameters)
     {
         using var command = Create(conn, tx, sql, parameters);
-        using var reader  = command.ExecuteReader();
+        using var reader = command.ExecuteReader();
 
         var rows = new List<T>();
         while (reader.Read())
@@ -37,7 +37,7 @@ internal static class SqliteExtensions
         reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
 
     [SuppressMessage("Security", "CA2100", Justification = "Callers pass constant SQL from the Data folder; values are always parameters.")]
-    static SqliteCommand Create(SqliteConnection conn, SqliteTransaction? tx, string sql, (string Name, object? Value)[] parameters)
+    private static SqliteCommand Create(SqliteConnection conn, SqliteTransaction? tx, string sql, (string Name, object? Value)[] parameters)
     {
         var command = conn.CreateCommand();
         command.Transaction = tx;

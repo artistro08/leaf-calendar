@@ -10,12 +10,12 @@ namespace LeafCalendar.UITests;
 
 public sealed class BoxSelectTests : IDisposable
 {
-    const string Dentist = "Event_evt-single_202610011300";
-    const string Monday  = "Event_evt-weekly_202610051330";
-    const string Friday  = "Event_evt-weekly_202610091330";
+    private const string Dentist = "Event_evt-single_202610011300";
+    private const string Monday = "Event_evt-weekly_202610051330";
+    private const string Friday = "Event_evt-weekly_202610091330";
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -23,10 +23,10 @@ public sealed class BoxSelectTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     // Week Of Oct 5, Corners 12 px Above Monday's 1:30 PM Card And Below Friday's (empty time)
-    static (Point From, Point To) MondayToFriday(LeafApp leaf)
+    private static (Point From, Point To) MondayToFriday(LeafApp leaf)
     {
         leaf.WaitFor("NextButton").AsButton().Invoke();
         var monday = leaf.WaitFor(Monday);
@@ -34,11 +34,11 @@ public sealed class BoxSelectTests : IDisposable
         LeafApp.WaitUntilStill(monday);
 
         var from = new Point(monday.BoundingRectangle.Left + 4, monday.BoundingRectangle.Top - 12);
-        var to   = new Point(friday.BoundingRectangle.Right - 4, friday.BoundingRectangle.Bottom + 12);
+        var to = new Point(friday.BoundingRectangle.Right - 4, friday.BoundingRectangle.Bottom + 12);
         return (from, to);
     }
 
-    static void ShiftDrag(Point from, Point to, bool ctrl = false)
+    private static void ShiftDrag(Point from, Point to, bool ctrl = false)
     {
         Keyboard.Press(VirtualKeyShort.SHIFT);
         if (ctrl)
@@ -79,10 +79,10 @@ public sealed class BoxSelectTests : IDisposable
     }
 
     // Cards publish "Selected" in their automation ItemStatus
-    static bool IsSelected(LeafApp leaf, string id) =>
+    private static bool IsSelected(LeafApp leaf, string id) =>
         (leaf.WaitFor(id).Properties.ItemStatus.ValueOrDefault ?? "").Split(';').Contains("Selected");
 
-    static bool BoxShowing(LeafApp leaf) =>
+    private static bool BoxShowing(LeafApp leaf) =>
         (leaf.WaitFor("TimeGrid").Properties.ItemStatus.ValueOrDefault ?? "").Split(';').Contains("box=1");
 
     // The same path with no Shift still creates an event

@@ -22,32 +22,32 @@ namespace LeafCalendar.App.Views;
 /// </summary>
 public sealed partial class ShareSlotsPanel : UserControl
 {
-    readonly StackPanel _rows = new() { Spacing = 8 };
-    readonly TextBlock _empty = new() { Text = "No times yet.", Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] };
-    readonly TimeZoneComboBox _zoneBox = new() { Header = "Time zone", IsEditable = true, IsTextSearchEnabled = true };
-    readonly TextBox _message = new()
+    private readonly StackPanel _rows = new() { Spacing = 8 };
+    private readonly TextBlock _empty = new() { Text = "No times yet.", Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] };
+    private readonly TimeZoneComboBox _zoneBox = new() { Header = "Time zone", IsEditable = true, IsTextSearchEnabled = true };
+    private readonly TextBox _message = new()
     {
-        Header          = "Message",
-        AcceptsReturn   = true,
-        TextWrapping    = TextWrapping.Wrap,
-        MinHeight       = 88,
-        MaxLength       = AvailabilityText.MaxMessageLength,
+        Header = "Message",
+        AcceptsReturn = true,
+        TextWrapping = TextWrapping.Wrap,
+        MinHeight = 88,
+        MaxLength = AvailabilityText.MaxMessageLength,
         PlaceholderText = "Only the times",
     };
-    readonly Button _copy = new() { Content = "Copy", IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Stretch, Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
-    readonly Border _footer = new() { Padding = new Thickness(16, 12, 16, 12), BorderThickness = new Thickness(0, 1, 0, 0) };
-    readonly List<SlotRow> _shown = [];
-    CalendarViewModel? _vm;
-    bool _sharing;
+    private readonly Button _copy = new() { Content = "Copy", IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Stretch, Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
+    private readonly Border _footer = new() { Padding = new Thickness(16, 12, 16, 12), BorderThickness = new Thickness(0, 1, 0, 0) };
+    private readonly List<SlotRow> _shown = [];
+    private CalendarViewModel? _vm;
+    private bool _sharing;
 
     /// <summary>Builds the panel (filled by <see cref="Update"/>).</summary>
     public ShareSlotsPanel()
     {
         var title = new TextBlock { Text = "Times to share", Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"], TextTrimming = TextTrimming.CharacterEllipsis };
-        var hint  = new TextBlock
+        var hint = new TextBlock
         {
-            Text         = "Drag on the calendar to pick times. Leaf leaves out the busy ones.",
-            Style        = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+            Text = "Drag on the calendar to pick times. Leaf leaves out the busy ones.",
+            Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
             TextWrapping = TextWrapping.Wrap,
         };
 
@@ -59,8 +59,8 @@ public sealed partial class ShareSlotsPanel : UserControl
         // Message (what Copy wraps the free times in, kept for next time; {times} marks where they go)
         var messageHint = new TextBlock
         {
-            Text         = "{times} is replaced with your free times.",
-            Style        = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+            Text = "{times} is replaced with your free times.",
+            Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
             TextWrapping = TextWrapping.Wrap,
         };
         var resetMessage = new HyperlinkButton { Content = "Use the default message", Padding = new Thickness(0) };
@@ -88,7 +88,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         var cancel = new Button { Content = "Cancel", HorizontalAlignment = HorizontalAlignment.Stretch };
         AutomationProperties.SetAutomationId(_copy, "ShareCopyButton");
         AutomationProperties.SetAutomationId(cancel, "ShareCancelButton");
-        _copy.Click  += (_, _) => Copy();
+        _copy.Click += (_, _) => Copy();
         cancel.Click += (_, _) => _vm?.StopSharing();
 
         var buttons = new Grid { ColumnSpacing = 8 };
@@ -103,6 +103,7 @@ public sealed partial class ShareSlotsPanel : UserControl
 
         // Layout: the scrolling times under the title bar row (a UserControl doesn't apply its own padding), the footer pinned
         var scroll = new ScrollViewer { Content = stack };
+        ScrollIndicator.ShowOnHover(scroll);
         var layout = new Grid { Margin = new Thickness(0, 48, 0, 0) };
         layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -133,10 +134,10 @@ public sealed partial class ShareSlotsPanel : UserControl
             _message.Text = vm.Settings.ShareMessage.Replace("\r\n", "\r", StringComparison.Ordinal);
         }
 
-        _sharing            = vm.IsSharing;
-        _copy.IsEnabled     = vm.ShareSlots.Count > 0;
+        _sharing = vm.IsSharing;
+        _copy.IsEnabled = vm.ShareSlots.Count > 0;
         _footer.BorderBrush = LeafBrushes.GridLine(ActualTheme == ElementTheme.Dark);
-        _empty.Visibility   = vm.ShareSlots.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        _empty.Visibility = vm.ShareSlots.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         while (_shown.Count < vm.ShareSlots.Count)
         {
             var row = new SlotRow(this, _shown.Count);
@@ -157,7 +158,7 @@ public sealed partial class ShareSlotsPanel : UserControl
     }
 
     // The message as typed so far counts, even if the box still has focus
-    void Copy()
+    private void Copy()
     {
         if (_vm is { } vm)
         {
@@ -167,7 +168,7 @@ public sealed partial class ShareSlotsPanel : UserControl
     }
 
     // A picker changed: the new time, or the pickers put back when it makes no sense
-    void Changed(SlotRow row)
+    private void Changed(SlotRow row)
     {
         if (_vm is not { } vm || row.Index >= vm.ShareSlots.Count)
         {
@@ -188,10 +189,10 @@ public sealed partial class ShareSlotsPanel : UserControl
     }
 
     // One time: its day over its start and end pickers and a remove button
-    sealed class SlotRow
+    private sealed class SlotRow
     {
-        readonly TextBlock _date = new() { Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"], TextTrimming = TextTrimming.CharacterEllipsis };
-        bool _showing;
+        private readonly TextBlock _date = new() { Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"], TextTrimming = TextTrimming.CharacterEllipsis };
+        private bool _showing;
 
         public SlotRow(ShareSlotsPanel owner, int index)
         {
@@ -210,12 +211,12 @@ public sealed partial class ShareSlotsPanel : UserControl
 
             // Only The User's Picks Count (not the times set while showing a slot)
             From.SelectedTimeChanged += (_, _) => { if (!_showing) { owner.Changed(this); } };
-            To.SelectedTimeChanged   += (_, _) => { if (!_showing) { owner.Changed(this); } };
-            drop.Click               += (_, _) => owner._vm?.RemoveShareSlot(Index);
+            To.SelectedTimeChanged += (_, _) => { if (!_showing) { owner.Changed(this); } };
+            drop.Click += (_, _) => owner._vm?.RemoveShareSlot(Index);
 
             // Layout: the day on its own line, then start – end and the remove button
             Grid.ColumnSpacing = 8;
-            Grid.RowSpacing    = 4;
+            Grid.RowSpacing = 4;
             Grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             Grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             Grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -244,17 +245,17 @@ public sealed partial class ShareSlotsPanel : UserControl
         // Shows a slot's day and times (in the zone on screen) without counting as a pick
         public void Show(CalendarViewModel vm, BusyRange slot, bool dark)
         {
-            var zone  = vm.Zone;
+            var zone = vm.Zone;
             var start = TimeZoneInfo.ConvertTime(slot.Start, zone);
-            var end   = TimeZoneInfo.ConvertTime(slot.End, zone);
-            var day   = DateOnly.FromDateTime(start.DateTime);
+            var end = TimeZoneInfo.ConvertTime(slot.End, zone);
+            var day = DateOnly.FromDateTime(start.DateTime);
 
-            _showing             = true;
+            _showing = true;
             From.ClockIdentifier = To.ClockIdentifier = vm.Settings.Use24HourTime ? "24HourClock" : "12HourClock";
-            From.Time            = start.TimeOfDay;
-            To.Time              = end.TimeOfDay;
-            _date.Text           = TimeLabels.LongDate(day);
-            _showing             = false;
+            From.Time = start.TimeOfDay;
+            To.Time = end.TimeOfDay;
+            _date.Text = TimeLabels.LongDate(day);
+            _showing = false;
             Paint(dark);
             AutomationProperties.SetName(Grid, $"{TimeLabels.LongDate(day)}, {TimeLabels.Range(slot.Start, slot.End, zone, vm.Settings.Use24HourTime)}");
         }

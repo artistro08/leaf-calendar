@@ -10,14 +10,14 @@ namespace LeafCalendar.UITests;
 
 public sealed class AccessibilityTests : IDisposable
 {
-    const string Dentist = "Event_evt-single_202610011300";
-    const string Family  = "family123@group.calendar.google.com";
-    const string TrayNow = "--now 2026-10-01T13:50:00-04:00";
+    private const string Dentist = "Event_evt-single_202610011300";
+    private const string Family = "family123@group.calendar.google.com";
+    private const string TrayNow = "--now 2026-10-01T13:50:00-04:00";
 
-    static readonly TimeSpan Wait = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan Wait = TimeSpan.FromSeconds(15);
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -25,7 +25,7 @@ public sealed class AccessibilityTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     /// <summary>Every screen the audit opens (Milestones 3 to 6). Settings pages are one row each. The screenshot tour walks the same list.</summary>
     public static readonly string[] ScreenNames =
@@ -49,46 +49,46 @@ public sealed class AccessibilityTests : IDisposable
     /// Each screen: extra launch arguments, how to open it, and the AutomationIds Tab must reach there. An empty
     /// MustReach skips the Tab check (menus move with the arrow keys, not Tab).
     /// </summary>
-    static (string Extra, Action<LeafApp> Open, string[] MustReach) Screen(string name, FakeGoogleServer google) => name switch
+    private static (string Extra, Action<LeafApp> Open, string[] MustReach) Screen(string name, FakeGoogleServer google) => name switch
     {
         // Milestone 3
-        "Main"              => ("", leaf => leaf.WaitFor(Dentist), ["TodayButton", "PreviousButton", "NextButton", "ViewModeButton", "SettingsButton"]),
-        "Details"           => ("", leaf => leaf.WaitFor(Dentist).Click(), ["DetailsEditButton", "DeleteEventButton"]),
-        "Editor"            => ("", OpenEditor, ["EditorTitle", "EditorTimeZoneBox", "DescriptionBold", "DescriptionNumbers", "EditorDescription", "EditorSaveButton"]),
-        "SettingsGeneral"   => ("", leaf => OpenSettings(leaf, "General"), ["ThemeComboBox", "HourHeightSlider", "WeekendsSwitch", "WorkingHoursSwitch", "StartupSwitch"]),
+        "Main" => ("", leaf => leaf.WaitFor(Dentist), ["TodayButton", "PreviousButton", "NextButton", "ViewModeButton", "SettingsButton"]),
+        "Details" => ("", leaf => leaf.WaitFor(Dentist).Click(), ["DetailsEditButton", "DeleteEventButton"]),
+        "Editor" => ("", OpenEditor, ["EditorTitle", "EditorTimeZoneBox", "DescriptionBold", "DescriptionNumbers", "EditorDescription", "EditorSaveButton"]),
+        "SettingsGeneral" => ("", leaf => OpenSettings(leaf, "General"), ["ThemeComboBox", "HourHeightSlider", "WeekendsSwitch", "WorkingHoursSwitch", "StartupSwitch"]),
         "SettingsCalendars" => ("", leaf => OpenSettings(leaf, "Calendars"), [$"CalendarMore_{Family}"]),
         "SettingsTimeZones" => ("", leaf => OpenSettings(leaf, "TimeZones"), ["TimeZoneSearch", "PrimaryZoneExpander"]),
-        "SettingsAccounts"  => ("", leaf => OpenSettings(leaf, "Accounts"), ["AddAccountButton", "DefaultCalendarComboBox", "SyncNowButton", "ChangeClientButton"]),
-        "SettingsAbout"     => ("", leaf => OpenSettings(leaf, "About"), ["GitHubLink", "OpenLogsButton"]),
+        "SettingsAccounts" => ("", leaf => OpenSettings(leaf, "Accounts"), ["AddAccountButton", "DefaultCalendarComboBox", "SyncNowButton", "ChangeClientButton"]),
+        "SettingsAbout" => ("", leaf => OpenSettings(leaf, "About"), ["GitHubLink", "OpenLogsButton"]),
 
         // Milestone 4 (the tray icon is driven with the shell's own messages, as TrayTests does)
-        "TrayFlyout"            => (TrayNow, OpenFlyout, ["FlyoutJoinButton", "FlyoutNewEvent"]),
-        "TrayMenu"              => (TrayNow, OpenTrayMenu, []),
+        "TrayFlyout" => (TrayNow, OpenFlyout, ["FlyoutJoinButton", "FlyoutNewEvent"]),
+        "TrayMenu" => (TrayNow, OpenTrayMenu, []),
         "SettingsNotifications" => ("", leaf => OpenSettings(leaf, "Notifications"), ["RemindersSwitch", "JoinNowSwitch", "InvitesSwitch", "SoundSwitch"]),
-        "SettingsTray"          => ("", leaf => OpenSettings(leaf, "Tray"), ["FlyoutDaysNumberBox", "FlyoutAllDaySwitch", "LookaheadComboBox"]),
-        "SettingsShortcuts"     => ("", leaf => OpenSettings(leaf, "Shortcuts"), ["JoinShortcutButton", "FlyoutShortcutButton", "ShowCheatSheetButton"]),
+        "SettingsTray" => ("", leaf => OpenSettings(leaf, "Tray"), ["FlyoutDaysNumberBox", "FlyoutAllDaySwitch", "LookaheadComboBox"]),
+        "SettingsShortcuts" => ("", leaf => OpenSettings(leaf, "Shortcuts"), ["JoinShortcutButton", "FlyoutShortcutButton", "ShowCheatSheetButton"]),
 
         // Milestone 5
-        "CommandMenu"     => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_K); leaf.WaitForAnywhere("CommandSearchBox"); }, []),
-        "CheatSheet"      => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.SHIFT, VirtualKeyShort.OEM_2); leaf.WaitForAnywhere("ShortcutSheet"); }, ["ShortcutFilterBox"]),
-        "SharePanel"      => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.KEY_S); leaf.WaitFor("ShareSlotsPanel"); }, ["ShareZoneBox", "ShareCancelButton"]),
-        "PeoplePicker"    => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.KEY_P); leaf.WaitForAnywhere("PeoplePickerBox"); }, []),
-        "OverlayBar"      => ("", OpenOverlay, ["OverlayClear"]),
-        "TimeTravelBar"   => ("", OpenTimeTravel, ["TimeTravelReturn"]),
-        "RenameDialog"    => ("", leaf => SidebarMenu(leaf, "CalendarMenu_Rename", "RenameCalendarBox"), []),
+        "CommandMenu" => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_K); leaf.WaitForAnywhere("CommandSearchBox"); }, []),
+        "CheatSheet" => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.SHIFT, VirtualKeyShort.OEM_2); leaf.WaitForAnywhere("ShortcutSheet"); }, ["ShortcutFilterBox"]),
+        "SharePanel" => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.KEY_S); leaf.WaitFor("ShareSlotsPanel"); }, ["ShareZoneBox", "ShareCancelButton"]),
+        "PeoplePicker" => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.KEY_P); leaf.WaitForAnywhere("PeoplePickerBox"); }, []),
+        "OverlayBar" => ("", OpenOverlay, ["OverlayClear"]),
+        "TimeTravelBar" => ("", OpenTimeTravel, ["TimeTravelReturn"]),
+        "RenameDialog" => ("", leaf => SidebarMenu(leaf, "CalendarMenu_Rename", "RenameCalendarBox"), []),
         "RemindersDialog" => ("", OpenReminders, []),
-        "RoomInput"       => ("", leaf => OpenRoomInput(leaf, google), ["EditorGuestInput", "EditorRoomInput"]),
+        "RoomInput" => ("", leaf => OpenRoomInput(leaf, google), ["EditorGuestInput", "EditorRoomInput"]),
 
         // Milestone 6
-        "BoxSelect"  => ("", OpenBoxSelect, ["SelectionDeleteButton"]),
-        "PastCards"  => ("--start-date 2026-10-02", leaf => leaf.WaitFor(Dentist), ["TodayButton", "NextButton"]),
+        "BoxSelect" => ("", OpenBoxSelect, ["SelectionDeleteButton"]),
+        "PastCards" => ("--start-date 2026-10-02", leaf => leaf.WaitFor(Dentist), ["TodayButton", "NextButton"]),
         "RichEditor" => ("", OpenRichEditor, ["DescriptionBold", "DescriptionItalic", "DescriptionUnderline", "DescriptionBullets", "DescriptionNumbers", "EditorDescription"]),
 
         _ => throw new ArgumentOutOfRangeException(nameof(name)),
     };
 
     // Settings Opens From The Sidebar Button, On One Page
-    static void OpenSettings(LeafApp leaf, string page)
+    private static void OpenSettings(LeafApp leaf, string page)
     {
         leaf.WaitFor(Dentist);
         leaf.OpenSettings(page);
@@ -96,21 +96,21 @@ public sealed class AccessibilityTests : IDisposable
     }
 
     // The Edit Button (not E: a key typed right after E goes to the title)
-    static void OpenEditor(LeafApp leaf)
+    private static void OpenEditor(LeafApp leaf)
     {
         leaf.WaitFor(Dentist).Click();
         leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
         leaf.WaitFor("EditorTitle");
     }
 
-    static void OpenFlyout(LeafApp leaf)
+    private static void OpenFlyout(LeafApp leaf)
     {
         leaf.WaitFor(Dentist);
         leaf.PostTrayMessage(LeafApp.TraySelect);
         leaf.WaitForPopup("FlyoutJoinButton");
     }
 
-    static void OpenTrayMenu(LeafApp leaf)
+    private static void OpenTrayMenu(LeafApp leaf)
     {
         leaf.WaitFor(Dentist);
         leaf.RightClickTrayIcon();
@@ -118,7 +118,7 @@ public sealed class AccessibilityTests : IDisposable
     }
 
     // P, One Person, Show: The Overlay Bar Lists Them
-    static void OpenOverlay(LeafApp leaf)
+    private static void OpenOverlay(LeafApp leaf)
     {
         leaf.WaitFor(Dentist);
         leaf.Press(VirtualKeyShort.KEY_P);
@@ -133,7 +133,7 @@ public sealed class AccessibilityTests : IDisposable
     }
 
     // Z, Tokyo, Go: The Time Travel Bar Shows
-    static void OpenTimeTravel(LeafApp leaf)
+    private static void OpenTimeTravel(LeafApp leaf)
     {
         leaf.WaitFor(Dentist);
         leaf.Press(VirtualKeyShort.KEY_Z);
@@ -151,7 +151,7 @@ public sealed class AccessibilityTests : IDisposable
 
     // Focus The Family Calendar, Open Its Menu From The Keyboard (Shift+F10), And Pick An Item; The Dialog Opens. The
     // keyboard path is the one under test here, and another window on top can't swallow it the way it can a right-click.
-    static void SidebarMenu(LeafApp leaf, string item, string inDialog)
+    private static void SidebarMenu(LeafApp leaf, string item, string inDialog)
     {
         leaf.WaitFor(Dentist);
         leaf.WaitFor($"CalendarToggle_{Family}").Focus();
@@ -161,7 +161,7 @@ public sealed class AccessibilityTests : IDisposable
     }
 
     // Settings › Calendars, The Family Calendar's "…" Menu, Default Reminders
-    static void OpenReminders(LeafApp leaf)
+    private static void OpenReminders(LeafApp leaf)
     {
         OpenSettings(leaf, "Calendars");
         leaf.WaitInSettings($"CalendarMore_{Family}").AsButton().Invoke();
@@ -170,7 +170,7 @@ public sealed class AccessibilityTests : IDisposable
     }
 
     // A Workspace Account Shows The Room Box (Open sets the domain before launch; it arrives with the account's user info)
-    static void OpenRoomInput(LeafApp leaf, FakeGoogleServer google)
+    private static void OpenRoomInput(LeafApp leaf, FakeGoogleServer google)
     {
         leaf.WaitFor(Dentist);
         Retry.WhileFalse(() => google.Requests.Any(r => r.StartsWith("GET /userinfo", StringComparison.Ordinal)), TimeSpan.FromSeconds(20));
@@ -179,7 +179,7 @@ public sealed class AccessibilityTests : IDisposable
     }
 
     // Shift+Drag From Above Monday's 1:30 PM Card To Below Friday's (next week)
-    static void OpenBoxSelect(LeafApp leaf)
+    private static void OpenBoxSelect(LeafApp leaf)
     {
         leaf.WaitFor(Dentist);
         leaf.WaitFor("NextButton").AsButton().Invoke();
@@ -203,7 +203,7 @@ public sealed class AccessibilityTests : IDisposable
     }
 
     // The Rich Event's Editor, With A Numbered List Typed Under Its Description (the toolbar and list drawing in view)
-    static void OpenRichEditor(LeafApp leaf)
+    private static void OpenRichEditor(LeafApp leaf)
     {
         leaf.WaitFor("Event_evt-rich_202610011400").Click();
         leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
@@ -255,7 +255,7 @@ public sealed class AccessibilityTests : IDisposable
         return leaf;
     }
 
-    LeafApp Open(string name) => Open(name, _google, _profile);
+    private LeafApp Open(string name) => Open(name, _google, _profile);
 
     // Narrator: Every Control On Every Window Has A Real Name
     [Theory, MemberData(nameof(Screens))]
@@ -279,7 +279,7 @@ public sealed class AccessibilityTests : IDisposable
 
         using var leaf = Open(name);
 
-        var window  = leaf.AllWindows().FirstOrDefault(w => w.FindFirstDescendant(cf => cf.ByAutomationId(mustReach[0])) is not null)
+        var window = leaf.AllWindows().FirstOrDefault(w => w.FindFirstDescendant(cf => cf.ByAutomationId(mustReach[0])) is not null)
             ?? throw new InvalidOperationException($"No window holds '{mustReach[0]}'.");
         var reached = A11yAudit.TabStops(leaf, window);
         Assert.True(!mustReach.Except(reached).Any(), $"{name}: Tab never reached {string.Join(", ", mustReach.Except(reached))}. Reached: {string.Join(", ", reached)}");
@@ -305,9 +305,9 @@ public sealed class AccessibilityTests : IDisposable
         }
 
         using var leaf = Launch();
-        var card    = leaf.WaitFor(Dentist);
-        var ui      = new Windows.UI.ViewManagement.UISettings();
-        var fill    = Ink.PixelAt(card.BoundingRectangle.Right - 3, card.BoundingRectangle.Bottom - 3);
+        var card = leaf.WaitFor(Dentist);
+        var ui = new Windows.UI.ViewManagement.UISettings();
+        var fill = Ink.PixelAt(card.BoundingRectangle.Right - 3, card.BoundingRectangle.Bottom - 3);
         var allowed = new[] { Windows.UI.ViewManagement.UIElementType.Window, Windows.UI.ViewManagement.UIElementType.Highlight, Windows.UI.ViewManagement.UIElementType.ButtonFace }
             .Select(t => ui.UIElementColor(t)).Select(c => Color.FromArgb(c.R, c.G, c.B));
 

@@ -224,7 +224,7 @@
             CornerRadius="{StaticResource OverlayCornerRadius}">
             <StackPanel
                 x:Name="KeysControl"
-                Height="56"
+                MinHeight="56"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 Orientation="Horizontal"

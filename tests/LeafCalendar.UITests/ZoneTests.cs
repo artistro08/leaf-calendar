@@ -11,12 +11,12 @@ namespace LeafCalendar.UITests;
 
 public sealed class ZoneTests : IDisposable
 {
-    const string Dentist = "Event_evt-single_202610011300";
+    private const string Dentist = "Event_evt-single_202610011300";
 
-    static readonly TimeSpan Wait = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan Wait = TimeSpan.FromSeconds(5);
 
-    readonly FakeGoogleServer _google = new();
-    string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -24,7 +24,7 @@ public sealed class ZoneTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch(LeafSettings? settings = null)
+    private LeafApp Launch(LeafSettings? settings = null)
     {
         if (settings is not null)
         {
@@ -38,7 +38,7 @@ public sealed class ZoneTests : IDisposable
     }
 
     // Opens the dentist's details through the command menu (Enter: details only), wherever the grid has scrolled
-    static string DentistWhen(LeafApp leaf, bool jump = false)
+    private static string DentistWhen(LeafApp leaf, bool jump = false)
     {
         leaf.Press(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_K);
         leaf.WaitForAnywhere("CommandSearchBox");
@@ -58,7 +58,7 @@ public sealed class ZoneTests : IDisposable
     }
 
     // Z, "Tokyo", the first suggestion, Go
-    static void TravelToTokyo(LeafApp leaf)
+    private static void TravelToTokyo(LeafApp leaf)
     {
         leaf.Press(VirtualKeyShort.KEY_Z);
         var box = leaf.WaitForAnywhere("TimeTravelBox");
@@ -102,10 +102,10 @@ public sealed class ZoneTests : IDisposable
         DentistWhen(leaf, jump: true);
         var dentist = leaf.WaitFor(Dentist);
         LeafApp.WaitUntilStill(dentist);
-        var hour   = dentist.BoundingRectangle.Height + 2;
+        var hour = dentist.BoundingRectangle.Height + 2;
         var column = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
-        var x      = column.X + column.Width / 2;
-        var from   = dentist.BoundingRectangle.Y + hour / 10;
+        var x = column.X + column.Width / 2;
+        var from = dentist.BoundingRectangle.Y + hour / 10;
         LeafApp.Drag(new Point(x, from), new Point(x, from + hour));
 
         leaf.WaitFor("EditorTitle").AsTextBox().Text = "Tokyo sync";
@@ -144,13 +144,20 @@ public sealed class ZoneTests : IDisposable
         Keyboard.Type("London");
         Keyboard.Type(VirtualKeyShort.RETURN);
 
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("PrimaryZoneSummary").Name == "London", Wait).Success, $"The summary reads {leaf.WaitInSettings("PrimaryZoneSummary").Name}.");
+
+        // Back On The Calendar, The Dentist Is On London's Clock
+        leaf.CloseSettings();
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsWhen").Name.Contains("2 PM – 3 PM", StringComparison.Ordinal), Wait).Success,
             $"Details read {leaf.WaitFor("DetailsWhen").Name}.");
-        Assert.Equal("London", leaf.WaitInSettings("PrimaryZoneSummary").Name);
 
         // Following Windows Again Puts It Back
+        leaf.OpenSettings("TimeZones");
+        leaf.ExpandInSettings("PrimaryZoneExpander");
         leaf.WaitInSettings("FollowWindowsZoneSwitch").AsToggleButton().Toggle();
-        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsWhen").Name == before, Wait).Success);
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("PrimaryZoneSummary").Name.StartsWith("Same as Windows", StringComparison.Ordinal), Wait).Success);
+        leaf.CloseSettings();
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsWhen").Name == before, Wait).Success, $"Details read {leaf.WaitFor("DetailsWhen").Name}.");
     }
 
     [Fact]
@@ -182,7 +189,7 @@ public sealed class ZoneTests : IDisposable
         Assert.True(client.Contains(leaf.WaitFor("EditorCancelButton").BoundingRectangle), "Cancel is clipped.");
 
         var sidebar = leaf.WaitFor("Sidebar").BoundingRectangle;
-        var days    = leaf.MainWindow.FindAllDescendants().Where(e => (e.Properties.AutomationId.ValueOrDefault ?? "").StartsWith("MiniDay_", StringComparison.Ordinal)).ToList();
+        var days = leaf.MainWindow.FindAllDescendants().Where(e => (e.Properties.AutomationId.ValueOrDefault ?? "").StartsWith("MiniDay_", StringComparison.Ordinal)).ToList();
         Assert.NotEmpty(days);
         Assert.All(days, d => Assert.True(Rectangle.Inflate(sidebar, 1, 1).Contains(d.BoundingRectangle), $"{d.AutomationId} {d.BoundingRectangle} is outside the sidebar {sidebar}."));
     }

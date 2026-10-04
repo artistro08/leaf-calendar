@@ -11,8 +11,8 @@ public sealed class NavigationHistory
     /// <summary>The most places remembered; older ones are forgotten.</summary>
     public const int Capacity = 50;
 
-    readonly List<ViewPlace> _places = [];
-    int _index = -1;
+    private readonly List<ViewPlace> _places = [];
+    private int _index = -1;
 
     /// <summary>True when there is an earlier place.</summary>
     public bool CanGoBack => _index > 0;

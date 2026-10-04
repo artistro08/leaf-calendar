@@ -11,10 +11,10 @@ namespace LeafCalendar.App.Views.Settings;
 /// </summary>
 public sealed partial class NotificationsPage : Page
 {
-    SettingsContext _context = null!;
+    private SettingsContext _context = null!;
 
     // True while the saved values are being shown (the switches' Toggled events are ignored meanwhile)
-    bool _loading = true;
+    private bool _loading = true;
 
     /// <summary>Creates the page.</summary>
     public NotificationsPage()
@@ -34,23 +34,23 @@ public sealed partial class NotificationsPage : Page
     /// <inheritdoc />
     protected override void OnNavigatedFrom(NavigationEventArgs e) => _context.Host.SettingsChanged -= OnSettingsChanged;
 
-    void OnSettingsChanged(object? sender, EventArgs e) => Load();
+    private void OnSettingsChanged(object? sender, EventArgs e) => Load();
 
     // Show The Saved Values
-    void Load()
+    private void Load()
     {
         var s = _context.Calendar.Settings;
         _loading = true;
 
         RemindersSwitch.IsOn = s.ReminderNotifications;
-        JoinNowSwitch.IsOn   = s.JoinNowNotifications;
-        InvitesSwitch.IsOn   = s.InviteNotifications;
-        SoundSwitch.IsOn     = s.NotificationSound;
+        JoinNowSwitch.IsOn = s.JoinNowNotifications;
+        InvitesSwitch.IsOn = s.InviteNotifications;
+        SoundSwitch.IsOn = s.NotificationSound;
 
         _loading = false;
     }
 
-    void OnRemindersToggled(object sender, RoutedEventArgs e)
+    private void OnRemindersToggled(object sender, RoutedEventArgs e)
     {
         if (!_loading)
         {
@@ -59,7 +59,7 @@ public sealed partial class NotificationsPage : Page
         }
     }
 
-    void OnJoinNowToggled(object sender, RoutedEventArgs e)
+    private void OnJoinNowToggled(object sender, RoutedEventArgs e)
     {
         if (!_loading)
         {
@@ -68,7 +68,7 @@ public sealed partial class NotificationsPage : Page
         }
     }
 
-    void OnInvitesToggled(object sender, RoutedEventArgs e)
+    private void OnInvitesToggled(object sender, RoutedEventArgs e)
     {
         if (!_loading)
         {
@@ -77,7 +77,7 @@ public sealed partial class NotificationsPage : Page
         }
     }
 
-    void OnSoundToggled(object sender, RoutedEventArgs e)
+    private void OnSoundToggled(object sender, RoutedEventArgs e)
     {
         if (!_loading)
         {

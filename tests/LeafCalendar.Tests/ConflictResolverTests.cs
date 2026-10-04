@@ -9,16 +9,16 @@ namespace LeafCalendar.Tests;
 
 public sealed class ConflictResolverTests : IDisposable
 {
-    const string Calendar = "leaf.tester@gmail.com";
-    const string Mine     = """{"id":"evt-single","etag":"\"1\"","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""";
-    const string Googles  = """{"id":"evt-single","etag":"\"G9\"","status":"confirmed","summary":"Google's","location":"Room 9","start":{"dateTime":"2026-10-01T15:00:00Z"},"end":{"dateTime":"2026-10-01T16:00:00Z"}}""";
+    private const string Calendar = "leaf.tester@gmail.com";
+    private const string Mine = """{"id":"evt-single","etag":"\"1\"","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""";
+    private const string Googles = """{"id":"evt-single","etag":"\"G9\"","status":"confirmed","summary":"Google's","location":"Room 9","start":{"dateTime":"2026-10-01T15:00:00Z"},"end":{"dateTime":"2026-10-01T16:00:00Z"}}""";
 
-    static readonly string Account = TestDatabase.SampleAccount.Id;
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
-    readonly TestDatabase _db = new();
-    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
-    readonly ConflictResolver _resolver;
+    private readonly TestDatabase _db = new();
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
+    private readonly ConflictResolver _resolver;
 
     public ConflictResolverTests()
     {
@@ -32,7 +32,7 @@ public sealed class ConflictResolverTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    ConflictInfo Conflict(OutboxOperation operation, string? local, string? google)
+    private ConflictInfo Conflict(OutboxOperation operation, string? local, string? google)
     {
         using var conn = _db.Database.Open();
         var seq = OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Calendar, "evt-single", operation, operation == OutboxOperation.Patch ? """{"summary":"Mine"}""" : null, "\"1\"", false, EventStore.Snapshot(conn, null, Account, Calendar, "evt-single"), null));
@@ -45,13 +45,13 @@ public sealed class ConflictResolverTests : IDisposable
         return ConflictStore.GetAll(conn).Single();
     }
 
-    StoredEvent? Get(string id)
+    private StoredEvent? Get(string id)
     {
         using var conn = _db.Database.Open();
         return EventStore.Get(conn, Account, Calendar, id);
     }
 
-    IReadOnlyList<OutboxEntry> Pending()
+    private IReadOnlyList<OutboxEntry> Pending()
     {
         using var conn = _db.Database.Open();
         return OutboxStore.Pending(conn, Account);
@@ -62,11 +62,26 @@ public sealed class ConflictResolverTests : IDisposable
     {
         var fields = ConflictDiff.Compare(Mine, Googles, NewYork, use24h: false);
 
-        Assert.Equal(["Title", "When", "Location", "Description", "Guests", "Repeats", "Color"], fields.Select(f => f.Field));
+        Assert.Equal(["Title", "When", "Location", "Description", "Guests", "Repeats", "Color", "Reminder", "Show as", "Visibility", "Video call"], fields.Select(f => f.Field));
         Assert.Equal(["Title", "When", "Location"], fields.Where(f => f.Differs).Select(f => f.Field));
         Assert.Equal("Mine", fields[0].Mine);
         Assert.Equal("Google's", fields[0].Google);
         Assert.Equal("Thursday, October 1 · 11 AM – 12 PM", fields[1].Google);
+    }
+
+    [Fact]
+    public void Compare_ChangedRemindersShowAsVisibilityAndCall_FlagsThem()
+    {
+        const string local = """{"id":"evt-single","summary":"Same","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"},"reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":60},{"method":"popup","minutes":10}]},"transparency":"transparent","visibility":"confidential"}""";
+        const string google = """{"id":"evt-single","summary":"Same","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"},"reminders":{"useDefault":true},"conferenceData":{"entryPoints":[{"entryPointType":"video","uri":"https://meet.google.com/abc-defg-hij"}],"conferenceSolution":{"key":{"type":"hangoutsMeet"}}}}""";
+
+        var fields = ConflictDiff.Compare(local, google, NewYork, use24h: false).ToDictionary(f => f.Field);
+
+        Assert.Equal(["Reminder", "Show as", "Visibility", "Video call"], fields.Values.Where(f => f.Differs).Select(f => f.Field));
+        Assert.Equal(("10 min, 1 hr", "Use calendar default"), (fields["Reminder"].Mine, fields["Reminder"].Google));
+        Assert.Equal(("Free", "Busy"), (fields["Show as"].Mine, fields["Show as"].Google));
+        Assert.Equal(("Private", "Default visibility"), (fields["Visibility"].Mine, fields["Visibility"].Google));
+        Assert.Equal(("No video call", "Video call: meet.google.com"), (fields["Video call"].Mine, fields["Video call"].Google));
     }
 
     [Fact]
@@ -101,6 +116,21 @@ public sealed class ConflictResolverTests : IDisposable
     }
 
     [Fact]
+    public void KeepMine_GoogleDeletedSeries_TheNewSeriesKeepsItsCanceledDays()
+    {
+        const string Series = """{"id":"evt-single","etag":"\"1\"","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"},"recurrence":["RRULE:FREQ=DAILY"]}""";
+        using (var conn = _db.Database.Open())
+        {
+            EventStore.ApplyJson(conn, null, Account, Calendar, Series);
+            EventStore.ApplyJson(conn, null, Account, Calendar, """{"id":"evt-single_20261003T130000Z","status":"cancelled","recurringEventId":"evt-single","originalStartTime":{"dateTime":"2026-10-03T13:00:00Z"}}""");
+        }
+
+        _resolver.KeepMine(Conflict(OutboxOperation.Patch, Series, null));
+
+        Assert.Contains("\"EXDATE:20261003T130000Z\"", Assert.Single(Pending()).Payload!, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void KeepMine_GoogleDeletedMeetEvent_AsksForANewMeetLink()
     {
         const string MineWithMeet = """{"id":"evt-single","etag":"\"1\"","status":"confirmed","summary":"Mine","hangoutLink":"https://meet.google.com/abc-defg-hij","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""";
@@ -127,6 +157,30 @@ public sealed class ConflictResolverTests : IDisposable
         Assert.Empty(Pending());
         Assert.Equal((0, 0), _resolver.Counts());
         Assert.Contains("Google's", Get("evt-single")!.RawJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void KeepGoogles_EventMovedAndEditedLater_UndoesTheMoveAndDropsTheEditsBehindIt()
+    {
+        const string Family = "family123@group.calendar.google.com";
+        var conflict = Conflict(OutboxOperation.Patch, Mine, Googles);
+        using (var conn = _db.Database.Open())
+        {
+            // Moved to another calendar after the conflicted edit, then edited there
+            OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Calendar, "evt-single", OutboxOperation.Move, Family, "\"1\"", false, "[]", null));
+            EventStore.MoveCalendar(conn, null, Account, Calendar, Family, "evt-single");
+            OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Family, "evt-single", OutboxOperation.Patch, """{"location":"Mine too"}""", "\"1\"", false, "[]", null));
+            CalendarStore.SetSyncToken(conn, null, Account, Family, "token-family");
+        }
+
+        _resolver.KeepGoogles(conflict);
+
+        Assert.Empty(Pending());
+        Assert.Contains("Google's", Get("evt-single")!.RawJson, StringComparison.Ordinal);
+
+        using var check = _db.Database.Open();
+        Assert.Null(EventStore.Get(check, Account, Family, "evt-single"));
+        Assert.Null(CalendarStore.GetForAccount(check, Account).Single(c => c.Id == Family).SyncToken);
     }
 
     [Fact]
@@ -174,10 +228,10 @@ public sealed class ConflictResolverTests : IDisposable
         Assert.Equal("token-family", calendars.Single(c => c.Id == Family).SyncToken);
     }
 
-    const string NewSeries = """{"id":"leafsplit001","status":"confirmed","summary":"Standup v2","start":{"dateTime":"2026-10-09T13:30:00Z"},"end":{"dateTime":"2026-10-09T14:00:00Z"},"recurrence":["RRULE:FREQ=WEEKLY"]}""";
+    private const string NewSeries = """{"id":"leafsplit001","status":"confirmed","summary":"Standup v2","start":{"dateTime":"2026-10-09T13:30:00Z"},"end":{"dateTime":"2026-10-09T14:00:00Z"},"recurrence":["RRULE:FREQ=WEEKLY"]}""";
 
     // A split whose end (the conflicted patch) the new series waits behind
-    ConflictInfo SplitConflict()
+    private ConflictInfo SplitConflict()
     {
         var conflict = Conflict(OutboxOperation.Patch, Mine, Googles);
         using var conn = _db.Database.Open();

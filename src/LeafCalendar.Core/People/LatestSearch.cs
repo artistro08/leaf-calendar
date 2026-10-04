@@ -8,7 +8,7 @@ namespace LeafCalendar.Core.People;
 public sealed class LatestSearch<T> : IDisposable
     where T : class
 {
-    CancellationTokenSource? _current;
+    private CancellationTokenSource? _current;
 
     /// <summary>Runs <paramref name="search"/>; null when a newer search (or <see cref="Cancel"/>) replaced it.</summary>
     public async Task<T?> RunAsync(Func<CancellationToken, Task<T>> search)

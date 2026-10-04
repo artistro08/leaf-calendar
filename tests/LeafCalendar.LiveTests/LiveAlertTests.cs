@@ -7,7 +7,7 @@ namespace LeafCalendar.LiveTests;
 
 public class LiveAlertTests
 {
-    const string SkipReason = "Live account not set up. Run LiveSignInTests once (see its comment).";
+    private const string SkipReason = "Live account not set up. Run LiveSignInTests once (see its comment).";
 
     [Fact]
     public async Task Plan_RealGoogle_UsesTheCalendarDefaultAndTheEventsOverrides()
@@ -20,18 +20,18 @@ public class LiveAlertTests
             return;
         }
 
-        var google     = new LiveGoogle(live);
+        var google = new LiveGoogle(live);
         var calendarId = await google.CreateTestCalendarAsync(ct);
         try
         {
             // Arrange On Google: a 7-minute calendar default, one event on it, one with a 3-minute override
             await google.SetDefaultRemindersAsync(calendarId, 7, ct);
-            var start      = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(2).AddHours(15), TimeSpan.Zero);
-            var onDefault  = await google.InsertEventWithRemindersAsync(calendarId, start, new JsonObject { ["useDefault"] = true }, ct);
+            var start = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(2).AddHours(15), TimeSpan.Zero);
+            var onDefault = await google.InsertEventWithRemindersAsync(calendarId, start, new JsonObject { ["useDefault"] = true }, ct);
             var overridden = await google.InsertEventWithRemindersAsync(calendarId, start.AddHours(2), new JsonObject
             {
                 ["useDefault"] = false,
-                ["overrides"]  = new JsonArray(new JsonObject { ["method"] = "popup", ["minutes"] = 3 }),
+                ["overrides"] = new JsonArray(new JsonObject { ["method"] = "popup", ["minutes"] = 3 }),
             }, ct);
 
             // Sync, And Show The Test Calendar In Leaf

@@ -4,8 +4,8 @@ namespace LeafCalendar.UITests;
 
 public sealed class StoreTests : IDisposable
 {
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {

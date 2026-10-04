@@ -12,8 +12,8 @@ namespace LeafCalendar.UITests;
 
 public sealed class TimeGridTests : IDisposable
 {
-    readonly FakeGoogleServer _google = new();
-    string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -22,7 +22,7 @@ public sealed class TimeGridTests : IDisposable
     }
 
     // Where the time grid came to rest (published on the grid's automation ItemStatus)
-    static (string First, double Offset, double Column, double Top) Rest(LeafApp leaf)
+    private static (string First, double Offset, double Column, double Top) Rest(LeafApp leaf)
     {
         var parts = (leaf.WaitFor("TimeGrid").Properties.ItemStatus.ValueOrDefault ?? "")
             .Split(';', StringSplitOptions.RemoveEmptyEntries)
@@ -33,7 +33,7 @@ public sealed class TimeGridTests : IDisposable
         return (parts.GetValueOrDefault("first", ""), Number("offset"), Number("column"), Number("top"));
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     [Fact]
     public void WeekView_OnStartDate_ShowsSyncedEvent()
@@ -121,11 +121,11 @@ public sealed class TimeGridTests : IDisposable
 
         // One strip of the screen from the header's day dividers down to the bottom of the body, Monday to
         // Thursday (one capture is one frame)
-        var monday   = leaf.WaitFor("DayHeader_2026-09-28").BoundingRectangle;
+        var monday = leaf.WaitFor("DayHeader_2026-09-28").BoundingRectangle;
         var thursday = leaf.WaitFor("DayHeader_2026-10-01").BoundingRectangle;
-        var grid     = leaf.WaitFor("TimeGrid").BoundingRectangle;
-        var top      = monday.Bottom - 4;
-        var strip    = new Rectangle(monday.X - 4, top, thursday.X - monday.X + 8, grid.Bottom - 8 - top);
+        var grid = leaf.WaitFor("TimeGrid").BoundingRectangle;
+        var top = monday.Bottom - 4;
+        var strip = new Rectangle(monday.X - 4, top, thursday.X - monday.X + 8, grid.Bottom - 8 - top);
         var rest = DividerEdges(strip).Header;
 
         // Tilt-Wheel Scroll, Captured While It Glides
@@ -150,7 +150,7 @@ public sealed class TimeGridTests : IDisposable
     // The x of every thin vertical line crossing the top row of the strip (the header's day dividers) and its
     // bottom rows (the body's column lines). A line is a pixel that stands out from its neighbors two pixels either side,
     // which match each other (so the edges of the today circle or an event don't count)
-    static (List<int> Header, List<int> Body) DividerEdges(Rectangle strip)
+    private static (List<int> Header, List<int> Body) DividerEdges(Rectangle strip)
     {
         using var shot = Capture.Rectangle(strip).Bitmap;
 
@@ -169,7 +169,7 @@ public sealed class TimeGridTests : IDisposable
         return (Lines(0), [.. rows.SelectMany(y => Lines(y).Concat(Edges(y))).Distinct().Order()]);
     }
 
-    static int Brightness(Color c) => c.R + c.G + c.B;
+    private static int Brightness(Color c) => c.R + c.G + c.B;
 
     [Fact]
     public void DayView_FromMenu_ShowsOneColumn()
@@ -185,20 +185,20 @@ public sealed class TimeGridTests : IDisposable
     }
 
     // A timed event at a local time on the PC's zone, as the JSON Google stores
-    static JsonObject Seed(string id, DateTime localStart, DateTime localEnd) => new()
+    private static JsonObject Seed(string id, DateTime localStart, DateTime localEnd) => new()
     {
-        ["id"]      = id,
+        ["id"] = id,
         ["summary"] = id,
-        ["start"]   = new JsonObject { ["dateTime"] = Utc(localStart) },
-        ["end"]     = new JsonObject { ["dateTime"] = Utc(localEnd) },
+        ["start"] = new JsonObject { ["dateTime"] = Utc(localStart) },
+        ["end"] = new JsonObject { ["dateTime"] = Utc(localEnd) },
     };
 
-    static string Utc(DateTime local) => TimeZoneInfo.ConvertTimeToUtc(local, TimeZoneInfo.Local).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture);
+    private static string Utc(DateTime local) => TimeZoneInfo.ConvertTimeToUtc(local, TimeZoneInfo.Local).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture);
 
-    static string EventId(string id, DateTime localStart) =>
+    private static string EventId(string id, DateTime localStart) =>
         $"Event_{id}_{TimeZoneInfo.ConvertTimeToUtc(localStart, TimeZoneInfo.Local).ToString("yyyyMMddHHmm", System.Globalization.CultureInfo.InvariantCulture)}";
 
-    static void SwitchToDayView(LeafApp leaf)
+    private static void SwitchToDayView(LeafApp leaf)
     {
         leaf.WaitFor("ViewModeButton").AsButton().Invoke();
         leaf.WaitForAnywhere("ViewDay").AsMenuItem().Invoke();
@@ -213,11 +213,11 @@ public sealed class TimeGridTests : IDisposable
     {
         _google.AddEvent("leaf.tester@gmail.com", new JsonObject
         {
-            ["id"]      = "evt-tomorrow",
+            ["id"] = "evt-tomorrow",
             ["summary"] = "Tomorrow",
             ["colorId"] = "11",
-            ["start"]   = new JsonObject { ["dateTime"] = "2026-10-02T13:00:00Z" },
-            ["end"]     = new JsonObject { ["dateTime"] = "2026-10-02T14:00:00Z" },
+            ["start"] = new JsonObject { ["dateTime"] = "2026-10-02T13:00:00Z" },
+            ["end"] = new JsonObject { ["dateTime"] = "2026-10-02T14:00:00Z" },
         });
         using var leaf = Launch();
         leaf.WaitFor("Event_evt-single_202610011300");
@@ -239,13 +239,13 @@ public sealed class TimeGridTests : IDisposable
         Assert.True(Retry.WhileFalse(() => Rest(leaf).First == "2026-10-01", TimeSpan.FromSeconds(10)).Success);
 
         // Where The Pane Will Be (320 wide at the window's right), At The Event's Height
-        var root   = leaf.WaitFor("CalendarRoot").BoundingRectangle;
-        var scale  = leaf.WaitFor("DetailsToggleButton").BoundingRectangle.Width / 32.0;
-        var width  = (int)Math.Round(320 * scale);
+        var root = leaf.WaitFor("CalendarRoot").BoundingRectangle;
+        var scale = leaf.WaitFor("DetailsToggleButton").BoundingRectangle.Width / 32.0;
+        var width = (int)Math.Round(320 * scale);
         // The frames take the whole row (island and pane), so they also show that something was moving while they were
         // taken; only the pane's part is searched for the event's fill
-        var row    = new Rectangle(root.Left, box.Y, root.Width, box.Height);
-        var pane   = row.Width - width + 1; // the pane's first pixel column may still hold the island's edge (layout rounding)
+        var row = new Rectangle(root.Left, box.Y, root.Width, box.Height);
+        var pane = row.Width - width + 1; // the pane's first pixel column may still hold the island's edge (layout rounding)
 
         // Mid-Slide: the pane closing (the island widens into the pane's room as it slides away), then opening
         leaf.WaitFor("DetailsToggleButton").AsToggleButton().Toggle();
@@ -269,7 +269,7 @@ public sealed class TimeGridTests : IDisposable
     }
 
     // Back-to-back captures of the region (scanned afterward, so the frames stay close together)
-    static List<Bitmap> Frames(Rectangle region, int count = 20) =>
+    private static List<Bitmap> Frames(Rectangle region, int count = 20) =>
         [.. Enumerable.Range(0, count).Select(_ =>
         {
             using var shot = Capture.Rectangle(region);
@@ -278,7 +278,7 @@ public sealed class TimeGridTests : IDisposable
 
     // No pixel within 12 (per RGB channel) of the event's fill right of x = paneFrom, in any frame. With moving, at
     // least three of the frames differ, so some were taken mid-motion (not all before it started or after it ended)
-    static void AssertNoFill(List<Bitmap> frames, int paneFrom, Color fill, string when, bool moving)
+    private static void AssertNoFill(List<Bitmap> frames, int paneFrom, Color fill, string when, bool moving)
     {
         try
         {
@@ -290,9 +290,9 @@ public sealed class TimeGridTests : IDisposable
 
             for (var i = 0; i < frames.Count; i++)
             {
-                var frame    = frames[i];
+                var frame = frames[i];
                 var bleeding = 0;
-                var columns  = new SortedSet<int>();
+                var columns = new SortedSet<int>();
                 for (var x = paneFrom; x < frame.Width; x++)
                 {
                     for (var y = 0; y < frame.Height; y++)
@@ -316,7 +316,7 @@ public sealed class TimeGridTests : IDisposable
     }
 
     // A frame's pixels, summed with their positions (equal frames give equal sums)
-    static long Signature(Bitmap frame)
+    private static long Signature(Bitmap frame)
     {
         long sum = 0;
         for (var x = 0; x < frame.Width; x += 2)
@@ -337,16 +337,16 @@ public sealed class TimeGridTests : IDisposable
         {
             _google.AddEvent("leaf.tester@gmail.com", new JsonObject
             {
-                ["id"]      = $"evt-allday-{i}",
+                ["id"] = $"evt-allday-{i}",
                 ["summary"] = $"All day {i}",
-                ["start"]   = new JsonObject { ["date"] = "2026-10-01" },
-                ["end"]     = new JsonObject { ["date"] = "2026-10-02" },
+                ["start"] = new JsonObject { ["date"] = "2026-10-01" },
+                ["end"] = new JsonObject { ["date"] = "2026-10-02" },
             });
         }
 
         using var leaf = Launch();
         var chevron = leaf.WaitFor("AllDayExpand").BoundingRectangle;
-        var labels  = leaf.WaitFor("TimeGrid")
+        var labels = leaf.WaitFor("TimeGrid")
             .FindAllDescendants()
             .Where(e => (e.Properties.AutomationId.ValueOrDefault ?? "").StartsWith("ZoneLabel_", StringComparison.Ordinal))
             .ToList();
@@ -359,7 +359,7 @@ public sealed class TimeGridTests : IDisposable
     public void CtrlWheel_OverTheGrid_ZoomsAndDoesNotScroll()
     {
         using var leaf = Launch();
-        var card   = leaf.WaitFor("Event_evt-single_202610011300");
+        var card = leaf.WaitFor("Event_evt-single_202610011300");
         var before = card.BoundingRectangle.Height;
         Assert.True(Retry.WhileFalse(() => Rest(leaf).Top > 0, TimeSpan.FromSeconds(5)).Success);
         var top = Rest(leaf).Top;
@@ -385,7 +385,7 @@ public sealed class TimeGridTests : IDisposable
     public void PastEvents_AreFaded_FutureOnesAreNot()
     {
         // The test clock is 8:00 on the PC's clock on Oct 1, so both events are seeded in the PC's zone
-        var past  = new DateTime(2026, 10, 1, 6, 0, 0);
+        var past = new DateTime(2026, 10, 1, 6, 0, 0);
         var later = new DateTime(2026, 10, 1, 10, 0, 0);
         _google.AddEvent("leaf.tester@gmail.com", Seed("evt-past", past, past.AddHours(1)));
         _google.AddEvent("leaf.tester@gmail.com", Seed("evt-later", later, later.AddHours(1)));

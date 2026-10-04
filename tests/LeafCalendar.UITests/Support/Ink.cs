@@ -24,17 +24,17 @@ public readonly record struct InkBox(int Left, int Top, int Right, int Bottom, d
 /// </summary>
 public sealed class Ink : IDisposable
 {
-    const float Threshold = 0.2f;
+    private const float Threshold = 0.2f;
 
-    readonly Bitmap _bitmap;
-    readonly Point _origin;
-    readonly float _background;
+    private readonly Bitmap _bitmap;
+    private readonly Point _origin;
+    private readonly float _background;
 
-    Ink(Rectangle region)
+    private Ink(Rectangle region)
     {
         using var shot = FlaUI.Core.Capturing.Capture.Rectangle(region);
-        _bitmap     = new Bitmap(shot.Bitmap);
-        _origin     = region.Location;
+        _bitmap = new Bitmap(shot.Bitmap);
+        _origin = region.Location;
         _background = Median(Border(_bitmap).ToList());
     }
 
@@ -55,9 +55,9 @@ public sealed class Ink : IDisposable
     public InkBox? Measure(int inset = 0, int? fromX = null, int? toX = null)
     {
         // No bounds means the whole region (an int.MinValue default minus the origin would wrap around to a huge left edge)
-        var left   = Math.Max(inset, fromX is { } from ? from - _origin.X : 0);
-        var right  = Math.Min(_bitmap.Width - inset, toX is { } to ? to - _origin.X : _bitmap.Width);
-        int top    = int.MaxValue, bottom = -1, first = int.MaxValue, last = -1;
+        var left = Math.Max(inset, fromX is { } from ? from - _origin.X : 0);
+        var right = Math.Min(_bitmap.Width - inset, toX is { } to ? to - _origin.X : _bitmap.Width);
+        int top = int.MaxValue, bottom = -1, first = int.MaxValue, last = -1;
         double sum = 0, weights = 0;
 
         for (var x = left; x < right; x++)
@@ -71,7 +71,7 @@ public sealed class Ink : IDisposable
                 }
 
                 (top, bottom, first, last) = (Math.Min(top, y), Math.Max(bottom, y), Math.Min(first, x), Math.Max(last, x));
-                sum     += weight * (y + 0.5);
+                sum += weight * (y + 0.5);
                 weights += weight;
             }
         }
@@ -104,10 +104,10 @@ public sealed class Ink : IDisposable
     /// <summary>Saves the capture blown up <paramref name="zoom"/> times (nearest neighbor) as a PNG, with a red guide line across at screen y <paramref name="guideY"/>.</summary>
     public void SaveZoomed(string path, int zoom, double guideY)
     {
-        using var zoomed   = new Bitmap(_bitmap.Width * zoom, _bitmap.Height * zoom);
+        using var zoomed = new Bitmap(_bitmap.Width * zoom, _bitmap.Height * zoom);
         using var graphics = Graphics.FromImage(zoomed);
         graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
-        graphics.PixelOffsetMode   = PixelOffsetMode.Half;
+        graphics.PixelOffsetMode = PixelOffsetMode.Half;
         graphics.DrawImage(_bitmap, 0, 0, zoomed.Width, zoomed.Height);
 
         var y = (float)((guideY - _origin.Y) * zoom);
@@ -121,7 +121,7 @@ public sealed class Ink : IDisposable
     /// <inheritdoc />
     public void Dispose() => _bitmap.Dispose();
 
-    static IEnumerable<float> Border(Bitmap b)
+    private static IEnumerable<float> Border(Bitmap b)
     {
         for (var x = 0; x < b.Width; x++)
         {
@@ -136,7 +136,7 @@ public sealed class Ink : IDisposable
         }
     }
 
-    static float Median(List<float> values)
+    private static float Median(List<float> values)
     {
         values.Sort();
         return values[values.Count / 2];

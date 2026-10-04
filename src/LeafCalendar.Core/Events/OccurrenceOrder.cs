@@ -18,20 +18,21 @@ public static class OccurrenceOrder
     /// <param name="fromStart">The anchor's start, or "now" when nothing is selected.</param>
     /// <param name="fromKey">The anchor's key, or null when nothing is selected (events starting exactly at <paramref name="fromStart"/> are then skipped).</param>
     /// <param name="direction">Positive for next, negative for previous.</param>
+    /// <param name="zone">The zone whose clock orders the events, so an all-day event sits at local midnight of its date.</param>
     /// <returns>The adjacent event, or null.</returns>
-    public static CalendarOccurrence? Adjacent(IEnumerable<CalendarOccurrence> candidates, DateTimeOffset fromStart, string? fromKey, int direction)
+    public static CalendarOccurrence? Adjacent(IEnumerable<CalendarOccurrence> candidates, DateTimeOffset fromStart, string? fromKey, int direction, TimeZoneInfo zone)
     {
         CalendarOccurrence? best = null;
         foreach (var o in candidates)
         {
             // Strictly past the anchor in the chosen direction
-            if (Math.Sign(Compare(o, fromStart, fromKey)) != Math.Sign(direction))
+            if (Math.Sign(Compare(o, fromStart, fromKey, zone)) != Math.Sign(direction))
             {
                 continue;
             }
 
             // Closest to the anchor wins
-            if (best is null || Math.Sign(Compare(o, best.Start, best.Key)) == -Math.Sign(direction))
+            if (best is null || Math.Sign(Compare(o, best.StartIn(zone), best.Key, zone)) == -Math.Sign(direction))
             {
                 best = o;
             }
@@ -40,10 +41,10 @@ public static class OccurrenceOrder
         return best;
     }
 
-    // Orders by start, then key; a null key ties with every event at that start
-    static int Compare(CalendarOccurrence o, DateTimeOffset start, string? key)
+    // Orders by start on the clock in the zone (an all-day event at its local midnight), then key; a null key ties with every event at that start
+    private static int Compare(CalendarOccurrence o, DateTimeOffset start, string? key, TimeZoneInfo zone)
     {
-        var byStart = o.Start.UtcTicks.CompareTo(start.UtcTicks);
+        var byStart = o.StartIn(zone).UtcTicks.CompareTo(start.UtcTicks);
         if (byStart != 0 || key is null)
         {
             return byStart;

@@ -8,11 +8,11 @@ namespace LeafCalendar.UITests;
 
 public sealed class CalendarManageTests : IDisposable
 {
-    const string Family = "family123@group.calendar.google.com";
-    const string Toggle = $"CalendarToggle_{Family}";
+    private const string Family = "family123@group.calendar.google.com";
+    private const string Toggle = $"CalendarToggle_{Family}";
 
-    readonly FakeGoogleServer _google = new();
-    string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -20,17 +20,17 @@ public sealed class CalendarManageTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch(string extra = "") => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01 {extra}");
+    private LeafApp Launch(string extra = "") => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01 {extra}");
 
     // Right-click a sidebar calendar and pick a menu item
-    static void SidebarMenu(LeafApp leaf, string item)
+    private static void SidebarMenu(LeafApp leaf, string item)
     {
         leaf.WaitFor(Toggle).RightClick();
         leaf.WaitForAnywhere(item).AsMenuItem().Invoke();
     }
 
     // The rename dialog: type a name and press Rename
-    static void Rename(LeafApp leaf, string name)
+    private static void Rename(LeafApp leaf, string name)
     {
         SidebarMenu(leaf, "CalendarMenu_Rename");
         leaf.WaitForAnywhere("RenameCalendarBox").AsTextBox().Text = name;
@@ -38,10 +38,10 @@ public sealed class CalendarManageTests : IDisposable
     }
 
     // The latest calendar-list PATCH for the family calendar, as JSON
-    JsonNode FamilyPatch(Func<string, bool> match) =>
+    private JsonNode FamilyPatch(Func<string, bool> match) =>
         JsonNode.Parse(_google.WaitForWrite(w => w.Method == "PATCH" && w.Path.Contains("calendarList/family123", StringComparison.Ordinal) && match(w.Body)).Body)!;
 
-    static void WaitForName(AutomationElement element, string name) =>
+    private static void WaitForName(AutomationElement element, string name) =>
         Assert.True(Retry.WhileFalse(() => element.Name == name, TimeSpan.FromSeconds(15)).Success, $"The row reads \"{element.Name}\", not \"{name}\".");
 
     [Fact]
@@ -76,7 +76,7 @@ public sealed class CalendarManageTests : IDisposable
         using var leaf = Launch();
         leaf.WaitFor(Toggle);
         _google.Offline = true;
-        Assert.True(Retry.WhileFalse(() => leaf.Exists("OfflineIndicator"), TimeSpan.FromSeconds(60)).Success, "Leaf never noticed it was offline.");
+        leaf.SyncUntilOffline();
 
         Rename(leaf, "X");
 
@@ -90,11 +90,11 @@ public sealed class CalendarManageTests : IDisposable
     {
         _google.AddEvent(Family, new JsonObject
         {
-            ["id"]      = "evt-family-soccer",
-            ["status"]  = "confirmed",
+            ["id"] = "evt-family-soccer",
+            ["status"] = "confirmed",
             ["summary"] = "Soccer practice",
-            ["start"]   = new JsonObject { ["dateTime"] = "2026-10-02T10:00:00-04:00", ["timeZone"] = "America/New_York" },
-            ["end"]     = new JsonObject { ["dateTime"] = "2026-10-02T11:00:00-04:00", ["timeZone"] = "America/New_York" },
+            ["start"] = new JsonObject { ["dateTime"] = "2026-10-02T10:00:00-04:00", ["timeZone"] = "America/New_York" },
+            ["end"] = new JsonObject { ["dateTime"] = "2026-10-02T11:00:00-04:00", ["timeZone"] = "America/New_York" },
         });
         using var leaf = Launch();
         leaf.WaitFor("Event_evt-single_202610011300");
@@ -131,7 +131,12 @@ public sealed class CalendarManageTests : IDisposable
 
         leaf.WaitInSettings($"CalendarMore_{SeededProfile.Email}").AsButton().Invoke();
         leaf.WaitForAnywhere("CalendarMenu_MoveDown").AsMenuItem().Invoke();
+        Assert.True(
+            Retry.WhileFalse(() => leaf.WaitInSettings($"CalendarMore_{Family}").BoundingRectangle.Top < leaf.WaitInSettings($"CalendarMore_{SeededProfile.Email}").BoundingRectangle.Top, TimeSpan.FromSeconds(10)).Success,
+            "Settings doesn't list Family above the primary calendar.");
 
+        // Back On The Calendar, The Sidebar Has The New Order
+        leaf.CloseSettings();
         Assert.True(
             Retry.WhileFalse(() => leaf.WaitFor(Toggle).BoundingRectangle.Top < leaf.WaitFor($"CalendarToggle_{SeededProfile.Email}").BoundingRectangle.Top, TimeSpan.FromSeconds(10)).Success,
             "Family isn't listed above the primary calendar.");

@@ -16,6 +16,13 @@ public class LaunchOptionsTests
         Assert.Equal(new LaunchOptions("uitest-abc_1", true), LaunchOptions.Parse(["--profile", "uitest-abc_1", "--tray-probe"]));
     }
 
+    [Fact]
+    public void Parse_Restarted_ReadsTheProfileAndTheFlag()
+    {
+        // Windows' restart after an update or a crash (App registers this command line once the tray starts)
+        Assert.Equal(new LaunchOptions("work", false, Restarted: true), LaunchOptions.Parse(["--profile", "work", "--restarted"]));
+    }
+
     [Theory]
     [InlineData("..\\evil")]
     [InlineData("a/b")]

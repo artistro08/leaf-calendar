@@ -4,7 +4,7 @@ namespace LeafCalendar.Tests;
 
 public sealed class DateQueryTests
 {
-    static readonly DateOnly Today = new(2026, 10, 1); // a Thursday
+    private static readonly DateOnly Today = new(2026, 10, 1); // a Thursday
 
     [Theory]
     [InlineData("today", 2026, 10, 1)]
@@ -77,6 +77,17 @@ public sealed class DateQueryTests
     [InlineData("next decade")]
     [InlineData("3 days ago from now")]
     public void TryParse_Rejects(string text) => Assert.False(DateQuery.TryParse(text, Today, out _));
+
+    [Fact]
+    public void TryParse_Feb29_IsTheNextLeapDayOrRefused()
+    {
+        // Next Year Is The Leap Year
+        Assert.True(DateQuery.TryParse("feb 29", new DateOnly(2027, 12, 15), out var date));
+        Assert.Equal(new DateOnly(2028, 2, 29), date);
+
+        // This Year's Was More Than 2 Months Ago, And Next Year Has None
+        Assert.False(DateQuery.TryParse("feb 29", new DateOnly(2028, 6, 1), out _));
+    }
 
     [Fact]
     public void Label_AddsTheYearOnlyWhenItDiffers()

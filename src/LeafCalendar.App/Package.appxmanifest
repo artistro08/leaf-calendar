@@ -42,6 +42,13 @@
           <uap5:StartupTask TaskId="LeafCalendarStartup" Enabled="true" DisplayName="Leaf Calendar" />
         </uap5:Extension>
 
+        <!-- leaf-calendar: (the sign-in pages' "Open Leaf Calendar" link) only brings Leaf to the front; the address is never read -->
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="leaf-calendar">
+            <uap:DisplayName>Leaf Calendar</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
+
         <!-- Notifications: Windows activates this COM class when a Leaf notification (or one of its buttons) is clicked -->
         <desktop:Extension Category="windows.toastNotificationActivation">
           <desktop:ToastNotificationActivation ToastActivatorCLSID="8E1C4A57-2B9D-4F36-A0C8-5D7E91B3F264" />

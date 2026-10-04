@@ -4,7 +4,7 @@ namespace LeafCalendar.Tests;
 
 public sealed class DisplayZoneTests
 {
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
     [Fact]
     public void Resolve_TravelBeatsPrimaryBeatsWindows()
@@ -32,12 +32,29 @@ public sealed class DisplayZoneTests
     }
 
     [Fact]
+    public void ShouldOfferSwitch_CuratedCityInWindowsOwnZone_DoesNotOffer() =>
+        Assert.False(DisplayZone.ShouldOfferSwitch("Asia/Kolkata", prompt: true, TimeZoneInfo.FindSystemTimeZoneById("India Standard Time")));
+
+    [Fact]
     public void Describe_CityAndShortName() =>
         Assert.Equal("Tokyo time (JST)", DisplayZone.Describe(TimeZoneInfo.FindSystemTimeZoneById("Asia/Tokyo"), new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero)));
 
     [Fact]
     public void Describe_WindowsId_UsesTheCity() =>
         Assert.Equal("New York time (EDT)", DisplayZone.Describe(TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"), new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero)));
+
+    [Fact]
+    public void Describe_ShortNameAlreadyInTheLabel_LeftOut()
+    {
+        var at = new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
+
+        Assert.Equal("UTC time", DisplayZone.Describe(TimeZoneInfo.Utc, at));
+        Assert.Equal("UTC time", DisplayZone.Describe(TimeZoneInfo.FindSystemTimeZoneById("Etc/UTC"), at));
+    }
+
+    [Fact]
+    public void Describe_RenamedCity_UsesTodaysName() =>
+        Assert.Equal("Kyiv time (EEST)", DisplayZone.Describe(TimeZoneInfo.FindSystemTimeZoneById("FLE Standard Time"), new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero)));
 
     [Fact]
     public void Describe_NoShortName_UsesTheOffset() =>

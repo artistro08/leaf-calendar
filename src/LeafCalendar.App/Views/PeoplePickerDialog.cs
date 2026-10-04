@@ -19,8 +19,9 @@ public static class PeoplePickerDialog
     /// </summary>
     public static async Task<IReadOnlyList<Contact>?> ShowAsync(FrameworkElement owner, CalendarViewModel vm, string title, string primaryText)
     {
-        var picked      = new List<Contact>();
+        var picked = new List<Contact>();
         var suggestions = new List<(ContactSuggestion View, Contact Person)>();
+        var removes = new List<Button>();
         using var search = new LatestSearch<ContactResults>();
 
         // Box
@@ -28,8 +29,8 @@ public static class PeoplePickerDialog
         AutomationProperties.SetAutomationId(box, "PeoplePickerBox");
         AutomationProperties.SetName(box, "Name or email");
 
-        var hint   = new TextBlock { Text = $"Up to {FreeBusyLookup.MaxPeople} people.", FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
-        var list   = new StackPanel { Spacing = 4, Margin = new Thickness(0, 8, 0, 0) };
+        var hint = new TextBlock { Text = $"Up to {FreeBusyLookup.MaxPeople} people.", FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
+        var list = new StackPanel { Spacing = 4, Margin = new Thickness(0, 8, 0, 0) };
         var layout = new StackPanel();
         layout.Children.Add(box);
         layout.Children.Add(hint);
@@ -37,23 +38,23 @@ public static class PeoplePickerDialog
 
         var dialog = new ContentDialog
         {
-            XamlRoot                 = owner.XamlRoot,
-            RequestedTheme           = owner.ActualTheme,
-            Title                    = title,
-            Content                  = layout,
-            PrimaryButtonText        = primaryText,
-            CloseButtonText          = "Cancel",
+            XamlRoot = owner.XamlRoot,
+            RequestedTheme = owner.ActualTheme,
+            Title = title,
+            Content = layout,
+            PrimaryButtonText = primaryText,
+            CloseButtonText = "Cancel",
             // No default button: Enter in the box adds the typed person, and never closes the dialog
-            DefaultButton            = ContentDialogButton.None,
-            IsPrimaryButtonEnabled   = false,
+            DefaultButton = ContentDialogButton.None,
+            IsPrimaryButtonEnabled = false,
         };
         dialog.Opened += (_, _) => hint.Foreground = LeafBrushes.SecondaryText(dialog.ActualTheme == ElementTheme.Dark);
 
         // Suggestions Wait Until Typing Pauses
         var timer = owner.DispatcherQueue.CreateTimer();
-        timer.Interval    = TimeSpan.FromMilliseconds(250);
+        timer.Interval = TimeSpan.FromMilliseconds(250);
         timer.IsRepeating = false;
-        timer.Tick       += (_, _) => vm.Fire(SuggestAsync, "people.suggest.failed");
+        timer.Tick += (_, _) => vm.Fire(SuggestAsync, "people.suggest.failed");
 
         // The suggestion Up/Down or a click last picked; typing drops it
         object? chosen = null;
@@ -101,7 +102,14 @@ public static class PeoplePickerDialog
         async Task SuggestAsync()
         {
             var text = box.Text.Trim();
-            if (text.Length == 0 || await search.RunAsync(ct => vm.SearchPeopleAsync(text, ct)) is not { } results)
+            if (text.Length == 0)
+            {
+                search.Cancel();
+                return;
+            }
+
+            // A result for text that's no longer in the box (a person was added, or the box changed) is dropped
+            if (await search.RunAsync(ct => vm.SearchPeopleAsync(text, ct)) is not { } results || box.Text.Trim() != text)
             {
                 return;
             }
@@ -132,6 +140,7 @@ public static class PeoplePickerDialog
         void Add(Contact person)
         {
             chosen = null;
+            search.Cancel();
             if (picked.Count >= FreeBusyLookup.MaxPeople || picked.Exists(p => string.Equals(p.Email, person.Email, StringComparison.OrdinalIgnoreCase)))
             {
                 box.Text = "";
@@ -139,7 +148,7 @@ public static class PeoplePickerDialog
             }
 
             picked.Add(person);
-            box.Text        = "";
+            box.Text = "";
             box.ItemsSource = null;
             Render();
         }
@@ -148,10 +157,11 @@ public static class PeoplePickerDialog
         void Render()
         {
             list.Children.Clear();
+            removes.Clear();
             foreach (var person in picked)
             {
                 var label = person.Name.Length > 0 ? $"{person.Name} <{person.Email}>" : person.Email;
-                var row   = new Grid { ColumnSpacing = 8 };
+                var row = new Grid { ColumnSpacing = 8 };
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 // The ID goes on the label: a Grid isn't in the automation tree
@@ -161,20 +171,27 @@ public static class PeoplePickerDialog
 
                 var remove = new Button
                 {
-                    Content         = new FontIcon { Glyph = "", FontSize = 10 },
-                    Width           = 32,
-                    Height          = 32,
-                    Padding         = new Thickness(0),
-                    Background      = LeafBrushes.Transparent,
+                    Content = new FontIcon { Glyph = "", FontSize = 10 },
+                    Width = 32,
+                    Height = 32,
+                    Padding = new Thickness(0),
+                    Background = LeafBrushes.Transparent,
                     BorderThickness = new Thickness(0),
                 };
                 AutomationProperties.SetName(remove, $"Remove {person.Email}");
                 ToolTipService.SetToolTip(remove, $"Remove {person.Email}");
                 remove.Click += (_, _) =>
                 {
+                    var index = picked.IndexOf(person);
+                    var how = remove.FocusState == FocusState.Keyboard ? FocusState.Keyboard : FocusState.Programmatic;
                     picked.Remove(person);
                     Render();
+
+                    // Focus stays in the list: the row now in this one's place, the one above it, or the box when none are left
+                    Control next = picked.Count > 0 ? removes[Math.Min(index, picked.Count - 1)] : box;
+                    next.Focus(how);
                 };
+                removes.Add(remove);
                 Grid.SetColumn(remove, 1);
                 row.Children.Add(remove);
                 list.Children.Add(row);

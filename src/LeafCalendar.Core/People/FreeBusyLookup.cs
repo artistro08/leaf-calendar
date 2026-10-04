@@ -38,7 +38,7 @@ public sealed class FreeBusyLookup(GoogleCalendarClient client, AppLog log)
     /// <summary>Most people looked up at once (extra ones are dropped).</summary>
     public const int MaxPeople = 20;
 
-    const int MaxTitle = 200;
+    private const int MaxTitle = 200;
 
     /// <summary>Busy times for each distinct address in <paramref name="emails"/> (trimmed, first spelling kept, at most <see cref="MaxPeople"/>).</summary>
     /// <param name="accountId">The account asking.</param>
@@ -66,19 +66,19 @@ public sealed class FreeBusyLookup(GoogleCalendarClient client, AppLog log)
 
         // One Free/Busy Query, One Details Read Per Person, In Parallel
         var freeBusy = client.QueryFreeBusyAsync(accountId, people, from, to, ct);
-        var details  = people.Select(e => DetailsAsync(accountId, e, from, to, ct)).ToList();
+        var details = people.Select(e => DetailsAsync(accountId, e, from, to, ct)).ToList();
 
         await Task.WhenAll([freeBusy, .. details]);
 
         var answers = await freeBusy;
-        var result  = people.Select((email, i) => Person(email, answers[email], details[i].Result)).ToList();
+        var result = people.Select((email, i) => Person(email, answers[email], details[i].Result)).ToList();
 
         log.Info("freebusy.lookup", $"account={accountId} count={result.Count} unknown={result.Count(p => p.State == PersonBusyState.Unknown)}");
         return result;
     }
 
     // Free/Busy Supplies The Blocks; Details Only Name Them
-    static PersonBusy Person(string email, FreeBusyResult answer, IReadOnlyList<BusyBlock> titled)
+    private static PersonBusy Person(string email, FreeBusyResult answer, IReadOnlyList<BusyBlock> titled)
     {
         if (answer.Error is not null)
         {
@@ -105,15 +105,16 @@ public sealed class FreeBusyLookup(GoogleCalendarClient client, AppLog log)
     }
 
     // Busy, Timed, Confirmed Events With Clean Titles; Empty When The Calendar Isn't Shared With Details Or The Read Fails
-    async Task<IReadOnlyList<BusyBlock>> DetailsAsync(string accountId, string email, DateTimeOffset from, DateTimeOffset to, CancellationToken ct)
+    private async Task<IReadOnlyList<BusyBlock>> DetailsAsync(string accountId, string email, DateTimeOffset from, DateTimeOffset to, CancellationToken ct)
     {
         EventsPage? page;
         try
         {
             page = await client.ListEventsInRangeAsync(accountId, email, from, to, ct);
         }
-        catch (Exception e) when (e is not OperationCanceledException)
+        catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested)
         {
+            // HttpClient's own timeout is a TaskCanceledException though the caller never canceled
             return [];
         }
 
@@ -125,7 +126,7 @@ public sealed class FreeBusyLookup(GoogleCalendarClient client, AppLog log)
         var blocks = new List<BusyBlock>();
         foreach (var item in page.Items)
         {
-            if (Text(item, "status") != "confirmed" || Text(item, "transparency") == "transparent")
+            if (Text(item, "status") != "confirmed" || Text(item, "transparency") == "transparent" || DeclinedByOwner(item))
             {
                 continue;
             }
@@ -142,11 +143,22 @@ public sealed class FreeBusyLookup(GoogleCalendarClient client, AppLog log)
         return blocks;
     }
 
-    static string? Text(JsonElement item, string name) =>
+    // The Calendar's Owner (the attendee marked self) Said No, So They Aren't Busy With It
+    private static bool DeclinedByOwner(JsonElement item) =>
+        item.ValueKind == JsonValueKind.Object
+        && item.TryGetProperty("attendees", out var attendees)
+        && attendees.ValueKind == JsonValueKind.Array
+        && attendees.EnumerateArray().Any(a =>
+            a.ValueKind == JsonValueKind.Object
+            && a.TryGetProperty("self", out var self)
+            && self.ValueKind == JsonValueKind.True
+            && Text(a, "responseStatus") == "declined");
+
+    private static string? Text(JsonElement item, string name) =>
         item.ValueKind == JsonValueKind.Object && item.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     // A Timed Start Or End (All-Day Events Have Only A Date)
-    static DateTimeOffset? Time(JsonElement item, string name) =>
+    private static DateTimeOffset? Time(JsonElement item, string name) =>
         item.ValueKind == JsonValueKind.Object
         && item.TryGetProperty(name, out var when)
         && when.ValueKind == JsonValueKind.Object

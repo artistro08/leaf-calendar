@@ -37,7 +37,8 @@ function logo(w, h, size) {
 }
 
 // The logo as an uncompressed 32-bit icon image (a BITMAPINFOHEADER with the height doubled, BGRA rows bottom up, then
-// an all-clear AND mask): the taskbar and title bar show a generic icon for PNG-compressed images below 256 px
+// an all-clear AND mask): the taskbar and title bar show a generic icon for PNG-compressed images below 256 px. The
+// renderer's pixels are premultiplied by alpha and an icon's are not, so each color is divided back out.
 function dib(size) {
     const px = render(size, size, size).pixels;
     const rowBytes = size * 4, maskBytes = Math.ceil(size / 32) * 4;
@@ -52,11 +53,12 @@ function dib(size) {
     for (let y = 0; y < size; y++) {
         const src = (size - 1 - y) * rowBytes, dst = 40 + y * rowBytes;
         for (let x = 0; x < size; x++) {
-            const s = src + x * 4, d = dst + x * 4;
-            buf[d] = px[s + 2];
-            buf[d + 1] = px[s + 1];
-            buf[d + 2] = px[s];
-            buf[d + 3] = px[s + 3];
+            const s = src + x * 4, d = dst + x * 4, a = px[s + 3];
+            const unmultiply = c => a === 0 ? 0 : Math.min(255, Math.round(c * 255 / a));
+            buf[d] = unmultiply(px[s + 2]);
+            buf[d + 1] = unmultiply(px[s + 1]);
+            buf[d + 2] = unmultiply(px[s]);
+            buf[d + 3] = a;
         }
     }
     return buf;

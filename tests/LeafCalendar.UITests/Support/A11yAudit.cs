@@ -8,7 +8,7 @@ namespace LeafCalendar.UITests.Support;
 /// <summary>Accessibility checks over a live UIA tree: names Narrator reads, and what Tab reaches.</summary>
 public static class A11yAudit
 {
-    static readonly ControlType[] Interactive =
+    private static readonly ControlType[] Interactive =
     [
         ControlType.Button, ControlType.CheckBox, ControlType.ComboBox, ControlType.Edit, ControlType.Hyperlink, ControlType.ListItem,
         ControlType.MenuItem, ControlType.RadioButton, ControlType.Slider, ControlType.Spinner, ControlType.SplitButton, ControlType.TabItem,
@@ -22,7 +22,7 @@ public static class A11yAudit
             .Where(e => IsBadName(e.Properties.Name.ValueOrDefault))
             .Select(e => $"{e.Properties.ControlType.ValueOrDefault} id='{e.Properties.AutomationId.ValueOrDefault}'")];
 
-    static bool IsBadName(string? name) =>
+    private static bool IsBadName(string? name) =>
         string.IsNullOrWhiteSpace(name)
         || name.StartsWith("LeafCalendar.", StringComparison.Ordinal)
         || name.StartsWith("Microsoft.UI.", StringComparison.Ordinal)
@@ -32,14 +32,14 @@ public static class A11yAudit
     public static HashSet<string> TabStops(LeafApp leaf, Window window, int limit = 200)
     {
         window.Focus();
-        var seen      = new HashSet<string>();
+        var seen = new HashSet<string>();
         string? first = null;
 
         for (var i = 0; i < limit; i++)
         {
             Keyboard.Type(VirtualKeyShort.TAB);
             var focused = leaf.Focused();
-            var id      = focused?.Properties.AutomationId.ValueOrDefault ?? "";
+            var id = focused?.Properties.AutomationId.ValueOrDefault ?? "";
             if (id.Length > 0 && id == first)
             {
                 break;

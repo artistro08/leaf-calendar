@@ -64,11 +64,21 @@ public static class AccountStore
     public static void SetStatus(SqliteConnection conn, string id, AccountStatus status) =>
         conn.Execute(null, "UPDATE accounts SET status = $status WHERE id = $id;", ("$status", ToText(status)), ("$id", id));
 
-    /// <summary>Deletes an account and (by cascade) its calendars and events.</summary>
-    public static void Delete(SqliteConnection conn, string id, SqliteTransaction? tx = null) =>
+    /// <summary>
+    /// Deletes an account and (by cascade) its calendars, events and outbox. Another account's edits that wait on
+    /// its outbox (a move's delete behind its unsent copy here) are dropped first, so the original is put back.
+    /// </summary>
+    public static void Delete(SqliteConnection conn, string id, SqliteTransaction? tx = null)
+    {
+        foreach (var seq in conn.Query(tx, "SELECT seq FROM outbox WHERE account_id = $id;", r => r.GetInt64(0), ("$id", id)))
+        {
+            OutboxStore.DropDependents(conn, tx, seq);
+        }
+
         conn.Execute(tx, "DELETE FROM accounts WHERE id = $id;", ("$id", id));
+    }
 
-    static string ToText(AccountStatus status) => status == AccountStatus.NeedsSignIn ? "needs-sign-in" : "ok";
+    private static string ToText(AccountStatus status) => status == AccountStatus.NeedsSignIn ? "needs-sign-in" : "ok";
 
-    static AccountStatus FromText(string text) => text == "needs-sign-in" ? AccountStatus.NeedsSignIn : AccountStatus.Ok;
+    private static AccountStatus FromText(string text) => text == "needs-sign-in" ? AccountStatus.NeedsSignIn : AccountStatus.Ok;
 }

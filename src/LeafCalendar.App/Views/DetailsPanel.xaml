@@ -93,7 +93,7 @@
                                         <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{x:Bind local:DetailsPanel.Brush(Color)}" />
                                         <StackPanel Grid.Column="1">
                                             <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                                            <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="NoWrap">
                                                 <Run Text="{x:Bind When}" /><Run Text=" · " /><Run Text="{x:Bind Relative}" />
                                             </TextBlock>
                                         </StackPanel>
@@ -257,12 +257,13 @@
                                         <TextBlock Text="{x:Bind Primary}" IsTextSelectionEnabled="True" TextTrimming="CharacterEllipsis" />
                                         <TextBlock
                                             Text="{x:Bind Address}"
-                                            FontSize="12"
+                                            Style="{StaticResource CaptionTextBlockStyle}"
                                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                             IsTextSelectionEnabled="True"
                                             TextTrimming="CharacterEllipsis"
+                                            TextWrapping="NoWrap"
                                             Visibility="{x:Bind ShowAddress}" />
-                                        <TextBlock Text="{x:Bind Detail}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </DataTemplate>
                             </controls:PinnedItemsControl.ItemTemplate>

@@ -7,10 +7,10 @@ namespace LeafCalendar.Tests;
 
 public sealed class EventStoreTests : IDisposable
 {
-    const string Calendar = "leaf.tester@gmail.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
+    private const string Calendar = "leaf.tester@gmail.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
 
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public EventStoreTests()
     {
@@ -24,10 +24,10 @@ public sealed class EventStoreTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    static List<JsonElement> Items(string fixture) =>
+    private static List<JsonElement> Items(string fixture) =>
         JsonSerializer.Deserialize(Fixture.Read(fixture), GoogleJsonContext.Default.EventsPage)!.Items;
 
-    void ApplyAll(string fixture)
+    private void ApplyAll(string fixture)
     {
         using var conn = _db.Database.Open();
         foreach (var item in Items(fixture))

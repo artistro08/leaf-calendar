@@ -1,10 +1,11 @@
 # Prints the size of Leaf's MSIX and fails when it carries Windows App SDK AI/ML/Search/Widgets
 # files or is over budget. Used after tools/publish-aot.ps1 (locally and in the manual CI job).
 # Requires PowerShell 7 on Windows.
-# Measured 2026-10-01: 30.6 MB (was 55.9 MB with the AI libraries); budget is that rounded up to the next 5.
+# Measured 2026-10-04: 35.5 MB (the 10/03 icon work); budget rounded up to the next 5.
+# (Measured 2026-10-01: 30.6 MB; was 55.9 MB with the AI libraries.)
 param(
     [string]$Msix,
-    [int]$MaxMb = 35
+    [int]$MaxMb = 40
 )
 
 $ErrorActionPreference = 'Stop'

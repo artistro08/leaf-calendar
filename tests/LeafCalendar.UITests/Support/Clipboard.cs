@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
+using FlaUI.Core.Tools;
 
 namespace LeafCalendar.UITests.Support;
 
@@ -8,10 +9,10 @@ namespace LeafCalendar.UITests.Support;
 /// Reads, clears, and fills the Windows clipboard from the test process (Win32, so it works on any thread). Another
 /// app can hold the clipboard for a moment, so a read that can't open it returns null and callers retry.
 /// </summary>
-static class Clipboard
+internal static class Clipboard
 {
-    const uint UnicodeText    = 13;
-    const uint GlobalMoveable = 0x0002;
+    private const uint UnicodeText = 13;
+    private const uint GlobalMoveable = 0x0002;
 
     /// <summary>The clipboard's text, or null when it has none or is busy.</summary>
     public static string? Text()
@@ -24,7 +25,7 @@ static class Clipboard
         try
         {
             var handle = NativeMethods.GetClipboardData(UnicodeText);
-            var data   = handle == 0 ? 0 : NativeMethods.GlobalLock(handle);
+            var data = handle == 0 ? 0 : NativeMethods.GlobalLock(handle);
             if (data == 0)
             {
                 return null;
@@ -48,7 +49,7 @@ static class Clipboard
     /// <summary>Empties the clipboard, so a later read can't pass on old text.</summary>
     public static void Clear()
     {
-        Assert.True(NativeMethods.OpenClipboard(0), "Couldn't open the clipboard.");
+        Assert.True(Open(), "Couldn't open the clipboard.");
         NativeMethods.EmptyClipboard();
         NativeMethods.CloseClipboard();
     }
@@ -62,14 +63,14 @@ static class Clipboard
         // CF_HTML: A Header Of UTF-8 Byte Offsets, Then The Page Around The Fragment
         const string Header = "Version:0.9\r\nStartHTML:{0:D10}\r\nEndHTML:{1:D10}\r\nStartFragment:{2:D10}\r\nEndFragment:{3:D10}\r\n";
         const string Before = "<html><body><!--StartFragment-->";
-        const string After  = "<!--EndFragment--></body></html>";
-        var start       = Encoding.UTF8.GetByteCount(string.Format(CultureInfo.InvariantCulture, Header, 0, 0, 0, 0));
-        var fragment    = start + Encoding.UTF8.GetByteCount(Before);
+        const string After = "<!--EndFragment--></body></html>";
+        var start = Encoding.UTF8.GetByteCount(string.Format(CultureInfo.InvariantCulture, Header, 0, 0, 0, 0));
+        var fragment = start + Encoding.UTF8.GetByteCount(Before);
         var fragmentEnd = fragment + Encoding.UTF8.GetByteCount(html);
-        var end         = fragmentEnd + Encoding.UTF8.GetByteCount(After);
-        var page        = string.Format(CultureInfo.InvariantCulture, Header, start, end, fragment, fragmentEnd) + Before + html + After;
+        var end = fragmentEnd + Encoding.UTF8.GetByteCount(After);
+        var page = string.Format(CultureInfo.InvariantCulture, Header, start, end, fragment, fragmentEnd) + Before + html + After;
 
-        Assert.True(NativeMethods.OpenClipboard(0), "Couldn't open the clipboard.");
+        Assert.True(Open(), "Couldn't open the clipboard.");
         try
         {
             NativeMethods.EmptyClipboard();
@@ -82,17 +83,20 @@ static class Clipboard
         }
     }
 
+    // Opens the clipboard, waiting out an app that holds it for a moment (clipboard history reads each copy right away)
+    private static bool Open() => Retry.WhileFalse(() => NativeMethods.OpenClipboard(0), TimeSpan.FromSeconds(2)).Success;
+
     // Hands the clipboard a moveable global copy of the bytes (the clipboard owns it once set)
-    static void Put(uint format, byte[] bytes)
+    private static void Put(uint format, byte[] bytes)
     {
         var memory = NativeMethods.GlobalAlloc(GlobalMoveable, (nuint)bytes.Length);
-        var data   = NativeMethods.GlobalLock(memory);
+        var data = NativeMethods.GlobalLock(memory);
         Marshal.Copy(bytes, 0, data, bytes.Length);
         NativeMethods.GlobalUnlock(memory);
         Assert.NotEqual(0, NativeMethods.SetClipboardData(format, memory));
     }
 
-    static class NativeMethods
+    private static class NativeMethods
     {
         [DllImport("user32.dll")]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

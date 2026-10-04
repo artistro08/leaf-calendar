@@ -10,10 +10,10 @@ public static partial class EventDetailsParser
     /// <summary>Title shown when Google has none.</summary>
     public const string NoTitle = "(No title)";
 
-    const int MaxDescriptionLength = 10_000;
+    private const int MaxDescriptionLength = 10_000;
 
     // Input bound applied before any regex runs, so a huge invite can't stall the UI thread
-    const int MaxHtmlInputLength = MaxDescriptionLength * 4;
+    private const int MaxHtmlInputLength = MaxDescriptionLength * 4;
 
     /// <summary>Parses one event. Pass <paramref name="includeDescription"/> false to skip the description cleanup (it reads as empty).</summary>
     /// <remarks>Valid JSON of an unexpected shape (a non-object root, or fields of the wrong type) reads as missing fields.</remarks>
@@ -23,7 +23,8 @@ public static partial class EventDetailsParser
         using var doc = JsonDocument.Parse(rawJson);
         var root = doc.RootElement;
 
-        var title = String(root, "summary") is { Length: > 0 } summary ? summary : NoTitle;
+        // A title with nothing to see once cleaned for display (only spaces or invisible characters) reads as no title
+        var title = String(root, "summary") is { } summary && Tray.DisplayText.Clean(summary, int.MaxValue).Length > 0 ? summary : NoTitle;
 
         return new EventDetails(
             title,
@@ -51,7 +52,7 @@ public static partial class EventDetailsParser
             html = html[..MaxHtmlInputLength];
         }
 
-        var text = ListItemOpen().Replace(html, "• ");
+        var text = ListItemOpen().Replace(html, "\n• ");
         text = LineBreak().Replace(text, "\n");
         text = AnyTag().Replace(text, "");
         text = WebUtility.HtmlDecode(text);
@@ -61,18 +62,18 @@ public static partial class EventDetailsParser
     }
 
     // Only Google's documented values pass; anything else (including other casing) is the default
-    static string VisibilityOf(string? value) => value is "public" or "private" or "confidential" ? value : "default";
+    private static string VisibilityOf(string? value) => value is "public" or "private" or "confidential" ? value : "default";
 
-    static EventKind KindOf(string? eventType) => eventType switch
+    private static EventKind KindOf(string? eventType) => eventType switch
     {
-        "focusTime"       => EventKind.FocusTime,
-        "outOfOffice"     => EventKind.OutOfOffice,
-        "birthday"        => EventKind.Birthday,
+        "focusTime" => EventKind.FocusTime,
+        "outOfOffice" => EventKind.OutOfOffice,
+        "birthday" => EventKind.Birthday,
         "workingLocation" => EventKind.WorkingLocation,
-        _                 => EventKind.Default,
+        _ => EventKind.Default,
     };
 
-    static ResponseStatus SelfResponse(JsonElement root)
+    private static ResponseStatus SelfResponse(JsonElement root)
     {
         if (Get(root, "attendees") is not { ValueKind: JsonValueKind.Array } attendees)
         {
@@ -85,10 +86,10 @@ public static partial class EventDetailsParser
             {
                 return String(attendee, "responseStatus") switch
                 {
-                    "declined"    => ResponseStatus.Declined,
-                    "tentative"   => ResponseStatus.Tentative,
+                    "declined" => ResponseStatus.Declined,
+                    "tentative" => ResponseStatus.Tentative,
                     "needsAction" => ResponseStatus.NeedsAction,
-                    _             => ResponseStatus.Accepted,
+                    _ => ResponseStatus.Accepted,
                 };
             }
         }
@@ -98,7 +99,7 @@ public static partial class EventDetailsParser
 
     // Only https links count; Google's conference data first, then a meeting link pasted in the location, then
     // (when the description is being read anyway) one in the description. Occurrence loads skip the description.
-    static Uri? ConferenceUri(JsonElement root, bool includeDescription)
+    private static Uri? ConferenceUri(JsonElement root, bool includeDescription)
     {
         if (Get(Get(root, "conferenceData"), "entryPoints") is { ValueKind: JsonValueKind.Array } entryPoints)
         {
@@ -117,30 +118,34 @@ public static partial class EventDetailsParser
     }
 
     // Description HTML with entities decoded ("&amp;" back to "&"), bounded first, so pasted links keep all their parameters
-    static string? DecodedDescription(JsonElement root)
+    private static string? DecodedDescription(JsonElement root)
     {
         var html = String(root, "description");
         return html is null ? null : WebUtility.HtmlDecode(html.Length > MaxHtmlInputLength ? html[..MaxHtmlInputLength] : html);
     }
 
     // An https link without a user name (one can pose as a host: https://meet.google.com@evil.example opens evil.example)
-    static Uri? Https(string? value) =>
+    private static Uri? Https(string? value) =>
         Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps && uri.UserInfo.Length == 0 ? uri : null;
 
     // Property lookup that tolerates non-object parents
-    static JsonElement? Get(JsonElement? element, string name) =>
+    private static JsonElement? Get(JsonElement? element, string name) =>
         element is { ValueKind: JsonValueKind.Object } parent && parent.TryGetProperty(name, out var value) ? value : null;
 
-    static string? String(JsonElement element, string name) =>
+    private static string? String(JsonElement element, string name) =>
         Get(element, name) is { ValueKind: JsonValueKind.String } value ? value.GetString() : null;
 
-    [GeneratedRegex(@"<\s*li\b[^<>]*>", RegexOptions.IgnoreCase)]
+    // As in DescriptionFormatter, it's a tag only when the name ends at a space, ">", or "/>": a link or address a
+    // plain-text invite put in angle brackets ("<https://a.example/x>", "<li@a.example>") is text
+    [GeneratedRegex(@"<\s*li(?=\s|/?>)[^<>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex ListItemOpen();
 
-    [GeneratedRegex(@"<\s*br\b[^<>]*>|<\s*/\s*(p|div|li|ul|ol|h[1-6])\s*>", RegexOptions.IgnoreCase)]
+    // A line break, a block's opening tag (it starts on a new line), or a closing tag that ends a line
+    [GeneratedRegex(@"<\s*(br|p|div|h[1-6])(?=\s|/?>)[^<>]*>|<\s*/\s*(p|div|li|ul|ol|h[1-6])\s*>", RegexOptions.IgnoreCase)]
     private static partial Regex LineBreak();
 
-    [GeneratedRegex(@"<[^<>]*>")]
+    // Any other tag, and comments, declarations, and processing instructions
+    [GeneratedRegex(@"<\s*/?[a-zA-Z][a-zA-Z0-9]*(?:[:-][a-zA-Z][a-zA-Z0-9]*)*(?=\s|/?>)[^<>]*>|<[!?][^<>]*>")]
     private static partial Regex AnyTag();
 
     [GeneratedRegex(@"\n{2,}")]

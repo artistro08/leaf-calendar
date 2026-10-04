@@ -8,7 +8,7 @@ namespace LeafCalendar.UITests;
 /// <summary>The first-run onboarding window: step order and indicator, Back, leaving early, and the full sign-in with the fake Google.</summary>
 public sealed class OnboardingTests : IDisposable
 {
-    readonly FakeGoogleServer _google = new();
+    private readonly FakeGoogleServer _google = new();
 
     public void Dispose() => _google.Dispose();
 
@@ -28,7 +28,7 @@ public sealed class OnboardingTests : IDisposable
         leaf.WaitFor("CalendarRoot");
     }
 
-    LeafApp Launch(string profile) => LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch(string profile) => LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     [Fact]
     public void Steps_MoveInOrder_AndTheIndicatorFollows()
@@ -146,7 +146,7 @@ public sealed class OnboardingTests : IDisposable
 
             // It exits, and the main window never shows on the way out
             var sawMainWindow = false;
-            var exited        = Retry.WhileFalse(
+            var exited = Retry.WhileFalse(
                 () =>
                 {
                     sawMainWindow |= MainWindowShowing(leaf);
@@ -164,11 +164,11 @@ public sealed class OnboardingTests : IDisposable
     }
 
     // True when the main window is open (false once the app is gone)
-    static bool MainWindowShowing(LeafApp leaf)
+    private static bool MainWindowShowing(LeafApp leaf)
     {
         try
         {
-            return !leaf.App.HasExited && leaf.WindowCount("Leaf Calendar") > 0;
+            return !leaf.App.HasExited && leaf.MainWindowCount() > 0;
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException)
         {
@@ -177,7 +177,7 @@ public sealed class OnboardingTests : IDisposable
     }
 
     // Launches a fresh profile and stops on the sign-in step, with the fake Google unreachable so sign-in waits
-    LeafApp LaunchToStalledSignIn(string profile)
+    private LeafApp LaunchToStalledSignIn(string profile)
     {
         var leaf = Launch(profile);
         SetupTests.EnterCredentials(leaf, "123-uitest.apps.googleusercontent.com", "GOCSPX-uitest");
@@ -291,7 +291,7 @@ public sealed class OnboardingTests : IDisposable
     {
         // An account is saved but its OAuth client is gone, so onboarding shows
         var profile = SeededProfile.Create();
-        var store   = new CredentialLockerTokenStore(profile);
+        var store = new CredentialLockerTokenStore(profile);
         store.DeleteAll();
         store.SetRefreshToken(SeededProfile.AccountId, "1//test-refresh-token");
         try
@@ -329,7 +329,7 @@ public sealed class OnboardingTests : IDisposable
             Assert.Equal("2 calendars · 8 events", leaf.WaitInOnboarding("OnboardingSyncSummary").Name);
             Assert.True(leaf.WaitInOnboarding("OnboardingPrimaryButton").IsEnabled);
             Assert.False(leaf.InOnboarding("OnboardingBackButton"));
-            Assert.Equal(0, leaf.WindowCount("Leaf Calendar"));
+            Assert.Equal(0, leaf.MainWindowCount());
 
             leaf.OnboardingPrimary();
 

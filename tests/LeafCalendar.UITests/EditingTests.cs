@@ -10,8 +10,8 @@ namespace LeafCalendar.UITests;
 
 public sealed class EditingTests : IDisposable
 {
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -19,10 +19,10 @@ public sealed class EditingTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     // After Next the week slides in; an event found mid-slide would be clicked where it no longer is
-    static void ClickWhenSettled(AutomationElement element)
+    private static void ClickWhenSettled(AutomationElement element)
     {
         LeafApp.WaitUntilStill(element);
         element.Click();
@@ -58,17 +58,17 @@ public sealed class EditingTests : IDisposable
     }
 
     // Whether any element on screen carries this text in its name (some elements have no name at all)
-    static bool ShowsText(LeafApp leaf, string text) =>
+    private static bool ShowsText(LeafApp leaf, string text) =>
         Retry.WhileFalse(() => leaf.MainWindow.FindAllDescendants().Any(e => (e.Properties.Name.ValueOrDefault ?? "").Contains(text, StringComparison.Ordinal)), TimeSpan.FromSeconds(10)).Success;
 
     // A second event of your own on Oct 1 at 16:00 UTC (the seeded "Design review" is someone else's invite, which you
     // can neither edit nor delete)
-    void AddLunch() => _google.AddEvent(SeededProfile.Email, new JsonObject
+    private void AddLunch() => _google.AddEvent(SeededProfile.Email, new JsonObject
     {
-        ["id"]      = "evt-lunch",
+        ["id"] = "evt-lunch",
         ["summary"] = "Team lunch",
-        ["start"]   = new JsonObject { ["dateTime"] = "2026-10-01T16:00:00Z" },
-        ["end"]     = new JsonObject { ["dateTime"] = "2026-10-01T17:00:00Z" },
+        ["start"] = new JsonObject { ["dateTime"] = "2026-10-01T16:00:00Z" },
+        ["end"] = new JsonObject { ["dateTime"] = "2026-10-01T17:00:00Z" },
     });
 
     [Fact]
@@ -174,7 +174,7 @@ public sealed class EditingTests : IDisposable
 
     // A strip left of the notice's icon, clear of its rounded corners (their edge stroke reads darker in light theme):
     // hour lines behind a see-through bar would vary its lightness
-    static List<float> Lightness(Rectangle box)
+    private static List<float> Lightness(Rectangle box)
     {
         var strip = new Rectangle(box.X + 6, box.Y + box.Height / 4, 8, box.Height / 2);
         using var shot = FlaUI.Core.Capturing.Capture.Rectangle(strip);
@@ -255,11 +255,11 @@ public sealed class EditingTests : IDisposable
     {
         _google.AddEvent(SeededProfile.Email, new JsonObject
         {
-            ["id"]          = "evt-lunch",
-            ["summary"]     = "Team lunch",
+            ["id"] = "evt-lunch",
+            ["summary"] = "Team lunch",
             ["description"] = new string('x', 20_000),
-            ["start"]       = new JsonObject { ["dateTime"] = "2026-10-01T16:00:00Z" },
-            ["end"]         = new JsonObject { ["dateTime"] = "2026-10-01T17:00:00Z" },
+            ["start"] = new JsonObject { ["dateTime"] = "2026-10-01T16:00:00Z" },
+            ["end"] = new JsonObject { ["dateTime"] = "2026-10-01T17:00:00Z" },
         });
         using var leaf = Launch();
         leaf.WaitFor("Event_evt-lunch_202610011600").Click();
@@ -269,7 +269,7 @@ public sealed class EditingTests : IDisposable
 
         // Typing Changes Nothing (the description is a RichEditBox, which has no Value pattern to ask; its text is checked instead)
         var description = leaf.WaitFor("EditorDescription");
-        var before      = description.Patterns.Text.Pattern.DocumentRange.GetText(-1);
+        var before = description.Patterns.Text.Pattern.DocumentRange.GetText(-1);
         description.Focus();
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.END);
         Keyboard.Type("yz");
@@ -290,18 +290,18 @@ public sealed class EditingTests : IDisposable
     {
         _google.AddEvent(SeededProfile.Email, new JsonObject
         {
-            ["id"]          = "evt-lunch",
-            ["summary"]     = "Team lunch",
+            ["id"] = "evt-lunch",
+            ["summary"] = "Team lunch",
             ["description"] = "<a href=\"https://example.com/menu\">menu</a> " + new string('x', 20_000),
-            ["start"]       = new JsonObject { ["dateTime"] = "2026-10-01T16:00:00Z" },
-            ["end"]         = new JsonObject { ["dateTime"] = "2026-10-01T17:00:00Z" },
+            ["start"] = new JsonObject { ["dateTime"] = "2026-10-01T16:00:00Z" },
+            ["end"] = new JsonObject { ["dateTime"] = "2026-10-01T17:00:00Z" },
         });
         using var leaf = Launch();
         leaf.WaitFor("Event_evt-lunch_202610011600").Click();
         leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
 
         var description = leaf.WaitFor("EditorDescription");
-        var before      = description.Patterns.Text.Pattern.DocumentRange.GetText(-1);
+        var before = description.Patterns.Text.Pattern.DocumentRange.GetText(-1);
         description.Focus();
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.SHIFT, VirtualKeyShort.KEY_L);
         var box = description.BoundingRectangle;
@@ -352,11 +352,11 @@ public sealed class EditingTests : IDisposable
         leaf.WaitFor("Event_evt-single_202610011300").Click();
 
         // In the title bar row, its glyph (8 in on a 32-wide button) over the details content's left edge
-        var edit  = leaf.WaitFor("DetailsEditButton");
-        var box   = edit.BoundingRectangle;
+        var edit = leaf.WaitFor("DetailsEditButton");
+        var box = edit.BoundingRectangle;
         var scale = box.Width / 32.0;
-        var top   = leaf.WaitFor("CalendarRoot").BoundingRectangle.Top;
-        var text  = leaf.WaitFor("DetailsTitle").BoundingRectangle.Left;
+        var top = leaf.WaitFor("CalendarRoot").BoundingRectangle.Top;
+        var text = leaf.WaitFor("DetailsTitle").BoundingRectangle.Left;
         Assert.True(box.Bottom <= top + 48 * scale + 1, $"The edit button ends at {box.Bottom}, below the title bar row ({top + 48 * scale}).");
         Assert.True(Math.Abs(box.Left + 8 * scale - text) <= 1.5, $"The edit glyph starts at {box.Left + 8 * scale}, the details text at {text}.");
         Assert.Equal("Edit event", edit.Name);

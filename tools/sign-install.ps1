@@ -25,10 +25,18 @@ if (-not $cert) {
 # rebuild after the first install doesn't need an elevated PowerShell
 $trusted = Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object Thumbprint -eq $cert.Thumbprint
 if (-not $trusted) {
+    $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        throw 'Run from an elevated PowerShell the first time (trusting the certificate writes to LocalMachine\TrustedPeople).'
+    }
     $cer = Join-Path $env:TEMP 'LeafCalendar-dev.cer'
-    Export-Certificate -Cert $cert -FilePath $cer | Out-Null
-    Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
-    Remove-Item $cer -Force
+    try {
+        Export-Certificate -Cert $cert -FilePath $cer | Out-Null
+        Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+    }
+    finally {
+        Remove-Item $cer -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # Build Version: the manifest's major.minor, then days since 2026 and minutes into the day, so every build is newer
@@ -38,7 +46,9 @@ $manifest = Join-Path $app 'Package.appxmanifest'
 $original = [IO.File]::ReadAllText($manifest)
 $now      = Get-Date
 $base     = [regex]::Match($original, '<Identity [^>]*Version="(\d+\.\d+)\.').Groups[1].Value
-$version  = "$base.$([int]($now - [datetime]'2026-01-01').TotalDays).$([int]$now.TimeOfDay.TotalMinutes)"
+$days     = ($now.Date - [datetime]'2026-01-01').Days
+$minutes  = [int][math]::Floor($now.TimeOfDay.TotalMinutes)
+$version  = "$base.$days.$minutes"
 [IO.File]::WriteAllText($manifest, [regex]::Replace($original, '(<Identity [^>]*Version=")[^"]+', "`${1}$version"))
 
 # Publish Signed MSIX (the AOT linker setup calls vswhere.exe by bare name)

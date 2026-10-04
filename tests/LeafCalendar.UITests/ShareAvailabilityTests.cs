@@ -12,14 +12,14 @@ namespace LeafCalendar.UITests;
 
 public sealed class ShareAvailabilityTests : IDisposable
 {
-    const string Dentist = "Event_evt-single_202610011300";
-    const string Family  = "family123@group.calendar.google.com";
+    private const string Dentist = "Event_evt-single_202610011300";
+    private const string Family = "family123@group.calendar.google.com";
 
-    readonly FakeGoogleServer _google = new();
+    private readonly FakeGoogleServer _google = new();
     // Leaf shows Eastern time (the copied text names ET), whatever this PC's time zone is
-    const string Eastern = "America/New_York";
+    private const string Eastern = "America/New_York";
 
-    string _profile = SeededProfile.Create(new LeafSettings { PrimaryTimeZone = Eastern });
+    private string _profile = SeededProfile.Create(new LeafSettings { PrimaryTimeZone = Eastern });
 
     public void Dispose()
     {
@@ -27,20 +27,20 @@ public sealed class ShareAvailabilityTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     // The dentist runs 9-10 AM Eastern: its card (an hour less 2 px, 1 px below the 9:00 line) measures the grid
-    static int HourPixels(AutomationElement dentist) => dentist.BoundingRectangle.Height + 2;
+    private static int HourPixels(AutomationElement dentist) => dentist.BoundingRectangle.Height + 2;
 
     // Drags from one Eastern hour to another on Oct 1, near the column's right edge (beside the event cards), a tenth
     // of an hour in so snapping is clear
     internal static void DragHours(LeafApp leaf, int fromHour, int toHour)
     {
         var dentist = leaf.WaitFor(Dentist);
-        var hour    = HourPixels(dentist);
-        var column  = leaf.WaitFor("DayHeader_2026-10-01").BoundingRectangle;
-        var x       = column.Right - 4;
-        var top     = dentist.BoundingRectangle.Top - 1 + hour / 10;
+        var hour = HourPixels(dentist);
+        var column = leaf.WaitFor("DayHeader_2026-10-01").BoundingRectangle;
+        var x = column.Right - 4;
+        var top = dentist.BoundingRectangle.Top - 1 + hour / 10;
         LeafApp.Drag(new Point(x, top + (fromHour - 9) * hour), new Point(x, top + (toHour - 9) * hour));
     }
 
@@ -53,7 +53,7 @@ public sealed class ShareAvailabilityTests : IDisposable
     }
 
     // Copy, then the clipboard's text once it holds the shared times
-    static string Copy(LeafApp leaf)
+    private static string Copy(LeafApp leaf)
     {
         Clipboard.Clear();
         leaf.WaitFor("ShareCopyButton").AsButton().Invoke();
@@ -66,11 +66,11 @@ public sealed class ShareAvailabilityTests : IDisposable
         return text[intro.Length..];
     }
 
-    static bool NoticeSays(LeafApp leaf, string text) =>
+    private static bool NoticeSays(LeafApp leaf, string text) =>
         Retry.WhileFalse(() => leaf.Exists("NoticeBar") && leaf.WaitFor("NoticeBar") is var notice
             && notice.FindAllDescendants().Prepend(notice).Any(e => (e.Properties.Name.ValueOrDefault ?? "").Contains(text, StringComparison.Ordinal)), TimeSpan.FromSeconds(10)).Success;
 
-    static string ReadLog(string profile)
+    private static string ReadLog(string profile)
     {
         var log = Path.Combine(LeafApp.ProfileFolder(profile), "Logs", "leaf.log");
         Assert.True(File.Exists(log), "The app wrote no log.");
@@ -121,10 +121,10 @@ public sealed class ShareAvailabilityTests : IDisposable
     {
         _google.AddEvent(Family, new JsonObject
         {
-            ["id"]      = "evt-family-practice",
+            ["id"] = "evt-family-practice",
             ["summary"] = "Practice",
-            ["start"]   = new JsonObject { ["dateTime"] = "2026-10-01T10:00:00-04:00" },
-            ["end"]     = new JsonObject { ["dateTime"] = "2026-10-01T11:00:00-04:00" },
+            ["start"] = new JsonObject { ["dateTime"] = "2026-10-01T10:00:00-04:00" },
+            ["end"] = new JsonObject { ["dateTime"] = "2026-10-01T11:00:00-04:00" },
         });
         using var leaf = Launch();
         StartSharing(leaf);
@@ -209,10 +209,10 @@ public sealed class ShareAvailabilityTests : IDisposable
         StartSharing(leaf);
 
         var panel = leaf.WaitFor("ShareSlotsPanel").BoundingRectangle;
-        var zone  = leaf.WaitFor("ShareZoneBox").BoundingRectangle;
-        var copy  = leaf.WaitFor("ShareCopyButton").BoundingRectangle;
-        var stop  = leaf.WaitFor("ShareCancelButton").BoundingRectangle;
-        var edge  = 16 * leaf.Scale + 1;
+        var zone = leaf.WaitFor("ShareZoneBox").BoundingRectangle;
+        var copy = leaf.WaitFor("ShareCopyButton").BoundingRectangle;
+        var stop = leaf.WaitFor("ShareCancelButton").BoundingRectangle;
+        var edge = 16 * leaf.Scale + 1;
         Assert.False(leaf.Exists("ShareCalendarsButton"), "The calendars dropdown still shows.");
         Assert.True(zone.Left - panel.Left <= edge && panel.Right - zone.Right <= edge, $"The zone box ({zone}) doesn't span the panel ({panel}).");
         Assert.True(copy.Left - panel.Left <= edge && panel.Right - stop.Right <= edge && copy.Top == stop.Top, $"Copy ({copy}) and Cancel ({stop}) don't span the panel ({panel}).");
@@ -251,7 +251,7 @@ public sealed class ShareAvailabilityTests : IDisposable
     {
         using var leaf = Launch();
         var dentist = leaf.WaitFor(Dentist);
-        var column  = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
+        var column = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
         Mouse.DoubleClick(new Point(column.X + column.Width / 2, dentist.BoundingRectangle.Y + 3 * HourPixels(dentist)));
         leaf.WaitFor("EditorAllDay").Focus();
 
@@ -267,7 +267,7 @@ public sealed class ShareAvailabilityTests : IDisposable
     {
         using var leaf = Launch();
         var dentist = leaf.WaitFor(Dentist);
-        var column  = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
+        var column = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle;
         Mouse.DoubleClick(new Point(column.X + column.Width / 2, dentist.BoundingRectangle.Y + 3 * HourPixels(dentist)));
         leaf.WaitFor("EditorTitle").AsTextBox().Text = "Lunch";
         leaf.WaitFor("EditorAllDay").Focus();

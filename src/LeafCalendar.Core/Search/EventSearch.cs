@@ -57,12 +57,12 @@ public static partial class EventSearch
     internal const int MaxRows = 3000;
 
     // How far either side of now a series is expanded to find its instance
-    const int InstanceDays = 366;
+    private const int InstanceDays = 366;
 
     // Longest title kept on a hit
-    const int MaxTitle = 200;
+    private const int MaxTitle = 200;
 
-    const string Sql = """
+    private const string Sql = """
         SELECT e.account_id, e.calendar_id, e.id, e.ical_uid, e.start_utc, e.end_utc, e.is_all_day, e.is_recurring_master,
                e.start_time_zone, e.raw_json, COALESCE(c.leaf_color, c.background_color, '#4285F4')
         FROM events e
@@ -74,7 +74,7 @@ public static partial class EventSearch
         LIMIT $max;
         """;
 
-    const string ExceptionSql = """
+    private const string ExceptionSql = """
         SELECT id, status, start_utc, end_utc, original_start_utc
         FROM events
         WHERE account_id = $account AND calendar_id = $calendar AND recurring_event_id = $master AND original_start_utc IS NOT NULL;
@@ -84,7 +84,7 @@ public static partial class EventSearch
     public static IReadOnlyList<string> Words(string? query)
     {
         // Bound The Input, Clean It, Clip It Without An Ellipsis
-        var text  = query is { Length: > MaxQuery * 4 } ? query[..(MaxQuery * 4)] : query;
+        var text = query is { Length: > MaxQuery * 4 } ? query[..(MaxQuery * 4)] : query;
         var plain = DisplayText.Clean(text, int.MaxValue);
         if (plain.Length > MaxQuery)
         {
@@ -107,33 +107,37 @@ public static partial class EventSearch
 
         // Narrow In SQL (the longest word JSON stores as-is), Then Match The Parsed Event
         var narrow = words.Where(w => SafeForLike().IsMatch(w)).OrderByDescending(w => w.Length).FirstOrDefault();
-        var like   = narrow is null ? "%" : "%" + narrow.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal) + "%";
-        var rows   = conn.Query(null, Sql, Row.Read, ("$like", like), ("$now", now.ToUnixTimeMilliseconds()), ("$max", MaxRows));
+        var like = narrow is null ? "%" : "%" + narrow.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal) + "%";
+        var rows = conn.Query(null, Sql, Row.Read, ("$like", like), ("$now", now.ToUnixTimeMilliseconds()), ("$max", MaxRows));
 
         // Matches, Each Repeating Series Expanded To One Instance
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
-        var hits  = new List<(SearchHit Hit, string Key)>();
+        var hits = new List<(SearchHit Hit, string Key)>();
         foreach (var row in rows)
         {
             cancel.ThrowIfCancellationRequested();
             if (Match(row.RawJson, words) is { } match)
             {
-                hits.Add(ToHit(conn, row, match, now, today, zone));
+                hits.Add(ToHit(row, match, now, zone, () => Instances(conn, row, today, zone)));
             }
         }
 
-        return Order(hits, now);
+        return Order(hits, now, zone);
     }
 
     // Each event once, title matches first, then upcoming (soonest first), then past (newest first), at most MaxResults
-    static List<SearchHit> Order(List<(SearchHit Hit, string Key)> hits, DateTimeOffset now) =>
+    private static List<SearchHit> Order(List<(SearchHit Hit, string Key)> hits, DateTimeOffset now, TimeZoneInfo zone) =>
         [.. hits
             .DistinctBy(h => h.Key)
             .Select(h => h.Hit)
             .OrderBy(h => h.Field == SearchField.Title ? 0 : 1)
-            .ThenBy(h => h.End > now ? 0 : 1)
-            .ThenBy(h => h.End > now ? h.Start.UtcTicks : -h.Start.UtcTicks)
+            .ThenBy(h => InZone(h.IsAllDay, h.End, zone) > now ? 0 : 1)
+            .ThenBy(h => InZone(h.IsAllDay, h.End, zone) > now ? InZone(h.IsAllDay, h.Start, zone).UtcTicks : -InZone(h.IsAllDay, h.Start, zone).UtcTicks)
             .Take(MaxResults)];
+
+    // A time on the clock in zone: an all-day date's local midnight, not its UTC midnight (as CalendarOccurrence.EndIn)
+    private static DateTimeOffset InZone(bool isAllDay, DateTimeOffset time, TimeZoneInfo zone) =>
+        isAllDay ? OccurrenceQuery.LocalMidnight(DateOnly.FromDateTime(time.UtcDateTime), zone) : time;
 
     // =========================================================================
     // MATCHING
@@ -143,11 +147,11 @@ public static partial class EventSearch
     /// The event's title, color ID, and the best field the first word is found in, when every word is found in the
     /// title, location, guests (addresses and names), or plain-text description; null otherwise or for malformed JSON.
     /// </summary>
-    static (string Title, string? ColorId, SearchField Field)? Match(string rawJson, IReadOnlyList<string> words) =>
+    private static (string Title, string? ColorId, SearchField Field)? Match(string rawJson, IReadOnlyList<string> words) =>
         Parse(rawJson) is { } parsed && BestField(parsed.Fields, words) is { } field ? (parsed.Title, parsed.ColorId, field) : null;
 
     // The event's title and color ID, and its searchable fields (title, location, guests, plain description); null for malformed JSON
-    static (string Title, string? ColorId, string[] Fields)? Parse(string rawJson)
+    private static (string Title, string? ColorId, string[] Fields)? Parse(string rawJson)
     {
         try
         {
@@ -161,7 +165,7 @@ public static partial class EventSearch
     }
 
     // The field the first word is found in, when every word is found in some field; null otherwise
-    static SearchField? BestField(string[] fields, IReadOnlyList<string> words)
+    private static SearchField? BestField(string[] fields, IReadOnlyList<string> words)
     {
         if (!words.All(w => fields.Any(f => f.Contains(w, StringComparison.OrdinalIgnoreCase))))
         {
@@ -172,7 +176,7 @@ public static partial class EventSearch
     }
 
     /// <summary>Every guest's address and display name, one per line.</summary>
-    static string Guests(string rawJson)
+    private static string Guests(string rawJson)
     {
         using var doc = JsonDocument.Parse(rawJson);
         if (doc.RootElement.ValueKind != JsonValueKind.Object
@@ -203,18 +207,19 @@ public static partial class EventSearch
 
     /// <summary>
     /// The hit for a matched row and its dedupe key (the iCalUID when present, so one event in two accounts is listed
-    /// once). A series shows its next instance, else its latest in the last year, else its own first times.
+    /// once). A series shows its next instance (from <paramref name="instances"/>), else its latest in the last year,
+    /// else its own first times.
     /// </summary>
-    static (SearchHit Hit, string Key) ToHit(SqliteConnection conn, Row row, (string Title, string? ColorId, SearchField Field) match, DateTimeOffset now, DateOnly today, TimeZoneInfo zone)
+    private static (SearchHit Hit, string Key) ToHit(Row row, (string Title, string? ColorId, SearchField Field) match, DateTimeOffset now, TimeZoneInfo zone, Func<List<Instance>> instances)
     {
         var start = DateTimeOffset.FromUnixTimeMilliseconds(row.StartMs ?? 0);
-        var end   = DateTimeOffset.FromUnixTimeMilliseconds(row.EndMs ?? row.StartMs ?? 0);
-        var id    = row.Id;
+        var end = DateTimeOffset.FromUnixTimeMilliseconds(row.EndMs ?? row.StartMs ?? 0);
+        var id = row.Id;
 
         if (row.IsMaster)
         {
-            var instances = Instances(conn, row, today, zone);
-            if ((instances.FirstOrDefault(i => i.End > now) ?? instances.LastOrDefault()) is { } instance)
+            var expanded = instances();
+            if ((expanded.FirstOrDefault(i => InZone(row.IsAllDay, i.End, zone) > now) ?? expanded.LastOrDefault()) is { } instance)
             {
                 (id, start, end) = instance;
             }
@@ -231,10 +236,10 @@ public static partial class EventSearch
     /// are dropped and moved or edited ones carry their own ID and times. All-day instances use UTC midnights, as
     /// <see cref="OccurrenceQuery"/> does.
     /// </summary>
-    static List<Instance> Instances(SqliteConnection conn, Row row, DateOnly today, TimeZoneInfo zone)
+    private static List<Instance> Instances(SqliteConnection conn, Row row, DateOnly today, TimeZoneInfo zone)
     {
         var fromDate = today.AddDays(-InstanceDays);
-        var toDate   = today.AddDays(InstanceDays);
+        var toDate = today.AddDays(InstanceDays);
 
         // Exceptions Replace The Instance That Started At Their Original Start (OccurrenceQuery's own expansion skips those)
         var exceptions = conn.Query(null, ExceptionSql, Change.Read, ("$account", row.AccountId), ("$calendar", row.CalendarId), ("$master", row.Id))
@@ -263,10 +268,10 @@ public static partial class EventSearch
     private static partial Regex SafeForLike();
 
     /// <summary>One instance of a series: its event ID (the series', or an exception's) and times.</summary>
-    sealed record Instance(string Id, DateTimeOffset Start, DateTimeOffset End);
+    private sealed record Instance(string Id, DateTimeOffset Start, DateTimeOffset End);
 
     /// <summary>A stored exception to a series, keyed by the start of the instance it replaces.</summary>
-    sealed record Change(string Id, string Status, long? StartMs, long? EndMs, long OriginalStartMs)
+    private sealed record Change(string Id, string Status, long? StartMs, long? EndMs, long OriginalStartMs)
     {
         public static Change Read(SqliteDataReader r) => new(
             r.GetString(0),
@@ -277,7 +282,7 @@ public static partial class EventSearch
     }
 
     /// <summary>A stored event row the search reads, with its calendar's color.</summary>
-    sealed record Row(
+    private sealed record Row(
         string AccountId,
         string CalendarId,
         string Id,

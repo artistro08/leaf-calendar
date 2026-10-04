@@ -5,11 +5,11 @@ namespace LeafCalendar.Tests;
 
 public sealed class ShareSlotEditTests
 {
-    static readonly TimeZoneInfo Utc = TimeZoneInfo.Utc;
+    private static readonly TimeZoneInfo Utc = TimeZoneInfo.Utc;
 
-    static DateTimeOffset At(int day, int hour) => new(2026, 10, day, hour, 0, 0, TimeSpan.Zero);
+    private static DateTimeOffset At(int day, int hour) => new(2026, 10, day, hour, 0, 0, TimeSpan.Zero);
 
-    static TimeSpan H(int hours) => TimeSpan.FromHours(hours);
+    private static TimeSpan H(int hours) => TimeSpan.FromHours(hours);
 
     [Fact]
     public void LaterEnd_SameDay() =>

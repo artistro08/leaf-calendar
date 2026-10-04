@@ -6,7 +6,7 @@ namespace LeafCalendar.Tests.Support;
 /// <summary>A migrated SQLite database in a temp folder, deleted on dispose.</summary>
 public sealed class TestDatabase : IDisposable
 {
-    readonly TempFolder _folder = new();
+    private readonly TempFolder _folder = new();
 
     /// <summary>Creates and migrates the database.</summary>
     public TestDatabase()

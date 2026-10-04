@@ -6,7 +6,7 @@ namespace LeafCalendar.Tests;
 
 public sealed class WindowSizeTests : IDisposable
 {
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public void Dispose() => _db.Dispose();
 

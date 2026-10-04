@@ -24,31 +24,31 @@ public sealed partial class AllDayCanvas : Canvas
     /// <summary>Empty space kept on the right of each day's chips (the time grid's columns keep the same 10 px).</summary>
     public const double SpareWidth = 10;
 
-    readonly TimeGridView _owner;
-    readonly List<(Border Chip, TextBlock Text, TranslateTransform Pull)> _chips = [];
+    private readonly TimeGridView _owner;
+    private readonly List<(Border Chip, TextBlock Text, TranslateTransform Pull)> _chips = [];
 
     // The drag ghost's shadow lands on this (a receiver can't be the ghost's ancestor)
-    readonly Rectangle _floor = new() { IsHitTestVisible = false };
-    readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _dividers = [];
-    readonly Dictionary<Border, CalendarOccurrence> _shown = [];
+    private readonly Rectangle _floor = new() { IsHitTestVisible = false };
+    private readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _dividers = [];
+    private readonly Dictionary<Border, CalendarOccurrence> _shown = [];
 
     // Every laid-out event's days (strip indexes) and lane, shown or not, so the ghost can find a free lane
-    readonly List<(int First, int Last, int Lane, string Key)> _lanes = [];
-    readonly Border _ghost = new() { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2), Height = TimeGridView.AllDayLaneHeight - 3, IsHitTestVisible = false, Visibility = Visibility.Collapsed };
-    readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Text = "+ Copy" };
-    DayStrip? _strip;
+    private readonly List<(int First, int Last, int Lane, string Key)> _lanes = [];
+    private readonly Border _ghost = new() { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2), Height = TimeGridView.AllDayLaneHeight - 3, IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+    private readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Text = "+ Copy" };
+    private DayStrip? _strip;
 
     /// <summary>Creates the row owned by <paramref name="owner"/>. Its background is hit-testable, so a click on empty all-day space reaches the page and clears the selection, and a double-click there creates an all-day event.</summary>
     public AllDayCanvas(TimeGridView owner)
     {
-        _owner     = owner;
+        _owner = owner;
         Background = LeafBrushes.Transparent;
         _ghost.Child = _ghostLabel;
         _floor.Fill = LeafBrushes.Transparent;
         Children.Insert(0, _floor);
         var shadow = new ThemeShadow();
         shadow.Receivers.Add(_floor);
-        _ghost.Shadow      = shadow;
+        _ghost.Shadow = shadow;
         _ghost.Translation = new System.Numerics.Vector3(0, 0, 24);
         Children.Add(_ghost);
         SetZIndex(_ghost, 20);
@@ -86,13 +86,13 @@ public sealed partial class AllDayCanvas : Canvas
     public void Render(DayStrip strip, int firstIndex, int count, int maxLanes)
     {
         _strip = strip;
-        var vm      = _owner.ViewModel;
-        var dark    = _owner.IsDark;
-        var width   = _owner.ColumnWidth;
-        var first   = Math.Max(0, firstIndex);
+        var vm = _owner.ViewModel;
+        var dark = _owner.IsDark;
+        var width = _owner.ColumnWidth;
+        var first = Math.Max(0, firstIndex);
         var columns = Enumerable.Range(first, Math.Min(count, strip.Count - first)).Select(i => strip[i]).ToList();
-        var items   = columns.SelectMany(vm.Cache.ForDay).DistinctBy(o => o.Key).ToList();
-        var blocks  = SpanLayout.Layout(columns, items, vm.Zone, includeTimed: false);
+        var items = columns.SelectMany(vm.Cache.ForDay).DistinctBy(o => o.Key).ToList();
+        var blocks = SpanLayout.Layout(columns, items, vm.Zone, includeTimed: false);
 
         RenderDividers(first, columns.Count, dark);
 
@@ -119,25 +119,25 @@ public sealed partial class AllDayCanvas : Canvas
             pull.X = 0;
             pull.Y = 0;
 
-            var b       = shown[i];
-            var faded   = vm.IsPast(b.Occurrence) || vm.IsSharing; // marking times to share fades every event
+            var b = shown[i];
+            var faded = vm.IsPast(b.Occurrence) || vm.IsSharing; // marking times to share fades every event
             var palette = LeafBrushes.CardPalette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, faded, vm.IsSelected(b.Occurrence));
-            var start   = SpanLayout.CoveredDates(b.Occurrence, vm.Zone).First;
+            var start = SpanLayout.CoveredDates(b.Occurrence, vm.Zone).First;
             _shown[chip] = b.Occurrence;
 
-            chip.Visibility      = Visibility.Visible;
-            chip.Width           = Math.Max(b.ColumnSpan * width - 2 - SpareWidth, 8);
-            chip.Height          = TimeGridView.AllDayLaneHeight - 3;
-            chip.Background      = LeafBrushes.FromHex(palette.Fill);
-            chip.BorderBrush     = LeafBrushes.FromHex(palette.Accent);
+            chip.Visibility = Visibility.Visible;
+            chip.Width = Math.Max(b.ColumnSpan * width - 2 - SpareWidth, 8);
+            chip.Height = TimeGridView.AllDayLaneHeight - 3;
+            chip.Background = LeafBrushes.FromHex(palette.Fill);
+            chip.BorderBrush = LeafBrushes.FromHex(palette.Accent);
             chip.BorderThickness = LeafBrushes.CardBorder(vm.IsSelected(b.Occurrence));
-            text.Text            = (b.ContinuesBefore ? "‹ " : "") + b.Occurrence.Title + (b.ContinuesAfter ? " ›" : "");
-            text.Foreground      = LeafBrushes.FromHex(palette.Text);
+            text.Text = (b.ContinuesBefore ? "‹ " : "") + b.Occurrence.Title + (b.ContinuesAfter ? " ›" : "");
+            text.Foreground = LeafBrushes.FromHex(palette.Text);
 
             SetLeft(chip, (first + b.FirstColumn) * width + 2);
             SetTop(chip, b.Lane * TimeGridView.AllDayLaneHeight + 2);
             AutomationProperties.SetAutomationId(chip, string.Create(CultureInfo.InvariantCulture, $"AllDay_{b.Occurrence.EventId}_{start:yyyyMMdd}"));
-            AutomationProperties.SetName(chip, vm.CardName(b.Occurrence, "All day"));
+            AutomationProperties.SetName(chip, vm.CardName(b.Occurrence, ChipTime(b.Occurrence)));
 
             // Past Events Fade (still readable)
             var past = vm.IsPast(b.Occurrence);
@@ -152,7 +152,7 @@ public sealed partial class AllDayCanvas : Canvas
     /// </summary>
     public void SetGhost(DateOnly first, DateOnly last, bool copy = false, string? skipKey = null, string? accentHex = null)
     {
-        _floor.Width  = ActualWidth;
+        _floor.Width = ActualWidth;
         _floor.Height = ActualHeight;
         if (_strip is not { } strip)
         {
@@ -160,9 +160,9 @@ public sealed partial class AllDayCanvas : Canvas
         }
 
         var width = _owner.ColumnWidth;
-        var from  = strip.IndexOf(first);
-        var to    = Math.Max(from, strip.IndexOf(last));
-        _ghost.Width           = Math.Max((to - from + 1) * width - 2 - SpareWidth, 8);
+        var from = strip.IndexOf(first);
+        var to = Math.Max(from, strip.IndexOf(last));
+        _ghost.Width = Math.Max((to - from + 1) * width - 2 - SpareWidth, 8);
         (_ghost.BorderBrush, _ghost.Background) = accentHex is null
             ? (LeafBrushes.Accent(_owner.IsDark), LeafBrushes.Hover(_owner.IsDark))
             : LeafBrushes.GhostPalette(accentHex, _owner.IsDark);
@@ -170,7 +170,7 @@ public sealed partial class AllDayCanvas : Canvas
 
         // First Free Lane Over The Ghost's Days
         var taken = _lanes.Where(l => l.Key != skipKey && l.First <= to && l.Last >= from).Select(l => l.Lane).ToHashSet();
-        var lane  = 0;
+        var lane = 0;
         while (taken.Contains(lane))
         {
             lane++;
@@ -179,28 +179,28 @@ public sealed partial class AllDayCanvas : Canvas
         GhostLanes = lane + 1;
         SetLeft(_ghost, from * width + 2);
         SetTop(_ghost, lane * TimeGridView.AllDayLaneHeight + 2);
-        _ghost.Visibility  = Visibility.Visible;
+        _ghost.Visibility = Visibility.Visible;
     }
 
     /// <summary>Hides the ghost.</summary>
     public void ClearGhost()
     {
         _ghost.Visibility = Visibility.Collapsed;
-        GhostLanes        = 0;
+        GhostLanes = 0;
     }
 
     // The day dividers reach up through the day headers from here, so each day has one line from the header to the
     // grid (drawn in one place, they can't land a pixel apart). They start a little below the header's top and fade in
     // over their first few pixels, so the tips trail off instead of ending square
-    const double DividerHeaderReach = TimeGridView.DayHeaderHeight - 8;
-    const double DividerFade        = 16;
+    private const double DividerHeaderReach = TimeGridView.DayHeaderHeight - 8;
+    private const double DividerFade = 16;
 
     // The dividers' fading brush and the line color it was made for
-    LinearGradientBrush? _dividerBrush;
-    Windows.UI.Color _dividerColor;
+    private LinearGradientBrush? _dividerBrush;
+    private Windows.UI.Color _dividerColor;
 
     // One divider on the left edge of each drawn day, from the day header down through the row
-    void RenderDividers(int first, int count, bool dark)
+    private void RenderDividers(int first, int count, bool dark)
     {
         while (_dividers.Count < count)
         {
@@ -235,19 +235,19 @@ public sealed partial class AllDayCanvas : Canvas
     }
 
     // The line color, clear at the tip and full strength DividerFade below it (in DIPs, whatever the line's length)
-    static LinearGradientBrush FadingDivider(Windows.UI.Color color)
+    private static LinearGradientBrush FadingDivider(Windows.UI.Color color)
     {
         var clear = color with { A = 0 };
         return new LinearGradientBrush
         {
-            MappingMode   = BrushMappingMode.Absolute,
-            StartPoint    = new Windows.Foundation.Point(0, 0),
-            EndPoint      = new Windows.Foundation.Point(0, DividerFade),
+            MappingMode = BrushMappingMode.Absolute,
+            StartPoint = new Windows.Foundation.Point(0, 0),
+            EndPoint = new Windows.Foundation.Point(0, DividerFade),
             GradientStops = { new GradientStop { Color = clear, Offset = 0 }, new GradientStop { Color = color, Offset = 1 } },
         };
     }
 
-    void SizeDividers()
+    private void SizeDividers()
     {
         var height = DividerHeaderReach + (double.IsNaN(Height) ? ActualHeight : Height);
         foreach (var line in _dividers)
@@ -256,7 +256,11 @@ public sealed partial class AllDayCanvas : Canvas
         }
     }
 
-    void AddChip()
+    // "All day", or the times of a timed event long enough to be drawn here (24 hours or more)
+    private string ChipTime(CalendarOccurrence o) =>
+        o.IsAllDay ? "All day" : TimeLabels.Range(o.Start, o.End, _owner.ViewModel.Zone, _owner.ViewModel.Settings.Use24HourTime);
+
+    private void AddChip()
     {
         var text = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
         var pull = new TranslateTransform();
@@ -282,19 +286,23 @@ public sealed partial class AllDayCanvas : Canvas
 
             e.Handled = true;
         };
-        // Hover Tooltip: title, time, and location, filled in as the pointer arrives (the location is a lookup)
+        // Hover Tooltip: the title as the pointer arrives, so a pass over the row costs nothing; the title, time, and
+        // location once it opens (the location is a database lookup)
         var tip = new ToolTip();
         ToolTipService.SetToolTip(chip, tip);
         chip.PointerEntered += (_, _) =>
         {
-            var vm = _owner.ViewModel;
-            vm.PointerEvent = _shown.GetValueOrDefault(chip);
-            if (vm.PointerEvent is { } o)
+            _owner.ViewModel.PointerEvent = _shown.GetValueOrDefault(chip);
+            tip.Content = _owner.ViewModel.PointerEvent?.Title;
+        };
+        tip.Opened += (_, _) =>
+        {
+            if (_shown.GetValueOrDefault(chip) is { } o)
             {
-                tip.Content = vm.HoverText(o, o.IsAllDay ? "All day" : TimeLabels.Range(o.Start, o.End, vm.Zone, vm.Settings.Use24HourTime));
+                tip.Content = _owner.ViewModel.HoverText(o, ChipTime(o));
             }
         };
-        chip.PointerExited  += (_, _) => _owner.ViewModel.PointerEvent = null;
+        chip.PointerExited += (_, _) => _owner.ViewModel.PointerEvent = null;
         chip.DoubleTapped += (_, e) =>
         {
             if (_shown.TryGetValue(chip, out var o))

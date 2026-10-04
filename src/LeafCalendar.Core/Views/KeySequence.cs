@@ -10,13 +10,16 @@ public sealed class KeySequence(TimeProvider time)
     /// <summary>How long the second key may take.</summary>
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(1.5);
 
-    DateTimeOffset? _startedAt;
+    private DateTimeOffset? _startedAt;
 
     /// <summary>True while waiting for the second key.</summary>
     public bool IsPending => _startedAt is not null;
 
-    /// <summary>Resolves a key press, finishing or starting a sequence first.</summary>
-    public ShortcutResult Resolve(string key, bool ctrl, bool shift, bool alt)
+    /// <summary>
+    /// Resolves a key press, finishing or starting a sequence first. <paramref name="typed"/> is what a punctuation key
+    /// types on the current layout (see <see cref="ShortcutMap.Resolve"/>).
+    /// </summary>
+    public ShortcutResult Resolve(string key, bool ctrl, bool shift, bool alt, char? typed = null)
     {
         // Second Key Of "E Then ..."
         if (_startedAt is { } started)
@@ -35,7 +38,7 @@ public sealed class KeySequence(TimeProvider time)
             return new ShortcutResult(CalendarCommand.SequenceStarted);
         }
 
-        return ShortcutMap.Resolve(key, ctrl, shift, alt);
+        return ShortcutMap.Resolve(key, ctrl, shift, alt, typed);
     }
 
     /// <summary>The timer ran out: a lone E means "edit" (None when no sequence is waiting).</summary>
@@ -50,7 +53,7 @@ public sealed class KeySequence(TimeProvider time)
         return new ShortcutResult(CalendarCommand.EditEvent);
     }
 
-    static CalendarCommand? Second(string key) => key switch
+    private static CalendarCommand? Second(string key) => key switch
     {
         "Y" => CalendarCommand.RsvpYes,
         "N" => CalendarCommand.RsvpNo,
@@ -59,6 +62,6 @@ public sealed class KeySequence(TimeProvider time)
         "U" => CalendarCommand.EditDuration,
         "Z" => CalendarCommand.EditTimeZone,
         "F" => CalendarCommand.ParticipantOverlay,
-        _   => null,
+        _ => null,
     };
 }

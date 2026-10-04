@@ -1,7 +1,6 @@
 using System.Globalization;
 using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Events;
-using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Views;
 using Microsoft.Data.Sqlite;
 
@@ -36,7 +35,7 @@ public static class TrayAgenda
     /// </summary>
     public const int NextDays = 2;
 
-    const int MaxTitle = 200;
+    private const int MaxTitle = 200;
 
     /// <summary>
     /// The agenda for <paramref name="days"/> days from today (local to <paramref name="zone"/>), from the calendars
@@ -44,14 +43,14 @@ public static class TrayAgenda
     /// </summary>
     public static IReadOnlyList<AgendaDay> Load(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone, int days, bool includeAllDay, bool use24Hour)
     {
-        var today       = LocalDate(now, zone);
+        var today = LocalDate(now, zone);
         var occurrences = OccurrenceQuery.Load(conn, today.AddDays(-1), today.AddDays(days), zone, includeDeclined: false);
-        var links       = new Dictionary<(string, string, string), Uri?>();
-        var result      = new List<AgendaDay>();
+        var links = new Dictionary<(string, string, string), Uri?>();
+        var result = new List<AgendaDay>();
 
         for (var i = 0; i < days; i++)
         {
-            var date  = today.AddDays(i);
+            var date = today.AddDays(i);
             var items = occurrences
                 .Where(o => o.Kind != EventKind.WorkingLocation && (includeAllDay || !o.IsAllDay) && o.EndIn(zone) > now && IsOn(o, date, today, now, zone))
                 .OrderBy(o => !o.IsAllDay)
@@ -82,8 +81,8 @@ public static class TrayAgenda
             .ToList();
 
         var upcoming = timed.Where(i => i.Occurrence.Start > now && i.Occurrence.Start - now <= lookahead).MinBy(i => i.Occurrence.Start);
-        var running  = timed.Where(i => i.Occurrence.Start <= now).MaxBy(i => i.Occurrence.Start);
-        var pick     = upcoming is not null && (running is null || upcoming.Occurrence.Start - now <= JoinPicker.Lead) ? upcoming : running ?? upcoming;
+        var running = timed.Where(i => i.Occurrence.Start <= now).MaxBy(i => i.Occurrence.Start);
+        var pick = upcoming is not null && (running is null || upcoming.Occurrence.Start - now <= JoinPicker.Lead) ? upcoming : running ?? upcoming;
 
         return pick is null ? null : new NextUp(pick, TimeLabels.Relative(pick.Occurrence.Start, pick.Occurrence.End, now));
     }
@@ -103,9 +102,9 @@ public static class TrayAgenda
     /// <summary>The header's empty sentence for a lookahead: "Nothing in the next hour."</summary>
     public static string NothingNext(int lookaheadMinutes) => lookaheadMinutes switch
     {
-        60   => "Nothing in the next hour.",
+        60 => "Nothing in the next hour.",
         < 60 => string.Create(CultureInfo.InvariantCulture, $"Nothing in the next {lookaheadMinutes} minutes."),
-        _    => string.Create(CultureInfo.InvariantCulture, $"Nothing in the next {lookaheadMinutes / 60} hours."),
+        _ => string.Create(CultureInfo.InvariantCulture, $"Nothing in the next {lookaheadMinutes / 60} hours."),
     };
 
     /// <summary>"Today", "Tomorrow", or "Saturday, October 3".</summary>
@@ -113,12 +112,12 @@ public static class TrayAgenda
         day == today ? "Today" : day == today.AddDays(1) ? "Tomorrow" : TimeLabels.LongDate(day);
 
     // One-Line Title, Or "(No title)" When Nothing Visible Is Left
-    static string Title(CalendarOccurrence o) => DisplayText.Clean(o.Title, MaxTitle) is { Length: > 0 } title ? title : EventDetailsParser.NoTitle;
+    private static string Title(CalendarOccurrence o) => DisplayText.Clean(o.Title, MaxTitle) is { Length: > 0 } title ? title : EventDetailsParser.NoTitle;
 
-    static DateOnly LocalDate(DateTimeOffset instant, TimeZoneInfo zone) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, zone).DateTime);
+    private static DateOnly LocalDate(DateTimeOffset instant, TimeZoneInfo zone) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, zone).DateTime);
 
     // All-day: every date it covers. Timed: the day it starts, or today when it's been running since before today.
-    static bool IsOn(CalendarOccurrence o, DateOnly date, DateOnly today, DateTimeOffset now, TimeZoneInfo zone)
+    private static bool IsOn(CalendarOccurrence o, DateOnly date, DateOnly today, DateTimeOffset now, TimeZoneInfo zone)
     {
         if (o.IsAllDay)
         {
@@ -130,7 +129,7 @@ public static class TrayAgenda
     }
 
     // One lookup per stored row (a series' instances share their master's link)
-    static Uri? Link(SqliteConnection conn, Dictionary<(string, string, string), Uri?> links, CalendarOccurrence o)
+    private static Uri? Link(SqliteConnection conn, Dictionary<(string, string, string), Uri?> links, CalendarOccurrence o)
     {
         var key = (o.AccountId, o.CalendarId, o.EventId);
         if (!links.TryGetValue(key, out var link))

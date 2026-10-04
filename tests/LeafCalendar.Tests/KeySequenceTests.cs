@@ -5,9 +5,9 @@ namespace LeafCalendar.Tests;
 
 public class KeySequenceTests
 {
-    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero));
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero));
 
-    static CalendarCommand Press(KeySequence keys, string key, bool ctrl = false) => keys.Resolve(key, ctrl, shift: false, alt: false).Command;
+    private static CalendarCommand Press(KeySequence keys, string key, bool ctrl = false) => keys.Resolve(key, ctrl, shift: false, alt: false).Command;
 
     [Theory]
     [InlineData("Y", CalendarCommand.RsvpYes)]
@@ -24,6 +24,15 @@ public class KeySequenceTests
 
         Assert.Equal(expected, Press(keys, second));
         Assert.False(keys.IsPending);
+    }
+
+    [Fact]
+    public void Resolve_TypedCharacter_ReachesShortcutMap()
+    {
+        var keys = new KeySequence(_time);
+
+        // French: Shift and the US "," key type "?"
+        Assert.Equal(CalendarCommand.ShortcutSheet, keys.Resolve("188", ctrl: false, shift: true, alt: false, typed: '?').Command);
     }
 
     [Fact]

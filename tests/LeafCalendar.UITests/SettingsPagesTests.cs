@@ -10,10 +10,10 @@ namespace LeafCalendar.UITests;
 
 public sealed class SettingsPagesTests : IDisposable
 {
-    const string FamilyId = "family123@group.calendar.google.com";
+    private const string FamilyId = "family123@group.calendar.google.com";
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -21,32 +21,32 @@ public sealed class SettingsPagesTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch(string extra = "")
+    private LeafApp Launch(string extra = "")
     {
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01 {extra}");
         leaf.WaitFor($"CalendarToggle_{FamilyId}");
         return leaf;
     }
 
-    static string Selected(LeafApp leaf, string id) => leaf.WaitInSettings(id).AsComboBox().SelectedItem?.Name ?? "";
+    private static string Selected(LeafApp leaf, string id) => leaf.WaitInSettings(id).AsComboBox().SelectedItem?.Name ?? "";
 
-    static bool IsOn(LeafApp leaf, string id) => leaf.WaitInSettings(id).AsToggleButton().ToggleState == ToggleState.On;
+    private static bool IsOn(LeafApp leaf, string id) => leaf.WaitInSettings(id).AsToggleButton().ToggleState == ToggleState.On;
 
     // The picker's shown time ("9:00 PM"): its button's name carries it, wrapped in left-to-right marks
-    static string TimeOf(LeafApp leaf, string id) =>
+    private static string TimeOf(LeafApp leaf, string id) =>
         (PickerButton(leaf, id).Name ?? "").Replace("‎", "", StringComparison.Ordinal);
 
     // The selected item of a time picker flyout's looping column
-    static string? SelectedIn(AutomationElement column) =>
+    private static string? SelectedIn(AutomationElement column) =>
         column.FindAllChildren().FirstOrDefault(e => e.Patterns.SelectionItem.PatternOrDefault?.IsSelected.ValueOrDefault == true)?.Name;
 
     // A time picker is a group around one button
-    static AutomationElement PickerButton(LeafApp leaf, string id) =>
+    private static AutomationElement PickerButton(LeafApp leaf, string id) =>
         Retry.WhileNull(() => leaf.WaitInSettings(id).FindFirstDescendant(cf => cf.ByControlType(ControlType.Button)), TimeSpan.FromSeconds(5)).Result
         ?? throw new InvalidOperationException($"{id} has no button inside.");
 
     // Opens a time picker, picks an hour, minute, and period in its flyout, and accepts
-    static void PickTime(LeafApp leaf, string id, string hour, string minute, string period)
+    private static void PickTime(LeafApp leaf, string id, string hour, string minute, string period)
     {
         // Invoke the picker's button (the working-hours rows sit below the fold, where a mouse click can't reach)
         PickerButton(leaf, id).AsButton().Invoke();
@@ -59,7 +59,7 @@ public sealed class SettingsPagesTests : IDisposable
                 continue;
             }
 
-            var item   = column.FindAllChildren().FirstOrDefault(e => e.Name == value && !e.IsOffscreen)
+            var item = column.FindAllChildren().FirstOrDefault(e => e.Name == value && !e.IsOffscreen)
                 ?? throw new InvalidOperationException($"'{value}' isn't showing in {selector}.");
             item.Click();
             Assert.True(Retry.WhileFalse(() => SelectedIn(column) == value, TimeSpan.FromSeconds(5)).Success, $"{selector} shows {SelectedIn(column)}, not {value}.");
@@ -144,7 +144,11 @@ public sealed class SettingsPagesTests : IDisposable
 
         leaf.OpenSettings();
         leaf.WaitInSettings("UpcomingHoursBox").AsComboBox().Select("Next 2 hours");
+        Assert.True(Retry.WhileFalse(() => Selected(leaf, "UpcomingHoursBox") == "Next 2 hours", TimeSpan.FromSeconds(5)).Success);
 
+        // Back On The Calendar, The Details Panel Lists The Next 2 Hours
+        leaf.CloseSettings();
+        list = leaf.WaitFor("UpcomingList");
         Assert.True(Retry.WhileTrue(() => list.FindFirstDescendant(cf => cf.ByName("Design review")) is not null, TimeSpan.FromSeconds(10)).Success, "The design review is still listed.");
         Assert.True(Retry.WhileFalse(() => list.FindFirstDescendant(cf => cf.ByName("Dentist appointment")) is not null, TimeSpan.FromSeconds(10)).Success, "The dentist dropped off the list.");
     }
@@ -162,15 +166,18 @@ public sealed class SettingsPagesTests : IDisposable
 
         Retry.WhileFalse(() => leaf.WaitInSettings("MainAccountBox").IsEnabled, TimeSpan.FromSeconds(10));
         leaf.WaitInSettings("MainAccountBox").AsComboBox().Select(FakeGoogleServer.OtherUserEmail);
+        Assert.True(Retry.WhileFalse(() => Selected(leaf, "MainAccountBox") == FakeGoogleServer.OtherUserEmail, TimeSpan.FromSeconds(5)).Success);
 
-        // The other account's header is now the first account header in the sidebar
+        // Back On The Calendar, The Other Account's Header Is The First Account Header In The Sidebar
+        leaf.CloseSettings();
+        leaf.WaitFor($"AccountHeader_{SeededProfile.AccountId}");
         Assert.True(
             Retry.WhileFalse(() => Top(leaf, FakeGoogleServer.OtherUserEmail) < Top(leaf, SeededProfile.Email), TimeSpan.FromSeconds(10)).Success,
             "The main account isn't listed first.");
     }
 
     // The highest element in the main window with this name
-    static int Top(LeafApp leaf, string name) =>
+    private static int Top(LeafApp leaf, string name) =>
         leaf.MainWindow.FindAllDescendants(cf => cf.ByName(name)).Select(e => e.BoundingRectangle.Top).DefaultIfEmpty(int.MaxValue).Min();
 
     [Fact]
@@ -186,7 +193,9 @@ public sealed class SettingsPagesTests : IDisposable
         meet.Toggle();
         Assert.True(Retry.WhileFalse(() => meet.ToggleState == ToggleState.On, TimeSpan.FromSeconds(5)).Success);
 
-        // A New Event In The Main Window
+        // A New Event On The Calendar
+        leaf.CloseSettings();
+        leaf.WaitFor($"CalendarToggle_{FamilyId}");
         leaf.MainWindow.Focus();
         leaf.Press(VirtualKeyShort.KEY_C);
         leaf.WaitFor("EditorTitle").AsTextBox().Text = "Meet default";

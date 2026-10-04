@@ -6,12 +6,12 @@ namespace LeafCalendar.UITests;
 
 public sealed class ScreenshotTour : IDisposable
 {
-    readonly FakeGoogleServer _google = new();
-    readonly List<string> _profiles = [];
+    private readonly FakeGoogleServer _google = new();
+    private readonly List<string> _profiles = [];
 
     // Settings Pages And Window Widths For Capture_SettingsPages (0 is the minimum)
-    static readonly string[] SettingsPages  = ["General", "Calendars", "TimeZones", "Notifications", "Tray", "Shortcuts", "Accounts", "About"];
-    static readonly int[]    SettingsWidths = [0, 1500];
+    private static readonly string[] SettingsPages = ["General", "Calendars", "TimeZones", "Notifications", "Tray", "Shortcuts", "Accounts", "About"];
+    private static readonly int[] SettingsWidths = [0, 1500];
 
     public void Dispose()
     {
@@ -38,9 +38,9 @@ public sealed class ScreenshotTour : IDisposable
             Assert.Skip("Set LEAF_SCREENSHOTS to a folder to capture the tour.");
         }
 
-        var only    = Environment.GetEnvironmentVariable("LEAF_SCREENS")?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var only = Environment.GetEnvironmentVariable("LEAF_SCREENS")?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         var screens = AccessibilityTests.ScreenNames.Where(s => only is null || only.Contains(s, StringComparer.OrdinalIgnoreCase));
-        var failed  = new List<string>();
+        var failed = new List<string>();
 
         Directory.CreateDirectory(folder);
         foreach (var screen in screens)
@@ -92,7 +92,7 @@ public sealed class ScreenshotTour : IDisposable
             Assert.Skip("Set LEAF_SCREENSHOTS to a folder to capture the Settings pages.");
         }
 
-        var only  = Environment.GetEnvironmentVariable("LEAF_SCREENS")?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var only = Environment.GetEnvironmentVariable("LEAF_SCREENS")?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         var pages = SettingsPages.Where(p => only is null || only.Contains(p, StringComparer.OrdinalIgnoreCase));
 
         Directory.CreateDirectory(folder);
@@ -153,7 +153,7 @@ public sealed class ScreenshotTour : IDisposable
         Directory.CreateDirectory(folder);
         foreach (var theme in new[] { AppTheme.Light, AppTheme.Dark })
         {
-            var name    = theme.ToString().ToLowerInvariant();
+            var name = theme.ToString().ToLowerInvariant();
             var profile = SeededProfile.Create(new LeafSettings { Theme = theme, JoinShortcut = "Ctrl+Alt+Shift+F9", FlyoutShortcut = "Ctrl+Alt+Shift+F10" });
             _profiles.Add(profile);
             using var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
@@ -186,7 +186,7 @@ public sealed class ScreenshotTour : IDisposable
     }
 
     // Sizes The Window (screen pixels) At LEAF_SCREENS_X From The Left (default 40), So A Window Pinned On Top Elsewhere Stays Out Of The Shots
-    static void Place(LeafApp leaf, int width, int height)
+    private static void Place(LeafApp leaf, int width, int height)
     {
         var x = int.TryParse(Environment.GetEnvironmentVariable("LEAF_SCREENS_X"), out var left) ? left : 40;
         leaf.MainWindow.Patterns.Transform.Pattern.Move(x, 40);

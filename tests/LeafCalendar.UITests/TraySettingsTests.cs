@@ -11,10 +11,10 @@ namespace LeafCalendar.UITests;
 
 public sealed class TraySettingsTests : IDisposable
 {
-    const string MeetLink = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
+    private const string MeetLink = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
 
-    readonly FakeGoogleServer _google = new();
-    readonly List<string> _profiles = [];
+    private readonly FakeGoogleServer _google = new();
+    private readonly List<string> _profiles = [];
 
     public void Dispose()
     {
@@ -26,14 +26,14 @@ public sealed class TraySettingsTests : IDisposable
         _google.Dispose();
     }
 
-    string Profile(LeafSettings? settings = null)
+    private string Profile(LeafSettings? settings = null)
     {
         var profile = SeededProfile.Create(settings);
         _profiles.Add(profile);
         return profile;
     }
 
-    LeafApp Launch(string profile, string now = "2026-10-01T08:00:00-04:00")
+    private LeafApp Launch(string profile, string now = "2026-10-01T08:00:00-04:00")
     {
         var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01 --now {now}");
         leaf.WaitFor("Event_evt-meeting_202610011800");
@@ -221,7 +221,7 @@ public sealed class TraySettingsTests : IDisposable
         Assert.NotNull(leaf.WaitInSettings("StartupSwitch"));
     }
 
-    static class NativeMethods
+    private static class NativeMethods
     {
         [DllImport("user32.dll")]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

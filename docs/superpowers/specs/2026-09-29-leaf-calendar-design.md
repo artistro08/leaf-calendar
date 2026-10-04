@@ -60,7 +60,7 @@ Leaf Calendar is a fast, low-memory, native Windows 11 desktop calendar with fea
 | Conflicts | Side-by-side dialog, user picks "Keep mine" or "Keep Google's" each time. |
 | Reminders | Regular toast at Google's default reminder times, then a persistent "Join now" toast at start time. |
 | Notifications | All notifications are real Windows notifications. |
-| Join shortcut target | Soonest-starting qualifying meeting within 10 minutes, else the one in progress. |
+| Join shortcut target | Soonest-starting qualifying meeting within 10 minutes, else the one in progress, else (shortcut only) the soonest meeting with a link in the upcoming list's lookahead. |
 | Join account routing | Append `authuser=<email>` to Google Meet links, open in default browser. |
 | Tests | Logic tests, FlaUI UI tests, and live Google tests, written alongside each feature. |
 | Process model | One process, Core logic kept UI-free so a helper split stays possible. |
@@ -162,7 +162,8 @@ Built in Milestone 3 (owner redesign) as its own onboarding window, shown instea
 
 - Authorization Code flow with **PKCE** (`S256`), a random `state` value, and a loopback redirect `http://127.0.0.1:<random port>/`.
 - The listener binds `127.0.0.1` only, accepts exactly one request, validates `state`, then closes. It times out after 5 minutes.
-- The browser gets a simple "You can close this tab" page. No tokens are ever shown there.
+- The browser gets a simple "You can close this tab" page. No tokens are ever shown there. When Google comes back with an error (Cancel, access denied), the page says "Sign-in didn't finish" instead, and nothing from the reply is shown. Both pages have an "Open Leaf Calendar" link to `leaf-calendar:` and try it once as they load (the browser asks first); it only brings Leaf to the front (owner request).
+- When Google rejects the OAuth client while exchanging the code (`invalid_client`, `unauthorized_client`, `deleted_client`), sign-in says to check the client ID and secret in setup or Settings › Accounts › Change OAuth client, instead of "Try again".
 - Scopes:
   - `openid`, `email`, `profile`
   - `https://www.googleapis.com/auth/calendar`
@@ -206,6 +207,7 @@ Anyone can send an invite, so event content is treated as hostile.
 |---|---|
 | Stolen refresh token from disk | Stored in Credential Locker, encrypted to the Windows user. Never in SQLite, logs, or settings files. |
 | Intercepted OAuth redirect | PKCE, `state` check, loopback bound to `127.0.0.1`, one request, 5-minute timeout. |
+| A web page opens `leaf-calendar:` links | The link only brings Leaf to the front; its address is never read or logged. |
 | Malicious invite link launches a local program | Scheme allowlist for launching. |
 | Malicious invite description (script, tracking image) | Native text rendering, no scripts, no remote images. |
 | Look-alike meeting link host | Host matching through parsed `Uri`, exact or suffix match on registered domains. |
@@ -259,7 +261,7 @@ Anyone can send an invite, so event content is treated as hostile.
 
 - Triggered by a `412` on patch or delete, or by a local edit to an event that Google deleted (and the reverse).
 - Leaf shows a Windows notification ("1 change needs your review") and a badge in the app.
-- The dialog shows both versions side by side, with differing fields highlighted. The choices are **Keep mine** (re-send with Google's current etag) and **Keep Google's** (drop the local change).
+- The dialog shows both versions side by side, with differing fields highlighted. It compares the title, time, location, description, guests, repeat, color, reminders, Show as, visibility, and video call, worded as the editor shows them. The choices are **Keep mine** (re-send with Google's current etag) and **Keep Google's** (drop the local change).
 - Only the conflicted event waits. The rest of the outbox keeps sending.
 
 ### 5.6 In-Memory Event Window
@@ -277,6 +279,7 @@ Anyone can send an invite, so event content is treated as hostile.
 - XAML `TitleBar` control with `AppWindow.TitleBar.PreferredHeightOption = Tall`, so the caption buttons match the 48 px title bar height.
 - Minimum size 1086 × 540 DIP, computed from the panes and the title bar toolbar (including the sync status slot), so nothing overlaps (Milestone 3).
 - One Leaf per profile (Milestone 3, owner request). A second launch with the same profile hands its activation to the running Leaf, which comes to the front, and exits; its other arguments are ignored. Throwaway `uitest-` profiles still run side by side.
+- The `leaf-calendar:` protocol (the sign-in pages' link) starts Leaf or brings it to the front: onboarding during setup, otherwise the main window, opened if Leaf was only in the tray. The address is untrusted: it is never read, parsed, or logged, and a protocol launch ignores its command line.
 - Every screen follows `docs/design-standard.md`.
 
 ### 6.2 Title Bar (Left to Right)
@@ -284,7 +287,7 @@ Anyone can send an invite, so event content is treated as hostile.
 1. Navigation icon (toggles the sidebar), top-left corner.
 2. Back button, visible only when there is somewhere to go back to (an opened command menu result). Settings no longer needs it (Section 6.7). The stock title bar back button (Milestone 5).
 3. Leaf icon and "Leaf Calendar".
-4. Right side: Today button, previous/next pagers, sync status icon (Milestone 3: pending changes and conflicts, details in its tooltip), view picker (Day / Week / Month / X days), then the caption buttons.
+4. Right side: Today button, previous/next pagers, sync status icon (Milestone 3: pending changes and conflicts, details in its tooltip; one slot, shown only when something needs attention: conflicts, then offline, then changes waiting. Syncing stays in the background with no progress ring, so offline and changes waiting show only once 3 syncs in a row couldn't reach Google, and hide again when one gets through), view picker (Day / Week / Month / X days), then the caption buttons.
 5. Search icon (opens the command menu): at the top of the left sidebar, in its title-bar row, styled like the details panel's edit and delete icons (owner request, Milestone 3; built in Milestone 5: centered over the mini month's Next month button, or after the app title when the sidebar is closed).
 
 ### 6.3 Sidebar (Collapsible)
@@ -303,7 +306,7 @@ Anyone can send an invite, so event content is treated as hostile.
 ### 6.4 Calendar Area
 
 - **Views:** Day, Week, Month, and custom 1 to 31 days.
-- **Time zones:** multiple zone columns on the left edge. Add, rename, and drag to reorder. Search zones by city or abbreviation (NYC, SF, LON).
+- **Time zones:** multiple zone columns on the left edge. Add, rename, and drag to reorder. Search zones by city or abbreviation (NYC, SF, LON). Cities show their current names (Kyiv, Kolkata, Kathmandu, Yangon, Nuuk, Ho Chi Minh City) even where Windows still uses the old IANA spelling; searching the old name still finds them, and settings keep the zone ID as it was. Time travel names the zone as "Tokyo time (JST)", leaving out a short name the label already has ("UTC time").
 - **All-day row:** collapsible. Multi-day events keep their titles visible.
 - **Toggles:** weekends, declined events, week numbers. The week can start on any day.
 - **Current-time line.** Working hours shaded (Leaf's own setting; Google's API doesn't expose them), 9 AM–5 PM Monday–Friday by default.
@@ -334,11 +337,12 @@ Anyone can send an invite, so event content is treated as hostile.
 
 ### 6.7 Settings
 
-Its own window (Milestone 3 owner redesign), modeled on the Windows 11 Settings app. See Section 9 for every option.
+A view inside the main window, modeled on the Windows 11 Settings app. See Section 9 for every option.
 
-- One Settings window at a time; opening it again brings it forward.
-- Mica, custom title bar, a left `NavigationView` that collapses when narrow, and pages of Windows-Settings-style setting rows.
-- Opens at 1000 × 720 DIP, resizable, minimum 640 × 500 DIP.
+- It replaces the calendar under the main window's title bar, whose title reads "Settings". Back in the title bar returns to the calendar; opening Settings again while it shows switches to the requested page.
+- It opens on the page that was asked for (General by default).
+- A left `NavigationView` that collapses when narrow (the main window's title bar hamburger opens and closes it), and pages of Windows-Settings-style setting rows.
+- It has no size of its own: it uses the main window's size and minimum.
 - Pages in Milestone 3: General, Calendars (color and visibility per calendar, grouped by account), Time zones, Accounts (add, sync now, disconnect with an unsent-changes warning, change OAuth client), About (version and a fixed GitHub link). Milestone 4 added Notifications, Tray, and Shortcuts pages (between Time zones and Accounts). The remaining Section 9 options arrive in Milestone 5. Milestone 5 completed the Section 9 options; Appearance options live in General's Appearance group.
 
 ---
@@ -393,9 +397,9 @@ Its own window (Milestone 3 owner redesign), modeled on the Windows 11 Settings 
 ### 7.6 Share Availability
 
 - Press `S` or use the sidebar button. Drag on the calendar to pick candidate slots.
-- Leaf checks free/busy across the calendars you choose and removes busy time.
+- Leaf checks free/busy across the visible calendars and removes busy time.
 - It copies text such as "Tue Sep 30: 10–11 AM, 2–4 PM ET" to the clipboard, in a selectable time zone.
-- The share controls float as a card in the calendar view's bottom-right corner (zone, calendars, Cancel, Copy). The picked times are listed in the right panel, where each one's start and end can be changed or removed. Copy copies the text, stops sharing, and shows "Availability copied" in the notice.
+- The share controls sit in the right panel: the zone, the message the times are wrapped in, then the picked times, where each one's start and end can be changed or removed, with Copy and Cancel pinned at the bottom. A hint at the bottom center of the calendar says to mark available times. Copy copies the text, stops sharing, and shows "Availability copied" in the notice.
 - Needs a connection (Google free/busy). Zone choices: the zone on screen, Windows' zone, and the extra zone columns.
 
 ---
@@ -404,7 +408,7 @@ Its own window (Milestone 3 owner redesign), modeled on the Windows 11 Settings 
 
 ### 8.1 Tray Icon
 
-- Tooltip: next event and countdown ("Standup in 12 min").
+- Tooltip: next event and countdown ("Standup in 12 min"). Countdowns read in minutes under an hour ("in 59 min", never "in 60 min"), in hours up to 47 ("in 5 h"), then in days ("in 3 days").
 - Created with `Shell_NotifyIcon` through CsWin32, owned by a hidden message window.
 - Leaf starts with Windows (MSIX `StartupTask`, setting, on by default). Closing the main window keeps Leaf in the tray. Only Quit exits.
 
@@ -430,7 +434,7 @@ Its own window (Milestone 3 owner redesign), modeled on the Windows 11 Settings 
 All notifications are Windows App SDK app notifications.
 
 1. **Reminder:** fires at each reminder time (the event's own reminders, else the calendar's Google defaults). Shows title, time, and location, with Join (if the event has a link), Snooze, and Dismiss.
-2. **Persistent "Join now":** fires at start time for events with a meeting link that you haven't declined. Uses `scenario="reminder"`. It always carries a Join button that activates in the background, which Windows requires for the reminder scenario to stay on screen. It stays until you click Join or Dismiss, or until the meeting ends, moves, is declined, or is deleted (then Leaf withdraws it).
+2. **Persistent "Join now":** fires at start time for your own meetings with a meeting link (see 8.5), not a colleague's meetings on a calendar you can see. Uses `scenario="reminder"`. It always carries a Join button that activates in the background, which Windows requires for the reminder scenario to stay on screen. It stays until you click Join or Dismiss, or until the meeting ends, moves, is declined, or is deleted (then Leaf withdraws it).
 3. **New or updated invite:** Yes / No / Maybe buttons in the notification.
 4. **Conflict needs review** and **Sign in again**.
 
@@ -439,18 +443,19 @@ Rules:
 - The scheduler uses `TimeProvider`, so tests can drive it.
 - On resume from sleep, Leaf shows reminders for meetings that are still upcoming or in progress, and skips meetings that are already over.
 - Reminders fire only while Leaf runs, which is why it starts with Windows by default.
-- Each pass looks back one hour: an alert missed while Leaf slept or wasn't running still shows if its meeting isn't over. Per meeting, only the latest alert that came due shows (a "Join now" rather than stale reminders).
+- An alert missed while Leaf slept or wasn't running still shows, however long ago it came due, as long as its event isn't over (an all-day event lasts until the end of its last day in the zone on screen). Missed alerts for events that have ended are dropped. Per event, only the latest alert that came due shows, once (a "Join now" rather than stale reminders).
 - A "Join now" is withdrawn once its meeting ends, moves, is declined, or is deleted.
 - Invitations: an account's pending invites are recorded quietly when it finishes its first sync; later, a new invite or an organizer's change (Google's `sequence`) notifies once. Yes / No / Maybe email the organizer, and a repeating invite is answered for the series.
 - Toast arguments carry the profile; a running Leaf ignores another profile's notification.
 
 ### 8.5 Join Logic
 
-- A meeting **qualifies** when it has a meeting link, you haven't declined it, and it starts within 10 minutes or is in progress.
+- A meeting **qualifies** when it's yours, has a meeting link, and starts within 10 minutes or is in progress. It's yours when, on your own (primary) calendar, you're a guest who hasn't declined (Google's `self` guest) or its organizer, or when it has no guests and sits on a calendar you own. On anyone else's calendar Google's `self` guest is that calendar's owner, so a colleague's meetings never qualify.
 - The join shortcut picks the soonest-starting qualifying meeting that hasn't started yet. If none, it picks the in-progress one.
+- If neither, the join shortcut (`Ctrl+Alt+J`) opens the soonest meeting with a link that starts within the upcoming list's lookahead (Settings › General, "Next X hours"), like the main window's `Ctrl+J`. The tray menu's "Join next meeting" keeps the 10-minute rule.
 - Google Meet links get `authuser=<account email>` and open in the default browser. Other providers open their links as-is; their desktop apps handle them when installed.
 - With several meetings in progress and none about to start, the one that started last is picked. All-day events never qualify.
-- If nothing qualifies, a short notification says "No meeting to join".
+- If nothing is found, a short notification says "No meeting to join".
 
 ### 8.6 Global Shortcuts (Changeable in Settings)
 
@@ -466,6 +471,8 @@ Registered with `RegisterHotKey`. If a combination is already taken by another a
 ### 8.7 In-App Shortcuts
 
 `?` opens a searchable cheat sheet. Key sequences like `E` then `Y` time out after 1.5 seconds. The cheat sheet lists Shift+drag (box select, Milestone 6).
+
+Shortcuts written with a punctuation character (`?`, `/`, `.`, `Ctrl+,`, `Ctrl+=`, `Ctrl+-`) follow the character the key types on the user's keyboard layout, Shift included, so `?` is whichever key types "?" (Shift+, on French AZERTY, Shift+ß on German). `Ctrl++` zooms in like `Ctrl+=`. When the character can't be read, the US keys apply. Letters, digits, and the number pad keep their keys on every layout.
 
 **Navigation**
 
@@ -548,7 +555,6 @@ Ctrl+wheel over the time grid zooms like Ctrl+= / Ctrl+-.
 - 12-hour or 24-hour time
 - Default day count (the view you last used is kept)
 - Upcoming meetings lookahead in the right panel
-- Prompt to switch time zone when the Windows time zone changes
 - Map provider (Google Maps or Bing Maps)
 - Launch at startup
 - Working hours (start, end, days)
@@ -574,7 +580,7 @@ Ctrl+wheel over the time grid zooms like Ctrl+= / Ctrl+-.
 **Tray**
 - Days shown in the flyout agenda
 - Include all-day events
-- Which calendars appear
+- The tray shows the calendars visible in Leaf (no separate choice)
 - Next-event lookahead for the flyout header and tooltip (15, 30, 60 minutes, or 2, 4, 8 hours)
 
 **Shortcuts**
@@ -612,7 +618,7 @@ Tests are written alongside each feature, test first: write the failing test, th
 - **UI tests (`LeafCalendar.UITests`):**
   - FlaUI UIA3 launching the packaged app by its AUMID.
   - Every tested control gets an `AutomationProperties.AutomationId`.
-  - UI tests run on an STA thread.
+  - UI tests drive UI Automation from xunit's default (MTA) threads. Only the drag-and-drop helper (`DragSource`) starts its own STA thread, which OLE drag-and-drop needs.
   - The app gets a test mode that points it at the fake Google server, so UI tests never need a network.
 - **Live tests (`LeafCalendar.LiveTests`):**
   - A throwaway Google account. Credentials come from environment variables, never from the repo.

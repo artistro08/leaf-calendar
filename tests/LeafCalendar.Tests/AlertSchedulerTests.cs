@@ -3,27 +3,28 @@ using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Tests.Support;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Time.Testing;
 
 namespace LeafCalendar.Tests;
 
 public sealed class AlertSchedulerTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
+    private const string Primary = "leaf.tester@gmail.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
 
     // A Meet call 18:00-19:00Z on Oct 1; the primary calendar's default reminder is 10 minutes (17:50Z)
-    const string Meeting = """
+    private const string Meeting = """
         {"id":"evt-meet","status":"confirmed","summary":"Design review","hangoutLink":"https://meet.google.com/abc-defg-hij",
          "start":{"dateTime":"2026-10-01T18:00:00Z"},"end":{"dateTime":"2026-10-01T19:00:00Z"}}
         """;
 
-    readonly TestDatabase _db = new();
-    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero));
-    readonly List<Alert> _due = [];
-    readonly List<string> _retracted = [];
-    readonly List<AlertScheduler> _schedulers = [];
-    int _syncSoon;
+    private readonly TestDatabase _db = new();
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero));
+    private readonly List<Alert> _due = [];
+    private readonly List<string> _retracted = [];
+    private readonly List<AlertScheduler> _schedulers = [];
+    private int _syncSoon;
 
     public AlertSchedulerTests()
     {
@@ -43,24 +44,24 @@ public sealed class AlertSchedulerTests : IDisposable
         _db.Dispose();
     }
 
-    void Store(string json)
+    private void Store(string json)
     {
         using var conn = _db.Database.Open();
         EventStore.ApplyJson(conn, null, Account, Primary, json);
     }
 
-    AlertScheduler Scheduler()
+    private AlertScheduler Scheduler()
     {
         var scheduler = new AlertScheduler(_db.Database, _time, () => TimeZoneInfo.Utc);
-        scheduler.AlertDue       += (_, alert) => _due.Add(alert);
+        scheduler.AlertDue += (_, alert) => _due.Add(alert);
         scheduler.AlertRetracted += (_, tag) => _retracted.Add(tag);
-        scheduler.SyncSoon       += (_, _) => _syncSoon++;
-        scheduler.Failed         += (_, ex) => throw new InvalidOperationException("Scheduler failed", ex);
+        scheduler.SyncSoon += (_, _) => _syncSoon++;
+        scheduler.Failed += (_, ex) => throw new InvalidOperationException("Scheduler failed", ex);
         _schedulers.Add(scheduler);
         return scheduler;
     }
 
-    void At(int hour, int minute, int second = 0) => _time.SetUtcNow(new DateTimeOffset(2026, 10, 1, hour, minute, second, TimeSpan.Zero));
+    private void At(int hour, int minute, int second = 0) => _time.SetUtcNow(new DateTimeOffset(2026, 10, 1, hour, minute, second, TimeSpan.Zero));
 
     [Fact]
     public void Check_AtReminderTime_RaisesTheReminderOnce()
@@ -83,7 +84,7 @@ public sealed class AlertSchedulerTests : IDisposable
     public void Check_Replan_ReportsWhatsAhead()
     {
         var scheduler = Scheduler();
-        var plans     = new List<PlanSummary>();
+        var plans = new List<PlanSummary>();
         scheduler.Planned += (_, plan) => plans.Add(plan);
 
         At(17, 45);
@@ -107,7 +108,7 @@ public sealed class AlertSchedulerTests : IDisposable
         Assert.Single(_due);
         first.Dispose();
 
-        // Restart A Minute Later: the one-hour look-back sees the 17:50 reminder, and the ledger stops it
+        // Restart A Minute Later: the pass sees the 17:50 reminder again, and the ledger stops it
         At(17, 51);
         Scheduler().Check();
 
@@ -131,7 +132,7 @@ public sealed class AlertSchedulerTests : IDisposable
     [Fact]
     public void Check_WokeAfterMeetingEnded_SkipsIt()
     {
-        // A Half-Hour Meeting (18:00-18:30Z), so its reminder and join are still inside the look-back on wake
+        // A Half-Hour Meeting (18:00-18:30Z), so it has ended a quarter hour before the wake
         Store(Meeting.Replace("T19:00", "T18:30", StringComparison.Ordinal));
         var scheduler = Scheduler();
         At(17, 40);
@@ -199,7 +200,7 @@ public sealed class AlertSchedulerTests : IDisposable
     public void Check_ReadsEachSettingOncePerPass()
     {
         var scheduler = Scheduler();
-        var reads     = new List<AlertKind>();
+        var reads = new List<AlertKind>();
         scheduler.IsEnabled = kind =>
         {
             reads.Add(kind);
@@ -294,13 +295,13 @@ public sealed class AlertSchedulerTests : IDisposable
     }
 
     [Fact]
-    public void Check_WokeAfterMeetingEndedOutsideTheLookBack_SkipsIt()
+    public void Check_WokeLongAfterMeetingEnded_SkipsIt()
     {
         var scheduler = Scheduler();
         At(17, 40);
         scheduler.Check();
 
-        // Asleep From 17:40 To 19:30: the reminder and the join are both past the look-back, and the meeting is over
+        // Asleep From 17:40 To 19:30: the reminder and the join both came due, but the meeting is over
         At(19, 30);
         scheduler.Check();
 
@@ -308,7 +309,7 @@ public sealed class AlertSchedulerTests : IDisposable
     }
 
     [Fact]
-    public void Check_WokeNinetyMinutesIntoALongMeeting_ShowsJoinNowPastTheLookBack()
+    public void Check_WokeNinetyMinutesIntoALongMeeting_ShowsJoinNow()
     {
         // A Two-Hour Meeting (18:00-20:00Z): its join came due 90 minutes before the wake, and it's still running
         Store(Meeting.Replace("T19:00", "T20:00", StringComparison.Ordinal));
@@ -320,6 +321,62 @@ public sealed class AlertSchedulerTests : IDisposable
         scheduler.Check();
 
         Assert.Equal(AlertKind.JoinNow, Assert.Single(_due).Kind);
+    }
+
+    [Fact]
+    public void Check_WokeHoursAfterTheReminder_ShowsItWhileTheEventRuns()
+    {
+        // A Four-Hour Workshop Without A Link (18:00-22:00Z), Reminders At 17:10, 17:30, And 17:50
+        Store("""
+            {"id":"evt-workshop","status":"confirmed","summary":"Workshop","start":{"dateTime":"2026-10-01T18:00:00Z"},"end":{"dateTime":"2026-10-01T22:00:00Z"},
+             "reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":50},{"method":"popup","minutes":30},{"method":"popup","minutes":10}]}}
+            """);
+        var scheduler = Scheduler();
+        scheduler.Check();
+
+        // Asleep From 17:00 To 21:00: all three came due hours ago, the workshop still runs, and it shows once
+        At(21, 0);
+        scheduler.Check();
+        At(21, 1);
+        scheduler.Check();
+
+        var alert = Assert.Single(_due, a => a.Occurrence.EventId == "evt-workshop");
+        Assert.Equal(10, alert.MinutesBefore);
+    }
+
+    [Fact]
+    public void Check_AllDayEvent_MissedReminderShowsUntilTheEndOfItsDay()
+    {
+        // All Day On Oct 1 With A 60-Minute Popup (Sep 30 23:00Z): woken at 21:00 it still shows, but not once the day is over
+        Store("""
+            {"id":"evt-day","status":"confirmed","summary":"Offsite","start":{"date":"2026-10-01"},"end":{"date":"2026-10-02"},
+             "reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":60}]}}
+            """);
+        Store("""
+            {"id":"evt-over","status":"confirmed","summary":"Yesterday","start":{"date":"2026-09-30"},"end":{"date":"2026-10-01"},
+             "reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":60}]}}
+            """);
+        At(21, 0);
+        Scheduler().Check();
+
+        Assert.Equal("evt-day", Assert.Single(_due).Occurrence.EventId);
+    }
+
+    [Fact]
+    public void Check_RunningSinceMonthsAgo_ShowsItsReminderOnce()
+    {
+        // A Timed Block Since May, Still Running: its 10-minute default reminder came due in April
+        Store("""
+            {"id":"evt-phase","status":"confirmed","summary":"Project phase",
+             "start":{"dateTime":"2026-05-01T09:00:00Z"},"end":{"dateTime":"2026-11-01T09:00:00Z"}}
+            """);
+        At(17, 0);
+        Scheduler().Check();
+        Scheduler().Check();
+
+        var alert = Assert.Single(_due);
+        Assert.Equal("evt-phase", alert.Occurrence.EventId);
+        Assert.Equal(AlertKind.Reminder, alert.Kind);
     }
 
     [Fact]
@@ -428,7 +485,7 @@ public sealed class AlertSchedulerTests : IDisposable
             {"id":"evt-offsite","status":"confirmed","summary":"Offsite","start":{"date":"2026-10-02"},"end":{"date":"2026-10-03"},
              "reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":60}]}}
             """);
-        var tz        = TimeZoneInfo.Utc;
+        var tz = TimeZoneInfo.Utc;
         var scheduler = new AlertScheduler(_db.Database, _time, () => tz);
         scheduler.AlertDue += (_, alert) => _due.Add(alert);
         _schedulers.Add(scheduler);
@@ -448,7 +505,7 @@ public sealed class AlertSchedulerTests : IDisposable
     {
         // A Meeting On Sep 29, Two Days Before The First Pass (FakeTimeProvider can't go back, so a settable clock)
         Store(Meeting.Replace("evt-meet", "evt-earlier", StringComparison.Ordinal).Replace("2026-10-01", "2026-09-29", StringComparison.Ordinal));
-        var clock     = new SettableClock { Now = new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero) };
+        var clock = new SettableClock { Now = new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero) };
         var scheduler = new AlertScheduler(_db.Database, clock, () => TimeZoneInfo.Utc);
         scheduler.AlertDue += (_, alert) => _due.Add(alert);
         scheduler.SyncSoon += (_, _) => _syncSoon++;
@@ -471,8 +528,8 @@ public sealed class AlertSchedulerTests : IDisposable
     {
         // A Second Meeting At The Same Time, So One Pass Has Two Alerts And Two Retracts
         Store(Meeting.Replace("evt-meet", "evt-other", StringComparison.Ordinal));
-        var failures  = new List<Exception>();
-        var raised    = new List<string>();
+        var failures = new List<Exception>();
+        var raised = new List<string>();
         var scheduler = new AlertScheduler(_db.Database, _time, () => TimeZoneInfo.Utc);
         scheduler.Failed += (_, ex) => failures.Add(ex);
         _schedulers.Add(scheduler);
@@ -499,6 +556,111 @@ public sealed class AlertSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task Invalidate_WhileAPassIsRunning_DoesNotWaitForIt()
+    {
+        // A Pass Held Inside Its State Lock (the zone is read there, like the database)
+        using var inPass = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var scheduler = new AlertScheduler(_db.Database, _time, () =>
+        {
+            inPass.Set();
+            release.Wait();
+            return TimeZoneInfo.Utc;
+        });
+        _schedulers.Add(scheduler);
+        var ct = TestContext.Current.CancellationToken;
+        var pass = Task.Run(scheduler.Check, ct);
+        inPass.Wait(ct);
+
+        // An Edit On The UI Thread
+        var invalidate = Task.Run(scheduler.Invalidate, ct);
+        var first = await Task.WhenAny(invalidate, Task.Delay(TimeSpan.FromSeconds(2), ct));
+        release.Set();
+        await pass;
+
+        Assert.Same(invalidate, first);
+    }
+
+    [Fact]
+    public void Check_RePlanFails_PlansAgainOnTheNextPass()
+    {
+        // The Meeting A Day Later (Oct 2 18:00Z, reminder 17:50Z): past the end of the first plan
+        Store(Meeting.Replace("2026-10-01", "2026-10-02", StringComparison.Ordinal));
+        var scheduler = Scheduler();
+        At(17, 45);
+        scheduler.Check();
+
+        // The Plan Runs Out While The Events Can't Be Read
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 2, 17, 44, 0, TimeSpan.Zero));
+        using (var conn = _db.Database.Open())
+        {
+            conn.Execute(null, "ALTER TABLE events RENAME TO events_away;");
+        }
+
+        Assert.Throws<SqliteException>(scheduler.Check);
+
+        using (var conn = _db.Database.Open())
+        {
+            conn.Execute(null, "ALTER TABLE events_away RENAME TO events;");
+        }
+
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 2, 17, 50, 5, TimeSpan.Zero));
+        scheduler.Check();
+
+        Assert.Equal(AlertKind.Reminder, Assert.Single(_due).Kind);
+    }
+
+    [Fact]
+    public void Check_FailsAfterRecordingAnAlert_StillShowsIt()
+    {
+        // An Old Row For The Pass To Prune, And Deletes From The Ledger Fail
+        using (var conn = _db.Database.Open())
+        {
+            var ended = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero);
+            AlertLedger.TryAdd(conn, "Reminder|old", AlertKind.Reminder, "old", ended, ended);
+            conn.Execute(null, "CREATE TRIGGER ledger_delete_fails BEFORE DELETE ON alert_ledger BEGIN SELECT RAISE(ABORT, 'delete failed'); END;");
+        }
+
+        var scheduler = Scheduler();
+        At(17, 50, 5);
+        Assert.Throws<SqliteException>(scheduler.Check);
+
+        using (var conn = _db.Database.Open())
+        {
+            conn.Execute(null, "DROP TRIGGER ledger_delete_fails;");
+        }
+
+        scheduler.Check();
+
+        // The Ledger Has The Reminder, So This Was Its Only Chance To Show
+        Assert.Equal(AlertKind.Reminder, Assert.Single(_due).Kind);
+    }
+
+    [Fact]
+    public void PlanFrom_LongRunningEventWithoutALink_StaysADayBack()
+    {
+        // A Timed "Project phase" Block Since May, Still Running, With No Meeting Link (so no "Join now" to look for)
+        Store("""
+            {"id":"evt-phase","status":"confirmed","summary":"Project phase",
+             "start":{"dateTime":"2026-05-01T09:00:00Z"},"end":{"dateTime":"2026-11-01T09:00:00Z"}}
+            """);
+        var now = new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero);
+        using var conn = _db.Database.Open();
+
+        Assert.Equal(now - TimeSpan.FromDays(1), AlertScheduler.PlanFrom(conn, now, TimeZoneInfo.Utc));
+    }
+
+    [Fact]
+    public void PlanFrom_LongRunningMeetingWithALink_GoesBackToItsStart()
+    {
+        Store(Meeting.Replace("2026-10-01T18:00:00Z", "2026-05-01T09:00:00Z", StringComparison.Ordinal).Replace("2026-10-01T19:00:00Z", "2026-11-01T09:00:00Z", StringComparison.Ordinal));
+        var now = new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero);
+        using var conn = _db.Database.Open();
+
+        Assert.True(AlertScheduler.PlanFrom(conn, now, TimeZoneInfo.Utc) < new DateTimeOffset(2026, 5, 1, 9, 0, 0, TimeSpan.Zero));
+    }
+
+    [Fact]
     public void Start_TimerTicks_RaiseOnTheirOwn()
     {
         At(17, 49, 50);
@@ -509,7 +671,7 @@ public sealed class AlertSchedulerTests : IDisposable
         Assert.Equal(AlertKind.Reminder, Assert.Single(_due).Kind);
     }
 
-    sealed class SettableClock : TimeProvider
+    private sealed class SettableClock : TimeProvider
     {
         public DateTimeOffset Now { get; set; }
 

@@ -54,7 +54,7 @@ public static class WorkingHoursMath
 
         // The Drawn Day As Instants
         var dayStart = OccurrenceQuery.LocalMidnight(date, displayZone);
-        var dayEnd   = OccurrenceQuery.LocalMidnight(date.AddDays(1), displayZone);
+        var dayEnd = OccurrenceQuery.LocalMidnight(date.AddDays(1), displayZone);
 
         // Your Working Stretches From The Days Either Side That Can Overlap It, Clipped To The Drawn Day
         var work = new List<(int Start, int End)>();
@@ -66,18 +66,18 @@ public static class WorkingHoursMath
                 continue;
             }
 
-            var start = OccurrenceQuery.LocalMidnight(day, userZone).AddMinutes(hours.StartMinute);
-            var end   = OccurrenceQuery.LocalMidnight(day, userZone).AddMinutes(hours.EndMinute);
-            start     = start < dayStart ? dayStart : start;
-            end       = end > dayEnd ? dayEnd : end;
+            var start = DragMath.Instant(day, hours.StartMinute, userZone);
+            var end = DragMath.Instant(day, hours.EndMinute, userZone);
+            start = start < dayStart ? dayStart : start;
+            end = end > dayEnd ? dayEnd : end;
             if (end > start)
             {
-                work.Add((Minutes(start - dayStart), Minutes(end - dayStart)));
+                work.Add((GridMinute(start, date, dayEnd, displayZone), GridMinute(end, date, dayEnd, displayZone)));
             }
         }
 
         // Everything Between The Working Stretches Is Off Hours
-        var off    = new List<(int, int)>();
+        var off = new List<(int, int)>();
         var cursor = 0;
         foreach (var (start, end) in work.OrderBy(w => w.Start))
         {
@@ -97,6 +97,7 @@ public static class WorkingHoursMath
         return off;
     }
 
-    // Whole minutes, capped to the grid's 24 hours (a daylight saving day is a little longer or shorter)
-    static int Minutes(TimeSpan span) => Math.Clamp((int)Math.Round(span.TotalMinutes), 0, 1440);
+    // Whole minutes on the drawn day's wall clock, where DayLayout puts events (the day's end is 1440, even on a daylight saving day)
+    private static int GridMinute(DateTimeOffset instant, DateOnly date, DateTimeOffset dayEnd, TimeZoneInfo displayZone) =>
+        instant >= dayEnd ? 1440 : (int)Math.Round(DayLayout.MinuteOfDay(instant, date, displayZone));
 }

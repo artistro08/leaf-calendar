@@ -11,9 +11,9 @@ namespace LeafCalendar.Core.Alerts;
 /// <param name="time">The clock.</param>
 public sealed class RepeatFilter(TimeProvider time)
 {
-    static readonly TimeSpan Window = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan Window = TimeSpan.FromSeconds(5);
 
-    readonly Dictionary<string, DateTimeOffset> _seen = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _seen = new(StringComparer.Ordinal);
 
     /// <summary>True when the same <paramref name="arguments"/> arrived less than five seconds ago.</summary>
     public bool IsRepeat(string arguments)

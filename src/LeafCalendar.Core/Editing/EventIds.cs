@@ -15,7 +15,7 @@ namespace LeafCalendar.Core.Editing;
 /// <seealso href="https://developers.google.com/workspace/calendar/api/v3/reference/events/insert"/>
 public static class EventIds
 {
-    const string Base32Hex = "0123456789abcdefghijklmnopqrstuv";
+    private const string Base32Hex = "0123456789abcdefghijklmnopqrstuv";
 
     /// <summary>A new random event ID (26 characters).</summary>
     public static string NewId()

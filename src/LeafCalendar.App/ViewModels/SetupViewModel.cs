@@ -8,17 +8,17 @@ namespace LeafCalendar.App.ViewModels;
 /// <summary>The OAuth client form (onboarding's client step and Settings › Accounts › Change OAuth client): collects and saves the user's Google OAuth client.</summary>
 public sealed partial class SetupViewModel : ObservableObject
 {
-    readonly ITokenStore _tokens;
-    readonly Func<Task> _onSaved;
-    readonly AppLog _log;
+    private readonly ITokenStore _tokens;
+    private readonly Func<Task> _onSaved;
+    private readonly AppLog _log;
 
     /// <summary>Prefills the client ID when one is already saved.</summary>
     public SetupViewModel(ITokenStore tokens, Func<Task> onSaved, AppLog log)
     {
-        _tokens   = tokens;
-        _onSaved  = onSaved;
-        _log      = log;
-        ClientId  = tokens.GetClientCredentials()?.ClientId ?? "";
+        _tokens = tokens;
+        _onSaved = onSaved;
+        _log = log;
+        ClientId = tokens.GetClientCredentials()?.ClientId ?? "";
     }
 
     /// <summary>Client ID text.</summary>
@@ -38,7 +38,7 @@ public sealed partial class SetupViewModel : ObservableObject
     public bool HasError => Error is not null;
 
     [RelayCommand]
-    async Task SaveAsync()
+    private async Task SaveAsync()
     {
         Error = OAuthClientCredentials.Validate(ClientId, ClientSecret);
         if (Error is not null)
@@ -47,12 +47,13 @@ public sealed partial class SetupViewModel : ObservableObject
         }
 
         // Save And Reload: a failure here must not terminate the process (the log gets the
-        // exception type and redacted message only, never the secret)
+        // exception type and redacted message only, never the secret). The secret box clears only once the reload
+        // worked, so Try again still has it.
         try
         {
             _tokens.SetClientCredentials(new OAuthClientCredentials(ClientId.Trim(), ClientSecret.Trim()));
-            ClientSecret = "";
             await _onSaved();
+            ClientSecret = "";
         }
         catch (Exception ex)
         {

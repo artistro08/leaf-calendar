@@ -14,10 +14,11 @@ internal static class Foreground
     /// <summary>Puts <paramref name="window"/> in front and gives it the keyboard; false when Windows still refused.</summary>
     public static bool Take(HWND window)
     {
-        var front    = PInvoke.GetForegroundWindow();
-        var theirs   = front.IsNull ? 0 : PInvoke.GetWindowThreadProcessId(front, out _);
-        var ours     = PInvoke.GetCurrentThreadId();
-        var attached = theirs != 0 && theirs != ours && PInvoke.AttachThreadInput(ours, theirs, true);
+        var front = PInvoke.GetForegroundWindow();
+        var theirs = front.IsNull ? 0 : PInvoke.GetWindowThreadProcessId(front, out _);
+        var ours = PInvoke.GetCurrentThreadId();
+        // Never joins a hung app's thread: sharing its input state would hang Leaf with it
+        var attached = theirs != 0 && theirs != ours && !PInvoke.IsHungAppWindow(front) && PInvoke.AttachThreadInput(ours, theirs, true);
         try
         {
             PInvoke.BringWindowToTop(window);

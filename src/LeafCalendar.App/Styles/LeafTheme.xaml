@@ -12,6 +12,9 @@
             <SolidColorBrush x:Key="ExpanderHeaderBackgroundPressed" Color="Transparent" />
             <SolidColorBrush x:Key="ExpanderChevronPointerOverBackground" Color="Transparent" />
             <SolidColorBrush x:Key="ExpanderChevronPressedBackground" Color="Transparent" />
+            <!-- Icon Button And Fold Header Hover Outline: none (the subtle fill shows hover) -->
+            <SolidColorBrush x:Key="LeafHoverOutlineBrush" Color="Transparent" />
+            <Thickness x:Key="LeafHoverOutlineThickness">0</Thickness>
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
             <SolidColorBrush x:Key="LeafFlyoutFooterBrush" Color="#33000000" />
@@ -20,6 +23,9 @@
             <SolidColorBrush x:Key="ExpanderHeaderBackgroundPressed" Color="Transparent" />
             <SolidColorBrush x:Key="ExpanderChevronPointerOverBackground" Color="Transparent" />
             <SolidColorBrush x:Key="ExpanderChevronPressedBackground" Color="Transparent" />
+            <!-- Icon Button And Fold Header Hover Outline: none (the subtle fill shows hover) -->
+            <SolidColorBrush x:Key="LeafHoverOutlineBrush" Color="Transparent" />
+            <Thickness x:Key="LeafHoverOutlineThickness">0</Thickness>
         </ResourceDictionary>
         <ResourceDictionary x:Key="HighContrast">
             <SolidColorBrush x:Key="LeafFlyoutFooterBrush" Color="{ThemeResource SystemColorWindowColor}" />
@@ -28,6 +34,9 @@
             <SolidColorBrush x:Key="ExpanderHeaderBackgroundPressed" Color="Transparent" />
             <SolidColorBrush x:Key="ExpanderChevronPointerOverBackground" Color="Transparent" />
             <SolidColorBrush x:Key="ExpanderChevronPressedBackground" Color="Transparent" />
+            <!-- Icon Button And Fold Header Hover Outline: the subtle fills are ButtonFace, the window's own color here -->
+            <SolidColorBrush x:Key="LeafHoverOutlineBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <Thickness x:Key="LeafHoverOutlineThickness">1</Thickness>
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 
@@ -85,11 +94,13 @@
                                 <VisualState x:Name="PointerOver">
                                     <VisualState.Setters>
                                         <Setter Target="HoverLayer.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                        <Setter Target="HoverLayer.BorderBrush" Value="{ThemeResource LeafHoverOutlineBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="Pressed">
                                     <VisualState.Setters>
                                         <Setter Target="HoverLayer.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                                        <Setter Target="HoverLayer.BorderBrush" Value="{ThemeResource LeafHoverOutlineBrush}" />
                                     </VisualState.Setters>
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="PressScale" Storyboard.TargetProperty="ScaleX" To="0.9" Duration="0" />
@@ -105,11 +116,13 @@
                                 <VisualState x:Name="CheckedPointerOver">
                                     <VisualState.Setters>
                                         <Setter Target="HoverLayer.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                        <Setter Target="HoverLayer.BorderBrush" Value="{ThemeResource LeafHoverOutlineBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="CheckedPressed">
                                     <VisualState.Setters>
                                         <Setter Target="HoverLayer.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                                        <Setter Target="HoverLayer.BorderBrush" Value="{ThemeResource LeafHoverOutlineBrush}" />
                                     </VisualState.Setters>
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="PressScale" Storyboard.TargetProperty="ScaleX" To="0.9" Duration="0" />
@@ -126,6 +139,7 @@
                         <Border
                             x:Name="HoverLayer"
                             Background="Transparent"
+                            BorderThickness="{ThemeResource LeafHoverOutlineThickness}"
                             CornerRadius="{TemplateBinding CornerRadius}">
                             <Border.BackgroundTransition>
                                 <BrushTransition Duration="0:0:0.083" />
@@ -323,6 +337,7 @@
                         x:Name="Root"
                         Padding="{TemplateBinding Padding}"
                         Background="{TemplateBinding Background}"
+                        BorderThickness="{ThemeResource LeafHoverOutlineThickness}"
                         CornerRadius="{TemplateBinding CornerRadius}">
                         <Border.BackgroundTransition>
                             <BrushTransition Duration="0:0:0.083" />
@@ -333,11 +348,13 @@
                                 <VisualState x:Name="PointerOver">
                                     <VisualState.Setters>
                                         <Setter Target="Root.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                        <Setter Target="Root.BorderBrush" Value="{ThemeResource LeafHoverOutlineBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="Pressed">
                                     <VisualState.Setters>
                                         <Setter Target="Root.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                                        <Setter Target="Root.BorderBrush" Value="{ThemeResource LeafHoverOutlineBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="Disabled">

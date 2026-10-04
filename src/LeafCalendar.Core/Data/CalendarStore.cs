@@ -42,7 +42,7 @@ public static partial class CalendarStore
     /// <summary>Longest calendar name shown (longer names are clipped with "…").</summary>
     public const int MaxNameLength = 100;
 
-    const string SelectColumns = """
+    private const string SelectColumns = """
         SELECT c.account_id, c.id, COALESCE(c.summary_override, c.summary), c.background_color, c.access_role,
                c.is_primary, c.hidden, c.sync_token, COALESCE(c.leaf_hidden, c.hidden), c.leaf_color, c.sort_order, c.summary
         FROM calendars c
@@ -64,7 +64,7 @@ public static partial class CalendarStore
     /// </remarks>
     public static void ReplaceForAccount(SqliteConnection conn, string accountId, IReadOnlyList<CalendarListEntry> entries)
     {
-        var incoming    = entries.Where(e => !e.Deleted).ToList();
+        var incoming = entries.Where(e => !e.Deleted).ToList();
         var incomingIds = incoming.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
 
         using var tx = conn.BeginTransaction();
@@ -148,6 +148,19 @@ public static partial class CalendarStore
             ("$token", syncToken),
             ("$account", accountId),
             ("$id", calendarId));
+
+    /// <summary>
+    /// Saves the token for the calendar's next incremental sync only while the stored token is still
+    /// <paramref name="expected"/>, so a token forgotten meanwhile (to force a reload) stays forgotten.
+    /// </summary>
+    public static void ReplaceSyncToken(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId, string? expected, string? syncToken) =>
+        conn.Execute(
+            tx,
+            "UPDATE calendars SET sync_token = $token WHERE account_id = $account AND id = $id AND sync_token IS $expected;",
+            ("$token", syncToken),
+            ("$account", accountId),
+            ("$id", calendarId),
+            ("$expected", expected));
 
     /// <summary>Shows or hides a calendar in Leaf (Google is not changed).</summary>
     public static void SetHidden(SqliteConnection conn, string accountId, string calendarId, bool hidden) =>
@@ -238,7 +251,7 @@ public static partial class CalendarStore
         return rows.ToDictionary(r => (r.Account, r.Id), r => byCalendar[r.Id]);
     }
 
-    static List<int> PopupMinutes(string? json)
+    private static List<int> PopupMinutes(string? json)
     {
         if (string.IsNullOrEmpty(json))
         {
@@ -260,7 +273,7 @@ public static partial class CalendarStore
     }
 
     // Names come from Google (or another person's calendar), so they're cleaned like any untrusted text
-    static CalendarInfo Map(SqliteDataReader r) => new(
+    private static CalendarInfo Map(SqliteDataReader r) => new(
         r.GetString(0),
         r.GetString(1),
         DisplayText.Clean(r.GetString(2), MaxNameLength),

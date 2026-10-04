@@ -29,7 +29,7 @@ public class LiveSignInTests
         LiveAccount.Tokens.DeleteAll();
         LiveAccount.Tokens.SetClientCredentials(credentials);
 
-        var folder   = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "leaf-live", Guid.NewGuid().ToString("N"))).FullName;
+        var folder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "leaf-live", Guid.NewGuid().ToString("N"))).FullName;
         var database = new LeafDatabase(Path.Combine(folder, "leaf.db"));
         database.Migrate();
         await using var services = new GoogleServices(LiveAccount.Http, credentials, LiveAccount.Tokens, database, new AppLog(folder, TimeProvider.System), TimeProvider.System);

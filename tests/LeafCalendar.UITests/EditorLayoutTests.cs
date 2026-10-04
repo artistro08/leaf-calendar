@@ -12,8 +12,8 @@ namespace LeafCalendar.UITests;
 
 public sealed class EditorLayoutTests : IDisposable
 {
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -21,26 +21,26 @@ public sealed class EditorLayoutTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     // Opens the editor on the dentist appointment (an event you own)
-    static void EditDentist(LeafApp leaf)
+    private static void EditDentist(LeafApp leaf)
     {
         leaf.WaitFor("Event_evt-single_202610011300").Click();
         leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
         leaf.WaitFor("EditorTitle");
     }
 
-    static bool Overlap(Rectangle a, Rectangle b) => a.Top < b.Bottom && b.Top < a.Bottom;
+    private static bool Overlap(Rectangle a, Rectangle b) => a.Top < b.Bottom && b.Top < a.Bottom;
 
     // Hue distance in degrees, the short way around the wheel
-    static float HueDistance(Color a, Color b)
+    private static float HueDistance(Color a, Color b)
     {
         var d = Math.Abs(a.GetHue() - b.GetHue());
         return Math.Min(d, 360 - d);
     }
 
-    static Color CenterPixel(Rectangle box)
+    private static Color CenterPixel(Rectangle box)
     {
         var center = new Rectangle(box.X + box.Width / 2 - 1, box.Y + box.Height / 2 - 1, 3, 3);
         using var shot = FlaUI.Core.Capturing.Capture.Rectangle(center);
@@ -69,7 +69,7 @@ public sealed class EditorLayoutTests : IDisposable
         // automation tree), while the body under it really scrolls
         var footer = leaf.WaitFor("EditorSaveButton").BoundingRectangle;
         var editor = leaf.WaitFor("EventEditor");
-        var body   = editor.FindAllDescendants().First(e => e.Patterns.Scroll.IsSupported).Patterns.Scroll.Pattern;
+        var body = editor.FindAllDescendants().First(e => e.Patterns.Scroll.IsSupported).Patterns.Scroll.Pattern;
         LeafApp.WheelOver(editor, -10);
         Thread.Sleep(500);
         Assert.Equal(footer.Y, leaf.WaitFor("EditorSaveButton").BoundingRectangle.Y);
@@ -78,7 +78,7 @@ public sealed class EditorLayoutTests : IDisposable
     }
 
     // Saves the clock setting into the profile before launch
-    void UseClock(bool use24Hour)
+    private void UseClock(bool use24Hour)
     {
         var database = new LeafDatabase(Path.Combine(LeafApp.ProfileFolder(_profile), "leaf.db"));
         using (var conn = database.Open())
@@ -110,7 +110,7 @@ public sealed class EditorLayoutTests : IDisposable
             // the 1 px column dividers aren't ink). Its box alone can't tell, since UI Automation clips it to what's
             // visible; a picker drawn wider than its column loses the minutes or AM/PM
             using var ink = Ink.Capture(time);
-            var runs   = ink.Runs((int)Math.Ceiling(4 * leaf.Scale)).Where(r => r.To - r.From >= 2).ToList();
+            var runs = ink.Runs((int)Math.Ceiling(4 * leaf.Scale)).Where(r => r.To - r.From >= 2).ToList();
             var groups = 1 + runs.Zip(runs.Skip(1)).Count(p => p.Second.From - p.First.To >= 4 * leaf.Scale);
             Assert.True(runs.Count > 0 && groups >= (use24Hour ? 2 : 3), $"{timeId} shows {groups} parts of the time; part of it is cut off.");
         }
@@ -121,9 +121,9 @@ public sealed class EditorLayoutTests : IDisposable
     {
         using var leaf = Launch();
         EditDentist(leaf);
-        var showAs     = leaf.WaitFor("EditorShowAs").AsComboBox();
+        var showAs = leaf.WaitFor("EditorShowAs").AsComboBox();
         var visibility = leaf.WaitFor("EditorVisibility").AsComboBox();
-        var before     = (showAs.BoundingRectangle, visibility.BoundingRectangle);
+        var before = (showAs.BoundingRectangle, visibility.BoundingRectangle);
 
         // Opening (and closing) either dropdown leaves both where they were
         foreach (var box in new[] { showAs, visibility, showAs })
@@ -213,7 +213,7 @@ public sealed class EditorLayoutTests : IDisposable
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.RETURN);
 
         var write = _google.WaitForWrite(w => w.Method == "PATCH" && w.Path.EndsWith("/events/evt-single", StringComparison.Ordinal));
-        var body  = write.Body.Replace(" ", string.Empty, StringComparison.Ordinal);
+        var body = write.Body.Replace(" ", string.Empty, StringComparison.Ordinal);
         Assert.Contains("\"useDefault\":false", body, StringComparison.Ordinal);
         Assert.Contains("\"overrides\":[{\"method\":\"popup\",\"minutes\":30},{\"method\":\"popup\",\"minutes\":60}]", body, StringComparison.Ordinal);
     }

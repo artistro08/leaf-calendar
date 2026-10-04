@@ -15,13 +15,13 @@ namespace LeafCalendar.App.Views.Settings;
 /// </summary>
 public sealed partial class ShortcutsPage : Page
 {
-    SettingsContext _context = null!;
+    private SettingsContext _context = null!;
 
     // The settings when a shortcut dialog opened (to restore a shortcut that turns out taken)
-    LeafSettings? _before;
+    private LeafSettings? _before;
 
     // Why a shortcut isn't what the user picked (the new one was taken and the old one is back); cleared on the next change
-    readonly Dictionary<ShortcutAction, string> _notes = [];
+    private readonly Dictionary<ShortcutAction, string> _notes = [];
 
     /// <summary>Creates the page.</summary>
     public ShortcutsPage()
@@ -36,34 +36,34 @@ public sealed partial class ShortcutsPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         _context = (SettingsContext)e.Parameter;
-        _context.Host.SettingsChanged       += OnChanged;
+        _context.Host.SettingsChanged += OnChanged;
         _context.Services.Shortcuts.Changed += OnChanged;
-        _context.Host.Closed                += OnHostClosed;
+        _context.Host.Closed += OnHostClosed;
         Load();
     }
 
     /// <inheritdoc />
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
-        _context.Host.SettingsChanged       -= OnChanged;
+        _context.Host.SettingsChanged -= OnChanged;
         _context.Services.Shortcuts.Changed -= OnChanged;
-        _context.Host.Closed                -= OnHostClosed;
+        _context.Host.Closed -= OnHostClosed;
     }
 
     // Settings Left (back to the calendar, or the window closed) With A Shortcut Dialog Open: close it, which lets go of the
     // keyboard and registers Leaf's shortcuts again (the page isn't navigated from, so the service's event is let go here)
-    void OnHostClosed(object? sender, EventArgs e)
+    private void OnHostClosed(object? sender, EventArgs e)
     {
-        _context.Host.Closed                -= OnHostClosed;
+        _context.Host.Closed -= OnHostClosed;
         _context.Services.Shortcuts.Changed -= OnChanged;
         JoinShortcutControl.CloseDialog();
         FlyoutShortcutControl.CloseDialog();
     }
 
-    void OnChanged(object? sender, EventArgs e) => Load();
+    private void OnChanged(object? sender, EventArgs e) => Load();
 
     // The cheat sheet, over the window
-    async void OnShowCheatSheetClick(object sender, RoutedEventArgs e)
+    private async void OnShowCheatSheetClick(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -75,7 +75,7 @@ public sealed partial class ShortcutsPage : Page
         }
     }
 
-    void Load()
+    private void Load()
     {
         var s = _context.Calendar.Settings;
         Show(JoinShortcutControl, JoinShortcutWarning, s.JoinShortcut, ShortcutAction.Join);
@@ -84,7 +84,7 @@ public sealed partial class ShortcutsPage : Page
 
     // The shortcut as key caps (screen readers read the row's name, then the shortcut as help text); a taken one shows
     // its caps in the warning state, and the warning under the row is collapsed when there's nothing to say
-    void Show(ShortcutControl control, InfoBar warning, string shortcut, ShortcutAction action)
+    private void Show(ShortcutControl control, InfoBar warning, string shortcut, ShortcutAction action)
     {
         var shortcuts = _context.Services.Shortcuts;
         control.HotkeySettings = Hotkey.TryParse(shortcut, out var hotkey) ? HotkeySettings.FromHotkey(hotkey) : new HotkeySettings();
@@ -95,21 +95,21 @@ public sealed partial class ShortcutsPage : Page
             : shortcuts.IsTaken(action) ? $"Another app is using {shortcut}. Pick a different shortcut."
             : null;
         control.HasConflict = shortcuts.IsAvailable && shortcuts.IsTaken(action);
-        control.Tooltip     = message;
-        warning.Message     = message ?? string.Empty;
-        warning.IsOpen      = message is not null;
-        warning.Visibility  = message is not null ? Visibility.Visible : Visibility.Collapsed;
+        control.Tooltip = message;
+        warning.Message = message ?? string.Empty;
+        warning.IsOpen = message is not null;
+        warning.Visibility = message is not null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // Wires A Picker To Its Shortcut: the default for Reset, Leaf's conflict check, and saving
-    void Wire(ShortcutControl control, ShortcutAction action, string name, string automationId)
+    private void Wire(ShortcutControl control, ShortcutAction action, string name, string automationId)
     {
-        control.ButtonName            = name;
-        control.ButtonAutomationId    = automationId;
+        control.ButtonName = name;
+        control.ButtonAutomationId = automationId;
         control.DefaultHotkeySettings = Hotkey.TryParse(DefaultFor(action), out var fallback) ? HotkeySettings.FromHotkey(fallback) : new HotkeySettings();
-        control.CheckConflict         = hotkey => Conflict(action, hotkey);
-        control.DialogOpening        += (_, _) => Opening(action);
-        control.DialogClosed         += (_, _) => Closed(action);
+        control.CheckConflict = hotkey => Conflict(action, hotkey);
+        control.DialogOpening += (_, _) => Opening(action);
+        control.DialogClosed += (_, _) => Closed(action);
         control.HotkeySettingsChanged += (_, _) =>
         {
             // A New Combination, The Default (Reset), Or "" (cleared)
@@ -122,9 +122,9 @@ public sealed partial class ShortcutsPage : Page
     }
 
     // The other shortcut has it, or Windows or another app holds it (a RegisterHotKey probe)
-    string? Conflict(ShortcutAction action, Hotkey hotkey)
+    private string? Conflict(ShortcutAction action, Hotkey hotkey)
     {
-        var other     = Shortcut(_context.Calendar.Settings, action == ShortcutAction.Join ? ShortcutAction.Flyout : ShortcutAction.Join);
+        var other = Shortcut(_context.Calendar.Settings, action == ShortcutAction.Join ? ShortcutAction.Flyout : ShortcutAction.Join);
         var otherName = action == ShortcutAction.Join ? "Show or hide the tray flyout" : "Join meeting";
         return hotkey.ToString() == other ? $"“{otherName}” already uses {hotkey}."
             : !_context.Services.Shortcuts.IsFree(hotkey) ? $"Windows or another app is using {hotkey}. Try a different one."
@@ -132,7 +132,7 @@ public sealed partial class ShortcutsPage : Page
     }
 
     // Leaf's own shortcuts let go while the dialog listens (so pressing them reaches it)
-    void Opening(ShortcutAction action)
+    private void Opening(ShortcutAction action)
     {
         _before = _context.Calendar.Settings;
         _notes.Remove(action);
@@ -140,7 +140,7 @@ public sealed partial class ShortcutsPage : Page
     }
 
     // ...and come back from the settings after, whichever way the dialog closed
-    void Closed(ShortcutAction action)
+    private void Closed(ShortcutAction action)
     {
         try
         {
@@ -156,10 +156,10 @@ public sealed partial class ShortcutsPage : Page
     }
     // Registers the saved shortcuts again, also after Cancel (Apply lets go of the old keys first); a new combination
     // another app took since the dialog checked it gives way to the one that worked before
-    void Reapply(ShortcutAction action, LeafSettings before)
+    private void Reapply(ShortcutAction action, LeafSettings before)
     {
         var shortcuts = _context.Services.Shortcuts;
-        var saved     = _context.Calendar.Settings;
+        var saved = _context.Calendar.Settings;
         shortcuts.Apply(saved);
 
         var previous = Shortcut(before, action);
@@ -171,12 +171,12 @@ public sealed partial class ShortcutsPage : Page
         }
     }
 
-    static string DefaultFor(ShortcutAction action) =>
+    private static string DefaultFor(ShortcutAction action) =>
         action == ShortcutAction.Join ? LeafSettings.DefaultJoinShortcut : LeafSettings.DefaultFlyoutShortcut;
 
-    static string Shortcut(LeafSettings settings, ShortcutAction action) =>
+    private static string Shortcut(LeafSettings settings, ShortcutAction action) =>
         action == ShortcutAction.Join ? settings.JoinShortcut : settings.FlyoutShortcut;
 
-    static LeafSettings With(LeafSettings settings, ShortcutAction action, string shortcut) =>
+    private static LeafSettings With(LeafSettings settings, ShortcutAction action, string shortcut) =>
         action == ShortcutAction.Join ? settings with { JoinShortcut = shortcut } : settings with { FlyoutShortcut = shortcut };
 }

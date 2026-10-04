@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 
 public sealed class AccountStoreTests : IDisposable
 {
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public void Dispose() => _db.Dispose();
 

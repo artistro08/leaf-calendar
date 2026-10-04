@@ -18,13 +18,13 @@ internal static class RichDescription
     public static List<(string Text, Uri Link)> Load(RichEditBox box, IReadOnlyList<DescriptionLine> lines)
     {
         var document = box.Document;
-        var anchors  = new List<(string Text, Uri Link)>();
-        var accent   = Accent(box);
-        _loadedAccent = accent;
+        var anchors = new List<(string Text, Uri Link)>();
+        var accent = Accent(box);
+        s_loadedAccent = accent;
         document.SetText(TextSetOptions.None, string.Join("\r", lines.Select(l => string.Concat(l.Runs.Select(r => r.Text)))));
 
         // Nothing Carries Over From The Last Description (bold, link color, or a list on the first paragraph)
-        var whole             = document.GetRange(0, int.MaxValue);
+        var whole = document.GetRange(0, int.MaxValue);
         whole.CharacterFormat = document.GetDefaultCharacterFormat();
         whole.ParagraphFormat = document.GetDefaultParagraphFormat();
 
@@ -35,9 +35,9 @@ internal static class RichDescription
             foreach (var run in line.Runs)
             {
                 // Character Format For This Run
-                var format       = document.GetRange(position, position + run.Text.Length).CharacterFormat;
-                format.Bold      = run.Bold ? FormatEffect.On : FormatEffect.Off;
-                format.Italic    = run.Italic ? FormatEffect.On : FormatEffect.Off;
+                var format = document.GetRange(position, position + run.Text.Length).CharacterFormat;
+                format.Bold = run.Bold ? FormatEffect.On : FormatEffect.Off;
+                format.Italic = run.Italic ? FormatEffect.On : FormatEffect.Off;
                 format.Underline = run.Underline ? UnderlineType.Single : UnderlineType.None;
 
                 // A Link Is Text In Its Own Tint (its own run, so it reads back whole) With Its Target Kept Aside
@@ -73,14 +73,14 @@ internal static class RichDescription
 
         // RichEdit always ends with a paragraph mark; a soft break (Shift+Enter) is a line too (same length, so positions hold)
         all = all.TrimEnd('\r').Replace('\v', '\r');
-        var runs  = new List<(int Line, DescriptionRun Run, int? Slot)>();
+        var runs = new List<(int Line, DescriptionRun Run, int? Slot)>();
         var lists = new List<ListKind>();
         var start = 0;
 
         foreach (var paragraph in all.Split('\r'))
         {
             var end = start + paragraph.Length;
-            var at  = start;
+            var at = start;
 
             while (at < end)
             {
@@ -93,7 +93,7 @@ internal static class RichDescription
                 }
 
                 var format = range.CharacterFormat;
-                var run    = new DescriptionRun(all[at..runEnd], format.Bold == FormatEffect.On, format.Italic == FormatEffect.On, format.Underline != UnderlineType.None);
+                var run = new DescriptionRun(all[at..runEnd], format.Bold == FormatEffect.On, format.Italic == FormatEffect.On, format.Underline != UnderlineType.None);
                 runs.Add((lists.Count, run, SlotOf(format.ForegroundColor)));
                 at = runEnd;
             }
@@ -101,15 +101,15 @@ internal static class RichDescription
             lists.Add(document.GetRange(start, start).ParagraphFormat.ListType switch
             {
                 MarkerType.None or MarkerType.Undefined => ListKind.None,
-                MarkerType.Bullet                        => ListKind.Bullet,
-                _                                        => ListKind.Numbered,
+                MarkerType.Bullet => ListKind.Bullet,
+                _ => ListKind.Numbered,
             });
             start = end + 1;
         }
 
         // Links Come Back Only On Their Own Unchanged Text
         var targets = DescriptionAnchors.Resolve(anchors, [.. runs.Select(r => (r.Run.Text, r.Slot))]);
-        var linked  = runs.Select((r, i) => (r.Line, Run: r.Run with { Link = targets[i] })).ToLookup(r => r.Line, r => r.Run);
+        var linked = runs.Select((r, i) => (r.Line, Run: r.Run with { Link = targets[i] })).ToLookup(r => r.Line, r => r.Run);
 
         return [.. lists.Select((list, line) => new DescriptionLine([.. linked[line]], list))];
     }
@@ -117,7 +117,7 @@ internal static class RichDescription
     /// <summary>Puts paragraphs in a list of <paramref name="kind"/> (the marker hangs left of the text), or out of any list for <see cref="MarkerType.None"/>.</summary>
     public static void SetList(ITextParagraphFormat paragraph, MarkerType kind)
     {
-        paragraph.ListType  = kind;
+        paragraph.ListType = kind;
         paragraph.ListStyle = MarkerStyle.Period;
 
         if (kind == MarkerType.None)
@@ -127,7 +127,7 @@ internal static class RichDescription
         }
 
         paragraph.ListStart = 1;
-        paragraph.ListTab   = 12;
+        paragraph.ListTab = 12;
         paragraph.SetIndents(-12, 18, 0);
     }
 
@@ -162,10 +162,10 @@ internal static class RichDescription
             return;
         }
 
-        var plain             = box.Document.GetDefaultCharacterFormat();
-        plain.Bold            = current.Bold;
-        plain.Italic          = current.Italic;
-        plain.Underline       = current.Underline;
+        var plain = box.Document.GetDefaultCharacterFormat();
+        plain.Bold = current.Bold;
+        plain.Italic = current.Italic;
+        plain.Underline = current.Underline;
         range.CharacterFormat = plain;
     }
 
@@ -178,7 +178,7 @@ internal static class RichDescription
         }
 
         var document = box.Document;
-        var accent   = Accent(box);
+        var accent = Accent(box);
         document.GetText(TextGetOptions.None, out var all);
 
         for (var at = 0; at < all.Length;)
@@ -193,22 +193,22 @@ internal static class RichDescription
             at = Math.Max(range.EndPosition, at + 1);
         }
 
-        _loadedAccent = accent;
+        s_loadedAccent = accent;
     }
 
     // The accent for the box's theme
-    static (byte R, byte G, byte B) Accent(RichEditBox box) => FromColor(LeafBrushes.Accent(box.ActualTheme == ElementTheme.Dark).Color);
+    private static (byte R, byte G, byte B) Accent(RichEditBox box) => FromColor(LeafBrushes.Accent(box.ActualTheme == ElementTheme.Dark).Color);
 
     // The accent the links were last tinted from (a contrast-theme switch mid-edit changes the live accent under them)
-    static (byte R, byte G, byte B)? _loadedAccent;
+    private static (byte R, byte G, byte B)? s_loadedAccent;
 
     // A link's slot from its color, in the tint it was loaded with or either theme's current tint (a theme change may not have re-tinted it yet)
-    static int? SlotOf(Color color) =>
-        (_loadedAccent is { } loaded ? DescriptionAnchors.SlotOf(FromColor(color), loaded) : null)
+    private static int? SlotOf(Color color) =>
+        (s_loadedAccent is { } loaded ? DescriptionAnchors.SlotOf(FromColor(color), loaded) : null)
         ?? DescriptionAnchors.SlotOf(FromColor(color), FromColor(LeafBrushes.Accent(true).Color))
         ?? DescriptionAnchors.SlotOf(FromColor(color), FromColor(LeafBrushes.Accent(false).Color));
 
-    static (byte R, byte G, byte B) FromColor(Color color) => (color.R, color.G, color.B);
+    private static (byte R, byte G, byte B) FromColor(Color color) => (color.R, color.G, color.B);
 
-    static Color ToColor((byte R, byte G, byte B) rgb) => Color.FromArgb(255, rgb.R, rgb.G, rgb.B);
+    private static Color ToColor((byte R, byte G, byte B) rgb) => Color.FromArgb(255, rgb.R, rgb.G, rgb.B);
 }

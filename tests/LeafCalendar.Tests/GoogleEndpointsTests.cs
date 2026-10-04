@@ -9,10 +9,10 @@ namespace LeafCalendar.Tests;
 
 public sealed class GoogleEndpointsTests : IDisposable
 {
-    static readonly Uri Root = new("http://127.0.0.1:4567/");
+    private static readonly Uri Root = new("http://127.0.0.1:4567/");
 
-    readonly FakeHttpHandler _google = new();
-    readonly FakeTimeProvider _time = new();
+    private readonly FakeHttpHandler _google = new();
+    private readonly FakeTimeProvider _time = new();
 
     public void Dispose() => _google.Dispose();
 
@@ -45,18 +45,18 @@ public sealed class GoogleEndpointsTests : IDisposable
     [Fact]
     public async Task Clients_WithFakeEndpoints_CallFakeUrls()
     {
-        var ct       = TestContext.Current.CancellationToken;
-        var fake     = GoogleEndpoints.ForFake(Root);
-        var http     = new HttpClient(_google);
-        var store    = new InMemoryTokenStore();
+        var ct = TestContext.Current.CancellationToken;
+        var fake = GoogleEndpoints.ForFake(Root);
+        var http = new HttpClient(_google);
+        var store = new InMemoryTokenStore();
         store.SetRefreshToken("acct", "1//test-refresh-token");
         _google.On(HttpMethod.Post, "http://127.0.0.1:4567/token", HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
         _google.On(HttpMethod.Get, "http://127.0.0.1:4567/calendar/v3/users/me/calendarList", HttpStatusCode.OK, Fixture.Read("calendar-list.json"));
-        var oauth    = new GoogleOAuthClient(http, new("id.apps.googleusercontent.com", "secret"), _time, fake);
+        var oauth = new GoogleOAuthClient(http, new("id.apps.googleusercontent.com", "secret"), _time, fake);
         using var tokens = new AccessTokenProvider(oauth, store, _time);
         var calendar = new GoogleCalendarClient(http, tokens, fake);
 
-        var url       = oauth.BuildAuthorizationUrl(new Uri("http://127.0.0.1:5000/"), "s", "c");
+        var url = oauth.BuildAuthorizationUrl(new Uri("http://127.0.0.1:5000/"), "s", "c");
         var calendars = await calendar.ListCalendarsAsync("acct", ct);
 
         Assert.StartsWith("http://127.0.0.1:4567/auth?", url.AbsoluteUri, StringComparison.Ordinal);

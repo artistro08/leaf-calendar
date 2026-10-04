@@ -22,10 +22,10 @@ public sealed record ResponseBadge(string Label, ResponseTone Tone)
     /// <summary>The badge for <paramref name="response"/> ("Going", "Maybe", "Not going", or "Not answered").</summary>
     public static ResponseBadge For(ResponseStatus response) => response switch
     {
-        ResponseStatus.Accepted  => new("Going", ResponseTone.Positive),
+        ResponseStatus.Accepted => new("Going", ResponseTone.Positive),
         ResponseStatus.Tentative => new("Maybe", ResponseTone.Caution),
-        ResponseStatus.Declined  => new("Not going", ResponseTone.Critical),
-        _                        => new("Not answered", ResponseTone.Neutral),
+        ResponseStatus.Declined => new("Not going", ResponseTone.Critical),
+        _ => new("Not answered", ResponseTone.Neutral),
     };
 
     /// <summary>The whole line Narrator reads: "Your response: Going".</summary>

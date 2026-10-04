@@ -30,7 +30,7 @@ public class SetupTests
 
             Assert.NotNull(leaf.WaitInOnboarding("OnboardingTitleBar"));
             Assert.NotNull(leaf.WaitInOnboarding("OnboardingWelcome"));
-            Assert.Equal(0, leaf.WindowCount("Leaf Calendar"));
+            Assert.Equal(0, leaf.MainWindowCount());
         }
         finally
         {
@@ -89,7 +89,7 @@ public class SetupTests
             // UIA clips an element's box to what shows: a one-line InfoBar is at least 48 DIP tall, 1.5 times the
             // 32 DIP Back button, when none of it is cut off
             var error = leaf.WaitInOnboarding("SetupError");
-            var back  = leaf.WaitInOnboarding("OnboardingBackButton").BoundingRectangle.Height;
+            var back = leaf.WaitInOnboarding("OnboardingBackButton").BoundingRectangle.Height;
             Assert.True(Retry.WhileFalse(() => error.BoundingRectangle.Height >= back * 1.4, TimeSpan.FromSeconds(5)).Success, $"Only {error.BoundingRectangle.Height} px of the error shows (Back is {back} px tall).");
         }
         finally

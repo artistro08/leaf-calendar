@@ -7,13 +7,13 @@ namespace LeafCalendar.UITests;
 
 public sealed class ToastActionTests : IDisposable
 {
-    const string Primary  = "leaf.tester@gmail.com";
-    const string Dentist  = "Event_evt-single_202610011300";
-    const string MeetLink = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
-    static readonly DateTimeOffset MeetingStart = new(2026, 10, 1, 18, 0, 0, TimeSpan.Zero);
+    private const string Primary = "leaf.tester@gmail.com";
+    private const string Dentist = "Event_evt-single_202610011300";
+    private const string MeetLink = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
+    private static readonly DateTimeOffset MeetingStart = new(2026, 10, 1, 18, 0, 0, TimeSpan.Zero);
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -22,7 +22,7 @@ public sealed class ToastActionTests : IDisposable
     }
 
     // 8 AM in New York on Oct 1, so the fixtures' Design review (2 PM) is still ahead whenever the tests run
-    LeafApp Launch()
+    private LeafApp Launch()
     {
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01 --now 2026-10-01T08:00:00-04:00");
         leaf.WaitFor("Event_evt-meeting_202610011800");
@@ -30,17 +30,17 @@ public sealed class ToastActionTests : IDisposable
     }
 
     // A notification click as UI tests make one: a second launch hands the click's arguments to the running Leaf
-    void Click(ToastArgs args)
+    private void Click(ToastArgs args)
     {
         using var second = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --toast-action {args.Encode()}");
         Assert.True(Retry.WhileFalse(() => second.App.HasExited, TimeSpan.FromSeconds(15)).Success);
     }
 
-    ToastArgs Meeting(ToastAction action, string? profile = null) =>
+    private ToastArgs Meeting(ToastAction action, string? profile = null) =>
         new(action, profile ?? _profile, SeededProfile.AccountId, Primary, "evt-meeting", MeetingStart);
 
     // Offline with Google changed behind Leaf's back, then a local rename, then back online: Leaf's patch gets 412
-    void MakeConflict(LeafApp leaf)
+    private void MakeConflict(LeafApp leaf)
     {
         leaf.WaitFor(Dentist);
         _google.Offline = true;
@@ -78,7 +78,7 @@ public sealed class ToastActionTests : IDisposable
     {
         using var leaf = Launch();
         leaf.MainWindow.Close();
-        Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
+        Assert.True(Retry.WhileTrue(() => leaf.MainWindowCount() > 0, TimeSpan.FromSeconds(10)).Success);
 
         Click(Meeting(ToastAction.Open));
 

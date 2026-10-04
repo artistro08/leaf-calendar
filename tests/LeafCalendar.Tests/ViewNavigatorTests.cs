@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 
 public class ViewNavigatorTests
 {
-    static DateOnly D(int y, int m, int d) => new(y, m, d);
+    private static DateOnly D(int y, int m, int d) => new(y, m, d);
 
     [Theory]
     [InlineData(CalendarViewMode.Day, 3, true, 1)]
@@ -94,8 +94,26 @@ public class ViewNavigatorTests
     }
 
     [Fact]
+    public void MiniMonthAnchor_WeekendsHidden_CountsShownDays()
+    {
+        // Fri Oct 30, Mon Nov 2, Tue Nov 3 with today Nov 2 shows November
+        Assert.Equal(D(2026, 11, 2), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Days, D(2026, 10, 30), 3, D(2026, 11, 2), showWeekends: false));
+
+        // Today elsewhere: the middle shown day (Mon Nov 2), not Sat Oct 31
+        Assert.Equal(D(2026, 11, 2), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Days, D(2026, 10, 30), 3, D(2026, 12, 1), showWeekends: false));
+    }
+
+    [Fact]
     public void MiniMonthAnchor_Month_UsesPeriodStart()
     {
         Assert.Equal(D(2026, 10, 1), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Month, D(2026, 10, 1), 7, D(2026, 10, 15)));
     }
+
+    [Theory]
+    [InlineData(2026, 10, 4, 2026, 10, 4, "Sunday, October 4, 2026")]
+    [InlineData(2026, 10, 5, 2026, 10, 11, "Oct 5 – 11, 2026")]
+    [InlineData(2026, 9, 28, 2026, 10, 4, "Sep 28 – Oct 4, 2026")]
+    [InlineData(2026, 12, 28, 2027, 1, 3, "Dec 28, 2026 – Jan 3, 2027")]
+    public void DateRangeTitle_NamesTheDaysOnScreen(int y1, int m1, int d1, int y2, int m2, int d2, string expected) =>
+        Assert.Equal(expected, ViewNavigator.DateRangeTitle(D(y1, m1, d1), D(y2, m2, d2)));
 }

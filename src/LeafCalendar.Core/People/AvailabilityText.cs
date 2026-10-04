@@ -14,27 +14,27 @@ namespace LeafCalendar.Core.People;
 /// </remarks>
 public static class AvailabilityText
 {
-    static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
+    private static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
 
     // Short Labels People Use For North American Zones (Everything Else Is "{City} time")
-    static readonly Dictionary<string, string> Labels = new(StringComparer.Ordinal)
+    private static readonly Dictionary<string, string> Labels = new(StringComparer.Ordinal)
     {
-        ["America/New_York"]             = "ET",
-        ["America/Detroit"]              = "ET",
-        ["America/Toronto"]              = "ET",
+        ["America/New_York"] = "ET",
+        ["America/Detroit"] = "ET",
+        ["America/Toronto"] = "ET",
         ["America/Indiana/Indianapolis"] = "ET",
-        ["America/Chicago"]              = "CT",
-        ["America/Winnipeg"]             = "CT",
-        ["America/Denver"]               = "MT",
-        ["America/Edmonton"]             = "MT",
-        ["America/Phoenix"]              = "MT",
-        ["America/Boise"]                = "MT",
-        ["America/Los_Angeles"]          = "PT",
-        ["America/Vancouver"]            = "PT",
-        ["America/Anchorage"]            = "AKT",
-        ["Pacific/Honolulu"]             = "HT",
-        ["UTC"]                          = "UTC",
-        ["Etc/UTC"]                      = "UTC",
+        ["America/Chicago"] = "CT",
+        ["America/Winnipeg"] = "CT",
+        ["America/Denver"] = "MT",
+        ["America/Edmonton"] = "MT",
+        ["America/Phoenix"] = "MT",
+        ["America/Boise"] = "MT",
+        ["America/Los_Angeles"] = "PT",
+        ["America/Vancouver"] = "PT",
+        ["America/Anchorage"] = "AKT",
+        ["Pacific/Honolulu"] = "HT",
+        ["UTC"] = "UTC",
+        ["Etc/UTC"] = "UTC",
     };
 
     /// <summary>The free stretches as lines joined with <c>\r\n</c>, one per day in <paramref name="zone"/>; <c>""</c> when there are none.</summary>
@@ -48,7 +48,7 @@ public static class AvailabilityText
         foreach (var r in BusyMath.Merge(free))
         {
             var start = TimeZoneInfo.ConvertTime(r.Start, zone).DateTime;
-            var end   = TimeZoneInfo.ConvertTime(r.End, zone).DateTime;
+            var end = TimeZoneInfo.ConvertTime(r.End, zone).DateTime;
 
             while (start.Date < end.Date)
             {
@@ -117,7 +117,7 @@ public static class AvailabilityText
 
     // "10–11 AM", "11 AM–1 PM", "10:30–11 AM", or "10:00–11:00". A piece ending at the next midnight reads "9 AM–12 AM"
     // (its 12 AM is never folded into the start's AM) or "21:00–24:00"
-    static string Range(DateTime start, DateTime end, bool use24Hour)
+    private static string Range(DateTime start, DateTime end, bool use24Hour)
     {
         var endsAtMidnight = end.Date > start.Date;
         if (use24Hour)
@@ -130,7 +130,7 @@ public static class AvailabilityText
     }
 
     // "10", "10:30", "12 PM" (noon), "12 AM" (midnight)
-    static string Clock(DateTime t, bool withMeridiem)
+    private static string Clock(DateTime t, bool withMeridiem)
     {
         var hour = t.Hour % 12 == 0 ? 12 : t.Hour % 12;
         var text = new StringBuilder(hour.ToString(English));

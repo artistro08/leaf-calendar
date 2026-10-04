@@ -8,11 +8,11 @@ namespace LeafCalendar.Tests;
 
 public sealed class AlertPlannerTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private const string Primary = "leaf.tester@gmail.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public AlertPlannerTests()
     {
@@ -30,20 +30,20 @@ public sealed class AlertPlannerTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    void Insert(string json)
+    private void Insert(string json)
     {
         using var conn = _db.Database.Open();
-        using var doc  = JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(json);
         EventStore.Apply(conn, null, Account, Primary, doc.RootElement);
     }
 
-    IReadOnlyList<Alert> Plan(DateTimeOffset from, DateTimeOffset to)
+    private IReadOnlyList<Alert> Plan(DateTimeOffset from, DateTimeOffset to)
     {
         using var conn = _db.Database.Open();
         return AlertPlanner.Plan(conn, from, to, NewYork);
     }
 
-    static DateTimeOffset Utc(int month, int day, int hour, int minute = 0) => new(2026, month, day, hour, minute, 0, TimeSpan.Zero);
+    private static DateTimeOffset Utc(int month, int day, int hour, int minute = 0) => new(2026, month, day, hour, minute, 0, TimeSpan.Zero);
 
     [Fact]
     public void Plan_EventOnDefaults_UsesTheCalendarsPopup()
@@ -59,9 +59,9 @@ public sealed class AlertPlannerTests : IDisposable
     }
 
     // One shared calendar in two more accounts: shown under "222" with no reminder, and under "333" with a 30-minute one
-    const string Shared = "jazmin@group.calendar.google.com";
+    private const string Shared = "jazmin@group.calendar.google.com";
 
-    void AddSharedCalendar(bool hiddenUnder333)
+    private void AddSharedCalendar(bool hiddenUnder333)
     {
         using var conn = _db.Database.Open();
         foreach (var (id, reminders) in new[] { ("222", new List<ReminderOverride>()), ("333", [new ReminderOverride { Method = "popup", Minutes = 30 }]) })
@@ -73,7 +73,7 @@ public sealed class AlertPlannerTests : IDisposable
         CalendarStore.SetHidden(conn, "333", Shared, hiddenUnder333);
     }
 
-    void InsertShared(string accountId)
+    private void InsertShared(string accountId)
     {
         using var conn = _db.Database.Open();
         EventStore.ApplyJson(conn, null, accountId, Shared, """
@@ -179,6 +179,56 @@ public sealed class AlertPlannerTests : IDisposable
         Assert.Equal(Utc(10, 2, 17, 50), alerts[0].FireAt);
         Assert.Equal(Utc(10, 2, 18), alerts[1].FireAt);
         Assert.All(alerts, a => Assert.Equal("https://meet.google.com/abc-defg-hij", a.MeetingLink!.AbsoluteUri));
+    }
+
+    [Fact]
+    public void Plan_UnknownMeetingHost_NoJoinNowAndNoJoinButton()
+    {
+        // A toast's Join opens blind (no window, no address), so only a known meeting host's link rides on an alert
+        Insert("""
+            {"id":"evt-odd","status":"confirmed","summary":"Odd","hangoutLink":"https://login-micros0ft.example/meet",
+             "conferenceData":{"entryPoints":[{"entryPointType":"video","uri":"https://login-micros0ft.example/meet"}]},
+             "start":{"dateTime":"2026-10-02T18:00:00Z"},"end":{"dateTime":"2026-10-02T19:00:00Z"}}
+            """);
+
+        var alert = Assert.Single(Plan(Utc(10, 2, 17), Utc(10, 2, 19)));
+
+        Assert.Equal(AlertKind.Reminder, alert.Kind);
+        Assert.Null(alert.MeetingLink);
+    }
+
+    [Fact]
+    public void Plan_ColleaguesMeeting_NoJoinNow()
+    {
+        // On a colleague's calendar you can see, Google marks the colleague as "self"
+        AddSharedCalendar(hiddenUnder333: true);
+        using (var conn = _db.Database.Open())
+        {
+            EventStore.ApplyJson(conn, null, "222", Shared, """
+                {"id":"evt-theirs","status":"confirmed","summary":"Theirs","hangoutLink":"https://meet.google.com/abc-defg-hij",
+                 "attendees":[{"email":"jazmin@example.com","self":true,"responseStatus":"accepted"}],
+                 "start":{"dateTime":"2026-10-02T18:00:00Z"},"end":{"dateTime":"2026-10-02T19:00:00Z"},"reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":10}]}}
+                """);
+        }
+
+        var alerts = Plan(Utc(10, 2, 17), Utc(10, 2, 19));
+
+        Assert.Equal([AlertKind.Reminder], alerts.Select(a => a.Kind));
+    }
+
+    [Fact]
+    public void Plan_MissedRemindersOfARunningEvent_IncludedOnRequest()
+    {
+        // A timed block since May (10-minute default reminder, due long before the window); one that ended is left out
+        Insert("""{"id":"evt-phase","status":"confirmed","summary":"Project phase","start":{"dateTime":"2026-05-01T09:00:00Z"},"end":{"dateTime":"2026-11-01T09:00:00Z"}}""");
+        Insert("""{"id":"evt-done","status":"confirmed","summary":"Done","start":{"dateTime":"2026-05-01T09:00:00Z"},"end":{"dateTime":"2026-09-30T09:00:00Z"}}""");
+
+        using var conn = _db.Database.Open();
+        var missed = AlertPlanner.Plan(conn, Utc(10, 1, 0), Utc(10, 1, 1), NewYork, includeMissed: true);
+
+        Assert.Equal(Utc(5, 1, 8, 50), Assert.Single(missed, a => a.Occurrence.EventId == "evt-phase").FireAt);
+        Assert.DoesNotContain(missed, a => a.Occurrence.EventId == "evt-done");
+        Assert.DoesNotContain(Plan(Utc(10, 1, 0), Utc(10, 1, 1)), a => a.Occurrence.EventId == "evt-phase");
     }
 
     [Fact]

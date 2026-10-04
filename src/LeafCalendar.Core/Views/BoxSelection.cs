@@ -6,38 +6,52 @@ namespace LeafCalendar.Core.Views;
 public static class BoxSelection
 {
     /// <summary>
-    /// Timed events on the days between <paramref name="dayA"/> and <paramref name="dayB"/> that overlap the wall-clock
-    /// band between <paramref name="minutesA"/> and <paramref name="minutesB"/> after midnight in <paramref name="zone"/>.
-    /// Either corner may come first. A zero-minute event counts when it sits inside the band.
+    /// <see cref="InTimeBox(IEnumerable{CalendarOccurrence}, IEnumerable{DateOnly}, double, double, TimeZoneInfo)"/> over
+    /// every calendar day from <paramref name="dayA"/> to <paramref name="dayB"/> (either may come first). A grid that
+    /// hides days passes the days it shows instead.
+    /// </summary>
+    public static IReadOnlyList<CalendarOccurrence> InTimeBox(IEnumerable<CalendarOccurrence> occurrences, DateOnly dayA, DateOnly dayB, double minutesA, double minutesB, TimeZoneInfo zone)
+    {
+        var (firstDay, lastDay) = dayA <= dayB ? (dayA, dayB) : (dayB, dayA);
+
+        return InTimeBox(occurrences, Enumerable.Range(0, lastDay.DayNumber - firstDay.DayNumber + 1).Select(firstDay.AddDays), minutesA, minutesB, zone);
+    }
+
+    /// <summary>
+    /// Timed events on <paramref name="days"/> (the day columns the box covers, so a hidden weekend between its corners
+    /// stays out) whose cards overlap the wall-clock band between <paramref name="minutesA"/> and
+    /// <paramref name="minutesB"/> after midnight in <paramref name="zone"/>. Either corner may come first. A card is
+    /// at least <see cref="DayLayout.MinVisualMinutes"/> tall, however short its event. Events of 24 hours or more
+    /// are in the all-day row, not under the box.
     /// </summary>
     /// <remarks>
     /// ponytail: time-band hit test, not card rectangles. Overlapping events that share a band are both picked,
     /// even if the box covers only one's sub-column.
     /// </remarks>
-    public static IReadOnlyList<CalendarOccurrence> InTimeBox(IEnumerable<CalendarOccurrence> occurrences, DateOnly dayA, DateOnly dayB, double minutesA, double minutesB, TimeZoneInfo zone)
+    public static IReadOnlyList<CalendarOccurrence> InTimeBox(IEnumerable<CalendarOccurrence> occurrences, IEnumerable<DateOnly> days, double minutesA, double minutesB, TimeZoneInfo zone)
     {
         ArgumentNullException.ThrowIfNull(occurrences);
+        ArgumentNullException.ThrowIfNull(days);
 
-        var (firstDay, lastDay) = dayA <= dayB ? (dayA, dayB) : (dayB, dayA);
-        var (from, to)          = (Math.Min(minutesA, minutesB), Math.Max(minutesA, minutesB));
-        var days                = Enumerable.Range(0, lastDay.DayNumber - firstDay.DayNumber + 1).Select(firstDay.AddDays).ToList();
+        var (from, to) = (Math.Min(minutesA, minutesB), Math.Max(minutesA, minutesB));
+        var covered = days.ToList();
 
         return [.. occurrences
-            .Where(o => !o.IsAllDay && days.Exists(day => Hits(o, day, from, to, zone)))
+            .Where(o => !SpanLayout.IsSpanning(o) && covered.Exists(day => Hits(o, day, from, to, zone)))
             .DistinctBy(o => o.Key)];
     }
 
     // The event's part of the day, in wall-clock minutes as the grid draws it, against the band. Wall-clock (not
     // instants), so both passes of the repeated fall-back hour, and a spring-forward gap, count where they're drawn
-    static bool Hits(CalendarOccurrence o, DateOnly day, double from, double to, TimeZoneInfo zone)
+    private static bool Hits(CalendarOccurrence o, DateOnly day, double from, double to, TimeZoneInfo zone)
     {
         var dayStart = DragMath.Instant(day, 0, zone);
-        var dayEnd   = DragMath.Instant(day.AddDays(1), 0, zone);
+        var dayEnd = DragMath.Instant(day.AddDays(1), 0, zone);
 
-        // A Zero-Minute Event Counts When It Sits Inside The Band
+        // A Zero-Minute Event Counts When The Band Touches Its Card (drawn at the least height)
         if (o.Start == o.End)
         {
-            return o.Start >= dayStart && o.Start < dayEnd && WallMinutes(o.Start, zone) is var at && at >= from && at <= to;
+            return o.Start >= dayStart && o.Start < dayEnd && DayLayout.DrawnStart(WallMinutes(o.Start, zone)) is var at && at + DayLayout.MinVisualMinutes > from && at <= to;
         }
 
         if (o.Start >= dayEnd || o.End <= dayStart)
@@ -45,10 +59,11 @@ public static class BoxSelection
             return false;
         }
 
-        var top    = o.Start <= dayStart ? 0 : WallMinutes(o.Start, zone);
-        var bottom = o.End >= dayEnd ? 24 * 60 : WallMinutes(o.End, zone);
+        // A Short Event's Card Is Drawn At The Least Height, Inside The Day
+        var top = o.Start <= dayStart ? 0 : DayLayout.DrawnStart(WallMinutes(o.Start, zone));
+        var bottom = Math.Max(o.End >= dayEnd ? 24 * 60 : WallMinutes(o.End, zone), top + DayLayout.MinVisualMinutes);
         return top < to && bottom > from;
     }
 
-    static double WallMinutes(DateTimeOffset instant, TimeZoneInfo zone) => TimeZoneInfo.ConvertTime(instant, zone).TimeOfDay.TotalMinutes;
+    private static double WallMinutes(DateTimeOffset instant, TimeZoneInfo zone) => TimeZoneInfo.ConvertTime(instant, zone).TimeOfDay.TotalMinutes;
 }

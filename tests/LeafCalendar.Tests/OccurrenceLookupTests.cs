@@ -8,11 +8,11 @@ namespace LeafCalendar.Tests;
 
 public sealed class OccurrenceLookupTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private const string Primary = "leaf.tester@gmail.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public OccurrenceLookupTests()
     {
@@ -30,7 +30,7 @@ public sealed class OccurrenceLookupTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    CalendarOccurrence? Find(string eventId, DateTimeOffset start)
+    private CalendarOccurrence? Find(string eventId, DateTimeOffset start)
     {
         using var conn = _db.Database.Open();
         return OccurrenceLookup.Find(conn, Account, Primary, eventId, start, NewYork);
@@ -76,5 +76,23 @@ public sealed class OccurrenceLookupTests : IDisposable
         var o = Find("evt-weekly", new DateTimeOffset(2026, 10, 15, 22, 0, 0, TimeSpan.Zero));
 
         Assert.Equal(new DateTimeOffset(2026, 10, 16, 13, 30, 0, TimeSpan.Zero), o!.Start);
+    }
+
+    [Fact]
+    public void Find_SharedEvent_FindsTheSecondAccountsCopy()
+    {
+        // The same meeting (iCalUID and start) is in two accounts; the copy asked for is the one that sorts second
+        using var conn = _db.Database.Open();
+        AccountStore.Upsert(conn, new Account("222", "zzz.second@gmail.com", null, null, AccountStatus.Ok));
+        CalendarStore.ReplaceForAccount(conn, "222", [new CalendarListEntry { Id = "zzz.second@gmail.com", Summary = "Second", AccessRole = "owner", Primary = true, Selected = true }]);
+        using var doc = JsonDocument.Parse("""
+            {"id":"copy-in-second","status":"confirmed","iCalUID":"evt-single@google.com","summary":"Dentist appointment",
+             "start":{"dateTime":"2026-10-01T09:00:00-04:00"},"end":{"dateTime":"2026-10-01T10:00:00-04:00"}}
+            """);
+        EventStore.Apply(conn, null, "222", "zzz.second@gmail.com", doc.RootElement);
+
+        var o = OccurrenceLookup.Find(conn, "222", "zzz.second@gmail.com", "copy-in-second", new DateTimeOffset(2026, 10, 1, 13, 0, 0, TimeSpan.Zero), NewYork);
+
+        Assert.Equal("222", o?.AccountId);
     }
 }

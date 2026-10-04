@@ -10,7 +10,7 @@ namespace LeafCalendar.App.Notifications;
 /// <para>
 /// Leaf is packaged, so Windows activates the COM class declared in Package.appxmanifest when a notification is clicked.
 /// While Leaf runs, the click arrives here as <see cref="Invoked"/>; when it doesn't, Windows starts Leaf and
-/// <see cref="Program"/> hands the click to the App. Windows Do Not Disturb and Focus apply on their own; Leaf has no
+/// <see cref="Program"/> registers before reading the click, then hands it to the App. Windows Do Not Disturb and Focus apply on their own; Leaf has no
 /// pause switch (spec 1.4).
 /// </para>
 /// <para>
@@ -21,16 +21,19 @@ namespace LeafCalendar.App.Notifications;
 /// </remarks>
 internal sealed class Notifier(LeafServices services) : IDisposable
 {
-    readonly Lock _fileGate = new();
+    private readonly Lock _fileGate = new();
     // Read on the scheduler's and the sync threads, written on the UI thread
-    volatile bool _registered;
+    private volatile bool _registered;
 
     /// <summary>A notification or one of its buttons was clicked; the argument is its activation text. Raised on a background thread.</summary>
     public event EventHandler<string>? Invoked;
 
-    bool IsFake => services.Options.FakeGoogle is not null;
+    private bool IsFake => services.Options.FakeGoogle is not null;
 
-    /// <summary>Registers with Windows: the click handler first, then the registration, as Windows App SDK requires.</summary>
+    /// <summary>
+    /// Registers with Windows: the click handler first, then the registration, as Windows App SDK requires. When a click
+    /// started Leaf, <see cref="Program"/> already registered, so this only takes over the clicks.
+    /// </summary>
     public void Register()
     {
         if (IsFake || _registered)
@@ -41,7 +44,15 @@ internal sealed class Notifier(LeafServices services) : IDisposable
         try
         {
             AppNotificationManager.Default.NotificationInvoked += OnInvoked;
-            AppNotificationManager.Default.Register();
+            if (Program.NotificationsRegistered)
+            {
+                Program.ReleaseNotifications();
+            }
+            else
+            {
+                AppNotificationManager.Default.Register();
+            }
+
             _registered = true;
         }
         catch (Exception ex)
@@ -124,9 +135,9 @@ internal sealed class Notifier(LeafServices services) : IDisposable
         }
     }
 
-    void OnInvoked(AppNotificationManager sender, AppNotificationActivatedEventArgs args) => Invoked?.Invoke(this, args.Argument);
+    private void OnInvoked(AppNotificationManager sender, AppNotificationActivatedEventArgs args) => Invoked?.Invoke(this, args.Argument);
 
-    void Record(string verb, string group, string tag, string xml)
+    private void Record(string verb, string group, string tag, string xml)
     {
         try
         {

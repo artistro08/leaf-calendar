@@ -30,28 +30,28 @@ public sealed record FakeWrite(string Method, string Path, string Query, string?
 /// </remarks>
 public sealed class FakeGoogleServer : IDisposable
 {
-    const string PrimaryId      = "leaf.tester@gmail.com";
-    const string FamilyId       = "family123@group.calendar.google.com";
-    const string EventsPrefix   = "/calendar/v3/calendars/";
-    const string CalendarScopes = "openid https://www.googleapis.com/auth/calendar";
-    const string ContactsScopes = "https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly https://www.googleapis.com/auth/directory.readonly";
+    private const string PrimaryId = "leaf.tester@gmail.com";
+    private const string FamilyId = "family123@group.calendar.google.com";
+    private const string EventsPrefix = "/calendar/v3/calendars/";
+    private const string CalendarScopes = "openid https://www.googleapis.com/auth/calendar";
+    private const string ContactsScopes = "https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly https://www.googleapis.com/auth/directory.readonly";
 
-    readonly TcpListener _listener = new(IPAddress.Loopback, 0);
-    readonly CancellationTokenSource _stop = new();
-    readonly string _fixtures = Path.Combine(AppContext.BaseDirectory, "Fixtures");
-    readonly Lock _gate = new();
+    private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
+    private readonly CancellationTokenSource _stop = new();
+    private readonly string _fixtures = Path.Combine(AppContext.BaseDirectory, "Fixtures");
+    private readonly Lock _gate = new();
 
     // Google's copy: calendar ID -> event ID -> event
-    readonly Dictionary<string, Dictionary<string, JsonObject>> _events = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Dictionary<string, JsonObject>> _events = new(StringComparer.Ordinal);
 
     // Calendar-list entry changes (rename, default reminders), by calendar ID; a null value removes the property
-    readonly Dictionary<string, JsonObject> _listPatches = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, JsonObject> _listPatches = new(StringComparer.Ordinal);
 
     // Change feed for incremental syncs
-    readonly List<(long Version, string Calendar, string Id)> _changes = [];
-    long _version = 1;
-    long _etag = 9_000_000;
-    int _revokes;
+    private readonly List<(long Version, string Calendar, string Id)> _changes = [];
+    private long _version = 1;
+    private long _etag = 9_000_000;
+    private int _revokes;
 
     /// <summary>Seeds the events and starts listening on a random loopback port.</summary>
     public FakeGoogleServer()
@@ -167,7 +167,7 @@ public sealed class FakeGoogleServer : IDisposable
     // HTTP
     // =========================================================================
 
-    async Task AcceptLoopAsync()
+    private async Task AcceptLoopAsync()
     {
         while (!_stop.IsCancellationRequested)
         {
@@ -185,7 +185,7 @@ public sealed class FakeGoogleServer : IDisposable
         }
     }
 
-    async Task HandleAsync(TcpClient client)
+    private async Task HandleAsync(TcpClient client)
     {
         using (client)
         {
@@ -214,7 +214,7 @@ public sealed class FakeGoogleServer : IDisposable
                     (status, content, location) = (500, Error(500, ex.GetType().Name), null);
                 }
 
-                var bytes  = Encoding.UTF8.GetBytes(content);
+                var bytes = Encoding.UTF8.GetBytes(content);
                 var header = new StringBuilder()
                     .Append(CultureInfo.InvariantCulture, $"HTTP/1.1 {status} {Reason(status)}\r\n")
                     .Append("Content-Type: application/json\r\n")
@@ -233,10 +233,10 @@ public sealed class FakeGoogleServer : IDisposable
         }
     }
 
-    (int Status, string Content, string? Location) Route(string method, string target, string? ifMatch, string body)
+    private (int Status, string Content, string? Location) Route(string method, string target, string? ifMatch, string body)
     {
-        var uri   = new Uri(BaseUri, target);
-        var path  = uri.AbsolutePath;
+        var uri = new Uri(BaseUri, target);
+        var path = uri.AbsolutePath;
         var query = QueryString.Parse(uri.Query);
 
         // Sign-In
@@ -284,7 +284,7 @@ public sealed class FakeGoogleServer : IDisposable
             var user = JsonNode.Parse(Read("userinfo.json"))!;
             if (SignInAsOtherUser)
             {
-                user["sub"]   = OtherUserId;
+                user["sub"] = OtherUserId;
                 user["email"] = OtherUserEmail;
             }
 
@@ -332,7 +332,7 @@ public sealed class FakeGoogleServer : IDisposable
         return NotFound();
     }
 
-    (int, string, string?) RouteEvents(string method, string rest, string rawQuery, Dictionary<string, string> query, string? ifMatch, string body)
+    private (int, string, string?) RouteEvents(string method, string rest, string rawQuery, Dictionary<string, string> query, string? ifMatch, string body)
     {
         var parts = rest.Split('/');
         if (parts.Length < 2 || parts[1] != "events")
@@ -367,9 +367,9 @@ public sealed class FakeGoogleServer : IDisposable
             {
                 return method switch
                 {
-                    "GET"  => List(calendarId, query),
+                    "GET" => List(calendarId, query),
                     "POST" => Insert(calendarId, body, ConferenceEnabled(rawQuery)),
-                    _      => NotFound(),
+                    _ => NotFound(),
                 };
             }
 
@@ -381,10 +381,10 @@ public sealed class FakeGoogleServer : IDisposable
 
             return method switch
             {
-                "GET"    => Get(calendarId, id),
-                "PATCH"  => Patch(calendarId, id, ifMatch, body, ConferenceEnabled(rawQuery)),
+                "GET" => Get(calendarId, id),
+                "PATCH" => Patch(calendarId, id, ifMatch, body, ConferenceEnabled(rawQuery)),
                 "DELETE" => Delete(calendarId, id, ifMatch),
-                _        => NotFound(),
+                _ => NotFound(),
             };
         }
     }
@@ -394,9 +394,9 @@ public sealed class FakeGoogleServer : IDisposable
     // =========================================================================
 
     // The fixture list with the test's edits, then the PATCHed changes on top
-    JsonNode CalendarList()
+    private JsonNode CalendarList()
     {
-        var list  = JsonNode.Parse(Read(ManyCalendars ? "calendar-list-many.json" : "calendar-list.json"))!;
+        var list = JsonNode.Parse(Read(ManyCalendars ? "calendar-list-many.json" : "calendar-list.json"))!;
         var items = list["items"]!.AsArray();
         foreach (var item in items.OfType<JsonObject>().Where(c => (string?)c["id"] == DroppedCalendarId).ToList())
         {
@@ -423,7 +423,7 @@ public sealed class FakeGoogleServer : IDisposable
     }
 
     // Remembers the change (nulls included, so a later GET drops the property) and answers the changed entry
-    (int, string, string?) PatchListEntry(string id, string body)
+    private (int, string, string?) PatchListEntry(string id, string body)
     {
         var patch = JsonNode.Parse(body)!.AsObject();
         lock (_gate)
@@ -444,11 +444,11 @@ public sealed class FakeGoogleServer : IDisposable
     }
 
     // Busy for each item: Busy's ranges, the seeded calendars' timed busy events, or Google's notFound
-    (int, string, string?) FreeBusy(string body)
+    private (int, string, string?) FreeBusy(string body)
     {
-        var request   = JsonNode.Parse(body)!;
-        var from      = DateTimeOffset.Parse((string)request["timeMin"]!, CultureInfo.InvariantCulture);
-        var to        = DateTimeOffset.Parse((string)request["timeMax"]!, CultureInfo.InvariantCulture);
+        var request = JsonNode.Parse(body)!;
+        var from = DateTimeOffset.Parse((string)request["timeMin"]!, CultureInfo.InvariantCulture);
+        var to = DateTimeOffset.Parse((string)request["timeMax"]!, CultureInfo.InvariantCulture);
         var calendars = new JsonObject();
 
         foreach (var id in request["items"]!.AsArray().Select(i => (string)i!["id"]!))
@@ -473,7 +473,7 @@ public sealed class FakeGoogleServer : IDisposable
                 ? new JsonObject
                 {
                     ["errors"] = new JsonArray(new JsonObject { ["domain"] = "global", ["reason"] = "notFound" }),
-                    ["busy"]   = new JsonArray(),
+                    ["busy"] = new JsonArray(),
                 }
                 : new JsonObject
                 {
@@ -488,7 +488,7 @@ public sealed class FakeGoogleServer : IDisposable
         return (200, new JsonObject { ["calendars"] = calendars }.ToJsonString(), null);
     }
 
-    static string Utc(DateTimeOffset at) => at.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+    private static string Utc(DateTimeOffset at) => at.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
 
     // =========================================================================
     // PEOPLE
@@ -497,14 +497,14 @@ public sealed class FakeGoogleServer : IDisposable
     // Google's contact search: a case-insensitive prefix of any word of the name, or of the address.
     // An empty query is the warmup request and matches nothing, as on Google. The directory answers only
     // Workspace accounts (HostedDomain), and lists its matches under "people" instead of "results".
-    (int, string, string?) People(string path, IReadOnlyDictionary<string, string> query)
+    private (int, string, string?) People(string path, IReadOnlyDictionary<string, string> query)
     {
         var (fixture, directory) = path switch
         {
-            "/people/v1/people:searchContacts"        => ("contacts-search.json", false),
-            "/people/v1/otherContacts:search"         => ("other-contacts-search.json", false),
+            "/people/v1/people:searchContacts" => ("contacts-search.json", false),
+            "/people/v1/otherContacts:search" => ("other-contacts-search.json", false),
             "/people/v1/people:searchDirectoryPeople" => ("directory-search.json", true),
-            _                                         => ((string?)null, false),
+            _ => ((string?)null, false),
         };
 
         if (fixture is null)
@@ -522,8 +522,8 @@ public sealed class FakeGoogleServer : IDisposable
             return (400, """{"error":{"code":400,"message":"Must be a G Suite domain user.","status":"FAILED_PRECONDITION","errors":[{"reason":"failedPrecondition"}]}}""", null);
         }
 
-        var text    = query.GetValueOrDefault("query") ?? "";
-        var key     = directory ? "people" : "results";
+        var text = query.GetValueOrDefault("query") ?? "";
+        var key = directory ? "people" : "results";
         var matches = JsonNode.Parse(Read(fixture))![key]!.AsArray()
             .Where(r => text.Length > 0 && Matches(directory ? r! : r!["person"]!, text))
             .Select(r => r!.DeepClone());
@@ -531,9 +531,9 @@ public sealed class FakeGoogleServer : IDisposable
         return (200, new JsonObject { [key] = new JsonArray([.. matches]) }.ToJsonString(), null);
     }
 
-    static bool Matches(JsonNode person, string text)
+    private static bool Matches(JsonNode person, string text)
     {
-        var names  = person["names"]?.AsArray().Select(n => (string?)n!["displayName"] ?? "") ?? [];
+        var names = person["names"]?.AsArray().Select(n => (string?)n!["displayName"] ?? "") ?? [];
         var emails = person["emailAddresses"]?.AsArray().Select(e => (string?)e!["value"] ?? "") ?? [];
 
         return names.SelectMany(n => n.Split(' ', StringSplitOptions.RemoveEmptyEntries))
@@ -545,7 +545,7 @@ public sealed class FakeGoogleServer : IDisposable
     // EVENTS (called under _gate)
     // =========================================================================
 
-    (int, string, string?) List(string calendarId, Dictionary<string, string> query)
+    private (int, string, string?) List(string calendarId, Dictionary<string, string> query)
     {
         var events = Store(calendarId);
         IEnumerable<JsonObject> items = events.Values;
@@ -559,13 +559,13 @@ public sealed class FakeGoogleServer : IDisposable
 
         var page = new JsonObject
         {
-            ["items"]         = new JsonArray([.. items.Select(e => (JsonNode)e.DeepClone())]),
+            ["items"] = new JsonArray([.. items.Select(e => (JsonNode)e.DeepClone())]),
             ["nextSyncToken"] = string.Create(CultureInfo.InvariantCulture, $"sync-token-{_version}"),
         };
         return (200, page.ToJsonString(), null);
     }
 
-    (int, string, string?) Insert(string calendarId, string body, bool conference)
+    private (int, string, string?) Insert(string calendarId, string body, bool conference)
     {
         var ev = JsonNode.Parse(body)!.AsObject();
         var id = (string?)ev["id"] ?? Guid.NewGuid().ToString("N");
@@ -574,7 +574,7 @@ public sealed class FakeGoogleServer : IDisposable
             return (409, Error(409, "duplicate"), null);
         }
 
-        ev["id"]      = id;
+        ev["id"] = id;
         ev["status"] ??= "confirmed";
         ev["iCalUID"] = id + "@google.com";
         if (ev.ContainsKey("conferenceData"))
@@ -587,7 +587,7 @@ public sealed class FakeGoogleServer : IDisposable
         return (200, ev.ToJsonString(), null);
     }
 
-    (int, string, string?) Patch(string calendarId, string id, string? ifMatch, string body, bool conference)
+    private (int, string, string?) Patch(string calendarId, string id, string? ifMatch, string body, bool conference)
     {
         if (Existing(calendarId, id) is not { } ev)
         {
@@ -600,9 +600,9 @@ public sealed class FakeGoogleServer : IDisposable
         }
 
         // Video Call Changes Are Handled Apart From The Merge
-        var patch      = JsonNode.Parse(body)!.AsObject();
+        var patch = JsonNode.Parse(body)!.AsObject();
         var hasConfRaw = patch.ContainsKey("conferenceData");
-        var confValue  = patch["conferenceData"];
+        var confValue = patch["conferenceData"];
         patch.Remove("conferenceData");
         Merge(ev, patch);
         if (hasConfRaw)
@@ -615,11 +615,11 @@ public sealed class FakeGoogleServer : IDisposable
     }
 
     // Google reads conferenceData only with conferenceDataVersion=1
-    static bool ConferenceEnabled(string rawQuery) =>
+    private static bool ConferenceEnabled(string rawQuery) =>
         rawQuery.TrimStart('?').Split('&').Contains("conferenceDataVersion=1", StringComparer.Ordinal);
 
     // A createRequest becomes a Meet link, null removes it, stored conferenceData stays as given, and without version 1 the field is ignored
-    static void ApplyConference(JsonObject ev, JsonNode? value, bool enabled)
+    private static void ApplyConference(JsonObject ev, JsonNode? value, bool enabled)
     {
         ev.Remove("conferenceData", out _);
         if (!enabled)
@@ -635,11 +635,11 @@ public sealed class FakeGoogleServer : IDisposable
         {
             var code = requestId.Length > 4 ? requestId[..4] : requestId;
             var link = "https://meet.google.com/fake-" + code;
-            ev["hangoutLink"]    = link;
+            ev["hangoutLink"] = link;
             ev["conferenceData"] = new JsonObject
             {
                 ["conferenceId"] = "fake-" + code,
-                ["entryPoints"]  = new JsonArray(new JsonObject { ["entryPointType"] = "video", ["uri"] = link }),
+                ["entryPoints"] = new JsonArray(new JsonObject { ["entryPointType"] = "video", ["uri"] = link }),
             };
         }
         else
@@ -648,7 +648,7 @@ public sealed class FakeGoogleServer : IDisposable
         }
     }
 
-    (int, string, string?) Delete(string calendarId, string id, string? ifMatch)
+    private (int, string, string?) Delete(string calendarId, string id, string? ifMatch)
     {
         if (Existing(calendarId, id) is not { } ev)
         {
@@ -670,7 +670,7 @@ public sealed class FakeGoogleServer : IDisposable
         return (204, "", null);
     }
 
-    (int, string, string?) Move(string calendarId, string id, string destination)
+    private (int, string, string?) Move(string calendarId, string id, string destination)
     {
         var source = Store(calendarId);
         if (!source.TryGetValue(id, out var ev) || (string?)ev["status"] == "cancelled")
@@ -685,11 +685,11 @@ public sealed class FakeGoogleServer : IDisposable
         return (200, ev.ToJsonString(), null);
     }
 
-    (int, string, string?) Get(string calendarId, string id) =>
+    private (int, string, string?) Get(string calendarId, string id) =>
         Store(calendarId).TryGetValue(id, out var ev) ? (200, ev.ToJsonString(), null) : NotFound();
 
     // The stored event, or an instance of a stored series made into its own row (Google does the same on first write)
-    JsonObject? Existing(string calendarId, string id)
+    private JsonObject? Existing(string calendarId, string id)
     {
         var events = Store(calendarId);
         if (events.TryGetValue(id, out var ev))
@@ -703,44 +703,44 @@ public sealed class FakeGoogleServer : IDisposable
             return null;
         }
 
-        var stamp    = id[(cut + 1)..];
-        var allDay   = stamp.Length == 8;
+        var stamp = id[(cut + 1)..];
+        var allDay = stamp.Length == 8;
         var original = allDay
             ? DateTime.ParseExact(stamp, "yyyyMMdd", CultureInfo.InvariantCulture)
             : DateTime.ParseExact(stamp, "yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
 
         var instance = master.DeepClone().AsObject();
         instance.Remove("recurrence");
-        instance["id"]               = id;
+        instance["id"] = id;
         instance["recurringEventId"] = id[..cut];
         if (allDay)
         {
             var date = original.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
             instance["originalStartTime"] = new JsonObject { ["date"] = date };
-            instance["start"]             = new JsonObject { ["date"] = date };
-            instance["end"]               = new JsonObject { ["date"] = original.AddDays(1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) };
+            instance["start"] = new JsonObject { ["date"] = date };
+            instance["end"] = new JsonObject { ["date"] = original.AddDays(1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) };
         }
         else
         {
-            var zone     = (string?)master["start"]?["timeZone"];
-            var length   = DateTimeOffset.Parse((string)master["end"]!["dateTime"]!, CultureInfo.InvariantCulture) - DateTimeOffset.Parse((string)master["start"]!["dateTime"]!, CultureInfo.InvariantCulture);
+            var zone = (string?)master["start"]?["timeZone"];
+            var length = DateTimeOffset.Parse((string)master["end"]!["dateTime"]!, CultureInfo.InvariantCulture) - DateTimeOffset.Parse((string)master["start"]!["dateTime"]!, CultureInfo.InvariantCulture);
             instance["originalStartTime"] = new JsonObject { ["dateTime"] = original.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture), ["timeZone"] = zone };
-            instance["start"]             = new JsonObject { ["dateTime"] = original.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture), ["timeZone"] = zone };
-            instance["end"]               = new JsonObject { ["dateTime"] = (original + length).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture), ["timeZone"] = zone };
+            instance["start"] = new JsonObject { ["dateTime"] = original.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture), ["timeZone"] = zone };
+            instance["end"] = new JsonObject { ["dateTime"] = (original + length).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture), ["timeZone"] = zone };
         }
 
         events[id] = instance;
         return instance;
     }
 
-    void Touch(string calendarId, JsonObject ev)
+    private void Touch(string calendarId, JsonObject ev)
     {
-        ev["etag"]    = string.Create(CultureInfo.InvariantCulture, $"\"{++_etag}\"");
+        ev["etag"] = string.Create(CultureInfo.InvariantCulture, $"\"{++_etag}\"");
         ev["updated"] = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
         _changes.Add((++_version, calendarId, (string)ev["id"]!));
     }
 
-    Dictionary<string, JsonObject> Store(string calendarId)
+    private Dictionary<string, JsonObject> Store(string calendarId)
     {
         if (!_events.TryGetValue(calendarId, out var events))
         {
@@ -762,7 +762,7 @@ public sealed class FakeGoogleServer : IDisposable
         }
     }
 
-    void Seed(string calendarId, string fixture)
+    private void Seed(string calendarId, string fixture)
     {
         foreach (var item in JsonNode.Parse(Read(fixture))!["items"]!.AsArray())
         {
@@ -771,7 +771,7 @@ public sealed class FakeGoogleServer : IDisposable
         }
     }
 
-    static void Merge(JsonObject target, JsonObject patch)
+    private static void Merge(JsonObject target, JsonObject patch)
     {
         foreach (var (name, value) in patch)
         {
@@ -790,12 +790,12 @@ public sealed class FakeGoogleServer : IDisposable
         }
     }
 
-    static (int, string, string?) NotFound() => (404, Error(404, "notFound"), null);
+    private static (int, string, string?) NotFound() => (404, Error(404, "notFound"), null);
 
-    static string Error(int code, string reason) =>
+    private static string Error(int code, string reason) =>
         string.Create(CultureInfo.InvariantCulture, $$$"""{"error":{"code":{{{code}}},"errors":[{"reason":"{{{reason}}}"}]}}""");
 
-    static string Reason(int status) => status switch
+    private static string Reason(int status) => status switch
     {
         200 => "OK",
         204 => "No Content",
@@ -806,12 +806,12 @@ public sealed class FakeGoogleServer : IDisposable
         410 => "Gone",
         412 => "Precondition Failed",
         500 => "Internal Server Error",
-        _   => "Not Found",
+        _ => "Not Found",
     };
 
-    string Read(string name) => File.ReadAllText(Path.Combine(_fixtures, name));
+    private string Read(string name) => File.ReadAllText(Path.Combine(_fixtures, name));
 
-    static async Task<(string Method, string Target, Dictionary<string, string> Headers, string Body)> ReadRequestAsync(NetworkStream stream)
+    private static async Task<(string Method, string Target, Dictionary<string, string> Headers, string Body)> ReadRequestAsync(NetworkStream stream)
     {
         var buffer = new byte[65536];
         var length = 0;
@@ -827,8 +827,8 @@ public sealed class FakeGoogleServer : IDisposable
             }
         }
 
-        var lines   = Encoding.ASCII.GetString(buffer, 0, headerEnd).Split("\r\n");
-        var parts   = lines[0].Split(' ');
+        var lines = Encoding.ASCII.GetString(buffer, 0, headerEnd).Split("\r\n");
+        var parts = lines[0].Split(' ');
         var headers = lines.Skip(1)
             .Select(l => l.Split(':', 2))
             .Where(p => p.Length == 2)

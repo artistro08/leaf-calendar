@@ -25,7 +25,7 @@ namespace LeafCalendar.Core.Google;
 /// <seealso href="https://developers.google.com/workspace/calendar/api/guides/version-resources"/>
 public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider tokens, GoogleEndpoints? endpoints = null)
 {
-    readonly Uri _baseUri = (endpoints ?? GoogleEndpoints.Default).CalendarApi;
+    private readonly Uri _baseUri = (endpoints ?? GoogleEndpoints.Default).CalendarApi;
 
     /// <summary>Returns every calendar in the account's list (all pages).</summary>
     public async Task<IReadOnlyList<CalendarListEntry>> ListCalendarsAsync(string accountId, CancellationToken ct)
@@ -87,12 +87,20 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
             throw new ArgumentException("The event JSON must carry a non-empty id.", nameof(eventJson));
         }
 
-        using var response = await SendAsync(accountId, HttpMethod.Post, $"{EventsPath(calendarId)}?sendUpdates={Updates(sendUpdates)}{ConferenceQuery(eventJson)}", eventJson, null, ct);
+        // A Copy Keeps The Original's Attachments, Which Google Ignores Unless Asked To Read Them
+        using var response = await SendAsync(accountId, HttpMethod.Post, $"{EventsPath(calendarId)}?sendUpdates={Updates(sendUpdates)}&supportsAttachments=true{ConferenceQuery(eventJson)}", eventJson, null, ct);
         return await ReadEventAsync(response, ct, isInsert: true);
     }
 
     /// <summary>Changes the fields in <paramref name="patchJson"/> and returns Google's JSON.</summary>
+    /// <param name="accountId">The account that holds the calendar.</param>
+    /// <param name="calendarId">The calendar that holds the event.</param>
+    /// <param name="eventId">The event (or instance) to change.</param>
+    /// <param name="patchJson">The changed fields only, as Google's event JSON.</param>
     /// <param name="ifMatch">The ETag the edit was made on; null for an instance Google hasn't stored as its own row yet.</param>
+    /// <param name="sendUpdates">True to have Google email the guests about the change.</param>
+    /// <param name="ct">Cancels the request.</param>
+    /// <returns>Google's JSON for the changed event.</returns>
     /// <exception cref="PreconditionFailedException">Google's copy changed since that ETag.</exception>
     /// <exception cref="EventGoneException">The event was deleted on Google.</exception>
     public async Task<string> PatchEventAsync(string accountId, string calendarId, string eventId, string patchJson, string? ifMatch, bool sendUpdates, CancellationToken ct)
@@ -162,7 +170,7 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
         {
             TimeMin = Rfc3339(from),
             TimeMax = Rfc3339(to),
-            Items   = [.. ids.Select(id => new FreeBusyItem { Id = id })],
+            Items = [.. ids.Select(id => new FreeBusyItem { Id = id })],
         }, GoogleJsonContext.Default.FreeBusyRequest);
 
         using var response = await SendAsync(accountId, HttpMethod.Post, "freeBusy", body, null, ct);
@@ -173,7 +181,7 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
 
         // Answer (an ID left out counts as an error, never as free)
         var answer = await response.Content.ReadFromJsonAsync(GoogleJsonContext.Default.FreeBusyResponse, ct);
-        var found  = new Dictionary<string, FreeBusyCalendar>(answer?.Calendars ?? [], StringComparer.OrdinalIgnoreCase);
+        var found = new Dictionary<string, FreeBusyCalendar>(answer?.Calendars ?? [], StringComparer.OrdinalIgnoreCase);
         return ids.Distinct(StringComparer.Ordinal).ToDictionary(id => id, id => found.TryGetValue(id, out var c)
             ? new FreeBusyResult(
                 [.. (c.Busy ?? []).Where(b => b.End > b.Start && b.End > from && b.Start < to).Take(MaxBusyPerCalendar)
@@ -217,19 +225,19 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
         return await response.Content.ReadFromJsonAsync(GoogleJsonContext.Default.EventsPage, ct);
     }
 
-    static string Rfc3339(DateTimeOffset at) => at.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+    private static string Rfc3339(DateTimeOffset at) => at.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
 
     // =========================================================================
     // HTTP
     // =========================================================================
 
-    static string EventsPath(string calendarId) => $"calendars/{Uri.EscapeDataString(calendarId)}/events";
+    private static string EventsPath(string calendarId) => $"calendars/{Uri.EscapeDataString(calendarId)}/events";
 
-    static string EventPath(string calendarId, string eventId) => $"{EventsPath(calendarId)}/{Uri.EscapeDataString(eventId)}";
+    private static string EventPath(string calendarId, string eventId) => $"{EventsPath(calendarId)}/{Uri.EscapeDataString(eventId)}";
 
     // Google only reads conferenceData (create, copy, or remove a video call) when asked to.
     // A body that isn't JSON counts as having none; Google then refuses it with its own error.
-    static string ConferenceQuery(string body)
+    private static string ConferenceQuery(string body)
     {
         try
         {
@@ -241,17 +249,18 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
         }
     }
 
-    static string Updates(bool sendUpdates) => sendUpdates ? "all" : "none";
+    private static string Updates(bool sendUpdates) => sendUpdates ? "all" : "none";
 
     // Maps write statuses to Leaf's exceptions; success returns the body ("" for 204).
-    // A 409 means "that ID exists" only for an insert; elsewhere it stays a GoogleApiException (a permanent refusal)
-    static async Task<string> ReadEventAsync(HttpResponseMessage response, CancellationToken ct, bool isInsert = false)
+    // A 409 means "that ID exists" only for an insert; elsewhere it stays a GoogleApiException (a permanent refusal).
+    // A 404 or 410 means "the event is gone" except for an insert, where it's the calendar (also a permanent refusal)
+    private static async Task<string> ReadEventAsync(HttpResponseMessage response, CancellationToken ct, bool isInsert = false)
     {
         switch (response.StatusCode)
         {
             case HttpStatusCode.PreconditionFailed:
                 throw new PreconditionFailedException();
-            case HttpStatusCode.NotFound or HttpStatusCode.Gone:
+            case HttpStatusCode.NotFound or HttpStatusCode.Gone when !isInsert:
                 throw new EventGoneException();
             case HttpStatusCode.Conflict when isInsert:
                 throw new DuplicateEventException();
@@ -266,7 +275,7 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
     }
 
     // A 410 means "sync token expired" only on an events list; anywhere else it's an ordinary API error
-    async Task<T> GetAsync<T>(string accountId, string relativePath, JsonTypeInfo<T> info, bool goneIsExpiredToken, CancellationToken ct)
+    private async Task<T> GetAsync<T>(string accountId, string relativePath, JsonTypeInfo<T> info, bool goneIsExpiredToken, CancellationToken ct)
     {
         using var response = await SendAsync(accountId, HttpMethod.Get, relativePath, null, null, ct);
 
@@ -285,14 +294,14 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
     }
 
     // One call with a fresh access token; a 401 drops the cached token and retries once
-    async Task<HttpResponseMessage> SendAsync(string accountId, HttpMethod method, string relativePath, string? body, string? ifMatch, CancellationToken ct)
+    private async Task<HttpResponseMessage> SendAsync(string accountId, HttpMethod method, string relativePath, string? body, string? ifMatch, CancellationToken ct)
     {
         var uri = new Uri(_baseUri, relativePath);
 
         for (var attempt = 0; ; attempt++)
         {
             using var request = new HttpRequestMessage(method, uri);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await tokens.GetAccessTokenAsync(accountId, ct));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await GetAccessTokenAsync(accountId, ct));
 
             if (body is not null)
             {
@@ -316,6 +325,19 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
             }
 
             return response;
+        }
+    }
+
+    // A token endpoint failure is a 401 for the call (never Google refusing the request itself)
+    private async ValueTask<string> GetAccessTokenAsync(string accountId, CancellationToken ct)
+    {
+        try
+        {
+            return await tokens.GetAccessTokenAsync(accountId, ct);
+        }
+        catch (GoogleApiException ex)
+        {
+            throw new GoogleApiException(HttpStatusCode.Unauthorized, ex.Reason, ex.Message);
         }
     }
 }

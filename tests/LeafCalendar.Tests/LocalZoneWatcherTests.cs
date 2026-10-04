@@ -4,13 +4,13 @@ namespace LeafCalendar.Tests;
 
 public class LocalZoneWatcherTests
 {
-    static readonly TimeZoneInfo Chicago = TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");
-    static readonly TimeZoneInfo Tokyo   = TimeZoneInfo.FindSystemTimeZoneById("Asia/Tokyo");
+    private static readonly TimeZoneInfo Chicago = TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");
+    private static readonly TimeZoneInfo Tokyo = TimeZoneInfo.FindSystemTimeZoneById("Asia/Tokyo");
 
     [Fact]
     public void Check_SameZone_ReportsNoChange()
     {
-        var clears  = 0;
+        var clears = 0;
         var watcher = new LocalZoneWatcher(() => Chicago, () => clears++);
 
         Assert.False(watcher.Check());

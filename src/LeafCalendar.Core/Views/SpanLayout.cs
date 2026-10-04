@@ -48,8 +48,8 @@ public static class SpanLayout
             }
 
             var (first, last) = CoveredDates(occurrence, zone);
-            var firstColumn   = FirstIndex(columns, d => d >= first && d <= last);
-            var lastColumn    = LastIndex(columns, d => d >= first && d <= last);
+            var firstColumn = FirstIndex(columns, d => d >= first && d <= last);
+            var lastColumn = LastIndex(columns, d => d >= first && d <= last);
             if (firstColumn < 0)
             {
                 continue;
@@ -60,7 +60,7 @@ public static class SpanLayout
 
         // Pack Lanes
         var laneEnds = new List<int>();
-        var result   = new List<SpanBlock>(candidates.Count);
+        var result = new List<SpanBlock>(candidates.Count);
         foreach (var c in candidates
             .OrderBy(c => c.First)
             .ThenBy(c => IsSpanning(c.Occurrence) ? 0 : 1)
@@ -84,9 +84,9 @@ public static class SpanLayout
         return result;
     }
 
-    static DateOnly LocalDate(DateTimeOffset instant, TimeZoneInfo zone) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, zone).DateTime);
+    private static DateOnly LocalDate(DateTimeOffset instant, TimeZoneInfo zone) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, zone).DateTime);
 
-    static int FirstIndex(IReadOnlyList<DateOnly> columns, Func<DateOnly, bool> match)
+    private static int FirstIndex(IReadOnlyList<DateOnly> columns, Func<DateOnly, bool> match)
     {
         for (var i = 0; i < columns.Count; i++)
         {
@@ -99,7 +99,7 @@ public static class SpanLayout
         return -1;
     }
 
-    static int LastIndex(IReadOnlyList<DateOnly> columns, Func<DateOnly, bool> match)
+    private static int LastIndex(IReadOnlyList<DateOnly> columns, Func<DateOnly, bool> match)
     {
         for (var i = columns.Count - 1; i >= 0; i--)
         {

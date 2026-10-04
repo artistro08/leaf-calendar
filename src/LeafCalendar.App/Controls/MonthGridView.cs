@@ -35,36 +35,36 @@ public sealed partial class MonthGridView : Grid, IDisposable
     /// <summary>Space for the day number at the top of a cell.</summary>
     public const double DayNumberHeight = 26;
 
-    const int WeeksEachSide = 260;
+    private const int WeeksEachSide = 260;
 
-    readonly CalendarViewModel _vm;
-    readonly Grid _weekdays = new() { Height = 32 };
-    readonly ScrollViewer _scroll = new() { HorizontalScrollMode = ScrollMode.Disabled, ZoomMode = ZoomMode.Disabled };
+    private readonly CalendarViewModel _vm;
+    private readonly Grid _weekdays = new() { Height = 32 };
+    private readonly ScrollViewer _scroll = new() { HorizontalScrollMode = ScrollMode.Disabled, ZoomMode = ZoomMode.Disabled };
     // One column of fixed-size rows: positions are exact (index × height), unlike StackLayout's estimates,
     // which put rows off by part of a row after the row height changes
-    readonly UniformGridLayout _layout = new() { Orientation = Orientation.Horizontal, MaximumRowsOrColumns = 1 };
-    readonly ItemsRepeater _repeater = new() { VerticalCacheLength = 2 };
-    readonly HashSet<WeekRow> _rows = [];
-    List<WeekItem> _weeks = [];
-    bool _disposed;
-    bool _renderDeferred;
-    int _firstIndex;
-    int _reportedIndex = -1;
-    double _layoutWidth;
+    private readonly UniformGridLayout _layout = new() { Orientation = Orientation.Horizontal, MaximumRowsOrColumns = 1 };
+    private readonly ItemsRepeater _repeater = new() { VerticalCacheLength = 2 };
+    private readonly HashSet<WeekRow> _rows = [];
+    private List<WeekItem> _weeks = [];
+    private bool _disposed;
+    private bool _renderDeferred;
+    private int _firstIndex;
+    private int _reportedIndex = -1;
+    private double _layoutWidth;
 
     // The week a navigation is scrolling to; until the body lands there, offsets on the way are ignored
-    int? _pendingIndex;
+    private int? _pendingIndex;
 
     // The XamlRoot this view listens to for scale changes (kept: it's already gone when a closing window unloads the view)
-    XamlRoot? _root;
+    private XamlRoot? _root;
 
     // An animated scroll is running; jumps wait for it (see TimeGridView: a jump doesn't cancel it)
-    bool _animating;
+    private bool _animating;
 
     // Drag ghost over the week rows (never takes hits)
-    readonly Canvas _dragLayer = new() { IsHitTestVisible = false };
-    readonly Border _ghost = new() { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2), Visibility = Visibility.Collapsed };
-    readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 2, 4, 0), Text = "+ Copy" };
+    private readonly Canvas _dragLayer = new() { IsHitTestVisible = false };
+    private readonly Border _ghost = new() { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2), Visibility = Visibility.Collapsed };
+    private readonly TextBlock _ghostLabel = new() { FontSize = 11, Margin = new Thickness(6, 2, 4, 0), Text = "+ Copy" };
 
     /// <summary>Builds the view for <paramref name="vm"/>.</summary>
     public MonthGridView(CalendarViewModel vm)
@@ -79,7 +79,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
         Children.Add(_weekdays);
 
         // Weeks
-        _repeater.Layout       = _layout;
+        _repeater.Layout = _layout;
         _repeater.ItemTemplate = new WeekRowFactory(this);
         _repeater.ElementPrepared += (_, e) => _rows.Add((WeekRow)e.Element);
         _repeater.ElementClearing += (_, e) => _rows.Remove((WeekRow)e.Element);
@@ -92,22 +92,22 @@ public sealed partial class MonthGridView : Grid, IDisposable
         // No Scroll Anchoring: this view keeps its own first week (anchoring shifts the offset when rows change height)
         _scroll.VerticalAnchorRatio = double.NaN;
 
-        _scroll.ViewChanged   += OnViewChanged;
-        _scroll.SizeChanged   += (_, _) => Relayout(force: false);
+        _scroll.ViewChanged += OnViewChanged;
+        _scroll.SizeChanged += (_, _) => Relayout(force: false);
         _repeater.SizeChanged += (_, _) => RetryPendingScroll();
         _scroll.DirectManipulationStarted += (_, _) => _pendingIndex = null;
-        Loaded                += (_, _) =>
+        Loaded += (_, _) =>
         {
             BuildWeekdayHeader();
             (_root = XamlRoot).Changed += OnXamlRootChanged;
             LeafBrushes.ContrastChanged += OnContrastChanged;
         };
-        Unloaded              += (_, _) =>
+        Unloaded += (_, _) =>
         {
             _root?.Changed -= OnXamlRootChanged;
             LeafBrushes.ContrastChanged -= OnContrastChanged;
         };
-        ActualThemeChanged    += (_, _) =>
+        ActualThemeChanged += (_, _) =>
         {
             BuildWeekdayHeader();
             RenderAll();
@@ -115,11 +115,11 @@ public sealed partial class MonthGridView : Grid, IDisposable
 
         // View Model
         _vm.OccurrencesChanged += OnOccurrencesChanged;
-        _vm.LayoutChanged      += OnLayoutChanged;
-        _vm.NavigateRequested  += OnNavigateRequested;
+        _vm.LayoutChanged += OnLayoutChanged;
+        _vm.NavigateRequested += OnNavigateRequested;
 
         // Built On The Period A View Switch Is Heading To (else it would scroll there from the old one)
-        var start  = _vm.SwitchingTo ?? _vm.PeriodStart;
+        var start = _vm.SwitchingTo ?? _vm.PeriodStart;
         FocusMonth = ViewNavigator.MonthStartOf(start);
         BuildWeeks(start);
         _firstIndex = WeekIndexOf(FocusMonth);
@@ -128,7 +128,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
         _ghost.Child = _ghostLabel;
         var ghostShadow = new ThemeShadow();
         ghostShadow.Receivers.Add(_repeater);
-        _ghost.Shadow      = ghostShadow;
+        _ghost.Shadow = ghostShadow;
         _ghost.Translation = new System.Numerics.Vector3(0, 0, 24);
         _dragLayer.Children.Add(_ghost);
         _dragLayer.Children.Add(_box);
@@ -137,7 +137,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
         AddHandler(PointerMovedEvent, new PointerEventHandler(OnDragMoved), handledEventsToo: true);
         AddHandler(PointerReleasedEvent, new PointerEventHandler(OnDragReleased), handledEventsToo: true);
         PointerCaptureLost += (_, _) => CancelDrag();
-        PointerCanceled    += (_, _) => CancelDrag();
+        PointerCanceled += (_, _) => CancelDrag();
 
         // Shift+Press On An Empty Cell Starts A Selection Box (chips, day numbers, and "more" buttons aren't the row itself)
         AddHandler(PointerPressedEvent, new PointerEventHandler(OnBoxPressed), handledEventsToo: false);
@@ -165,15 +165,16 @@ public sealed partial class MonthGridView : Grid, IDisposable
     /// <summary>Scrolls so the month containing <paramref name="date"/> fills the view.</summary>
     public void ScrollToDate(DateOnly date, bool animate)
     {
+        // A week the body can't scroll to the top (the strip's last few: it stops a full view before its end) rebuilds too
         var index = WeekIndexOf(ViewNavigator.MonthStartOf(date));
-        if (index < 0)
+        if (index < 0 || index > _weeks.Count - 7)
         {
             BuildWeeks(date);
             index = WeekIndexOf(ViewNavigator.MonthStartOf(date));
         }
 
         // Report the destination first; data that loads now paints once the scroll lands
-        _firstIndex   = index;
+        _firstIndex = index;
         _pendingIndex = index;
         ReportVisible();
         ScrollToIndex(index, animate);
@@ -184,23 +185,23 @@ public sealed partial class MonthGridView : Grid, IDisposable
     {
         _disposed = true;
         _vm.OccurrencesChanged -= OnOccurrencesChanged;
-        _vm.LayoutChanged      -= OnLayoutChanged;
-        _vm.NavigateRequested  -= OnNavigateRequested;
+        _vm.LayoutChanged -= OnLayoutChanged;
+        _vm.NavigateRequested -= OnNavigateRequested;
     }
 
     // =========================================================================
     // LAYOUT
     // =========================================================================
 
-    void BuildWeeks(DateOnly around)
+    private void BuildWeeks(DateOnly around)
     {
         var start = ViewNavigator.WeekStartOf(around, _vm.Settings.WeekStart);
         _weeks = [.. Enumerable.Range(-WeeksEachSide, WeeksEachSide * 2 + 1).Select(i => new WeekItem(start.AddDays(i * 7)))];
         _repeater.ItemsSource = _weeks;
-        _reportedIndex        = -1;
+        _reportedIndex = -1;
     }
 
-    int WeekIndexOf(DateOnly date)
+    private int WeekIndexOf(DateOnly date)
     {
         var weekStart = ViewNavigator.WeekStartOf(date, _vm.Settings.WeekStart);
         return _weeks.FindIndex(w => w.WeekStart == weekStart);
@@ -208,7 +209,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
 
     // Sizes the rows for the viewport and keeps the same first week. Resizing the window calls this for
     // every step of the drag, so rows are only repainted when their height or the column width changed.
-    void Relayout(bool force)
+    private void Relayout(bool force)
     {
         var viewport = _scroll.ViewportHeight > 0 ? _scroll.ViewportHeight : _scroll.ActualHeight;
         if (_disposed || viewport <= 0)
@@ -217,18 +218,18 @@ public sealed partial class MonthGridView : Grid, IDisposable
         }
 
         // Whole-Pixel Rows
-        var scale  = XamlRoot?.RasterizationScale ?? 1;
+        var scale = XamlRoot?.RasterizationScale ?? 1;
         var height = Math.Max(MinRowHeight, Math.Floor(viewport * scale / 6) / scale);
-        var width  = ColumnWidth;
+        var width = ColumnWidth;
         if (!force && height == RowHeight && width == _layoutWidth)
         {
             return;
         }
 
-        RowHeight             = height;
-        _layoutWidth          = width;
+        RowHeight = height;
+        _layoutWidth = width;
         _layout.MinItemHeight = height;
-        _layout.MinItemWidth  = width * ViewNavigator.VisibleColumnCount(Core.Settings.CalendarViewMode.Month, 0, _vm.Settings.ShowWeekends);
+        _layout.MinItemWidth = width * ViewNavigator.VisibleColumnCount(Core.Settings.CalendarViewMode.Month, 0, _vm.Settings.ShowWeekends);
         _repeater.InvalidateMeasure();
         RenderAll();
 
@@ -237,23 +238,23 @@ public sealed partial class MonthGridView : Grid, IDisposable
     }
 
     // A monitor with a different scale changes what a whole pixel is
-    void OnXamlRootChanged(XamlRoot sender, XamlRootChangedEventArgs args) => Relayout(force: false);
+    private void OnXamlRootChanged(XamlRoot sender, XamlRootChangedEventArgs args) => Relayout(force: false);
 
     // A Contrast Theme Turning On Or Off Redraws With The System's Colors (raised off the UI thread)
-    void OnContrastChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(() =>
+    private void OnContrastChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(() =>
     {
         BuildWeekdayHeader();
         RenderAll();
     });
 
-    void BuildWeekdayHeader()
+    private void BuildWeekdayHeader()
     {
         _weekdays.Children.Clear();
         _weekdays.ColumnDefinitions.Clear();
 
         // A Line Under The Weekday Names, Always (the first week row's own top line scrolls away with it)
-        _weekdays.Padding         = new Thickness(0, 0, 0, 8);
-        _weekdays.BorderBrush     = LeafBrushes.GridLine(IsDark);
+        _weekdays.Padding = new Thickness(0, 0, 0, 8);
+        _weekdays.BorderBrush = LeafBrushes.GridLine(IsDark);
         _weekdays.BorderThickness = new Thickness(0, 0, 0, 1);
 
         var dates = ColumnDates(ViewNavigator.WeekStartOf(_vm.Today, _vm.Settings.WeekStart));
@@ -266,7 +267,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
         }
     }
 
-    void RenderAll()
+    private void RenderAll()
     {
         foreach (var row in _rows)
         {
@@ -274,7 +275,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
         }
     }
 
-    void ScrollToIndex(int index, bool animate)
+    private void ScrollToIndex(int index, bool animate)
     {
         _pendingIndex = index;
         RetryPendingScroll(animate);
@@ -282,7 +283,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
 
     // Heads for the pending week, or finishes the navigation when the body is already there. Only the
     // navigation's own first scroll animates; catching up after a clamp or a relayout jumps.
-    void RetryPendingScroll(bool animate = false)
+    private void RetryPendingScroll(bool animate = false)
     {
         if (_disposed || _pendingIndex is not { } pending || (_animating && !animate))
         {
@@ -293,18 +294,18 @@ public sealed partial class MonthGridView : Grid, IDisposable
         if (IsAt(target, _scroll.VerticalOffset))
         {
             _pendingIndex = null;
-            _firstIndex   = pending;
+            _firstIndex = pending;
             Settle();
             return;
         }
 
-        animate    = animate && target <= _scroll.ScrollableHeight;
+        animate = animate && target <= _scroll.ScrollableHeight;
         _animating = animate;
         ScrollIndicator.Hide(_scroll);
         _scroll.ChangeView(null, target, null, !animate);
     }
 
-    void OnViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
+    private void OnViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
         if (!e.IsIntermediate)
         {
@@ -348,10 +349,10 @@ public sealed partial class MonthGridView : Grid, IDisposable
         Settle();
     }
 
-    static bool IsAt(double target, double offset) => Math.Abs(target - offset) < 0.5;
+    private static bool IsAt(double target, double offset) => Math.Abs(target - offset) < 0.5;
 
     // Once the body is still: paint data that arrived while it was moving
-    void Settle()
+    private void Settle()
     {
         ReportVisible();
         if (_renderDeferred)
@@ -362,7 +363,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
     }
 
     // Tells the view model which weeks show; a new focused month only re-colors the day numbers
-    void ReportVisible()
+    private void ReportVisible()
     {
         if (_disposed || _weeks.Count == 0)
         {
@@ -398,7 +399,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
 
     // While a navigation is scrolling, painting new data waits until it lands, so a month loading
     // mid-scroll can't drop animation frames
-    void OnOccurrencesChanged(object? sender, EventArgs e)
+    private void OnOccurrencesChanged(object? sender, EventArgs e)
     {
         if (_disposed)
         {
@@ -414,7 +415,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
         RenderAll();
     }
 
-    void OnLayoutChanged(object? sender, EventArgs e)
+    private void OnLayoutChanged(object? sender, EventArgs e)
     {
         if (_disposed)
         {
@@ -435,7 +436,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
         ReportVisible();
     }
 
-    void OnNavigateRequested(object? sender, DateOnly date)
+    private void OnNavigateRequested(object? sender, DateOnly date)
     {
         if (_disposed)
         {
@@ -450,9 +451,9 @@ public sealed partial class MonthGridView : Grid, IDisposable
     // =========================================================================
 
     // How far the pointer must move before a press becomes a drag (less stays a click)
-    const double DragThreshold = 4;
+    private const double DragThreshold = 4;
 
-    sealed class ChipDrag(CalendarOccurrence occurrence, Point origin, DateOnly grabbedDay)
+    private sealed class ChipDrag(CalendarOccurrence occurrence, Point origin, DateOnly grabbedDay)
     {
         public CalendarOccurrence Occurrence { get; } = occurrence;
 
@@ -469,7 +470,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
 
     // Shift+Drag Box: the press point (in the drag layer, for the threshold; in the week rows, so it scrolls with
     // them), the cell it started in, and where the pointer is now (in the drag layer)
-    sealed class BoxDrag(Point origin, Point corner, (int Row, int Column) cell)
+    private sealed class BoxDrag(Point origin, Point corner, (int Row, int Column) cell)
     {
         public Point Origin { get; } = origin;
         public Point Corner { get; } = corner;
@@ -478,14 +479,14 @@ public sealed partial class MonthGridView : Grid, IDisposable
         public bool Started { get; set; }
     }
 
-    ChipDrag? _drag;
-    BoxDrag? _boxDrag;
-    readonly Border _box = TimeGridView.SelectionBox();
+    private ChipDrag? _drag;
+    private BoxDrag? _boxDrag;
+    private readonly Border _box = TimeGridView.SelectionBox();
 
     /// <summary>True between a press on a chip (or a Shift+press on empty space) and its release.</summary>
     public bool IsDragPending => _drag is not null || _boxDrag is not null;
 
-    void OnBoxPressed(object sender, PointerRoutedEventArgs e)
+    private void OnBoxPressed(object sender, PointerRoutedEventArgs e)
     {
         var point = e.GetCurrentPoint(_dragLayer);
         if (!point.Properties.IsLeftButtonPressed || e.Pointer.PointerDeviceType == PointerDeviceType.Touch || !KeyState.IsDown(VirtualKey.Shift))
@@ -500,7 +501,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
         }
 
         var corner = e.GetCurrentPoint(_repeater).Position;
-        _boxDrag   = new BoxDrag(point.Position, corner, CellAt(corner));
+        _boxDrag = new BoxDrag(point.Position, corner, CellAt(corner));
     }
 
     /// <summary>
@@ -512,7 +513,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
         _drag = new ChipDrag(occurrence, e.GetCurrentPoint(this).Position, DateAt(e.GetCurrentPoint(_repeater).Position))
         {
             ReadOnly = !_vm.CanEdit(occurrence),
-            Pull     = pull,
+            Pull = pull,
         };
     }
 
@@ -520,7 +521,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
     public DateOnly DateAt(Point pointInRepeater)
     {
         var (row, column) = CellAt(pointInRepeater);
-        var days          = ColumnDates(_weeks[row].WeekStart);
+        var days = ColumnDates(_weeks[row].WeekStart);
         return days[Math.Min(column, days.Count - 1)];
     }
 
@@ -537,32 +538,32 @@ public sealed partial class MonthGridView : Grid, IDisposable
             ElasticNudge.SnapBack(pulled);
         }
 
-        _drag             = null;
-        _boxDrag          = null;
+        _drag = null;
+        _boxDrag = null;
         _ghost.Visibility = Visibility.Collapsed;
-        _box.Visibility   = Visibility.Collapsed;
+        _box.Visibility = Visibility.Collapsed;
         ReleasePointerCaptures();
         return true;
     }
 
     // Week index and visible column under a point in the week rows' coordinates
-    (int Row, int Column) CellAt(Point pointInRepeater)
+    private (int Row, int Column) CellAt(Point pointInRepeater)
     {
         var columns = ViewNavigator.VisibleColumnCount(Core.Settings.CalendarViewMode.Month, 0, _vm.Settings.ShowWeekends);
-        var row     = Math.Clamp((int)Math.Floor(pointInRepeater.Y / RowHeight), 0, _weeks.Count - 1);
-        var column  = Math.Clamp((int)Math.Floor(pointInRepeater.X / ColumnWidth), 0, columns - 1);
+        var row = Math.Clamp((int)Math.Floor(pointInRepeater.Y / RowHeight), 0, _weeks.Count - 1);
+        var column = Math.Clamp((int)Math.Floor(pointInRepeater.X / ColumnWidth), 0, columns - 1);
         return (row, column);
     }
 
     // The cell under the pointer, kept to the visible rows (a pointer above or below the view counts as the edge row)
-    (int Row, int Column) VisibleCellAt(PointerRoutedEventArgs e)
+    private (int Row, int Column) VisibleCellAt(PointerRoutedEventArgs e)
     {
         var inRepeater = e.GetCurrentPoint(_repeater).Position;
-        var top        = _scroll.VerticalOffset;
+        var top = _scroll.VerticalOffset;
         return CellAt(new Point(inRepeater.X, Math.Clamp(inRepeater.Y, top, top + Math.Max(0, _scroll.ViewportHeight - 1))));
     }
 
-    void OnDragMoved(object sender, PointerRoutedEventArgs e)
+    private void OnDragMoved(object sender, PointerRoutedEventArgs e)
     {
         if (_boxDrag is { } box)
         {
@@ -609,8 +610,8 @@ public sealed partial class MonthGridView : Grid, IDisposable
         }
 
         // Redraw The Ghost Only When The Cell Or Copy Mode Changes (the pointer is kept to the visible rows)
-        var top       = _scroll.VerticalOffset;
-        var cell      = VisibleCellAt(e);
+        var top = _scroll.VerticalOffset;
+        var cell = VisibleCellAt(e);
         var duplicate = KeyState.IsDown(VirtualKey.Menu);
         e.Handled = true;
         if (cell == drag.Cell && duplicate == drag.Duplicate)
@@ -619,24 +620,24 @@ public sealed partial class MonthGridView : Grid, IDisposable
         }
 
         var days = ColumnDates(_weeks[cell.Row].WeekStart);
-        drag.Cell      = cell;
+        drag.Cell = cell;
         drag.Duplicate = duplicate;
-        drag.Target    = days[Math.Min(cell.Column, days.Count - 1)];
+        drag.Target = days[Math.Min(cell.Column, days.Count - 1)];
 
         // Ghost Over The Target Cell, In The Chip's Color
-        var (border, fill)     = LeafBrushes.GhostPalette(EventColors.ResolveAccent(drag.Occurrence.ColorId, drag.Occurrence.CalendarColor), IsDark);
-        _ghost.Width           = ColumnWidth - 2;
-        _ghost.Height          = RowHeight - 2;
-        _ghost.BorderBrush     = border;
-        _ghost.Background      = fill;
+        var (border, fill) = LeafBrushes.GhostPalette(EventColors.ResolveAccent(drag.Occurrence.ColorId, drag.Occurrence.CalendarColor), IsDark);
+        _ghost.Width = ColumnWidth - 2;
+        _ghost.Height = RowHeight - 2;
+        _ghost.BorderBrush = border;
+        _ghost.Background = fill;
         _ghostLabel.Visibility = duplicate ? Visibility.Visible : Visibility.Collapsed;
         Canvas.SetLeft(_ghost, cell.Column * ColumnWidth + 1);
         Canvas.SetTop(_ghost, cell.Row * RowHeight - top + 1);
-        _ghost.Visibility      = Visibility.Visible;
+        _ghost.Visibility = Visibility.Visible;
     }
 
     // The box follows the pointer once it moves past the threshold (ponytail: selection applies on release, not live)
-    void MoveBox(BoxDrag box, PointerRoutedEventArgs e)
+    private void MoveBox(BoxDrag box, PointerRoutedEventArgs e)
     {
         // Button Already Up: the release went somewhere else, so the press is over
         var point = e.GetCurrentPoint(_dragLayer);
@@ -665,18 +666,18 @@ public sealed partial class MonthGridView : Grid, IDisposable
             TimeGridView.StyleBox(_box, IsDark);
         }
 
-        e.Handled   = true;
+        e.Handled = true;
         box.Pointer = at;
         DrawBox(box);
     }
 
     // The press corner stays on the day it was pressed on (it scrolls with the rows); the other follows the pointer
-    void DrawBox(BoxDrag box) => TimeGridView.ShowBox(_box, _repeater.TransformToVisual(_dragLayer).TransformPoint(box.Corner), box.Pointer);
+    private void DrawBox(BoxDrag box) => TimeGridView.ShowBox(_box, _repeater.TransformToVisual(_dragLayer).TransformPoint(box.Corner), box.Pointer);
 
     // Every event on the shown days of the covered cells (hidden weekends aren't columns, so they stay out); Ctrl adds
-    void ReleaseBox(BoxDrag box, PointerRoutedEventArgs e)
+    private void ReleaseBox(BoxDrag box, PointerRoutedEventArgs e)
     {
-        _boxDrag        = null;
+        _boxDrag = null;
         _box.Visibility = Visibility.Collapsed;
         ReleasePointerCapture(e.Pointer);
         if (!box.Started)
@@ -685,16 +686,16 @@ public sealed partial class MonthGridView : Grid, IDisposable
         }
 
         e.Handled = true;
-        var end                 = VisibleCellAt(e);
+        var end = VisibleCellAt(e);
         var (firstRow, lastRow) = (Math.Min(box.Cell.Row, end.Row), Math.Max(box.Cell.Row, end.Row));
         var (firstCol, lastCol) = (Math.Min(box.Cell.Column, end.Column), Math.Max(box.Cell.Column, end.Column));
-        var days                = Enumerable.Range(firstRow, lastRow - firstRow + 1)
+        var days = Enumerable.Range(firstRow, lastRow - firstRow + 1)
             .SelectMany(r => ColumnDates(_weeks[r].WeekStart).Where((_, column) => column >= firstCol && column <= lastCol));
 
         _vm.SelectBox(_vm.OnDays(days), add: KeyState.IsDown(VirtualKey.Control));
     }
 
-    void OnDragReleased(object sender, PointerRoutedEventArgs e)
+    private void OnDragReleased(object sender, PointerRoutedEventArgs e)
     {
         if (_boxDrag is { } box)
         {
@@ -731,7 +732,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
         }
 
         e.Handled = true;
-        var o            = drag.Occurrence;
+        var o = drag.Occurrence;
         var (start, end) = DragMath.ShiftDays(o, target.DayNumber - drag.GrabbedDay.DayNumber, _vm.Zone);
 
         // Alt+Drag Duplicates (Alt is also read as the pointer moves: it can already be up when the release is handled)
@@ -755,10 +756,10 @@ public sealed partial class MonthGridView : Grid, IDisposable
         public DateOnly WeekStart { get; } = weekStart;
     }
 
-    sealed partial class WeekRowFactory(MonthGridView owner) : IElementFactory
+    private sealed partial class WeekRowFactory(MonthGridView owner) : IElementFactory
     {
-        readonly Stack<WeekRow> _pool = new();
-        readonly ItemPins _pins = new();
+        private readonly Stack<WeekRow> _pool = new();
+        private readonly ItemPins _pins = new();
 
         public UIElement GetElement(ElementFactoryGetArgs args)
         {

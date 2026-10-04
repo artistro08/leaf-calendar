@@ -6,7 +6,7 @@ namespace LeafCalendar.Tests;
 
 public sealed class AlertSettingsTests : IDisposable
 {
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public void Dispose() => _db.Dispose();
 
@@ -88,14 +88,14 @@ public sealed class AlertSettingsTests : IDisposable
         SettingsStore.Save(conn, new LeafSettings
         {
             ReminderNotifications = false,
-            JoinNowNotifications  = false,
-            InviteNotifications   = false,
-            NotificationSound     = false,
-            FlyoutDays            = 5,
-            FlyoutAllDay          = false,
-            TrayLookaheadMinutes  = 240,
-            JoinShortcut          = "Ctrl+Alt+Shift+F9",
-            FlyoutShortcut        = "Ctrl+Alt+Shift+F10",
+            JoinNowNotifications = false,
+            InviteNotifications = false,
+            NotificationSound = false,
+            FlyoutDays = 5,
+            FlyoutAllDay = false,
+            TrayLookaheadMinutes = 240,
+            JoinShortcut = "Ctrl+Alt+Shift+F9",
+            FlyoutShortcut = "Ctrl+Alt+Shift+F10",
         });
 
         var s = SettingsStore.Load(conn);

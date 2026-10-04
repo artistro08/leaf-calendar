@@ -93,7 +93,7 @@ public sealed record LeafSettings
     /// <summary>Most extra time-zone columns.</summary>
     public const int MaxTimeZones = 4;
 
-    const int MaxLabelLength = 24;
+    private const int MaxLabelLength = 24;
 
     /// <summary>Most days the tray flyout's agenda lists.</summary>
     public const int MaxFlyoutDays = 14;
@@ -268,7 +268,7 @@ public sealed record LeafSettings
             .ToList();
 
         // Shortcuts (one combination can't do two things)
-        var join   = CleanShortcut(JoinShortcut, DefaultJoinShortcut);
+        var join = CleanShortcut(JoinShortcut, DefaultJoinShortcut);
         var flyout = CleanShortcut(FlyoutShortcut, DefaultFlyoutShortcut);
         if (flyout.Length > 0 && flyout == join)
         {
@@ -277,33 +277,33 @@ public sealed record LeafSettings
 
         return this with
         {
-            WeekStart             = Enum.IsDefined(WeekStart) ? WeekStart : DayOfWeek.Sunday,
-            ViewMode              = Enum.IsDefined(ViewMode) ? ViewMode : CalendarViewMode.Week,
-            LastGridView          = GridView(ViewMode) ?? (LastGridView is { } last ? GridView(last) : null) ?? CalendarViewMode.Week,
-            Theme                 = Enum.IsDefined(Theme) ? Theme : AppTheme.System,
-            CustomDayCount        = Math.Clamp(CustomDayCount, 1, 31),
-            HourHeight            = double.IsFinite(HourHeight) ? Math.Clamp(HourHeight, MinHourHeight, MaxHourHeight) : DefaultHourHeight,
-            TimeZones             = Keep(TimeZones, zones),
-            DefaultCalendar       = DefaultCalendar is { } d && !string.IsNullOrWhiteSpace(d.AccountId) && !string.IsNullOrWhiteSpace(d.CalendarId) ? d : null,
-            FlyoutDays            = Math.Clamp(FlyoutDays, 1, MaxFlyoutDays),
-            TrayLookaheadMinutes  = LookaheadChoices.Contains(TrayLookaheadMinutes) ? TrayLookaheadMinutes : 60,
-            JoinShortcut          = join,
-            FlyoutShortcut        = flyout,
-            WorkingHours          = CleanHours(WorkingHours),
-            MapProvider           = Enum.IsDefined(MapProvider) ? MapProvider : MapProvider.Google,
-            UpcomingHours         = UpcomingChoices.Contains(UpcomingHours) ? UpcomingHours : 8,
-            PrimaryTimeZone       = PrimaryTimeZone is { } z && TimeZoneInfo.TryFindSystemTimeZoneById(z, out _) ? z : null,
-            MainAccountId         = string.IsNullOrWhiteSpace(MainAccountId) ? null : MainAccountId,
-            MainWindowSize        = MainWindowSize?.Clean(),
-            SettingsWindowSize    = SettingsWindowSize?.Clean(),
+            WeekStart = Enum.IsDefined(WeekStart) ? WeekStart : DayOfWeek.Sunday,
+            ViewMode = Enum.IsDefined(ViewMode) ? ViewMode : CalendarViewMode.Week,
+            LastGridView = GridView(ViewMode) ?? (LastGridView is { } last ? GridView(last) : null) ?? CalendarViewMode.Week,
+            Theme = Enum.IsDefined(Theme) ? Theme : AppTheme.System,
+            CustomDayCount = Math.Clamp(CustomDayCount, 1, 31),
+            HourHeight = double.IsFinite(HourHeight) ? Math.Clamp(HourHeight, MinHourHeight, MaxHourHeight) : DefaultHourHeight,
+            TimeZones = Keep(TimeZones, zones),
+            DefaultCalendar = DefaultCalendar is { } d && !string.IsNullOrWhiteSpace(d.AccountId) && !string.IsNullOrWhiteSpace(d.CalendarId) ? d : null,
+            FlyoutDays = Math.Clamp(FlyoutDays, 1, MaxFlyoutDays),
+            TrayLookaheadMinutes = LookaheadChoices.Contains(TrayLookaheadMinutes) ? TrayLookaheadMinutes : 60,
+            JoinShortcut = join,
+            FlyoutShortcut = flyout,
+            WorkingHours = CleanHours(WorkingHours),
+            MapProvider = Enum.IsDefined(MapProvider) ? MapProvider : MapProvider.Google,
+            UpcomingHours = UpcomingChoices.Contains(UpcomingHours) ? UpcomingHours : 8,
+            PrimaryTimeZone = PrimaryTimeZone is { } z && TimeZoneInfo.TryFindSystemTimeZoneById(z, out _) ? z : null,
+            MainAccountId = string.IsNullOrWhiteSpace(MainAccountId) ? null : MainAccountId,
+            MainWindowSize = MainWindowSize?.Clean(),
+            SettingsWindowSize = SettingsWindowSize?.Clean(),
             MeetByDefaultAccounts = Keep(MeetByDefaultAccounts, CleanAccounts(MeetByDefaultAccounts)),
-            CollapsedAccounts     = Keep(CollapsedAccounts, CleanAccounts(CollapsedAccounts)),
-            ShareMessage          = ShareMessage is null ? AvailabilityText.DefaultMessage : Clip(ShareMessage, AvailabilityText.MaxMessageLength),
+            CollapsedAccounts = Keep(CollapsedAccounts, CleanAccounts(CollapsedAccounts)),
+            ShareMessage = ShareMessage is null ? AvailabilityText.DefaultMessage : Clip(ShareMessage, AvailabilityText.MaxMessageLength),
         };
     }
 
     // Cuts text to a length without splitting a surrogate pair (an emoji at the limit is dropped whole)
-    static string Clip(string text, int max) =>
+    private static string Clip(string text, int max) =>
         text.Length <= max ? text : text[..(char.IsHighSurrogate(text[max - 1]) ? max - 1 : max)];
 
     /// <summary>
@@ -313,9 +313,9 @@ public sealed record LeafSettings
     /// </summary>
     public LeafSettings ForAccounts(IReadOnlyCollection<string> accountIds) => this with
     {
-        MainAccountId         = MainAccountId is { } main && accountIds.Contains(main) ? main : null,
+        MainAccountId = MainAccountId is { } main && accountIds.Contains(main) ? main : null,
         MeetByDefaultAccounts = Keep(MeetByDefaultAccounts, [.. MeetByDefaultAccounts.Where(accountIds.Contains)]),
-        CollapsedAccounts     = Keep(CollapsedAccounts, [.. CollapsedAccounts.Where(accountIds.Contains)]),
+        CollapsedAccounts = Keep(CollapsedAccounts, [.. CollapsedAccounts.Where(accountIds.Contains)]),
     };
 
     /// <summary>Returns a copy with <paramref name="accountId"/>'s calendars folded away (or shown again).</summary>
@@ -332,32 +332,32 @@ public sealed record LeafSettings
     }
 
     // A view that shows the time grid (not Month, not an unknown value), or null
-    static CalendarViewMode? GridView(CalendarViewMode mode) =>
+    private static CalendarViewMode? GridView(CalendarViewMode mode) =>
         mode != CalendarViewMode.Month && Enum.IsDefined(mode) ? mode : null;
 
     // Account IDs without blanks or repeats, in their first order
-    static List<string> CleanAccounts(IReadOnlyList<string>? accounts) =>
+    private static List<string> CleanAccounts(IReadOnlyList<string>? accounts) =>
         [.. (accounts ?? []).Where(a => !string.IsNullOrWhiteSpace(a)).Distinct(StringComparer.Ordinal)];
 
     // Records compare lists by reference, so an unchanged list keeps its instance and a normalized copy still equals the original
-    static IReadOnlyList<T> Keep<T>(IReadOnlyList<T>? original, List<T> cleaned) =>
+    private static IReadOnlyList<T> Keep<T>(IReadOnlyList<T>? original, List<T> cleaned) =>
         original is not null && original.SequenceEqual(cleaned) ? original : cleaned;
 
     // Out of range or backwards falls back to 9-5; unknown and repeated days are dropped
-    static WorkingHours CleanHours(WorkingHours? hours)
+    private static WorkingHours CleanHours(WorkingHours? hours)
     {
-        var h     = hours ?? new WorkingHours();
+        var h = hours ?? new WorkingHours();
         var valid = h.StartMinute is >= 0 and < 1440 && h.EndMinute is > 0 and <= 1440 && h.StartMinute < h.EndMinute;
         return h with
         {
             StartMinute = valid ? h.StartMinute : 9 * 60,
-            EndMinute   = valid ? h.EndMinute : 17 * 60,
-            Days        = Keep(h.Days, [.. (h.Days ?? WorkingHours.Weekdays).Where(d => Enum.IsDefined(d)).Distinct()]),
+            EndMinute = valid ? h.EndMinute : 17 * 60,
+            Days = Keep(h.Days, [.. (h.Days ?? WorkingHours.Weekdays).Where(d => Enum.IsDefined(d)).Distinct()]),
         };
     }
 
     // Empty means "no shortcut"; null (a row saved before the field existed) or unreadable text means the default
-    static string CleanShortcut(string? text, string fallback)
+    private static string CleanShortcut(string? text, string fallback)
     {
         if (text is { Length: 0 })
         {
@@ -367,15 +367,15 @@ public sealed record LeafSettings
         return Hotkey.TryParse(text, out var hotkey) ? hotkey.ToString() : fallback;
     }
 
-    static string? CleanLabel(string? label)
+    private static string? CleanLabel(string? label)
     {
         var trimmed = label?.Trim();
-        return string.IsNullOrEmpty(trimmed) ? null : trimmed[..Math.Min(trimmed.Length, MaxLabelLength)];
+        return string.IsNullOrEmpty(trimmed) ? null : Clip(trimmed, MaxLabelLength);
     }
 }
 
 /// <summary>Reads a map provider by name; a name this build doesn't know (say, from a newer version) becomes Google instead of resetting every setting.</summary>
-sealed class MapProviderConverter : System.Text.Json.Serialization.JsonConverter<MapProvider>
+internal sealed class MapProviderConverter : System.Text.Json.Serialization.JsonConverter<MapProvider>
 {
     public override MapProvider Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options) =>
         reader.TokenType == System.Text.Json.JsonTokenType.String && Enum.TryParse<MapProvider>(reader.GetString(), true, out var value) && Enum.IsDefined(value)

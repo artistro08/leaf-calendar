@@ -8,9 +8,9 @@ namespace LeafCalendar.Tests;
 
 public sealed class AlertLedgerTests : IDisposable
 {
-    static readonly DateTimeOffset Now = new(2026, 10, 1, 17, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset Now = new(2026, 10, 1, 17, 0, 0, TimeSpan.Zero);
 
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public void Dispose() => _db.Dispose();
 

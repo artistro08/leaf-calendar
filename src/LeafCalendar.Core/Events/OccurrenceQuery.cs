@@ -18,12 +18,12 @@ namespace LeafCalendar.Core.Events;
 public static class OccurrenceQuery
 {
     // Exceptions can move an instance far; look this far around the window for them
-    static readonly TimeSpan ExceptionPad = TimeSpan.FromDays(32);
+    private static readonly TimeSpan ExceptionPad = TimeSpan.FromDays(32);
 
     // Titles are drawn on one-line cards and rows, so control, bidi, and invisible characters go, and they're capped
-    const int MaxTitle = 200;
+    private const int MaxTitle = 200;
 
-    const string Sql = """
+    private const string Sql = """
         SELECT e.account_id, e.calendar_id, e.id, e.ical_uid, e.status, e.start_utc, e.end_utc, e.is_all_day,
                e.start_time_zone, e.is_recurring_master, e.recurring_event_id, e.original_start_utc, e.raw_json,
                COALESCE(c.leaf_color, c.background_color, '#4285F4')
@@ -51,7 +51,7 @@ public static class OccurrenceQuery
     public static IReadOnlyList<CalendarOccurrence> Load(SqliteConnection conn, DateOnly fromDate, DateOnly toDate, TimeZoneInfo zone, bool includeDeclined, bool keepSharedCopies = false)
     {
         var from = LocalMidnight(fromDate, zone);
-        var to   = LocalMidnight(toDate, zone);
+        var to = LocalMidnight(toDate, zone);
 
         // Broad SQL window (a day of slack for all-day dates), refined below
         var rows = conn.Query(
@@ -127,16 +127,16 @@ public static class OccurrenceQuery
         SeriesRow row, DateOnly fromDate, DateOnly toDate, DateTimeOffset from, DateTimeOffset to, Func<long, bool> isReplaced) =>
         Expand(row, fromDate, toDate, from, to).Where(i => !isReplaced(i.Start.ToUnixTimeMilliseconds()));
 
-    static IEnumerable<(DateTimeOffset Start, DateTimeOffset End)> Expand(SeriesRow row, DateOnly fromDate, DateOnly toDate, DateTimeOffset from, DateTimeOffset to)
+    private static IEnumerable<(DateTimeOffset Start, DateTimeOffset End)> Expand(SeriesRow row, DateOnly fromDate, DateOnly toDate, DateTimeOffset from, DateTimeOffset to)
     {
         if (row.StartMs is not { } startMs || row.EndMs is not { } endMs)
         {
             yield break;
         }
 
-        var start      = DateTimeOffset.FromUnixTimeMilliseconds(startMs);
-        var duration   = DateTimeOffset.FromUnixTimeMilliseconds(endMs) - start;
-        var ev         = JsonSerializer.Deserialize(row.RawJson, GoogleJsonContext.Default.GoogleEvent);
+        var start = DateTimeOffset.FromUnixTimeMilliseconds(startMs);
+        var duration = DateTimeOffset.FromUnixTimeMilliseconds(endMs) - start;
+        var ev = JsonSerializer.Deserialize(row.RawJson, GoogleJsonContext.Default.GoogleEvent);
         var recurrence = ev?.Recurrence ?? [];
 
         // All-Day Series: expand by date
@@ -159,19 +159,20 @@ public static class OccurrenceQuery
         var anchor = ev?.Start?.DateTime ?? start;
         foreach (var s in RecurrenceExpander.ExpandTimed(recurrence, anchor, row.TimeZone, from - duration, to))
         {
-            if (s + duration > from)
+            // A zero-minute instance touches its start, so one at midnight belongs to the day it starts
+            if (s + duration > from || (duration == TimeSpan.Zero && s >= from))
             {
                 yield return (s, s + duration);
             }
         }
     }
 
-    static bool Overlaps(bool isAllDay, DateTimeOffset start, DateTimeOffset end, DateOnly fromDate, DateOnly toDate, DateTimeOffset from, DateTimeOffset to) =>
+    private static bool Overlaps(bool isAllDay, DateTimeOffset start, DateTimeOffset end, DateOnly fromDate, DateOnly toDate, DateTimeOffset from, DateTimeOffset to) =>
         isAllDay
             ? DateOnly.FromDateTime(start.UtcDateTime) < toDate && DateOnly.FromDateTime(end.UtcDateTime) > fromDate
-            : start < to && end > from;
+            : start < to && (end > from || (end == start && start >= from));
 
-    static CalendarOccurrence Create(Row row, EventDetails details, DateTimeOffset start, DateTimeOffset end, string? recurringEventId) => new(
+    private static CalendarOccurrence Create(Row row, EventDetails details, DateTimeOffset start, DateTimeOffset end, string? recurringEventId) => new(
         row.AccountId,
         row.CalendarId,
         row.Id,
@@ -191,7 +192,7 @@ public static class OccurrenceQuery
     /// <summary>The stored fields a repeating series is expanded from (its first instance's times, zone, and raw JSON).</summary>
     internal sealed record SeriesRow(long? StartMs, long? EndMs, bool IsAllDay, string? TimeZone, string RawJson);
 
-    sealed record Row(
+    private sealed record Row(
         string AccountId,
         string CalendarId,
         string Id,

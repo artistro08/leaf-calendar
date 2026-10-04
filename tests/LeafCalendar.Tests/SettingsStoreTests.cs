@@ -6,7 +6,7 @@ namespace LeafCalendar.Tests;
 
 public sealed class SettingsStoreTests : IDisposable
 {
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public void Dispose() => _db.Dispose();
 
@@ -30,12 +30,12 @@ public sealed class SettingsStoreTests : IDisposable
         using var conn = _db.Database.Open();
         var saved = new LeafSettings
         {
-            WorkingHours          = new WorkingHours { Enabled = false, StartMinute = 8 * 60, EndMinute = 18 * 60, Days = [DayOfWeek.Sunday, DayOfWeek.Wednesday] },
-            MapProvider           = MapProvider.Bing,
+            WorkingHours = new WorkingHours { Enabled = false, StartMinute = 8 * 60, EndMinute = 18 * 60, Days = [DayOfWeek.Sunday, DayOfWeek.Wednesday] },
+            MapProvider = MapProvider.Bing,
             MeetByDefaultAccounts = ["acct1"],
-            CollapsedAccounts     = ["acct2"],
-            ShareMessage          = "Free then:\n{times}",
-            OpenWindowAtSignIn    = true,
+            CollapsedAccounts = ["acct2"],
+            ShareMessage = "Free then:\n{times}",
+            OpenWindowAtSignIn = true,
         };
 
         SettingsStore.Save(conn, saved);
@@ -92,13 +92,13 @@ public sealed class SettingsStoreTests : IDisposable
         using var conn = _db.Database.Open();
         var saved = new LeafSettings
         {
-            WeekStart      = DayOfWeek.Monday,
-            ShowWeekends   = false,
-            ViewMode       = CalendarViewMode.Days,
+            WeekStart = DayOfWeek.Monday,
+            ShowWeekends = false,
+            ViewMode = CalendarViewMode.Days,
             CustomDayCount = 4,
-            HourHeight     = 64,
-            Theme          = AppTheme.Dark,
-            TimeZones      = [new ExtraTimeZone("Asia/Tokyo", "Tokyo office")],
+            HourHeight = 64,
+            Theme = AppTheme.Dark,
+            TimeZones = [new ExtraTimeZone("Asia/Tokyo", "Tokyo office")],
         };
 
         SettingsStore.Save(conn, saved);
@@ -155,5 +155,16 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(["Asia/Tokyo", "Europe/London", "America/New_York", "Australia/Sydney"], settings.TimeZones.Select(z => z.Id));
         Assert.Equal("Tokyo", settings.TimeZones[0].Label);
         Assert.Null(settings.TimeZones[1].Label);
+    }
+
+    [Fact]
+    public void Normalize_LongZoneLabel_NeverSplitsAnEmoji()
+    {
+        var settings = new LeafSettings
+        {
+            TimeZones = [new("Asia/Tokyo", "Tokyo office - sales HQ\U0001F5FC")],
+        }.Normalize();
+
+        Assert.Equal("Tokyo office - sales HQ", settings.TimeZones[0].Label);
     }
 }

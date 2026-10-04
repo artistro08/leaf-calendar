@@ -30,6 +30,16 @@ public static class DragMath
         RoundToStep(instant, zone, x => Math.Round(x, MidpointRounding.AwayFromZero));
 
     /// <summary>
+    /// The quarter hour a click at <paramref name="minutes"/> past local midnight of <paramref name="day"/> means:
+    /// the nearest one that is still on that day (the last minutes of a day go back to 11:45 PM, not on to tomorrow).
+    /// </summary>
+    public static DateTimeOffset SnapOnDay(DateOnly day, double minutes, TimeZoneInfo zone)
+    {
+        var snapped = Snap(Instant(day, minutes, zone), zone);
+        return LocalDate(snapped, zone) > day ? snapped - TimeSpan.FromMinutes(SnapMinutes) : snapped;
+    }
+
+    /// <summary>
     /// A wall-clock time in <paramref name="zone"/> as an instant. A time in a spring-forward gap moves forward out
     /// of it; a time in the repeated fall-back hour takes the earlier (daylight) offset.
     /// </summary>
@@ -51,7 +61,7 @@ public static class DragMath
         if (zone.IsAmbiguousTime(wall))
         {
             var offsets = zone.GetAmbiguousTimeOffsets(wall);
-            var offset  = preferredOffset is { } p && offsets.Contains(p) ? p : offsets.Max();
+            var offset = preferredOffset is { } p && offsets.Contains(p) ? p : offsets.Max();
             return new DateTimeOffset(wall, offset).ToUniversalTime();
         }
 
@@ -80,7 +90,9 @@ public static class DragMath
         var b = Snap(pointerAt, zone);
         if (a == b)
         {
-            return (a, a + TimeSpan.FromMinutes(SnapMinutes));
+            // Last Minutes Of A Day: both ends snapped to midnight, so the step ends there instead of starting tomorrow
+            var step = TimeSpan.FromMinutes(SnapMinutes);
+            return LocalDate(a, zone) > LocalDate(anchor, zone) ? (a - step, a) : (a, a + step);
         }
 
         return a < b ? (a, b) : (b, a);
@@ -93,11 +105,11 @@ public static class DragMath
     public static (DateTimeOffset Start, DateTimeOffset End) AllDayRange(DateOnly anchor, DateOnly pointerDay)
     {
         var first = anchor < pointerDay ? anchor : pointerDay;
-        var last  = anchor < pointerDay ? pointerDay : anchor;
+        var last = anchor < pointerDay ? pointerDay : anchor;
         return (UtcMidnight(first), UtcMidnight(last.AddDays(1)));
     }
 
-    static DateTimeOffset UtcMidnight(DateOnly day) => new(day.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+    private static DateTimeOffset UtcMidnight(DateOnly day) => new(day.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
 
     /// <summary>The event moved by whole days (all-day by date; timed keeping its wall-clock time).</summary>
     public static (DateTimeOffset Start, DateTimeOffset End) ShiftDays(CalendarOccurrence o, int days, TimeZoneInfo zone)
@@ -113,8 +125,20 @@ public static class DragMath
     }
 
     /// <summary>
+    /// A timed event carried along when another one moves from <paramref name="from"/> to <paramref name="to"/>: the
+    /// same shift on the wall clock, so it keeps its time of day when the move crosses a DST change.
+    /// </summary>
+    public static (DateTimeOffset Start, DateTimeOffset End) ShiftWith(CalendarOccurrence o, DateTimeOffset from, DateTimeOffset to, TimeZoneInfo zone)
+    {
+        var shift = TimeZoneInfo.ConvertTime(to, zone).DateTime - TimeZoneInfo.ConvertTime(from, zone).DateTime;
+        var local = TimeZoneInfo.ConvertTime(o.Start, zone);
+        var start = ToInstant(local.DateTime + shift, zone, local.Offset);
+        return (start, start + (o.End - o.Start));
+    }
+
+    /// <summary>
     /// Where pasted events go: the earliest timed event lands at <paramref name="anchor"/> and the rest keep their
-    /// spacing. All-day events (and every event, when all of them are all-day) move by whole days.
+    /// wall-clock spacing. All-day events (and every event, when all of them are all-day) move by whole days.
     /// </summary>
     public static IReadOnlyList<(CalendarOccurrence Occurrence, DateTimeOffset Start, DateTimeOffset End)> PasteAt(IReadOnlyList<CalendarOccurrence> items, DateTimeOffset anchor, TimeZoneInfo zone)
     {
@@ -124,9 +148,9 @@ public static class DragMath
         }
 
         // Timed events set the spacing when there are any (an all-day event's UTC midnight would sort first)
-        var first     = items.Where(o => !o.IsAllDay).MinBy(o => o.Start) ?? items.MinBy(o => o.Start)!;
+        var first = items.Where(o => !o.IsAllDay).MinBy(o => o.Start) ?? items.MinBy(o => o.Start)!;
         var anchorDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(anchor, zone).DateTime);
-        var dayShift  = anchorDay.DayNumber - LocalDay(first, zone).DayNumber;
+        var dayShift = anchorDay.DayNumber - LocalDay(first, zone).DayNumber;
 
         return [.. items.Select(o =>
         {
@@ -136,8 +160,14 @@ public static class DragMath
                 return (o, s, e);
             }
 
-            var start = o.Start + (anchor - first.Start);
-            return (o, start, start + (o.End - o.Start));
+            // The Anchor Itself Is Exact (it may sit in a repeated fall-back hour)
+            if (o.Start == first.Start)
+            {
+                return (o, anchor, anchor + (o.End - o.Start));
+            }
+
+            var (start, end) = ShiftWith(o, first.Start, anchor, zone);
+            return (o, start, end);
         })];
     }
 
@@ -145,10 +175,10 @@ public static class DragMath
     public static DateTimeOffset NextSlot(DateTimeOffset now, TimeZoneInfo zone) =>
         RoundToStep(now, zone, Math.Ceiling);
 
-    static DateTimeOffset RoundToStep(DateTimeOffset instant, TimeZoneInfo zone, Func<double, double> round)
+    private static DateTimeOffset RoundToStep(DateTimeOffset instant, TimeZoneInfo zone, Func<double, double> round)
     {
         var minutes = TimeZoneInfo.ConvertTime(instant, zone).TimeOfDay.TotalMinutes;
-        var steps   = round(minutes / SnapMinutes) * SnapMinutes;
+        var steps = round(minutes / SnapMinutes) * SnapMinutes;
         var snapped = instant + TimeSpan.FromMinutes(steps - minutes);
 
         // On The Whole Minute: the double math above can land a few ticks short of the step, and Google's
@@ -157,6 +187,9 @@ public static class DragMath
         return new DateTimeOffset(ticks, TimeSpan.Zero).ToOffset(instant.Offset);
     }
 
-    static DateOnly LocalDay(CalendarOccurrence o, TimeZoneInfo zone) =>
-        o.IsAllDay ? o.AllDayStart : DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(o.Start, zone).DateTime);
+    private static DateOnly LocalDay(CalendarOccurrence o, TimeZoneInfo zone) =>
+        o.IsAllDay ? o.AllDayStart : LocalDate(o.Start, zone);
+
+    private static DateOnly LocalDate(DateTimeOffset instant, TimeZoneInfo zone) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, zone).DateTime);
 }

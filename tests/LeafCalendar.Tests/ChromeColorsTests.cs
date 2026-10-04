@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 public class ChromeColorsTests
 {
     // #AARRGGBB composited onto an opaque surface
-    static string Flatten(string argb, string surface) =>
+    private static string Flatten(string argb, string surface) =>
         argb.Length == 9 ? EventColors.Blend("#" + argb[3..], surface, 1 - Convert.ToInt32(argb[1..3], 16) / 255.0) : argb;
 
     // WCAG AA 4.5:1 plus a margin (4.7) For Text On The Calendar Surface, Both Themes
@@ -31,7 +31,7 @@ public class ChromeColorsTests
         var surface = ChromeColors.Surface(dark);
         for (var i = 0; i < ChromeColors.PersonCount; i++)
         {
-            var fill  = Flatten(ChromeColors.PersonFill(i, dark), surface);
+            var fill = Flatten(ChromeColors.PersonFill(i, dark), surface);
             var ratio = EventColors.ContrastRatio(Flatten(ChromeColors.PrimaryText(dark), fill), fill);
             Assert.True(ratio >= 4.5, $"primary text on person {i} fill {fill}: {ratio:0.00}:1");
         }
@@ -44,8 +44,8 @@ public class ChromeColorsTests
     public void Text_OnOffHours_MeetsAA(bool dark)
     {
         var surface = ChromeColors.Surface(dark);
-        var fill    = Flatten(ChromeColors.OffHours(dark), surface);
-        var ratio   = EventColors.ContrastRatio(Flatten(ChromeColors.PrimaryText(dark), fill), fill);
+        var fill = Flatten(ChromeColors.OffHours(dark), surface);
+        var ratio = EventColors.ContrastRatio(Flatten(ChromeColors.PrimaryText(dark), fill), fill);
         Assert.True(ratio >= 4.5, $"primary text on off-hours {fill}: {ratio:0.00}:1");
     }
 

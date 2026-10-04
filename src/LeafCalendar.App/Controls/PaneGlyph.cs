@@ -19,46 +19,52 @@ namespace LeafCalendar.App.Controls;
 public sealed partial class PaneGlyph : UserControl
 {
     // The glyphs on screen, per pane (a glyph inside a control template has no name to reach it by)
-    static readonly List<PaneGlyph> Shown = [];
-    static readonly Dictionary<string, bool> OpenPanes = [];
+    private static readonly List<PaneGlyph> Shown = [];
+    private static readonly Dictionary<string, bool> OpenPanes = [];
 
     // The Design (DIPs): the outline's size and corner, and the panel's width
-    const double GlyphWidth  = 16;
-    const double GlyphHeight = 12;
-    const double Corner      = 3;
-    const double PanelWidth  = 6;
+    private const double GlyphWidth = 16;
+    private const double GlyphHeight = 12;
+    private const double Corner = 3;
+    private const double PanelWidth = 6;
 
-    readonly Path _outline = new();
-    readonly Path _panel   = new();
-    readonly TranslateTransform _snap = new();
-    double _scale;
+    private readonly Path _outline = new();
+    private readonly Path _panel = new();
+    private readonly TranslateTransform _snap = new();
+    private double _scale;
 
     /// <summary>Creates the glyph.</summary>
     public PaneGlyph()
     {
         IsTabStop = false;
-        Width     = GlyphWidth;
-        Height    = GlyphHeight;
-        Content   = new Canvas { Children = { _panel, _outline }, RenderTransform = _snap };
-        LayoutUpdated += (_, _) => SnapToPixels();
+        Width = GlyphWidth;
+        Height = GlyphHeight;
+        Content = new Canvas { Children = { _panel, _outline }, RenderTransform = _snap };
+        // Re-Snapped Only When The Glyph Moves (LayoutUpdated would come for every layout pass in the window)
+        EffectiveViewportChanged += (_, _) => SnapToPixels();
         RegisterPropertyChangedCallback(ForegroundProperty, (_, _) => Paint());
 
         // Theme And Contrast Changes Repaint Once They've Settled (an inherited color changes without a callback)
         ActualThemeChanged += (_, _) => DispatcherQueue.TryEnqueue(Paint);
         void OnContrast(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(Paint);
-        void OnRootChanged(XamlRoot sender, XamlRootChangedEventArgs e) => Paint();
+        void OnRootChanged(XamlRoot sender, XamlRootChangedEventArgs e)
+        {
+            Paint();
+            SnapToPixels();
+        }
 
         // Listed Once While On Screen (Loaded can come again without an Unloaded between)
-        Loaded   += (_, _) =>
+        Loaded += (_, _) =>
         {
             if (!Shown.Contains(this))
             {
                 Shown.Add(this);
                 LeafBrushes.ContrastChanged += OnContrast;
-                XamlRoot.Changed            += OnRootChanged;
+                XamlRoot.Changed += OnRootChanged;
             }
 
             Paint();
+            SnapToPixels();
         };
         Unloaded += (_, _) =>
         {
@@ -85,9 +91,9 @@ public sealed partial class PaneGlyph : UserControl
     }
 
     // True while the glyph's panel is filled
-    bool IsFilled => OpenPanes.GetValueOrDefault(Pane);
+    private bool IsFilled => OpenPanes.GetValueOrDefault(Pane);
 
-    void Paint()
+    private void Paint()
     {
         // Shapes For This Scale (rebuilt only when the scale changes)
         var scale = XamlRoot?.RasterizationScale ?? 1;
@@ -105,22 +111,22 @@ public sealed partial class PaneGlyph : UserControl
 
     // Lays the outline, the divider, and the panel out in physical pixels, then hands them over in DIPs: the stroke is
     // a whole number of pixels and sits on pixel centers, and the panel fills exactly the pixels inside the stroke
-    void BuildShapes(double scale)
+    private void BuildShapes(double scale)
     {
-        var left   = Pane == "Sidebar";
-        var width  = Math.Round(GlyphWidth * scale);
+        var left = Pane == "Sidebar";
+        var width = Math.Round(GlyphWidth * scale);
         var height = Math.Round(GlyphHeight * scale);
         var stroke = Math.Max(1, Math.Round(scale * 1.25, MidpointRounding.AwayFromZero));
         var corner = Math.Round(Corner * scale);
-        var panel  = Math.Round(PanelWidth * scale);
-        var half   = stroke / 2;
+        var panel = Math.Round(PanelWidth * scale);
+        var half = stroke / 2;
 
         // Outline And Divider (one stroked path, so no edge is drawn twice)
         var divider = left ? panel - half : width - panel + half;
         var outline = new PathGeometry();
         outline.Figures.Add(RoundedRect(new Rect(half, half, width - stroke, height - stroke), corner - half, corner - half, corner - half, corner - half, scale));
         outline.Figures.Add(Line(new Point(divider, stroke), new Point(divider, height - stroke), scale));
-        _outline.Data            = outline;
+        _outline.Data = outline;
         _outline.StrokeThickness = stroke / scale;
 
         // Panel Fill (inside the stroke and up to the divider, never under it, its outer corners following the outline's
@@ -128,15 +134,15 @@ public sealed partial class PaneGlyph : UserControl
         // each shape on its own, and a pixel both cover came out brighter as a line beside the panel
         var inner = Math.Max(0, corner - stroke);
         var fillW = Math.Max(0, panel - stroke * 2);
-        var box   = left ? new Rect(stroke, stroke, fillW, height - stroke * 2) : new Rect(width - panel + stroke, stroke, fillW, height - stroke * 2);
-        var fill  = new PathGeometry();
+        var box = left ? new Rect(stroke, stroke, fillW, height - stroke * 2) : new Rect(width - panel + stroke, stroke, fillW, height - stroke * 2);
+        var fill = new PathGeometry();
         fill.Figures.Add(left ? RoundedRect(box, inner, 0, 0, inner, scale) : RoundedRect(box, 0, inner, inner, 0, scale));
         _panel.Data = fill;
     }
 
     // Moves the drawing by the fraction of a pixel the glyph's spot is off the screen's pixel grid (a 16 DIP glyph
     // centered in a 32 DIP button lands half a pixel off at 125%), so its pixel-aligned lines stay sharp
-    void SnapToPixels()
+    private void SnapToPixels()
     {
         if (XamlRoot is null || _scale <= 0)
         {
@@ -144,8 +150,8 @@ public sealed partial class PaneGlyph : UserControl
         }
 
         var at = TransformToVisual(null).TransformPoint(default);
-        var x  = (Math.Round(at.X * _scale) - at.X * _scale) / _scale;
-        var y  = (Math.Round(at.Y * _scale) - at.Y * _scale) / _scale;
+        var x = (Math.Round(at.X * _scale) - at.X * _scale) / _scale;
+        var y = (Math.Round(at.Y * _scale) - at.Y * _scale) / _scale;
         if (x != _snap.X || y != _snap.Y)
         {
             _snap.X = x;
@@ -154,7 +160,7 @@ public sealed partial class PaneGlyph : UserControl
     }
 
     // A rectangle (physical pixels) with its own radius at each corner: top left, top right, bottom right, bottom left
-    static PathFigure RoundedRect(Rect r, double tl, double tr, double br, double bl, double scale)
+    private static PathFigure RoundedRect(Rect r, double tl, double tr, double br, double bl, double scale)
     {
         var figure = new PathFigure { StartPoint = Dip(new Point(r.Left + tl, r.Top), scale), IsClosed = true, IsFilled = true };
         Edge(figure, new Point(r.Right - tr, r.Top), new Point(r.Right, r.Top + tr), tr, scale);
@@ -165,7 +171,7 @@ public sealed partial class PaneGlyph : UserControl
     }
 
     // A straight side to the corner, then the corner's quarter circle (none when the radius is 0)
-    static void Edge(PathFigure figure, Point lineTo, Point arcTo, double radius, double scale)
+    private static void Edge(PathFigure figure, Point lineTo, Point arcTo, double radius, double scale)
     {
         figure.Segments.Add(new LineSegment { Point = Dip(lineTo, scale) });
         if (radius > 0)
@@ -174,12 +180,12 @@ public sealed partial class PaneGlyph : UserControl
         }
     }
 
-    static PathFigure Line(Point from, Point to, double scale)
+    private static PathFigure Line(Point from, Point to, double scale)
     {
         var figure = new PathFigure { StartPoint = Dip(from, scale), IsClosed = false, IsFilled = false };
         figure.Segments.Add(new LineSegment { Point = Dip(to, scale) });
         return figure;
     }
 
-    static Point Dip(Point px, double scale) => new(px.X / scale, px.Y / scale);
+    private static Point Dip(Point px, double scale) => new(px.X / scale, px.Y / scale);
 }

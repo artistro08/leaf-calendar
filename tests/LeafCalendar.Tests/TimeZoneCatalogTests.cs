@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 
 public class TimeZoneCatalogTests
 {
-    static readonly DateTimeOffset Now = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset Now = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
 
     [Theory]
     [InlineData("NYC", "America/New_York")]
@@ -29,6 +29,29 @@ public class TimeZoneCatalogTests
 
     [Fact]
     public void Search_Nonsense_Empty() => Assert.Empty(TimeZoneCatalog.Search("zzqqxx", Now));
+
+    [Theory]
+    [InlineData("Europe/Kiev", "Kyiv")]
+    [InlineData("Asia/Calcutta", "Kolkata")]
+    [InlineData("Asia/Katmandu", "Kathmandu")]
+    [InlineData("Asia/Rangoon", "Yangon")]
+    [InlineData("America/Godthab", "Nuuk")]
+    [InlineData("Asia/Saigon", "Ho Chi Minh City")]
+    [InlineData("Atlantic/Faeroe", "Faroe")]
+    [InlineData("Europe/Kyiv", "Kyiv")]
+    public void CityFor_OldIanaSpelling_ShowsTodaysName(string id, string city) =>
+        Assert.Equal(city, TimeZoneCatalog.CityFor(id));
+
+    [Theory]
+    [InlineData("Kiev", "Europe/Kiev", "Kyiv")]
+    [InlineData("Kyiv", "Europe/Kiev", "Kyiv")]
+    [InlineData("Godthab", "America/Godthab", "Nuuk")]
+    public void Search_OldOrNewName_FindsTheRenamedZone(string query, string id, string city)
+    {
+        var first = TimeZoneCatalog.Search(query, Now)[0];
+
+        Assert.Equal((id, city), (first.Id, first.City));
+    }
 
     [Theory]
     [InlineData(0, 0, "UTC")]
@@ -97,6 +120,8 @@ public class TimeZoneCatalogTests
     [InlineData("Central Standard Time", "America/Chicago", true)]
     [InlineData("America/Chicago", "Central Standard Time", true)]
     [InlineData("America/New_York", "America/Chicago", false)]
+    [InlineData("Asia/Kolkata", "India Standard Time", true)]       // Windows' own IANA name is Asia/Calcutta
+    [InlineData("America/Toronto", "Eastern Standard Time", true)]  // Windows' own IANA name is America/New_York
     [InlineData("Mars/Olympus", "America/Chicago", false)]
     [InlineData(null, "America/Chicago", false)]
     public void IsSameZone_MatchesWindowsAndIanaIds(string? id, string zone, bool expected) =>

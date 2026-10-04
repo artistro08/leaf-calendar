@@ -9,6 +9,13 @@
         <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     </PropertyGroup>
 
+    <!-- Doc Comments Are Checked (public members need one; also turns on the unused-using check). The XML file stays out of the app. -->
+    <PropertyGroup>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <CopyDocumentationFileToOutputDirectory>false</CopyDocumentationFileToOutputDirectory>
+        <PublishDocumentationFile>false</PublishDocumentationFile>
+    </PropertyGroup>
+
     <!-- Vulnerable Package Check -->
     <PropertyGroup>
         <NuGetAudit>true</NuGetAudit>

@@ -7,11 +7,11 @@ namespace LeafCalendar.UITests;
 /// <summary>Checks the fake Google's own routes directly (no app window needed): video calls, free/busy, the calendar list, and the directory.</summary>
 public sealed class FakeGoogleServerTests : IDisposable
 {
-    const string Calendar = "leaf.tester@gmail.com";
-    const string Events   = "calendar/v3/calendars/leaf.tester%40gmail.com/events";
+    private const string Calendar = "leaf.tester@gmail.com";
+    private const string Events = "calendar/v3/calendars/leaf.tester%40gmail.com/events";
 
-    readonly FakeGoogleServer _google = new();
-    readonly HttpClient _http = new();
+    private readonly FakeGoogleServer _google = new();
+    private readonly HttpClient _http = new();
 
     public void Dispose()
     {
@@ -19,7 +19,7 @@ public sealed class FakeGoogleServerTests : IDisposable
         _google.Dispose();
     }
 
-    async Task<JsonObject> Send(HttpMethod method, string path, JsonObject body)
+    private async Task<JsonObject> Send(HttpMethod method, string path, JsonObject body)
     {
         using var request = new HttpRequestMessage(method, new Uri(_google.BaseUri, path)) { Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json") };
         using var response = await _http.SendAsync(request, TestContext.Current.CancellationToken);
@@ -27,14 +27,14 @@ public sealed class FakeGoogleServerTests : IDisposable
         return JsonNode.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))!.AsObject();
     }
 
-    static JsonObject Timed(string id) => new()
+    private static JsonObject Timed(string id) => new()
     {
-        ["id"]    = id,
+        ["id"] = id,
         ["start"] = new JsonObject { ["dateTime"] = "2026-10-02T14:00:00Z" },
-        ["end"]   = new JsonObject { ["dateTime"] = "2026-10-02T15:00:00Z" },
+        ["end"] = new JsonObject { ["dateTime"] = "2026-10-02T15:00:00Z" },
     };
 
-    static JsonObject MeetRequest(string requestId) => new()
+    private static JsonObject MeetRequest(string requestId) => new()
     {
         ["createRequest"] = new JsonObject { ["requestId"] = requestId, ["conferenceSolutionKey"] = new JsonObject { ["type"] = "hangoutsMeet" } },
     };
@@ -93,7 +93,7 @@ public sealed class FakeGoogleServerTests : IDisposable
     public void AddEvent_WithExistingMeet_KeepsItAsGiven()
     {
         var body = Timed("meetseed01");
-        body["hangoutLink"]    = "https://meet.google.com/seeded";
+        body["hangoutLink"] = "https://meet.google.com/seeded";
         body["conferenceData"] = new JsonObject { ["conferenceId"] = "seeded" };
 
         _google.AddEvent(Calendar, body);
@@ -148,7 +148,7 @@ public sealed class FakeGoogleServerTests : IDisposable
     public async Task CalendarListPatch_Null_RemovesTheOverride()
     {
         var entry = "calendar/v3/users/me/calendarList/family123%40group.calendar.google.com";
-        using var set   = await _http.PatchAsync(new Uri(_google.BaseUri, entry), new StringContent("""{"summaryOverride":"Kids"}"""), TestContext.Current.CancellationToken);
+        using var set = await _http.PatchAsync(new Uri(_google.BaseUri, entry), new StringContent("""{"summaryOverride":"Kids"}"""), TestContext.Current.CancellationToken);
         using var reset = await _http.PatchAsync(new Uri(_google.BaseUri, entry), new StringContent("""{"summaryOverride":null}"""), TestContext.Current.CancellationToken);
         var list = JsonNode.Parse(await _http.GetStringAsync(new Uri(_google.BaseUri, "calendar/v3/users/me/calendarList"), TestContext.Current.CancellationToken))!;
 

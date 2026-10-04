@@ -22,14 +22,14 @@ public sealed class LiveAccount : IAsyncDisposable
     /// <summary>Credential Locker profile for live tests.</summary>
     public const string Profile = "live-tests";
 
-    readonly string _folder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "leaf-live", Guid.NewGuid().ToString("N"))).FullName;
+    private readonly string _folder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "leaf-live", Guid.NewGuid().ToString("N"))).FullName;
 
-    LiveAccount(OAuthClientCredentials credentials, string accountId)
+    private LiveAccount(OAuthClientCredentials credentials, string accountId)
     {
         AccountId = accountId;
-        Database  = new LeafDatabase(Path.Combine(_folder, "leaf.db"));
+        Database = new LeafDatabase(Path.Combine(_folder, "leaf.db"));
         Database.Migrate();
-        Log      = new AppLog(Path.Combine(_folder, "Logs"), TimeProvider.System);
+        Log = new AppLog(Path.Combine(_folder, "Logs"), TimeProvider.System);
         Services = new GoogleServices(Http, credentials, Tokens, Database, Log, TimeProvider.System);
 
         using var conn = Database.Open();

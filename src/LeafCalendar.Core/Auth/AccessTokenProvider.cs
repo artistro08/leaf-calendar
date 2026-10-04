@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using LeafCalendar.Core.Google;
 
 namespace LeafCalendar.Core.Auth;
 
@@ -7,17 +8,17 @@ namespace LeafCalendar.Core.Auth;
 /// </summary>
 /// <remarks>
 /// Access tokens live only in memory. When Google rotates the refresh token, the new one is saved.
-/// A missing or rejected refresh token becomes <see cref="AccountNeedsSignInException"/> so callers
+/// A missing or rejected refresh token, or a rejected OAuth client, becomes <see cref="AccountNeedsSignInException"/> so callers
 /// can mark the account instead of retrying.
 /// </remarks>
 public sealed class AccessTokenProvider(GoogleOAuthClient oauth, ITokenStore store, TimeProvider time) : IDisposable
 {
-    static readonly TimeSpan RefreshMargin = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan RefreshMargin = TimeSpan.FromMinutes(1);
 
-    readonly ConcurrentDictionary<string, TokenSet> _cache = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, TokenSet> _cache = new(StringComparer.Ordinal);
 
     // ponytail: one lock for all accounts; switch to per-account locks if refreshes ever contend.
-    readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
     /// <summary>Returns a valid access token for <paramref name="accountId"/>.</summary>
     /// <exception cref="AccountNeedsSignInException">No usable refresh token.</exception>
@@ -45,6 +46,12 @@ public sealed class AccessTokenProvider(GoogleOAuthClient oauth, ITokenStore sto
                 tokens = await oauth.RefreshAsync(refreshToken, ct);
             }
             catch (InvalidGrantException)
+            {
+                throw new AccountNeedsSignInException(accountId);
+            }
+
+            // The OAuth Client Was Rejected (wrong secret, deleted, or not the one that issued the token): retrying can't help
+            catch (GoogleApiException ex) when (ex.Reason is "invalid_client" or "unauthorized_client" or "deleted_client")
             {
                 throw new AccountNeedsSignInException(accountId);
             }
@@ -78,7 +85,7 @@ public sealed class AccessTokenProvider(GoogleOAuthClient oauth, ITokenStore sto
     /// <summary>Drops the cached token, e.g. after Google answers 401.</summary>
     public void Forget(string accountId) => _cache.TryRemove(accountId, out _);
 
-    bool TryGetFresh(string accountId, out string token)
+    private bool TryGetFresh(string accountId, out string token)
     {
         if (_cache.TryGetValue(accountId, out var tokens) && tokens.ExpiresAt - time.GetUtcNow() > RefreshMargin)
         {

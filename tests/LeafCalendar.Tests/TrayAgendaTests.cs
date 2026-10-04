@@ -9,14 +9,14 @@ namespace LeafCalendar.Tests;
 
 public sealed class TrayAgendaTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private const string Primary = "leaf.tester@gmail.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
     // Oct 1, 2026, 8:00 AM in New York
-    static readonly DateTimeOffset Morning = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset Morning = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
 
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public TrayAgendaTests()
     {
@@ -35,13 +35,13 @@ public sealed class TrayAgendaTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    void Store(string json)
+    private void Store(string json)
     {
         using var conn = _db.Database.Open();
         EventStore.ApplyJson(conn, null, Account, Primary, json);
     }
 
-    IReadOnlyList<AgendaDay> Load(DateTimeOffset now, int days = 3, bool includeAllDay = true)
+    private IReadOnlyList<AgendaDay> Load(DateTimeOffset now, int days = 3, bool includeAllDay = true)
     {
         using var conn = _db.Database.Open();
         return TrayAgenda.Load(conn, now, NewYork, days, includeAllDay, use24Hour: false);
@@ -147,7 +147,7 @@ public sealed class TrayAgendaTests : IDisposable
     [Fact]
     public void Tooltip_SaysWhatAndWhen()
     {
-        var now  = new DateTimeOffset(2026, 10, 1, 8, 48, 0, TimeSpan.FromHours(-4));
+        var now = new DateTimeOffset(2026, 10, 1, 8, 48, 0, TimeSpan.FromHours(-4));
         var next = TrayAgenda.Next(Load(now), now, TimeSpan.FromHours(1));
 
         Assert.Equal("Dentist appointment in 12 min", TrayAgenda.Tooltip(next));
@@ -157,7 +157,7 @@ public sealed class TrayAgendaTests : IDisposable
     [Fact]
     public void Tooltip_Running_SaysNow()
     {
-        var now  = new DateTimeOffset(2026, 10, 1, 9, 10, 0, TimeSpan.FromHours(-4));
+        var now = new DateTimeOffset(2026, 10, 1, 9, 10, 0, TimeSpan.FromHours(-4));
         var next = TrayAgenda.Next(Load(now), now, TimeSpan.FromHours(1));
 
         Assert.Equal("Dentist appointment now", TrayAgenda.Tooltip(next));
@@ -229,6 +229,14 @@ public sealed class TrayAgendaTests : IDisposable
         var woman_technologist = "👩‍💻";
 
         Assert.Equal(woman_technologist, DisplayText.Clean(woman_technologist, 50));
+    }
+
+    [Fact]
+    public void Clean_KeepsZeroWidthNonJoinerInPersianWords()
+    {
+        var persian = "می‌خواهم";
+
+        Assert.Equal(persian, DisplayText.Clean(persian, 50));
     }
 
     [Fact]

@@ -19,5 +19,5 @@ public static class EditorHeader
         return title.All(IsInvisible) ? "New event" : title.Trim();
     }
 
-    static bool IsInvisible(char c) => char.IsWhiteSpace(c) || char.GetUnicodeCategory(c) is UnicodeCategory.Format or UnicodeCategory.Control;
+    private static bool IsInvisible(char c) => char.IsWhiteSpace(c) || char.GetUnicodeCategory(c) is UnicodeCategory.Format or UnicodeCategory.Control;
 }

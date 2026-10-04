@@ -17,7 +17,7 @@ namespace LeafCalendar.Core.Tray;
 /// </summary>
 public sealed record HotkeySettings
 {
-    const int VkTab = 0x09;
+    private const int VkTab = 0x09;
 
     /// <summary>No keys.</summary>
     public HotkeySettings()
@@ -27,11 +27,11 @@ public sealed record HotkeySettings
     /// <summary>A combination; <paramref name="code"/> is a Win32 virtual-key code.</summary>
     public HotkeySettings(bool win, bool ctrl, bool alt, bool shift, int code)
     {
-        Win   = win;
-        Ctrl  = ctrl;
-        Alt   = alt;
+        Win = win;
+        Ctrl = ctrl;
+        Alt = alt;
         Shift = shift;
-        Code  = code;
+        Code = code;
     }
 
     /// <summary>The Windows key is held.</summary>
@@ -167,28 +167,28 @@ public sealed record HotkeySettings
         return string.Join("+", parts);
     }
 
-    HotkeyModifiers Modifiers =>
+    private HotkeyModifiers Modifiers =>
         (Win ? HotkeyModifiers.Win : 0) | (Ctrl ? HotkeyModifiers.Ctrl : 0) | (Alt ? HotkeyModifiers.Alt : 0) | (Shift ? HotkeyModifiers.Shift : 0);
 
     // A key's name: Hotkey's for the keys a shortcut may use, a plain name for common others
-    static string KeyName(int key) => Hotkey.KeyName(key) ?? key switch
+    private static string KeyName(int key) => Hotkey.KeyName(key) ?? key switch
     {
-        0x08  => "Backspace",
+        0x08 => "Backspace",
         VkTab => "Tab",
-        0x0D  => "Enter",
-        0x1B  => "Esc",
-        0x20  => "Space",
-        0x21  => "Page Up",
-        0x22  => "Page Down",
-        0x23  => "End",
-        0x24  => "Home",
-        0x25  => "Left",
-        0x26  => "Up",
-        0x27  => "Right",
-        0x28  => "Down",
-        0x2D  => "Insert",
-        0x2E  => "Delete",
-        0x7B  => "F12",
-        _     => string.Create(CultureInfo.InvariantCulture, $"Key {key:X2}"),
+        0x0D => "Enter",
+        0x1B => "Esc",
+        0x20 => "Space",
+        0x21 => "Page Up",
+        0x22 => "Page Down",
+        0x23 => "End",
+        0x24 => "Home",
+        0x25 => "Left",
+        0x26 => "Up",
+        0x27 => "Right",
+        0x28 => "Down",
+        0x2D => "Insert",
+        0x2E => "Delete",
+        0x7B => "F12",
+        _ => string.Create(CultureInfo.InvariantCulture, $"Key {key:X2}"),
     };
 }

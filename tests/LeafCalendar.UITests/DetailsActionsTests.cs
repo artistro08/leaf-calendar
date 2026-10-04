@@ -9,10 +9,10 @@ namespace LeafCalendar.UITests;
 
 public sealed class DetailsActionsTests : IDisposable
 {
-    const string Meeting = "Event_evt-meeting_202610011800";
+    private const string Meeting = "Event_evt-meeting_202610011800";
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -20,9 +20,9 @@ public sealed class DetailsActionsTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
-    bool Launched(string link) =>
+    private bool Launched(string link) =>
         Retry.WhileFalse(() => LeafApp.LaunchedLinks(_profile).Contains(link), TimeSpan.FromSeconds(10)).Success;
 
     [Fact]
@@ -47,8 +47,8 @@ public sealed class DetailsActionsTests : IDisposable
         Assert.Equal("Open in Google Maps", maps.Name);
 
         // Full width (the join button's), with a 12 DIP gap under the location text
-        var button   = maps.BoundingRectangle;
-        var join     = leaf.WaitFor("DetailsJoinButton").BoundingRectangle;
+        var button = maps.BoundingRectangle;
+        var join = leaf.WaitFor("DetailsJoinButton").BoundingRectangle;
         var location = leaf.WaitFor("DetailsLocation").BoundingRectangle;
         Assert.Equal(join.Left, button.Left);
         Assert.True(Math.Abs(leaf.WaitFor("DetailsJoinMenuButton").BoundingRectangle.Right - button.Right) <= 1, $"The maps button ({button}) isn't full width.");

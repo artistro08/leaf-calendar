@@ -28,15 +28,15 @@ namespace LeafCalendar.App.Notifications;
 /// </remarks>
 internal sealed class AlertCenter : IDisposable
 {
-    readonly LeafServices _services;
-    readonly Notifier _notifier;
-    readonly Func<TimeZoneInfo> _zone;
-    readonly AlertScheduler _scheduler;
-    readonly Lock _syncGate = new();
-    readonly Lock _inviteGate = new();
-    SyncEngine? _sync;
-    GoogleServices? _google;
-    bool _disposed;
+    private readonly LeafServices _services;
+    private readonly Notifier _notifier;
+    private readonly Func<TimeZoneInfo> _zone;
+    private readonly AlertScheduler _scheduler;
+    private readonly Lock _syncGate = new();
+    private readonly Lock _inviteGate = new();
+    private SyncEngine? _sync;
+    private GoogleServices? _google;
+    private bool _disposed;
 
     /// <summary>Wires the scheduler to the notifier and to every source of changed events.</summary>
     /// <param name="services">The app services (database, clock, edits, Google).</param>
@@ -44,22 +44,22 @@ internal sealed class AlertCenter : IDisposable
     /// <param name="zone">The PC time zone (the App's <see cref="Core.Views.LocalZoneWatcher"/>).</param>
     public AlertCenter(LeafServices services, Notifier notifier, Func<TimeZoneInfo> zone)
     {
-        _services  = services;
-        _notifier  = notifier;
-        _zone      = zone;
+        _services = services;
+        _notifier = notifier;
+        _zone = zone;
         _scheduler = new AlertScheduler(services.Database, services.Time, zone) { IsEnabled = IsEnabled };
 
         // Scheduler
-        _scheduler.AlertDue       += OnAlertDue;
+        _scheduler.AlertDue += OnAlertDue;
         _scheduler.AlertRetracted += OnAlertRetracted;
-        _scheduler.SyncSoon       += OnSyncSoon;
-        _scheduler.Failed         += OnSchedulerFailed;
-        _scheduler.Planned        += OnPlanned;
+        _scheduler.SyncSoon += OnSyncSoon;
+        _scheduler.Failed += OnSchedulerFailed;
+        _scheduler.Planned += OnPlanned;
 
         // Changed Events Re-Plan
-        services.Editor.Changed    += OnDataChanged;
+        services.Editor.Changed += OnDataChanged;
         services.Conflicts.Changed += OnConflictsChanged;
-        services.GoogleChanged     += OnGoogleChanged;
+        services.GoogleChanged += OnGoogleChanged;
         AttachSync();
     }
 
@@ -83,9 +83,9 @@ internal sealed class AlertCenter : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        _services.Editor.Changed    -= OnDataChanged;
+        _services.Editor.Changed -= OnDataChanged;
         _services.Conflicts.Changed -= OnConflictsChanged;
-        _services.GoogleChanged     -= OnGoogleChanged;
+        _services.GoogleChanged -= OnGoogleChanged;
         lock (_syncGate)
         {
             _disposed = true;
@@ -99,24 +99,24 @@ internal sealed class AlertCenter : IDisposable
     // SCHEDULER EVENTS (raised on the scheduler's thread, under its pass lock)
     // =========================================================================
 
-    bool IsEnabled(AlertKind kind)
+    private bool IsEnabled(AlertKind kind)
     {
         using var conn = _services.Database.Open();
-        var settings   = SettingsStore.Load(conn);
+        var settings = SettingsStore.Load(conn);
         return kind switch
         {
             AlertKind.Reminder => settings.ReminderNotifications,
-            AlertKind.JoinNow  => settings.JoinNowNotifications,
-            _                  => settings.InviteNotifications,
+            AlertKind.JoinNow => settings.JoinNowNotifications,
+            _ => settings.InviteNotifications,
         };
     }
 
-    void OnAlertDue(object? sender, Alert alert)
+    private void OnAlertDue(object? sender, Alert alert)
     {
         try
         {
             using var conn = _services.Database.Open();
-            var o          = alert.Occurrence;
+            var o = alert.Occurrence;
             if (EventStore.Get(conn, o.AccountId, o.CalendarId, o.EventId) is not { } stored)
             {
                 _services.Log.Info("alert.skipped", $"kind={alert.Kind} tag={alert.Tag} reason=gone");
@@ -125,10 +125,10 @@ internal sealed class AlertCenter : IDisposable
 
             // Content (description links count, the same parse the planner used for the meeting link)
             var settings = SettingsStore.Load(conn);
-            var details  = EventDetailsParser.Parse(stored.RawJson, includeDescription: true);
-            var when     = ToastContent.When(o, _zone(), settings.Use24HourTime, _services.Time.GetUtcNow());
-            var profile  = _services.Options.Profile;
-            var shown    = _notifier.Show(alert.Kind == AlertKind.JoinNow
+            var details = EventDetailsParser.Parse(stored.RawJson, includeDescription: true);
+            var when = ToastContent.When(o, _zone(), settings.Use24HourTime, _services.Time.GetUtcNow());
+            var profile = _services.Options.Profile;
+            var shown = _notifier.Show(alert.Kind == AlertKind.JoinNow
                 ? ToastContent.JoinNow(alert, details, when, profile, settings.NotificationSound)
                 : ToastContent.Reminder(alert, details, when, profile, settings.NotificationSound));
             if (!shown)
@@ -147,46 +147,46 @@ internal sealed class AlertCenter : IDisposable
         }
     }
 
-    void OnAlertRetracted(object? sender, string tag)
+    private void OnAlertRetracted(object? sender, string tag)
     {
         _services.Log.Info("alert.withdrawn", $"tag={tag}");
         _ = _notifier.RemoveAsync(tag, ToastContent.JoinGroup);
     }
 
     // Detailed logging only: counts and a time, never event content
-    void OnPlanned(object? sender, PlanSummary plan) =>
+    private void OnPlanned(object? sender, PlanSummary plan) =>
         _services.Log.Trace("alert.plan", string.Create(CultureInfo.InvariantCulture, $"ahead={plan.Ahead} next={plan.Next?.UtcDateTime:O}"));
 
-    void OnSyncSoon(object? sender, EventArgs e) => _services.Google?.Loop.TriggerNow();
+    private void OnSyncSoon(object? sender, EventArgs e) => _services.Google?.Loop.TriggerNow();
 
     // Logging never throws, so a failure report can't fail in turn
-    void OnSchedulerFailed(object? sender, Exception ex) => _services.Log.Info("alert.check.failed", $"error={ex.GetType().Name}");
+    private void OnSchedulerFailed(object? sender, Exception ex) => _services.Log.Info("alert.check.failed", $"error={ex.GetType().Name}");
 
     // =========================================================================
     // SYNC SIGNALS (raised on the syncing thread; nothing may escape)
     // =========================================================================
 
     // Edits; Invalidate only nudges the timer, never runs a pass here
-    void OnDataChanged(object? sender, EventArgs e) => _scheduler.Invalidate();
+    private void OnDataChanged(object? sender, EventArgs e) => _scheduler.Invalidate();
 
     // A sync wrote something: plan again, then look for invitations
-    void OnSyncDataChanged(object? sender, EventArgs e)
+    private void OnSyncDataChanged(object? sender, EventArgs e)
     {
         _scheduler.Invalidate();
         ShowInvites();
     }
 
     // One look at a time, so the startup look and a sync's can't both show the same invitation
-    void ShowInvites()
+    private void ShowInvites()
     {
         try
         {
             lock (_inviteGate)
             {
                 using var conn = _services.Database.Open();
-                var settings   = SettingsStore.Load(conn);
-                var now        = _services.Time.GetUtcNow();
-                var zone       = _zone();
+                var settings = SettingsStore.Load(conn);
+                var now = _services.Time.GetUtcNow();
+                var zone = _zone();
                 foreach (var invite in InviteWatcher.TakeNew(conn, now, zone))
                 {
                     // Recorded Either Way, So Turning Invitations Back On Doesn't Bring Old Ones
@@ -208,12 +208,12 @@ internal sealed class AlertCenter : IDisposable
     }
 
     // New conflicts: one notification with the total, replacing any earlier one
-    void OnConflictsFound(object? sender, int found)
+    private void OnConflictsFound(object? sender, int found)
     {
         try
         {
             using var conn = _services.Database.Open();
-            var count      = ConflictStore.Count(conn);
+            var count = ConflictStore.Count(conn);
             if (count > 0)
             {
                 _notifier.Show(ToastContent.Conflicts(count, _services.Options.Profile, SettingsStore.Load(conn).NotificationSound));
@@ -227,7 +227,7 @@ internal sealed class AlertCenter : IDisposable
     }
 
     // A conflict was answered: plan again, and withdraw the notification once none are left
-    void OnConflictsChanged(object? sender, EventArgs e)
+    private void OnConflictsChanged(object? sender, EventArgs e)
     {
         _scheduler.Invalidate();
         try
@@ -244,17 +244,17 @@ internal sealed class AlertCenter : IDisposable
         }
     }
 
-    void OnSignInNeeded(object? sender, string accountId) => ShowSignIn(a => a.Id == accountId);
+    private void OnSignInNeeded(object? sender, string accountId) => ShowSignIn(a => a.Id == accountId);
 
     // At Start: accounts whose sign-in stopped working while Leaf wasn't running (each toast replaces its earlier one)
-    void ShowSignInsNeeded() => ShowSignIn(a => a.Status == AccountStatus.NeedsSignIn);
+    private void ShowSignInsNeeded() => ShowSignIn(a => a.Status == AccountStatus.NeedsSignIn);
 
-    void ShowSignIn(Func<Account, bool> which)
+    private void ShowSignIn(Func<Account, bool> which)
     {
         try
         {
             using var conn = _services.Database.Open();
-            var sound      = SettingsStore.Load(conn).NotificationSound;
+            var sound = SettingsStore.Load(conn).NotificationSound;
             foreach (var account in AccountStore.GetAll(conn).Where(which))
             {
                 _notifier.Show(ToastContent.SignIn(account.Id, account.Email, _services.Options.Profile, sound));
@@ -267,10 +267,10 @@ internal sealed class AlertCenter : IDisposable
         }
     }
 
-    void OnGoogleChanged(object? sender, EventArgs e) => AttachSync();
+    private void OnGoogleChanged(object? sender, EventArgs e) => AttachSync();
 
     // GoogleChanged may arrive on any thread, even while Quit disposes this, so attaching and detaching share a lock
-    void AttachSync()
+    private void AttachSync()
     {
         lock (_syncGate)
         {
@@ -281,7 +281,7 @@ internal sealed class AlertCenter : IDisposable
 
             DetachSync();
             _google = _services.Google;
-            _sync   = _google?.Sync;
+            _sync = _google?.Sync;
             if (_google is not null)
             {
                 _google.JoinNowWithdrawn += OnAlertRetracted;
@@ -289,20 +289,20 @@ internal sealed class AlertCenter : IDisposable
 
             if (_sync is not null)
             {
-                _sync.DataChanged    += OnSyncDataChanged;
+                _sync.DataChanged += OnSyncDataChanged;
                 _sync.ConflictsFound += OnConflictsFound;
-                _sync.SignInNeeded   += OnSignInNeeded;
+                _sync.SignInNeeded += OnSignInNeeded;
             }
         }
     }
 
-    void DetachSync()
+    private void DetachSync()
     {
         if (_sync is not null)
         {
-            _sync.DataChanged    -= OnSyncDataChanged;
+            _sync.DataChanged -= OnSyncDataChanged;
             _sync.ConflictsFound -= OnConflictsFound;
-            _sync.SignInNeeded   -= OnSignInNeeded;
+            _sync.SignInNeeded -= OnSignInNeeded;
         }
 
         _sync = null;

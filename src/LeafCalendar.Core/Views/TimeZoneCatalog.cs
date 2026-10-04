@@ -19,7 +19,7 @@ public sealed record TimeZoneChoice(string Id, string City, string Detail)
 /// </remarks>
 public static class TimeZoneCatalog
 {
-    static readonly (string Id, string City, string[] Aliases)[] Cities =
+    private static readonly (string Id, string City, string[] Aliases)[] Cities =
     [
         ("America/New_York", "New York", ["NYC", "NY", "EST", "EDT", "ET", "Eastern", "Boston", "Miami"]),
         ("America/Chicago", "Chicago", ["CHI", "CST", "CDT", "CT", "Central", "Dallas", "Houston"]),
@@ -53,11 +53,40 @@ public static class TimeZoneCatalog
         ("Etc/UTC", "UTC", ["GMT", "Coordinated Universal Time", "Z"]),
     ];
 
-    static readonly Lazy<IReadOnlyList<Entry>> AllEntries = new(BuildEntries);
+    // IANA IDs with an old spelling of their city (IANA's "backward" names, which Windows still hands out), by today's name
+    private static readonly Dictionary<string, string> RenamedCities = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Europe/Kiev"] = "Kyiv",
+        ["Asia/Calcutta"] = "Kolkata",
+        ["Asia/Katmandu"] = "Kathmandu",
+        ["Asia/Rangoon"] = "Yangon",
+        ["America/Godthab"] = "Nuuk",
+        ["Asia/Saigon"] = "Ho Chi Minh City",
+        ["Asia/Ho_Chi_Minh"] = "Ho Chi Minh City",
+        ["Asia/Dacca"] = "Dhaka",
+        ["Asia/Thimbu"] = "Thimphu",
+        ["Asia/Ulan_Bator"] = "Ulaanbaatar",
+        ["Asia/Ashkhabad"] = "Ashgabat",
+        ["Asia/Macao"] = "Macau",
+        ["Asia/Ujung_Pandang"] = "Makassar",
+        ["Atlantic/Faeroe"] = "Faroe",
+        ["Pacific/Enderbury"] = "Kanton",
+        ["Pacific/Truk"] = "Chuuk",
+        ["Pacific/Ponape"] = "Pohnpei",
+    };
+
+    private static readonly Lazy<IReadOnlyList<Entry>> AllEntries = new(BuildEntries);
 
     /// <summary>A zone's IANA ID (what Google wants), converting a Windows ID such as "Eastern Standard Time".</summary>
     public static string IanaId(TimeZoneInfo zone) =>
         TimeZoneInfo.TryConvertWindowsIdToIanaId(zone.Id, out var iana) ? iana : zone.Id;
+
+    /// <summary>
+    /// A zone's Windows ID, converting an IANA ID. Windows maps several IANA IDs onto one zone ("Asia/Kolkata" and
+    /// "Asia/Calcutta" are both "India Standard Time"), so this is the ID to compare zones by.
+    /// </summary>
+    internal static string WindowsId(TimeZoneInfo zone) =>
+        zone.HasIanaId && TimeZoneInfo.TryConvertIanaIdToWindowsId(zone.Id, out var windows) ? windows : zone.Id;
 
     /// <summary>True when this PC can resolve <paramref name="id"/>.</summary>
     public static bool IsKnown(string id) => TimeZoneInfo.TryFindSystemTimeZoneById(id, out _);
@@ -99,10 +128,10 @@ public static class TimeZoneCatalog
         return ListLabel(zone, zone.GetUtcOffset(now), CityFor(id), now);
     }
 
-    static string ListLabel(TimeZoneInfo zone, TimeSpan offset, string city, DateTimeOffset now)
+    private static string ListLabel(TimeZoneInfo zone, TimeSpan offset, string city, DateTimeOffset now)
     {
-        var sign  = offset < TimeSpan.Zero ? "-" : "+";
-        var abs   = offset.Duration();
+        var sign = offset < TimeSpan.Zero ? "-" : "+";
+        var abs = offset.Duration();
         var label = string.Create(CultureInfo.InvariantCulture, $"(UTC{sign}{abs.Hours:00}:{abs.Minutes:00}) {city}");
 
         // "UTC" Names Itself Already
@@ -119,7 +148,7 @@ public static class TimeZoneCatalog
 
         return id is not null
             && TimeZoneInfo.TryFindSystemTimeZoneById(id, out var other)
-            && string.Equals(IanaId(other), IanaId(zone), StringComparison.OrdinalIgnoreCase);
+            && string.Equals(WindowsId(other), WindowsId(zone), StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>"UTC", "UTC+9", "UTC−5", "UTC+5:30" (with a real minus sign).</summary>
@@ -131,30 +160,33 @@ public static class TimeZoneCatalog
         }
 
         var sign = offset < TimeSpan.Zero ? "−" : "+";
-        var abs  = offset.Duration();
+        var abs = offset.Duration();
 
         return abs.Minutes == 0
             ? string.Create(CultureInfo.InvariantCulture, $"UTC{sign}{abs.Hours}")
             : string.Create(CultureInfo.InvariantCulture, $"UTC{sign}{abs.Hours}:{abs.Minutes:00}");
     }
 
-    /// <summary>A zone's city name (curated, else the last part of the IANA ID).</summary>
+    /// <summary>
+    /// A zone's city name (curated, else today's name for a renamed IANA ID, else the last part of the IANA ID). Only the
+    /// name shown changes: the ID, which settings store and search matches too, stays as Windows gives it.
+    /// </summary>
     public static string CityFor(string id)
     {
         var curated = Array.Find(Cities, c => c.Id == id);
-        return curated.City ?? id[(id.LastIndexOf('/') + 1)..].Replace('_', ' ');
+        return curated.City ?? RenamedCities.GetValueOrDefault(id) ?? id[(id.LastIndexOf('/') + 1)..].Replace('_', ' ');
     }
 
     /// <summary>The column label: the custom label, else the city.</summary>
     public static string ShortLabel(ExtraTimeZone zone) => zone.Label ?? CityFor(zone.Id);
 
-    static string Detail(string id, DateTimeOffset now)
+    private static string Detail(string id, DateTimeOffset now)
     {
         var zone = TimeZoneInfo.FindSystemTimeZoneById(id);
         return $"{ZoneAbbreviation.For(zone, now)} · {zone.StandardName}";
     }
 
-    static int Rank(Entry entry, string query)
+    private static int Rank(Entry entry, string query)
     {
         if (query.Length == 0)
         {
@@ -181,10 +213,10 @@ public static class TimeZoneCatalog
         return int.MaxValue;
     }
 
-    static List<Entry> BuildEntries()
+    private static List<Entry> BuildEntries()
     {
         var entries = Cities.Where(c => IsKnown(c.Id)).Select(c => new Entry(c.Id, c.City, c.Aliases, Curated: true)).ToList();
-        var ids     = entries.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
+        var ids = entries.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
 
         foreach (var zone in TimeZoneInfo.GetSystemTimeZones())
         {
@@ -197,5 +229,5 @@ public static class TimeZoneCatalog
         return entries;
     }
 
-    sealed record Entry(string Id, string City, string[] Aliases, bool Curated);
+    private sealed record Entry(string Id, string City, string[] Aliases, bool Curated);
 }

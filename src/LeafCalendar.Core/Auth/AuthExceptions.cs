@@ -29,6 +29,6 @@ public sealed class WrongAccountException(string signedInEmail, string? expected
     /// <summary>The address that was asked for (empty when unknown).</summary>
     public string ExpectedEmail { get; } = Plain(expectedEmail ?? "");
 
-    static string Plain(string text) =>
+    private static string Plain(string text) =>
         new([.. text.Where(c => !char.IsControl(c) && char.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.Format)]);
 }

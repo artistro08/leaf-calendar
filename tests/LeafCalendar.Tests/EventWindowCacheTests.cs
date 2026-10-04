@@ -4,11 +4,11 @@ namespace LeafCalendar.Tests;
 
 public sealed class EventWindowCacheTests : IDisposable
 {
-    static readonly TimeZoneInfo Zone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly TimeZoneInfo Zone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
-    readonly List<DateOnly> _loads = [];
-    readonly List<CalendarOccurrence> _data = [];
-    readonly EventWindowCache _cache;
+    private readonly List<DateOnly> _loads = [];
+    private readonly List<CalendarOccurrence> _data = [];
+    private readonly EventWindowCache _cache;
 
     public EventWindowCacheTests() =>
         _cache = new EventWindowCache(
@@ -23,12 +23,12 @@ public sealed class EventWindowCacheTests : IDisposable
 
     public void Dispose() => _cache.Dispose();
 
-    static DateOnly D(int year, int month, int day) => new(year, month, day);
+    private static DateOnly D(int year, int month, int day) => new(year, month, day);
 
-    static CalendarOccurrence Timed(string id, DateTimeOffset start, DateTimeOffset end) =>
+    private static CalendarOccurrence Timed(string id, DateTimeOffset start, DateTimeOffset end) =>
         new("a", "c", id, null, null, start, end, false, id, EventKind.Default, ResponseStatus.Accepted, "#4285F4", null, false, false);
 
-    static CalendarOccurrence AllDay(string id, DateOnly start, int days)
+    private static CalendarOccurrence AllDay(string id, DateOnly start, int days)
     {
         var s = new DateTimeOffset(start.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
         return new("a", "c", id, null, null, s, s.AddDays(days), true, id, EventKind.Default, ResponseStatus.Accepted, "#4285F4", null, false, false);
@@ -126,8 +126,8 @@ public sealed class EventWindowCacheTests : IDisposable
     [Fact]
     public async Task SharedEvent_IsHeldOnce_WithAStripePerCalendar()
     {
-        var start    = new DateTimeOffset(2026, 10, 5, 14, 0, 0, TimeSpan.Zero);
-        var work     = new CalendarOccurrence("work", "w", "e1", "uid", null, start, start.AddHours(1), false, "Sync", EventKind.Default, ResponseStatus.Accepted, "#039BE5", null, false, false);
+        var start = new DateTimeOffset(2026, 10, 5, 14, 0, 0, TimeSpan.Zero);
+        var work = new CalendarOccurrence("work", "w", "e1", "uid", null, start, start.AddHours(1), false, "Sync", EventKind.Default, ResponseStatus.Accepted, "#039BE5", null, false, false);
         var personal = work with { AccountId = "home", CalendarId = "h", CalendarColor = "#D50000" };
         _data.AddRange([work, personal]);
 
@@ -141,8 +141,8 @@ public sealed class EventWindowCacheTests : IDisposable
     [Fact]
     public async Task SharedEvent_OtherCopy_IsDrawnAsTheShownOne()
     {
-        var start    = new DateTimeOffset(2026, 10, 5, 14, 0, 0, TimeSpan.Zero);
-        var work     = new CalendarOccurrence("work", "w", "e1", "uid", null, start, start.AddHours(1), false, "Sync", EventKind.Default, ResponseStatus.Accepted, "#039BE5", null, false, false);
+        var start = new DateTimeOffset(2026, 10, 5, 14, 0, 0, TimeSpan.Zero);
+        var work = new CalendarOccurrence("work", "w", "e1", "uid", null, start, start.AddHours(1), false, "Sync", EventKind.Default, ResponseStatus.Accepted, "#039BE5", null, false, false);
         var personal = work with { AccountId = "home", CalendarId = "h", CalendarColor = "#D50000" };
         _data.AddRange([work, personal]);
 

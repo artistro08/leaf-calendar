@@ -19,8 +19,8 @@ public static class QueryString
         foreach (var pair in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
         {
             var separator = pair.IndexOf('=', StringComparison.Ordinal);
-            var key       = Decode(separator < 0 ? pair : pair[..separator]);
-            var value     = separator < 0 ? "" : Decode(pair[(separator + 1)..]);
+            var key = Decode(separator < 0 ? pair : pair[..separator]);
+            var value = separator < 0 ? "" : Decode(pair[(separator + 1)..]);
 
             result.TryAdd(key, value);
         }
@@ -28,5 +28,5 @@ public static class QueryString
         return result;
     }
 
-    static string Decode(string value) => Uri.UnescapeDataString(value.Replace('+', ' '));
+    private static string Decode(string value) => Uri.UnescapeDataString(value.Replace('+', ' '));
 }

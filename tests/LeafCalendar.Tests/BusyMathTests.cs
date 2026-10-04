@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 
 public sealed class BusyMathTests
 {
-    static BusyRange R(int startHour, int startMinute, int endHour, int endMinute) =>
+    private static BusyRange R(int startHour, int startMinute, int endHour, int endMinute) =>
         new(new DateTimeOffset(2026, 10, 1, startHour, startMinute, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 1, endHour, endMinute, 0, TimeSpan.Zero));
 
     [Fact]

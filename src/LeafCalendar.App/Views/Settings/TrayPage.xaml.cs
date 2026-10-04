@@ -14,16 +14,16 @@ namespace LeafCalendar.App.Views.Settings;
 /// </summary>
 public sealed partial class TrayPage : Page
 {
-    SettingsContext _context = null!;
+    private SettingsContext _context = null!;
 
     // True while the saved values are being shown (the controls' change events are ignored meanwhile)
-    bool _loading = true;
+    private bool _loading = true;
 
     /// <summary>Creates the page.</summary>
     public TrayPage()
     {
         InitializeComponent();
-        DaysBox.Maximum     = LeafSettings.MaxFlyoutDays;
+        DaysBox.Maximum = LeafSettings.MaxFlyoutDays;
         DaysRow.Description = $"How many days the tray flyout lists, starting today. From 1 to {LeafSettings.MaxFlyoutDays}. It shows the calendars you show in Leaf.";
         ScrollIndicator.ShowOnHover(PageScroll);
     }
@@ -39,23 +39,23 @@ public sealed partial class TrayPage : Page
     /// <inheritdoc />
     protected override void OnNavigatedFrom(NavigationEventArgs e) => _context.Host.SettingsChanged -= OnSettingsChanged;
 
-    void OnSettingsChanged(object? sender, EventArgs e) => Load();
+    private void OnSettingsChanged(object? sender, EventArgs e) => Load();
 
     // Show The Saved Values (the lookahead items are in LookaheadChoices order)
-    void Load()
+    private void Load()
     {
         var s = _context.Calendar.Settings;
         _loading = true;
 
-        IconSwitch.IsOn            = !s.HideTrayIcon;
-        DaysBox.Value              = s.FlyoutDays;
-        AllDaySwitch.IsOn          = s.FlyoutAllDay;
+        IconSwitch.IsOn = !s.HideTrayIcon;
+        DaysBox.Value = s.FlyoutDays;
+        AllDaySwitch.IsOn = s.FlyoutAllDay;
         LookaheadBox.SelectedIndex = LeafSettings.LookaheadChoices.ToList().IndexOf(s.TrayLookaheadMinutes);
 
         _loading = false;
     }
 
-    void OnDaysChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    private void OnDaysChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
         if (_loading)
         {
@@ -73,7 +73,7 @@ public sealed partial class TrayPage : Page
         _context.Save(s => s with { FlyoutDays = days });
     }
 
-    void OnIconToggled(object sender, RoutedEventArgs e)
+    private void OnIconToggled(object sender, RoutedEventArgs e)
     {
         if (!_loading)
         {
@@ -82,7 +82,7 @@ public sealed partial class TrayPage : Page
         }
     }
 
-    void OnAllDayToggled(object sender, RoutedEventArgs e)
+    private void OnAllDayToggled(object sender, RoutedEventArgs e)
     {
         if (!_loading)
         {
@@ -91,7 +91,7 @@ public sealed partial class TrayPage : Page
         }
     }
 
-    void OnLookaheadChanged(object sender, SelectionChangedEventArgs e)
+    private void OnLookaheadChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_loading && LookaheadBox.SelectedIndex >= 0)
         {

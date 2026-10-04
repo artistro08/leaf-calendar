@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 
 public class RepeatRuleTests
 {
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
     [Fact]
     public void Parse_WeeklyWithDaysAndUntil_ReadsFields()
@@ -72,9 +72,9 @@ public class RepeatRuleTests
         Assert.Contains("WKST=SU", written);
 
         // Sunday Oct 4, 2026 start
-        var start    = new DateTimeOffset(2026, 10, 4, 9, 0, 0, TimeSpan.FromHours(-4));
+        var start = new DateTimeOffset(2026, 10, 4, 9, 0, 0, TimeSpan.FromHours(-4));
         var original = RecurrenceExpander.ExpandTimed([line], start, "America/New_York", start, start.AddDays(60));
-        var again    = RecurrenceExpander.ExpandTimed([written], start, "America/New_York", start, start.AddDays(60));
+        var again = RecurrenceExpander.ExpandTimed([written], start, "America/New_York", start, start.AddDays(60));
         Assert.Equal(original, again);
     }
 
@@ -88,7 +88,7 @@ public class RepeatRuleTests
 
         // The editor writes the rule in the event's zone, whatever zone is on screen
         var written = RepeatRule.Parse(line, tokyo)!.ToRRule(isAllDay: false, tokyo);
-        var count   = RecurrenceExpander.ExpandTimed([written], start, "Asia/Tokyo", start, start.AddDays(30)).Count;
+        var count = RecurrenceExpander.ExpandTimed([written], start, "Asia/Tokyo", start, start.AddDays(30)).Count;
 
         Assert.Equal(line, written);
         Assert.Equal(5, count);
@@ -96,5 +96,18 @@ public class RepeatRuleTests
         // Written in New York's zone, the end would slip a day and add a sixth
         var shifted = RepeatRule.Parse(line, tokyo)!.ToRRule(isAllDay: false, NewYork);
         Assert.Equal(6, RecurrenceExpander.ExpandTimed([shifted], start, "Asia/Tokyo", start, start.AddDays(30)).Count);
+    }
+
+    [Fact]
+    public void Parse_AllDayRuleWithUtcUntil_KeepsItsUtcDate()
+    {
+        // Written by another client; the expander still shows Dec 31, so the editor must too
+        const string line = "RRULE:FREQ=WEEKLY;UNTIL=20261231T000000Z";
+
+        var rule = RepeatRule.Parse(line, NewYork, isAllDay: true)!;
+
+        Assert.Equal(new DateOnly(2026, 12, 31), rule.Until);
+        Assert.Contains(new DateOnly(2026, 12, 31), RecurrenceExpander.ExpandAllDay([line], new DateOnly(2026, 12, 3), DateOnly.MinValue, DateOnly.MaxValue));
+        Assert.Equal("RRULE:FREQ=WEEKLY;UNTIL=20261231", rule.ToRRule(isAllDay: true, NewYork));
     }
 }

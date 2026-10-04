@@ -37,6 +37,8 @@ GetCurrentProcessId
 GetCurrentThreadId
 WerRegisterAppLocalDump
 WerUnregisterAppLocalDump
+RegisterApplicationRestart
+UnregisterApplicationRestart
 SetWindowsHookEx
 UnhookWindowsHookEx
 CallNextHookEx
@@ -47,7 +49,10 @@ HC_ACTION
 SendInput
 GetWindowThreadProcessId
 AttachThreadInput
+IsHungAppWindow
 BringWindowToTop
 MSLLHOOKSTRUCT
 WindowFromPoint
 GetAncestor
+ToUnicodeEx
+GetKeyboardLayout

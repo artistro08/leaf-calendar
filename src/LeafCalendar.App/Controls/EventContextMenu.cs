@@ -26,7 +26,7 @@ public static class EventContextMenu
         }
 
         var single = vm.Selection.Count == 1 ? vm.SelectedInfo : null;
-        var menu   = new MenuFlyout();
+        var menu = new MenuFlyout();
 
         // Reply (one invite)
         if (single is { CanRespond: true })
@@ -60,9 +60,9 @@ public static class EventContextMenu
         menu.ShowAt(target, position);
     }
 
-    static MenuFlyoutItem Item(string text, string automationId, int glyph, Action click) => Item(text, automationId, Glyph(glyph), click);
+    private static MenuFlyoutItem Item(string text, string automationId, int glyph, Action click) => Item(text, automationId, Glyph(glyph), click);
 
-    static MenuFlyoutItem Item(string text, string automationId, IconElement icon, Action click)
+    private static MenuFlyoutItem Item(string text, string automationId, IconElement icon, Action click)
     {
         var item = new MenuFlyoutItem { Text = text, Icon = icon };
         AutomationProperties.SetAutomationId(item, automationId);
@@ -71,10 +71,10 @@ public static class EventContextMenu
     }
 
     // A 16 DIP Segoe Fluent glyph (the design standard's menu icon)
-    static FontIcon Glyph(int glyph) => new() { Glyph = char.ConvertFromUtf32(glyph), FontSize = 16 };
+    private static FontIcon Glyph(int glyph) => new() { Glyph = char.ConvertFromUtf32(glyph), FontSize = 16 };
 
     // A filled circle in the color (named by the item's text, so it's never color alone)
-    static FontIcon Swatch(string hex)
+    private static FontIcon Swatch(string hex)
     {
         var icon = Glyph(0xE91F);
         icon.Foreground = LeafBrushes.FromHex(hex);

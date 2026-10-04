@@ -7,7 +7,7 @@ namespace LeafCalendar.Tests;
 
 public class LoopbackListenerTests
 {
-    static readonly HttpClient Http = new();
+    private static readonly HttpClient Http = new();
 
     [Fact]
     public void RedirectUri_Created_BindsLoopbackOnly()
@@ -45,6 +45,45 @@ public class LoopbackListenerTests
         Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
         Assert.Equal("abc", query["code"]);
         Assert.Equal("xyz", query["state"]);
+    }
+
+    [Fact]
+    public async Task WaitForCallbackAsync_GoogleReturnsError_ReturnsQueryAndDidNotFinishPage()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var listener = new LoopbackListener();
+        var wait = listener.WaitForCallbackAsync("xyz", ct);
+
+        using var response = await Http.GetAsync(new Uri(listener.RedirectUri, "?error=leaf_marker_%3Cb%3E&state=xyz"), ct);
+        var query = await wait;
+        var page = await response.Content.ReadAsStringAsync(ct);
+
+        // Canceled Or Refused: Not "Signed In", And Nothing From The Query Is Echoed
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Sign-in didn't finish", page, StringComparison.Ordinal);
+        Assert.Contains("go back to Leaf Calendar to try again", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("You're signed in", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("leaf_marker", page[page.IndexOf("<body", StringComparison.Ordinal)..], StringComparison.Ordinal); // body only: a local ad blocker may add scripts naming the URL to the head
+        Assert.Equal("leaf_marker_<b>", query["error"]);
+    }
+
+    [Theory]
+    [InlineData("?code=abc&state=xyz")]
+    [InlineData("?error=access_denied&state=xyz")]
+    public async Task WaitForCallbackAsync_EitherPage_LinksBackToLeaf(string reply)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var listener = new LoopbackListener();
+        var wait = listener.WaitForCallbackAsync("xyz", ct);
+
+        using var response = await Http.GetAsync(new Uri(listener.RedirectUri, reply), ct);
+        await wait;
+        var page = await response.Content.ReadAsStringAsync(ct);
+
+        // The Button Works On Its Own; The Page Also Tries The Link Once When It Loads
+        Assert.Contains("<a href=\"leaf-calendar:\"", page, StringComparison.Ordinal);
+        Assert.Contains("Open Leaf Calendar", page, StringComparison.Ordinal);
+        Assert.Contains("<meta http-equiv=\"refresh\" content=\"0;url=leaf-calendar:\">", page, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -119,11 +158,33 @@ public class LoopbackListenerTests
         var wait = listener.WaitForCallbackAsync("xyz", ct);
 
         // Any Page Can Hit The Port; A Forged Reply Must Not End Sign-In
-        using var forged    = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=stolen&state=forged"), ct);
+        using var forged = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=stolen&state=forged"), ct);
         using var stateless = await Http.GetAsync(new Uri(listener.RedirectUri, "?error=access_denied"), ct);
         Assert.Equal(HttpStatusCode.NotFound, forged.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, stateless.StatusCode);
         Assert.False(wait.IsCompleted);
+
+        using var redirect = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=abc&state=xyz"), ct);
+
+        Assert.Equal(HttpStatusCode.OK, redirect.StatusCode);
+        Assert.Equal("abc", (await wait)["code"]);
+    }
+
+    [Fact]
+    public async Task WaitForCallbackAsync_ConnectionResetInBacklog_KeepsWaitingForRedirect()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var listener = new LoopbackListener();
+
+        // A Local Caller Connects Then Resets Before The Listener Accepts It
+        using (var reset = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+        {
+            await reset.ConnectAsync(IPAddress.Loopback, listener.RedirectUri.Port, ct);
+            reset.LingerState = new LingerOption(true, 0);
+        }
+
+        await Task.Delay(100, ct);
+        var wait = listener.WaitForCallbackAsync("xyz", ct);
 
         using var redirect = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=abc&state=xyz"), ct);
 

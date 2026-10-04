@@ -8,16 +8,16 @@ namespace LeafCalendar.Tests;
 
 public class GoogleOAuthClientTests : IDisposable
 {
-    const string TokenUrl    = "https://oauth2.googleapis.com/token";
-    const string RevokeUrl   = "https://oauth2.googleapis.com/revoke";
-    const string UserInfoUrl = "https://openidconnect.googleapis.com/v1/userinfo";
+    private const string TokenUrl = "https://oauth2.googleapis.com/token";
+    private const string RevokeUrl = "https://oauth2.googleapis.com/revoke";
+    private const string UserInfoUrl = "https://openidconnect.googleapis.com/v1/userinfo";
 
-    static readonly OAuthClientCredentials Credentials = new("123-abc.apps.googleusercontent.com", "GOCSPX-test-secret");
+    private static readonly OAuthClientCredentials Credentials = new("123-abc.apps.googleusercontent.com", "GOCSPX-test-secret");
 
-    readonly FakeHttpHandler _google = new();
-    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
+    private readonly FakeHttpHandler _google = new();
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
 
-    GoogleOAuthClient CreateClient() => new(new HttpClient(_google), Credentials, _time);
+    private GoogleOAuthClient CreateClient() => new(new HttpClient(_google), Credentials, _time);
 
     void IDisposable.Dispose()
     {
@@ -28,7 +28,7 @@ public class GoogleOAuthClientTests : IDisposable
     [Fact]
     public void BuildAuthorizationUrl_Called_IncludesPkceOfflineAndScopes()
     {
-        var url   = CreateClient().BuildAuthorizationUrl(new Uri("http://127.0.0.1:5000/"), "state-1", "challenge-1", "me@example.com");
+        var url = CreateClient().BuildAuthorizationUrl(new Uri("http://127.0.0.1:5000/"), "state-1", "challenge-1", "me@example.com");
         var query = QueryString.Parse(url.Query);
 
         Assert.StartsWith("https://accounts.google.com/o/oauth2/v2/auth?", url.AbsoluteUri, StringComparison.Ordinal);
@@ -48,7 +48,7 @@ public class GoogleOAuthClientTests : IDisposable
     [Fact]
     public void BuildAuthorizationUrl_IncludesGrantedScopes()
     {
-        var url   = CreateClient().BuildAuthorizationUrl(new Uri("http://127.0.0.1:5000/"), "state-1", "challenge-1");
+        var url = CreateClient().BuildAuthorizationUrl(new Uri("http://127.0.0.1:5000/"), "state-1", "challenge-1");
         var query = QueryString.Parse(url.Query);
 
         Assert.Equal("true", query["include_granted_scopes"]);

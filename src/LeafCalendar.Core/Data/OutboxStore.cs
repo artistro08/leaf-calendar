@@ -63,7 +63,7 @@ public sealed record OutboxEntry(
 /// </remarks>
 public static class OutboxStore
 {
-    const string Columns = """
+    private const string Columns = """
         SELECT seq, account_id, calendar_id, event_id, operation, payload, base_etag, send_updates,
                before_json, not_before, state, attempts, last_error, depends_on
         FROM outbox
@@ -115,12 +115,23 @@ public static class OutboxStore
     /// <summary>
     /// Drops the entries that depend on <paramref name="seq"/> (it will never reach Google), with every entry and
     /// local row of their events, and anything that depends on those in turn. A split's new series goes this way
-    /// when the old series' end is refused or the user keeps Google's version of it.
+    /// when the old series' end is refused or the user keeps Google's version of it. A dependent delete (a move to
+    /// another account deletes the original only after Google has the copy) is dropped alone and its rows put back,
+    /// so the event is never lost; the edits queued before it still go.
     /// </summary>
-    public static void DropDependents(SqliteConnection conn, SqliteTransaction tx, long seq)
+    public static void DropDependents(SqliteConnection conn, SqliteTransaction? tx, long seq)
     {
         foreach (var dependent in conn.Query(tx, Columns + " WHERE depends_on = $seq;", Map, ("$seq", seq)))
         {
+            // A Move's Delete Behind Its Copy: the original stays
+            if (dependent.Operation == OutboxOperation.Delete)
+            {
+                Remove(conn, tx, dependent.Seq);
+                DropDependents(conn, tx, dependent.Seq);
+                EventStore.Restore(conn, tx, dependent.AccountId, dependent.CalendarId, dependent.EventId, dependent.BeforeJson ?? "[]");
+                continue;
+            }
+
             foreach (var entry in ForEvent(conn, tx, dependent.AccountId, dependent.CalendarId, dependent.EventId))
             {
                 Remove(conn, tx, entry.Seq);
@@ -133,6 +144,29 @@ public static class OutboxStore
 
             EventStore.Remove(conn, tx, dependent.AccountId, dependent.CalendarId, dependent.EventId);
         }
+    }
+
+    /// <summary>
+    /// Drops the entries queued after <paramref name="entry"/> for its event (edits made on top of one that will
+    /// never reach Google), with what depends on them. A later move took the local row, and the edits after it,
+    /// to its destination calendar, so the entries queued there go too. Returns the calendar the local row is in now.
+    /// </summary>
+    public static string DropLater(SqliteConnection conn, SqliteTransaction tx, OutboxEntry entry)
+    {
+        var calendarId = entry.Operation == OutboxOperation.Move ? entry.Payload ?? entry.CalendarId : entry.CalendarId;
+        foreach (var later in ForEvent(conn, tx, entry.AccountId, calendarId, entry.EventId).Where(e => e.Seq > entry.Seq))
+        {
+            Remove(conn, tx, later.Seq);
+            DropDependents(conn, tx, later.Seq);
+
+            // A Later Move: the rest of the event's edits are queued under its destination
+            if (later.Operation == OutboxOperation.Move)
+            {
+                return DropLater(conn, tx, later);
+            }
+        }
+
+        return calendarId;
     }
 
     /// <summary>Counts a failed try. <paramref name="error"/> is a status or reason only, never event content.</summary>
@@ -239,21 +273,21 @@ public static class OutboxStore
         r.GetStringOrNull(12),
         r.IsDBNull(13) ? null : r.GetInt64(13));
 
-    static string ToText(OutboxOperation operation) => operation switch
+    private static string ToText(OutboxOperation operation) => operation switch
     {
         OutboxOperation.Create => "create",
         OutboxOperation.Delete => "delete",
-        OutboxOperation.Move   => "move",
-        OutboxOperation.Rsvp   => "rsvp",
-        _                      => "patch",
+        OutboxOperation.Move => "move",
+        OutboxOperation.Rsvp => "rsvp",
+        _ => "patch",
     };
 
-    static OutboxOperation FromText(string text) => text switch
+    private static OutboxOperation FromText(string text) => text switch
     {
         "create" => OutboxOperation.Create,
         "delete" => OutboxOperation.Delete,
-        "move"   => OutboxOperation.Move,
-        "rsvp"   => OutboxOperation.Rsvp,
-        _        => OutboxOperation.Patch,
+        "move" => OutboxOperation.Move,
+        "rsvp" => OutboxOperation.Rsvp,
+        _ => OutboxOperation.Patch,
     };
 }

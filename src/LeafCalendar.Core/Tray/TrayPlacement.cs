@@ -87,10 +87,10 @@ public static class TrayPlacement
 
         return edge switch
         {
-            TaskbarEdge.Top   => workArea with { Top = Math.Max(workArea.Top, bar.Bottom) },
-            TaskbarEdge.Left  => workArea with { Left = Math.Max(workArea.Left, bar.Right) },
+            TaskbarEdge.Top => workArea with { Top = Math.Max(workArea.Top, bar.Bottom) },
+            TaskbarEdge.Left => workArea with { Left = Math.Max(workArea.Left, bar.Right) },
             TaskbarEdge.Right => workArea with { Right = Math.Min(workArea.Right, bar.Left) },
-            _                 => workArea with { Bottom = Math.Min(workArea.Bottom, bar.Top) },
+            _ => workArea with { Bottom = Math.Min(workArea.Bottom, bar.Top) },
         };
     }
 
@@ -98,22 +98,22 @@ public static class TrayPlacement
     public static PixelRect Flyout(PixelRect area, TaskbarEdge edge, PixelRect? icon, double scale)
     {
         var margin = Px(MarginDip, scale);
-        var width  = Math.Min(Px(WidthDip, scale), area.Width - 2 * margin);
+        var width = Math.Min(Px(WidthDip, scale), area.Width - 2 * margin);
         var height = Math.Min(Px(HeightDip, scale), area.Height - 2 * margin);
 
         // Next To The Icon, Or At The Far End (Quick Settings' corner)
         var (cx, cy) = icon is { } i ? ((i.Left + i.Right) / 2, (i.Top + i.Bottom) / 2) : (area.Right, area.Bottom);
-        var minLeft  = area.Left + margin;
-        var maxLeft  = area.Right - margin - width;
-        var minTop   = area.Top + margin;
-        var maxTop   = area.Bottom - margin - height;
+        var minLeft = area.Left + margin;
+        var maxLeft = area.Right - margin - width;
+        var minTop = area.Top + margin;
+        var maxTop = area.Bottom - margin - height;
 
         var (left, top) = edge switch
         {
-            TaskbarEdge.Top   => (Clamp(cx - width / 2, minLeft, maxLeft), minTop),
-            TaskbarEdge.Left  => (minLeft, Clamp(cy - height / 2, minTop, maxTop)),
+            TaskbarEdge.Top => (Clamp(cx - width / 2, minLeft, maxLeft), minTop),
+            TaskbarEdge.Left => (minLeft, Clamp(cy - height / 2, minTop, maxTop)),
             TaskbarEdge.Right => (maxLeft, Clamp(cy - height / 2, minTop, maxTop)),
-            _                 => (Clamp(cx - width / 2, minLeft, maxLeft), maxTop),
+            _ => (Clamp(cx - width / 2, minLeft, maxLeft), maxTop),
         };
 
         return new PixelRect(left, top, left + width, top + height);
@@ -129,9 +129,9 @@ public static class TrayPlacement
     /// <summary>The frame corner the flyout opens from: its bottom-left for a bottom or left taskbar, top-left for a top one, bottom-right for a right one.</summary>
     public static (int X, int Y) FlyoutAnchor(PixelRect frame, TaskbarEdge edge) => edge switch
     {
-        TaskbarEdge.Top   => (frame.Left, frame.Top),
+        TaskbarEdge.Top => (frame.Left, frame.Top),
         TaskbarEdge.Right => (frame.Right, frame.Bottom),
-        _                 => (frame.Left, frame.Bottom),
+        _ => (frame.Left, frame.Bottom),
     };
 
     /// <summary>Where the menu opens for a click: moved off the taskbar to the usable area's edge plus the margin.</summary>
@@ -140,14 +140,14 @@ public static class TrayPlacement
         var margin = Px(MarginDip, scale);
         return edge switch
         {
-            TaskbarEdge.Top   => (x, area.Top + margin),
-            TaskbarEdge.Left  => (area.Left + margin, y),
+            TaskbarEdge.Top => (x, area.Top + margin),
+            TaskbarEdge.Left => (area.Left + margin, y),
             TaskbarEdge.Right => (area.Right - margin, y),
-            _                 => (x, area.Bottom - margin),
+            _ => (x, area.Bottom - margin),
         };
     }
 
-    static int Px(double dip, double scale) => (int)Math.Round(dip * scale);
+    private static int Px(double dip, double scale) => (int)Math.Round(dip * scale);
 
-    static int Clamp(int value, int min, int max) => max < min ? min : Math.Clamp(value, min, max);
+    private static int Clamp(int value, int min, int max) => max < min ? min : Math.Clamp(value, min, max);
 }

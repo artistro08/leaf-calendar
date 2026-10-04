@@ -26,11 +26,11 @@ internal readonly record struct KeyboardEvent(uint Message, int Key, nuint Extra
 /// </summary>
 internal static unsafe class KeyboardHook
 {
-    static HHOOK s_hook;
-    static Action<KeyboardEvent>? s_callback;
-    static Func<bool>? s_isActive;
-    static Func<KeyboardEvent, bool>? s_filter;
-    static int s_generation;
+    private static HHOOK s_hook;
+    private static Action<KeyboardEvent>? s_callback;
+    private static Func<bool>? s_isActive;
+    private static Func<KeyboardEvent, bool>? s_filter;
+    private static int s_generation;
 
     /// <summary>Counts Start calls, so an owner closes only the hook it started.</summary>
     public static int Generation => s_generation;
@@ -42,7 +42,7 @@ internal static unsafe class KeyboardHook
         s_generation++;
         s_callback = callback;
         s_isActive = isActive;
-        s_filter   = filter;
+        s_filter = filter;
 
         // Register Low Level Hook Procedure
         var module = (HINSTANCE)(nint)PInvoke.GetModuleHandle(default(PCWSTR)).Value;
@@ -62,7 +62,7 @@ internal static unsafe class KeyboardHook
 
         s_callback = null;
         s_isActive = null;
-        s_filter   = null;
+        s_filter = null;
     }
 
     /// <summary>Removes the hook only if it's still the one from <paramref name="generation"/> (a newer one stays).</summary>
@@ -78,14 +78,14 @@ internal static unsafe class KeyboardHook
     public static bool IsDown(int virtualKey) => (PInvoke.GetAsyncKeyState(virtualKey) & 0x8000) != 0;
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
-    static LRESULT HookProc(int nCode, WPARAM wParam, LPARAM lParam)
+    private static LRESULT HookProc(int nCode, WPARAM wParam, LPARAM lParam)
     {
         try
         {
             if (nCode == (int)PInvoke.HC_ACTION && s_callback is { } callback && s_isActive?.Invoke() == true)
             {
                 var info = (KBDLLHOOKSTRUCT*)lParam.Value;
-                var ev   = new KeyboardEvent((uint)wParam.Value, (int)info->vkCode, info->dwExtraInfo);
+                var ev = new KeyboardEvent((uint)wParam.Value, (int)info->vkCode, info->dwExtraInfo);
 
                 // Ignore the keyboard hook if the FilterKeyboardEvent returns false.
                 if (s_filter is null || s_filter(ev))
@@ -121,7 +121,7 @@ internal sealed class HotkeySettingsControlHook : IDisposable
     private readonly Func<bool> _isActive;
     private readonly Func<int, nuint, bool> _filterKeyboardEvent;
     private readonly int _generation;
-    private bool disposedValue;
+    private bool _disposedValue;
 
     public HotkeySettingsControlHook(Action<int> keyDown, Action<int> keyUp, Func<bool> isActive, Func<int, nuint, bool> filterAccessibleKeyboardEvents)
     {
@@ -155,16 +155,16 @@ internal sealed class HotkeySettingsControlHook : IDisposable
 
     private bool FilterKeyboardEvents(KeyboardEvent ev) => _filterKeyboardEvent(ev.Key, ev.ExtraInfo);
 
-    public bool GetDisposedState() => disposedValue;
+    public bool GetDisposedState() => _disposedValue;
 
     public void Dispose()
     {
-        if (!disposedValue)
+        if (!_disposedValue)
         {
             // Remove the hook. KeyboardHook is static with one hook at a time: a newer instance's Start already closed this one's,
             // so Dispose closes only the hook this instance started, never a newer one (whatever order they're disposed in)
             KeyboardHook.Close(_generation);
-            disposedValue = true;
+            _disposedValue = true;
         }
     }
 }

@@ -65,9 +65,9 @@ public sealed partial class SettingRow : ContentControl
         private set => SetValue(IconVisibilityProperty, value);
     }
 
-    static void OnDescriptionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
+    private static void OnDescriptionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((SettingRow)d).DescriptionVisibility = string.IsNullOrEmpty(e.NewValue as string) ? Visibility.Collapsed : Visibility.Visible;
 
-    static void OnGlyphChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
+    private static void OnGlyphChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((SettingRow)d).IconVisibility = string.IsNullOrEmpty(e.NewValue as string) ? Visibility.Collapsed : Visibility.Visible;
 }

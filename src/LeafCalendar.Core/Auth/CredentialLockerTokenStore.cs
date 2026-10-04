@@ -13,19 +13,19 @@ namespace LeafCalendar.Core.Auth;
 /// <seealso href="https://learn.microsoft.com/windows/apps/develop/security/credential-locker"/>
 public sealed class CredentialLockerTokenStore(string profile) : ITokenStore
 {
-    const string ClientIdUser     = "client-id";
-    const string ClientSecretUser = "client-secret";
-    const int ElementNotFound     = unchecked((int)0x80070490);
+    private const string ClientIdUser = "client-id";
+    private const string ClientSecretUser = "client-secret";
+    private const int ElementNotFound = unchecked((int)0x80070490);
 
-    readonly PasswordVault _vault = new();
+    private readonly PasswordVault _vault = new();
 
-    string ClientResource  => $"LeafCalendar/{profile}/client";
-    string RefreshResource => $"LeafCalendar/{profile}/refresh";
+    private string ClientResource => $"LeafCalendar/{profile}/client";
+    private string RefreshResource => $"LeafCalendar/{profile}/refresh";
 
     /// <inheritdoc />
     public OAuthClientCredentials? GetClientCredentials()
     {
-        var id     = Read(ClientResource, ClientIdUser);
+        var id = Read(ClientResource, ClientIdUser);
         var secret = Read(ClientResource, ClientSecretUser);
 
         return id is null || secret is null ? null : new OAuthClientCredentials(id, secret);
@@ -59,7 +59,7 @@ public sealed class CredentialLockerTokenStore(string profile) : ITokenStore
         }
     }
 
-    string? Read(string resource, string user)
+    private string? Read(string resource, string user)
     {
         var credential = FindAll(resource).FirstOrDefault(c => c.UserName == user);
         if (credential is null)
@@ -71,13 +71,13 @@ public sealed class CredentialLockerTokenStore(string profile) : ITokenStore
         return credential.Password;
     }
 
-    void Write(string resource, string user, string value)
+    private void Write(string resource, string user, string value)
     {
         Remove(resource, user);
         _vault.Add(new PasswordCredential(resource, user, value));
     }
 
-    void Remove(string resource, string user)
+    private void Remove(string resource, string user)
     {
         var credential = FindAll(resource).FirstOrDefault(c => c.UserName == user);
         if (credential is not null)
@@ -87,7 +87,7 @@ public sealed class CredentialLockerTokenStore(string profile) : ITokenStore
     }
 
     // FindAllByResource throws "Element not found" (0x80070490) when a resource has no entries.
-    List<PasswordCredential> FindAll(string resource)
+    private List<PasswordCredential> FindAll(string resource)
     {
         try
         {

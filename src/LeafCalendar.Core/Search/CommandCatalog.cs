@@ -73,10 +73,10 @@ public static class CommandCatalog
         var scored = new List<(CommandItem Item, int Score, int Order)>();
         for (var i = 0; i < All.Count; i++)
         {
-            var title      = All[i].Title.ToLowerInvariant();
+            var title = All[i].Title.ToLowerInvariant();
             var titleWords = title.Split(' ');
-            var keywords   = All[i].Keywords.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            var scores     = words.Select(w =>
+            var keywords = All[i].Keywords.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var scores = words.Select(w =>
                 title.StartsWith(w, StringComparison.Ordinal) ? 3
                 : titleWords.Any(t => t.StartsWith(w, StringComparison.Ordinal)) ? 2
                 : title.Contains(w, StringComparison.Ordinal) || keywords.Any(k => k.StartsWith(w, StringComparison.Ordinal)) ? 1

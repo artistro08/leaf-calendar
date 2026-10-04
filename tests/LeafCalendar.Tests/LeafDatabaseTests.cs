@@ -6,7 +6,7 @@ namespace LeafCalendar.Tests;
 
 public sealed class LeafDatabaseTests : IDisposable
 {
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public void Dispose() => _db.Dispose();
 
@@ -32,7 +32,7 @@ public sealed class LeafDatabaseTests : IDisposable
     public void Migrate_FromVersion3_KeepsQueuedEdits()
     {
         using var folder = new TempFolder();
-        var database     = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
+        var database = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
 
         // A Version 3 Database With One Queued Edit (what the owner's install has)
         using (var conn = database.Open())
@@ -62,7 +62,7 @@ public sealed class LeafDatabaseTests : IDisposable
     public void Migrate_FromVersion4_KeepsDataAndAddsTheAlertLedger()
     {
         using var folder = new TempFolder();
-        var database     = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
+        var database = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
 
         // A Version 4 Database With A Calendar, An Event, And Outbox Rows (One Waiting On Another)
         using (var conn = database.Open())
@@ -100,7 +100,7 @@ public sealed class LeafDatabaseTests : IDisposable
     public void Migrate_FromTheMilestone4Schema_AddsHostedDomainAsNull()
     {
         using var folder = new TempFolder();
-        var database     = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
+        var database = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
 
         // A Version 5 Database With One Account (what Milestone 4 installs have)
         using (var conn = database.Open())
@@ -130,7 +130,7 @@ public sealed class LeafDatabaseTests : IDisposable
     public void Migrate_FromVersion6_FollowsGooglesChoiceOnceOnTheNextRefresh()
     {
         using var folder = new TempFolder();
-        var database     = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
+        var database = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
 
         // A Version 6 Database Showing A Calendar That's Off In Google (Leaf decided before it followed Google's changes)
         using (var conn = database.Open())

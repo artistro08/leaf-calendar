@@ -1,10 +1,9 @@
 // Track A (Milestone 5 Tasks 3-5) owns this file: the command menu, the cheat sheet, and time travel.
 using System.ComponentModel;
-using System.Globalization;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Views;
-using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
@@ -15,13 +14,13 @@ namespace LeafCalendar.App.Views;
 public sealed partial class CalendarPage
 {
     // The command menu, built on first use and kept for the page's life
-    Flyout? _commandFlyout;
-    CommandMenu? _commandMenu;
-    Border? _commandAnchor;
-    bool _dialogOpen;
+    private Flyout? _commandFlyout;
+    private CommandMenu? _commandMenu;
+    private Border? _commandAnchor;
+    private bool _dialogOpen;
 
     // The time travel and zone switch bars above the calendar
-    TimeTravelBar? _travelBar;
+    private TimeTravelBar? _travelBar;
 
     /// <summary>The command menu opened (true) or closed (false); the window dims behind it while it's open.</summary>
     public event EventHandler<bool>? CommandMenuShown;
@@ -39,7 +38,7 @@ public sealed partial class CalendarPage
             ? _miniMonthNextCenterX = next.TransformToVisual(Sidebar).TransformPoint(new Windows.Foundation.Point(next.ActualWidth / 2, 0)).X
             : _miniMonthNextCenterX;
 
-    double? _miniMonthNextCenterX;
+    private double? _miniMonthNextCenterX;
 
     /// <summary>
     /// With the sidebar closed, starts the period title after <paramref name="right"/> (the right edge the title bar search
@@ -60,10 +59,10 @@ public sealed partial class CalendarPage
     }
 
     // The period title's inset with the sidebar closed (clear of the title bar's pane toggle and search icon)
-    double _titleClosedLeft = PaneToggleClearance + TitleInset;
+    private double _titleClosedLeft = PaneToggleClearance + TitleInset;
 
     // The period title's inset for the sidebar as it is now, eased with the sidebar's edge while it slides
-    void PlaceTitle()
+    private void PlaceTitle()
     {
         var left = IsSidebarOpen ? TitleInset : _titleClosedLeft;
         PeriodTitle.Margin = new Thickness(left, 9, 0, 8);
@@ -71,20 +70,20 @@ public sealed partial class CalendarPage
     }
 
     // Called once when the page opens: the zone bars
-    void AttachNavigate()
+    private void AttachNavigate()
     {
         // At The Bottom, With The Other Toasts (first, above the notice)
         _travelBar = new TimeTravelBar(ViewModel);
         Toasts.Children.Insert(0, _travelBar);
         ViewModel.PropertyChanged += OnNavigatePropertyChanged;
-        ViewModel.LayoutChanged   += OnNavigateLayoutChanged;
+        ViewModel.LayoutChanged += OnNavigateLayoutChanged;
     }
 
     // Called from Detach: undo everything AttachNavigate wired to the long-lived view model (the menu holds it too)
-    void DetachNavigate()
+    private void DetachNavigate()
     {
         ViewModel.PropertyChanged -= OnNavigatePropertyChanged;
-        ViewModel.LayoutChanged   -= OnNavigateLayoutChanged;
+        ViewModel.LayoutChanged -= OnNavigateLayoutChanged;
         if (_travelBar is not null)
         {
             Toasts.Children.Remove(_travelBar);
@@ -94,7 +93,7 @@ public sealed partial class CalendarPage
         CloseShortcutSheet();
         _commandFlyout?.Hide();
         _commandFlyout = null;
-        _commandMenu   = null;
+        _commandMenu = null;
         if (_commandAnchor is not null)
         {
             Root.SizeChanged -= OnCommandRootSizeChanged;
@@ -103,7 +102,7 @@ public sealed partial class CalendarPage
         }
     }
 
-    void OnNavigatePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnNavigatePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(CalendarViewModel.TravelZoneId) or nameof(CalendarViewModel.ZoneSwitchOffer))
         {
@@ -113,7 +112,7 @@ public sealed partial class CalendarPage
 
     // Settings changes raise LayoutChanged: the zone on screen may have moved (SyncZone is a no-op when the zone
     // stayed, so its own LayoutChanged can't loop)
-    void OnNavigateLayoutChanged(object? sender, EventArgs e)
+    private void OnNavigateLayoutChanged(object? sender, EventArgs e)
     {
         ViewModel.SyncZone();
         _travelBar?.Update(ViewModel);
@@ -124,12 +123,12 @@ public sealed partial class CalendarPage
     // =========================================================================
 
     // Ctrl+K, Ctrl+F, /, and the title bar's search icon: the menu opens empty, under the title bar, with focus in its box
-    void OpenCommandMenu()
+    private void OpenCommandMenu()
     {
         if (_commandFlyout is null || _commandMenu is null)
         {
-            var menu   = new CommandMenu(ViewModel, RunCommandRow);
-            var style  = new Style(typeof(FlyoutPresenter));
+            var menu = new CommandMenu(ViewModel, RunCommandRow);
+            var style = new Style(typeof(FlyoutPresenter));
             style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(0)));
             style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(8)));
             // The presenter fits the 640 wide menu and its border exactly, and never scrolls sideways (a 640 cap, border
@@ -168,15 +167,15 @@ public sealed partial class CalendarPage
         _commandFlyout.ShowAt(_commandAnchor, new FlyoutShowOptions
         {
             Placement = FlyoutPlacementMode.Bottom,
-            ShowMode  = FlyoutShowMode.Standard,
+            ShowMode = FlyoutShowMode.Standard,
         });
     }
 
-    void OnCommandRootSizeChanged(object sender, SizeChangedEventArgs e) => PlaceCommandAnchor();
+    private void OnCommandRootSizeChanged(object sender, SizeChangedEventArgs e) => PlaceCommandAnchor();
 
     // The menu's top is where a full size menu (search row, the results at their tallest, footer) would be centered
     // vertically, so it doesn't jump as the results grow and shrink; a short window clamps it and shortens the list
-    void PlaceCommandAnchor()
+    private void PlaceCommandAnchor()
     {
         if (_commandAnchor is null || _commandMenu is null)
         {
@@ -185,13 +184,13 @@ public sealed partial class CalendarPage
 
         const double FullHeight = 56 + 1 + CommandMenu.ResultsMaxHeight + 40;
         var height = Root.ActualHeight;
-        var top    = Math.Max(8, (height - FullHeight) / 2);
+        var top = Math.Max(8, (height - FullHeight) / 2);
         _commandAnchor.Margin = new Thickness(0, top, 0, 0);
         _commandMenu.LimitResultsHeight(Math.Max(96, height - top - 8 - 96));
     }
 
     // Runs the picked row (the menu closes first, so focus is back on the calendar for what the row opens)
-    void RunCommandRow(CommandRow row, bool jump)
+    private void RunCommandRow(CommandRow row, bool jump)
     {
         // Jump To Date Stays In The Menu: it asks for the date there
         if (row.Item is { Command: Core.Views.CalendarCommand.GoToDate })
@@ -202,8 +201,8 @@ public sealed partial class CalendarPage
 
         _commandFlyout?.Hide();
 
-        // A Date Or An Event Hides A Showing Editor, Like Closing The Panel (the edit is kept; C or E brings it back)
-        if (row.Kind is CommandRowKind.Event or CommandRowKind.Date && ViewModel.Editing is not null && IsDetailsOpen)
+        // A Row Hides A Showing Editor, Like Closing The Panel (the edit is kept; C or E brings it back)
+        if (EditorShowing)
         {
             SetDetailsOpen(false, animate: true);
         }
@@ -233,7 +232,7 @@ public sealed partial class CalendarPage
     }
 
     // Actions with no shortcut, by ID; an unknown ID does nothing
-    void RunAction(string id)
+    private void RunAction(string id)
     {
         var vm = ViewModel;
         switch (id)
@@ -262,15 +261,15 @@ public sealed partial class CalendarPage
         // Settings Pages
         SettingsSection? section = id switch
         {
-            "settings-general"       => SettingsSection.General,
-            "settings-calendars"     => SettingsSection.Calendars,
-            "settings-time-zones"    => SettingsSection.TimeZones,
+            "settings-general" => SettingsSection.General,
+            "settings-calendars" => SettingsSection.Calendars,
+            "settings-time-zones" => SettingsSection.TimeZones,
             "settings-notifications" => SettingsSection.Notifications,
-            "settings-tray"          => SettingsSection.Tray,
-            "settings-shortcuts"     => SettingsSection.Shortcuts,
-            "settings-accounts"      => SettingsSection.Accounts,
-            "settings-about"         => SettingsSection.About,
-            _                        => null,
+            "settings-tray" => SettingsSection.Tray,
+            "settings-shortcuts" => SettingsSection.Shortcuts,
+            "settings-accounts" => SettingsSection.Accounts,
+            "settings-about" => SettingsSection.About,
+            _ => null,
         };
         if (section is { } page)
         {
@@ -283,11 +282,11 @@ public sealed partial class CalendarPage
     // =========================================================================
 
     // The open cheat sheet panel, or null, and what had focus before it opened (focus goes back there when it closes)
-    Border? _sheet;
-    DependencyObject? _beforeSheet;
+    private Border? _sheet;
+    private DependencyObject? _beforeSheet;
 
     // ?: the cheat sheet as a panel at the left of the calendar view, over it (? again, Esc, or its close button closes it)
-    void ShowShortcutSheet()
+    private void ShowShortcutSheet()
     {
         if (_sheet is not null)
         {
@@ -297,24 +296,24 @@ public sealed partial class CalendarPage
 
         var (panel, filter) = ShortcutSheet.Panel(this, ViewModel.Settings, CloseShortcutSheet);
         panel.HorizontalAlignment = HorizontalAlignment.Left;
-        panel.Margin              = new Thickness(16);
+        panel.Margin = new Thickness(16);
         Grid.SetRow(panel, 2);
         Float(panel);
         Island.Children.Add(panel);
-        _sheet       = panel;
+        _sheet = panel;
         SlideSheet(panel, show: true);
         _beforeSheet = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
         filter.Loaded += (_, _) => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => filter.Focus(FocusState.Programmatic));
     }
 
-    void CloseShortcutSheet()
+    private void CloseShortcutSheet()
     {
         if (_sheet is null)
         {
             return;
         }
 
-        // It slides back out to the right, then goes
+        // It slides back out to the left, then goes
         var sheet = _sheet;
         _sheet = null;
         SlideSheet(sheet, show: false);
@@ -331,13 +330,13 @@ public sealed partial class CalendarPage
     // The sheet flies in from the left, like the keyboard buttons it opens from: it starts just past the island's left
     // edge, which the island clips at, so it comes out from behind the sidebar when that's open (or from the window's
     // edge), and goes back the same way
-    static readonly TimeSpan SheetSlide = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan SheetSlide = TimeSpan.FromMilliseconds(250);
 
-    void SlideSheet(Border sheet, bool show)
+    private void SlideSheet(Border sheet, bool show)
     {
-        var lift  = sheet.Translation.Z;
-        var away  = new System.Numerics.Vector3(-(float)(ShortcutSheet.PanelWidth + sheet.Margin.Left), 0, lift);
-        var home  = new System.Numerics.Vector3(0, 0, lift);
+        var lift = sheet.Translation.Z;
+        var away = new System.Numerics.Vector3(-(float)(ShortcutSheet.PanelWidth + sheet.Margin.Left), 0, lift);
+        var home = new System.Numerics.Vector3(0, 0, lift);
         if (!new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
         {
             if (!show)
@@ -361,31 +360,31 @@ public sealed partial class CalendarPage
                 }
 
                 sheet.TranslationTransition = new Vector3Transition { Duration = SheetSlide };
-                sheet.Translation           = home;
+                sheet.Translation = home;
             });
             return;
         }
 
-        sheet.IsHitTestVisible      = false;
+        sheet.IsHitTestVisible = false;
         sheet.TranslationTransition = new Vector3Transition { Duration = SheetSlide };
-        sheet.Translation           = away;
+        sheet.Translation = away;
 
         // One Sheet Leaving At A Time: one still sliding out from an earlier close goes now, so none is left behind
         _sheetGone?.Stop();
         RemoveLeavingSheet();
         _sheetLeaving = sheet;
-        _sheetGone    = DispatcherQueue.CreateTimer();
-        _sheetGone.Interval    = SheetSlide;
+        _sheetGone = DispatcherQueue.CreateTimer();
+        _sheetGone.Interval = SheetSlide;
         _sheetGone.IsRepeating = false;
-        _sheetGone.Tick       += (_, _) => RemoveLeavingSheet();
+        _sheetGone.Tick += (_, _) => RemoveLeavingSheet();
         _sheetGone.Start();
     }
 
     // Removes a closed sheet once it has slid out (held so it lives until it fires), and the sheet it removes
-    Microsoft.UI.Dispatching.DispatcherQueueTimer? _sheetGone;
-    Border? _sheetLeaving;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _sheetGone;
+    private Border? _sheetLeaving;
 
-    void RemoveLeavingSheet()
+    private void RemoveLeavingSheet()
     {
         if (_sheetLeaving is { } leaving)
         {
@@ -394,7 +393,7 @@ public sealed partial class CalendarPage
         }
     }
 
-    void Float(UIElement card)
+    private void Float(UIElement card)
     {
         card.Translation = new System.Numerics.Vector3(0, 0, 32);
         var shadow = new ThemeShadow();
@@ -404,7 +403,7 @@ public sealed partial class CalendarPage
 
     // One dialog at a time: our own flag covers Leaf's sheet and time travel; any other dialog already open (a scope
     // question, the conflict dialog) makes WinUI refuse a second one, which is noted by type and otherwise ignored
-    void ShowDialog(Func<Task> show, string eventName)
+    private void ShowDialog(Func<Task> show, string eventName)
     {
         if (_dialogOpen)
         {
@@ -434,7 +433,7 @@ public sealed partial class CalendarPage
     // =========================================================================
 
     // Z: pick a zone to view the calendar in, for this session
-    void StartTimeTravel() => ShowDialog(async () =>
+    private void StartTimeTravel() => ShowDialog(async () =>
     {
         if (await AskTravelZoneAsync() is { } zoneId)
         {
@@ -445,11 +444,11 @@ public sealed partial class CalendarPage
     // The zone picker ("Go" waits for a picked suggestion). Suggestions go to the box as rows of plain strings
     // (ZoneSuggestions; a list of Core records can't be marshaled to WinRT under Native AOT), the zone you're in disabled,
     // and come back by matching our own rows. The box's text is written here, from the pick, not from the row
-    async Task<string?> AskTravelZoneAsync()
+    private async Task<string?> AskTravelZoneAsync()
     {
         IReadOnlyList<TimeZoneChoice> suggestions = [];
-        List<ListViewItem>            rows        = [];
-        TimeZoneChoice?               picked      = null;
+        List<ListViewItem> rows = [];
+        TimeZoneChoice? picked = null;
 
         var box = new AutoSuggestBox { PlaceholderText = "Search a city or zone (Tokyo, NYC, UTC)", Width = 360, UpdateTextOnSelect = false };
         AutomationProperties.SetName(box, "Time zone");
@@ -457,13 +456,13 @@ public sealed partial class CalendarPage
 
         var dialog = new ContentDialog
         {
-            XamlRoot               = XamlRoot,
-            RequestedTheme         = ActualTheme,
-            Title                  = "Time travel",
-            Content                = box,
-            PrimaryButtonText      = "Go",
-            CloseButtonText        = "Cancel",
-            DefaultButton          = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+            RequestedTheme = ActualTheme,
+            Title = "Time travel",
+            Content = box,
+            PrimaryButtonText = "Go",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
             IsPrimaryButtonEnabled = false,
         };
 
@@ -475,15 +474,15 @@ public sealed partial class CalendarPage
                 return;
             }
 
-            picked                        = null;
+            picked = null;
             dialog.IsPrimaryButtonEnabled = false;
-            suggestions                   = TimeZoneCatalog.Search(sender.Text, ViewModel.Now);
-            rows                          = Controls.ZoneSuggestions.Rows(suggestions, ViewModel.Zone);
-            sender.ItemsSource            = rows;
+            suggestions = TimeZoneCatalog.Search(sender.Text, ViewModel.Now);
+            rows = Controls.ZoneSuggestions.Rows(suggestions, ViewModel.Zone);
+            sender.ItemsSource = rows;
         };
         box.SuggestionChosen += (_, args) =>
         {
-            picked                        = Controls.ZoneSuggestions.Chosen(rows, suggestions, args.SelectedItem);
+            picked = Controls.ZoneSuggestions.Chosen(rows, suggestions, args.SelectedItem);
             dialog.IsPrimaryButtonEnabled = picked is not null;
             if (picked is not null)
             {
@@ -507,20 +506,20 @@ public sealed partial class CalendarPage
             }
             else if (rows.Count > 0 && Controls.ZoneSuggestions.Chosen(rows, suggestions, rows[0]) is { } first)
             {
-                picked                        = first;
+                picked = first;
                 dialog.IsPrimaryButtonEnabled = true;
-                sender.Text                   = first.ToString();
+                sender.Text = first.ToString();
             }
         };
         box.PreviewKeyDown += (sender, e) =>
         {
             if (e.Key == Windows.System.VirtualKey.Escape && box.Text.Length > 0)
             {
-                picked                        = null;
+                picked = null;
                 dialog.IsPrimaryButtonEnabled = false;
-                box.Text                      = "";
-                box.ItemsSource               = null;
-                e.Handled                     = true;
+                box.Text = "";
+                box.ItemsSource = null;
+                e.Handled = true;
             }
         };
         dialog.Opened += (_, _) => box.Focus(FocusState.Programmatic);

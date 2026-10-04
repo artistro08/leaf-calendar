@@ -17,32 +17,47 @@ namespace LeafCalendar.App.ViewModels;
 public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
 {
     // Shown when a step fails for a reason the user can't act on
-    const string NoConnection = "Couldn't reach Google. Check your connection and try again.";
+    private const string NoConnection = OnboardingFlow.NoConnection;
 
     // Where the OAuth client is created (the setup guide's link)
-    static readonly Uri ConsoleUri = new("https://console.cloud.google.com/");
+    private static readonly Uri ConsoleUri = new("https://console.cloud.google.com/");
 
     // How often the Syncing step reads back what the sync has saved so far
-    static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(500);
 
-    readonly LeafServices _services;
-    readonly OnboardingFlow _flow = new();
-    readonly CancellationTokenSource _cancel = new();
-    readonly DispatcherQueueTimer _progress;
-    CancellationTokenSource? _signIn;
-    Account? _account;
-    bool _closed;
-    bool _progressFailed;
+    // How long the primary action stays off after a step change (Windows' default double-click time), so the second
+    // click of a double-click doesn't run the new step's action
+    private static readonly TimeSpan SettleTime = TimeSpan.FromMilliseconds(500);
+
+    private readonly LeafServices _services;
+    private readonly OnboardingFlow _flow = new();
+    private readonly CancellationTokenSource _cancel = new();
+    private readonly DispatcherQueueTimer _progress;
+    private readonly DispatcherQueueTimer _settle;
+    private CancellationTokenSource? _signIn;
+    private Account? _account;
+    private bool _closed;
+    private bool _progressFailed;
+    private bool _settling;
 
     /// <summary>Starts on Welcome. The client step's form prefills a saved client ID. The dispatcher runs the sync progress timer.</summary>
     public OnboardingViewModel(LeafServices services, DispatcherQueue dispatcher)
     {
         _services = services;
-        Client    = new SetupViewModel(services.Tokens, OnClientSavedAsync, services.Log);
+        Client = new SetupViewModel(services.Tokens, OnClientSavedAsync, services.Log);
 
-        _progress          = dispatcher.CreateTimer();
+        _progress = dispatcher.CreateTimer();
         _progress.Interval = ProgressInterval;
-        _progress.Tick    += (_, _) => ShowProgress();
+        _progress.Tick += (_, _) => ShowProgress();
+
+        _settle = dispatcher.CreateTimer();
+        _settle.Interval = SettleTime;
+        _settle.IsRepeating = false;
+        _settle.Tick += (_, _) =>
+        {
+            _settling = false;
+            Changed();
+        };
     }
 
     /// <summary>The step moved: true going forward, false going back. The window slides the new step in.</summary>
@@ -66,8 +81,8 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     /// <summary>The primary button's text.</summary>
     public string PrimaryText => _flow.PrimaryText;
 
-    /// <summary>True when the primary button is enabled.</summary>
-    public bool CanRunPrimary => _flow.CanRunPrimary;
+    /// <summary>True when the primary button is enabled (off for a moment after each step change).</summary>
+    public bool CanRunPrimary => _flow.CanRunPrimary && !_settling;
 
     /// <summary>True when Back shows.</summary>
     public bool CanGoBack => _flow.CanGoBack;
@@ -105,7 +120,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     /// </summary>
     public async Task RunPrimaryAsync()
     {
-        if (!_flow.CanRunPrimary)
+        if (!CanRunPrimary)
         {
             return;
         }
@@ -144,7 +159,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     /// <summary>Goes back one step (client and sign-in only, while nothing runs).</summary>
     public void GoBack()
     {
-        Error  = null;
+        Error = null;
         Status = null;
         Move(_flow.GoBack(), forward: false);
     }
@@ -171,6 +186,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
 
         _closed = true;
         _progress.Stop();
+        _settle.Stop();
         _cancel.Cancel();
         if (!_flow.IsBusy)
         {
@@ -183,7 +199,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     // =========================================================================
 
     // Client: an unchanged saved client moves on as it is; anything else is validated and saved by the form
-    async Task SaveClientAsync()
+    private async Task SaveClientAsync()
     {
         if (OnboardingFlow.KeepsSavedClient(Client.ClientId, Client.ClientSecret, _services.Tokens.GetClientCredentials()))
         {
@@ -209,14 +225,14 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     }
 
     // Saved and valid: Google is rebuilt on the new client, then sign-in shows
-    async Task OnClientSavedAsync()
+    private async Task OnClientSavedAsync()
     {
         await _services.ReloadGoogleAsync();
         Move(_flow.Advance(), forward: true);
     }
 
     // Sign In: the browser opens Google's consent page; on success the first sync starts right away
-    async Task SignInAsync()
+    private async Task SignInAsync()
     {
         if (_closed || _services.Google is not { } google)
         {
@@ -227,7 +243,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         using var signIn = CancellationTokenSource.CreateLinkedTokenSource(_cancel.Token);
         _signIn = signIn;
 
-        Error  = null;
+        Error = null;
         Status = "Finish signing in with Google in your browser.";
         SetBusy(true);
         try
@@ -274,7 +290,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
 
     // First Sync: off the UI thread, with what it has saved so far read back every 500 ms; judged by what it saved,
     // since the engine logs and swallows Google failures. Google signing the account out sends you back to sign in.
-    async Task SyncAsync()
+    private async Task SyncAsync()
     {
         if (_closed || _services.Google is not { } google || _account is not { } account)
         {
@@ -283,8 +299,8 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
 
         var ct = _cancel.Token;
         _flow.SyncStarted();
-        Error       = null;
-        Status      = "Syncing your calendars…";
+        Error = null;
+        Status = "Syncing your calendars…";
         SyncSummary = "";
         SetBusy(true);
         _progress.Start();
@@ -309,7 +325,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
             if (!OnboardingFlow.FirstSyncWorked(calendars, status))
             {
                 _flow.SyncFailed();
-                Fail(NoConnection);
+                Fail(OnboardingFlow.FirstSyncError(google.Sync.IsOffline, google.Sync.LastRefusal));
                 return;
             }
 
@@ -335,7 +351,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     }
 
     // Live Progress: what the sync has saved so far
-    void ShowProgress()
+    private void ShowProgress()
     {
         if (_closed || _account is not { } account)
         {
@@ -346,7 +362,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         try
         {
             var (calendars, events, _) = Counts(account.Id);
-            SyncSummary     = OnboardingFlow.Summary(calendars, events);
+            SyncSummary = OnboardingFlow.Summary(calendars, events);
             _progressFailed = false;
             Changed();
         }
@@ -361,12 +377,12 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     }
 
     // The account's calendars, events, and sign-in status, as saved so far
-    (int Calendars, int Events, AccountStatus Status) Counts(string accountId)
+    private (int Calendars, int Events, AccountStatus Status) Counts(string accountId)
     {
         using var conn = _services.Database.Open();
         var calendars = CalendarStore.GetForAccount(conn, accountId).Where(c => !c.Hidden).ToList();
-        var events    = calendars.Sum(c => EventStore.Count(conn, accountId, c.Id));
-        var status    = AccountStore.GetAll(conn).FirstOrDefault(a => a.Id == accountId)?.Status ?? AccountStatus.NeedsSignIn;
+        var events = calendars.Sum(c => EventStore.Count(conn, accountId, c.Id));
+        var status = AccountStore.GetAll(conn).FirstOrDefault(a => a.Id == accountId)?.Status ?? AccountStatus.NeedsSignIn;
         return (calendars.Count, events, status);
     }
 
@@ -374,14 +390,14 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     // STATE
     // =========================================================================
 
-    void Fail(string message)
+    private void Fail(string message)
     {
         Status = null;
-        Error  = message;
+        Error = message;
         Changed();
     }
 
-    void SetBusy(bool busy)
+    private void SetBusy(bool busy)
     {
         _flow.IsBusy = busy;
 
@@ -395,8 +411,15 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         Changed();
     }
 
-    void Move(bool moved, bool forward)
+    private void Move(bool moved, bool forward)
     {
+        // The Primary Action Waits Out A Double-Click (the button shows off until the settle timer ticks)
+        if (moved && !_closed)
+        {
+            _settling = true;
+            _settle.Start();
+        }
+
         Changed();
         if (moved && !_closed)
         {
@@ -405,7 +428,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     }
 
     // One notification for everything: x:Bind refreshes every binding on this object (nothing once the window closed)
-    void Changed()
+    private void Changed()
     {
         if (!_closed)
         {

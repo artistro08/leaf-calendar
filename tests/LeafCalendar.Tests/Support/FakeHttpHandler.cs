@@ -24,7 +24,7 @@ public sealed record RecordedRequest(HttpMethod Method, Uri Uri, string? BearerT
 /// </summary>
 public sealed class FakeHttpHandler : HttpMessageHandler
 {
-    readonly List<Route> _routes = [];
+    private readonly List<Route> _routes = [];
 
     /// <summary>Every request sent through the fake, in order.</summary>
     public List<RecordedRequest> Requests { get; } = [];
@@ -68,7 +68,7 @@ public sealed class FakeHttpHandler : HttpMessageHandler
     /// <inheritdoc />
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        var body     = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+        var body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
         var recorded = new RecordedRequest(request.Method, request.RequestUri!, request.Headers.Authorization?.Parameter, body)
         {
             IfMatch = request.Headers.TryGetValues("If-Match", out var ifMatch) ? string.Join(",", ifMatch) : null,
@@ -89,5 +89,5 @@ public sealed class FakeHttpHandler : HttpMessageHandler
         return route.Respond(recorded);
     }
 
-    sealed record Route(Func<RecordedRequest, bool> Match, Func<RecordedRequest, HttpResponseMessage> Respond, bool Once);
+    private sealed record Route(Func<RecordedRequest, bool> Match, Func<RecordedRequest, HttpResponseMessage> Respond, bool Once);
 }

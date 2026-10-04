@@ -4,6 +4,7 @@ using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 
@@ -11,19 +12,19 @@ namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
 /// Settings › Time zones: Leaf's primary time zone (Windows' by default, or a zone Leaf keeps, with an offer to switch
-/// when Windows' zone changes), then the extra time-zone columns (up to four), added, renamed, reordered (drag), and
+/// when Windows' zone changes), then the extra time-zone columns (up to four), added, renamed, reordered (drag, or Move up and Move down in a row's "More options"), and
 /// removed. Changes save immediately and the grid follows. The "+" in the grid's corner opens this page.
 /// </summary>
 public sealed partial class TimeZonesPage : Page
 {
-    readonly ObservableCollection<ZoneRow> _rows = [];
-    IReadOnlyList<TimeZoneChoice> _suggestions = [];
-    List<ListViewItem> _suggestionRows = [];
+    private readonly ObservableCollection<ZoneRow> _rows = [];
+    private IReadOnlyList<TimeZoneChoice> _suggestions = [];
+    private List<ListViewItem> _suggestionRows = [];
 
     // True while the saved values are being shown (the switches' Toggled events are ignored meanwhile)
-    bool _loading;
-    SettingsContext _context = null!;
-    CalendarViewModel _vm = null!;
+    private bool _loading;
+    private SettingsContext _context = null!;
+    private CalendarViewModel _vm = null!;
 
     /// <summary>Creates the page.</summary>
     public TimeZonesPage()
@@ -33,11 +34,20 @@ public sealed partial class TimeZonesPage : Page
         ZoneList.ItemsSource = _rows;
     }
 
+    /// <summary>x:Bind helper: a zone's label box accessible name.</summary>
+    public static string LabelName(string city) => $"Column label for {city}";
+
+    /// <summary>x:Bind helper: a zone's remove button accessible name.</summary>
+    public static string RemoveName(string city) => $"Remove {city}";
+
+    /// <summary>x:Bind helper: a zone's "More options" button accessible name.</summary>
+    public static string MoreName(string city) => $"More options for {city}";
+
     /// <inheritdoc />
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         _context = (SettingsContext)e.Parameter;
-        _vm      = _context.Calendar;
+        _vm = _context.Calendar;
         _rows.Clear();
 
         var now = _vm.Now;
@@ -56,14 +66,14 @@ public sealed partial class TimeZonesPage : Page
     // =========================================================================
 
     // The saved choice: following Windows (the box, showing Windows' zone, and the prompt are off), or the pinned zone
-    void ShowPrimary()
+    private void ShowPrimary()
     {
-        var s    = _vm.Settings;
+        var s = _vm.Settings;
         _loading = true;
 
         FollowWindowsZoneSwitch.IsOn = s.PrimaryTimeZone is null;
         PrimaryZoneBox.Show(s.PrimaryTimeZone ?? TimeZoneCatalog.IanaId(_vm.UserZone), _vm.Now);
-        ZonePromptSwitch.IsOn        = s.PromptOnZoneChange;
+        ZonePromptSwitch.IsOn = s.PromptOnZoneChange;
         UpdatePrimaryState();
         UpdatePrimarySummary();
 
@@ -71,18 +81,18 @@ public sealed partial class TimeZonesPage : Page
     }
 
     // The expander's summary: the saved zone's city, or Windows' with a note that Leaf follows it
-    void UpdatePrimarySummary() => PrimaryZoneSummary.Text = _vm.Settings.PrimaryTimeZone is { } id
+    private void UpdatePrimarySummary() => PrimaryZoneSummary.Text = _vm.Settings.PrimaryTimeZone is { } id
         ? TimeZoneCatalog.CityFor(id)
         : $"Same as Windows ({TimeZoneCatalog.CityFor(_vm.UserZone.Id)})";
 
-    void UpdatePrimaryState()
+    private void UpdatePrimaryState()
     {
-        PrimaryZoneBox.IsEnabled   = !FollowWindowsZoneSwitch.IsOn;
+        PrimaryZoneBox.IsEnabled = !FollowWindowsZoneSwitch.IsOn;
         ZonePromptSwitch.IsEnabled = !FollowWindowsZoneSwitch.IsOn;
     }
 
-    // On: follow Windows again. Off: nothing changes until a zone is picked
-    void OnFollowWindowsToggled(object sender, RoutedEventArgs e)
+    // On: follow Windows again. Off: the zone the box shows is kept (picking the same zone again raises no change)
+    private void OnFollowWindowsToggled(object sender, RoutedEventArgs e)
     {
         UpdatePrimaryState();
         if (!_loading && FollowWindowsZoneSwitch.IsOn && _vm.Settings.PrimaryTimeZone is not null)
@@ -91,16 +101,21 @@ public sealed partial class TimeZonesPage : Page
             _context.Save(s => s with { PrimaryTimeZone = null });
             UpdatePrimarySummary();
         }
+        else if (!_loading && !FollowWindowsZoneSwitch.IsOn && PrimaryZoneBox.ZoneId is { } id)
+        {
+            _context.Save(s => s with { PrimaryTimeZone = id });
+            UpdatePrimarySummary();
+        }
     }
 
     // A pick pins the zone
-    void OnPrimaryZoneChanged(object? sender, string id)
+    private void OnPrimaryZoneChanged(object? sender, string id)
     {
         _context.Save(s => s with { PrimaryTimeZone = id });
         UpdatePrimarySummary();
     }
 
-    void OnZonePromptToggled(object sender, RoutedEventArgs e)
+    private void OnZonePromptToggled(object sender, RoutedEventArgs e)
     {
         if (!_loading)
         {
@@ -114,17 +129,17 @@ public sealed partial class TimeZonesPage : Page
     // =========================================================================
 
     // Suggestions go to the box as rows of plain strings (ZoneSuggestions), the zone you're in shown disabled
-    void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    private void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
         if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
         {
-            _suggestions       = TimeZoneCatalog.Search(sender.Text, _vm.Now);
-            _suggestionRows    = ZoneSuggestions.Rows(_suggestions, _vm.Zone);
+            _suggestions = TimeZoneCatalog.Search(sender.Text, _vm.Now);
+            _suggestionRows = ZoneSuggestions.Rows(_suggestions, _vm.Zone);
             sender.ItemsSource = _suggestionRows;
         }
     }
 
-    void OnSuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
+    private void OnSuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
     {
         if (ZoneSuggestions.Chosen(_suggestionRows, _suggestions, args.SelectedItem) is { } choice)
         {
@@ -132,9 +147,9 @@ public sealed partial class TimeZonesPage : Page
         }
     }
 
-    void OnQuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    private void OnQuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
-        var found  = TimeZoneCatalog.Search(args.QueryText, _vm.Now);
+        var found = TimeZoneCatalog.Search(args.QueryText, _vm.Now);
         var choice = ZoneSuggestions.Chosen(_suggestionRows, _suggestions, args.ChosenSuggestion) ?? ZoneSuggestions.FirstPickable(found, _vm.Zone);
         if (choice is not null)
         {
@@ -142,7 +157,7 @@ public sealed partial class TimeZonesPage : Page
         }
     }
 
-    void Add(TimeZoneChoice choice)
+    private void Add(TimeZoneChoice choice)
     {
         if (_rows.Count >= LeafSettings.MaxTimeZones || _rows.Any(r => r.Id == choice.Id))
         {
@@ -154,7 +169,7 @@ public sealed partial class TimeZonesPage : Page
         Save();
     }
 
-    void OnRemoveClick(object sender, RoutedEventArgs e)
+    private void OnRemoveClick(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: ZoneRow row })
         {
@@ -163,7 +178,42 @@ public sealed partial class TimeZonesPage : Page
         }
     }
 
-    void OnLabelLostFocus(object sender, RoutedEventArgs e)
+    // Move Up And Move Down (the keyboard's way to reorder), off at the ends of the list; saved like a drag
+    private void OnMoreClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ZoneRow row } button)
+        {
+            return;
+        }
+
+        var index = _rows.IndexOf(row);
+        var menu = new MenuFlyout();
+        menu.Items.Add(MenuItem("Move up", "ZoneMenu_MoveUp", index > 0, () => Move(row, -1)));
+        menu.Items.Add(MenuItem("Move down", "ZoneMenu_MoveDown", index >= 0 && index < _rows.Count - 1, () => Move(row, 1)));
+        menu.ShowAt(button);
+    }
+
+    private static MenuFlyoutItem MenuItem(string text, string automationId, bool enabled, Action click)
+    {
+        var item = new MenuFlyoutItem { Text = text, IsEnabled = enabled };
+        AutomationProperties.SetAutomationId(item, automationId);
+        item.Click += (_, _) => click();
+        return item;
+    }
+
+    private void Move(ZoneRow row, int by)
+    {
+        var index = _rows.IndexOf(row);
+        if (index < 0 || index + by < 0 || index + by >= _rows.Count)
+        {
+            return;
+        }
+
+        _rows.Move(index, index + by);
+        Save();
+    }
+
+    private void OnLabelLostFocus(object sender, RoutedEventArgs e)
     {
         // Read The Box Directly (the two-way binding may not have committed yet)
         if (sender is TextBox { DataContext: ZoneRow row } box)
@@ -174,9 +224,9 @@ public sealed partial class TimeZonesPage : Page
         Save();
     }
 
-    void OnReordered(ListViewBase sender, DragItemsCompletedEventArgs args) => Save();
+    private void OnReordered(ListViewBase sender, DragItemsCompletedEventArgs args) => Save();
 
-    void Save()
+    private void Save()
     {
         UpdateState();
 
@@ -189,10 +239,10 @@ public sealed partial class TimeZonesPage : Page
     }
 
     // The search box is off at the limit; an empty list says so
-    void UpdateState()
+    private void UpdateState()
     {
         var full = _rows.Count >= LeafSettings.MaxTimeZones;
-        Search.IsEnabled     = !full;
+        Search.IsEnabled = !full;
         LimitText.Visibility = full ? Visibility.Visible : Visibility.Collapsed;
         EmptyText.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }

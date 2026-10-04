@@ -4,6 +4,7 @@ using LeafCalendar.Core.People;
 using LeafCalendar.Core.Settings;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 
 namespace LeafCalendar.App.Views;
@@ -36,7 +37,7 @@ public sealed record OverlayChip(string Email, string Name, bool Unknown, SolidC
 /// </summary>
 public sealed partial class OverlayBar : UserControl
 {
-    CalendarViewModel? _vm;
+    private CalendarViewModel? _vm;
 
     /// <summary>Creates the bar (hidden until <see cref="Update"/> shows someone).</summary>
     public OverlayBar()
@@ -52,25 +53,82 @@ public sealed partial class OverlayBar : UserControl
         _vm = vm;
         if (vm is null || vm.OverlayPeople.Count == 0)
         {
-            Visibility        = Visibility.Collapsed;
+            Visibility = Visibility.Collapsed;
             Chips.ItemsSource = null;
             return;
         }
 
         // Label And Hint
-        var month       = vm.Mode == CalendarViewMode.Month;
-        Label.Text      = vm.IsMeetWith ? "Meet with" : "Busy times";
-        Hint.Text       = month ? "Busy times show in the day and week views." : vm.IsMeetWith ? "Drag on the calendar to invite them." : "";
+        var month = vm.Mode == CalendarViewMode.Month;
+        Label.Text = vm.IsMeetWith ? "Meet with" : "Busy times";
+        Hint.Text = month ? "Busy times show in the day and week views." : vm.IsMeetWith ? "Drag on the calendar to invite them." : "";
         Hint.Visibility = Hint.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         // Chips
         var dark = ActualTheme == ElementTheme.Dark;
+        var focusedChip = FocusedChipIndex();
         Chips.ItemsSource = vm.OverlayPeople
             .Select(p => new OverlayChip(p.Email, p.Name, p.State == PersonBusyState.Unknown, LeafBrushes.Person(p.ColorIndex, dark), vm.RemoveOverlayPerson))
             .ToList();
 
         Visibility = Visibility.Visible;
+
+        // The Rebuilt Chips Drop A Focused Remove Button, So Focus Goes Back To The One Now In Its Place (or Clear, past the last)
+        if (focusedChip >= 0)
+        {
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => FocusChip(focusedChip));
+        }
     }
 
-    void OnClearClick(object sender, RoutedEventArgs e) => _vm?.ClearOverlay();
+    // The chip holding focus, or -1
+    private int FocusedChipIndex()
+    {
+        if (XamlRoot is null)
+        {
+            return -1;
+        }
+
+        for (DependencyObject? current = FocusManager.GetFocusedElement(XamlRoot) as UIElement; current is not null && current != Chips; current = VisualTreeHelper.GetParent(current))
+        {
+            if (Chips.IndexFromContainer(current) is var index and >= 0)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private void FocusChip(int index)
+    {
+        if (Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        Chips.UpdateLayout();
+        if (Chips.ContainerFromIndex(index) is { } container && FindButton(container) is { } remove)
+        {
+            remove.Focus(FocusState.Keyboard);
+            return;
+        }
+
+        ClearButton.Focus(FocusState.Keyboard);
+    }
+
+    private static Button? FindButton(DependencyObject parent)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if ((child as Button ?? FindButton(child)) is { } button)
+            {
+                return button;
+            }
+        }
+
+        return null;
+    }
+
+    private void OnClearClick(object sender, RoutedEventArgs e) => _vm?.ClearOverlay();
 }

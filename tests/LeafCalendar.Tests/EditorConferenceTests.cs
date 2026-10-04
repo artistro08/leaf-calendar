@@ -4,7 +4,7 @@ namespace LeafCalendar.Tests;
 
 public class EditorConferenceTests
 {
-    static readonly Uri Meet = new("https://meet.google.com/abc-defg-hij");
+    private static readonly Uri Meet = new("https://meet.google.com/abc-defg-hij");
 
     [Fact]
     public void Text_NoCall_SaysSo()

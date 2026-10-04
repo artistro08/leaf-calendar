@@ -1,4 +1,3 @@
-using System.Text.Json;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Events;
 using Microsoft.Data.Sqlite;
@@ -10,11 +9,11 @@ namespace LeafCalendar.Core.Alerts;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Each pass looks at what came due in the last hour, so an alert missed while the PC slept, while Leaf wasn't running,
-/// or before a sync brought the event still shows, as long as its meeting isn't over. A "Join now" shows for as long as
-/// its meeting runs, even past the hour. Per event instance only the latest alert that came due counts, so waking in the
-/// middle of a meeting shows one "Join now" and not three stale reminders. Every shown alert goes into
-/// <see cref="AlertLedger"/> first, so the next pass, a restart, or a full resync never shows it again.
+/// An alert missed while the PC slept, while Leaf wasn't running, or before a sync brought the event still shows, however
+/// long ago it came due, as long as its event hasn't ended (an all-day event ends at midnight after its last day in the
+/// display zone). Per event instance only the latest alert that came due counts, so waking in the middle of a meeting
+/// shows one "Join now" and not three stale reminders. Every shown alert goes into <see cref="AlertLedger"/> first, so the
+/// next pass, a restart, or a full resync never shows it again.
 /// </para>
 /// <para>
 /// A "Join now" stays on screen until clicked, so once its meeting ends, moves, is declined, or is deleted, the pass
@@ -23,7 +22,7 @@ namespace LeafCalendar.Core.Alerts;
 /// last-minute change on Google is caught first (spec 5.3).
 /// </para>
 /// <para>
-/// The plan (a day back, or back to the start of the longest running meeting, to a day ahead) is cached and rebuilt
+/// The plan (a day back, or back to the start of the longest running meeting with a link, to a day ahead) is cached and rebuilt
 /// after <see cref="Invalidate"/> (data changed), when it runs out, when the clock is set back past it, or when the time
 /// zone changes. <see cref="IsEnabled"/> is read once per kind per pass. Events are raised outside the state lock, in
 /// pass order, on the timer's thread or the caller's; a handler that throws is reported through <see cref="Failed"/>
@@ -35,23 +34,21 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
     /// <summary>How often a pass runs.</summary>
     public static readonly TimeSpan Tick = TimeSpan.FromSeconds(15);
 
-    /// <summary>How far each pass looks back for alerts that came due.</summary>
-    public static readonly TimeSpan LookBack = TimeSpan.FromHours(1);
-
     /// <summary>How long before an alert the sync is asked for.</summary>
     public static readonly TimeSpan SyncLead = TimeSpan.FromMinutes(1);
 
-    static readonly TimeSpan PlanSpan   = TimeSpan.FromDays(1);
-    static readonly TimeSpan LedgerKeep = TimeSpan.FromDays(2);
+    private static readonly TimeSpan PlanSpan = TimeSpan.FromDays(1);
+    private static readonly TimeSpan LedgerKeep = TimeSpan.FromDays(2);
 
-    readonly Lock _gate  = new();
-    readonly Lock _raise = new();
-    ITimer? _timer;
-    IReadOnlyList<Alert>? _plan;
-    DateTimeOffset _planTo;
-    string? _planZone;
-    DateTimeOffset _syncedUntil;
-    bool _disposed;
+    private readonly Lock _gate = new();
+    private readonly Lock _raise = new();
+    private ITimer? _timer;
+    private IReadOnlyList<Alert>? _plan;
+    private DateTimeOffset _planTo;
+    private string? _planZone;
+    private DateTimeOffset _syncedUntil;
+    private bool _stale;
+    private bool _disposed;
 
     /// <summary>Whether a kind may show (the Notifications settings). Read once per kind on every pass.</summary>
     public Func<AlertKind, bool> IsEnabled { get; set; } = _ => true;
@@ -89,19 +86,18 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
         timer.Change(TimeSpan.Zero, Tick);
     }
 
-    /// <summary>Events changed: the next pass re-plans, and runs right away when the timer is going.</summary>
+    /// <summary>
+    /// Events changed: the next pass re-plans, and runs right away when the timer is going. Never waits for a running
+    /// pass (it's called on the UI thread after every edit).
+    /// </summary>
     public void Invalidate()
     {
-        ITimer? timer;
-        lock (_gate)
-        {
-            _plan = null;
-            timer = _timer;
-        }
+        // No State Lock: a pass holds it through all its database work
+        Volatile.Write(ref _stale, true);
 
         try
         {
-            timer?.Change(TimeSpan.Zero, Tick);
+            Volatile.Read(ref _timer)?.Change(TimeSpan.Zero, Tick);
         }
         catch (ObjectDisposedException)
         {
@@ -126,74 +122,88 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
 
             // The Settings, Read Once Per Kind
             var isEnabled = IsEnabled;
-            var enabled   = Enum.GetValues<AlertKind>().Where(isEnabled).ToHashSet();
+            var enabled = Enum.GetValues<AlertKind>().Where(isEnabled).ToHashSet();
 
-            List<Alert> due;
-            List<string> retracted;
-            bool syncSoon;
+            var due = new List<Alert>();
+            var retracted = new List<string>();
+            var syncSoon = false;
             PlanSummary? planned = null;
 
-            lock (_gate)
+            try
             {
-                if (_disposed)
+                lock (_gate)
                 {
-                    return;
-                }
+                    if (_disposed)
+                    {
+                        return;
+                    }
 
-                var now       = time.GetUtcNow();
-                var tz        = zone();
-                var from      = now - LookBack;
-                var replanned = false;
+                    // Events Changed (read before the events are, so a change during this pass re-plans the next one)
+                    if (Interlocked.Exchange(ref _stale, false))
+                    {
+                        _plan = null;
+                    }
 
-                using var conn = database.Open();
+                    var now = time.GetUtcNow();
+                    var tz = zone();
+                    var replanned = false;
 
-                // Plan (a day each side, and back to the start of any meeting still running, so its "Join now" is known)
-                if (_plan is null || now + SyncLead + Tick > _planTo || now < _planTo - 2 * PlanSpan || tz.Id != _planZone)
-                {
-                    _planTo   = now + PlanSpan;
-                    _planZone = tz.Id;
-                    _plan     = AlertPlanner.Plan(conn, PlanFrom(conn, now, tz), _planTo, tz);
-                    replanned = true;
-                    var ahead = _plan.Where(a => a.FireAt > now).ToList();
-                    planned   = new PlanSummary(ahead.Count, ahead.Count > 0 ? ahead[0].FireAt : null);
-                }
+                    using var conn = database.Open();
 
-                // Clock Set Back: forget the sync look-ahead so the next minute's alerts still ask for one
-                if (_syncedUntil > now + SyncLead)
-                {
-                    _syncedUntil = now;
-                }
+                    // Plan (a day each side, and back to the start of any meeting still running, so its "Join now" is known;
+                    // older reminders of events still running come with it)
+                    if (_plan is null || now + SyncLead + Tick > _planTo || now < _planTo - 2 * PlanSpan || tz.Id != _planZone)
+                    {
+                        // The Old Plan Goes First, so a plan that fails is made again on the next pass
+                        _plan = null;
+                        _planTo = now + PlanSpan;
+                        _planZone = tz.Id;
+                        _plan = AlertPlanner.Plan(conn, PlanFrom(conn, now, tz), _planTo, tz, includeMissed: true);
+                        replanned = true;
+                        var ahead = _plan.Where(a => a.FireAt > now).ToList();
+                        planned = new PlanSummary(ahead.Count, ahead.Count > 0 ? ahead[0].FireAt : null);
+                    }
 
-                due       = Due(conn, _plan, enabled, from, now, tz);
-                retracted = Retract(conn, _plan, now, tz);
-                syncSoon  = SyncDue(_plan, enabled, now);
+                    // Clock Set Back: forget the sync look-ahead so the next minute's alerts still ask for one
+                    if (_syncedUntil > now + SyncLead)
+                    {
+                        _syncedUntil = now;
+                    }
 
-                // Pruned After Retract, so a "Join now" left open (Leaf off for days) is withdrawn before its row, its only handle, goes
-                if (replanned)
-                {
-                    AlertLedger.Prune(conn, now - LedgerKeep);
+                    Due(conn, _plan, enabled, now, tz, due);
+                    Retract(conn, _plan, now, tz, retracted);
+                    syncSoon = SyncDue(_plan, enabled, now);
+
+                    // Pruned After Retract, so a "Join now" left open (Leaf off for days) is withdrawn before its row, its only handle, goes
+                    if (replanned)
+                    {
+                        AlertLedger.Prune(conn, now - LedgerKeep);
+                    }
                 }
             }
-
-            // Raised Outside The State Lock, Each On Its Own (handlers show notifications, which can fail)
-            if (planned is not null)
+            finally
             {
-                Raise(() => Planned?.Invoke(this, planned));
-            }
+                // Raised Outside The State Lock, Each On Its Own (handlers show notifications, which can fail). Also when
+                // the pass failed part-way: what the ledger already recorded or forgot would otherwise never show or go.
+                if (planned is not null)
+                {
+                    Raise(() => Planned?.Invoke(this, planned));
+                }
 
-            foreach (var alert in due)
-            {
-                Raise(() => AlertDue?.Invoke(this, alert));
-            }
+                foreach (var alert in due)
+                {
+                    Raise(() => AlertDue?.Invoke(this, alert));
+                }
 
-            foreach (var tag in retracted)
-            {
-                Raise(() => AlertRetracted?.Invoke(this, tag));
-            }
+                foreach (var tag in retracted)
+                {
+                    Raise(() => AlertRetracted?.Invoke(this, tag));
+                }
 
-            if (syncSoon)
-            {
-                Raise(() => SyncSoon?.Invoke(this, EventArgs.Empty));
+                if (syncSoon)
+                {
+                    Raise(() => SyncSoon?.Invoke(this, EventArgs.Empty));
+                }
             }
         }
     }
@@ -210,7 +220,7 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
     }
 
     // A timer callback must never throw (it would end the process), so failures are reported and the next pass retries
-    void SafeCheck()
+    private void SafeCheck()
     {
         try
         {
@@ -225,7 +235,7 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
     }
 
     // One handler call; whatever it throws (a COMException from a toast, say) is reported so the rest of the pass still raises
-    void Raise(Action raise)
+    private void Raise(Action raise)
     {
         try
         {
@@ -237,14 +247,15 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
         }
     }
 
-    // A day back, or earlier when a timed meeting that's still running started before that
-    static DateTimeOffset PlanFrom(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo tz)
+    // A day back, or earlier when a timed meeting that's still running started before that. Only one with a meeting link
+    // counts (its "Join now" is at its start), so a months-long block without one doesn't make every plan load months.
+    internal static DateTimeOffset PlanFrom(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo tz)
     {
-        var from  = now - PlanSpan;
+        var from = now - PlanSpan;
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, tz).DateTime);
         foreach (var o in OccurrenceQuery.Load(conn, today, today.AddDays(1), tz, includeDeclined: false))
         {
-            if (!o.IsAllDay && o.Start <= from && !IsOver(o, now, tz))
+            if (!o.IsAllDay && o.Start <= from && !IsOver(o, now, tz) && JoinPicker.MeetingLink(conn, o) is not null)
             {
                 from = o.Start - TimeSpan.FromTicks(1);
             }
@@ -253,13 +264,12 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
         return from;
     }
 
-    // Per instance, the latest enabled alert that came due (the plan is sorted by fire time, then kind, so "Join now"
-    // wins a tie), unless the instance is over or it was shown before. A "Join now" counts past the look-back while its
-    // meeting runs.
-    static List<Alert> Due(SqliteConnection conn, IReadOnlyList<Alert> plan, HashSet<AlertKind> enabled, DateTimeOffset from, DateTimeOffset now, TimeZoneInfo tz)
+    // Per instance, the latest enabled alert that came due, however long ago (the plan is sorted by fire time, then kind,
+    // so "Join now" wins a tie), unless the instance is over or it was shown before. Each goes into the caller's list as
+    // soon as the ledger has it, so a later failure can't lose it.
+    private static void Due(SqliteConnection conn, IReadOnlyList<Alert> plan, HashSet<AlertKind> enabled, DateTimeOffset now, TimeZoneInfo tz, List<Alert> result)
     {
-        var result = new List<Alert>();
-        var came   = plan.Where(a => (a.FireAt > from || a.Kind == AlertKind.JoinNow) && a.FireAt <= now && enabled.Contains(a.Kind));
+        var came = plan.Where(a => a.FireAt <= now && enabled.Contains(a.Kind));
         foreach (var group in came.GroupBy(a => a.Occurrence.Key, StringComparer.Ordinal))
         {
             var latest = group.Last();
@@ -273,20 +283,18 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
                 result.Add(latest);
             }
         }
-
-        return result;
     }
 
     // A shown "Join now" that isn't in the plan as a running meeting any more (ended, moved, declined, deleted). Its row
-    // goes too, so the meeting shows "Join now" again if it comes back (re-accepted, moved back, clock corrected).
-    static List<string> Retract(SqliteConnection conn, IReadOnlyList<Alert> plan, DateTimeOffset now, TimeZoneInfo tz)
+    // goes too, so the meeting shows "Join now" again if it comes back (re-accepted, moved back, clock corrected). Each
+    // tag goes into the caller's list as soon as its row is gone, so a later failure can't leave its toast up.
+    private static void Retract(SqliteConnection conn, IReadOnlyList<Alert> plan, DateTimeOffset now, TimeZoneInfo tz, List<string> tags)
     {
         var running = plan
             .Where(a => a.Kind == AlertKind.JoinNow && a.FireAt <= now && !IsOver(a.Occurrence, now, tz))
             .Select(a => a.Key)
             .ToHashSet(StringComparer.Ordinal);
 
-        var tags = new List<string>();
         foreach (var entry in AlertLedger.OpenJoinNow(conn))
         {
             if (!running.Contains(entry.Key))
@@ -295,25 +303,23 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
                 tags.Add(entry.Tag);
             }
         }
-
-        return tags;
     }
 
     // Once per alert: something enabled fires between the last look-ahead and a minute from now
-    bool SyncDue(IReadOnlyList<Alert> plan, HashSet<AlertKind> enabled, DateTimeOffset now)
+    private bool SyncDue(IReadOnlyList<Alert> plan, HashSet<AlertKind> enabled, DateTimeOffset now)
     {
         var ahead = now + SyncLead;
         var after = _syncedUntil > now ? _syncedUntil : now;
-        var soon  = plan.Any(a => a.FireAt > after && a.FireAt <= ahead && enabled.Contains(a.Kind));
+        var soon = plan.Any(a => a.FireAt > after && a.FireAt <= ahead && enabled.Contains(a.Kind));
         _syncedUntil = ahead;
         return soon;
     }
 
     // Over once it has ended (a zero-length event counts as a one-minute one)
-    static bool IsOver(CalendarOccurrence o, DateTimeOffset now, TimeZoneInfo tz)
+    private static bool IsOver(CalendarOccurrence o, DateTimeOffset now, TimeZoneInfo tz)
     {
         var start = o.StartIn(tz);
-        var end   = o.EndIn(tz);
+        var end = o.EndIn(tz);
         return now >= (end > start ? end : start + TimeSpan.FromMinutes(1));
     }
 }

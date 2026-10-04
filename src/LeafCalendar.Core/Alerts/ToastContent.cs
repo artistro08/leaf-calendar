@@ -57,24 +57,24 @@ public static class ToastContent
     /// <summary>ID of the snooze-time choice that Windows' Snooze button reads.</summary>
     public const string SnoozeInputId = "snoozeTime";
 
-    const int MaxText = 200;
+    private const int MaxText = 200;
 
     // Separator Between Inline Facts
-    const string Dot = " \u00B7 ";
+    private const string Dot = " \u00B7 ";
 
     /// <summary>"Today &#x00B7; 2 PM &#x2013; 3 PM", "Tomorrow &#x00B7; All day", or "Saturday, October 3 &#x00B7; 9 AM &#x2013; 10 AM".</summary>
     public static string When(CalendarOccurrence o, TimeZoneInfo zone, bool use24Hour, DateTimeOffset now)
     {
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
-        var day   = o.IsAllDay ? o.AllDayStart : DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(o.Start, zone).DateTime);
-        var date  = TrayAgenda.DayHeader(day, today);
+        var day = o.IsAllDay ? o.AllDayStart : DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(o.Start, zone).DateTime);
+        var date = TrayAgenda.DayHeader(day, today);
         return o.IsAllDay ? date + Dot + "All day" : date + Dot + TimeLabels.Range(o.Start, o.End, zone, use24Hour);
     }
 
     /// <summary>A reminder: title, time, location; Join (with a link), Snooze, Dismiss.</summary>
     public static ToastMessage Reminder(Alert alert, EventDetails details, string when, string profile, bool sound)
     {
-        var o       = alert.Occurrence;
+        var o = alert.Occurrence;
         var actions = new List<XElement> { SnoozeInput() };
         if (alert.MeetingLink is not null)
         {
@@ -152,7 +152,7 @@ public static class ToastContent
         Build("no-meeting", NoticeGroup, null, null, ["No meeting to join", "Nothing with a meeting link starts in the next 10 minutes."], [], sound);
 
     // Every Line Goes Through DisplayText.Clean And Enters As Escaped Element Text; The First Line Is The Headline, So It Never Drops Out
-    static ToastMessage Build(string tag, string group, ToastArgs? launch, string? scenario, IEnumerable<string?> lines, List<XElement> actions, bool sound)
+    private static ToastMessage Build(string tag, string group, ToastArgs? launch, string? scenario, IEnumerable<string?> lines, List<XElement> actions, bool sound)
     {
         var toast = new XElement(
             "toast",
@@ -184,7 +184,7 @@ public static class ToastContent
     }
 
     // Windows' Own Snooze Choices; The Selection IDs Are Minutes
-    static XElement SnoozeInput() => new(
+    private static XElement SnoozeInput() => new(
         "input",
         new XAttribute("id", SnoozeInputId),
         new XAttribute("type", "selection"),
@@ -194,18 +194,18 @@ public static class ToastContent
         Choice("15", "15 minutes"),
         Choice("30", "30 minutes"));
 
-    static XElement Choice(string minutes, string content) =>
+    private static XElement Choice(string minutes, string content) =>
         new("selection", new XAttribute("id", minutes), new XAttribute("content", content));
 
     // Background Activation: Leaf Acts Without Coming To The Front
-    static XElement Button(string content, ToastArgs args) => new(
+    private static XElement Button(string content, ToastArgs args) => new(
         "action",
         new XAttribute("content", content),
         new XAttribute("arguments", args.Encode()),
         new XAttribute("activationType", "background"));
 
     // Windows' Snooze And Dismiss (Empty Content = Windows' Own Localized Label)
-    static XElement SystemButton(string arguments, string? inputId = null) => new(
+    private static XElement SystemButton(string arguments, string? inputId = null) => new(
         "action",
         new XAttribute("content", ""),
         new XAttribute("arguments", arguments),

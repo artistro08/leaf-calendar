@@ -26,8 +26,8 @@ public sealed class SyncHarness : IDisposable
     /// <summary>Family calendar events endpoint.</summary>
     public const string FamilyEventsUrl = "https://www.googleapis.com/calendar/v3/calendars/family123%40group.calendar.google.com/events";
 
-    readonly TempFolder _logs = new();
-    readonly List<IDisposable> _disposables = [];
+    private readonly TempFolder _logs = new();
+    private readonly List<IDisposable> _disposables = [];
 
     /// <summary>Creates the harness with one signed-in account.</summary>
     public SyncHarness()
@@ -69,7 +69,7 @@ public sealed class SyncHarness : IDisposable
     /// <summary>Builds a new engine with an empty access-token cache.</summary>
     public SyncEngine NewEngine()
     {
-        var http  = new HttpClient(Google);
+        var http = new HttpClient(Google);
         var oauth = new GoogleOAuthClient(http, new("id.apps.googleusercontent.com", "GOCSPX-test"), Time);
         var provider = new AccessTokenProvider(oauth, Tokens, Time);
         Client = new GoogleCalendarClient(http, provider);

@@ -21,31 +21,31 @@ namespace LeafCalendar.App.Views.Settings;
 public sealed partial class GeneralPage : Page
 {
     // Combo Box Order (matches the items in the XAML)
-    static readonly AppTheme[] Themes        = [AppTheme.System, AppTheme.Light, AppTheme.Dark];
-    static readonly DayOfWeek[] WeekStarts   = [DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Saturday];
-    static readonly MapProvider[] MapSources = [MapProvider.Google, MapProvider.Bing];
+    private static readonly AppTheme[] Themes = [AppTheme.System, AppTheme.Light, AppTheme.Dark];
+    private static readonly DayOfWeek[] WeekStarts = [DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Saturday];
+    private static readonly MapProvider[] MapSources = [MapProvider.Google, MapProvider.Bing];
 
-    static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
+    private static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
 
     // Work Day Checkboxes In The Dropdown, Each With Its Own Day (never read back from the box)
-    readonly List<(CheckBox Box, DayOfWeek Day)> _workDays = [];
+    private readonly List<(CheckBox Box, DayOfWeek Day)> _workDays = [];
 
     // The startup task declared in Package.appxmanifest
-    const string StartupTaskId = "LeafCalendarStartup";
+    private const string StartupTaskId = "LeafCalendarStartup";
 
     // The startup row's description when Windows leaves the switch to Leaf
-    const string StartupDescription = "Leaf starts when you sign in to Windows, so reminders arrive on time.";
+    private const string StartupDescription = "Leaf starts when you sign in to Windows, so reminders arrive on time.";
 
-    SettingsContext _context = null!;
+    private SettingsContext _context = null!;
 
     // True until the saved values are shown (setting the slider's range in the constructor already raises ValueChanged)
-    bool _loading = true;
+    private bool _loading = true;
 
     // True while the startup task's state is being shown
-    bool _loadingStartup;
+    private bool _loadingStartup;
 
     // Counts startup loads so a slow older one can't overwrite a newer one's result or clear its flag
-    int _startupLoads;
+    private int _startupLoads;
 
     /// <summary>Creates the page.</summary>
     public GeneralPage()
@@ -59,7 +59,7 @@ public sealed partial class GeneralPage : Page
         UpcomingHoursBox.ItemsSource = LeafSettings.UpcomingChoices.Select(h => string.Create(English, $"Next {h} hours")).ToList();
     }
 
-    CalendarViewModel Calendar => _context.Calendar;
+    private CalendarViewModel Calendar => _context.Calendar;
 
     /// <inheritdoc />
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -73,27 +73,27 @@ public sealed partial class GeneralPage : Page
     /// <inheritdoc />
     protected override void OnNavigatedFrom(NavigationEventArgs e) => _context.Host.SettingsChanged -= OnSettingsChanged;
 
-    void OnSettingsChanged(object? sender, EventArgs e) => Load();
+    private void OnSettingsChanged(object? sender, EventArgs e) => Load();
 
     // Show The Saved Values (the controls' change events are ignored meanwhile)
-    void Load()
+    private void Load()
     {
         var s = Calendar.Settings;
         _loading = true;
 
-        ThemeBox.SelectedIndex     = Array.IndexOf(Themes, s.Theme);
-        DaysBox.Value              = s.CustomDayCount;
-        HourHeightSlider.Value     = s.HourHeight;
-        WeekendsSwitch.IsOn        = s.ShowWeekends;
-        DeclinedSwitch.IsOn        = s.ShowDeclined;
-        WeekNumbersSwitch.IsOn     = s.ShowWeekNumbers;
+        ThemeBox.SelectedIndex = Array.IndexOf(Themes, s.Theme);
+        DaysBox.Value = s.CustomDayCount;
+        HourHeightSlider.Value = s.HourHeight;
+        WeekendsSwitch.IsOn = s.ShowWeekends;
+        DeclinedSwitch.IsOn = s.ShowDeclined;
+        WeekNumbersSwitch.IsOn = s.ShowWeekNumbers;
         WeekStartBox.SelectedIndex = Array.IndexOf(WeekStarts, s.WeekStart);
-        Clock24Switch.IsOn         = s.Use24HourTime;
+        Clock24Switch.IsOn = s.Use24HourTime;
 
         // Milestone 5 Settings
-        AllDayExpandedSwitch.IsOn      = s.AllDayExpanded;
+        AllDayExpandedSwitch.IsOn = s.AllDayExpanded;
         UpcomingHoursBox.SelectedIndex = LeafSettings.UpcomingChoices.ToList().IndexOf(s.UpcomingHours);
-        MapProviderBox.SelectedIndex   = Array.IndexOf(MapSources, s.MapProvider);
+        MapProviderBox.SelectedIndex = Array.IndexOf(MapSources, s.MapProvider);
         LoadWorkingHours(s.WorkingHours, s.WeekStart, s.Use24HourTime);
         StartMinimizedSwitch.IsOn = !s.OpenWindowAtSignIn;
 
@@ -104,7 +104,7 @@ public sealed partial class GeneralPage : Page
     // APPEARANCE, UPCOMING, AND LOCATIONS
     // =========================================================================
 
-    void OnAllDayExpandedToggled(object sender, RoutedEventArgs e)
+    private void OnAllDayExpandedToggled(object sender, RoutedEventArgs e)
     {
         if (!_loading)
         {
@@ -113,7 +113,7 @@ public sealed partial class GeneralPage : Page
         }
     }
 
-    void OnUpcomingHoursChanged(object sender, SelectionChangedEventArgs e)
+    private void OnUpcomingHoursChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_loading && UpcomingHoursBox.SelectedIndex >= 0)
         {
@@ -122,7 +122,7 @@ public sealed partial class GeneralPage : Page
         }
     }
 
-    void OnMapProviderChanged(object sender, SelectionChangedEventArgs e)
+    private void OnMapProviderChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_loading && MapProviderBox.SelectedIndex >= 0)
         {
@@ -136,15 +136,15 @@ public sealed partial class GeneralPage : Page
     // =========================================================================
 
     // The switch, the two times, and a checkbox per weekday in the week's own order (the rows are off while the switch is)
-    void LoadWorkingHours(WorkingHours hours, DayOfWeek weekStart, bool use24Hour)
+    private void LoadWorkingHours(WorkingHours hours, DayOfWeek weekStart, bool use24Hour)
     {
-        WorkingHoursSwitch.IsOn            = hours.Enabled;
-        WorkingHoursRows.IsEnabled         = hours.Enabled;
+        WorkingHoursSwitch.IsOn = hours.Enabled;
+        WorkingHoursRows.IsEnabled = hours.Enabled;
         WorkingStartPicker.ClockIdentifier = use24Hour ? "24HourClock" : "12HourClock";
-        WorkingEndPicker.ClockIdentifier   = WorkingStartPicker.ClockIdentifier;
-        WorkingStartPicker.Time            = TimeSpan.FromMinutes(hours.StartMinute);
-        WorkingEndPicker.Time              = TimeSpan.FromMinutes(hours.EndMinute);
-        WorkingHoursError.Visibility       = Visibility.Collapsed;
+        WorkingEndPicker.ClockIdentifier = WorkingStartPicker.ClockIdentifier;
+        WorkingStartPicker.Time = TimeSpan.FromMinutes(hours.StartMinute);
+        WorkingEndPicker.Time = TimeSpan.FromMinutes(hours.EndMinute);
+        WorkingHoursError.Visibility = Visibility.Collapsed;
 
         // Day Checkboxes (rebuilt only when the week's first day changed)
         if (_workDays.Count == 0 || _workDays[0].Day != weekStart)
@@ -153,7 +153,7 @@ public sealed partial class GeneralPage : Page
             _workDays.Clear();
             for (var i = 0; i < 7; i++)
             {
-                var day    = (DayOfWeek)(((int)weekStart + i) % 7);
+                var day = (DayOfWeek)(((int)weekStart + i) % 7);
                 var box = new CheckBox { Content = English.DateTimeFormat.GetDayName(day) };
                 AutomationProperties.SetAutomationId(box, $"WorkingDay_{day}");
                 box.Click += (_, _) => OnWorkDayClick();
@@ -170,7 +170,7 @@ public sealed partial class GeneralPage : Page
         ShowWorkDays(WorkingHoursMath.DaysLabel(hours.Days, weekStart));
     }
 
-    void OnWorkingHoursToggled(object sender, RoutedEventArgs e)
+    private void OnWorkingHoursToggled(object sender, RoutedEventArgs e)
     {
         if (!_loading)
         {
@@ -180,12 +180,12 @@ public sealed partial class GeneralPage : Page
         }
     }
 
-    void OnWorkingStartChanged(object? sender, TimePickerValueChangedEventArgs e) => SaveHours(e.OldTime, isStart: true);
+    private void OnWorkingStartChanged(object? sender, TimePickerValueChangedEventArgs e) => SaveHours(e.OldTime, isStart: true);
 
-    void OnWorkingEndChanged(object? sender, TimePickerValueChangedEventArgs e) => SaveHours(e.OldTime, isStart: false);
+    private void OnWorkingEndChanged(object? sender, TimePickerValueChangedEventArgs e) => SaveHours(e.OldTime, isStart: false);
 
     // An end that isn't after the start is refused: the line says why, the picker goes back, and nothing is saved
-    void SaveHours(TimeSpan before, bool isStart)
+    private void SaveHours(TimeSpan before, bool isStart)
     {
         if (_loading)
         {
@@ -193,7 +193,7 @@ public sealed partial class GeneralPage : Page
         }
 
         var start = (int)WorkingStartPicker.Time.TotalMinutes;
-        var end   = (int)WorkingEndPicker.Time.TotalMinutes;
+        var end = (int)WorkingEndPicker.Time.TotalMinutes;
         if (end <= start)
         {
             // Put back after the picker finishes its own change: set inside TimeChanged, the picker overwrites it
@@ -201,9 +201,9 @@ public sealed partial class GeneralPage : Page
             var picker = isStart ? WorkingStartPicker : WorkingEndPicker;
             DispatcherQueue.TryEnqueue(() =>
             {
-                _loading    = true;
+                _loading = true;
                 picker.Time = before;
-                _loading    = false;
+                _loading = false;
             });
             return;
         }
@@ -213,13 +213,13 @@ public sealed partial class GeneralPage : Page
     }
 
     // The button says which days (screen readers hear it after the name, as help text)
-    void ShowWorkDays(string label)
+    private void ShowWorkDays(string label)
     {
         WorkDaysButton.Content = label;
         AutomationProperties.SetHelpText(WorkDaysButton, label);
     }
 
-    void OnWorkDayClick()
+    private void OnWorkDayClick()
     {
         if (_loading)
         {
@@ -231,7 +231,7 @@ public sealed partial class GeneralPage : Page
         _context.Save(s => s with { WorkingHours = s.WorkingHours with { Days = days } });
     }
 
-    void OnThemeChanged(object sender, SelectionChangedEventArgs e)
+    private void OnThemeChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_loading && ThemeBox.SelectedIndex >= 0)
         {
@@ -241,10 +241,19 @@ public sealed partial class GeneralPage : Page
     }
 
     // In the custom view the new count shows right away; otherwise it's kept for when that view is picked
-    void OnDaysChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    private void OnDaysChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
-        if (_loading || double.IsNaN(args.NewValue))
+        if (_loading)
         {
+            return;
+        }
+
+        // A cleared box goes back to the saved value
+        if (double.IsNaN(args.NewValue))
+        {
+            _loading = true;
+            DaysBox.Value = Calendar.Settings.CustomDayCount;
+            _loading = false;
             return;
         }
 
@@ -259,7 +268,7 @@ public sealed partial class GeneralPage : Page
         }
     }
 
-    void OnHourHeightChanged(object sender, RangeBaseValueChangedEventArgs e)
+    private void OnHourHeightChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
         if (!_loading && e.NewValue != Calendar.Settings.HourHeight)
         {
@@ -267,7 +276,7 @@ public sealed partial class GeneralPage : Page
         }
     }
 
-    void OnWeekendsToggled(object sender, RoutedEventArgs e)
+    private void OnWeekendsToggled(object sender, RoutedEventArgs e)
     {
         if (!_loading && WeekendsSwitch.IsOn != Calendar.Settings.ShowWeekends)
         {
@@ -275,7 +284,7 @@ public sealed partial class GeneralPage : Page
         }
     }
 
-    void OnDeclinedToggled(object sender, RoutedEventArgs e)
+    private void OnDeclinedToggled(object sender, RoutedEventArgs e)
     {
         if (!_loading && DeclinedSwitch.IsOn != Calendar.Settings.ShowDeclined)
         {
@@ -283,7 +292,7 @@ public sealed partial class GeneralPage : Page
         }
     }
 
-    void OnWeekNumbersToggled(object sender, RoutedEventArgs e)
+    private void OnWeekNumbersToggled(object sender, RoutedEventArgs e)
     {
         if (!_loading)
         {
@@ -292,7 +301,7 @@ public sealed partial class GeneralPage : Page
         }
     }
 
-    void OnWeekStartChanged(object sender, SelectionChangedEventArgs e)
+    private void OnWeekStartChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_loading && WeekStartBox.SelectedIndex >= 0)
         {
@@ -302,7 +311,7 @@ public sealed partial class GeneralPage : Page
         }
     }
 
-    void On24HourToggled(object sender, RoutedEventArgs e)
+    private void On24HourToggled(object sender, RoutedEventArgs e)
     {
         if (!_loading)
         {
@@ -317,33 +326,33 @@ public sealed partial class GeneralPage : Page
 
     // Windows owns the startup state: turned off in Task Manager, only the user can turn it back on there; a policy
     // decides it for them. Runs unawaited from navigation, so nothing may escape
-    async Task LoadStartupAsync()
+    private async Task LoadStartupAsync()
     {
         var load = ++_startupLoads;
         _loadingStartup = true;
         try
         {
-            var task  = await StartupTask.GetAsync(StartupTaskId);
+            var task = await StartupTask.GetAsync(StartupTaskId);
             if (load != _startupLoads)
             {
                 return;
             }
 
             var state = task.State;
-            StartupSwitch.IsOn             = state is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy;
+            StartupSwitch.IsOn = state is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy;
             StartMinimizedSwitch.IsEnabled = StartupSwitch.IsOn;
             StartupSwitch.IsEnabled = state is StartupTaskState.Enabled or StartupTaskState.Disabled;
-            StartupRow.Description  = state switch
+            StartupRow.Description = state switch
             {
-                StartupTaskState.DisabledByUser                                       => "Turned off in Task Manager › Startup apps. Turn it on there.",
+                StartupTaskState.DisabledByUser => "Turned off in Task Manager › Startup apps. Turn it on there.",
                 StartupTaskState.DisabledByPolicy or StartupTaskState.EnabledByPolicy => "Your organization manages this setting.",
-                _                                                                     => StartupDescription,
+                _ => StartupDescription,
             };
         }
         catch (Exception ex)
         {
             // Not packaged, or the task is missing: the switch stays off; the type only
-            StartupSwitch.IsEnabled        = false;
+            StartupSwitch.IsEnabled = false;
             StartMinimizedSwitch.IsEnabled = false;
             _context.Services.Log.Info("settings.startup.failed", $"error={ex.GetType().Name}");
         }
@@ -357,7 +366,7 @@ public sealed partial class GeneralPage : Page
     }
 
     // On (the default): Windows' sign-in start stays in the tray; off: it opens the main window too
-    void OnStartMinimizedToggled(object sender, RoutedEventArgs e)
+    private void OnStartMinimizedToggled(object sender, RoutedEventArgs e)
     {
         if (!_loading)
         {
@@ -366,7 +375,7 @@ public sealed partial class GeneralPage : Page
         }
     }
 
-    async void OnStartupToggled(object sender, RoutedEventArgs e)
+    private async void OnStartupToggled(object sender, RoutedEventArgs e)
     {
         if (_loadingStartup)
         {
@@ -376,7 +385,7 @@ public sealed partial class GeneralPage : Page
         // async void: anything that escapes here would end the process
         try
         {
-            var on   = StartupSwitch.IsOn;
+            var on = StartupSwitch.IsOn;
             var task = await StartupTask.GetAsync(StartupTaskId);
             if (on)
             {

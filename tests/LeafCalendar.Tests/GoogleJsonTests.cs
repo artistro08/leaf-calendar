@@ -20,8 +20,8 @@ public class GoogleJsonTests
     [Fact]
     public void Deserialize_TimedAndAllDayEvents_ReadsDates()
     {
-        var page   = JsonSerializer.Deserialize(Fixture.Read("events-page1.json"), GoogleJsonContext.Default.EventsPage)!;
-        var timed  = JsonSerializer.Deserialize(page.Items[0], GoogleJsonContext.Default.GoogleEvent)!;
+        var page = JsonSerializer.Deserialize(Fixture.Read("events-page1.json"), GoogleJsonContext.Default.EventsPage)!;
+        var timed = JsonSerializer.Deserialize(page.Items[0], GoogleJsonContext.Default.GoogleEvent)!;
         var allDay = JsonSerializer.Deserialize(page.Items[1], GoogleJsonContext.Default.GoogleEvent)!;
 
         Assert.Equal("evt-single", timed.Id);
@@ -34,8 +34,8 @@ public class GoogleJsonTests
     [Fact]
     public void Deserialize_CanceledException_ReadsRecurringFields()
     {
-        var page      = JsonSerializer.Deserialize(Fixture.Read("events-page2.json"), GoogleJsonContext.Default.EventsPage)!;
-        var master    = JsonSerializer.Deserialize(page.Items[0], GoogleJsonContext.Default.GoogleEvent)!;
+        var page = JsonSerializer.Deserialize(Fixture.Read("events-page2.json"), GoogleJsonContext.Default.EventsPage)!;
+        var master = JsonSerializer.Deserialize(page.Items[0], GoogleJsonContext.Default.GoogleEvent)!;
         var exception = JsonSerializer.Deserialize(page.Items[1], GoogleJsonContext.Default.GoogleEvent)!;
 
         Assert.Equal(["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"], master.Recurrence);

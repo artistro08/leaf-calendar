@@ -1,14 +1,15 @@
 using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Google;
 using LeafCalendar.Tests.Support;
 
 namespace LeafCalendar.Tests;
 
 public sealed class OutboxStoreTests : IDisposable
 {
-    const string Calendar = "leaf.tester@gmail.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
+    private const string Calendar = "leaf.tester@gmail.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
 
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public OutboxStoreTests()
     {
@@ -18,14 +19,14 @@ public sealed class OutboxStoreTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    static OutboxEntry Entry(string eventId, OutboxOperation operation = OutboxOperation.Patch, string? etag = "\"1\"") =>
+    private static OutboxEntry Entry(string eventId, OutboxOperation operation = OutboxOperation.Patch, string? etag = "\"1\"") =>
         new(0, Account, Calendar, eventId, operation, """{"summary":"x"}""", etag, SendUpdates: false, BeforeJson: "[]", NotBefore: null);
 
     [Fact]
     public void Add_ThenPending_ReturnsEntriesInOrder()
     {
         using var conn = _db.Database.Open();
-        var first  = OutboxStore.Add(conn, null, Entry("a"));
+        var first = OutboxStore.Add(conn, null, Entry("a"));
         var second = OutboxStore.Add(conn, null, Entry("b", OutboxOperation.Delete) with { SendUpdates = true, NotBefore = DateTimeOffset.UnixEpoch.AddDays(1) });
 
         var pending = OutboxStore.Pending(conn, Account);
@@ -42,9 +43,9 @@ public sealed class OutboxStoreTests : IDisposable
     public void Rebase_UpdatesOnlyLaterEntriesForThatEvent()
     {
         using var conn = _db.Database.Open();
-        var first  = OutboxStore.Add(conn, null, Entry("a"));
+        var first = OutboxStore.Add(conn, null, Entry("a"));
         var second = OutboxStore.Add(conn, null, Entry("a"));
-        var other  = OutboxStore.Add(conn, null, Entry("b"));
+        var other = OutboxStore.Add(conn, null, Entry("b"));
 
         OutboxStore.Rebase(conn, null, Account, Calendar, "a", first, "\"2\"");
 
@@ -119,5 +120,21 @@ public sealed class OutboxStoreTests : IDisposable
         AccountStore.Delete(conn, Account);
 
         Assert.Equal(0, OutboxStore.Count(conn));
+    }
+
+    [Fact]
+    public void AccountDelete_WithACopyStillUnsent_PutsBackTheOriginalWaitingBehindIt()
+    {
+        const string Original = """{"id":"evt-a","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""";
+        using var conn = _db.Database.Open();
+        AccountStore.Upsert(conn, TestDatabase.SampleAccount with { Id = "other-account" });
+        CalendarStore.ReplaceForAccount(conn, Account, [new CalendarListEntry { Id = Calendar, Summary = "Mine", AccessRole = "owner" }]);
+        var create = OutboxStore.Add(conn, null, Entry("copy", OutboxOperation.Create) with { AccountId = "other-account" });
+        OutboxStore.Add(conn, null, Entry("evt-a", OutboxOperation.Delete) with { BeforeJson = $"[{Original}]", DependsOn = create });
+
+        AccountStore.Delete(conn, "other-account");
+
+        Assert.Equal(0, OutboxStore.Count(conn));
+        Assert.NotNull(EventStore.Get(conn, Account, Calendar, "evt-a"));
     }
 }

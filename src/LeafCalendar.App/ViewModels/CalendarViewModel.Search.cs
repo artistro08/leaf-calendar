@@ -2,24 +2,28 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Search;
+using LeafCalendar.Core.Views;
 
 namespace LeafCalendar.App.ViewModels;
 
 public sealed partial class CalendarViewModel
 {
     // The period a command-menu jump landed on (Back shows until the calendar moves elsewhere)
-    DateOnly? _jumpedTo;
+    private DateOnly? _jumpedTo;
 
     /// <summary>True right after a command-menu jump, until you go back or move elsewhere (spec 6.2 item 2).</summary>
     [ObservableProperty]
     public partial bool ShowBack { get; set; }
 
     // The events read for the menu's search (null until read, or after they changed), and the read in progress
-    EventSearch.Index? _searchIndex;
-    Task? _searchIndexBuild;
+    private EventSearch.Index? _searchIndex;
+    private Task? _searchIndexBuild;
+
+    // Bumped when the data changes, so a read that started before the change isn't kept
+    private int _searchIndexGeneration;
 
     // Read again after this long, so the rows kept are the ones nearest to now
-    static readonly TimeSpan SearchIndexLife = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan SearchIndexLife = TimeSpan.FromMinutes(15);
 
     /// <summary>
     /// Reads the events for the command menu's search ahead of the first keystroke, off the UI thread (nothing to do
@@ -35,16 +39,23 @@ public sealed partial class CalendarViewModel
         _searchIndexBuild = BuildSearchIndexAsync();
     }
 
-    async Task BuildSearchIndexAsync()
+    private async Task BuildSearchIndexAsync()
     {
         var now = Now;
+        var generation = _searchIndexGeneration;
         try
         {
-            _searchIndex = await Task.Run(() =>
+            var index = await Task.Run(() =>
             {
                 using var conn = _services.Database.Open();
                 return EventSearch.Index.Build(conn, now);
             });
+
+            // The Data Changed During The Read: the next search reads again
+            if (generation == _searchIndexGeneration)
+            {
+                _searchIndex = index;
+            }
         }
         catch (Exception ex) when (IsEditFailure(ex))
         {
@@ -58,8 +69,8 @@ public sealed partial class CalendarViewModel
 
     /// <summary>
     /// The events matching <paramref name="query"/>, from the warmed index, on this thread (the time it takes to type the
-    /// key); null when the index isn't ready yet (it's started), so the caller searches with
-    /// <see cref="SearchEventsAsync"/> this once. The query is never logged.
+    /// key); null when the index isn't ready yet (it's started) or holds too many events, so the caller searches with
+    /// <see cref="SearchEventsAsync"/> instead. The query is never logged.
     /// </summary>
     public IReadOnlyList<SearchHit>? SearchEventsNow(string query)
     {
@@ -129,6 +140,9 @@ public sealed partial class CalendarViewModel
 
         // Jump: Reveal's steps, on the event's own day (an all-day event's date, not its UTC midnight's local day)
         var before = PeriodStart;
+
+        // Back Returns To Where You Were, Scrolled There Or Not (scrolling records no history)
+        _history.Visit(new ViewPlace(Mode, Settings.CustomDayCount, before));
         NavigateTo(DayOf(occurrence));
         Select(occurrence);
         ScrollToTimeRequested?.Invoke(this, occurrence.Start);
@@ -138,7 +152,7 @@ public sealed partial class CalendarViewModel
         if (PeriodStart != before)
         {
             _jumpedTo = PeriodStart;
-            ShowBack  = true;
+            ShowBack = true;
         }
 
         return true;
@@ -150,7 +164,7 @@ public sealed partial class CalendarViewModel
     /// <summary>The title bar's Back after a jump.</summary>
     public void BackFromJump()
     {
-        ShowBack  = false;
+        ShowBack = false;
         _jumpedTo = null;
         GoBack();
     }
@@ -160,7 +174,7 @@ public sealed partial class CalendarViewModel
     {
         if (ShowBack && value != _jumpedTo)
         {
-            ShowBack  = false;
+            ShowBack = false;
             _jumpedTo = null;
         }
     }

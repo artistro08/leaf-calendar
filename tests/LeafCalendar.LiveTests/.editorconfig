@@ -1,3 +1,6 @@
 [*.cs]
 # Test names use Method_Condition_Result underscores by convention.
 dotnet_diagnostic.CA1707.severity = none
+dotnet_naming_rule.types_and_members_are_pascal_case.severity = none
+# Tests are not public API, so they need no doc comments.
+dotnet_diagnostic.CS1591.severity = none

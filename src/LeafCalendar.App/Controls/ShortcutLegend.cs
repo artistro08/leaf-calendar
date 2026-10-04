@@ -13,9 +13,9 @@ namespace LeafCalendar.App.Controls;
 public static class ShortcutLegend
 {
     // Caption-sized caps, 4 apart, with room for a one-letter key to read as a square
-    const double CapFontSize = 12;
-    const double CapMinWidth = 24;
-    const double Gap         = 4;
+    private const double CapFontSize = 12;
+    private const double CapMinWidth = 24;
+    private const double Gap = 4;
 
     /// <summary>
     /// What a key cap shows for a key as the cheat sheet writes it: Shift, Enter, Backspace, Win, and the arrows as their
@@ -23,15 +23,15 @@ public static class ShortcutLegend
     /// </summary>
     public static object CapContent(string key) => key switch
     {
-        "Shift"             => (int)Windows.System.VirtualKey.Shift,
-        "Enter"             => (int)Windows.System.VirtualKey.Enter,
-        "Backspace"         => (int)Windows.System.VirtualKey.Back,
-        "Win"               => (int)Windows.System.VirtualKey.LeftWindows,
-        "Left" or "←"       => (int)Windows.System.VirtualKey.Left,
-        "Right" or "→"      => (int)Windows.System.VirtualKey.Right,
-        "Up" or "↑"         => (int)Windows.System.VirtualKey.Up,
-        "Down" or "↓"       => (int)Windows.System.VirtualKey.Down,
-        _                   => key,
+        "Shift" => (int)Windows.System.VirtualKey.Shift,
+        "Enter" => (int)Windows.System.VirtualKey.Enter,
+        "Backspace" => (int)Windows.System.VirtualKey.Back,
+        "Win" => (int)Windows.System.VirtualKey.LeftWindows,
+        "Left" or "←" => (int)Windows.System.VirtualKey.Left,
+        "Right" or "→" => (int)Windows.System.VirtualKey.Right,
+        "Up" or "↑" => (int)Windows.System.VirtualKey.Up,
+        "Down" or "↓" => (int)Windows.System.VirtualKey.Down,
+        _ => key,
     };
 
     /// <summary>
@@ -49,12 +49,12 @@ public static class ShortcutLegend
             {
                 legend.Children.Add(new KeyVisual
                 {
-                    Content          = CapContent(part.Text),
+                    Content = CapContent(part.Text),
                     RenderKeyAsGlyph = true,
-                    FontSize         = CapFontSize,
-                    MinWidth         = CapMinWidth,
-                    Padding          = new Thickness(8, 2, 8, 2),
-                    CornerRadius     = new CornerRadius(4),
+                    FontSize = CapFontSize,
+                    MinWidth = CapMinWidth,
+                    Padding = new Thickness(8, 2, 8, 2),
+                    CornerRadius = new CornerRadius(4),
                 });
                 continue;
             }
@@ -62,9 +62,9 @@ public static class ShortcutLegend
             // The Words: the given color, else the theme's secondary text (a ThemeResource style, so it follows Leaf's theme, not Windows')
             var words = new TextBlock
             {
-                Text              = part.Text,
+                Text = part.Text,
                 VerticalAlignment = VerticalAlignment.Center,
-                TextWrapping      = TextWrapping.NoWrap,
+                TextWrapping = TextWrapping.NoWrap,
             };
             if (wordBrush is null)
             {

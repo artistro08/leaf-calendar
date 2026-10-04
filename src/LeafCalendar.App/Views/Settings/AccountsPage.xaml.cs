@@ -26,25 +26,25 @@ public sealed record DefaultCalendarChoice(string Name, string? Email)
 /// </summary>
 public sealed partial class AccountsPage : Page
 {
-    SettingsContext _context = null!;
+    private SettingsContext _context = null!;
 
     // The Default Calendar Choices, Parallel To The Combo Box Items (index 0 is "your main Google calendar" = null)
-    readonly List<CalendarRef?> _refs = [];
+    private readonly List<CalendarRef?> _refs = [];
 
     // The Combo Box Choices As Last Filled (an unchanged list isn't refilled, so a sync never closes an open dropdown)
-    List<DefaultCalendarChoice> _choices = [];
+    private List<DefaultCalendarChoice> _choices = [];
 
     // The Main Account Choices, Parallel To Its Combo Box Items
-    readonly List<string> _accountIds = [];
+    private readonly List<string> _accountIds = [];
 
     // The Account Expanders On Screen
-    List<AccountSettingsRow> _accountRows = [];
+    private List<AccountSettingsRow> _accountRows = [];
 
     // True while a rebuild after an account list change waits for the dispatcher (a refresh changes the list once per account)
-    bool _accountsPending;
+    private bool _accountsPending;
 
     // True while a combo box is being filled (its change event is ignored)
-    bool _loading;
+    private bool _loading;
 
     /// <summary>Creates the page.</summary>
     public AccountsPage()
@@ -56,9 +56,9 @@ public sealed partial class AccountsPage : Page
     /// <summary>x:Bind helper: failures show as errors, a finished sign-in as success, progress as information.</summary>
     public static InfoBarSeverity SeverityFor(AccountsMessageKind kind) => kind switch
     {
-        AccountsMessageKind.Error   => InfoBarSeverity.Error,
+        AccountsMessageKind.Error => InfoBarSeverity.Error,
         AccountsMessageKind.Success => InfoBarSeverity.Success,
-        _                           => InfoBarSeverity.Informational,
+        _ => InfoBarSeverity.Informational,
     };
 
     /// <summary>x:Bind helper: Narrator interrupts for failures and waits its turn for progress and success.</summary>
@@ -70,7 +70,7 @@ public sealed partial class AccountsPage : Page
     /// <inheritdoc />
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
-        _context  = (SettingsContext)e.Parameter;
+        _context = (SettingsContext)e.Parameter;
         ViewModel = _context.Host.Accounts;
 
         // Nothing Running: a finished action's message is stale by now
@@ -90,12 +90,12 @@ public sealed partial class AccountsPage : Page
     /// <inheritdoc />
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
-        _context.Host.CalendarsChanged     -= OnCalendarsChanged;
+        _context.Host.CalendarsChanged -= OnCalendarsChanged;
         ViewModel.Accounts.CollectionChanged -= OnAccountsChanged;
     }
 
     // An add, sync, or disconnect refreshed the accounts: rebuild once, after the refresh is done
-    void OnAccountsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void OnAccountsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         if (_accountsPending)
         {
@@ -110,7 +110,7 @@ public sealed partial class AccountsPage : Page
         });
     }
 
-    void OnCalendarsChanged(object? sender, EventArgs e)
+    private void OnCalendarsChanged(object? sender, EventArgs e)
     {
         LoadDefaultCalendar();
         LoadAccountChoices();
@@ -121,31 +121,45 @@ public sealed partial class AccountsPage : Page
     // =========================================================================
 
     // The main account (the first account when none is set; off with only one) and an expander per account
-    void LoadAccountChoices()
+    private void LoadAccountChoices()
     {
         var settings = _context.Calendar.Settings;
         var accounts = ViewModel.Accounts.ToList();
 
+        // Same Accounts As Shown: only the pick follows the settings (a refill would close an open dropdown, and rebuilt
+        // expanders would send keyboard and Narrator focus back to the top of the page)
+        var unchanged = _accountRows.Count == accounts.Count && _accountRows.Zip(accounts).All(p =>
+            p.First.AccountId == p.Second.Id && p.First.Email == p.Second.Email && p.First.Summary == p.Second.Summary
+            && p.First.IsOn == settings.MeetByDefaultAccounts.Contains(p.Second.Id));
+
         _loading = true;
-        _accountIds.Clear();
-        _accountIds.AddRange(accounts.Select(a => a.Id));
-        MainAccountBox.Items.Clear();
-        foreach (var account in accounts)
+        if (!unchanged)
         {
-            MainAccountBox.Items.Add(account.Email);
+            _accountIds.Clear();
+            _accountIds.AddRange(accounts.Select(a => a.Id));
+            MainAccountBox.Items.Clear();
+            foreach (var account in accounts)
+            {
+                MainAccountBox.Items.Add(account.Email);
+            }
         }
 
         MainAccountBox.SelectedIndex = accounts.Count == 0 ? -1 : Math.Max(_accountIds.IndexOf(settings.MainAccountId ?? ""), 0);
-        MainAccountBox.IsEnabled     = accounts.Count > 1;
+        MainAccountBox.IsEnabled = accounts.Count > 1;
         _loading = false;
+
+        if (unchanged)
+        {
+            return;
+        }
 
         // The Account Expanders (rebuilt with fresh counts; the open ones stay open)
         var expanded = _accountRows.Where(r => r.IsExpanded).Select(r => r.AccountId).ToHashSet(StringComparer.Ordinal);
-        _accountRows            = ViewModel.AccountRows(settings.MeetByDefaultAccounts, expanded, OnMeetToggled);
+        _accountRows = ViewModel.AccountRows(settings.MeetByDefaultAccounts, expanded, OnMeetToggled);
         AccountList.ItemsSource = _accountRows;
     }
 
-    void OnMainAccountChanged(object sender, SelectionChangedEventArgs e)
+    private void OnMainAccountChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_loading && MainAccountBox.SelectedIndex >= 0)
         {
@@ -154,20 +168,20 @@ public sealed partial class AccountsPage : Page
         }
     }
 
-    void OnMeetToggled(string accountId, bool on) =>
+    private void OnMeetToggled(string accountId, bool on) =>
         _context.Save(s => s with { MeetByDefaultAccounts = on ? [.. s.MeetByDefaultAccounts.Append(accountId).Distinct()] : [.. s.MeetByDefaultAccounts.Where(a => a != accountId)] });
 
     // Fill The Default Calendar Choices: your main Google calendar, then every calendar you can write to
-    void LoadDefaultCalendar()
+    private void LoadDefaultCalendar()
     {
         var calendar = _context.Calendar;
-        var several  = calendar.AccountEmails.Count > 1;
-        var chosen   = calendar.Settings.DefaultCalendar;
+        var several = calendar.AccountEmails.Count > 1;
+        var chosen = calendar.Settings.DefaultCalendar;
         var writable = calendar.Calendars
             .Where(c => c.AccessRole is "owner" or "writer" && calendar.AccountEmails.ContainsKey(c.AccountId))
             .ToList();
 
-        List<CalendarRef?>          refs    = [null, .. writable.Select(c => new CalendarRef(c.AccountId, c.Id))];
+        List<CalendarRef?> refs = [null, .. writable.Select(c => new CalendarRef(c.AccountId, c.Id))];
         List<DefaultCalendarChoice> choices = [new("Your main Google calendar", null), .. writable.Select(c => new DefaultCalendarChoice(c.Summary, several ? calendar.AccountEmails[c.AccountId] : null))];
 
         // Same Choices As Shown: leave the combo box alone
@@ -179,7 +193,7 @@ public sealed partial class AccountsPage : Page
         _loading = true;
         _refs.Clear();
         _refs.AddRange(refs);
-        _choices                       = choices;
+        _choices = choices;
         DefaultCalendarBox.ItemsSource = choices;
 
         // A stored default that is gone or read-only shows as the main calendar, matching DefaultCalendar.Pick
@@ -188,7 +202,7 @@ public sealed partial class AccountsPage : Page
         _loading = false;
     }
 
-    void OnDefaultCalendarChanged(object sender, SelectionChangedEventArgs e)
+    private void OnDefaultCalendarChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_loading && DefaultCalendarBox.SelectedIndex >= 0)
         {
@@ -197,12 +211,12 @@ public sealed partial class AccountsPage : Page
         }
     }
 
-    void OnChangeClientClick(object sender, RoutedEventArgs e) => _context.Host.ShowClientSetup();
+    private void OnChangeClientClick(object sender, RoutedEventArgs e) => _context.Host.ShowClientSetup();
 
     // Disconnect deletes local data (and any edits Google doesn't have yet), so confirm first
-    async void OnDisconnectClick(object sender, RoutedEventArgs e)
+    private async void OnDisconnectClick(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: string accountId })
+        if (sender is not Button { Tag: string accountId } || ViewModel.IsBusy)
         {
             return;
         }
@@ -219,7 +233,7 @@ public sealed partial class AccountsPage : Page
             return;
         }
 
-        var content ="Leaf will sign out of this Google account and remove its calendars from this PC. Your Google Calendar isn't changed.";
+        var content = "Leaf will sign out of this Google account and remove its calendars from this PC. Your Google Calendar isn't changed.";
         if (unsent > 0)
         {
             content += unsent == 1
@@ -229,13 +243,13 @@ public sealed partial class AccountsPage : Page
 
         var dialog = new ContentDialog
         {
-            XamlRoot          = XamlRoot,
-            RequestedTheme    = ActualTheme,
-            Title             = "Disconnect this account?",
-            Content           = content,
+            XamlRoot = XamlRoot,
+            RequestedTheme = ActualTheme,
+            Title = "Disconnect this account?",
+            Content = content,
             PrimaryButtonText = "Disconnect",
-            CloseButtonText   = "Cancel",
-            DefaultButton     = ContentDialogButton.Close,
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
         };
 
         // async void: anything that escapes here would terminate the process

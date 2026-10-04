@@ -2,16 +2,17 @@ using System.Drawing;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
-using FlaUI.Core.WindowsAPI;
 using FlaUI.Core.Tools;
+using FlaUI.Core.WindowsAPI;
+using LeafCalendar.Core.Settings;
 using LeafCalendar.UITests.Support;
 
 namespace LeafCalendar.UITests;
 
 public sealed class CalendarShellTests : IDisposable
 {
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -19,7 +20,7 @@ public sealed class CalendarShellTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     [Fact]
     public void Launch_SignedIn_ShowsCalendarWithToolbarAndTitle()
@@ -31,6 +32,32 @@ public sealed class CalendarShellTests : IDisposable
         Assert.Contains("2026", leaf.WaitFor("PeriodTitle").Name, StringComparison.Ordinal);
     }
 
+    // The window title (what the taskbar and Alt+Tab show) is the days on screen and follows the calendar; the title bar
+    // inside the window stays as it was, and Settings doesn't change the window title
+    [Fact]
+    public void WindowTitle_IsTheDaysOnScreen()
+    {
+        var profile = SeededProfile.Create(new LeafSettings { ViewMode = CalendarViewMode.Day });
+        try
+        {
+            using var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+            var window = leaf.MainWindow;
+            Assert.True(Retry.WhileFalse(() => window.Name == "Thursday, October 1, 2026", TimeSpan.FromSeconds(10)).Success, $"The window title is \"{window.Name}\".");
+
+            leaf.Press(VirtualKeyShort.KEY_J);
+            Assert.True(Retry.WhileFalse(() => window.Name == "Friday, October 2, 2026", TimeSpan.FromSeconds(10)).Success, $"After Next the window title is \"{window.Name}\".");
+
+            leaf.OpenSettings();
+            Assert.Equal("Friday, October 2, 2026", window.Name);
+            leaf.CloseSettings();
+            Assert.Equal("Friday, October 2, 2026", window.Name);
+        }
+        finally
+        {
+            LeafApp.DeleteProfile(profile);
+        }
+    }
+
     // First run: 1277 × 814 DIPs (the owner's own size), no bigger than the work area. Closed at another size, the
     // window opens at that size the next time (in DIPs: it opens on the monitor under the pointer, whatever its scale)
     [Fact]
@@ -40,16 +67,16 @@ public sealed class CalendarShellTests : IDisposable
         using (var first = Launch())
         {
             first.WaitFor("CalendarRoot");
-            var box  = first.MainWindow.BoundingRectangle;
+            var box = first.MainWindow.BoundingRectangle;
             var work = System.Windows.Forms.Screen.FromHandle(first.MainWindow.Properties.NativeWindowHandle.Value).WorkingArea;
             Assert.True(Math.Abs(box.Width - Math.Min(1277 * first.Scale, work.Width)) <= 2, $"The first window is {box.Width} wide.");
             Assert.True(Math.Abs(box.Height - Math.Min(814 * first.Scale, work.Height)) <= 2, $"The first window is {box.Height} tall.");
 
             first.Resize(1500, 900);
-            width  = 1500 / first.Scale;
+            width = 1500 / first.Scale;
             height = 900 / first.Scale;
             first.MainWindow.Close();
-            Assert.True(Retry.WhileTrue(() => first.WindowCount("Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
+            Assert.True(Retry.WhileTrue(() => first.MainWindowCount() > 0, TimeSpan.FromSeconds(10)).Success);
         }
 
         using var leaf = Launch();
@@ -148,27 +175,27 @@ public sealed class CalendarShellTests : IDisposable
         Assert.Empty(off);
     }
 
-    static void ToggleSidebar(LeafApp leaf)
+    private static void ToggleSidebar(LeafApp leaf)
     {
         leaf.WaitFor("AppTitleBar").FindFirstDescendant(cf => cf.ByAutomationId("PART_PaneToggleButton"))!.AsButton().Invoke();
         Thread.Sleep(1000);
     }
 
     // Measures one state and returns what's more than half a pixel off the Close glyph's center
-    static List<string> MeasureTitleBar(LeafApp leaf, string state)
+    private static List<string> MeasureTitleBar(LeafApp leaf, string state)
     {
-        var scale  = leaf.Scale;
-        var row    = (int)Math.Round(48 * scale);
-        var inset  = (int)Math.Ceiling(3 * scale);
-        var log    = TestContext.Current.TestOutputHelper;
+        var scale = leaf.Scale;
+        var row = (int)Math.Round(48 * scale);
+        var inset = (int)Math.Ceiling(3 * scale);
+        var log = TestContext.Current.TestOutputHelper;
 
         // Caption Buttons (the pointer is off the title bar: a hovered Close button fills red): the three glyphs in the
         // client area's top-right 3 x 46 (Minimize, Maximize, Close). Measured again until the Close glyph is whole: while
         // the window still opens (it zooms in, and is placed where it was last), a capture finds faint or partial glyphs
         var captionWidth = (int)Math.Round(3 * 46 * scale);
-        var names        = new[] { "Minimize", "Maximize", "Close" };
-        var client       = leaf.ClientBounds;
-        var dark         = false;
+        var names = new[] { "Minimize", "Maximize", "Close" };
+        var client = leaf.ClientBounds;
+        var dark = false;
         List<InkBox> boxes = [];
         Retry.WhileFalse(() =>
         {
@@ -191,7 +218,7 @@ public sealed class CalendarShellTests : IDisposable
 
         // Title Bar Buttons (Today and the view menu by ID, in case their control types aren't Button)
         var titleBar = leaf.WaitFor("AppTitleBar");
-        var buttons  = titleBar.FindAllDescendants(cf => cf.ByControlType(ControlType.Button))
+        var buttons = titleBar.FindAllDescendants(cf => cf.ByControlType(ControlType.Button))
             .Where(b => !b.IsOffscreen && b.AutomationId is not ("TodayButton" or "ViewModeButton"))
             .ToList();
         Assert.NotEmpty(buttons);
@@ -233,13 +260,13 @@ public sealed class CalendarShellTests : IDisposable
 
     // A text button's first capital: the ink in the first 5 DIP from where its text starts (inside the letter,
     // short of the next one)
-    static InkBox FirstLetter(Ink ink, int inset, double scale, string name)
+    private static InkBox FirstLetter(Ink ink, int inset, double scale, string name)
     {
         var start = ink.Runs(inset)[0].From;
         return Required(ink.Measure(inset, start, start + (int)Math.Round(5 * scale)), name);
     }
 
-    static InkBox Required(InkBox? box, string name)
+    private static InkBox Required(InkBox? box, string name)
     {
         Assert.True(box.HasValue, $"No ink found for {name}.");
         return box.Value;

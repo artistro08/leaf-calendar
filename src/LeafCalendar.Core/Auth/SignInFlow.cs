@@ -1,6 +1,6 @@
+using System.Text.Json;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Diagnostics;
-using System.Text.Json;
 using LeafCalendar.Core.Google;
 
 namespace LeafCalendar.Core.Auth;
@@ -44,11 +44,11 @@ public sealed class SignInFlow(
     {
         using var listener = new LoopbackListener();
         var verifier = Pkce.CreateVerifier();
-        var state    = Pkce.CreateState();
+        var state = Pkce.CreateState();
 
         // Start Timeout Before Opening The Browser
         using var timeout = new CancellationTokenSource(Timeout, time);
-        using var linked  = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
 
         IReadOnlyDictionary<string, string> reply;
         try
@@ -102,7 +102,14 @@ public sealed class SignInFlow(
 
             user = await oauth.GetUserInfoAsync(tokens.AccessToken, ct);
         }
-        catch (Exception ex) when (ex is HttpRequestException or GoogleApiException or InvalidGrantException or InvalidDataException or JsonException)
+
+        // The OAuth Client Was Rejected (wrong ID or secret, deleted, or not allowed): retrying can't help, fixing it can
+        catch (GoogleApiException ex) when (ex.Reason is "invalid_client" or "unauthorized_client" or "deleted_client")
+        {
+            log.Error("signin.exchange-failed", ex);
+            throw Fail("client-rejected", "Google didn't accept the OAuth client's ID or secret. Check them in setup's Connect your Google Cloud client step, or in Settings › Accounts › Change OAuth client.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or GoogleApiException or InvalidGrantException or InvalidDataException or JsonException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
         {
             log.Error("signin.exchange-failed", ex);
             throw Fail("exchange-failed", "Google couldn't complete sign-in. Try again.");
@@ -129,19 +136,19 @@ public sealed class SignInFlow(
         return account;
     }
 
-    async Task TryRevokeAsync(TokenSet tokens, CancellationToken ct)
+    private async Task TryRevokeAsync(TokenSet tokens, CancellationToken ct)
     {
         try
         {
             await oauth.RevokeAsync(tokens.RefreshToken ?? tokens.AccessToken, ct);
         }
-        catch (Exception ex) when (ex is HttpRequestException or GoogleApiException)
+        catch (Exception ex) when (ex is HttpRequestException or GoogleApiException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
         {
             log.Error("signin.revoke-failed", ex);
         }
     }
 
-    SignInException Fail(string reason, string message)
+    private SignInException Fail(string reason, string message)
     {
         log.Info("signin.failed", $"reason={reason}");
         return new SignInException(message);

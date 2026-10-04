@@ -221,7 +221,7 @@ public static class EventStore
             ("$account", accountId),
             ("$calendar", calendarId)).Single();
 
-    static long? ToUnixMs(EventDateTime? value) => value switch
+    private static long? ToUnixMs(EventDateTime? value) => value switch
     {
         { DateTime: { } dateTime } => dateTime.ToUnixTimeMilliseconds(),
         { Date: { } date } => new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero).ToUnixTimeMilliseconds(),

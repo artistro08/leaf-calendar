@@ -8,27 +8,27 @@ namespace LeafCalendar.Tests;
 
 public sealed class SyncEngineTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    const string Family  = "family123@group.calendar.google.com";
-    const string Account = SyncHarness.AccountId;
+    private const string Primary = "leaf.tester@gmail.com";
+    private const string Family = "family123@group.calendar.google.com";
+    private const string Account = SyncHarness.AccountId;
 
-    readonly SyncHarness _h = new();
+    private readonly SyncHarness _h = new();
 
     public void Dispose() => _h.Dispose();
 
-    CalendarInfo Calendar(string id)
+    private CalendarInfo Calendar(string id)
     {
         using var conn = _h.Db.Database.Open();
         return CalendarStore.GetForAccount(conn, Account).Single(c => c.Id == id);
     }
 
-    int CountEvents(string calendarId)
+    private int CountEvents(string calendarId)
     {
         using var conn = _h.Db.Database.Open();
         return EventStore.Count(conn, Account, calendarId);
     }
 
-    StoredEvent? Get(string id)
+    private StoredEvent? Get(string id)
     {
         using var conn = _h.Db.Database.Open();
         return EventStore.Get(conn, Account, Primary, id);
@@ -230,9 +230,9 @@ public sealed class SyncEngineTests : IDisposable
     [Fact]
     public async Task SyncAccountAsync_CalledConcurrently_RunsOneAtATime()
     {
-        var ct       = TestContext.Current.CancellationToken;
+        var ct = TestContext.Current.CancellationToken;
         var inFlight = 0;
-        var overlap  = false;
+        var overlap = false;
 
         // Probe Route: never matches, but holds every request briefly so overlapping syncs collide
         _h.Google.On(
@@ -246,7 +246,7 @@ public sealed class SyncEngineTests : IDisposable
             _ => throw new InvalidOperationException("Probe route never answers."));
         _h.RouteStandardGoogle();
 
-        var first  = Task.Run(() => _h.Engine.SyncAccountAsync(Account, ct), ct);
+        var first = Task.Run(() => _h.Engine.SyncAccountAsync(Account, ct), ct);
         var second = Task.Run(() => _h.Engine.SyncAccountAsync(Account, ct), ct);
         await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(30), ct);
 
@@ -291,7 +291,62 @@ public sealed class SyncEngineTests : IDisposable
 
         Assert.Contains("\"Mine\"", Get("evt-single")!.RawJson, StringComparison.Ordinal);
         Assert.NotNull(Get("evt-new"));
+        Assert.Equal("sync-token-1", Calendar(Primary).SyncToken);
+    }
+
+    [Fact]
+    public async Task SyncAccountAsync_ChangeSkippedForQueuedEdit_IsFetchedAgainOnceTheEditIsGone()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _h.RouteEvents(SyncHarness.PrimaryEventsUrl, "sync-token-2", null, "events-empty.json");
+        _h.RouteStandardGoogle();
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        long seq;
+        using (var conn = _h.Db.Database.Open())
+        {
+            seq = OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Primary, "evt-single", OutboxOperation.Patch, """{"summary":"Mine"}""", "\"3181161784712000\"", false, "[]", _h.Time.GetUtcNow().AddDays(1)));
+        }
+
+        // Google Moves evt-single While The Edit Waits; Then The Edit Is Undone
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        using (var conn = _h.Db.Database.Open())
+        {
+            OutboxStore.Remove(conn, null, seq);
+        }
+
+        await _h.Engine.SyncAccountAsync(Account, ct);
+
+        Assert.Equal(new DateTimeOffset(2026, 10, 1, 15, 0, 0, TimeSpan.Zero), Get("evt-single")!.Start);
         Assert.Equal("sync-token-2", Calendar(Primary).SyncToken);
+    }
+
+    [Fact]
+    public async Task SyncAccountAsync_TokenClearedDuringPull_StaysCleared()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var armed = false;
+
+        // A Conflict Answer Forgets The Token While The Pull Is Fetching (the probe never answers, it only hooks the fetch)
+        _h.Google.On(
+            r =>
+            {
+                if (armed && r.Query("syncToken") == "sync-token-1")
+                {
+                    armed = false;
+                    using var conn = _h.Db.Database.Open();
+                    CalendarStore.SetSyncToken(conn, null, Account, Primary, null);
+                }
+
+                return false;
+            },
+            _ => throw new InvalidOperationException("Probe route never answers."));
+        _h.RouteStandardGoogle();
+        await _h.Engine.SyncAccountAsync(Account, ct);
+
+        armed = true;
+        await _h.Engine.SyncAccountAsync(Account, ct);
+
+        Assert.Null(Calendar(Primary).SyncToken);
     }
 
     [Fact]
@@ -368,7 +423,7 @@ public sealed class SyncEngineTests : IDisposable
         await _h.Engine.SyncAccountAsync(Account, ct);
 
         var patch = _h.Google.Requests.FindIndex(r => r.Method == HttpMethod.Patch);
-        var pull  = _h.Google.Requests.FindIndex(r => r.Method == HttpMethod.Get && r.Uri.AbsoluteUri.StartsWith(SyncHarness.PrimaryEventsUrl, StringComparison.Ordinal));
+        var pull = _h.Google.Requests.FindIndex(r => r.Method == HttpMethod.Get && r.Uri.AbsoluteUri.StartsWith(SyncHarness.PrimaryEventsUrl, StringComparison.Ordinal));
         Assert.InRange(patch, 0, pull - 1);
     }
 
@@ -415,9 +470,9 @@ public sealed class SyncEngineTests : IDisposable
     [Fact]
     public async Task SyncAllAsync_GoogleUnreachable_GoesOfflineThenBackOnline()
     {
-        var ct      = TestContext.Current.CancellationToken;
+        var ct = TestContext.Current.CancellationToken;
         var offline = false;
-        var flips   = new List<bool>();
+        var flips = new List<bool>();
 
         // Routes are first-match, so the dropped connection goes in before the standard routes
         _h.Google.On(_ => offline, _ => throw new HttpRequestException("No connection"));
@@ -437,6 +492,32 @@ public sealed class SyncEngineTests : IDisposable
         Assert.Equal([true, false], flips);
     }
 
+    // Syncing stays in the background: the offline icon only shows once 3 syncs in a row couldn't reach Google, and a
+    // sync that gets through hides it again
+    [Fact]
+    public async Task SyncAllAsync_ThreeFailedSyncsInARow_ShowsOffline()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var offline = true;
+        var shown = new List<bool>();
+        _h.Google.On(_ => offline, _ => throw new HttpRequestException("No connection"));
+        _h.RouteStandardGoogle();
+        _h.Engine.OfflineChanged += (_, _) => shown.Add(_h.Engine.ShowsOffline);
+
+        await _h.Engine.SyncAllAsync(ct);
+        await _h.Engine.SyncAllAsync(ct);
+        Assert.True(_h.Engine.IsOffline);
+        Assert.False(_h.Engine.ShowsOffline);
+
+        await _h.Engine.SyncAllAsync(ct);
+        Assert.True(_h.Engine.ShowsOffline);
+
+        offline = false;
+        await _h.Engine.SyncAllAsync(ct);
+        Assert.False(_h.Engine.ShowsOffline);
+        Assert.Equal([false, true, false], shown);
+    }
+
     [Fact]
     public async Task SyncAllAsync_GoogleError_IsNotOffline()
     {
@@ -446,6 +527,26 @@ public sealed class SyncEngineTests : IDisposable
         await _h.Engine.SyncAllAsync(TestContext.Current.CancellationToken);
 
         Assert.False(_h.Engine.IsOffline);
+    }
+
+    // Google Answering With An Error Keeps Its Reason (the API off in the Cloud project), And A Clean Sync Clears It
+    [Fact]
+    public async Task SyncAccountAsync_ApiNotTurnedOn_KeepsGooglesReasonUntilASyncWorks()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var refused = true;
+        _h.Google.On(
+            r => refused && r.Uri.AbsoluteUri.StartsWith(SyncHarness.ListUrl, StringComparison.Ordinal),
+            _ => FakeHttpHandler.Json(HttpStatusCode.Forbidden, """{"error":{"code":403,"message":"Google Calendar API has not been used in project 1 before or it is disabled.","errors":[{"domain":"usageLimits","reason":"accessNotConfigured","message":"Access Not Configured."}]}}"""));
+        _h.RouteStandardGoogle();
+
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        Assert.Equal("accessNotConfigured", _h.Engine.LastRefusal);
+        Assert.False(_h.Engine.IsOffline);
+
+        refused = false;
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        Assert.Null(_h.Engine.LastRefusal);
     }
 
     [Fact]
@@ -477,7 +578,7 @@ public sealed class SyncEngineTests : IDisposable
         _h.Google.On(r => r.Form("refresh_token") == "1//revoked", _ => FakeHttpHandler.Json(HttpStatusCode.BadRequest, Fixture.Read("error-invalid-grant.json")));
         _h.RouteStandardGoogle();
         _h.Tokens.SetRefreshToken(Account, "1//revoked");
-        var engine  = _h.NewEngine();
+        var engine = _h.NewEngine();
         var signIns = new List<string>();
         engine.SignInNeeded += (_, account) => signIns.Add(account);
 

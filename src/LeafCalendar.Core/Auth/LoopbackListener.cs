@@ -22,16 +22,23 @@ namespace LeafCalendar.Core.Auth;
 /// </remarks>
 public sealed class LoopbackListener : IDisposable
 {
-    const int MaxRequestLineBytes = 8192;
-    static readonly TimeSpan ReadTimeout  = TimeSpan.FromSeconds(3);
-    static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(1);
+    private const int MaxRequestLineBytes = 8192;
+    private static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(1);
 
-    const string SuccessPage =
-        "<!doctype html><html><head><meta charset=\"utf-8\"><title>Leaf Calendar</title></head>" +
+    // Google signed in, or answered with an error (Cancel, access denied). Fixed text only: nothing from the query is
+    // echoed. Each page tries the leaf-calendar: link once as it loads (the browser asks first) and also offers it as a
+    // link, which works on its own; the link only brings Leaf to the front.
+    private const string SignedInPage = "<h1>You're signed in</h1><p>You can close this tab and go back to Leaf Calendar.</p>";
+    private const string NotFinishedPage = "<h1>Sign-in didn't finish</h1><p>You can close this tab and go back to Leaf Calendar to try again.</p>";
+
+    private static string Page(string content) =>
+        "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"refresh\" content=\"0;url=leaf-calendar:\"><title>Leaf Calendar</title></head>" +
         "<body style=\"font-family:'Segoe UI',sans-serif;padding:48px\">" +
-        "<h1>You're signed in</h1><p>You can close this tab and go back to Leaf Calendar.</p></body></html>";
+        content +
+        "<p><a href=\"leaf-calendar:\">Open Leaf Calendar</a></p></body></html>";
 
-    readonly TcpListener _listener;
+    private readonly TcpListener _listener;
 
     /// <summary>Starts listening on a random free loopback port.</summary>
     public LoopbackListener()
@@ -92,7 +99,7 @@ public sealed class LoopbackListener : IDisposable
                 continue;
             }
 
-            await RespondAsync(client, stream, "200 OK", SuccessPage, ct);
+            await RespondAsync(client, stream, "200 OK", Page(query.ContainsKey("error") ? NotFinishedPage : SignedInPage), ct);
             return query;
         }
     }
@@ -101,7 +108,7 @@ public sealed class LoopbackListener : IDisposable
     public void Dispose() => _listener.Stop();
 
     // Reads up to the end of the request line (8 KB at most) and returns the GET target, or null for anything else.
-    static async Task<string?> ReadTargetAsync(NetworkStream stream, CancellationToken ct)
+    private static async Task<string?> ReadTargetAsync(NetworkStream stream, CancellationToken ct)
     {
         var buffer = new byte[MaxRequestLineBytes];
         var length = 0;
@@ -133,7 +140,7 @@ public sealed class LoopbackListener : IDisposable
 
     // Writes the response, closes the sending side, then reads away unread headers until the
     // browser closes (or a second passes), so the browser gets the page instead of a reset
-    static async Task RespondAsync(TcpClient client, NetworkStream stream, string status, string body, CancellationToken ct)
+    private static async Task RespondAsync(TcpClient client, NetworkStream stream, string status, string body, CancellationToken ct)
     {
         await TryWriteAsync(stream, status, body, ct);
 
@@ -156,7 +163,7 @@ public sealed class LoopbackListener : IDisposable
         }
     }
 
-    static async Task TryWriteAsync(NetworkStream stream, string status, string body, CancellationToken ct)
+    private static async Task TryWriteAsync(NetworkStream stream, string status, string body, CancellationToken ct)
     {
         var bodyBytes = Encoding.UTF8.GetBytes(body);
         var header =

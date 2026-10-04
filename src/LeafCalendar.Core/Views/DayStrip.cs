@@ -6,7 +6,7 @@ namespace LeafCalendar.Core.Views;
 /// </summary>
 public sealed class DayStrip
 {
-    readonly DateOnly[] _days;
+    private readonly DateOnly[] _days;
 
     /// <summary>Builds the strip around <paramref name="origin"/>.</summary>
     public DayStrip(DateOnly origin, int daysBefore, int daysAfter, bool skipWeekends)
@@ -42,6 +42,17 @@ public sealed class DayStrip
 
     /// <summary>True when <paramref name="day"/> is within the strip's range.</summary>
     public bool Contains(DateOnly day) => day >= First && day <= Last;
+
+    /// <summary>
+    /// The strip's days from <paramref name="a"/> to <paramref name="b"/>, both included, whichever comes first. Days
+    /// the strip leaves out (a hidden weekend) aren't in it.
+    /// </summary>
+    public IReadOnlyList<DateOnly> Between(DateOnly a, DateOnly b)
+    {
+        var (first, last) = a <= b ? (a, b) : (b, a);
+
+        return [.. _days.Where(day => day >= first && day <= last)];
+    }
 
     /// <summary>Index of <paramref name="day"/>, or of the next later day in the strip (clamped).</summary>
     public int IndexOf(DateOnly day)

@@ -48,7 +48,7 @@ public static class ConflictDialog
         }
     }
 
-    static ContentDialog Build(XamlRoot root, CalendarViewModel vm, ConflictInfo conflict, bool dark)
+    private static ContentDialog Build(XamlRoot root, CalendarViewModel vm, ConflictInfo conflict, bool dark)
     {
         var grid = new Grid { ColumnSpacing = 12, RowSpacing = 8 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -61,10 +61,10 @@ public static class ConflictDialog
         // Fields (rows empty on both sides are skipped; differing rows get a bold label and a highlight, so it's never color alone)
         foreach (var field in vm.Compare(conflict).Where(f => f.Mine.Length > 0 || f.Google.Length > 0))
         {
-            var mine   = Cell(field.Mine, dark);
+            var mine = Cell(field.Mine, dark);
             var google = Cell(field.Google, dark);
-            AutomationProperties.SetAutomationId(mine, $"ConflictMine_{field.Field}");
-            AutomationProperties.SetAutomationId(google, $"ConflictGoogle_{field.Field}");
+            AutomationProperties.SetAutomationId(mine, $"ConflictMine_{field.Field.Replace(" ", "", StringComparison.Ordinal)}");
+            AutomationProperties.SetAutomationId(google, $"ConflictGoogle_{field.Field.Replace(" ", "", StringComparison.Ordinal)}");
             if (field.Differs)
             {
                 AutomationProperties.SetItemStatus(mine, "differs");
@@ -76,7 +76,7 @@ public static class ConflictDialog
 
         // Google's Copy Isn't Available (deleted there, or it couldn't be read)
         var hasGoogle = conflict.GoogleJson is not null;
-        var question  = hasGoogle
+        var question = hasGoogle
             ? "This event changed on Google after you edited it here. Which version do you want to keep?"
             : conflict.Entry.Operation == OutboxOperation.Delete
                 ? "Google's copy of this event isn't available, so your delete couldn't be checked. Either way, the event leaves Leaf."
@@ -91,18 +91,18 @@ public static class ConflictDialog
 
         return new ContentDialog
         {
-            XamlRoot            = root,
-            RequestedTheme      = dark ? ElementTheme.Dark : ElementTheme.Light,
-            Title               = "Review a change",
-            Content             = scroll,
-            PrimaryButtonText   = "Keep mine",
+            XamlRoot = root,
+            RequestedTheme = dark ? ElementTheme.Dark : ElementTheme.Light,
+            Title = "Review a change",
+            Content = scroll,
+            PrimaryButtonText = "Keep mine",
             SecondaryButtonText = hasGoogle ? "Keep Google's" : "Discard mine",
-            CloseButtonText     = "Decide later",
-            DefaultButton       = ContentDialogButton.Close,
+            CloseButtonText = "Decide later",
+            DefaultButton = ContentDialogButton.Close,
         };
     }
 
-    static void AddRow(Grid grid, FrameworkElement[] cells)
+    private static void AddRow(Grid grid, FrameworkElement[] cells)
     {
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         for (var i = 0; i < cells.Length; i++)
@@ -114,14 +114,14 @@ public static class ConflictDialog
     }
 
     // Event content, shown as plain text only
-    static TextBlock Cell(string text, bool dark, bool bold = false, bool secondary = false)
+    private static TextBlock Cell(string text, bool dark, bool bold = false, bool secondary = false)
     {
         var cell = new TextBlock
         {
-            Text                   = text,
-            TextWrapping           = TextWrapping.Wrap,
+            Text = text,
+            TextWrapping = TextWrapping.Wrap,
             IsTextSelectionEnabled = !bold && !secondary,
-            FontWeight             = bold ? FontWeights.SemiBold : FontWeights.Normal,
+            FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal,
         };
 
         // Secondary labels use the theme's TextFillColorSecondary (code-built, so picked per theme)
@@ -133,6 +133,6 @@ public static class ConflictDialog
         return cell;
     }
 
-    static FrameworkElement Highlight(TextBlock cell, bool differs, bool dark) =>
+    private static FrameworkElement Highlight(TextBlock cell, bool differs, bool dark) =>
         differs ? new Border { Child = cell, Padding = new Thickness(4, 2, 4, 2), CornerRadius = new CornerRadius(4), Background = LeafBrushes.CautionBackground(dark) } : cell;
 }
