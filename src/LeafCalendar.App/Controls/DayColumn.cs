@@ -161,14 +161,12 @@ public sealed partial class DayColumn : Canvas
         var width = _owner.ColumnWidth;
         var hour = _owner.HourHeight;
 
-        // Events (drawn at the same minimum length DayLayout uses for overlap, so short events never collide). The
-        // grid's stand-ins are laid out with them: a new event's range is one more overlapping column, drawn as the ghost
-        var standIn = _owner.StandIn;
+        // Events (drawn at the same minimum length DayLayout uses for overlap, so short events never collide), with the
+        // event being resized laid out in place of the original
         _floor.Width = width;
         _floor.Height = _owner.BodyHeight;
         var blocks = DayLayout.Layout(Date, _owner.WithPreviews(vm.Cache.ForDay(Date)), vm.Zone);
         var shown = 0;
-        var ghostShown = false;
         EnsureBlocks(blocks.Count);
 
         for (var i = 0; i < blocks.Count; i++)
@@ -176,16 +174,6 @@ public sealed partial class DayColumn : Canvas
             var b = blocks[i];
             var usable = width - 2 - RightInset;
             var colW = usable / b.ColumnCount;
-
-            // The New Event's Ghost, In Its Own Column
-            if (ReferenceEquals(b.Occurrence, standIn))
-            {
-                var label = b.Occurrence.Start >= OccurrenceQuery.LocalMidnight(Date, vm.Zone) ? TimeLabels.GridRange(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime) : "";
-                PlaceGhost(2 + b.Column * colW, Math.Max(colW - 2, 10), b.StartMinute, Math.Max(b.EndMinute, b.StartMinute + DragMath.SnapMinutes), label);
-                ghostShown = true;
-                continue;
-            }
-
             var card = _blocks[shown++];
             var height = Math.Max(b.EndMinute - b.StartMinute, DayLayout.MinVisualMinutes) / 60 * hour - 2;
             // Marking Times To Share: every event looks past (they're taken; the day behind them wears diagonal lines)
@@ -207,10 +195,21 @@ public sealed partial class DayColumn : Canvas
             _blocks[i].Visibility = Visibility.Collapsed;
         }
 
-        // A New Event On Another Day Leaves No Ghost Here
-        if (standIn is not null && !ghostShown)
+        // The New Event's Ghost: on top of the events at the day's full width, so the ones under it keep their own width
+        // and the ghost reads whole (its title, or "(No title)", then its time on the day it starts). A new event on
+        // another day leaves no ghost here
+        if (_owner.StandIn is { } standIn)
         {
-            ClearGhost();
+            if (DayLayout.Layout(Date, [standIn], vm.Zone) is [var g])
+            {
+                var title = string.IsNullOrWhiteSpace(standIn.Title) ? EventDetailsParser.NoTitle : standIn.Title;
+                var time = standIn.Start >= OccurrenceQuery.LocalMidnight(Date, vm.Zone) ? "\n" + TimeLabels.GridRange(standIn.Start, standIn.End, vm.Zone, vm.Settings.Use24HourTime) : "";
+                SetGhost(g.StartMinute, Math.Max(g.EndMinute, g.StartMinute + DragMath.SnapMinutes), title + time);
+            }
+            else
+            {
+                ClearGhost();
+            }
         }
 
         // Now Line

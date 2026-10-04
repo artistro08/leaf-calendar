@@ -120,7 +120,7 @@ public sealed partial class CalendarPage
     }
 
     // P
-    private void ShowPeopleOverlay() => PickPeople("Overlay a teammate", "Show", meetWith: false);
+    private void ShowPeopleOverlay() => PickPeople("Show busy times", "Show", meetWith: false);
 
     // F
     private void ShowMeetWith() => PickPeople("Meet with", "Find a time", meetWith: true);

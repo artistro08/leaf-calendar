@@ -106,6 +106,20 @@ public sealed class RichDescriptionTests : IDisposable
         Assert.Contains("<a href=\"https://example.com/doc\">Doc</a>", description, StringComparison.Ordinal);
     }
 
+    // A Link Shows Underlined (only how it looks: it's saved without <u>, see BoldButton_ThenType_SavesBoldText)
+    [Fact]
+    public void Link_ShowsUnderlined()
+    {
+        using var leaf = OpenEditor();
+        var box = leaf.WaitFor("EditorDescription");
+        var link = box.Patterns.Text.Pattern.DocumentRange.FindText("Doc", false, false);
+        Assert.NotNull(link);
+
+        // UI Automation's UnderlineStyle: 0 is none
+        var style = link.GetAttributeValue(box.Automation.TextAttributeLibrary.UnderlineStyle);
+        Assert.True(style is int value && value != 0, $"The link's underline style is {style}.");
+    }
+
     [Fact]
     public void BulletsButton_MakesAList()
     {

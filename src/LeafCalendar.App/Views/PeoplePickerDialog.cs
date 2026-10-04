@@ -1,4 +1,3 @@
-using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.People;
 using Microsoft.UI.Xaml;
@@ -29,8 +28,10 @@ public static class PeoplePickerDialog
         AutomationProperties.SetAutomationId(box, "PeoplePickerBox");
         AutomationProperties.SetName(box, "Name or email");
 
-        var hint = new TextBlock { Text = $"Up to {FreeBusyLookup.MaxPeople} people.", FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
-        var list = new StackPanel { Spacing = 4, Margin = new Thickness(0, 8, 0, 0) };
+        // Hint (caption, secondary color that follows the theme), Then The Picked People (collapsed while empty, so no
+        // blank strip sits under the hint)
+        var hint = new TextBlock { Text = $"Up to {FreeBusyLookup.MaxPeople} people.", Style = (Style)Application.Current.Resources["LeafSecondaryTextStyle"], Margin = new Thickness(0, 4, 0, 0) };
+        var list = new StackPanel { Spacing = 4, Margin = new Thickness(0, 8, 0, 0), Visibility = Visibility.Collapsed };
         var layout = new StackPanel();
         layout.Children.Add(box);
         layout.Children.Add(hint);
@@ -44,11 +45,13 @@ public static class PeoplePickerDialog
             Content = layout,
             PrimaryButtonText = primaryText,
             CloseButtonText = "Cancel",
-            // No default button: Enter in the box adds the typed person, and never closes the dialog
+
+            // The primary action is accent-colored, but not the default button: Enter in the box adds the typed person,
+            // and never closes the dialog
+            PrimaryButtonStyle = (Style)Application.Current.Resources["AccentButtonStyle"],
             DefaultButton = ContentDialogButton.None,
             IsPrimaryButtonEnabled = false,
         };
-        dialog.Opened += (_, _) => hint.Foreground = LeafBrushes.SecondaryText(dialog.ActualTheme == ElementTheme.Dark);
 
         // Suggestions Wait Until Typing Pauses
         var timer = owner.DispatcherQueue.CreateTimer();
@@ -153,30 +156,41 @@ public static class PeoplePickerDialog
             Render();
         }
 
-        // One Row Per Picked Person, With A Remove Button
+        // One Row Per Picked Person (the name, with the address under it in secondary text; an address alone when
+        // there's no name), With A Remove Button
         void Render()
         {
             list.Children.Clear();
             removes.Clear();
+            list.Visibility = picked.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
             foreach (var person in picked)
             {
-                var label = person.Name.Length > 0 ? $"{person.Name} <{person.Email}>" : person.Email;
                 var row = new Grid { ColumnSpacing = 8 };
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                // The ID goes on the label: a Grid isn't in the automation tree
-                var text = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+
+                // The ID goes on the first line: a Grid isn't in the automation tree
+                var lines = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                var text = new TextBlock { Text = person.Name.Length > 0 ? person.Name : person.Email, TextTrimming = TextTrimming.CharacterEllipsis };
                 AutomationProperties.SetAutomationId(text, $"PickedPerson_{person.Email}");
-                row.Children.Add(text);
+                lines.Children.Add(text);
+                if (person.Name.Length > 0)
+                {
+                    lines.Children.Add(new TextBlock
+                    {
+                        Text = person.Email,
+                        Style = (Style)Application.Current.Resources["LeafSecondaryTextStyle"],
+                        TextWrapping = TextWrapping.NoWrap,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                    });
+                }
+
+                row.Children.Add(lines);
 
                 var remove = new Button
                 {
-                    Content = new FontIcon { Glyph = "", FontSize = 10 },
-                    Width = 32,
-                    Height = 32,
-                    Padding = new Thickness(0),
-                    Background = LeafBrushes.Transparent,
-                    BorderThickness = new Thickness(0),
+                    Content = new FontIcon { Glyph = "", FontSize = 12 },
+                    Style = (Style)Application.Current.Resources["LeafIconButtonStyle"],
                 };
                 AutomationProperties.SetName(remove, $"Remove {person.Email}");
                 ToolTipService.SetToolTip(remove, $"Remove {person.Email}");

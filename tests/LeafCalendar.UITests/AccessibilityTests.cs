@@ -232,10 +232,10 @@ public sealed class AccessibilityTests : IDisposable
     public static LeafApp Open(string name, FakeGoogleServer google, string profile, Action<LeafApp>? sized = null)
     {
         var (extra, open, _) = Screen(name, google);
-        if (name == "RoomInput")
-        {
-            google.HostedDomain = "example.com";
-        }
+
+        // Only The Room Row Fakes A Workspace Account (the tour shares one fake Google, so every other screen is put
+        // back to a personal account and doesn't show the Workspace-only rows)
+        google.HostedDomain = name == "RoomInput" ? "example.com" : null;
 
         // The Rich Event (10-11 AM New York, Oct 1) Is Seeded Once Per Fake Google
         if (name == "RichEditor" && google.EventOnGoogle(SeededProfile.Email, "evt-rich") is null)

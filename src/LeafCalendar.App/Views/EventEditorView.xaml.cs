@@ -522,7 +522,7 @@ public sealed partial class EventEditorView : UserControl
     private void OnItalicClick(object sender, RoutedEventArgs e) => Format(f => f.Italic = FormatEffect.Toggle);
 
     private void OnUnderlineClick(object sender, RoutedEventArgs e) =>
-        Format(f => f.Underline = f.Underline == UnderlineType.None ? UnderlineType.Single : UnderlineType.None);
+        Format(f => f.Underline = RichDescription.IsUnderlined(f) ? UnderlineType.None : UnderlineType.Single);
 
     private void OnBulletsClick(object sender, RoutedEventArgs e) => List(MarkerType.Bullet);
 
@@ -554,7 +554,7 @@ public sealed partial class EventEditorView : UserControl
         SyncToolbar();
     }
 
-    // Toolbar toggles show the selection's format
+    // Toolbar toggles show the selection's format (a link's underline is only how it looks, so it doesn't count)
     private void SyncToolbar()
     {
         var format = DescriptionBox.Document.Selection.CharacterFormat;
@@ -562,7 +562,7 @@ public sealed partial class EventEditorView : UserControl
 
         BoldButton.IsChecked = format.Bold == FormatEffect.On;
         ItalicButton.IsChecked = format.Italic == FormatEffect.On;
-        UnderlineButton.IsChecked = format.Underline != UnderlineType.None;
+        UnderlineButton.IsChecked = RichDescription.IsUnderlined(format);
         BulletsButton.IsChecked = list == MarkerType.Bullet;
         NumbersButton.IsChecked = list is not (MarkerType.None or MarkerType.Undefined or MarkerType.Bullet);
     }

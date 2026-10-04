@@ -513,7 +513,10 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     /// <summary>The "In your time" line shows: a timed event whose zone isn't the one on screen.</summary>
     public bool ShowLocalTime => !IsAllDay && TimeZoneCatalog.IanaId(_eventZone) != TimeZoneCatalog.IanaId(_zone);
 
-    /// <summary>"In your time: Wed, Sep 30, 8:00 PM–9:00 PM": the event's times on the screen's clock, or empty.</summary>
+    /// <summary>
+    /// "In your time: Wed, Sep 30, 8 PM – 9 PM": the event's times on the screen's clock, in the app's time format
+    /// (<see cref="TimeLabels.Range"/>), or empty.
+    /// </summary>
     public string LocalTimeText
     {
         get
@@ -523,10 +526,9 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
                 return "";
             }
 
-            var start = TimeZoneInfo.ConvertTime(EditorTimes.ToInstant(startDay, StartTime, _eventZone), _zone);
-            var end = TimeZoneInfo.ConvertTime(EditorTimes.ToInstant(Day(EndDate) ?? startDay, EndTime, _eventZone), _zone);
-            var clock = _use24Hour ? "HH:mm" : "h:mm tt";
-            return $"In your time: {start.ToString("ddd, MMM d", English)}, {start.ToString(clock, English)}–{end.ToString(clock, English)}";
+            var start = EditorTimes.ToInstant(startDay, StartTime, _eventZone);
+            var end = EditorTimes.ToInstant(Day(EndDate) ?? startDay, EndTime, _eventZone);
+            return $"In your time: {TimeZoneInfo.ConvertTime(start, _zone).ToString("ddd, MMM d", English)}, {TimeLabels.Range(start, end, _zone, _use24Hour)}";
         }
     }
 
