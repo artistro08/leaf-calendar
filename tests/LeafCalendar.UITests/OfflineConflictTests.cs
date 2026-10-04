@@ -50,8 +50,15 @@ public sealed class OfflineConflictTests : IDisposable
 
         Rename(leaf, "Offline rename");
 
+        // Syncing Stays In The Background: the save's own sync failing shows nothing yet
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsTitle").Name == "Offline rename", TimeSpan.FromSeconds(10)).Success);
+        Thread.Sleep(TimeSpan.FromSeconds(2));
+        Assert.False(leaf.Exists("OfflineIndicator"), "Offline showed after one sync.");
+        Assert.False(leaf.Exists("PendingChangesIndicator"), "Waiting showed after one sync.");
+
+        // Three Syncs In A Row Can't Reach Google: offline, with the change waiting
+        leaf.SyncUntilOffline();
         Assert.True(Retry.WhileFalse(() => leaf.Exists("PendingChangesIndicator") && leaf.WaitFor("PendingChangesIndicator").Name == "1 change waiting to sync", TimeSpan.FromSeconds(10)).Success);
-        Assert.True(Retry.WhileFalse(() => leaf.Exists("OfflineIndicator"), TimeSpan.FromSeconds(20)).Success);
 
         // One slot: offline with one waiting, said in words by the waiting button's help text and the offline button's name
         Assert.StartsWith("Can't reach Google. 1 change waiting to sync.", leaf.WaitFor("OfflineIndicator").Name, StringComparison.Ordinal);
@@ -60,7 +67,9 @@ public sealed class OfflineConflictTests : IDisposable
         Thread.Sleep(TimeSpan.FromSeconds(3));
         Assert.DoesNotContain(_google.Writes, w => w.Method == "PATCH");
 
+        // Back Online: the next sync (Sync now here, rather than the 15 s loop) sends it, and the icons go
         _google.Offline = false;
+        leaf.SyncNow();
 
         _google.WaitForWrite(w => w.Method == "PATCH" && w.Path.EndsWith("/events/evt-single", StringComparison.Ordinal), seconds: 45);
         Assert.True(Retry.WhileTrue(() => leaf.Exists("PendingChangesIndicator"), TimeSpan.FromSeconds(20)).Success);

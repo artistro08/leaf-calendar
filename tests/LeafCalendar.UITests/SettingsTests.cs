@@ -81,23 +81,36 @@ public sealed class SettingsTests : IDisposable
 
         leaf.OpenSettings();
         leaf.WaitInSettings("WeekendsSwitch").AsToggleButton().Toggle();
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("WeekendsSwitch").AsToggleButton().ToggleState == ToggleState.Off, TimeSpan.FromSeconds(5)).Success);
 
-        Assert.True(Retry.WhileTrue(() => leaf.Exists("DayHeader_2026-10-03"), TimeSpan.FromSeconds(5)).Success);
+        // The Calendar Is Back Without Its Weekend Columns
+        leaf.CloseSettings();
         Assert.NotNull(leaf.WaitFor("DayHeader_2026-10-02"));
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("DayHeader_2026-10-03"), TimeSpan.FromSeconds(5)).Success, "Saturday's column still shows.");
     }
 
+    // Settings shows in place of the calendar, so the calendar's shortcuts are off while it shows; a shortcut used on the
+    // calendar shows in Settings
     [Fact]
-    public void Shortcut_WhileSettingsOpen_UpdatesTheSwitch()
+    public void Shortcut_OnTheCalendar_ShowsInSettings_AndIsOffInSettings()
     {
         using var leaf = Launch();
-        leaf.OpenSettings();
-        Assert.Equal(ToggleState.On, leaf.WaitInSettings("WeekendsSwitch").AsToggleButton().ToggleState);
 
-        // Back in the main window (a click, so it really has the keyboard), then the shortcut
+        // On The Calendar: Ctrl+Shift+E Hides The Weekends
+        leaf.WaitFor("DayHeader_2026-10-03");
         leaf.WaitFor("MiniMonthTitle").Click();
         leaf.Press(VirtualKeyShort.CONTROL, VirtualKeyShort.SHIFT, VirtualKeyShort.KEY_E);
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("DayHeader_2026-10-03"), TimeSpan.FromSeconds(5)).Success, "The shortcut didn't hide the weekends.");
 
-        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("WeekendsSwitch").AsToggleButton().ToggleState == ToggleState.Off, TimeSpan.FromSeconds(5)).Success);
+        // Settings Shows The Switch Off
+        leaf.OpenSettings();
+        var weekends = leaf.WaitInSettings("WeekendsSwitch").AsToggleButton();
+        Assert.Equal(ToggleState.Off, weekends.ToggleState);
+
+        // In Settings The Shortcut Does Nothing
+        leaf.Press(VirtualKeyShort.CONTROL, VirtualKeyShort.SHIFT, VirtualKeyShort.KEY_E);
+        Thread.Sleep(1000);
+        Assert.Equal(ToggleState.Off, weekends.ToggleState);
     }
 
     [Fact]
@@ -135,9 +148,13 @@ public sealed class SettingsTests : IDisposable
         using var leaf = Launch();
 
         leaf.OpenSettings("Calendars");
-        leaf.WaitInSettings($"CalendarVisible_{FamilyId}").AsToggleButton().Toggle();
+        var visible = leaf.WaitInSettings($"CalendarVisible_{FamilyId}").AsToggleButton();
+        visible.Toggle();
+        Assert.True(Retry.WhileFalse(() => visible.ToggleState == ToggleState.Off, TimeSpan.FromSeconds(5)).Success);
 
-        Assert.True(Retry.WhileFalse(() => leaf.WaitFor($"CalendarToggle_{FamilyId}").AsCheckBox().ToggleState == ToggleState.Off, TimeSpan.FromSeconds(5)).Success);
+        // Back On The Calendar, The Sidebar's Checkbox Is Off
+        leaf.CloseSettings();
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor($"CalendarToggle_{FamilyId}").AsCheckBox().ToggleState == ToggleState.Off, TimeSpan.FromSeconds(5)).Success, "The sidebar still shows the calendar.");
     }
 
     [Fact]

@@ -150,12 +150,12 @@ public sealed class SidebarTests : IDisposable
             .FindAllDescendants(cf => cf.ByControlType(ControlType.CheckBox))
             .ToDictionary(r => r.AutomationId, r => string.Join(".", r.Properties.RuntimeId.Value));
 
-    // Runs "Sync now" from Settings › Accounts and waits until Leaf has fetched the calendar list again and had time to show it
+    // Runs "Sync now" from the command menu (Settings, where Accounts has its own Sync now, shows in place of the sidebar) and
+    // waits until Leaf has fetched the calendar list again and had time to show it
     private void SyncNow(LeafApp leaf)
     {
         var lists = _google.Requests.Count(r => r.Contains("/calendarList", StringComparison.Ordinal));
-        leaf.OpenSettings("Accounts");
-        leaf.WaitInSettings("SyncNowButton").AsButton().Invoke();
+        leaf.SyncNow();
         Assert.True(Retry.WhileFalse(() => _google.Requests.Count(r => r.Contains("/calendarList", StringComparison.Ordinal)) > lists, TimeSpan.FromSeconds(15)).Success);
         Thread.Sleep(1500);
     }
@@ -266,9 +266,12 @@ public sealed class SidebarTests : IDisposable
         Thread.Sleep(500);
         var home = details.BoundingRectangle;
 
-        // Beside The Caption Buttons (three 46-wide buttons, then the 6 inset)
-        var client = leaf.ClientBounds;
-        Assert.True(Math.Abs(client.Right - (3 * 46 + 6) * leaf.Scale - home.Right) <= 4 * leaf.Scale, "The details toggle isn't beside the caption buttons.");
+        // Beside The Caption Buttons (6 in from Minimize; the caption buttons' width is Windows' own, 48 in a tall title bar
+        // on this build, so it's measured)
+        var minimize = leaf.MainWindow.FindAllDescendants(cf => cf.ByAutomationId("Minimize")).FirstOrDefault(e => e.BoundingRectangle.Width > 0)
+            ?? throw new InvalidOperationException("The window has no Minimize caption button.");
+        var caption = minimize.BoundingRectangle;
+        Assert.True(Math.Abs(caption.Left - 6 * leaf.Scale - home.Right) <= 4 * leaf.Scale, $"The details toggle ({home}) isn't beside the caption buttons (Minimize {caption}).");
 
         // Either Panel Toggled: it stays put and visible
         foreach (var flip in new Action[] { () => details.AsToggleButton().Toggle(), () => sidebar.AsButton().Invoke(), () => details.AsToggleButton().Toggle() })

@@ -287,7 +287,7 @@ Anyone can send an invite, so event content is treated as hostile.
 1. Navigation icon (toggles the sidebar), top-left corner.
 2. Back button, visible only when there is somewhere to go back to (an opened command menu result). Settings no longer needs it (Section 6.7). The stock title bar back button (Milestone 5).
 3. Leaf icon and "Leaf Calendar".
-4. Right side: Today button, previous/next pagers, sync status icon (Milestone 3: pending changes and conflicts, details in its tooltip), view picker (Day / Week / Month / X days), then the caption buttons.
+4. Right side: Today button, previous/next pagers, sync status icon (Milestone 3: pending changes and conflicts, details in its tooltip; one slot, shown only when something needs attention: conflicts, then offline, then changes waiting. Syncing stays in the background with no progress ring, so offline and changes waiting show only once 3 syncs in a row couldn't reach Google, and hide again when one gets through), view picker (Day / Week / Month / X days), then the caption buttons.
 5. Search icon (opens the command menu): at the top of the left sidebar, in its title-bar row, styled like the details panel's edit and delete icons (owner request, Milestone 3; built in Milestone 5: centered over the mini month's Next month button, or after the app title when the sidebar is closed).
 
 ### 6.3 Sidebar (Collapsible)

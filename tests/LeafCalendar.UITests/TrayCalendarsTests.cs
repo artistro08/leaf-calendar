@@ -44,15 +44,16 @@ public sealed class TrayCalendarsTests : IDisposable
         leaf.PostTrayMessage(LeafApp.TraySelect);
         Assert.NotNull(leaf.WaitForPopup("FlyoutEvent_evt-family-today_202610011900"));
 
-        // Settings › Tray Has No Calendar Choice Of Its Own (Settings takes focus, which closes the flyout)
+        // Settings › Tray Has No Calendar Choice Of Its Own (the main window takes focus, which closes the flyout)
         var settings = leaf.OpenSettings("Tray");
         Assert.True(Retry.WhileTrue(() => leaf.PopupExists("FlyoutRoot"), TimeSpan.FromSeconds(5)).Success, "The flyout didn't close.");
         leaf.WaitInSettings("LookaheadComboBox");
         Assert.Null(settings.FindFirstDescendant(cf => cf.ByAutomationId("TrayCalendarList")));
 
-        // Hide The Family Calendar In Leaf
+        // Hide The Family Calendar In Leaf (Settings › Calendars), Then Back To The Calendar
         leaf.OpenSettings("Calendars");
         leaf.WaitInSettings($"CalendarVisible_{FamilyId}").AsToggleButton().Toggle();
+        leaf.CloseSettings();
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor($"CalendarToggle_{FamilyId}").AsCheckBox().ToggleState == ToggleState.Off, TimeSpan.FromSeconds(5)).Success);
 
         // Gone From The Flyout; The Primary Calendar's Events Stay

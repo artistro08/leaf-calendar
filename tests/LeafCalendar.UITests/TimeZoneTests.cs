@@ -1,10 +1,15 @@
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
+using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
 using LeafCalendar.UITests.Support;
 
 namespace LeafCalendar.UITests;
 
+/// <summary>
+/// Extra time zones: added, renamed, and removed in Settings › Time zones (the time zones button opens it, in the main
+/// window in place of the calendar), and shown as columns beside the calendar's hours once Settings closes.
+/// </summary>
 public sealed class TimeZoneTests : IDisposable
 {
     private readonly FakeGoogleServer _google = new();
@@ -18,17 +23,33 @@ public sealed class TimeZoneTests : IDisposable
 
     private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
+    // Opens Settings › Time zones from the time zones button beside the calendar's hours
+    private static void OpenTimeZones(LeafApp leaf)
+    {
+        leaf.WaitFor("AddTimeZoneButton").AsButton().Invoke();
+        leaf.WaitInSettings("TimeZoneSearch");
+    }
+
+    // Types a city into the search box and presses Enter, which adds its zone
+    private static void AddZone(LeafApp leaf, string city)
+    {
+        leaf.WaitInSettings("TimeZoneSearch").Focus();
+        Thread.Sleep(500);
+        Keyboard.Type(city);
+        Thread.Sleep(500);
+        Keyboard.Press(VirtualKeyShort.RETURN);
+    }
+
     [Fact]
     public void AddTokyo_ShowsColumnAndPersists()
     {
         using (var leaf = Launch())
         {
-            leaf.WaitFor("AddTimeZoneButton").AsButton().Invoke();
-            var search = leaf.WaitForAnywhere("TimeZoneSearch");
-            search.Focus();
-            Keyboard.Type("Tokyo");
-            Keyboard.Press(VirtualKeyShort.RETURN);
+            OpenTimeZones(leaf);
+            AddZone(leaf, "Tokyo");
+            Assert.NotNull(leaf.WaitInSettings("ZoneLabelBox_Asia/Tokyo"));
 
+            leaf.CloseSettings();
             Assert.NotNull(leaf.WaitFor("ZoneLabel_Asia/Tokyo"));
         }
 
@@ -40,15 +61,18 @@ public sealed class TimeZoneTests : IDisposable
     public void RemoveZone_HidesColumn()
     {
         using var leaf = Launch();
-        leaf.WaitFor("AddTimeZoneButton").AsButton().Invoke();
-        leaf.WaitForAnywhere("TimeZoneSearch").Focus();
-        Keyboard.Type("London");
-        Keyboard.Press(VirtualKeyShort.RETURN);
+        OpenTimeZones(leaf);
+        AddZone(leaf, "London");
+        leaf.WaitInSettings("ZoneLabelBox_Europe/London");
+        leaf.CloseSettings();
         leaf.WaitFor("ZoneLabel_Europe/London");
 
-        leaf.WaitForAnywhere("ZoneRemove_Europe/London").AsButton().Invoke();
+        OpenTimeZones(leaf);
+        leaf.WaitInSettings("ZoneRemove_Europe/London").AsButton().Invoke();
+        Assert.True(Retry.WhileTrue(() => leaf.SettingsView.FindFirstDescendant(cf => cf.ByAutomationId("ZoneLabelBox_Europe/London")) is not null, TimeSpan.FromSeconds(5)).Success, "London is still listed in Settings.");
+        leaf.CloseSettings();
 
-        Assert.True(FlaUI.Core.Tools.Retry.WhileTrue(() => leaf.Exists("ZoneLabel_Europe/London"), TimeSpan.FromSeconds(5)).Success);
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ZoneLabel_Europe/London"), TimeSpan.FromSeconds(5)).Success, "London's column still shows.");
     }
 
     [Fact]
@@ -56,18 +80,18 @@ public sealed class TimeZoneTests : IDisposable
     {
         using (var leaf = Launch())
         {
-            leaf.WaitFor("AddTimeZoneButton").AsButton().Invoke();
-            leaf.WaitForAnywhere("TimeZoneSearch").Focus();
-            Keyboard.Type("Tokyo");
-            Keyboard.Press(VirtualKeyShort.RETURN);
-            leaf.WaitFor("ZoneLabel_Asia/Tokyo");
+            OpenTimeZones(leaf);
+            AddZone(leaf, "Tokyo");
 
-            var box = leaf.WaitForAnywhere("ZoneLabelBox_Asia/Tokyo").AsTextBox();
+            // The Label Saves When Focus Leaves Its Box
+            var box = leaf.WaitInSettings("ZoneLabelBox_Asia/Tokyo").AsTextBox();
             box.Focus();
             Keyboard.Type("HQ");
-            leaf.WaitForAnywhere("TimeZoneSearch").Focus();
+            leaf.WaitInSettings("TimeZoneSearch").Focus();
+            Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("ZoneLabelBox_Asia/Tokyo").AsTextBox().Text == "HQ", TimeSpan.FromSeconds(5)).Success);
 
-            Assert.True(FlaUI.Core.Tools.Retry.WhileFalse(() => leaf.WaitFor("ZoneLabel_Asia/Tokyo").Name == "HQ", TimeSpan.FromSeconds(5)).Success);
+            leaf.CloseSettings();
+            Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ZoneLabel_Asia/Tokyo").Name == "HQ", TimeSpan.FromSeconds(5)).Success, "The column isn't labeled HQ.");
         }
 
         using var relaunched = Launch();
@@ -78,17 +102,14 @@ public sealed class TimeZoneTests : IDisposable
     public void AddedZones_SitLeftOfThePcZone_NewestNextToIt()
     {
         using var leaf = Launch();
-        leaf.WaitFor("AddTimeZoneButton").AsButton().Invoke();
-
-        foreach (var (query, id) in new[] { ("Tokyo", "Asia/Tokyo"), ("London", "Europe/London") })
+        OpenTimeZones(leaf);
+        foreach (var (city, id) in new[] { ("Tokyo", "Asia/Tokyo"), ("London", "Europe/London") })
         {
-            leaf.WaitForAnywhere("TimeZoneSearch").Focus();
-            Thread.Sleep(500);
-            Keyboard.Type(query);
-            Thread.Sleep(500);
-            Keyboard.Press(VirtualKeyShort.RETURN);
-            leaf.WaitFor($"ZoneLabel_{id}");
+            AddZone(leaf, city);
+            leaf.WaitInSettings($"ZoneLabelBox_{id}");
         }
+
+        leaf.CloseSettings();
 
         // Left To Right: Tokyo (added first), London (added last), then the PC's zone next to the days
         var tokyo = leaf.WaitFor("ZoneLabel_Asia/Tokyo").BoundingRectangle;
@@ -103,18 +124,21 @@ public sealed class TimeZoneTests : IDisposable
     public void FourZones_ShowsLimit()
     {
         using var leaf = Launch();
-        leaf.WaitFor("AddTimeZoneButton").AsButton().Invoke();
-
-        foreach (var (query, id) in new[] { ("Tokyo", "Asia/Tokyo"), ("London", "Europe/London"), ("Paris", "Europe/Paris"), ("Sydney", "Australia/Sydney") })
+        OpenTimeZones(leaf);
+        var zones = new[] { ("Tokyo", "Asia/Tokyo"), ("London", "Europe/London"), ("Paris", "Europe/Paris"), ("Sydney", "Australia/Sydney") };
+        foreach (var (city, id) in zones)
         {
-            leaf.WaitForAnywhere("TimeZoneSearch").Focus();
-            Thread.Sleep(500);
-            Keyboard.Type(query);
-            Thread.Sleep(500);
-            Keyboard.Press(VirtualKeyShort.RETURN);
-            leaf.WaitFor($"ZoneLabel_{id}");
+            AddZone(leaf, city);
+            leaf.WaitInSettings($"ZoneLabelBox_{id}");
         }
 
-        Assert.NotNull(leaf.WaitForAnywhere("TimeZoneLimit"));
+        Assert.NotNull(leaf.WaitInSettings("TimeZoneLimit"));
+
+        // All Four Show As Columns
+        leaf.CloseSettings();
+        foreach (var (_, id) in zones)
+        {
+            Assert.NotNull(leaf.WaitFor($"ZoneLabel_{id}"));
+        }
     }
 }

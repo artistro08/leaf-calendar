@@ -59,9 +59,11 @@ public sealed class EditorExtrasTests : IDisposable
         _google.WaitForWrite(w => w.Method == "PATCH" && w.Path.EndsWith("/events/evt-single", StringComparison.Ordinal));
 
     // The box takes focus the way a click or Tab gives it (its text field only shows once it has focus, so there's
-    // nothing to click before that)
+    // nothing to click before that). First the instant E's 1.5 s sequence runs out: until then the next key is E's second
+    // key, and any key that isn't one types into the title (a person's click in the panel ends it; a focus from here doesn't)
     private static void FocusZoneBox(LeafApp leaf)
     {
+        Thread.Sleep(1600);
         leaf.WaitFor("EditorTimeZoneBox").Focus();
         Thread.Sleep(200);
     }

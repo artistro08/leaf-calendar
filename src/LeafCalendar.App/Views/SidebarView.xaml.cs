@@ -345,8 +345,11 @@ public sealed partial class SidebarView : UserControl
         var fold = new Storyboard { Children = { slide } };
         fold.Completed += (_, _) =>
         {
-            if (_folds.Remove(list))
+            // Only While It's Still The List's Fold: one cut short by a click (SkipToFill) completes later, after the click's
+            // own fold took its place, and must leave that one alone
+            if (_folds.TryGetValue(list, out var current) && ReferenceEquals(current.Fold, fold))
             {
+                _folds.Remove(list);
                 if (!expand)
                 {
                     viewModel.SetAccountExpanded(group.AccountId, false);

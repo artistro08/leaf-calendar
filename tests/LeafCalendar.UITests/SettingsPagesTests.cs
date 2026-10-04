@@ -144,7 +144,11 @@ public sealed class SettingsPagesTests : IDisposable
 
         leaf.OpenSettings();
         leaf.WaitInSettings("UpcomingHoursBox").AsComboBox().Select("Next 2 hours");
+        Assert.True(Retry.WhileFalse(() => Selected(leaf, "UpcomingHoursBox") == "Next 2 hours", TimeSpan.FromSeconds(5)).Success);
 
+        // Back On The Calendar, The Details Panel Lists The Next 2 Hours
+        leaf.CloseSettings();
+        list = leaf.WaitFor("UpcomingList");
         Assert.True(Retry.WhileTrue(() => list.FindFirstDescendant(cf => cf.ByName("Design review")) is not null, TimeSpan.FromSeconds(10)).Success, "The design review is still listed.");
         Assert.True(Retry.WhileFalse(() => list.FindFirstDescendant(cf => cf.ByName("Dentist appointment")) is not null, TimeSpan.FromSeconds(10)).Success, "The dentist dropped off the list.");
     }
@@ -162,8 +166,11 @@ public sealed class SettingsPagesTests : IDisposable
 
         Retry.WhileFalse(() => leaf.WaitInSettings("MainAccountBox").IsEnabled, TimeSpan.FromSeconds(10));
         leaf.WaitInSettings("MainAccountBox").AsComboBox().Select(FakeGoogleServer.OtherUserEmail);
+        Assert.True(Retry.WhileFalse(() => Selected(leaf, "MainAccountBox") == FakeGoogleServer.OtherUserEmail, TimeSpan.FromSeconds(5)).Success);
 
-        // The other account's header is now the first account header in the sidebar
+        // Back On The Calendar, The Other Account's Header Is The First Account Header In The Sidebar
+        leaf.CloseSettings();
+        leaf.WaitFor($"AccountHeader_{SeededProfile.AccountId}");
         Assert.True(
             Retry.WhileFalse(() => Top(leaf, FakeGoogleServer.OtherUserEmail) < Top(leaf, SeededProfile.Email), TimeSpan.FromSeconds(10)).Success,
             "The main account isn't listed first.");
@@ -186,7 +193,9 @@ public sealed class SettingsPagesTests : IDisposable
         meet.Toggle();
         Assert.True(Retry.WhileFalse(() => meet.ToggleState == ToggleState.On, TimeSpan.FromSeconds(5)).Success);
 
-        // A New Event In The Main Window
+        // A New Event On The Calendar
+        leaf.CloseSettings();
+        leaf.WaitFor($"CalendarToggle_{FamilyId}");
         leaf.MainWindow.Focus();
         leaf.Press(VirtualKeyShort.KEY_C);
         leaf.WaitFor("EditorTitle").AsTextBox().Text = "Meet default";

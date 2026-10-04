@@ -76,7 +76,7 @@ public sealed class CalendarManageTests : IDisposable
         using var leaf = Launch();
         leaf.WaitFor(Toggle);
         _google.Offline = true;
-        Assert.True(Retry.WhileFalse(() => leaf.Exists("OfflineIndicator"), TimeSpan.FromSeconds(60)).Success, "Leaf never noticed it was offline.");
+        leaf.SyncUntilOffline();
 
         Rename(leaf, "X");
 
@@ -131,7 +131,12 @@ public sealed class CalendarManageTests : IDisposable
 
         leaf.WaitInSettings($"CalendarMore_{SeededProfile.Email}").AsButton().Invoke();
         leaf.WaitForAnywhere("CalendarMenu_MoveDown").AsMenuItem().Invoke();
+        Assert.True(
+            Retry.WhileFalse(() => leaf.WaitInSettings($"CalendarMore_{Family}").BoundingRectangle.Top < leaf.WaitInSettings($"CalendarMore_{SeededProfile.Email}").BoundingRectangle.Top, TimeSpan.FromSeconds(10)).Success,
+            "Settings doesn't list Family above the primary calendar.");
 
+        // Back On The Calendar, The Sidebar Has The New Order
+        leaf.CloseSettings();
         Assert.True(
             Retry.WhileFalse(() => leaf.WaitFor(Toggle).BoundingRectangle.Top < leaf.WaitFor($"CalendarToggle_{SeededProfile.Email}").BoundingRectangle.Top, TimeSpan.FromSeconds(10)).Success,
             "Family isn't listed above the primary calendar.");

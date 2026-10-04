@@ -102,11 +102,16 @@ public sealed class LeafApp : IDisposable
 
     /// <summary>
     /// Opens Settings from the sidebar's settings button and shows a page (<c>General</c>, <c>Calendars</c>, <c>TimeZones</c>,
-    /// <c>Accounts</c>, <c>About</c>). Settings shows in the main window, which is returned.
+    /// <c>Accounts</c>, <c>About</c>), or, while Settings already shows (the sidebar isn't on screen then), picks that page in
+    /// its navigation. Settings shows in the main window, which is returned.
     /// </summary>
     public Window OpenSettings(string page = "General")
     {
-        WaitFor("SettingsButton").AsButton().Invoke();
+        if (!IsSettingsOpen)
+        {
+            WaitFor("SettingsButton").AsButton().Invoke();
+        }
+
         var settings = SettingsView;
         var item = Retry.WhileNull(() => settings.FindFirstDescendant(cf => cf.ByAutomationId($"SettingsNav_{page}")), TimeSpan.FromSeconds(15)).Result
             ?? throw new InvalidOperationException($"Settings page '{page}' isn't in the navigation.");
@@ -126,6 +131,39 @@ public sealed class LeafApp : IDisposable
         if (pattern.ExpandCollapseState.Value != ExpandCollapseState.Expanded)
         {
             pattern.Expand();
+        }
+    }
+
+    /// <summary>Runs "Sync now" from the command menu (Ctrl+K), on the calendar (the menu's only match is picked as it opens).</summary>
+    public void SyncNow()
+    {
+        Press(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_K);
+        WaitForAnywhere("CommandSearchBox").AsTextBox().Text = "sync now";
+        WaitForAnywhere("CommandResult_sync");
+        Keyboard.Type(VirtualKeyShort.RETURN);
+        if (!Retry.WhileTrue(() => ExistsAnywhere("CommandSearchBox"), TimeSpan.FromSeconds(5)).Success)
+        {
+            throw new InvalidOperationException("The command menu stayed open after Sync now.");
+        }
+    }
+
+    /// <summary>
+    /// With the fake Google refusing connections, runs Sync now until the title bar shows Leaf is offline: syncing stays in
+    /// the background, so the offline icon shows only once 3 syncs in a row couldn't reach Google, and the window's own
+    /// loop only syncs every 15 s. A sync asked for while one runs is the same sync, so it keeps asking (up to 60 s).
+    /// </summary>
+    public void SyncUntilOffline()
+    {
+        var watch = Stopwatch.StartNew();
+        while (!Exists("OfflineIndicator"))
+        {
+            if (watch.Elapsed > TimeSpan.FromSeconds(60))
+            {
+                throw new InvalidOperationException("Leaf never showed it was offline.");
+            }
+
+            SyncNow();
+            Retry.WhileFalse(() => Exists("OfflineIndicator"), TimeSpan.FromSeconds(2));
         }
     }
 

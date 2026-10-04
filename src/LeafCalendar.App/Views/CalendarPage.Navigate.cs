@@ -313,7 +313,7 @@ public sealed partial class CalendarPage
             return;
         }
 
-        // It slides back out to the right, then goes
+        // It slides back out to the left, then goes
         var sheet = _sheet;
         _sheet = null;
         SlideSheet(sheet, show: false);

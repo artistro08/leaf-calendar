@@ -144,13 +144,20 @@ public sealed class ZoneTests : IDisposable
         Keyboard.Type("London");
         Keyboard.Type(VirtualKeyShort.RETURN);
 
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("PrimaryZoneSummary").Name == "London", Wait).Success, $"The summary reads {leaf.WaitInSettings("PrimaryZoneSummary").Name}.");
+
+        // Back On The Calendar, The Dentist Is On London's Clock
+        leaf.CloseSettings();
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsWhen").Name.Contains("2 PM – 3 PM", StringComparison.Ordinal), Wait).Success,
             $"Details read {leaf.WaitFor("DetailsWhen").Name}.");
-        Assert.Equal("London", leaf.WaitInSettings("PrimaryZoneSummary").Name);
 
         // Following Windows Again Puts It Back
+        leaf.OpenSettings("TimeZones");
+        leaf.ExpandInSettings("PrimaryZoneExpander");
         leaf.WaitInSettings("FollowWindowsZoneSwitch").AsToggleButton().Toggle();
-        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsWhen").Name == before, Wait).Success);
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("PrimaryZoneSummary").Name.StartsWith("Same as Windows", StringComparison.Ordinal), Wait).Success);
+        leaf.CloseSettings();
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsWhen").Name == before, Wait).Success, $"Details read {leaf.WaitFor("DetailsWhen").Name}.");
     }
 
     [Fact]

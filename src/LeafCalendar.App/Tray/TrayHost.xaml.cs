@@ -45,6 +45,7 @@ public sealed partial class TrayHost : Window
 
     private readonly AppLog _log;
     private Action? _pendingOpen;
+    private Action? _menuAfterAgenda;
     private TaskbarEdge _edge;
     private AgendaModel? _model;
     private Storyboard? _motion;
@@ -124,9 +125,16 @@ public sealed partial class TrayHost : Window
 
         try
         {
-            // One Popup At A Time (a second right-click moves the menu). The flyout goes at once, not by its slide: closing
-            // as the menu opened, it took the menu's focus with it and the menu light-dismissed too
-            CloseAgendaAtOnce();
+            // One Popup At A Time (a second right-click moves the menu). The flyout goes at once, not by its slide, and the
+            // menu opens once it's closed: opened while it was closing, the menu lost the host with it (its close hid the
+            // host, or took the menu's focus, so the menu light-dismissed)
+            if (Agenda.IsOpen)
+            {
+                _menuAfterAgenda = () => ShowMenu(x, y, theme);
+                CloseAgendaAtOnce();
+                return;
+            }
+
             if (Menu.IsOpen)
             {
                 Menu.Hide();
@@ -386,6 +394,13 @@ public sealed partial class TrayHost : Window
         HideHostIfIdle();
         StopWatchingIfIdle();
         AgendaClosed?.Invoke(this, EventArgs.Empty);
+
+        // A Right-Click That Closed The Flyout Opens The Menu Now (once the close is done; ShowMenu catches its own errors)
+        if (_menuAfterAgenda is { } showMenu)
+        {
+            _menuAfterAgenda = null;
+            DispatcherQueue.TryEnqueue(() => showMenu());
+        }
     }
 
     // Far enough to put the whole panel past the frame's taskbar-side edge

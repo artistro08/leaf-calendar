@@ -135,7 +135,9 @@ public sealed class PeopleOverlayTests : IDisposable
         var chip = leaf.WaitFor($"OverlayChip_{Dana}");
         Assert.True(Retry.WhileFalse(() => chip.Name.Contains("No free/busy info", StringComparison.Ordinal), TimeSpan.FromSeconds(10)).Success, $"The chip reads \"{chip.Name}\".");
         Assert.False(leaf.Exists($"OverlayBlock_{Dana}_0"));
-        Assert.True(leaf.AnyTextContains("Couldn't get busy times. Check your connection."), "The notice didn't say why.");
+
+        // The notice opens just after the chip changes, and hides itself 5 s later
+        Assert.True(Retry.WhileFalse(() => leaf.AnyTextContains("Couldn't get busy times. Check your connection."), TimeSpan.FromSeconds(4)).Success, "The notice didn't say why.");
     }
 
     // Enter adds the typed person and keeps the picker open (it has no default button)

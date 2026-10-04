@@ -78,8 +78,10 @@ public sealed class CrashTests : IDisposable
         var toggle = leaf.WaitInSettings("DetailedLoggingSwitch").AsToggleButton();
         Assert.Equal(FlaUI.Core.Definitions.ToggleState.Off, toggle.ToggleState);
         toggle.Toggle();
+        Assert.True(FlaUI.Core.Tools.Retry.WhileFalse(() => toggle.ToggleState == FlaUI.Core.Definitions.ToggleState.On, TimeSpan.FromSeconds(5)).Success);
 
-        // A Command And A Selection Leave Their Trail (names only)
+        // A Command And A Selection On The Calendar Leave Their Trail (names only)
+        leaf.CloseSettings();
         leaf.MainWindow.Focus();
         leaf.WaitFor(Events[0]).Click();
         leaf.Press(VirtualKeyShort.KEY_T);
