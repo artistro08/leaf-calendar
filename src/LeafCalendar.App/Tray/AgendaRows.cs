@@ -12,10 +12,11 @@ public sealed record AgendaModel(IReadOnlyList<AgendaDay> Days, NextUp? Next, st
 public sealed record AgendaDayRow(string Header, List<AgendaRow> Items);
 
 /// <summary>
-/// One flyout row: title, time, the calendar's color dot, and the Join button when there's a link. The buttons x:Bind
-/// their clicks to <see cref="Open"/> and <see cref="Join"/>, so nothing is read back from a control.
+/// One flyout row: title, time, the calendar's color bar, and the Join button when there's a link ("Join Standup" for
+/// Narrator, the link's address as its tooltip). The row and Join are sibling buttons that x:Bind their clicks to
+/// <see cref="Open"/> and <see cref="Join"/>, so nothing is read back from a control.
 /// </summary>
-public sealed record AgendaRow(string Title, string When, SolidColorBrush Accent, Visibility JoinVisibility, MeetingProvider? Provider, string RowId, string JoinId, Action OnOpen, Action OnJoin)
+public sealed record AgendaRow(string Title, string When, SolidColorBrush Accent, Visibility JoinVisibility, MeetingProvider? Provider, string JoinName, string? JoinTip, string RowId, string JoinId, Action OnOpen, Action OnJoin)
 {
     /// <summary>Row click: opens the event in the main window.</summary>
     public void Open() => OnOpen();

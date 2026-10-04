@@ -168,11 +168,17 @@ public static class TimeZoneCatalog
     }
 
     /// <summary>
-    /// A zone's city name (curated, else today's name for a renamed IANA ID, else the last part of the IANA ID). Only the
-    /// name shown changes: the ID, which settings store and search matches too, stays as Windows gives it.
+    /// A zone's city name (curated, else today's name for a renamed IANA ID, else the last part of the IANA ID). A Windows
+    /// ID ("Central Standard Time", what TimeZoneInfo.Local gives) is converted to its IANA ID first. Only the name shown
+    /// changes: the ID, which settings store and search matches too, stays as Windows gives it.
     /// </summary>
     public static string CityFor(string id)
     {
+        if (TimeZoneInfo.TryConvertWindowsIdToIanaId(id, out var iana))
+        {
+            id = iana;
+        }
+
         var curated = Array.Find(Cities, c => c.Id == id);
         return curated.City ?? RenamedCities.GetValueOrDefault(id) ?? id[(id.LastIndexOf('/') + 1)..].Replace('_', ' ');
     }

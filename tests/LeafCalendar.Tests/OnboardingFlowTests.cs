@@ -189,6 +189,35 @@ public class OnboardingFlowTests
     }
 
     [Theory]
+    [InlineData("", "", false)]
+    [InlineData("123-new.apps.googleusercontent.com", "", false)]
+    [InlineData("", "GOCSPX-new", false)]
+    [InlineData("  ", "  ", false)]
+    [InlineData("123-new.apps.googleusercontent.com", "GOCSPX-new", true)]
+    public void HasClientInput_NeedsBothBoxes(string clientId, string secret, bool ready)
+    {
+        Assert.Equal(ready, OnboardingFlow.HasClientInput(clientId, secret, null));
+    }
+
+    [Fact]
+    public void HasClientInput_SavedClientKeptWithAnEmptySecret()
+    {
+        Assert.True(OnboardingFlow.HasClientInput("123-abc.apps.googleusercontent.com", "", Saved));
+        Assert.False(OnboardingFlow.HasClientInput("", "", Saved));
+    }
+
+    [Fact]
+    public void ClientStep_NextIsOffUntilTheBoxesAreFilled()
+    {
+        var flow = At(OnboardingStep.Client);
+        Assert.False(flow.CanRunPrimary);
+
+        flow.IsClientReady = true;
+
+        Assert.True(flow.CanRunPrimary);
+    }
+
+    [Theory]
     [InlineData(OnboardingStep.Welcome, "Step 1 of 5")]
     [InlineData(OnboardingStep.Done, "Step 5 of 5")]
     public void StepName_ForScreenReaders(OnboardingStep step, string name)

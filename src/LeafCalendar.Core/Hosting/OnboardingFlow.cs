@@ -51,6 +51,9 @@ public sealed class OnboardingFlow
     /// <summary>True once the first sync has finished.</summary>
     public bool HasSyncFinished { get; private set; }
 
+    /// <summary>True when the client step's boxes are ready for Next (<see cref="HasClientInput"/>); Next is off until then.</summary>
+    public bool IsClientReady { get; set; }
+
     /// <summary>The step indicator's selected page.</summary>
     public int PageIndex => (int)Step;
 
@@ -82,6 +85,7 @@ public sealed class OnboardingFlow
     /// <summary>True when the primary button is enabled.</summary>
     public bool CanRunPrimary => !IsBusy && Step switch
     {
+        OnboardingStep.Client => IsClientReady,
         OnboardingStep.Syncing => HasSyncFailed,
         OnboardingStep.Done => HasSyncFinished,
         _ => true,
@@ -101,6 +105,13 @@ public sealed class OnboardingFlow
         saved is not null
         && string.Equals(clientId.Trim(), saved.ClientId, StringComparison.Ordinal)
         && clientSecret.Trim().Length == 0;
+
+    /// <summary>
+    /// True when the client step has something for Next to work on: both boxes filled, or a saved client kept as it is
+    /// (<see cref="KeepsSavedClient"/>). The form still validates what was typed.
+    /// </summary>
+    public static bool HasClientInput(string clientId, string clientSecret, OAuthClientCredentials? saved) =>
+        (clientId.Trim().Length > 0 && clientSecret.Trim().Length > 0) || KeepsSavedClient(clientId, clientSecret, saved);
 
     /// <summary>
     /// True when the first sync worked. The sync engine logs and swallows Google and network failures, so success is

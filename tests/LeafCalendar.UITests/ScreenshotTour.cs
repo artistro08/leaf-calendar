@@ -131,9 +131,10 @@ public sealed class ScreenshotTour : IDisposable
                     Thread.Sleep(400);
                     settings.CaptureToFile(Path.Combine(folder, $"settings-{page.ToLowerInvariant()}-{theme.ToString().ToLowerInvariant()}-{(width == 0 ? "narrow" : "wide")}.png"));
 
-                    // General's Working Hours, Further Down
+                    // General's Working Hours, Further Down (an expander: its rows show once it's open)
                     if (page == "General")
                     {
+                        leaf.ExpandInSettings("WorkingHoursExpander");
                         leaf.WaitInSettings("WorkDaysButton").Patterns.ScrollItem.Pattern.ScrollIntoView();
                         Thread.Sleep(400);
                         settings.CaptureToFile(Path.Combine(folder, $"settings-general-workinghours-{theme.ToString().ToLowerInvariant()}-{(width == 0 ? "narrow" : "wide")}.png"));

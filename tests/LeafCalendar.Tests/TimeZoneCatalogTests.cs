@@ -43,6 +43,14 @@ public class TimeZoneCatalogTests
         Assert.Equal(city, TimeZoneCatalog.CityFor(id));
 
     [Theory]
+    [InlineData("Central Standard Time", "Chicago")]
+    [InlineData("Eastern Standard Time", "New York")]
+    [InlineData("India Standard Time", "Kolkata")]
+    [InlineData("UTC", "UTC")]
+    public void CityFor_WindowsId_ShowsTheCity(string id, string city) =>
+        Assert.Equal(city, TimeZoneCatalog.CityFor(id));
+
+    [Theory]
     [InlineData("Kiev", "Europe/Kiev", "Kyiv")]
     [InlineData("Kyiv", "Europe/Kiev", "Kyiv")]
     [InlineData("Godthab", "America/Godthab", "Nuuk")]

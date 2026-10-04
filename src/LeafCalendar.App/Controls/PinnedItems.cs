@@ -85,8 +85,15 @@ public partial class PinnedComboBox : ComboBox
 {
     private readonly ItemPins _pins = new();
 
-    /// <summary>Creates the box with the stock ComboBox look.</summary>
-    public PinnedComboBox() => DefaultStyleKey = typeof(ComboBox);
+    /// <summary>
+    /// Creates the box with the stock ComboBox look: the app's own ComboBox style, the one a plain ComboBox takes (the
+    /// framework's default style for the type draws the dropdown arrow 4 DIP further right).
+    /// </summary>
+    public PinnedComboBox()
+    {
+        DefaultStyleKey = typeof(ComboBox);
+        Style = (Style)Application.Current.Resources["DefaultComboBoxStyle"];
+    }
 
     /// <inheritdoc />
     protected override void PrepareContainerForItemOverride(DependencyObject element, object item)

@@ -44,6 +44,23 @@ public sealed class HotkeySettingsTests
         Assert.False(new HotkeySettings(win, ctrl, alt, shift, code).IsValid());
     }
 
+    [Theory]
+    [InlineData(false, false, false, false, J, "Invalid shortcut. It must start with the Windows key, Ctrl, or Alt.")]
+    [InlineData(false, false, false, true, J, "Invalid shortcut. It must start with the Windows key, Ctrl, or Alt.")]
+    [InlineData(false, true, false, false, Left, "Invalid shortcut. It must end with a letter, a number, or an F key.")]
+    [InlineData(false, true, false, false, F12, "Invalid shortcut. Windows keeps Ctrl+F12 for itself.")]
+    [InlineData(true, false, false, false, L, "Invalid shortcut. Windows keeps Win+L for itself.")]
+    [InlineData(false, false, true, false, F4, "Invalid shortcut. Windows keeps Alt+F4 for itself.")]
+    public void InvalidReason_SaysWhy(bool win, bool ctrl, bool alt, bool shift, int code, string reason) =>
+        Assert.Equal(reason, new HotkeySettings(win, ctrl, alt, shift, code).InvalidReason());
+
+    [Fact]
+    public void InvalidReason_NoneForValidOrEmpty()
+    {
+        Assert.Null(new HotkeySettings(false, true, true, false, J).InvalidReason());
+        Assert.Null(new HotkeySettings().InvalidReason());
+    }
+
     [Fact]
     public void AccessibleShortcut_IsTabOrShiftTabOnly()
     {

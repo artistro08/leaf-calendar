@@ -43,6 +43,12 @@ public sealed partial class CalendarsPage : Page
     /// <summary>x:Bind helper: the "More options" button's accessible name.</summary>
     public static string MoreName(string calendar) => $"More options for {calendar}";
 
+    /// <summary>x:Bind helper: the show/hide switch's accessible name ("Show Family").</summary>
+    public static string ShowName(string calendar) => $"Show {calendar}";
+
+    /// <summary>x:Bind helper: an account header's chevron, pointing like an Expander's (down while folded, up while open).</summary>
+    public static string ExpanderChevron(bool expanded) => expanded ? "" : "";
+
     /// <summary>x:Bind helper: the color button's accessible name.</summary>
     public static string ColorName(string calendar) => $"Color for {calendar}";
 
@@ -209,7 +215,15 @@ public sealed partial class CalendarsPage : Page
         var labels = minutes.Select(ReminderTimes.Label).ToList();
         var boxes = new List<ComboBox>();
         var rows = new StackPanel { Spacing = 4 };
+
+        // Empty State (secondary text while there are no reminders)
+        var empty = new TextBlock { Text = "No default reminders.", Style = (Style)Application.Current.Resources["LeafSecondaryTextStyle"] };
+        AutomationProperties.SetAutomationId(empty, "RemindersEmpty");
+
+        // Add Reminder (a plain link like the editor's: no fill on hover or press)
         var add = new HyperlinkButton { Content = "Add reminder" };
+        add.Resources["HyperlinkButtonBackgroundPointerOver"] = LeafBrushes.Transparent;
+        add.Resources["HyperlinkButtonBackgroundPressed"] = LeafBrushes.Transparent;
         AutomationProperties.SetAutomationId(add, "AddReminderButton");
 
         // Rows Keep Their Own References; Their IDs Follow Their Place
@@ -222,12 +236,14 @@ public sealed partial class CalendarsPage : Page
             }
 
             add.IsEnabled = boxes.Count < CalendarEdits.MaxReminders;
+            empty.Visibility = boxes.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            rows.Visibility = boxes.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         void AddRow(int value)
         {
             var box = new ComboBox { ItemsSource = labels, SelectedIndex = Math.Max(0, minutes.ToList().IndexOf(value)), HorizontalAlignment = HorizontalAlignment.Stretch };
-            var remove = new Button { Width = 32, Height = 32, Padding = new Thickness(0), Background = LeafBrushes.Transparent, BorderThickness = new Thickness(0), Content = new FontIcon { Glyph = "", FontSize = 12 } };
+            var remove = new Button { Style = (Style)Application.Current.Resources["LeafIconButtonStyle"], Content = new FontIcon { Glyph = "", FontSize = 12 } };
             var line = new Grid { ColumnSpacing = 4, ColumnDefinitions = { new ColumnDefinition(), new ColumnDefinition { Width = GridLength.Auto } } };
             AutomationProperties.SetName(remove, "Remove reminder");
             ToolTipService.SetToolTip(remove, "Remove reminder");
@@ -260,11 +276,14 @@ public sealed partial class CalendarsPage : Page
             XamlRoot = XamlRoot,
             RequestedTheme = ActualTheme,
             Title = "Default reminders",
-            Content = new StackPanel { Spacing = 8, Children = { description, rows, add } },
+            Content = new StackPanel { Spacing = 8, Children = { description, empty, rows, add } },
             PrimaryButtonText = "Save",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
         };
+
+        // Focus Starts On The First Reminder (or Add reminder with none), Without The Ring Windows Gave Add reminder
+        dialog.Opened += (_, _) => ((Control?)boxes.FirstOrDefault() ?? add).Focus(FocusState.Programmatic);
 
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
         {

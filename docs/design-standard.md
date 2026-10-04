@@ -93,13 +93,14 @@ Use these values only: **2, 4, 8, 12, 16, 24, 32** (plus 36 for the settings con
 | Settings content inset | `Padding="36,24"` on the page panel (`LeafSettingsPagePanelStyle`) | Leaf `Styles/LeafTheme.xaml`; Sony `SettingsWindow.xaml` |
 | Card padding | 16 | Sony `SettingsCardStyle`; MA settings cards |
 | Side panel inner inset | 16 | Leaf `DetailsPanel.xaml` |
-| Flyout page padding | 20 (device page), 24 (empty state) | Sony `FlyoutView.xaml` |
+| Flyout page padding | 20 (device page), 24 (empty state); Leaf's tray flyout uses 16 for every part (header, list, footer) | Sony `FlyoutView.xaml`; Leaf `Tray/TrayHost.xaml` |
 | Readable column cap | `MaxWidth="560"` for forms and prose, 1072 for settings pages (`LeafSettingsPagePanelStyle`) | Leaf `Styles/LeafTheme.xaml`; Sony settings pages |
 
 ### Structure
 
-- Panes: sidebar 264, details 320, as inline `SplitView`s on the window's Mica; the calendar island is `LayerFillColorDefaultBrush` with no border (its fill is the edge). (Leaf `CalendarPage.xaml`.)
+- Panes: sidebar 264, details 320 (growing with the window to 480 at 1920 wide, `CalendarPage.DetailsWidthFor`), as inline `SplitView`s on the window's Mica; the calendar island is `LayerFillColorDefaultBrush` with no border (its fill is the edge). (Leaf `CalendarPage.xaml`.)
 - Content under a 48 DIP title bar either starts in row 1, or runs under the title bar with `Padding="..,48,.."` to clear it. (Leaf `SidebarView.xaml`, `DetailsPanel.xaml`.)
+- A side panel's first heading is centered in the 28 DIP row right under the title bar, the row the sidebar's month title sits in, whatever its style: a section header is centered in it ("Upcoming", "Times to share"), a 20 DIP title (28 line height) fills it (an event's title, "2 events selected"). List rows under a heading line their text up with it; a row's hover fill reaches 8 DIP past the content edges (`Margin="-8,0"`). (Leaf `DetailsPanel.xaml`, `ShareSlotsPanel.cs`.)
 - Only the part that can overflow scrolls; headers and footers stay pinned. (Leaf sidebar "Only the calendar list scrolls"; Sony spec "Footer stays pinned".)
 - Size fixed windows so their main page doesn't scroll at 100%, but keep the `ScrollViewer` for small screens. (Layers spec SettingsWindow.)
 
@@ -160,6 +161,7 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 | Inactive/disabled text | `TextFillColorDisabledBrush`, or 0.4 opacity on custom templates |
 | Overlay person (people overlay, Meet with) | `LeafBrushes.Person(index, dark)` for the edge and title, `LeafBrushes.PersonFill(index, dark)` for the block (purple, magenta, teal, orange; values in `ChromeColors`); HighContrast uses `Highlight` |
 | Off-hours tint (working-hours shading) | `LeafBrushes.OffHours(dark)`: Light `#0A000000`, Dark `#29000000`; transparent in HighContrast |
+| Weekend tint | `LeafBrushes.WeekendFill(dark)`: Light `#06000000`, Dark `#20000000`; it darkens in both themes, so weekends read as shaded on their own and over the off-hours tint |
 
   Sources: MA `SettingsPage.xaml`; Leaf `CalendarPage.xaml`, `LeafTheme.xaml`; Layers `GeneralPage.xaml`, `TrayMenuHost.xaml` spec; Sony `AppStyles.xaml`, `FlyoutWindow.xaml`.
 - Calendar colors are Google's. Leaf's current-time line is `#E5484D`. (Leaf `LeafBrushes.cs`.)
@@ -210,7 +212,7 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 
 - On/off setting: `ToggleSwitch` at the right edge of a setting row, with **no On/Off text** (`OnContent=""`, `OffContent=""`, `MinWidth="0"`, `HorizontalAlignment="Right"`). The label is the row's header. (Sony `CardToggleSwitchStyle`.)
 - Visibility of a thing in a list: `CheckBox` (the sidebar calendars, tinted with the calendar color). (Leaf `SidebarView.xaml`, brief ruling 1.)
-- One of a few (≤ 5): `ComboBox`, `MinWidth="180"`, right edge of the row. One of 2–3 inline: `RadioButton`s (dialogs) or `RadioMenuFlyoutItem` (menus). (Sony `AppPage.xaml`; Leaf `ScopeDialog.cs`, theme menu.)
+- One of a few (≤ 5): `ComboBox`, `Width="240"`, right edge of the row. Every compact row control (`ComboBox`, `NumberBox`, `Slider`, `DropDownButton`, a short label `TextBox`) is 240 wide, never growing with its text; long text inputs (a client ID or secret, a time zone picker or search) are 320. One of 2–3 inline: `RadioButton`s (dialogs) or `RadioMenuFlyoutItem` (menus). (Sony `AppPage.xaml`; Leaf `ScopeDialog.cs`, theme menu.)
 - Numbers: `NumberBox` with `SpinButtonPlacementMode="Compact"`; ranges: `Slider` with ticks. (Leaf `EventEditorView.xaml`; Layers duration slider.)
 
 > **Conflict (toggle labels):** MA uses `ToggleSwitch Header="..."` with "On/Off" beside the knob; Layers sets `OnContent`/`OffContent` to the label ("Run on Startup"). **Use Sony's card switch with no text**, because it's how Windows 11 Settings does it and the brief says to copy Windows Settings.
@@ -235,8 +237,11 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 
 - A stock `Flyout` at the window's top center, 640 wide, styled after PowerToys Command Palette: a search row (16 search glyph, then a borderless, fill-less `TextBox` at 16 with no focus underline), a divider, a `ListView` of results, and a footer strip. (Leaf `Views/CommandMenu.xaml`.)
 - Rows are 44 tall in an 8 inset list: a 20 glyph (actions, secondary text color) or a 16 color square with radius 4 (events) in a 28 column, then the title and its secondary detail side by side on one line, then the shortcut as a key chip (`ControlFillColorSecondaryBrush`, 1 px divider stroke, radius 4, Caption). The selection is the stock rounded fill without the accent pill.
-- Results group under Caption section headers ("Go to", "Events", "Actions"), 28 tall; the arrow keys skip them and they can't be clicked.
-- The footer (`LeafFlyoutFooterBrush`, 1 px top divider) says what the selected row is and shows "Open Enter", plus "Go to event Alt Enter" on events. Nothing found shows a 24 search glyph over "No events or actions match."
+- The search glyph sits centered in the rows' 28 glyph column and the typed text starts where row titles do; the footer's label starts under the section headers and its Enter cap ends under the rows' key caps.
+- Results group under Caption section headers ("Go to", "Events", "Actions"), 28 tall (40 below another section, so groups don't run together); the arrow keys skip them and they can't be clicked. Every action is listed (no cap). The theme action switches to the theme that isn't showing ("Use dark theme" / "Use light theme"); the one showing is listed after it as "(in use)" and runs nothing. A list taller than its cap ends on a whole row, and with no rows it's gone. Settings pages read as paths ("Settings › General"). Actions that open more UI end with "…". A typed date for today, tomorrow, or yesterday reads "Go to today", and a date row that repeats "Go to today" isn't shown.
+- The footer (`LeafFlyoutFooterBrush`, 1 px top divider) says what the selected row is and what Enter does to it: "Open Enter" (events), "Run Enter" (actions), "Go Enter" (dates), plus "Go to event Alt Enter" on events. Nothing found shows a 24 search glyph over "No events, actions, or dates match." and offers "Create event “<typed words>”", which opens the editor with that title.
+- Jump to date: the mode chip replaces the search glyph, the box shows examples ("Try nov 5th, 10 weeks, next fri, or 3 days ago"), the one date row has no header, the footer stays while the box is empty, and text that isn't a date says "Leaf can't read that as a date."
+- Key caps show every key as a word (Shift, Ctrl, Alt, Left, Right) except Enter, Backspace, and Win, which draw their glyphs; small punctuation marks (". , ; : ' ` -") are drawn larger so they read, each moved to the cap's optical middle.
 - While the menu is open the window dims behind it (`SmokeFillColorDefaultBrush`, title bar row included); the dim appears and disappears at once with the menu, no fade; a click outside, Esc, or a pick closes both.
 - Up/Down move the selection while focus stays in the box. Enter runs the selected row; Alt+Enter jumps the calendar to an event.
 
@@ -253,7 +258,7 @@ The Windows 11 Settings row, the one pattern for every setting:
             <TextBlock Text="App theme" />
             <TextBlock Style="{StaticResource SecondaryTextStyle}" Text="Choose how Leaf looks." />
         </StackPanel>
-        <ComboBox Grid.Column="2" MinWidth="180" VerticalAlignment="Center" />
+        <ComboBox Grid.Column="2" Width="240" VerticalAlignment="Center" />
     </Grid>
 </Border>
 ```
@@ -290,7 +295,8 @@ From the brief (item 5), with the reference apps filling in how it looks:
 - Its own small window, about 520 × 640 client DIPs, centered on the monitor under the cursor, not resizable, Close only, Mica, stock `TitleBar` (icon + "Leaf Calendar"). Shown instead of the main window until an account exists. (Brief; Layers placement.)
 - Steps in a `Frame`: Welcome → Google Cloud OAuth client → Sign in → Syncing → Done. Forward navigates with `SlideNavigationTransitionInfo { Effect = FromRight }`, Back with `FromLeft`. (Brief.)
 - Step layout, top to bottom, `Padding="32"`, `Spacing="16"`: hero glyph (32 to 48), step title (`SubtitleTextBlockStyle`), one-line description (Caption, secondary), then the step's controls. (MA `LoginPage.xaml`.)
-- Instructions are a short numbered list with the link inline ("1. Open Google Cloud Console and create a project."). Keep the existing guide text as it is. (Leaf `OnboardingStepPage.xaml`.)
+- Instructions are a short numbered list with the link inline ("1. Open Google Cloud Console and create a project."), each number hanging to the left of its wrapped lines; a side note under the steps is Caption + secondary, so it doesn't read as another step. Menu paths follow Google Cloud console's current names ("Google Auth Platform › Clients"). (Leaf `OnboardingStepPage.xaml`.)
+- Primary actions stay off until the step has what they need (Next on the client step waits for both boxes, or a saved client). (Leaf `OnboardingFlow.HasClientInput`.)
 - Errors show in an `InfoBar` (`Severity="Error"`, `IsClosable="False"`) above the primary button; work in progress shows an indeterminate `ProgressBar` or a 20 DIP `ProgressRing` with a Caption status line. (MA `LoginPage.xaml`; Leaf `OnboardingStepPage.xaml`, `AccountsPage.xaml`.)
 - Footer pinned at the bottom: a 1 DIP top divider (or the flyout footer strip brush), `Padding="24,16"`. Back (default button) on the left, the step's primary action (Accent) on the right, and a `PipsPager` centered, re-templated so each pip is a 24 × 3 rounded line: selected `AccentFillColorDefaultBrush`, others `ControlStrongFillColorDefaultBrush`. (Brief; Sony footer strip.)
 - Primary actions: "Get started", "Next", "Sign in with Google", "Open Leaf Calendar" (enabled only when sync finishes). (Brief.)
@@ -305,7 +311,9 @@ From the brief (item 5), with the reference apps filling in how it looks:
 - Content: one or two plain sentences saying what happens and what doesn't ("Your Google Calendar isn't changed.").
 - Buttons: the primary button repeats the action verb ("Disconnect", "Remove", "Create", "Show", "Leave"); the close button is "Cancel", or a "Keep ..." phrase when Cancel would be unclear ("Keep setting up").
 - `DefaultButton`: **Close** for destructive actions, **Primary** for harmless ones. (Leaf `AccountsPage.xaml.cs` vs `MainWindow.xaml.cs`; MA "Remove from library" vs "New playlist".)
-- Non-blocking messages use an `InfoBar`, not a dialog: inline for page errors, bottom-center of the island for undo notices ("Event deleted · Undo"). Transient command failures auto-dismiss after 5 s. (Leaf `CalendarPage.xaml`; Sony spec "States".)
+- Non-blocking messages use an `InfoBar`, not a dialog: inline for page errors, bottom-center of the island for undo notices ("Event deleted." with Undo). Transient command failures auto-dismiss after 5 s. (Leaf `CalendarPage.xaml`; Sony spec "States".)
+- Every bar and notice message ends with a period, like descriptions (`DisplayText.Sentence` adds one to notices). (Leaf `CalendarViewModel.Say`.)
+- The bars and notices at the bottom of the island are raised like flyouts: `Translation` Z 32 with a `ThemeShadow` onto the calendar view, and the flyout border (`SurfaceStrokeColorDefaultBrush`, 1 px), so they stand out in dark theme too. (Leaf `CalendarPage.Float`.)
 - Real notifications are Windows toasts, never in-app popups. (Leaf spec 2.)
 - Mode bars (time travel, people overlay, the share availability hint) are informational `InfoBar`s stacked bottom-center of the calendar island with the notices (`Toasts`), 16 DIPs from its bottom. The share availability controls live in the right panel. (Leaf `CalendarPage.xaml`, `ShareSlotsPanel.cs`.)
 

@@ -29,9 +29,9 @@ public sealed class RichDescriptionTests : IDisposable
         _google.Dispose();
     }
 
-    private LeafApp OpenEditor()
+    private LeafApp OpenEditor(string? profile = null)
     {
-        var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+        var leaf = LeafApp.Launch(profile ?? _profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
         leaf.WaitFor("Event_evt-rich_202610011400").Click();
 
         // The Edit button, not E: a key typed right after E is sent to the title (the E chord's typing rule)
@@ -104,6 +104,51 @@ public sealed class RichDescriptionTests : IDisposable
         var description = SentDescription(RichPatch());
         Assert.Contains("<b>Loud</b>", description, StringComparison.Ordinal);
         Assert.Contains("<a href=\"https://example.com/doc\">Doc</a>", description, StringComparison.Ordinal);
+    }
+
+    // A Link Shows Underlined (only how it looks: it's saved without <u>, see BoldButton_ThenType_SavesBoldText)
+    [Fact]
+    public void Link_ShowsUnderlined()
+    {
+        using var leaf = OpenEditor();
+        var box = leaf.WaitFor("EditorDescription");
+        var link = box.Patterns.Text.Pattern.DocumentRange.FindText("Doc", false, false);
+        Assert.NotNull(link);
+
+        // UI Automation's UnderlineStyle: 0 is none
+        var style = link.GetAttributeValue(box.Automation.TextAttributeLibrary.UnderlineStyle);
+        Assert.True(style is int value && value != 0, $"The link's underline style is {style}.");
+    }
+
+    // Text typed after a link (Enter at its end, then words) is plain in either theme: the link's underline never spreads
+    // into it, and it isn't saved underlined. In light, link text was once told apart by a tint that matched the body
+    // text, so the reset at the link's edge never ran
+    [Theory]
+    [InlineData(Core.Settings.AppTheme.Light)]
+    [InlineData(Core.Settings.AppTheme.Dark)]
+    public void TypingAfterALink_IsPlainText(Core.Settings.AppTheme theme)
+    {
+        var profile = SeededProfile.Create(new Core.Settings.LeafSettings { Theme = theme });
+        try
+        {
+            using var leaf = OpenEditor(profile);
+            FocusDescription(leaf);
+            Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.END);
+            Keyboard.Type(VirtualKeyShort.ENTER);
+            Keyboard.Type("First");
+
+            Assert.False(leaf.WaitFor("DescriptionUnderline").AsToggleButton().ToggleState == FlaUI.Core.Definitions.ToggleState.On, "Underline shows on after the link.");
+            leaf.WaitFor("EditorSaveButton").AsButton().Invoke();
+
+            var description = SentDescription(RichPatch());
+            Assert.Contains("<a href=\"https://example.com/doc\">Doc</a>", description, StringComparison.Ordinal);
+            Assert.Contains("First", description, StringComparison.Ordinal);
+            Assert.DoesNotContain("<u>", description, StringComparison.Ordinal);
+        }
+        finally
+        {
+            LeafApp.DeleteProfile(profile);
+        }
     }
 
     [Fact]

@@ -21,14 +21,14 @@ public sealed record DefaultCalendarChoice(string Name, string? Email)
 }
 
 /// <summary>
-/// Settings › Accounts: an expander per Google account (Meet by default and Disconnect inside), adding one, the main
-/// account, the default calendar, Sync now, and the OAuth client.
+/// Settings › Accounts: adding a Google account, an expander per account (Meet by default and Disconnect inside), the
+/// main account, and Sync now; then the default calendar and the OAuth client.
 /// </summary>
 public sealed partial class AccountsPage : Page
 {
     private SettingsContext _context = null!;
 
-    // The Default Calendar Choices, Parallel To The Combo Box Items (index 0 is "your main Google calendar" = null)
+    // The Default Calendar Choices, Parallel To The Combo Box Items (index 0 is "Main account's calendar" = null)
     private readonly List<CalendarRef?> _refs = [];
 
     // The Combo Box Choices As Last Filled (an unchanged list isn't refilled, so a sync never closes an open dropdown)
@@ -171,7 +171,7 @@ public sealed partial class AccountsPage : Page
     private void OnMeetToggled(string accountId, bool on) =>
         _context.Save(s => s with { MeetByDefaultAccounts = on ? [.. s.MeetByDefaultAccounts.Append(accountId).Distinct()] : [.. s.MeetByDefaultAccounts.Where(a => a != accountId)] });
 
-    // Fill The Default Calendar Choices: your main Google calendar, then every calendar you can write to
+    // Fill The Default Calendar Choices: the main account's calendar, then every calendar you can write to
     private void LoadDefaultCalendar()
     {
         var calendar = _context.Calendar;
@@ -182,7 +182,7 @@ public sealed partial class AccountsPage : Page
             .ToList();
 
         List<CalendarRef?> refs = [null, .. writable.Select(c => new CalendarRef(c.AccountId, c.Id))];
-        List<DefaultCalendarChoice> choices = [new("Your main Google calendar", null), .. writable.Select(c => new DefaultCalendarChoice(c.Summary, several ? calendar.AccountEmails[c.AccountId] : null))];
+        List<DefaultCalendarChoice> choices = [new("Main account's calendar", null), .. writable.Select(c => new DefaultCalendarChoice(c.Summary, several ? calendar.AccountEmails[c.AccountId] : null))];
 
         // Same Choices As Shown: leave the combo box alone
         if (refs.SequenceEqual(_refs) && choices.SequenceEqual(_choices))

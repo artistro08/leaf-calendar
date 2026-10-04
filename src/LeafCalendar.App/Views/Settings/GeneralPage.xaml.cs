@@ -268,8 +268,10 @@ public sealed partial class GeneralPage : Page
         }
     }
 
+    // The value beside the slider follows it, also while the saved value is shown ("48 px")
     private void OnHourHeightChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
+        HourHeightValue.Text = string.Create(English, $"{e.NewValue:0} px");
         if (!_loading && e.NewValue != Calendar.Settings.HourHeight)
         {
             _context.Save(s => s with { HourHeight = e.NewValue });

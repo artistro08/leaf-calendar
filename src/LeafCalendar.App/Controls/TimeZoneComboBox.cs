@@ -26,7 +26,10 @@ public sealed partial class TimeZoneComboBox : ComboBox
     /// <summary>Creates the box (filled by <see cref="Show"/>).</summary>
     public TimeZoneComboBox()
     {
+        // The app's own ComboBox style, the one a plain ComboBox takes (the framework's default for the type draws the
+        // dropdown arrow 4 DIP further right)
         DefaultStyleKey = typeof(ComboBox);
+        Style = (Microsoft.UI.Xaml.Style)Microsoft.UI.Xaml.Application.Current.Resources["DefaultComboBoxStyle"];
         HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Stretch;
         SelectionChanged += OnSelectionChanged;
         TextSubmitted += OnTextSubmitted;

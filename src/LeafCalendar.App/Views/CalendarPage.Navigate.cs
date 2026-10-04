@@ -75,6 +75,8 @@ public sealed partial class CalendarPage
         // At The Bottom, With The Other Toasts (first, above the notice)
         _travelBar = new TimeTravelBar(ViewModel);
         Toasts.Children.Insert(0, _travelBar);
+        FloatWhileOpen(_travelBar.TravelBar);
+        FloatWhileOpen(_travelBar.ZoneSwitchBar);
         ViewModel.PropertyChanged += OnNavigatePropertyChanged;
         ViewModel.LayoutChanged += OnNavigateLayoutChanged;
     }
@@ -145,7 +147,11 @@ public sealed partial class CalendarPage
                 menu.FocusBox();
                 CommandMenuShown?.Invoke(this, true);
             };
-            flyout.Closed += (_, _) => CommandMenuShown?.Invoke(this, false);
+            flyout.Closed += (_, _) =>
+            {
+                CommandMenuShown?.Invoke(this, false);
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, ReturnFocusAfterMenu);
+            };
 
             (_commandFlyout, _commandMenu) = (flyout, menu);
         }
@@ -162,6 +168,7 @@ public sealed partial class CalendarPage
 
         // The Events Are Read For The Search Before The First Keystroke
         ViewModel.WarmSearch();
+        _beforeMenu = FocusManager.GetFocusedElement(XamlRoot);
         PlaceCommandAnchor();
         _commandMenu.Reset();
         _commandFlyout.ShowAt(_commandAnchor, new FlyoutShowOptions
@@ -172,6 +179,24 @@ public sealed partial class CalendarPage
     }
 
     private void OnCommandRootSizeChanged(object sender, SizeChangedEventArgs e) => PlaceCommandAnchor();
+
+    // What had focus when the command menu opened
+    private object? _beforeMenu;
+
+    // After the menu closes (and the picked row ran): focus the row put in a box, menu, or dialog stays, and focus the menu
+    // gave back to where it was stays; anything else (nothing, or Windows' fallback, the mini month's first chevron, whose
+    // ring then showed and which Space paged) rests on the calendar instead
+    private void ReturnFocusAfterMenu()
+    {
+        var before = _beforeMenu;
+        _beforeMenu = null;
+        if (ShortcutsBlocked() || (before is not null && ReferenceEquals(FocusManager.GetFocusedElement(XamlRoot), before)))
+        {
+            return;
+        }
+
+        FocusCalendar();
+    }
 
     // The menu's top is where a full size menu (search row, the results at their tallest, footer) would be centered
     // vertically, so it doesn't jump as the results grow and shrink; a short window clamps it and shortens the list
@@ -218,6 +243,7 @@ public sealed partial class CalendarPage
                 break;
 
             case CommandRowKind.Action when row.Item is { } item:
+                var editorBefore = ViewModel.Editing;
                 if (item.Command != Core.Views.CalendarCommand.None)
                 {
                     RunCommand(item.Command, item.Days);
@@ -225,6 +251,12 @@ public sealed partial class CalendarPage
                 else
                 {
                     RunAction(item.Id);
+                }
+
+                // "Create Event “…”" Titles The New Event (a hidden editor it brought back keeps its own title)
+                if (row.EventTitle.Length > 0 && ViewModel.Editing is { } editor && editor != editorBefore)
+                {
+                    editor.Title = row.EventTitle;
                 }
 
                 break;
@@ -296,7 +328,9 @@ public sealed partial class CalendarPage
 
         var (panel, filter) = ShortcutSheet.Panel(this, ViewModel.Settings, CloseShortcutSheet);
         panel.HorizontalAlignment = HorizontalAlignment.Left;
-        panel.Margin = new Thickness(16);
+
+        // 32 from the top clears the corner's time zones button (4 down, about 22 tall), which the card cut through at 16
+        panel.Margin = new Thickness(16, 32, 16, 16);
         Grid.SetRow(panel, 2);
         Float(panel);
         Island.Children.Add(panel);
@@ -393,8 +427,26 @@ public sealed partial class CalendarPage
         }
     }
 
-    private void Float(UIElement card)
+    // Raises a card (the cheat sheet, a toast at the bottom) 32 over the calendar view, which takes its shadow
+    private void Float(UIElement card) => Raise(card, raised: true);
+
+    // A bar at the bottom is raised only while it's open: a closed InfoBar keeps its place in the toasts, and raised it
+    // left a ghost shadow on the calendar
+    private void FloatWhileOpen(InfoBar bar)
     {
+        bar.RegisterPropertyChangedCallback(InfoBar.IsOpenProperty, (_, _) => Raise(bar, bar.IsOpen));
+        Raise(bar, bar.IsOpen);
+    }
+
+    private void Raise(UIElement card, bool raised)
+    {
+        if (!raised)
+        {
+            card.Translation = System.Numerics.Vector3.Zero;
+            card.Shadow = null;
+            return;
+        }
+
         card.Translation = new System.Numerics.Vector3(0, 0, 32);
         var shadow = new ThemeShadow();
         shadow.Receivers.Add(ViewHost);

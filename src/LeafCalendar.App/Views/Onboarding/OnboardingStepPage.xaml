@@ -9,7 +9,12 @@
 
             <!-- Welcome -->
             <StackPanel x:Name="WelcomeStep" Spacing="16" Visibility="Collapsed" AutomationProperties.Name="Welcome to Leaf Calendar" AutomationProperties.AutomationId="OnboardingWelcome">
-                <FontIcon HorizontalAlignment="Left" FontSize="48" Glyph="&#xE787;" AutomationProperties.AccessibilityView="Raw" />
+                <!-- The App's Logo (decoded at its 48 DIP size on screen, like the title bar's, so it isn't shrunk with jagged edges) -->
+                <Image Width="48" Height="48" HorizontalAlignment="Left" AutomationProperties.AccessibilityView="Raw">
+                    <Image.Source>
+                        <BitmapImage UriSource="ms-appx:///Assets/AppLogo.png" DecodePixelWidth="48" DecodePixelHeight="48" DecodePixelType="Logical" />
+                    </Image.Source>
+                </Image>
                 <StackPanel Spacing="4">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Welcome to Leaf Calendar" />
                     <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" TextWrapping="Wrap" Text="Your Google Calendar in a fast, native Windows app." />
@@ -19,51 +24,66 @@
             <!-- /Welcome -->
 
             <!-- Google Cloud OAuth Client -->
-            <StackPanel x:Name="ClientStep" Spacing="16" Visibility="Collapsed" AutomationProperties.Name="Connect your Google Cloud client" AutomationProperties.AutomationId="OnboardingClient">
+            <StackPanel x:Name="ClientStep" Spacing="12" Visibility="Collapsed" AutomationProperties.Name="Connect your Google Cloud client" AutomationProperties.AutomationId="OnboardingClient">
                 <FontIcon HorizontalAlignment="Left" FontSize="48" Glyph="&#xE8D7;" AutomationProperties.AccessibilityView="Raw" />
                 <StackPanel Spacing="4">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Connect your Google Cloud client" />
                     <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" TextWrapping="Wrap" Text="Leaf signs in with your own Google OAuth client. You only need to do this once." />
                 </StackPanel>
 
-                <!-- Setup Guide (the existing guide text, verbatim; the link opens a fixed address) -->
-                <RichTextBlock AutomationProperties.AutomationId="SetupGuideText">
-                    <Paragraph>
-                        1. Open
-                        <Hyperlink Click="OnConsoleLinkClick" AutomationProperties.AutomationId="ConsoleLink">
-                            Google Cloud Console
-                        </Hyperlink>
-                        and create a project.
-                    </Paragraph>
-                    <Paragraph Margin="0,8,0,0">
-                        2. In APIs &amp; Services, open Library and enable the Google Calendar API and the People API.
-                    </Paragraph>
-                    <Paragraph Margin="0,8,0,0">
-                        3. In OAuth consent screen, choose External and add your Google accounts as test users. Then set the publishing status to In production. While it's in Testing, Google signs you out every 7 days.
-                    </Paragraph>
-                    <Paragraph Margin="0,8,0,0">
-                        4. In Credentials, create an OAuth client ID of type Desktop app. Paste its Client ID and Client secret below.
-                    </Paragraph>
-                    <Paragraph Margin="0,8,0,0">
-                        Leaf asks Google for your calendars, your contacts and other contacts (read-only), and your Google Workspace directory (directory.readonly, read-only, so coworkers show up as guest suggestions). If your consent screen lists its scopes, add these.
-                    </Paragraph>
-                </RichTextBlock>
+                <!-- Setup Guide (Google Cloud console as of 2025, where the consent screen and clients live under Google Auth
+                     Platform; numbers hang to the left of their wrapped lines, in one 14 DIP column so every step's text starts
+                     on the same edge; the link opens a fixed address) -->
+                <StackPanel Spacing="4" AutomationProperties.Name="Setup guide" AutomationProperties.AutomationId="SetupGuideText">
+                    <Grid ColumnSpacing="4" ColumnDefinitions="14,*">
+                        <TextBlock Text="1." />
+                        <TextBlock Grid.Column="1" TextWrapping="Wrap">
+                            Open
+                            <Hyperlink Click="OnConsoleLinkClick" AutomationProperties.AutomationId="ConsoleLink">
+                                Google Cloud Console
+                            </Hyperlink>
+                            and create a project.
+                        </TextBlock>
+                    </Grid>
+                    <Grid ColumnSpacing="4" ColumnDefinitions="14,*">
+                        <TextBlock Text="2." />
+                        <TextBlock Grid.Column="1" TextWrapping="Wrap" Text="In APIs &amp; Services › Library, enable the Google Calendar API and the People API." />
+                    </Grid>
+                    <Grid ColumnSpacing="4" ColumnDefinitions="14,*">
+                        <TextBlock Text="3." />
+                        <TextBlock Grid.Column="1" TextWrapping="Wrap" Text="In Google Auth Platform, click Get started and choose External as the audience. Then, in Audience, click Publish app. While it's in Testing, Google signs you out every 7 days." />
+                    </Grid>
+                    <Grid ColumnSpacing="4" ColumnDefinitions="14,*">
+                        <TextBlock Text="4." />
+                        <TextBlock Grid.Column="1" TextWrapping="Wrap" Text="In Google Auth Platform › Clients, create a client of type Desktop app. Paste its Client ID and Client secret below. Google shows the secret only once." />
+                    </Grid>
+
+                    <!-- Scopes (a side note, not a step) -->
+                    <TextBlock
+                        Style="{StaticResource LeafSecondaryTextStyle}"
+                        TextWrapping="Wrap"
+                        Text="Leaf asks Google for your calendars, your contacts and other contacts (read-only), and your Google Workspace directory (directory.readonly, so coworkers show up as guest suggestions). If you list scopes in Data access, add these." />
+                </StackPanel>
                 <!-- /Setup Guide -->
 
-                <!-- Credentials (Enter in the ID moves to the secret; Enter in the secret runs Next) -->
-                <TextBox
-                    x:Name="ClientIdBox"
-                    Header="Client ID"
-                    PlaceholderText="123-abc.apps.googleusercontent.com"
-                    Text="{x:Bind ViewModel.Client.ClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                    KeyDown="OnClientIdKeyDown"
-                    AutomationProperties.AutomationId="ClientIdBox" />
-                <PasswordBox
-                    x:Name="ClientSecretBox"
-                    Header="Client secret"
-                    Password="{x:Bind ViewModel.Client.ClientSecret, Mode=TwoWay}"
-                    KeyDown="OnClientSecretKeyDown"
-                    AutomationProperties.AutomationId="ClientSecretBox" />
+                <!-- Credentials, full width so a whole Client ID shows (the step's tighter 12 and the guide's 4 keep both above
+                     the footer without scrolling). Enter in the ID moves to the secret; Enter in the secret runs Next, which
+                     stays off until both have text -->
+                <StackPanel Spacing="8">
+                    <TextBox
+                        x:Name="ClientIdBox"
+                        Header="Client ID"
+                        PlaceholderText="123-abc.apps.googleusercontent.com"
+                        Text="{x:Bind ViewModel.Client.ClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        KeyDown="OnClientIdKeyDown"
+                        AutomationProperties.AutomationId="ClientIdBox" />
+                    <PasswordBox
+                        x:Name="ClientSecretBox"
+                        Header="Client secret"
+                        Password="{x:Bind ViewModel.Client.ClientSecret, Mode=TwoWay}"
+                        KeyDown="OnClientSecretKeyDown"
+                        AutomationProperties.AutomationId="ClientSecretBox" />
+                </StackPanel>
                 <InfoBar
                     CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                     Severity="Error"

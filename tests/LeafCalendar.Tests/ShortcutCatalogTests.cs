@@ -14,7 +14,7 @@ public sealed class ShortcutCatalogTests
         // One sample chord per command ShortcutMap can return
         (string Key, bool Ctrl, bool Shift, bool Alt)[] chords =
         [
-            ("T", false, false, false), ("Left", false, false, false), ("Right", false, false, false), ("N", false, false, false),
+            ("T", false, false, false), ("Left", false, false, false), ("N", false, false, false),
             ("B", false, false, false), ("190", false, false, false), ("D", false, false, false), ("W", false, false, false),
             ("M", false, false, false), ("Number3", false, false, false), ("Z", false, false, false), ("K", true, false, false),
             ("F", true, false, false), ("191", false, true, false), ("188", true, false, false), ("Z", true, false, false),
@@ -33,15 +33,23 @@ public sealed class ShortcutCatalogTests
     [Fact]
     public void EveryCommand_IsListed_OrSharesItsPairsRow()
     {
-        // Commands the spec lists on their pair's row ("Ctrl+= / Ctrl+- / Ctrl+0", "E then Y / N / M", ...), and the two that aren't shortcuts
+        // Commands listed on their pair's row ("← / → or K / J", "Ctrl+= / Ctrl+- / Ctrl+0", "E then Y / N / M", ...), and the two that aren't shortcuts
         CalendarCommand[] shared =
         [
-            CalendarCommand.ZoomOut, CalendarCommand.ZoomReset, CalendarCommand.NavigateForward, CalendarCommand.RsvpNo,
+            CalendarCommand.Next, CalendarCommand.ZoomOut, CalendarCommand.ZoomReset, CalendarCommand.NavigateForward, CalendarCommand.RsvpNo,
             CalendarCommand.RsvpMaybe, CalendarCommand.Cut, CalendarCommand.Paste, CalendarCommand.None, CalendarCommand.SequenceStarted,
         ];
         var listed = ShortcutCatalog.Rows.Select(r => r.Command).ToHashSet();
 
         Assert.All(Enum.GetValues<CalendarCommand>().Except(shared), c => Assert.Contains(c, listed));
+    }
+
+    [Fact]
+    public void PreviousNextPeriod_IsListedOnce()
+    {
+        var row = Assert.Single(ShortcutCatalog.Rows, r => r.Action.Contains("period", StringComparison.OrdinalIgnoreCase));
+
+        Assert.Equal(("← / → or K / J", "Previous / next period"), (row.Keys, row.Action));
     }
 
     [Fact]

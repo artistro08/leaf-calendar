@@ -3,7 +3,11 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:LeafCalendar.App.Views"
-    KeyboardAcceleratorPlacementMode="Hidden">
+    IsTabStop="True"
+    UseSystemFocusVisuals="False"
+    KeyboardAcceleratorPlacementMode="Hidden"
+    AutomationProperties.Name="Calendar"
+    AutomationProperties.AutomationId="CalendarPage">
 
     <!-- The InfoBar's severity states paint their own see-through fill over Background; the notice is always Informational, so its fill is made solid here (Fluent's solid tertiary background; window color in high contrast) -->
     <Page.Resources>
@@ -25,6 +29,10 @@
     <Page.KeyboardAccelerators>
         <KeyboardAccelerator Key="Escape" Invoked="OnEscapeInvoked" />
     </Page.KeyboardAccelerators>
+
+    <!-- The page itself is where keyboard focus rests when nothing else has it (CalendarPage.FocusCalendar): at startup,
+         after a command menu row, and when the focused control goes with a closing panel. It draws no focus ring and
+         shortcuts work there, so no stray ring sits on the mini month's first chevron, where Windows' fallback put it -->
 
     <!-- Three parts: the sidebar and the details panel on the window's Mica, and the calendar island between them.
          The panes lie over the page and slide by composition. The island takes its final size the moment a pane
@@ -91,7 +99,8 @@
                     VerticalAlignment="Bottom" />
 
                 <!-- Toasts (bottom center, solid so the grid never shows through): the people overlay's bar (added in code),
-                     the hint while you mark times to share, then the notice ("Event deleted · Undo") -->
+                     the hint while you mark times to share, then the notice ("Event deleted." and Undo). Each is raised over the
+                     calendar like a flyout (a ThemeShadow, CalendarPage.Float) with the flyout border, so it stands out in dark too -->
                 <StackPanel
                     x:Name="Toasts"
                     Grid.Row="2"
@@ -102,15 +111,15 @@
                     <InfoBar
                         CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                         x:Name="SharingHint"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
                         IsClosable="False"
-                        Message="Mark times that are available on your calendar"
+                        Message="Mark times that are available on your calendar."
                         AutomationProperties.LiveSetting="Polite"
                         AutomationProperties.AutomationId="SharingHint" />
                     <InfoBar
                         CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                         x:Name="NoticeBar"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
                         IsClosable="True"
                         Closed="OnNoticeClosed"
                         PointerEntered="OnNoticePointerEntered"
@@ -145,7 +154,7 @@
                 <TextBlock Text="Add a Google account to see your events here." Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
                 <Button
                     Style="{StaticResource AccentButtonStyle}"
-                    Content="Add a Google account"
+                    Content="Add Google account"
                     HorizontalAlignment="Center"
                     Click="OnAddAccountClick"
                     AutomationProperties.AutomationId="EmptyAddAccountButton" />

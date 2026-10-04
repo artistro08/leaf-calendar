@@ -20,13 +20,26 @@
 
     <!-- Command Menu (search row, divider, results or the empty state, footer); transparent, so the flyout's acrylic shows -->
     <StackPanel>
-        <!-- Search Row (a leading search glyph, then a borderless box) -->
-        <Grid Padding="16,12" ColumnSpacing="12">
+        <!-- Search Row (a leading search glyph, then a borderless box), lined up with the rows below: the glyph centered
+             in the rows' 28 glyph column (8 list inset + 16 row padding in), the typed text starting where row titles do
+             (the box's own 10 text inset after a 2 margin) -->
+        <Grid Padding="24,12,16,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
+
+            <!-- Search Glyph (hidden while the mode chip shows) -->
+            <Grid x:Name="SearchGlyph" Width="28">
+                <FontIcon
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontSize="16"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Glyph="&#xE721;"
+                    AutomationProperties.AccessibilityView="Raw" />
+            </Grid>
 
             <!-- Mode Chip (Jump to date: the action's glyph and name; what's typed is read as a date) -->
             <Border
@@ -36,25 +49,19 @@
                 VerticalAlignment="Center"
                 Background="{ThemeResource AccentFillColorDefaultBrush}"
                 CornerRadius="4"
-                Visibility="Collapsed"
-                AutomationProperties.AutomationId="CommandModeChip">
+                Visibility="Collapsed">
+                <!-- The chip's text carries its automation ID (a Border isn't in the UI Automation tree) -->
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <FontIcon x:Name="ModeGlyph" FontSize="12" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" AutomationProperties.AccessibilityView="Raw" />
-                    <TextBlock x:Name="ModeText" FontSize="12" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                    <TextBlock x:Name="ModeText" FontSize="12" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" AutomationProperties.AutomationId="CommandModeChip" />
                 </StackPanel>
             </Border>
-
-            <FontIcon
-                VerticalAlignment="Center"
-                FontSize="16"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                Glyph="&#xE721;"
-                AutomationProperties.AccessibilityView="Raw" />
 
             <!-- Search Box (Alt+Enter jumps to the selected event; WinUI routes it as a system key, so it's an accelerator) -->
             <TextBox
                 x:Name="CommandSearchBox"
                 Grid.Column="2"
+                Margin="2,0,0,0"
                 MinHeight="32"
                 VerticalAlignment="Center"
                 Background="Transparent"
@@ -84,6 +91,21 @@
 
         <!-- Divider -->
         <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+        <!-- Nothing Found (above the list, where the "Create event" offer follows it) -->
+        <StackPanel x:Name="CommandEmptyPanel" Padding="24,24,24,8" Spacing="8" Visibility="Collapsed">
+            <FontIcon
+                FontSize="24"
+                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                Glyph="&#xE721;"
+                AutomationProperties.AccessibilityView="Raw" />
+            <TextBlock
+                x:Name="CommandEmptyText"
+                HorizontalAlignment="Center"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                AutomationProperties.AutomationId="CommandEmpty" />
+        </StackPanel>
 
         <!-- Results (the list doesn't scroll itself, so the scroller is ours and its indicator shows on hover; tall enough
              for the default actions, CommandMenu.ResultsMaxHeight, so it opens without a scroll) -->
@@ -175,30 +197,16 @@
         </ScrollViewer>
         <!-- /Results -->
 
-        <!-- Nothing Found -->
-        <StackPanel x:Name="CommandEmptyPanel" Padding="24" Spacing="8" Visibility="Collapsed">
-            <FontIcon
-                FontSize="24"
-                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                Glyph="&#xE721;"
-                AutomationProperties.AccessibilityView="Raw" />
-            <TextBlock
-                HorizontalAlignment="Center"
-                Style="{StaticResource CaptionTextBlockStyle}"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                Text="No events or actions match."
-                AutomationProperties.AutomationId="CommandEmpty" />
-        </StackPanel>
-
-        <!-- Footer (hints only: what the selected row is, and what Enter and Alt+Enter do) -->
+        <!-- Footer (hints only: what the selected row is, and what Enter and Alt+Enter do). The label starts under the
+             section headers (24 in) and the Enter cap ends under the rows' key caps (20 in: 8 padding, then 12 margin) -->
         <Border
             x:Name="CommandFooter"
             MinHeight="40"
-            Padding="16,4,8,4"
+            Padding="24,4,8,4"
             Background="{ThemeResource LeafFlyoutFooterBrush}"
             BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
             BorderThickness="0,1,0,0">
-            <Grid ColumnSpacing="8">
+            <Grid Margin="0,0,12,0" ColumnSpacing="8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -212,9 +220,13 @@
                     AutomationProperties.AutomationId="CommandFooterKind" />
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
-                    <!-- Open: Enter -->
+                    <!-- What Enter Does (Open, Run, Go): Enter -->
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" Text="Open" />
+                        <TextBlock
+                            x:Name="FooterVerb"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            AutomationProperties.AutomationId="CommandFooterVerb" />
                         <controls:KeyVisual Style="{StaticResource CommandKeyCapStyle}" RenderKeyAsGlyph="True" Content="{x:Bind controls:ShortcutLegend.CapContent('Enter')}" />
                     </StackPanel>
 

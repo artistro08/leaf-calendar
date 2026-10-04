@@ -8,19 +8,26 @@ namespace LeafCalendar.App.Controls;
 
 /// <summary>
 /// Moves a description between <see cref="DescriptionLine"/>s and a <see cref="RichEditBox"/>: one paragraph per line,
-/// bold, italic, underline, and bullet or numbered paragraphs. Links never become live in the box; each shows in its
-/// own tint of the accent color (<see cref="DescriptionAnchors"/>), its target is kept as an anchor, and it's put back
-/// on read when the link text is unchanged.
+/// bold, italic, underline, and bullet or numbered paragraphs. Links never become live in the box; each shows
+/// underlined in the accent color, carries its anchor's slot (<see cref="DescriptionAnchors"/>) as a kerning threshold
+/// no text ever reaches, its target is kept as an anchor, and it's put back on read when the link text is unchanged.
 /// </summary>
+/// <remarks>
+/// A link is told apart by that mark, never by its color: RichEdit reads a link's color back as the body text's black
+/// in light theme (the theme it applies after a load wipes it), so a color mark let the link's underline spread into
+/// text typed after it and be saved.
+/// </remarks>
 internal static class RichDescription
 {
+    // A link's mark: kerning only from LinkKerning + slot points up (so never at any real text size), the slot after it
+    private const float LinkKerning = 1000;
+
     /// <summary>Fills the box and clears its undo history. Returns the link anchors to pass to <see cref="Read"/>.</summary>
     public static List<(string Text, Uri Link)> Load(RichEditBox box, IReadOnlyList<DescriptionLine> lines)
     {
         var document = box.Document;
         var anchors = new List<(string Text, Uri Link)>();
-        var accent = Accent(box);
-        s_loadedAccent = accent;
+        var accent = LinkColor(box);
         document.SetText(TextSetOptions.None, string.Join("\r", lines.Select(l => string.Concat(l.Runs.Select(r => r.Text)))));
 
         // Nothing Carries Over From The Last Description (bold, link color, or a list on the first paragraph)
@@ -40,10 +47,13 @@ internal static class RichDescription
                 format.Italic = run.Italic ? FormatEffect.On : FormatEffect.Off;
                 format.Underline = run.Underline ? UnderlineType.Single : UnderlineType.None;
 
-                // A Link Is Text In Its Own Tint (its own run, so it reads back whole) With Its Target Kept Aside
+                // A Link Is Underlined Accent Text With Its Slot's Mark (its own run, so it reads back whole) And Its
+                // Target Kept Aside. The underline is only how a link looks: Read drops it from marked text
                 if (run.Link is { } link)
                 {
-                    format.ForegroundColor = ToColor(DescriptionAnchors.Tint(accent, anchors.Count));
+                    format.ForegroundColor = accent;
+                    format.Underline = UnderlineType.Single;
+                    format.Kerning = LinkKerning + anchors.Count % DescriptionAnchors.Slots;
                     anchors.Add((run.Text, link));
                 }
 
@@ -93,8 +103,8 @@ internal static class RichDescription
                 }
 
                 var format = range.CharacterFormat;
-                var run = new DescriptionRun(all[at..runEnd], format.Bold == FormatEffect.On, format.Italic == FormatEffect.On, format.Underline != UnderlineType.None);
-                runs.Add((lists.Count, run, SlotOf(format.ForegroundColor)));
+                var run = new DescriptionRun(all[at..runEnd], format.Bold == FormatEffect.On, format.Italic == FormatEffect.On, IsUnderlined(format));
+                runs.Add((lists.Count, run, SlotOf(format)));
                 at = runEnd;
             }
 
@@ -132,8 +142,8 @@ internal static class RichDescription
     }
 
     /// <summary>
-    /// Typing at a link's edge (or inside it) gets plain text, not the link's tint: the caret's format is reset to the
-    /// default, keeping bold, italic, and underline.
+    /// Typing at a link's edge (or inside it) gets plain text, not the link's color, mark, or underline: the caret's
+    /// format is reset to the default, keeping bold and italic.
     /// </summary>
     public static void PlainInsertion(RichEditBox box)
     {
@@ -148,7 +158,10 @@ internal static class RichDescription
         }
     }
 
-    /// <summary>Gives a link-tinted range (text pasted at a link, or the caret) the default format, keeping bold, italic, and underline.</summary>
+    /// <summary>
+    /// Gives a link's range (text pasted at a link, or the caret) the default format, keeping bold and italic (the
+    /// underline and color were the link's own, so they go too).
+    /// </summary>
     public static void Untint(RichEditBox box, ITextRange range)
     {
         if (box.IsReadOnly)
@@ -157,7 +170,7 @@ internal static class RichDescription
         }
 
         var current = range.CharacterFormat;
-        if (SlotOf(current.ForegroundColor) is null)
+        if (SlotOf(current) is null)
         {
             return;
         }
@@ -165,11 +178,15 @@ internal static class RichDescription
         var plain = box.Document.GetDefaultCharacterFormat();
         plain.Bold = current.Bold;
         plain.Italic = current.Italic;
-        plain.Underline = current.Underline;
+        plain.Underline = UnderlineType.None;
+        plain.Kerning = 0;
         range.CharacterFormat = plain;
     }
 
-    /// <summary>Re-tints every link for the box's current theme (each keeps its slot).</summary>
+    /// <summary>True when the format is underlined by the user: a link's underline (on its marked text) is only how it looks.</summary>
+    public static bool IsUnderlined(ITextCharacterFormat format) => format.Underline != UnderlineType.None && SlotOf(format) is null;
+
+    /// <summary>Colors every link with the accent for the box's current theme.</summary>
     public static void Recolor(RichEditBox box)
     {
         if (box.IsReadOnly)
@@ -178,37 +195,30 @@ internal static class RichDescription
         }
 
         var document = box.Document;
-        var accent = Accent(box);
+        var accent = LinkColor(box);
         document.GetText(TextGetOptions.None, out var all);
 
         for (var at = 0; at < all.Length;)
         {
             var range = document.GetRange(at, at);
             range.Expand(TextRangeUnit.CharacterFormat);
-            if (SlotOf(range.CharacterFormat.ForegroundColor) is { } slot)
+            if (SlotOf(range.CharacterFormat) is not null)
             {
-                range.CharacterFormat.ForegroundColor = ToColor(DescriptionAnchors.Tint(accent, slot));
+                range.CharacterFormat.ForegroundColor = accent;
             }
 
             at = Math.Max(range.EndPosition, at + 1);
         }
-
-        s_loadedAccent = accent;
     }
 
-    // The accent for the box's theme
-    private static (byte R, byte G, byte B) Accent(RichEditBox box) => FromColor(LeafBrushes.Accent(box.ActualTheme == ElementTheme.Dark).Color);
+    // The link color for the box's theme: the accent (the highlight color in a contrast theme)
+    private static Color LinkColor(RichEditBox box)
+    {
+        var accent = LeafBrushes.Accent(box.ActualTheme == ElementTheme.Dark).Color;
+        return Color.FromArgb(255, accent.R, accent.G, accent.B);
+    }
 
-    // The accent the links were last tinted from (a contrast-theme switch mid-edit changes the live accent under them)
-    private static (byte R, byte G, byte B)? s_loadedAccent;
-
-    // A link's slot from its color, in the tint it was loaded with or either theme's current tint (a theme change may not have re-tinted it yet)
-    private static int? SlotOf(Color color) =>
-        (s_loadedAccent is { } loaded ? DescriptionAnchors.SlotOf(FromColor(color), loaded) : null)
-        ?? DescriptionAnchors.SlotOf(FromColor(color), FromColor(LeafBrushes.Accent(true).Color))
-        ?? DescriptionAnchors.SlotOf(FromColor(color), FromColor(LeafBrushes.Accent(false).Color));
-
-    private static (byte R, byte G, byte B) FromColor(Color color) => (color.R, color.G, color.B);
-
-    private static Color ToColor((byte R, byte G, byte B) rgb) => Color.FromArgb(255, rgb.R, rgb.G, rgb.B);
+    // A link's slot from its mark, or null for anything else (a mixed range reads its kerning as undefined, far below)
+    private static int? SlotOf(ITextCharacterFormat format) =>
+        format.Kerning is >= LinkKerning and < LinkKerning + DescriptionAnchors.Slots ? (int)Math.Round(format.Kerning - LinkKerning) : null;
 }

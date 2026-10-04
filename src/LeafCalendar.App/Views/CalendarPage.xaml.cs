@@ -36,8 +36,21 @@ public sealed partial class CalendarPage : Page
     /// <summary>Width of the open sidebar.</summary>
     public const double SidebarWidth = 264;
 
-    /// <summary>Width of the open details panel.</summary>
-    public const double DetailsWidth = 320;
+    /// <summary>Width of the open details panel at the minimum window and on normal ones (it grows on wide windows).</summary>
+    public const double MinDetailsWidth = 320;
+
+    /// <summary>Widest the details panel grows.</summary>
+    public const double MaxDetailsWidth = 480;
+
+    /// <summary>Width of the open details panel now (<see cref="DetailsWidthFor"/> the window's width).</summary>
+    public double DetailsWidth { get; private set; } = MinDetailsWidth;
+
+    /// <summary>
+    /// The details panel's width in a window <paramref name="windowWidth"/> wide: a quarter of it on the 8 DIP grid,
+    /// from <see cref="MinDetailsWidth"/> (every window up to 1280) to <see cref="MaxDetailsWidth"/> (1920 and wider),
+    /// so the editor's fields get room on a wide screen.
+    /// </summary>
+    public static double DetailsWidthFor(double windowWidth) => Math.Clamp(Math.Round(windowWidth / 4 / 8) * 8, MinDetailsWidth, MaxDetailsWidth);
 
     /// <summary>The period title's inset from the island's left edge.</summary>
     public const double TitleInset = 17;
@@ -92,7 +105,28 @@ public sealed partial class CalendarPage : Page
 
         // A Click In The Details Panel Means The Instant E's Editor Is In Use (later keys are typing, not a second key)
         Details.AddHandler(PointerPressedEvent, new PointerEventHandler((_, _) => _editorFromE = false), handledEventsToo: true);
+
+        // The Toasts Are Raised Over The Calendar Like Flyouts While Open (the zone and overlay bars are raised as they're added)
+        FloatWhileOpen(SharingHint);
+        FloatWhileOpen(NoticeBar);
+
+        // Focus Starts On The Calendar (after Windows' own first pick, which was the mini month's first chevron; not out of
+        // a box or menu something already opened)
+        Loaded += (_, _) => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            if (!ShortcutsBlocked())
+            {
+                FocusCalendar();
+            }
+        });
     }
+
+    /// <summary>
+    /// Rests keyboard focus on the calendar itself, which draws no focus ring: shortcuts and the arrow keys drive the
+    /// calendar from there, and Space or Enter press nothing. Tab moves on to the sidebar as usual.
+    /// </summary>
+    /// <returns>True when the calendar took focus (false while it's hidden, such as behind Settings).</returns>
+    public bool FocusCalendar() => Focus(FocusState.Programmatic);
 
     /// <summary>The page's view model.</summary>
     public CalendarViewModel ViewModel => _args.ViewModel;

@@ -21,6 +21,7 @@ public sealed partial class CalendarPage
         // At the bottom with the other toasts, above the share hint and the notice
         _overlayBar = new OverlayBar();
         Toasts.Children.Insert(0, _overlayBar);
+        Float(_overlayBar.Card);
         _overlayBar.Update(ViewModel);
 
         _slotsPanel = new ShareSlotsPanel { Visibility = Visibility.Collapsed };
@@ -120,7 +121,7 @@ public sealed partial class CalendarPage
     }
 
     // P
-    private void ShowPeopleOverlay() => PickPeople("Overlay a teammate", "Show", meetWith: false);
+    private void ShowPeopleOverlay() => PickPeople("Show busy times", "Show", meetWith: false);
 
     // F
     private void ShowMeetWith() => PickPeople("Meet with", "Find a time", meetWith: true);

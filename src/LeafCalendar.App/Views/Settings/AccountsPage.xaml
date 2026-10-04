@@ -14,12 +14,13 @@
             <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
                 <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Accounts" />
 
-                <!-- Status -->
+                <!-- Status (collapsed while closed: a closed InfoBar still takes its margin and the column's spacing) -->
                 <InfoBar
                     CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                     Margin="0,0,0,12"
                     Severity="{x:Bind local:AccountsPage.SeverityFor(ViewModel.MessageKind), Mode=OneWay}"
                     IsOpen="{x:Bind ViewModel.HasMessage, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.HasMessage, Mode=OneWay}"
                     Message="{x:Bind ViewModel.Message, Mode=OneWay}"
                     AutomationProperties.LiveSetting="{x:Bind local:AccountsPage.LiveFor(ViewModel.MessageKind), Mode=OneWay}"
                     AutomationProperties.AutomationId="AccountsMessage" />
@@ -27,7 +28,7 @@
                 <!-- Google Accounts -->
                 <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Google accounts" />
                 <!-- Add (always first; while the browser is open, Cancel sits next to the progress ring) -->
-                <controls:SettingRow Glyph="&#xE8FA;" Header="Add a Google account" Description="Sign in with Google in your browser. Leaf then syncs its calendars.">
+                <controls:SettingRow Glyph="&#xE8FA;" Header="Add Google account" Description="Sign in with Google in your browser. Leaf then syncs its calendars.">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <ProgressRing
                             Width="20"
@@ -71,7 +72,7 @@
                                 <Expander.Header>
                                     <controls:SettingRow
                                         Style="{StaticResource LeafExpanderHeaderRowStyle}"
-                                        Glyph="&#xE77B;"
+                                        Glyph="&#xE8D4;"
                                         Header="{x:Bind Email}"
                                         Description="{x:Bind Summary}" />
                                 </Expander.Header>
@@ -103,21 +104,36 @@
                     </controls:PinnedItemsControl.ItemTemplate>
                 </controls:PinnedItemsControl>
                 <!-- /One Expander Per Account -->
-                <controls:SettingRow Glyph="&#xE77B;" Header="Main account" Description="Listed first, and used to look up people's free/busy times.">
+                <controls:SettingRow Glyph="&#xE734;" Header="Main account" Description="Listed first, and used to look up people's free/busy times.">
                     <ComboBox
                         x:Name="MainAccountBox"
-                        MinWidth="180"
+                        Width="240"
                         SelectionChanged="OnMainAccountChanged"
                         AutomationProperties.Name="Main account"
                         AutomationProperties.AutomationId="MainAccountBox" />
                 </controls:SettingRow>
+                <!-- Sync Now (with the accounts it syncs: a "Sync" header over this one row only repeated it) -->
+                <controls:SettingRow Glyph="&#xE72C;" Header="Sync now" Description="Leaf syncs on its own. Sync now to get the latest changes from Google right away.">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <ProgressRing
+                            Width="20"
+                            Height="20"
+                            IsActive="{x:Bind ViewModel.IsSyncing, Mode=OneWay}"
+                            AutomationProperties.Name="Syncing"
+                            AutomationProperties.AutomationId="SyncNowProgress" />
+                        <Button
+                            Content="Sync now"
+                            Command="{x:Bind ViewModel.SyncNowCommand}"
+                            AutomationProperties.AutomationId="SyncNowButton" />
+                    </StackPanel>
+                </controls:SettingRow>
 
                 <!-- New Events -->
                 <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="New events" />
-                <controls:SettingRow Glyph="&#xE787;" Header="Default calendar" Description="Where new events go. Leaf uses this instead of Google's default.">
+                <controls:SettingRow Glyph="&#xED0E;" Header="Default calendar" Description="Where new events go. Leaf uses this instead of Google's default.">
                     <ComboBox
                         x:Name="DefaultCalendarBox"
-                        MinWidth="180"
+                        Width="240"
                         SelectionChanged="OnDefaultCalendarChanged"
                         AutomationProperties.Name="Default calendar"
                         AutomationProperties.AutomationId="DefaultCalendarComboBox">
@@ -138,26 +154,9 @@
                     </ComboBox>
                 </controls:SettingRow>
 
-                <!-- Sync -->
-                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Sync" />
-                <controls:SettingRow Glyph="&#xE72C;" Header="Sync now" Description="Leaf syncs on its own. Sync now to get the latest changes from Google right away.">
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <ProgressRing
-                            Width="20"
-                            Height="20"
-                            IsActive="{x:Bind ViewModel.IsSyncing, Mode=OneWay}"
-                            AutomationProperties.Name="Syncing"
-                            AutomationProperties.AutomationId="SyncNowProgress" />
-                        <Button
-                            Content="Sync now"
-                            Command="{x:Bind ViewModel.SyncNowCommand}"
-                            AutomationProperties.AutomationId="SyncNowButton" />
-                    </StackPanel>
-                </controls:SettingRow>
-
-                <!-- OAuth Client -->
+                <!-- OAuth Client (the row names what its description shows: the header already says OAuth client) -->
                 <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Google Cloud OAuth client" />
-                <controls:SettingRow Glyph="&#xE8D7;" Header="OAuth client" Description="{x:Bind ViewModel.ClientId, Mode=OneWay}">
+                <controls:SettingRow Glyph="&#xE8D7;" Header="Client ID" Description="{x:Bind ViewModel.ClientId, Mode=OneWay}">
                     <Button
                         Content="Change OAuth client"
                         Click="OnChangeClientClick"

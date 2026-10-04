@@ -450,6 +450,7 @@ public sealed partial class EventEditorView : UserControl
         _descriptionTouched = false;
         _loadingDescription = false;
         SyncToolbar();
+        RecolorLinksSoon();
     }
 
     // Before saving: only a description the user changed is read back (an untouched one is never rewritten)
@@ -509,20 +510,30 @@ public sealed partial class EventEditorView : UserControl
     // Space, letters, digits, and symbol keys (the ones a Ctrl shortcut uses)
     private static bool IsCharacterKey(VirtualKey key) => (int)key is 0x20 or (>= 0x30 and <= 0x39) or (>= 0x41 and <= 0x5A) or (>= 0x60 and <= 0x6F) or (>= 0xBA and <= 0xC0) or (>= 0xDB and <= 0xDF) or 0xE2;
 
-    // Links keep their own tint in the new theme
-    private void OnThemeChanged(FrameworkElement sender, object args)
+    // Links take the new theme's link color
+    private void OnThemeChanged(FrameworkElement sender, object args) => RecolorLinksSoon();
+
+    // After the box has applied its theme, which recolors its text (links read back black in light theme otherwise): at
+    // low priority, behind the box's own work for a load or a theme change
+    private void RecolorLinksSoon() => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
     {
         _loadingDescription = true;
         RichDescription.Recolor(DescriptionBox);
         _loadingDescription = false;
-    }
+
+        // Ctrl+Z Never Takes The Color Back Off An Untouched Description's Links
+        if (!_descriptionTouched)
+        {
+            DescriptionBox.Document.ClearUndoRedoHistory();
+        }
+    });
 
     private void OnBoldClick(object sender, RoutedEventArgs e) => Format(f => f.Bold = FormatEffect.Toggle);
 
     private void OnItalicClick(object sender, RoutedEventArgs e) => Format(f => f.Italic = FormatEffect.Toggle);
 
     private void OnUnderlineClick(object sender, RoutedEventArgs e) =>
-        Format(f => f.Underline = f.Underline == UnderlineType.None ? UnderlineType.Single : UnderlineType.None);
+        Format(f => f.Underline = RichDescription.IsUnderlined(f) ? UnderlineType.None : UnderlineType.Single);
 
     private void OnBulletsClick(object sender, RoutedEventArgs e) => List(MarkerType.Bullet);
 
@@ -554,7 +565,7 @@ public sealed partial class EventEditorView : UserControl
         SyncToolbar();
     }
 
-    // Toolbar toggles show the selection's format
+    // Toolbar toggles show the selection's format (a link's underline is only how it looks, so it doesn't count)
     private void SyncToolbar()
     {
         var format = DescriptionBox.Document.Selection.CharacterFormat;
@@ -562,7 +573,7 @@ public sealed partial class EventEditorView : UserControl
 
         BoldButton.IsChecked = format.Bold == FormatEffect.On;
         ItalicButton.IsChecked = format.Italic == FormatEffect.On;
-        UnderlineButton.IsChecked = format.Underline != UnderlineType.None;
+        UnderlineButton.IsChecked = RichDescription.IsUnderlined(format);
         BulletsButton.IsChecked = list == MarkerType.Bullet;
         NumbersButton.IsChecked = list is not (MarkerType.None or MarkerType.Undefined or MarkerType.Bullet);
     }

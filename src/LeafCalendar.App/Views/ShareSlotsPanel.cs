@@ -43,7 +43,9 @@ public sealed partial class ShareSlotsPanel : UserControl
     /// <summary>Builds the panel (filled by <see cref="Update"/>).</summary>
     public ShareSlotsPanel()
     {
-        var title = new TextBlock { Text = "Times to share", Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"], TextTrimming = TextTrimming.CharacterEllipsis };
+        // The title is centered in the 28 DIP row right under the title bar, like the details panel's headings and the
+        // sidebar's month title
+        var title = new TextBlock { Text = "Times to share", Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"], TextTrimming = TextTrimming.CharacterEllipsis, Padding = new Thickness(0, 4, 0, 4) };
         var hint = new TextBlock
         {
             Text = "Drag on the calendar to pick times. Leaf leaves out the busy ones.",
@@ -74,7 +76,7 @@ public sealed partial class ShareSlotsPanel : UserControl
             _vm?.SetShareMessage(AvailabilityText.DefaultMessage);
         };
 
-        var stack = new StackPanel { Spacing = 8, Margin = new Thickness(16, 8, 16, 16) };
+        var stack = new StackPanel { Spacing = 8, Margin = new Thickness(16, 0, 16, 16) };
         stack.Children.Add(title);
         stack.Children.Add(hint);
         stack.Children.Add(_zoneBox);

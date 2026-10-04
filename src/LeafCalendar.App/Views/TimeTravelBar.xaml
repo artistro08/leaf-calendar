@@ -9,7 +9,9 @@
         <InfoBar
             CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
             x:Name="TravelBar"
+            x:FieldModifier="internal"
             Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
+            BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
             Severity="Informational"
             IsClosable="False"
             IsOpen="False"
@@ -27,7 +29,9 @@
         <InfoBar
             CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
             x:Name="ZoneSwitchBar"
+            x:FieldModifier="internal"
             Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
+            BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
             Severity="Informational"
             IsClosable="False"
             IsOpen="False"

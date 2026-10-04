@@ -14,7 +14,7 @@
 
                 <!-- Meetings -->
                 <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Meetings" />
-                <controls:SettingRow Glyph="&#xEA8F;" Header="Reminder notifications" Description="Show a notification at your Google reminder times, with Join, Snooze, and Dismiss.">
+                <controls:SettingRow Glyph="&#xECC5;" Header="Reminder notifications" Description="Show a notification at your Google reminder times, with Join, Snooze, and Dismiss.">
                     <ToggleSwitch
                         x:Name="RemindersSwitch"
                         Style="{StaticResource LeafCardToggleSwitchStyle}"
@@ -22,7 +22,7 @@
                         AutomationProperties.Name="Reminder notifications"
                         AutomationProperties.AutomationId="RemindersSwitch" />
                 </controls:SettingRow>
-                <controls:SettingRow Glyph="&#xE714;" Header="Persistent “Join now” notification" Description="When a meeting with a link starts, keep a notification on screen until you join or dismiss it.">
+                <controls:SettingRow Glyph="&#xE718;" Header="Persistent “Join now” notification" Description="When a meeting with a link starts, keep a notification on screen until you join or dismiss it.">
                     <ToggleSwitch
                         x:Name="JoinNowSwitch"
                         Style="{StaticResource LeafCardToggleSwitchStyle}"
@@ -38,9 +38,7 @@
                         AutomationProperties.Name="Invite notifications"
                         AutomationProperties.AutomationId="InvitesSwitch" />
                 </controls:SettingRow>
-
-                <!-- Sound -->
-                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Sound" />
+                <!-- Sound (with the notifications it plays for: a "Sound" header over one "Sound" row only repeated it) -->
                 <controls:SettingRow Glyph="&#xE767;" Header="Sound" Description="Play the Windows notification sound. Do not disturb and Focus in Windows still apply.">
                     <ToggleSwitch
                         x:Name="SoundSwitch"

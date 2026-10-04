@@ -142,8 +142,8 @@ internal sealed unsafe class TrayIcon : IDisposable
         }
     }
 
-    /// <summary>The icon was clicked, or Enter was pressed on it.</summary>
-    public event EventHandler? Invoked;
+    /// <summary>The icon was clicked (false), or Enter was pressed on it (true: the flyout then shows keyboard focus).</summary>
+    public event EventHandler<bool>? Invoked;
 
     /// <summary>The icon was right-clicked, or the menu key was pressed on it; the point is in screen pixels.</summary>
     public event EventHandler<(int X, int Y)>? ContextMenuRequested;
@@ -381,7 +381,7 @@ internal sealed unsafe class TrayIcon : IDisposable
             switch ((uint)(lParam.Value & 0xFFFF))
             {
                 case NinSelect:
-                    Invoked?.Invoke(this, EventArgs.Empty);
+                    Invoked?.Invoke(this, false);
                     break;
 
                 case NinKeySelect:
@@ -390,7 +390,7 @@ internal sealed unsafe class TrayIcon : IDisposable
                     if (now - _lastKeySelect >= KeySelectRepeatMs)
                     {
                         _lastKeySelect = now;
-                        Invoked?.Invoke(this, EventArgs.Empty);
+                        Invoked?.Invoke(this, true);
                     }
 
                     break;

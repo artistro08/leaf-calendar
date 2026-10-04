@@ -132,7 +132,8 @@ public sealed class ZoneTests : IDisposable
         leaf.ExpandInSettings("PrimaryZoneExpander");
         var follow = leaf.WaitInSettings("FollowWindowsZoneSwitch").AsToggleButton();
         Assert.Equal(FlaUI.Core.Definitions.ToggleState.On, follow.ToggleState);
-        Assert.False(leaf.WaitInSettings("ZonePromptSwitch").IsEnabled);
+        // Following Windows, the prompt row is hidden (there's nothing to ask about), not shown on but off
+        Assert.Null(leaf.SettingsView.FindFirstDescendant(cf => cf.ByAutomationId("ZonePromptSwitch")));
         follow.Toggle();
         Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("ZonePromptSwitch").IsEnabled, Wait).Success);
 

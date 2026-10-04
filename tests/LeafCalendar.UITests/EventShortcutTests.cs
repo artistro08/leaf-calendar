@@ -162,7 +162,7 @@ public sealed class EventShortcutTests : IDisposable
         leaf.Press(VirtualKeyShort.KEY_V);
 
         var notice = leaf.WaitFor("NoticeBar");
-        Assert.True(Retry.WhileFalse(() => notice.FindAllDescendants().Prepend(notice).Any(e => e.Properties.Name.ValueOrDefault == "Select one event"), TimeSpan.FromSeconds(5)).Success);
+        Assert.True(Retry.WhileFalse(() => notice.FindAllDescendants().Prepend(notice).Any(e => e.Properties.Name.ValueOrDefault == "Select one event."), TimeSpan.FromSeconds(5)).Success);
         Assert.Empty(LeafApp.LaunchedLinks(_profile));
     }
 }

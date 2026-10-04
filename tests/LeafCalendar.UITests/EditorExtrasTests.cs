@@ -78,7 +78,7 @@ public sealed class EditorExtrasTests : IDisposable
         using var leaf = Launch();
         EditDentist(leaf);
 
-        leaf.WaitFor("EditorShowAs").AsComboBox().Select("Show me as free");
+        leaf.WaitFor("EditorShowAs").AsComboBox().Select("Free");
         SaveWithCtrlEnter(leaf);
 
         Assert.Equal("""{"transparency":"transparent"}""", JsonNode.Parse(DentistPatch().Body)!.ToJsonString());
@@ -115,7 +115,7 @@ public sealed class EditorExtrasTests : IDisposable
 
         // The Clock Stays 9-10, Now In Tokyo
         var local = leaf.WaitFor("EditorLocalTimeText");
-        Assert.True(Retry.WhileFalse(() => local.Name == "In your time: Wed, Sep 30, 8:00 PM–9:00 PM", TimeSpan.FromSeconds(5)).Success, $"The line reads \"{local.Name}\".");
+        Assert.True(Retry.WhileFalse(() => local.Name == "In your time: Wed, Sep 30, 8 PM – 9 PM", TimeSpan.FromSeconds(5)).Success, $"The line reads \"{local.Name}\".");
         SaveWithCtrlEnter(leaf);
 
         var start = JsonNode.Parse(DentistPatch().Body)!["start"]!;

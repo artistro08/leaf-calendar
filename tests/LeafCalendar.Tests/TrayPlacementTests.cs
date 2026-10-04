@@ -50,6 +50,56 @@ public class TrayPlacementTests
         Assert.Equal(corner, unknown);
     }
 
+    // The owner's rule: centered on the icon, but never off the work area. Every icon spot along each taskbar, on a
+    // primary monitor, one left of it, and one above it, at 100% to 250%: the panel stays 12 DIPs inside, and centers on
+    // the icon whenever there's room
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(1.25)]
+    [InlineData(1.5)]
+    [InlineData(1.75)]
+    [InlineData(2.5)]
+    public void Flyout_AnyIconSpot_CenteredWhenItFits_NeverOffTheWorkArea(double scale)
+    {
+        var margin = (int)Math.Round(TrayPlacement.MarginDip * scale);
+        var bar = (int)Math.Round(48 * scale);
+        var monitors = new[] { new PixelRect(0, 0, 2560, 1440), new PixelRect(-1920, 0, 0, 1080), new PixelRect(0, -1200, 1920, 0) };
+
+        foreach (var monitor in monitors)
+        {
+            foreach (var edge in new[] { TaskbarEdge.Bottom, TaskbarEdge.Top, TaskbarEdge.Left, TaskbarEdge.Right })
+            {
+                var work = edge switch
+                {
+                    TaskbarEdge.Top => monitor with { Top = monitor.Top + bar },
+                    TaskbarEdge.Left => monitor with { Left = monitor.Left + bar },
+                    TaskbarEdge.Right => monitor with { Right = monitor.Right - bar },
+                    _ => monitor with { Bottom = monitor.Bottom - bar },
+                };
+                var along = edge is TaskbarEdge.Bottom or TaskbarEdge.Top;
+                var length = along ? monitor.Width : monitor.Height;
+
+                for (var at = 0; at < length; at += 37)
+                {
+                    var icon = along
+                        ? new PixelRect(monitor.Left + at, edge == TaskbarEdge.Top ? monitor.Top : monitor.Bottom - bar, monitor.Left + at + bar, edge == TaskbarEdge.Top ? monitor.Top + bar : monitor.Bottom)
+                        : new PixelRect(edge == TaskbarEdge.Left ? monitor.Left : monitor.Right - bar, monitor.Top + at, edge == TaskbarEdge.Left ? monitor.Left + bar : monitor.Right, monitor.Top + at + bar);
+
+                    var panel = TrayPlacement.Flyout(work, edge, icon, scale);
+
+                    Assert.True(Inside(panel, work, margin), $"{panel} leaves {work} at {scale}x, icon {icon}.");
+                    var (center, panelCenter, min, max) = along
+                        ? ((icon.Left + icon.Right) / 2, (panel.Left + panel.Right) / 2, work.Left + margin + panel.Width / 2, work.Right - margin - panel.Width / 2)
+                        : ((icon.Top + icon.Bottom) / 2, (panel.Top + panel.Bottom) / 2, work.Top + margin + panel.Height / 2, work.Bottom - margin - panel.Height / 2);
+                    if (center >= min && center <= max)
+                    {
+                        Assert.True(Math.Abs(center - panelCenter) <= 1, $"{panel} isn't centered on {icon} at {scale}x.");
+                    }
+                }
+            }
+        }
+    }
+
     [Fact]
     public void Flyout_TopTaskbar_BelowIt()
     {

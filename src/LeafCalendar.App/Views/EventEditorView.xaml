@@ -9,34 +9,41 @@
     AutomationProperties.AutomationId="EventEditor">
 
     <!-- Ctrl+Enter saves, Ctrl+Shift+Enter saves without emailing, Esc cancels (see OnPreviewKeyDown) -->
-    <Grid RowDefinitions="*,Auto" PreviewKeyDown="OnPreviewKeyDown">
+    <!-- Form Rows: a label left in a 96 DIP column and its control right (Event type, Show me as, Visibility, Repeat,
+         Every, Ends, Room); fields whose values run long (the dates, the time zone, the calendar) keep their header above -->
+    <Grid RowDefinitions="Auto,*,Auto" PreviewKeyDown="OnPreviewKeyDown">
 
-        <!-- Body (scrolls under the pinned footer) -->
-        <ScrollViewer x:Name="BodyScroll">
-            <StackPanel Spacing="12" Padding="16,8,16,16">
-                <TextBlock
-                    Style="{StaticResource BodyStrongTextBlockStyle}"
-                    Text="{x:Bind Editor.HeaderText, Mode=OneWay}"
-                    TextTrimming="CharacterEllipsis"
-                    AutomationProperties.AutomationId="EditorHeader" />
+        <!-- Header (pinned above the body; a subtitle, bigger than the fields) -->
+        <TextBlock
+            Margin="16,8,16,8"
+            Style="{StaticResource SubtitleTextBlockStyle}"
+            Text="{x:Bind Editor.HeaderText, Mode=OneWay}"
+            TextTrimming="CharacterEllipsis"
+            TextWrapping="NoWrap"
+            AutomationProperties.AutomationId="EditorHeader" />
 
+        <!-- Body (scrolls between the pinned header and footer; fields 16 apart, the parts of one field 8 or 4) -->
+        <ScrollViewer x:Name="BodyScroll" Grid.Row="1">
+            <StackPanel Spacing="16" Padding="16,8,16,16">
                 <!-- Event Type (new timed events on a Workspace account's primary calendar) -->
-                <ComboBox
-                    x:Name="EventTypeBox"
-                    HorizontalAlignment="Stretch"
-                    SelectedIndex="{x:Bind Editor.EventTypeIndex, Mode=TwoWay}"
-                    Visibility="{x:Bind Editor.ShowEventType, Mode=OneWay}"
-                    AutomationProperties.Name="Event type"
-                    AutomationProperties.AutomationId="EditorEventType">
-                    <ComboBoxItem Content="Event" />
-                    <ComboBoxItem Content="Focus time" />
-                    <ComboBoxItem Content="Out of office" />
-                </ComboBox>
+                <Grid ColumnDefinitions="96,*" Visibility="{x:Bind Editor.ShowEventType, Mode=OneWay}">
+                    <TextBlock VerticalAlignment="Center" Text="Event type" />
+                    <ComboBox
+                        x:Name="EventTypeBox"
+                        Grid.Column="1"
+                        HorizontalAlignment="Stretch"
+                        SelectedIndex="{x:Bind Editor.EventTypeIndex, Mode=TwoWay}"
+                        AutomationProperties.Name="Event type"
+                        AutomationProperties.AutomationId="EditorEventType">
+                        <ComboBoxItem Content="Event" />
+                        <ComboBoxItem Content="Focus time" />
+                        <ComboBoxItem Content="Out of office" />
+                    </ComboBox>
+                </Grid>
 
-                <!-- Title -->
+                <!-- Title (the stock body size, like the other fields; the header above is the big text) -->
                 <TextBox
                     x:Name="TitleBox"
-                    FontSize="18"
                     PlaceholderText="Add title"
                     Text="{x:Bind Editor.Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                     AutomationProperties.Name="Title"
@@ -44,7 +51,7 @@
 
                 <!-- When -->
                 <CheckBox Content="All day" IsChecked="{x:Bind Editor.IsAllDay, Mode=TwoWay}" IsEnabled="{x:Bind Editor.IsOrdinaryType, Mode=OneWay}" AutomationProperties.AutomationId="EditorAllDay" />
-                <StackPanel Spacing="8">
+                <StackPanel Spacing="16">
                     <!-- Starts -->
                     <Grid ColumnSpacing="8" ColumnDefinitions="*,132">
                         <CalendarDatePicker
@@ -90,23 +97,24 @@
                     </Grid>
 
                     <!-- Time Zone (the dates and times above are on this zone's clock): every zone in a stock dropdown, searchable
-                         by typing (a city, NYC, or part of a row), and only a zone from the list is taken -->
-                    <controls:TimeZoneComboBox
-                        x:Name="TimeZoneBox"
-                        Header="Time zone"
-                        IsEditable="True"
-                        IsTextSearchEnabled="True"
-                        Visibility="{x:Bind Editor.ShowTimeZone, Mode=OneWay}"
-                        ZoneChanged="OnZoneChanged"
-                        AutomationProperties.Name="Time zone"
-                        AutomationProperties.AutomationId="EditorTimeZoneBox" />
-                    <TextBlock
-                        Style="{StaticResource CaptionTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        TextWrapping="Wrap"
-                        Text="{x:Bind Editor.LocalTimeText, Mode=OneWay}"
-                        Visibility="{x:Bind Editor.ShowLocalTime, Mode=OneWay}"
-                        AutomationProperties.AutomationId="EditorLocalTimeText" />
+                         by typing (a city, NYC, or part of a row), and only a zone from the list is taken; "In your time" under it -->
+                    <StackPanel Spacing="4" Visibility="{x:Bind Editor.ShowTimeZone, Mode=OneWay}">
+                        <controls:TimeZoneComboBox
+                            x:Name="TimeZoneBox"
+                            Header="Time zone"
+                            IsEditable="True"
+                            IsTextSearchEnabled="True"
+                            ZoneChanged="OnZoneChanged"
+                            AutomationProperties.Name="Time zone"
+                            AutomationProperties.AutomationId="EditorTimeZoneBox" />
+                        <TextBlock
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            TextWrapping="Wrap"
+                            Text="{x:Bind Editor.LocalTimeText, Mode=OneWay}"
+                            Visibility="{x:Bind Editor.ShowLocalTime, Mode=OneWay}"
+                            AutomationProperties.AutomationId="EditorLocalTimeText" />
+                    </StackPanel>
                 </StackPanel>
                 <!-- /When -->
 
@@ -128,27 +136,29 @@
                     </controls:PinnedComboBox.ItemTemplate>
                 </controls:PinnedComboBox>
 
-                <!-- Show As And Visibility (the items say what each dropdown is, so there are no labels). Each stretches the
-                     full width on its own row: a ComboBox sized by its content measures narrower while its list is open,
-                     which moved the pair, and side by side "Show me as busy" doesn't fit the 320 panel -->
-                <Grid RowSpacing="8" RowDefinitions="Auto,Auto">
+                <!-- Show Me As And Visibility (form rows). Each control stretches to its row's end: a ComboBox sized by its
+                     content measures narrower while its list is open, which moved the pair -->
+                <Grid ColumnDefinitions="96,*">
+                    <TextBlock VerticalAlignment="Center" Text="Show me as" />
                     <ComboBox
                         x:Name="ShowAsBox"
+                        Grid.Column="1"
                         HorizontalAlignment="Stretch"
                         SelectedIndex="{x:Bind Editor.ShowAsIndex, Mode=TwoWay}"
                         IsEnabled="{x:Bind Editor.IsOrdinaryType, Mode=OneWay}"
-                        ToolTipService.ToolTip="Show me as"
-                        AutomationProperties.Name="Show as"
+                        AutomationProperties.Name="Show me as"
                         AutomationProperties.AutomationId="EditorShowAs">
-                        <ComboBoxItem Content="Show me as busy" />
-                        <ComboBoxItem Content="Show me as free" />
+                        <ComboBoxItem Content="Busy" />
+                        <ComboBoxItem Content="Free" />
                     </ComboBox>
+                </Grid>
+                <Grid ColumnDefinitions="96,*">
+                    <TextBlock VerticalAlignment="Center" Text="Visibility" />
                     <ComboBox
                         x:Name="VisibilityBox"
-                        Grid.Row="1"
+                        Grid.Column="1"
                         HorizontalAlignment="Stretch"
                         SelectedIndex="{x:Bind Editor.VisibilityIndex, Mode=TwoWay}"
-                        ToolTipService.ToolTip="Visibility"
                         AutomationProperties.Name="Visibility"
                         AutomationProperties.AutomationId="EditorVisibility">
                         <ComboBoxItem Content="Default visibility" />
@@ -157,23 +167,29 @@
                     </ComboBox>
                 </Grid>
 
-                <!-- Color (swatches built in code: the calendar's color, then Google's 11 event colors) -->
+                <!-- Color (swatches built in code: the calendar's color, then Google's 11 event colors, six to a row) -->
                 <StackPanel Spacing="4">
                     <TextBlock Text="Color" />
-                    <VariableSizedWrapGrid x:Name="ColorPanel" Orientation="Horizontal" ItemWidth="30" ItemHeight="30" />
+                    <VariableSizedWrapGrid x:Name="ColorPanel" Orientation="Horizontal" MaximumRowsOrColumns="6" ItemWidth="30" ItemHeight="30" />
                 </StackPanel>
 
                 <!-- Repeat -->
-                <ComboBox x:Name="RepeatBox" Header="Repeat" HorizontalAlignment="Stretch" SelectedIndex="{x:Bind Editor.RepeatIndex, Mode=TwoWay}" AutomationProperties.AutomationId="EditorRepeat">
-                    <ComboBoxItem Content="Doesn't repeat" />
-                    <ComboBoxItem Content="Daily" />
-                    <ComboBoxItem Content="Weekly" />
-                    <ComboBoxItem Content="Monthly" />
-                    <ComboBoxItem Content="Yearly" />
-                    <ComboBoxItem Content="Custom rule (kept as is)" Visibility="{x:Bind Editor.HasCustomRule, Mode=OneWay}" />
-                </ComboBox>
-                <StackPanel Spacing="8" Visibility="{x:Bind Editor.ShowRepeatOptions, Mode=OneWay}">
-                    <NumberBox Header="Every" Minimum="1" Maximum="99" SpinButtonPlacementMode="Compact" Value="{x:Bind Editor.RepeatInterval, Mode=TwoWay}" AutomationProperties.AutomationId="EditorRepeatInterval" />
+                <Grid ColumnDefinitions="96,*">
+                    <TextBlock VerticalAlignment="Center" Text="Repeat" />
+                    <ComboBox x:Name="RepeatBox" Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="{x:Bind Editor.RepeatIndex, Mode=TwoWay}" AutomationProperties.Name="Repeat" AutomationProperties.AutomationId="EditorRepeat">
+                        <ComboBoxItem Content="Doesn't repeat" />
+                        <ComboBoxItem Content="Daily" />
+                        <ComboBoxItem Content="Weekly" />
+                        <ComboBoxItem Content="Monthly" />
+                        <ComboBoxItem Content="Yearly" />
+                        <ComboBoxItem Content="Custom rule (kept as is)" Visibility="{x:Bind Editor.HasCustomRule, Mode=OneWay}" />
+                    </ComboBox>
+                </Grid>
+                <StackPanel Spacing="16" Visibility="{x:Bind Editor.ShowRepeatOptions, Mode=OneWay}">
+                    <Grid ColumnDefinitions="96,*">
+                        <TextBlock VerticalAlignment="Center" Text="Every" />
+                        <NumberBox Grid.Column="1" Minimum="1" Maximum="99" SpinButtonPlacementMode="Compact" Value="{x:Bind Editor.RepeatInterval, Mode=TwoWay}" AutomationProperties.Name="Every" AutomationProperties.AutomationId="EditorRepeatInterval" />
+                    </Grid>
                     <controls:PinnedItemsControl x:Name="WeekdayList" ItemsSource="{x:Bind Editor.Weekdays, Mode=OneWay}" Visibility="{x:Bind Editor.ShowWeekdays, Mode=OneWay}">
                         <controls:PinnedItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -186,13 +202,17 @@
                             </DataTemplate>
                         </controls:PinnedItemsControl.ItemTemplate>
                     </controls:PinnedItemsControl>
-                    <ComboBox x:Name="EndsBox" Header="Ends" HorizontalAlignment="Stretch" SelectedIndex="{x:Bind Editor.EndsIndex, Mode=TwoWay}" AutomationProperties.AutomationId="EditorEnds">
-                        <ComboBoxItem Content="Never" />
-                        <ComboBoxItem Content="On a date" />
-                        <ComboBoxItem Content="After a number of times" />
-                    </ComboBox>
-                    <CalendarDatePicker HorizontalAlignment="Stretch" Date="{x:Bind Editor.EndsOn, Mode=TwoWay}" Visibility="{x:Bind Editor.ShowEndsOn, Mode=OneWay}" AutomationProperties.Name="On a date" AutomationProperties.AutomationId="EditorEndsOn" />
-                    <NumberBox Minimum="1" Maximum="999" SpinButtonPlacementMode="Compact" Value="{x:Bind Editor.EndsAfter, Mode=TwoWay}" Visibility="{x:Bind Editor.ShowEndsAfter, Mode=OneWay}" AutomationProperties.Name="After a number of times" AutomationProperties.AutomationId="EditorEndsAfter" />
+                    <!-- Ends (the date or count it ends at sits under the dropdown, in the control column) -->
+                    <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto">
+                        <TextBlock VerticalAlignment="Center" Text="Ends" />
+                        <ComboBox x:Name="EndsBox" Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="{x:Bind Editor.EndsIndex, Mode=TwoWay}" AutomationProperties.Name="Ends" AutomationProperties.AutomationId="EditorEnds">
+                            <ComboBoxItem Content="Never" />
+                            <ComboBoxItem Content="On a date" />
+                            <ComboBoxItem Content="After a number of times" />
+                        </ComboBox>
+                        <CalendarDatePicker Grid.Row="1" Grid.Column="1" Margin="0,8,0,0" HorizontalAlignment="Stretch" Date="{x:Bind Editor.EndsOn, Mode=TwoWay}" Visibility="{x:Bind Editor.ShowEndsOn, Mode=OneWay}" AutomationProperties.Name="On a date" AutomationProperties.AutomationId="EditorEndsOn" />
+                        <NumberBox Grid.Row="1" Grid.Column="1" Margin="0,8,0,0" Minimum="1" Maximum="999" SpinButtonPlacementMode="Compact" Value="{x:Bind Editor.EndsAfter, Mode=TwoWay}" Visibility="{x:Bind Editor.ShowEndsAfter, Mode=OneWay}" AutomationProperties.Name="After a number of times" AutomationProperties.AutomationId="EditorEndsAfter" />
+                    </Grid>
                 </StackPanel>
                 <!-- /Repeat -->
 
@@ -251,24 +271,27 @@
                         Visibility="{x:Bind Editor.ShowContactsApiOff, Mode=OneWay}"
                         AutomationProperties.AutomationId="EditorContactsApiOff" />
 
-                    <!-- Room Box (Workspace accounts: rooms you've booked before) -->
-                    <AutoSuggestBox
-                        x:Name="RoomBox"
-                        PlaceholderText="Add a room"
-                        UpdateTextOnSelect="False"
-                        Text="{x:Bind Editor.RoomInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                        ItemsSource="{x:Bind Editor.RoomSuggestions, Mode=OneWay}"
-                        Visibility="{x:Bind Editor.ShowRooms, Mode=OneWay}"
-                        TextChanged="OnRoomTextChanged"
-                        QuerySubmitted="OnRoomQuerySubmitted"
-                        AutomationProperties.Name="Add a room"
-                        AutomationProperties.AutomationId="EditorRoomInput">
-                        <AutoSuggestBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:RoomSuggestion">
-                                <TextBlock Text="{x:Bind Display}" TextTrimming="CharacterEllipsis" />
-                            </DataTemplate>
-                        </AutoSuggestBox.ItemTemplate>
-                    </AutoSuggestBox>
+                    <!-- Room Box (a form row; Workspace accounts: rooms you've booked before) -->
+                    <Grid ColumnDefinitions="96,*" Visibility="{x:Bind Editor.ShowRooms, Mode=OneWay}">
+                        <TextBlock VerticalAlignment="Center" Text="Room" />
+                        <AutoSuggestBox
+                            x:Name="RoomBox"
+                            Grid.Column="1"
+                            PlaceholderText="Add a room"
+                            UpdateTextOnSelect="False"
+                            Text="{x:Bind Editor.RoomInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            ItemsSource="{x:Bind Editor.RoomSuggestions, Mode=OneWay}"
+                            TextChanged="OnRoomTextChanged"
+                            QuerySubmitted="OnRoomQuerySubmitted"
+                            AutomationProperties.Name="Room"
+                            AutomationProperties.AutomationId="EditorRoomInput">
+                            <AutoSuggestBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:RoomSuggestion">
+                                    <TextBlock Text="{x:Bind Display}" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </AutoSuggestBox.ItemTemplate>
+                        </AutoSuggestBox>
+                    </Grid>
                     <controls:PinnedItemsControl x:Name="GuestList" ItemsSource="{x:Bind Editor.Guests, Mode=OneWay}">
                         <controls:PinnedItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -393,45 +416,65 @@
                             TextChanged="OnDescriptionTextChanged"
                             SelectionChanged="OnDescriptionSelectionChanged" />
 
-                        <!-- Description Toolbar (hidden when the description is read-only). The toggles are bare glyphs: no
-                             fill or border in any state, and an active format shows its glyph in the accent color -->
+                        <!-- Description Toolbar (hidden when the description is read-only). The toggles show "on" the Windows
+                             way: a fill behind the glyph, the control-alt quarternary fill (tertiary while pressed), clearly
+                             stronger than a hover's subtle fill in both themes; the glyph stays full strength. Light and Dark each alias the theme brushes, so each theme gets its
+                             own (an alias in a lone Default dictionary resolves once, to the dark brush, in light theme too) -->
                         <Grid x:Name="DescriptionToolbar" VerticalAlignment="Top" RowDefinitions="Auto,Auto">
                             <Grid.Resources>
                                 <ResourceDictionary>
                                     <ResourceDictionary.ThemeDictionaries>
-                                        <ResourceDictionary x:Key="Default">
+                                        <ResourceDictionary x:Key="Light">
                                             <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
-                                            <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="Transparent" />
-                                            <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="Transparent" />
-                                            <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="Transparent" />
-                                            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="Transparent" />
-                                            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="Transparent" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundPointerOver" ResourceKey="SubtleFillColorSecondaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="ControlAltFillColorQuarternaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="ControlAltFillColorQuarternaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="ControlAltFillColorTertiaryBrush" />
                                             <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="Transparent" />
                                             <SolidColorBrush x:Key="ToggleButtonBorderBrushPointerOver" Color="Transparent" />
                                             <SolidColorBrush x:Key="ToggleButtonBorderBrushPressed" Color="Transparent" />
                                             <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="Transparent" />
                                             <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="Transparent" />
                                             <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="Transparent" />
-                                            <StaticResource x:Key="ToggleButtonForegroundChecked" ResourceKey="AccentTextFillColorPrimaryBrush" />
-                                            <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="AccentTextFillColorSecondaryBrush" />
-                                            <StaticResource x:Key="ToggleButtonForegroundCheckedPressed" ResourceKey="AccentTextFillColorTertiaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonForegroundChecked" ResourceKey="TextFillColorPrimaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="TextFillColorPrimaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonForegroundCheckedPressed" ResourceKey="TextFillColorPrimaryBrush" />
                                         </ResourceDictionary>
+                                        <ResourceDictionary x:Key="Dark">
+                                            <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundPointerOver" ResourceKey="SubtleFillColorSecondaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="ControlAltFillColorQuarternaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="ControlAltFillColorQuarternaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="ControlAltFillColorTertiaryBrush" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushPointerOver" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushPressed" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="Transparent" />
+                                            <StaticResource x:Key="ToggleButtonForegroundChecked" ResourceKey="TextFillColorPrimaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="TextFillColorPrimaryBrush" />
+                                            <StaticResource x:Key="ToggleButtonForegroundCheckedPressed" ResourceKey="TextFillColorPrimaryBrush" />
+                                        </ResourceDictionary>
+                                        <!-- Contrast themes: "on" is the highlight fill with highlight text, a hover a highlight border -->
                                         <ResourceDictionary x:Key="HighContrast">
                                             <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
                                             <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="Transparent" />
                                             <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="Transparent" />
-                                            <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="Transparent" />
-                                            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="Transparent" />
-                                            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="{ThemeResource SystemColorHighlightColor}" />
+                                            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
+                                            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="{ThemeResource SystemColorHighlightColor}" />
                                             <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="Transparent" />
-                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushPointerOver" Color="Transparent" />
-                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushPressed" Color="Transparent" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushPressed" Color="{ThemeResource SystemColorHighlightColor}" />
                                             <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="Transparent" />
-                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="Transparent" />
-                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="Transparent" />
-                                            <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="{ThemeResource SystemColorHighlightColor}" />
-                                            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
-                                            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="{ThemeResource SystemColorHighlightColor}" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="{ThemeResource SystemColorWindowTextColor}" />
+                                            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="{ThemeResource SystemColorWindowTextColor}" />
+                                            <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                                            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                                            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
                                         </ResourceDictionary>
                                     </ResourceDictionary.ThemeDictionaries>
                                 </ResourceDictionary>
@@ -525,11 +568,13 @@
         </ScrollViewer>
         <!-- /Body -->
 
-        <!-- Footer (pinned; wraps so every button stays whole in the 320 panel) -->
+        <!-- Footer (pinned; wraps so every button stays whole in the narrowest, 320 DIP panel). The flyout footer strip's fill and a
+             top divider set it off from the body, so a field cut off at the body's bottom reads as scrolled under it -->
         <Border
-            Grid.Row="1"
+            Grid.Row="2"
             Padding="16,12"
             BorderThickness="0,1,0,0"
+            Background="{ThemeResource LeafFlyoutFooterBrush}"
             BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
             AutomationProperties.AutomationId="EditorFooter">
             <Grid ColumnSpacing="8" RowSpacing="8">

@@ -49,6 +49,23 @@ public sealed class SelectionTests : IDisposable
         Assert.Equal("Select one event to edit it", edit.Properties.HelpText.ValueOrDefault);
     }
 
+    // The summary lists which events, in time order, each title with its day and time
+    [Fact]
+    public void SeveralSelected_ListsThem()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(SchoolPlay).Click();
+        CtrlClick(leaf.WaitFor(Dentist));
+        Assert.Equal("2 events selected", leaf.WaitFor("SelectionSummary").Name);
+
+        var list = leaf.WaitFor("SelectionList");
+        var dentist = list.FindFirstDescendant(cf => cf.ByName("Dentist appointment"));
+        var play = list.FindFirstDescendant(cf => cf.ByName("School play"));
+        Assert.NotNull(dentist);
+        Assert.NotNull(play);
+        Assert.True(dentist.BoundingRectangle.Top < play.BoundingRectangle.Top, "The selected events aren't in time order.");
+    }
+
     [Fact]
     public void CtrlClickTwoEvents_DeleteRemovesBoth_UndoBringsBothBack()
     {
@@ -136,7 +153,7 @@ public sealed class SelectionTests : IDisposable
         leaf.Press(VirtualKeyShort.DELETE);
 
         var notice = leaf.WaitFor("NoticeBar");
-        Assert.True(Retry.WhileFalse(() => notice.FindAllDescendants().Prepend(notice).Any(e => e.Properties.Name.ValueOrDefault == "Event deleted · 1 couldn't be changed"), TimeSpan.FromSeconds(5)).Success);
+        Assert.True(Retry.WhileFalse(() => notice.FindAllDescendants().Prepend(notice).Any(e => e.Properties.Name.ValueOrDefault == "Event deleted · 1 couldn't be changed."), TimeSpan.FromSeconds(5)).Success);
         Assert.NotNull(leaf.WaitFor("UndoButton"));
         Assert.True(Retry.WhileTrue(() => leaf.Exists(Dentist), TimeSpan.FromSeconds(5)).Success);
         Assert.True(leaf.Exists(SchoolPlay));

@@ -38,8 +38,13 @@ public class XamlLintTests
         "Views/Settings/ShortcutDialogContentControl.xaml|binding|Child",
         "Views/Settings/ShortcutDialogContentControl.xaml|binding|Value",
 
-        // Tray flyout page padding is 20, copied from Sony's flyout (design standard, "Flyout page padding")
-        "Tray/TrayHost.xaml|spacing|20,20,20,16 (StackPanel in AgendaPanel)",
+        // The card switch is the stock ToggleSwitch template, trimmed (LeafCardToggleSwitchStyle): its knob slide binds the
+        // TemplateSettings offsets through RelativeSource TemplatedParent, the pressed knob stretches 3 px, and the knob is a
+        // 12 px circle with radius 7, all as WinUI ships them
+        "Styles/LeafTheme.xaml|binding|FromHorizontalOffset",
+        "Styles/LeafTheme.xaml|spacing|0,0,3,0 (Setter in Pressed)",
+        "Styles/LeafTheme.xaml|spacing|3,0,0,0 (Setter in Pressed)",
+        "Styles/LeafTheme.xaml|radius|7",
 
         // A 3 px tall pill and a 28 px circle: half the size is a circle end, which is not a corner radius
         "Styles/LeafTheme.xaml|radius|1.5",

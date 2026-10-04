@@ -212,25 +212,41 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <TextBlock TextWrapping="Wrap">
-            <Run Text="A shortcut should start with" />
+            <Run Text="A shortcut should start with the" />
             <Bold>Windows key</Bold><Run Text="," />
             <Bold>Ctrl</Bold><Run Text=", or" />
             <Bold>Alt</Bold><Run Text=", and end with a letter, a number, or an F key." />
         </TextBlock>
-        <Grid
+        <!-- Keys (the dialog opens with focus here, not on Reset, so Reset's tooltip doesn't cover the caps; not a Button,
+             so the keyboard hook keeps the keys; named after them for Narrator and the UI tests) -->
+        <ContentControl
+            x:Name="KeysArea"
             Grid.Row="1"
             Margin="0,16,0,0"
-            Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
-            CornerRadius="{StaticResource OverlayCornerRadius}">
-            <StackPanel
-                x:Name="KeysControl"
-                MinHeight="56"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Orientation="Horizontal"
-                Spacing="8"
-                AutomationProperties.AutomationId="ShortcutPreview" />
-        </Grid>
+            HorizontalContentAlignment="Stretch"
+            VerticalContentAlignment="Stretch"
+            CornerRadius="{StaticResource OverlayCornerRadius}"
+            IsTabStop="True"
+            UseSystemFocusVisuals="True"
+            AutomationProperties.AutomationId="ShortcutPreview">
+            <Grid Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" CornerRadius="{StaticResource OverlayCornerRadius}">
+                <StackPanel
+                    x:Name="KeysControl"
+                    MinHeight="56"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="8" />
+                <!-- Empty State (nothing pressed yet, or Esc cleared it) -->
+                <TextBlock
+                    x:Name="KeysPrompt"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="Press a key combination"
+                    AutomationProperties.AccessibilityView="Raw" />
+            </Grid>
+        </ContentControl>
         <StackPanel
             Grid.Row="2"
             HorizontalAlignment="Center"
@@ -245,7 +261,7 @@
                     <TextBlock Text="Reset to the default shortcut" TextWrapping="Wrap" />
                 </ToolTipService.ToolTip>
                 <StackPanel Orientation="Horizontal" Spacing="4">
-                    <FontIcon FontSize="10" Glyph="&#xE777;" />
+                    <FontIcon FontSize="14" Glyph="&#xE777;" />
                     <TextBlock
                         Margin="0,-1,0,0"
                         VerticalAlignment="Center"
@@ -262,7 +278,7 @@
                     <TextBlock Text="Clear and unassign this shortcut" TextWrapping="Wrap" />
                 </ToolTipService.ToolTip>
                 <StackPanel Orientation="Horizontal" Spacing="4">
-                    <FontIcon FontSize="12" Glyph="&#xE894;" />
+                    <FontIcon FontSize="14" Glyph="&#xE894;" />
                     <TextBlock
                         Margin="0,-1,0,0"
                         VerticalAlignment="Center"
@@ -272,11 +288,12 @@
             </HyperlinkButton>
         </StackPanel>
 
-        <Grid Grid.Row="3" Margin="0,12,0,0">
+        <!-- Problems (one line of room kept, so the dialog doesn't change height when one shows) -->
+        <Grid Grid.Row="3" Margin="0,12,0,0" MinHeight="36">
             <InfoBar
                 BorderThickness="0"
                 IsClosable="False"
-                Message="Invalid shortcut"
+                Message="{x:Bind ErrorMessage, Mode=OneWay}"
                 IsOpen="{x:Bind IsError, Mode=OneWay}"
                 IsTabStop="{x:Bind IsError, Mode=OneWay}"
                 Severity="Error"
@@ -286,12 +303,12 @@
             <InfoBar
                 BorderThickness="0"
                 IsClosable="False"
-                Message="Possible shortcut interference with Alt Gr"
+                Message="Possible shortcut interference with AltGr"
                 IsOpen="{x:Bind IsWarningAltGr, Mode=OneWay}"
                 IsTabStop="{x:Bind IsWarningAltGr, Mode=OneWay}"
                 Severity="Warning"
                 Style="{StaticResource CondensedInfoBarStyle}"
-                ToolTipService.ToolTip="Shortcuts with Ctrl and Alt may remove functionality from some international keyboards, because Ctrl + Alt = Alt Gr in those keyboards."
+                ToolTipService.ToolTip="Shortcuts with Ctrl and Alt may remove functionality from some international keyboards, because Ctrl + Alt = AltGr in those keyboards."
                 AutomationProperties.LiveSetting="Polite"
                 AutomationProperties.AutomationId="ShortcutAltGrWarning" />
             <InfoBar
@@ -300,7 +317,7 @@
                 IsOpen="{x:Bind HasConflict, Mode=OneWay}"
                 IsTabStop="{x:Bind HasConflict, Mode=OneWay}"
                 Message="{x:Bind ConflictMessage, Mode=OneWay}"
-                Severity="Warning"
+                Severity="Error"
                 Style="{StaticResource CondensedInfoBarStyle}"
                 AutomationProperties.LiveSetting="Assertive"
                 AutomationProperties.AutomationId="ShortcutConflict" />

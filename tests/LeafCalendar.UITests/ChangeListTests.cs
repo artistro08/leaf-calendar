@@ -81,7 +81,7 @@ public sealed class ChangeListTests : IDisposable
         var add = leaf.WaitInSettings("AddAccountButton").BoundingRectangle;
         var account = leaf.WaitInSettings($"AccountExpander_{SeededProfile.AccountId}").BoundingRectangle;
 
-        Assert.True(add.Bottom < account.Top, "Add a Google account isn't the first row.");
+        Assert.True(add.Bottom < account.Top, "Add Google account isn't the first row.");
     }
 
     // =========================================================================
@@ -204,6 +204,17 @@ public sealed class ChangeListTests : IDisposable
         Assert.False(Shows(leaf, "UpcomingHeader"), "The Upcoming title shows over Done for today.");
     }
 
+    [Fact]
+    public void NothingInTheWindow_ButLaterToday_IsntDoneForToday()
+    {
+        // Friday: nothing in the 8 hours after 8:00, but the school play is at 5 PM
+        using var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-02");
+        leaf.WaitFor($"CalendarToggle_{FamilyId}");
+
+        Assert.True(Retry.WhileFalse(() => Shows(leaf, "UpcomingEmptyTitle"), Wait).Success, "No empty state with nothing in the window.");
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("UpcomingEmptyTitle").Name == "All clear", Wait).Success, "Done for today with an event still to come today.");
+    }
+
     // =========================================================================
     // SHARING AVAILABILITY
     // =========================================================================
@@ -215,7 +226,7 @@ public sealed class ChangeListTests : IDisposable
 
         leaf.Press(VirtualKeyShort.KEY_S);
         var hint = leaf.WaitFor("SharingHint");
-        Assert.True(Retry.WhileFalse(() => !hint.IsOffscreen && HasName(leaf.MainWindow, "Mark times that are available on your calendar"), Wait).Success, "No hint while marking times.");
+        Assert.True(Retry.WhileFalse(() => !hint.IsOffscreen && HasName(leaf.MainWindow, "Mark times that are available on your calendar."), Wait).Success, "No hint while marking times.");
 
         leaf.Press(VirtualKeyShort.KEY_S);
         Assert.True(Retry.WhileFalse(() => !Shows(leaf, "SharingHint"), Wait).Success, "The hint stayed after sharing stopped.");

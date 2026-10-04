@@ -37,6 +37,29 @@ public sealed class DetailsPanelTests : IDisposable
         Assert.NotNull(leaf.WaitFor("UpcomingHeader"));
     }
 
+    // The panel's first heading, "Upcoming" or an event's title, is centered on the sidebar month title's line; the
+    // upcoming rows start under "Upcoming" (each row's hover fill reaches 8 past the content edge, so its color bar sits
+    // on the heading's edge, not 8 right of it), and Join ends on the panel's 16 DIP inset
+    [Fact]
+    public void Headings_AndUpcomingRows_LineUp()
+    {
+        using var leaf = Launch();
+        var join = leaf.WaitFor("UpcomingJoin_evt-meeting").BoundingRectangle;
+        var header = leaf.WaitFor("UpcomingHeader").BoundingRectangle;
+        var month = leaf.WaitFor("MiniMonthTitle").BoundingRectangle;
+        var panel = leaf.WaitFor("DetailsPanel").BoundingRectangle;
+        var row = leaf.WaitFor("UpcomingList").FindFirstDescendant(cf => cf.ByName("Dentist appointment").And(cf.ByControlType(FlaUI.Core.Definitions.ControlType.Button)))!.BoundingRectangle;
+        static double Middle(System.Drawing.Rectangle box) => box.Top + box.Height / 2.0;
+
+        Assert.True(Math.Abs(Middle(header) - Middle(month)) <= 2, $"Upcoming is centered at {Middle(header)}, the month title at {Middle(month)}.");
+        Assert.True(Math.Abs(row.Left + 8 * leaf.Scale - header.Left) <= 2, $"The row starts at {row.Left}, 8 DIP left of Upcoming would be {header.Left - 8 * leaf.Scale}.");
+        Assert.True(Math.Abs(panel.Right - 16 * leaf.Scale - join.Right) <= 2, $"Join ends at {join.Right}, the panel's inset at {panel.Right - 16 * leaf.Scale}.");
+
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        var title = leaf.WaitFor("DetailsTitle");
+        Assert.True(Retry.WhileFalse(() => Math.Abs(Middle(title.BoundingRectangle) - Middle(month)) <= 2, TimeSpan.FromSeconds(5)).Success, $"The title is centered at {Middle(title.BoundingRectangle)}, the month title at {Middle(month)}.");
+    }
+
     [Fact]
     public void Guests_NamedGuestShowsNameThenAddress()
     {

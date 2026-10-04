@@ -56,9 +56,9 @@ public sealed class TrayCalendarsTests : IDisposable
         leaf.CloseSettings();
         Assert.True(Retry.WhileFalse(() => leaf.WaitFor($"CalendarToggle_{FamilyId}").AsCheckBox().ToggleState == ToggleState.Off, TimeSpan.FromSeconds(5)).Success);
 
-        // Gone From The Flyout; The Primary Calendar's Events Stay
+        // Gone From The Flyout; The Primary Calendar's Events Stay (its next meeting shows at the top, not as a row)
         leaf.PostTrayMessage(LeafApp.TraySelect);
-        Assert.NotNull(leaf.WaitForPopup("FlyoutEvent_evt-meeting_202610011800"));
+        Assert.Equal("Design review", leaf.WaitForPopup("FlyoutNext").Name);
         Assert.False(leaf.PopupExists("FlyoutEvent_evt-family-today_202610011900"));
     }
 }

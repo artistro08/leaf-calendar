@@ -74,6 +74,7 @@ public sealed class SettingsPagesTests : IDisposable
         using (var leaf = Launch())
         {
             leaf.OpenSettings();
+            leaf.ExpandInSettings("WorkingHoursExpander");
             leaf.WaitInSettings("AllDayExpandedSwitch").AsToggleButton().Toggle();
             leaf.WaitInSettings("UpcomingHoursBox").AsComboBox().Select("Next 4 hours");
             leaf.WaitInSettings("MapProviderBox").AsComboBox().Select("Bing Maps");
@@ -87,6 +88,7 @@ public sealed class SettingsPagesTests : IDisposable
 
         using var relaunched = Launch();
         relaunched.OpenSettings();
+        relaunched.ExpandInSettings("WorkingHoursExpander");
         Assert.True(IsOn(relaunched, "AllDayExpandedSwitch"));
         Assert.Equal("Next 4 hours", Selected(relaunched, "UpcomingHoursBox"));
         Assert.Equal("Bing Maps", Selected(relaunched, "MapProviderBox"));
@@ -103,6 +105,7 @@ public sealed class SettingsPagesTests : IDisposable
         using (var leaf = Launch())
         {
             leaf.OpenSettings();
+            leaf.ExpandInSettings("WorkingHoursExpander");
             PickTime(leaf, "WorkingEndPicker", "7", "00", "AM");
 
             var error = leaf.WaitInSettings("WorkingHoursError");
@@ -112,6 +115,7 @@ public sealed class SettingsPagesTests : IDisposable
 
         using var relaunched = Launch();
         relaunched.OpenSettings();
+        relaunched.ExpandInSettings("WorkingHoursExpander");
         var end = TimeOf(relaunched, "WorkingEndPicker");
         Assert.True(end.Contains('5', StringComparison.Ordinal) && end.Contains("PM", StringComparison.Ordinal), $"The end reads \"{end}\".");
     }
@@ -121,6 +125,7 @@ public sealed class SettingsPagesTests : IDisposable
     {
         using var leaf = Launch();
         leaf.OpenSettings();
+        leaf.ExpandInSettings("WorkingHoursExpander");
 
         leaf.WaitInSettings("WorkingHoursSwitch").AsToggleButton().Toggle();
 
