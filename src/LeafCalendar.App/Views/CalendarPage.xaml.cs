@@ -36,8 +36,21 @@ public sealed partial class CalendarPage : Page
     /// <summary>Width of the open sidebar.</summary>
     public const double SidebarWidth = 264;
 
-    /// <summary>Width of the open details panel.</summary>
-    public const double DetailsWidth = 320;
+    /// <summary>Width of the open details panel at the minimum window and on normal ones (it grows on wide windows).</summary>
+    public const double MinDetailsWidth = 320;
+
+    /// <summary>Widest the details panel grows.</summary>
+    public const double MaxDetailsWidth = 480;
+
+    /// <summary>Width of the open details panel now (<see cref="DetailsWidthFor"/> the window's width).</summary>
+    public double DetailsWidth { get; private set; } = MinDetailsWidth;
+
+    /// <summary>
+    /// The details panel's width in a window <paramref name="windowWidth"/> wide: a quarter of it on the 8 DIP grid,
+    /// from <see cref="MinDetailsWidth"/> (every window up to 1280) to <see cref="MaxDetailsWidth"/> (1920 and wider),
+    /// so the editor's fields get room on a wide screen.
+    /// </summary>
+    public static double DetailsWidthFor(double windowWidth) => Math.Clamp(Math.Round(windowWidth / 4 / 8) * 8, MinDetailsWidth, MaxDetailsWidth);
 
     /// <summary>The period title's inset from the island's left edge.</summary>
     public const double TitleInset = 17;

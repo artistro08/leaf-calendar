@@ -42,7 +42,7 @@ public sealed partial class MainWindow : Window
     // with "31 days" on the view button, plus 36 for the sync status slot and its gap) 6 in from the island's right edge, which also leaves the
     // week grid its 56 gutter and seven 48-wide days. The height keeps the sidebar's mini month, an account with three calendars, and
     // its footer, and shows about eight hours of the grid at the default hour height.
-    private const double MinimumWidth = CalendarPage.SidebarWidth + CalendarPage.TitleInset + 170 + 16 + 257 + 36 + CalendarPage.ToolbarInset + CalendarPage.DetailsWidth;
+    private const double MinimumWidth = CalendarPage.SidebarWidth + CalendarPage.TitleInset + 170 + 16 + 257 + 36 + CalendarPage.ToolbarInset + CalendarPage.MinDetailsWidth;
     private const double MinimumHeight = 540;
 
     // The event actions' right end, in from the details panel's left edge: the edit glyph (8 in on its 32-wide
@@ -390,7 +390,7 @@ public sealed partial class MainWindow : Window
         var caption = AppWindow.TitleBar.RightInset / scale;
         var hostEnd = ToolbarHost.TransformToVisual(RootGrid).TransformPoint(new Windows.Foundation.Point(ToolbarHost.ActualWidth, 0)).X;
         var toggle = Math.Round((hostEnd - (width - caption - CalendarPage.ToolbarInset)) * scale) / scale;
-        var target = width - CalendarPage.DetailsWidth - CalendarPage.ToolbarInset;
+        var target = width - CalendarPage.DetailsWidthFor(width) - CalendarPage.ToolbarInset;
         var right = page is null ? 0
             : page.IsDetailsOpen ? Math.Round((hostEnd - target) * scale) / scale
             : toggle + DetailsToggle.Width;

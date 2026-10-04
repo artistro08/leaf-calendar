@@ -98,7 +98,7 @@ Use these values only: **2, 4, 8, 12, 16, 24, 32** (plus 36 for the settings con
 
 ### Structure
 
-- Panes: sidebar 264, details 320, as inline `SplitView`s on the window's Mica; the calendar island is `LayerFillColorDefaultBrush` with no border (its fill is the edge). (Leaf `CalendarPage.xaml`.)
+- Panes: sidebar 264, details 320 (growing with the window to 480 at 1920 wide, `CalendarPage.DetailsWidthFor`), as inline `SplitView`s on the window's Mica; the calendar island is `LayerFillColorDefaultBrush` with no border (its fill is the edge). (Leaf `CalendarPage.xaml`.)
 - Content under a 48 DIP title bar either starts in row 1, or runs under the title bar with `Padding="..,48,.."` to clear it. (Leaf `SidebarView.xaml`, `DetailsPanel.xaml`.)
 - Only the part that can overflow scrolls; headers and footers stay pinned. (Leaf sidebar "Only the calendar list scrolls"; Sony spec "Footer stays pinned".)
 - Size fixed windows so their main page doesn't scroll at 100%, but keep the `ScrollViewer` for small screens. (Layers spec SettingsWindow.)

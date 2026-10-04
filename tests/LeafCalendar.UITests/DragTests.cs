@@ -102,10 +102,37 @@ public sealed class DragTests : IDisposable
 
         var ghost = leaf.WaitFor("Ghost_2026-10-02").BoundingRectangle;
         Assert.True(Math.Abs(ghost.Top - (dentist.BoundingRectangle.Y + 4 * hour)) <= hour / 4 && ghost.Height >= hour, $"The ghost ({ghost}) isn't over the dragged range.");
+        Assert.StartsWith("(No title)", leaf.WaitFor("Ghost_2026-10-02").Name, StringComparison.Ordinal);
 
         leaf.WaitFor("EditorTitle").Focus();
         Keyboard.Press(VirtualKeyShort.ESCAPE);
         Assert.True(Retry.WhileTrue(() => leaf.Exists("Ghost_2026-10-02"), TimeSpan.FromSeconds(5)).Success, "The ghost stayed after the editor closed.");
+    }
+
+    // A new event over the dentist (C at 8 AM) is drawn on top at the day's full width with its title and time; the
+    // dentist keeps its own width under it
+    [Fact]
+    public void NewEventOverAnEvent_DrawsOnTop_AndLeavesItsWidth()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor(Dentist);
+
+        leaf.Press(VirtualKeyShort.KEY_C);
+        leaf.WaitFor("EditorTitle").AsTextBox().Text = "Lunch";
+
+        // The details panel narrows the days as it opens; measure once it's still
+        var ghost = leaf.WaitFor("Ghost_2026-10-01");
+        LeafApp.WaitUntilStill(ghost);
+        var dentist = leaf.WaitFor(Dentist).BoundingRectangle;
+        var day = leaf.WaitFor("DayHeader_2026-10-01").BoundingRectangle;
+        var box = ghost.BoundingRectangle;
+
+        Assert.True(box.Top < dentist.Bottom && dentist.Top < box.Bottom, $"The new event ({box}) isn't over the dentist ({dentist}).");
+        Assert.True(Retry.WhileFalse(() => ghost.Name.StartsWith("Lunch", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success, $"The ghost reads \"{ghost.Name}\".");
+
+        // Both span the day (less its 8 DIP right inset, and the ghost label's border and margins), not half of it each
+        Assert.True(box.Width >= day.Width - 32 * leaf.Scale, $"The ghost ({box}) doesn't span the day ({day}).");
+        Assert.True(dentist.Width >= day.Width - 16 * leaf.Scale, $"The dentist ({dentist}) was squeezed beside the new event (day {day}).");
     }
 
     // Double-clicking empty space in the all-day row opens the editor on a new all-day event that day

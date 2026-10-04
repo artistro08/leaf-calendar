@@ -1189,8 +1189,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
-        // Creating: the range sits beside the events already there (picking times to share keeps the plain ghost)
-        if (drag.Kind == DragKind.Create && !_vm.IsSharing && target is { } create && StandInFor(create.Start, create.End, isAllDay: false) is { } standIn)
+        // Creating: the range is drawn over the events already there (picking times to share keeps the plain ghost)
+        if (drag.Kind == DragKind.Create && !_vm.IsSharing && target is { } create && StandInFor(create.Start, create.End, isAllDay: false, title: "") is { } standIn)
         {
             ClearAllDayGhost();
             SetPreviews(standIn, null);
@@ -1454,7 +1454,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     private void OnNewEventChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(EventEditorViewModel.StartDate) or nameof(EventEditorViewModel.StartTime)
+        if (e.PropertyName is nameof(EventEditorViewModel.Title) or nameof(EventEditorViewModel.StartDate) or nameof(EventEditorViewModel.StartTime)
             or nameof(EventEditorViewModel.EndDate) or nameof(EventEditorViewModel.EndTime)
             or nameof(EventEditorViewModel.IsAllDay) or nameof(EventEditorViewModel.TimeZoneId))
         {
@@ -1478,8 +1478,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
-        // A Timed Range Sits Beside The Events Already There, As One More Overlapping Column
-        if (StandInFor(draft.Start, draft.End, draft.IsAllDay) is { } standIn)
+        // A Timed Range Is Drawn Over The Events Already There, With The Title Typed So Far
+        if (StandInFor(draft.Start, draft.End, draft.IsAllDay, draft.Title) is { } standIn)
         {
             ClearAllDayGhost();
             SetPreviews(standIn, HeldResize);
@@ -1493,8 +1493,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // STAND-INS
     // =========================================================================
 
-    // Laid out with the day's events by the columns: a new event's range (drawn as the ghost, one more overlapping
-    // column) and an event being resized (its own card, drawn at the new end)
+    // Drawn by the columns: a new event's range (the ghost, on top of the day's events at full width) and an event being
+    // resized (laid out with the day's events as its own card, drawn at the new end)
     private CalendarOccurrence? _standIn;
     private CalendarOccurrence? _resized;
 
@@ -1504,31 +1504,26 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     private CalendarOccurrence? HeldResize => _holdResize ? _resized : null;
 
-    /// <summary>The new event's range as the columns lay it out, or null.</summary>
+    /// <summary>The new event's range and title, drawn by the columns as its ghost, or null.</summary>
     internal CalendarOccurrence? StandIn => _standIn;
 
-    /// <summary>A day's events with the stand-ins: the resized event in place of the original, and the new event's range.</summary>
-    internal IEnumerable<CalendarOccurrence> WithPreviews(IReadOnlyList<CalendarOccurrence> day)
-    {
-        IEnumerable<CalendarOccurrence> events = day;
-        if (_resized is { } resized)
-        {
-            events = events.Where(o => o.Key != resized.Key).Append(resized);
-        }
+    /// <summary>
+    /// A day's events with the resized event in place of the original. The new event's range isn't one of them: the
+    /// columns draw it on top, at the day's full width (<see cref="StandIn"/>).
+    /// </summary>
+    internal IEnumerable<CalendarOccurrence> WithPreviews(IReadOnlyList<CalendarOccurrence> day) =>
+        _resized is { } resized ? day.Where(o => o.Key != resized.Key).Append(resized) : day;
 
-        return _standIn is { } standIn ? events.Append(standIn) : events;
-    }
-
-    // A timed range the columns can lay out (one of 24 hours or more draws as the plain ghost on every day it covers).
-    // Its account sorts after every real one, so at the same start and length it takes the column on the right
-    private static CalendarOccurrence? StandInFor(DateTimeOffset start, DateTimeOffset end, bool isAllDay)
+    // A timed range the columns can draw as the new event's ghost, with its title (one of 24 hours or more draws as the
+    // plain ghost on every day it covers)
+    private static CalendarOccurrence? StandInFor(DateTimeOffset start, DateTimeOffset end, bool isAllDay, string title)
     {
         if (isAllDay)
         {
             return null;
         }
 
-        var standIn = new CalendarOccurrence("￿", "", "NewEvent", null, null, start, end > start ? end : start + TimeSpan.FromMinutes(DragMath.SnapMinutes), false, "", default, default, "", null, false, false);
+        var standIn = new CalendarOccurrence("￿", "", "NewEvent", null, null, start, end > start ? end : start + TimeSpan.FromMinutes(DragMath.SnapMinutes), false, title, default, default, "", null, false, false);
         return SpanLayout.IsSpanning(standIn) ? null : standIn;
     }
 

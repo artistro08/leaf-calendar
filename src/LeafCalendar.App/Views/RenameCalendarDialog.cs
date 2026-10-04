@@ -28,12 +28,12 @@ public static class RenameCalendarDialog
         AutomationProperties.SetAutomationId(box, "RenameCalendarBox");
         box.SelectAll();
 
-        // Caption Line (caption size, set directly: no style read back from resources)
+        // Hint (caption, secondary color that follows the theme). The rename is Google's summaryOverride: it changes
+        // only your own calendar list, so other people still see the calendar's own name
         var hint = new TextBlock
         {
-            FontSize = 12,
-            TextWrapping = TextWrapping.Wrap,
-            Text = "Leave it empty to use the name from Google. Google Calendar shows this name too.",
+            Style = (Style)Application.Current.Resources["LeafSecondaryTextStyle"],
+            Text = "Only you see this name, in Leaf and in Google Calendar; leave it empty to use the calendar's own name.",
         };
 
         var dialog = new ContentDialog

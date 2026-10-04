@@ -8,9 +8,9 @@ namespace LeafCalendar.App.Controls;
 
 /// <summary>
 /// Moves a description between <see cref="DescriptionLine"/>s and a <see cref="RichEditBox"/>: one paragraph per line,
-/// bold, italic, underline, and bullet or numbered paragraphs. Links never become live in the box; each shows in its
-/// own tint of the accent color (<see cref="DescriptionAnchors"/>), its target is kept as an anchor, and it's put back
-/// on read when the link text is unchanged.
+/// bold, italic, underline, and bullet or numbered paragraphs. Links never become live in the box; each shows
+/// underlined in its own tint of the accent color (<see cref="DescriptionAnchors"/>), its target is kept as an anchor,
+/// and it's put back on read when the link text is unchanged.
 /// </summary>
 internal static class RichDescription
 {
@@ -40,10 +40,12 @@ internal static class RichDescription
                 format.Italic = run.Italic ? FormatEffect.On : FormatEffect.Off;
                 format.Underline = run.Underline ? UnderlineType.Single : UnderlineType.None;
 
-                // A Link Is Text In Its Own Tint (its own run, so it reads back whole) With Its Target Kept Aside
+                // A Link Is Underlined Text In Its Own Tint (its own run, so it reads back whole) With Its Target Kept
+                // Aside. The underline is only how a link looks: Read drops it from tinted text
                 if (run.Link is { } link)
                 {
                     format.ForegroundColor = ToColor(DescriptionAnchors.Tint(accent, anchors.Count));
+                    format.Underline = UnderlineType.Single;
                     anchors.Add((run.Text, link));
                 }
 
@@ -93,7 +95,7 @@ internal static class RichDescription
                 }
 
                 var format = range.CharacterFormat;
-                var run = new DescriptionRun(all[at..runEnd], format.Bold == FormatEffect.On, format.Italic == FormatEffect.On, format.Underline != UnderlineType.None);
+                var run = new DescriptionRun(all[at..runEnd], format.Bold == FormatEffect.On, format.Italic == FormatEffect.On, IsUnderlined(format));
                 runs.Add((lists.Count, run, SlotOf(format.ForegroundColor)));
                 at = runEnd;
             }
@@ -132,8 +134,8 @@ internal static class RichDescription
     }
 
     /// <summary>
-    /// Typing at a link's edge (or inside it) gets plain text, not the link's tint: the caret's format is reset to the
-    /// default, keeping bold, italic, and underline.
+    /// Typing at a link's edge (or inside it) gets plain text, not the link's tint or underline: the caret's format is
+    /// reset to the default, keeping bold and italic.
     /// </summary>
     public static void PlainInsertion(RichEditBox box)
     {
@@ -148,7 +150,10 @@ internal static class RichDescription
         }
     }
 
-    /// <summary>Gives a link-tinted range (text pasted at a link, or the caret) the default format, keeping bold, italic, and underline.</summary>
+    /// <summary>
+    /// Gives a link-tinted range (text pasted at a link, or the caret) the default format, keeping bold and italic (the
+    /// underline was the link's own, so it goes too).
+    /// </summary>
     public static void Untint(RichEditBox box, ITextRange range)
     {
         if (box.IsReadOnly)
@@ -165,9 +170,12 @@ internal static class RichDescription
         var plain = box.Document.GetDefaultCharacterFormat();
         plain.Bold = current.Bold;
         plain.Italic = current.Italic;
-        plain.Underline = current.Underline;
+        plain.Underline = UnderlineType.None;
         range.CharacterFormat = plain;
     }
+
+    /// <summary>True when the format is underlined by the user: a link's underline (on its tinted text) is only how it looks.</summary>
+    public static bool IsUnderlined(ITextCharacterFormat format) => format.Underline != UnderlineType.None && SlotOf(format.ForegroundColor) is null;
 
     /// <summary>Re-tints every link for the box's current theme (each keeps its slot).</summary>
     public static void Recolor(RichEditBox box)

@@ -78,11 +78,45 @@ public sealed partial class CalendarPage
         visual.StartAnimation("Translation.X", ride);
     }
 
-    // The island's stretch follows the window's width
+    // The island's stretch, and the details panel's width, follow the window's width
     private void OnIslandSizeChanged(object sender, SizeChangedEventArgs e)
     {
         EnsurePaneVisuals();
+        FitDetailsWidth();
         FollowFillWithIsland();
+    }
+
+    // The details panel grows with the window (DetailsWidthFor): the pane, and while it's open the fill's edge it rides
+    // on and the island's room, move to the new width at once (a window resize, so no slide). Its own new room resizes
+    // the island again, which finds the width unchanged
+    private void FitDetailsWidth()
+    {
+        var width = DetailsWidthFor(Root.ActualWidth);
+        if (width == DetailsWidth || Root.ActualWidth <= 0)
+        {
+            return;
+        }
+
+        DetailsWidth = width;
+        DetailsPane.Width = width;
+        RideFillEdge(sidebar: false);
+        if (_detailsOpen)
+        {
+            _fillClip!.StopAnimation("RightInset");
+            _fillClip.RightInset = (float)width;
+            IslandArea.Margin = new Thickness(_sidebarOpen ? SidebarWidth : 0, 0, width, 0);
+        }
+    }
+
+    // A pane rides on the fill's edge (its edge is the fill's edge), so the island's stretch and the pane move in the
+    // compositor's same frame
+    private void RideFillEdge(bool sidebar)
+    {
+        var pane = sidebar ? (UIElement)Sidebar : DetailsPane;
+        var ride = _fillClip!.Compositor.CreateExpressionAnimation(sidebar ? "fill.LeftInset - width" : "width - fill.RightInset");
+        ride.SetReferenceParameter("fill", _fillClip);
+        ride.SetScalarParameter("width", (float)(sidebar ? SidebarWidth : DetailsWidth));
+        ElementCompositionPreview.GetElementVisual(pane).StartAnimation("Translation.X", ride);
     }
 
     private void EnsurePaneVisuals()
@@ -142,11 +176,7 @@ public sealed partial class CalendarPage
         // follows it, all in the compositor's same frame, so nothing shows between them, and a toggle mid-slide turns
         // around from wherever the edge is now
         var compositor = _fillClip!.Compositor;
-        var visual = ElementCompositionPreview.GetElementVisual(pane);
-        var ride = compositor.CreateExpressionAnimation(sidebar ? "fill.LeftInset - width" : "width - fill.RightInset");
-        ride.SetReferenceParameter("fill", _fillClip);
-        ride.SetScalarParameter("width", width);
-        visual.StartAnimation("Translation.X", ride);
+        RideFillEdge(sidebar);
 
         pane.Visibility = Visibility.Visible;
         var slide = sidebar ? ++_sidebarSlide : ++_detailsSlide;
