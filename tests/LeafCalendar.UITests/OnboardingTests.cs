@@ -291,8 +291,9 @@ public sealed class OnboardingTests : IDisposable
     {
         // An account is saved but its OAuth client is gone, so onboarding shows
         var profile = SeededProfile.Create();
-        var store = new CredentialLockerTokenStore(profile);
+        var store = new ProtectedFileTokenStore(LeafApp.ProfileFolder(profile));
         store.DeleteAll();
+        new CredentialLockerTokenStore(profile).DeleteAll();
         store.SetRefreshToken(SeededProfile.AccountId, "1//test-refresh-token");
         try
         {

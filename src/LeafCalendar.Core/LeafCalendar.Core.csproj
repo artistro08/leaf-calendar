@@ -4,6 +4,7 @@
         <TargetPlatformMinVersion>10.0.22000.0</TargetPlatformMinVersion>
         <RootNamespace>LeafCalendar.Core</RootNamespace>
         <IsAotCompatible>true</IsAotCompatible>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <ItemGroup>

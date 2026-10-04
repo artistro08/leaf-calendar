@@ -4,7 +4,8 @@ namespace LeafCalendar.Core.Auth;
 /// Secret storage for the OAuth client and each account's refresh token.
 /// </summary>
 /// <remarks>
-/// Production uses <see cref="CredentialLockerTokenStore"/>; tests use an in-memory double.
+/// Production uses <see cref="ProtectedFileTokenStore"/> (secrets made before it are moved out of
+/// <see cref="CredentialLockerTokenStore"/> by <see cref="TokenStoreMigration"/>); tests use an in-memory double.
 /// Access tokens are never stored here: they live in memory in <see cref="AccessTokenProvider"/>.
 /// </remarks>
 public interface ITokenStore
@@ -14,6 +15,9 @@ public interface ITokenStore
 
     /// <summary>Saves (replaces) the OAuth client.</summary>
     void SetClientCredentials(OAuthClientCredentials credentials);
+
+    /// <summary>Deletes the OAuth client (refresh tokens stay).</summary>
+    void ClearClientCredentials();
 
     /// <summary>Returns an account's refresh token, or null.</summary>
     string? GetRefreshToken(string accountId);

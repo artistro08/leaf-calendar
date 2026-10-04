@@ -8,6 +8,7 @@ namespace LeafCalendar.Core.Settings;
     UseStringEnumConverter = true,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(LeafSettings))]
+[JsonSerializable(typeof(Auth.SecretsFile))]
 internal sealed partial class LeafJsonContext : JsonSerializerContext
 {
 }

@@ -44,7 +44,7 @@ public sealed class LeafServices : IAsyncDisposable
         // Global Shortcuts (registered by the tray once its window exists)
         Shortcuts = new GlobalShortcuts(Log);
 
-        Tokens = new CredentialLockerTokenStore(options.Profile);
+        Tokens = OpenTokens(options.Profile);
         _http = new HttpClient(new GoogleRetryHandler(Time) { InnerHandler = new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All } });
 
         // Google only compresses its answers when the user agent says "gzip" too
@@ -281,6 +281,28 @@ public sealed class LeafServices : IAsyncDisposable
         {
             Log.Info("file.launch.failed", string.Create(CultureInfo.InvariantCulture, $"error={ex.GetType().Name} hresult=0x{ex.HResult:X8}"));
             return false;
+        }
+    }
+
+    // Secrets Live In The Profile Folder (removed with the app); the first start after the update moves them out of the Credential Locker
+    private ITokenStore OpenTokens(string profile)
+    {
+        var tokens = new ProtectedFileTokenStore(Paths.ProfileDirectory);
+        try
+        {
+            if (TokenStoreMigration.Migrate(new CredentialLockerTokenStore(profile), tokens))
+            {
+                Log.Info("auth.secrets.migrated");
+            }
+
+            return tokens;
+        }
+        catch (Exception ex)
+        {
+            // The Locker copy stays and this run keeps using it, so nobody looks signed out; the next start tries again.
+            // Never the secret itself in the log.
+            Log.Info("auth.secrets.migrate.failed", $"error={ex.GetType().Name}");
+            return new CredentialLockerTokenStore(profile);
         }
     }
 

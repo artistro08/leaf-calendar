@@ -253,9 +253,10 @@ public sealed class LeafApp : IDisposable
             }
         }
 
-        new CredentialLockerTokenStore(profile).DeleteAll();
-
+        // Secrets (the Locker too, for profiles from before secrets moved to the profile folder)
         var folder = ProfileFolder(profile);
+        new ProtectedFileTokenStore(folder).DeleteAll();
+        new CredentialLockerTokenStore(profile).DeleteAll();
 
         if (Directory.Exists(folder))
         {

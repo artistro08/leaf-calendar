@@ -6,7 +6,7 @@ Leaf Calendar is a Windows app for your Google Calendar. This page says what it 
 
 - Leaf talks only to Google, through the Google Cloud OAuth client you create yourself. There's no Leaf server.
 - Leaf has no telemetry, analytics, ads, or tracking. Nothing about you or how you use Leaf is sent anywhere else.
-- Your calendar is kept on your PC so Leaf works quickly and offline. Your sign-in secrets are kept in Windows Credential Locker.
+- Your calendar is kept on your PC so Leaf works quickly and offline. Your sign-in secrets are kept encrypted in Leaf's app data folder.
 - Leaf's log never includes your events, guests, searches, or sign-in secrets.
 
 ## What Leaf Asks Google For
@@ -39,17 +39,19 @@ In Leaf's app data folder (the `LocalState` folder of Leaf's package, under `%LO
 
 The database isn't encrypted by Leaf. Windows keeps it to your user account, and BitLocker encrypts it on disk if your PC uses BitLocker.
 
-In **Windows Credential Locker**, encrypted to your Windows user:
+In `secrets.bin`, in the same folder, encrypted with Windows data protection (DPAPI) so only your Windows user can read it:
 
 - Your OAuth client ID and secret.
 - One sign-in token per Google account (a refresh token). Short-lived access tokens stay in memory and are never saved.
+
+Older versions of Leaf kept these in Windows Credential Locker. The first time an updated Leaf starts, it moves them into `secrets.bin` and deletes them from Credential Locker.
 
 Leaf also shows Windows notifications for reminders, meetings, and invitations. Windows keeps those in its notification center until you clear them.
 
 ## Removing Your Data
 
-- **Disconnect an account** (Settings › Accounts, open the account, then Disconnect): Leaf asks Google to revoke its access, deletes that account's sign-in token from Credential Locker, and deletes its calendars and events from your PC. Your Google Calendar itself isn't changed.
-- **Uninstall Leaf**: Windows deletes Leaf's app data folder, with the database, settings, log, and crash files. Credential Locker entries belong to your Windows user, not to the app, so disconnect your accounts first. Your OAuth client ID and secret stay in Credential Locker; you can remove them in Windows Credential Manager › Web Credentials (the entries start with `LeafCalendar/`).
+- **Disconnect an account** (Settings › Accounts, open the account, then Disconnect): Leaf asks Google to revoke its access, deletes that account's sign-in token, and deletes its calendars and events from your PC. Your Google Calendar itself isn't changed.
+- **Uninstall Leaf**: Windows deletes Leaf's app data folder, with the database, settings, log, crash files, and your sign-in secrets (OAuth client ID and secret, and sign-in tokens). Uninstalling doesn't tell Google, so to revoke Leaf's access too, disconnect your accounts first or remove it at Google (below).
 - **At Google**: you can remove Leaf's access at any time at [myaccount.google.com/permissions](https://myaccount.google.com/permissions), and delete the OAuth client in your Google Cloud project.
 
 ## Questions

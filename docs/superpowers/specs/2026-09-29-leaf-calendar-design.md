@@ -153,7 +153,7 @@ Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manag
 
 Built in Milestone 3 (owner redesign) as its own onboarding window, shown instead of the main window until there's an OAuth client and an account:
 - A small fixed-size window (520 × 640 DIP), centered on the monitor under the cursor, Mica, custom title bar, only the Close button.
-- Steps: Welcome, OAuth client (guide with the fixed Google Cloud Console link, client ID and secret saved to Credential Locker), Sign in with Google, Syncing (calendars and events found so far), Done ("Open Leaf Calendar" closes onboarding and opens the main window).
+- Steps: Welcome, OAuth client (guide with the fixed Google Cloud Console link, client ID and secret saved encrypted in the profile folder, spec 4.3), Sign in with Google, Syncing (calendars and events found so far), Done ("Open Leaf Calendar" closes onboarding and opens the main window).
 - Steps slide in from the right going forward and from the left going back. A stock `PipsPager`, restyled so each pip is a short line, shows the step at the bottom.
 - Closing before the end asks "Leave setup?" first. Leaving without an account exits Leaf.
 - Changing the OAuth client later happens in Settings › Accounts.
@@ -174,9 +174,11 @@ Built in Milestone 3 (owner redesign) as its own onboarding window, shown instea
 
 ### 4.3 Secret Storage
 
-- Client ID, client secret, and each account's refresh token are stored in the **Windows Credential Locker** (`PasswordVault`), scoped to the current Windows user. Leaf is a full-trust app, so the vault is user-wide, not per-package.
+- Client ID, client secret, and each account's refresh token are stored in `secrets.bin` in the profile folder (`LocalState\profiles\{profile}`), encrypted with **Windows DPAPI** for the current Windows user (`CryptProtectData`, with `LeafCalendar/{profile}` as extra entropy, so a copy in another profile folder doesn't open). The profile folder belongs to the package, so uninstalling Leaf deletes the secrets.
+- Writes go to a temp file that replaces `secrets.bin` in one move, so a crash never leaves half a file. A damaged file reads as empty (the user signs in again) and the next write replaces it.
+- Earlier builds kept secrets in the user-wide **Windows Credential Locker** (`PasswordVault`), which uninstalling doesn't clear. The first start after the update copies them to `secrets.bin`, then deletes them from the Locker. If the copy fails, the Locker copy stays, that run keeps using it (nobody looks signed out), and the next start tries again.
 - Access tokens live in memory only.
-- Disconnecting an account calls Google's revoke endpoint, removes its Credential Locker entry, and deletes its local data. If it has pending outbox changes, Leaf warns first.
+- Disconnecting an account calls Google's revoke endpoint, removes its refresh token, and deletes its local data. If it has pending outbox changes, Leaf warns first.
 
 ### 4.4 Local Data
 
@@ -205,7 +207,8 @@ Anyone can send an invite, so event content is treated as hostile.
 
 | Threat | Defense |
 |---|---|
-| Stolen refresh token from disk | Stored in Credential Locker, encrypted to the Windows user. Never in SQLite, logs, or settings files. |
+| Stolen refresh token from disk | Stored in the profile folder, encrypted with DPAPI to the Windows user. Never in SQLite, logs, or settings files. |
+| Secrets left behind after uninstall | Stored in the package's `LocalState`, which Windows deletes on uninstall. Older Credential Locker entries are moved out on the first start after the update. |
 | Intercepted OAuth redirect | PKCE, `state` check, loopback bound to `127.0.0.1`, one request, 5-minute timeout. |
 | A web page opens `leaf-calendar:` links | The link only brings Leaf to the front; its address is never read or logged. |
 | Malicious invite link launches a local program | Scheme allowlist for launching. |
@@ -213,7 +216,7 @@ Anyone can send an invite, so event content is treated as hostile.
 | Look-alike meeting link host | Host matching through parsed `Uri`, exact or suffix match on registered domains. |
 | Sensitive data in logs | Redaction rules plus a test that scans logs produced by a full test run. |
 | Vulnerable dependency | Vulnerable package check on every build. |
-| Other local users reading data | Package `LocalFolder` and Credential Locker are per user. |
+| Other local users reading data | Package `LocalFolder` is per user, and DPAPI ties the secrets to the Windows user. |
 | Test-mode switch pointed at a hostile server | `--fake-google` accepts only an absolute `http` loopback address, and only with a throwaway `uitest-` profile. Real profiles never run in fake mode, so their client secret and refresh token are never sent to the fake server. |
 
 ---
