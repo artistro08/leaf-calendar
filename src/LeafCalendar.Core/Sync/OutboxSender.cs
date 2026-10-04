@@ -33,7 +33,8 @@ public readonly record struct SendReport(bool Changed, int Conflicts, int Reject
 /// <c>403</c>, a <c>4xx</c> without Google's reason, or <c>5xx</c> (writes are never auto-retried), including while
 /// reading Google's copy after a conflict or refusal: the entry stays pending with its error recorded and waits out
 /// its backoff (<see cref="OutboxStore.Backoff"/>) before the next try. A <c>5xx</c> or unreadable answer holds only
-/// that event; anything else stops the pass so the order holds. The report of what was already done is still returned.</item>
+/// that event; anything else stops the pass so the order holds, and keeps stopping each pass until its backoff ends.
+/// The report of what was already done is still returned.</item>
 /// <item>A move answered "not found" whose event is already in its destination: an earlier try got through.</item>
 /// <item>An entry whose calendar is no longer in the account, conflicted or not: dropped.</item>
 /// </list>
@@ -82,6 +83,12 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
             // Held, Backing Off After A Failed Try, Behind A Held Or Conflicted Edit Of The Same Event, Or Waiting For The Entry It Depends On
             if (waiting.Contains(entry.EventId) || entry.NotBefore > now || entry.RetryAfter > now || (entry.DependsOn is { } dependsOn && Reload(dependsOn) is not null))
             {
+                // Backing Off After A Failure That Stopped The Pass (the network, a rate limit, the account): it still does, so the order holds
+                if (entry.RetryAfter > now && StopsThePass(entry.LastError))
+                {
+                    break;
+                }
+
                 waiting.Add(entry.EventId);
                 continue;
             }
@@ -419,7 +426,7 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
     // Kept pending with the error; a sync after its backoff tries again
     private void Defer(OutboxEntry entry, Exception ex)
     {
-        var error = ex is GoogleApiException api ? $"status {(int)api.Status}" : "network";
+        var error = ErrorOf(ex);
         using var conn = database.Open();
         OutboxStore.RecordAttempt(conn, entry.Seq, error, time.GetUtcNow());
         log.Info("outbox.deferred", $"seq={entry.Seq} error={error}");
@@ -464,9 +471,20 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
                 or "accessNotConfigured" or "insufficientPermissions" or "domainPolicy" or "authError");
     }
 
+    // What last_error keeps for a failed try: a status or reason only, never event content
+    private static string ErrorOf(Exception ex) => ex switch
+    {
+        GoogleApiException api => $"status {(int)api.Status}",
+        JsonException => "unreadable",
+        _ => "network",
+    };
+
     // Only Google failing on this one entry (a 5xx, an answer Leaf can't read) lets the rest of the queue go on
-    private static bool StopsThePass(Exception ex) =>
-        ex is not (JsonException or GoogleApiException { Status: >= HttpStatusCode.InternalServerError });
+    private static bool StopsThePass(Exception ex) => StopsThePass(ErrorOf(ex));
+
+    // The same, from the error a backed-off entry recorded
+    private static bool StopsThePass(string? error) =>
+        error is not (null or "unreadable") && !error.StartsWith("status 5", StringComparison.Ordinal);
 
     private static bool IsTemporary(Exception ex, CancellationToken ct) =>
         ex is HttpRequestException or GoogleApiException or JsonException or IOException
