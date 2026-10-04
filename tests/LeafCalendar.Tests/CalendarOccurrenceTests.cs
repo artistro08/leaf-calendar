@@ -4,19 +4,19 @@ namespace LeafCalendar.Tests;
 
 public class CalendarOccurrenceTests
 {
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
-    static CalendarOccurrence Timed(DateTimeOffset start, DateTimeOffset end) =>
+    private static CalendarOccurrence Timed(DateTimeOffset start, DateTimeOffset end) =>
         new("a", "c", "timed", null, null, start, end, false, "Timed", EventKind.Default, ResponseStatus.Accepted, "#4285F4", null, false, false);
 
     // All-day dates are stored as UTC midnights (end exclusive)
-    static CalendarOccurrence AllDay(DateOnly first, int days)
+    private static CalendarOccurrence AllDay(DateOnly first, int days)
     {
         var start = new DateTimeOffset(first.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
         return new("a", "c", "allday", null, null, start, start.AddDays(days), true, "All day", EventKind.Default, ResponseStatus.Accepted, "#4285F4", null, false, false);
     }
 
-    static DateTimeOffset Local(int day, int hour, int minute = 0) => new(2026, 10, day, hour, minute, 0, TimeSpan.FromHours(-4));
+    private static DateTimeOffset Local(int day, int hour, int minute = 0) => new(2026, 10, day, hour, minute, 0, TimeSpan.FromHours(-4));
 
     [Fact]
     public void HasEndedBy_TimedEvent_EndsAtItsEnd()

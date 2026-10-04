@@ -39,6 +39,16 @@ public enum ResponseStatus
 /// What Leaf shows about one event, read from Google's stored JSON. Everything here comes from people
 /// who can send you invites, so it is displayed as plain text only.
 /// </summary>
+/// <param name="Title">The event's title, or "(No title)" when it has none.</param>
+/// <param name="Location">The location as the organizer typed it, or null.</param>
+/// <param name="Description">The description as plain text (empty when there is none).</param>
+/// <param name="Kind">The kind of event (a meeting, Focus time, Out of office, a birthday, and so on).</param>
+/// <param name="SelfResponse">Your answer to the invitation.</param>
+/// <param name="ColorId">Google's event color ID, or null for the calendar's color.</param>
+/// <param name="ConferenceUri">The meeting link, or null.</param>
+/// <param name="IsFree">True when the event shows you as free.</param>
+/// <param name="GuestCount">The number of guests.</param>
+/// <param name="OrganizerEmail">The organizer's email address, or null.</param>
 /// <param name="Visibility">Google's event visibility: <c>default</c>, <c>public</c>, <c>private</c>, or <c>confidential</c>. Anything else reads as <c>default</c>.</param>
 public sealed record EventDetails(
     string Title,

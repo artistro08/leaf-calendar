@@ -7,11 +7,11 @@ namespace LeafCalendar.Tests;
 
 public sealed class CalendarStoreTests : IDisposable
 {
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public void Dispose() => _db.Dispose();
 
-    static List<CalendarListEntry> Entries(string fixture) =>
+    private static List<CalendarListEntry> Entries(string fixture) =>
         JsonSerializer.Deserialize(Fixture.Read(fixture), GoogleJsonContext.Default.CalendarListPage)!.Items;
 
     [Fact]
@@ -82,7 +82,7 @@ public sealed class CalendarStoreTests : IDisposable
         using var conn = _db.Database.Open();
         AccountStore.Upsert(conn, TestDatabase.SampleAccount);
         var hostile = Entries("calendar-list-primary-only.json");
-        hostile[0].Summary         = "Te‮am";
+        hostile[0].Summary = "Te‮am";
         hostile[0].SummaryOverride = "Mine";
 
         CalendarStore.ReplaceForAccount(conn, TestDatabase.SampleAccount.Id, hostile);

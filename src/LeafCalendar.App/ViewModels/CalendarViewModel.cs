@@ -45,10 +45,10 @@ public sealed record SelectedEventInfo(
     /// <summary>"Busy · Default visibility": whether the event blocks your time, and who can see it (confidential shows as Private).</summary>
     public string StatusText => $"{(Details.IsFree ? "Free" : "Busy")} · {Details.Visibility switch
     {
-        "public"       => "Public",
-        "private"      => "Private",
+        "public" => "Public",
+        "private" => "Private",
         "confidential" => "Private",
-        _              => "Default visibility",
+        _ => "Default visibility",
     }}";
 }
 
@@ -109,44 +109,44 @@ public enum SettingsSection
 /// </remarks>
 public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 {
-    readonly LeafServices _services;
-    readonly DispatcherQueue _dispatcher;
-    readonly DispatcherQueueTimer _minuteTimer;
-    readonly CancellationTokenSource _life = new();
-    (DateOnly First, DateOnly Last) _ensuredMonths;
-    SyncEngine? _attachedSync;
-    readonly List<CalendarOccurrence> _selection = [];
-    (DateOnly Day, Func<CalendarOccurrence, bool> Match)? _reselect;
-    readonly List<DeleteReceipt> _deletes = [];
+    private readonly LeafServices _services;
+    private readonly DispatcherQueue _dispatcher;
+    private readonly DispatcherQueueTimer _minuteTimer;
+    private readonly CancellationTokenSource _life = new();
+    private (DateOnly First, DateOnly Last) _ensuredMonths;
+    private SyncEngine? _attachedSync;
+    private readonly List<CalendarOccurrence> _selection = [];
+    private (DateOnly Day, Func<CalendarOccurrence, bool> Match)? _reselect;
+    private readonly List<DeleteReceipt> _deletes = [];
 
     // ponytail: session-only and capped, since older deletes are rarely wanted
-    const int UndoDepth = 50;
-    readonly List<(CalendarOccurrence Occurrence, EventCopy Copy)> _clipboard = [];
+    private const int UndoDepth = 50;
+    private readonly List<(CalendarOccurrence Occurrence, EventCopy Copy)> _clipboard = [];
 
     // Marks Leaf's own events on the Windows clipboard, so Ctrl+V pastes them only while nothing else was copied since
-    const string ClipboardFormat = "LeafCalendar.Events";
+    private const string ClipboardFormat = "LeafCalendar.Events";
 
     // Places visited, for back and forward; _restoring keeps a back or forward step from being recorded again
-    readonly NavigationHistory _history = new();
-    bool _restoring;
+    private readonly NavigationHistory _history = new();
+    private bool _restoring;
 
     /// <summary>Loads settings and calendars and starts the minute clock.</summary>
     public CalendarViewModel(LeafServices services, DispatcherQueue dispatcher)
     {
-        _services   = services;
+        _services = services;
         _dispatcher = dispatcher;
 
         using (var conn = services.Database.Open())
         {
-            Settings  = SettingsStore.Load(conn);
+            Settings = SettingsStore.Load(conn);
             Calendars = CalendarStore.GetAll(conn);
             ReadAccounts(conn);
         }
 
         // "Today" Is The Date In The Zone On Screen, Not The PC Clock's
         _applied = Zone;
-        Today    = services.Options.StartDate ?? LocalDate(Now);
-        Cache    = new EventWindowCache(LoadAsync, Zone, DrawnFirst);
+        Today = services.Options.StartDate ?? LocalDate(Now);
+        Cache = new EventWindowCache(LoadAsync, Zone, DrawnFirst);
         Cache.Changed += (_, _) =>
         {
             // The Data Changed: one calendar's upcoming list is read again, meeting links looked up again, and the
@@ -170,7 +170,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
         // Local Edits Reload The Views
         services.Editor.LocalZoneId = TimeZoneCatalog.IanaId(UserZone);
-        services.Editor.Changed    += OnEditsChanged;
+        services.Editor.Changed += OnEditsChanged;
         services.Conflicts.Changed += OnEditsChanged;
         RefreshSyncState();
 
@@ -218,7 +218,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public string CardName(CalendarOccurrence o, string timeText)
     {
         var calendar = Calendars.FirstOrDefault(c => c.AccountId == o.AccountId && c.Id == o.CalendarId)?.Summary;
-        var parts    = new List<string> { o.Title, timeText };
+        var parts = new List<string> { o.Title, timeText };
         if (!string.IsNullOrEmpty(calendar))
         {
             parts.Add(calendar);
@@ -253,16 +253,16 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public bool IsWorkspace(string accountId) => _workspace.Contains(accountId);
 
     // The accounts Leaf knows are Workspace ones
-    HashSet<string> _workspace = [];
+    private HashSet<string> _workspace = [];
 
     // Workspace domains are looked up once per session, for accounts that signed in before Leaf stored them
-    bool _domainsChecked;
+    private bool _domainsChecked;
 
-    void ReadAccounts(Microsoft.Data.Sqlite.SqliteConnection conn)
+    private void ReadAccounts(Microsoft.Data.Sqlite.SqliteConnection conn)
     {
-        var accounts  = AccountStore.GetAll(conn);
+        var accounts = AccountStore.GetAll(conn);
         AccountEmails = accounts.ToDictionary(a => a.Id, a => a.Email);
-        _workspace    = [.. accounts.Where(AccountStore.IsWorkspace).Select(a => a.Id)];
+        _workspace = [.. accounts.Where(AccountStore.IsWorkspace).Select(a => a.Id)];
     }
 
     /// <summary>Events in the next <see cref="LeafSettings.UpcomingHours"/> hours (or one calendar's next 30 days, see <see cref="UpcomingCalendar"/>).</summary>
@@ -326,7 +326,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public partial bool IsSyncing { get; private set; }
 
     // Syncs you asked for that haven't finished (they can overlap; the indicator shows until the last one ends)
-    int _syncsRunning;
+    private int _syncsRunning;
 
     /// <summary>
     /// Shown at least this long, so a quick sync still reads as "it synced" rather than a flicker.
@@ -374,7 +374,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
 
     // Which copy of a shared event is drawn: one you can edit, then one on the main account (lower is drawn first)
-    int DrawnFirst(CalendarOccurrence copy)
+    private int DrawnFirst(CalendarOccurrence copy)
     {
         var editable = Calendars.Any(c => c.AccountId == copy.AccountId && c.Id == copy.CalendarId && c.AccessRole is "owner" or "writer");
         return (editable ? 0 : 2) + (copy.AccountId == Settings.MainAccountId ? 0 : 1);
@@ -427,7 +427,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public void NavigateTo(DateOnly date)
     {
         PeriodStart = ViewNavigator.PeriodStart(Mode, date, Settings.WeekStart);
-        CursorTime  = null;
+        CursorTime = null;
         NavigateRequested?.Invoke(this, PeriodStart);
 
         // Record The Place
@@ -445,7 +445,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <returns>True when a place was restored.</returns>
     public bool GoForward() => Restore(_history.Forward());
 
-    bool Restore(ViewPlace? place)
+    private bool Restore(ViewPlace? place)
     {
         if (place is null)
         {
@@ -548,7 +548,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         // Memory takes the new value only after the disk does, so a failed save leaves both as they were
         var before = Settings;
-        var next   = change(Settings).Normalize();
+        var next = change(Settings).Normalize();
         lock (_settingsWrite)
         {
             using var conn = _services.Database.Open();
@@ -606,7 +606,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public void Remember(Func<LeafSettings, LeafSettings> change, bool inBackground = true)
     {
         var before = Settings;
-        Settings   = change(Settings).Normalize();
+        Settings = change(Settings).Normalize();
 
         // A hidden editor keeps its fields, not contact suggestions
         if (before.DetailsPanelOpen && !Settings.DetailsPanelOpen)
@@ -623,7 +623,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         SaveLatestQuietly();
     }
 
-    void SaveLatestQuietly()
+    private void SaveLatestQuietly()
     {
         try
         {
@@ -636,9 +636,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
     // Every settings write goes through here, one at a time, and writes what's in memory when its turn comes, so an
     // older snapshot never lands after a newer one
-    readonly Lock _settingsWrite = new();
+    private readonly Lock _settingsWrite = new();
 
-    void SaveLatestSettings()
+    private void SaveLatestSettings()
     {
         lock (_settingsWrite)
         {
@@ -660,7 +660,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public void ZoomReset() => Zoom(s => s with { HourHeight = LeafSettings.DefaultHourHeight });
 
     // Every wheel notch relayouts at once and saves off the UI thread, so a sync holding the database never stalls the wheel
-    void Zoom(Func<LeafSettings, LeafSettings> change)
+    private void Zoom(Func<LeafSettings, LeafSettings> change)
     {
         Remember(change);
         LayoutChanged?.Invoke(this, EventArgs.Empty);
@@ -687,14 +687,14 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
 
     // Selects and loads without touching the editor (a refresh re-selects the event behind an open editor)
-    void ShowSelected(CalendarOccurrence occurrence)
+    private void ShowSelected(CalendarOccurrence occurrence)
     {
         try
         {
             using var conn = _services.Database.Open();
-            var stored     = EventStore.Get(conn, occurrence.AccountId, occurrence.CalendarId, occurrence.EventId);
-            var details    = stored is null ? null : EventDetailsParser.Parse(stored.RawJson);
-            var calendar   = Calendars.FirstOrDefault(c => c.AccountId == occurrence.AccountId && c.Id == occurrence.CalendarId);
+            var stored = EventStore.Get(conn, occurrence.AccountId, occurrence.CalendarId, occurrence.EventId);
+            var details = stored is null ? null : EventDetailsParser.Parse(stored.RawJson);
+            var calendar = Calendars.FirstOrDefault(c => c.AccountId == occurrence.AccountId && c.Id == occurrence.CalendarId);
             if (details is null || stored is null)
             {
                 return;
@@ -745,8 +745,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         // An All-Day Anchor Counts From Local Midnight Of Its Own Date, Not Its UTC Midnight
         var anchor = SelectedInfo?.Occurrence;
-        var from   = anchor?.StartIn(Zone) ?? Now;
-        var day    = anchor is null ? LocalDate(from) : DayOf(anchor);
+        var from = anchor?.StartIn(Zone) ?? Now;
+        var day = anchor is null ? LocalDate(from) : DayOf(anchor);
 
         for (var i = 0; i <= 90; i++, day = day.AddDays(direction))
         {
@@ -939,7 +939,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
 
     // Sends a calendar-list change; only after Google accepts it is the local copy changed
-    async Task<bool> PatchCalendarAsync(CalendarInfo calendar, string patch, string logName, string offline, string refused, Action<Microsoft.Data.Sqlite.SqliteConnection> mirror)
+    private async Task<bool> PatchCalendarAsync(CalendarInfo calendar, string patch, string logName, string offline, string refused, Action<Microsoft.Data.Sqlite.SqliteConnection> mirror)
     {
         if (_services.Google is not { } google || IsOffline)
         {
@@ -986,9 +986,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         ArgumentNullException.ThrowIfNull(calendar);
 
-        var ids   = Calendars.Where(c => c.AccountId == calendar.AccountId).Select(c => c.Id).ToList();
+        var ids = Calendars.Where(c => c.AccountId == calendar.AccountId).Select(c => c.Id).ToList();
         var index = ids.IndexOf(calendar.Id);
-        var to    = index + delta;
+        var to = index + delta;
         if (index < 0 || to < 0 || to >= ids.Count)
         {
             return;
@@ -1018,18 +1018,18 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     // One calendar's next 31 days, read off the UI thread once, and again only when the data or the day changes (the
     // minute tick only re-filters); the key says which calendar and day they were read for
-    IReadOnlyList<CalendarOccurrence>? _calendarSoon;
-    (string AccountId, string Id, DateOnly Day)? _calendarSoonKey;
-    int _calendarSoonLoads;
+    private IReadOnlyList<CalendarOccurrence>? _calendarSoon;
+    private (string AccountId, string Id, DateOnly Day)? _calendarSoonKey;
+    private int _calendarSoonLoads;
 
-    void ForgetCalendarSoon()
+    private void ForgetCalendarSoon()
     {
-        _calendarSoon    = null;
+        _calendarSoon = null;
         _calendarSoonKey = null;
     }
 
     // One calendar's events from now to 30 days out, all-day ones too, each with its day; null while they're being read
-    List<UpcomingItem>? UpcomingIn(CalendarInfo calendar, DateTimeOffset now)
+    private List<UpcomingItem>? UpcomingIn(CalendarInfo calendar, DateTimeOffset now)
     {
         var key = (calendar.AccountId, calendar.Id, LocalDate(now));
         if (_calendarSoonKey != key)
@@ -1060,13 +1060,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
 
     // Reads the calendar's events for the key on a background thread; a newer read wins
-    void LoadCalendarSoon((string AccountId, string Id, DateOnly Day) key)
+    private void LoadCalendarSoon((string AccountId, string Id, DateOnly Day) key)
     {
-        var load     = ++_calendarSoonLoads;
-        var zone     = Zone;
+        var load = ++_calendarSoonLoads;
+        var zone = Zone;
         var declined = Settings.ShowDeclined;
         _calendarSoonKey = key;
-        _calendarSoon    = null;
+        _calendarSoon = null;
 
         Run(async () =>
         {
@@ -1153,13 +1153,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         _minuteTimer.Stop();
         _services.GoogleChanged -= OnGoogleChanged;
-        _services.Editor.Changed    -= OnEditsChanged;
+        _services.Editor.Changed -= OnEditsChanged;
         _services.Conflicts.Changed -= OnEditsChanged;
         if (_attachedSync is not null)
         {
-            _attachedSync.DataChanged     -= OnSyncDataChanged;
+            _attachedSync.DataChanged -= OnSyncDataChanged;
             _attachedSync.ChangesRejected -= OnChangesRejected;
-            _attachedSync.OfflineChanged  -= OnOfflineChanged;
+            _attachedSync.OfflineChanged -= OnOfflineChanged;
         }
 
         _life.Cancel();
@@ -1208,12 +1208,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
         var draft = new EventDraft
         {
-            AccountId  = home.AccountId,
+            AccountId = home.AccountId,
             CalendarId = home.Id,
-            Start      = start,
-            End        = end,
-            IsAllDay   = isAllDay,
-            TimeZone   = isAllDay ? null : TimeZoneCatalog.IanaId(UserZone),
+            Start = start,
+            End = end,
+            IsAllDay = isAllDay,
+            TimeZone = isAllDay ? null : TimeZoneCatalog.IanaId(UserZone),
         };
 
         ClearSelection();
@@ -1231,7 +1231,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public void CancelEdit() => Editing = null;
 
     // True while "Allow contact suggestions" waits for the browser
-    bool _allowingContacts;
+    private bool _allowingContacts;
 
     // A closed editor drops its contact suggestions; a new one searches the account of the calendar it has picked
     partial void OnEditingChanged(EventEditorViewModel? oldValue, EventEditorViewModel? newValue)
@@ -1250,12 +1250,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         // People You Meet Often And Rooms: read from local events on a background thread once per account per editor,
         // kept in memory only while it's open
         var people = new Dictionary<string, Task<IReadOnlyList<Contact>>>(StringComparer.Ordinal);
-        var rooms  = new Dictionary<string, Task<IReadOnlyList<Room>>>(StringComparer.Ordinal);
-        var now    = Now;
+        var rooms = new Dictionary<string, Task<IReadOnlyList<Room>>>(StringComparer.Ordinal);
+        var now = Now;
 
         newValue.IsWorkspaceAccount = IsWorkspace;
-        newValue.MeetByDefault      = id => Settings.MeetByDefaultAccounts.Contains(id);
-        newValue.LocalPeople        = (account, query) =>
+        newValue.MeetByDefault = id => Settings.MeetByDefaultAccounts.Contains(id);
+        newValue.LocalPeople = (account, query) =>
         {
             if (!people.TryGetValue(account, out var load))
             {
@@ -1279,7 +1279,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
 
     // A local read for suggestions; a failure is logged and suggests nothing
-    IReadOnlyList<T> ReadLocal<T>(Func<Microsoft.Data.Sqlite.SqliteConnection, IReadOnlyList<T>> read)
+    private IReadOnlyList<T> ReadLocal<T>(Func<Microsoft.Data.Sqlite.SqliteConnection, IReadOnlyList<T>> read)
     {
         try
         {
@@ -1347,13 +1347,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
 
         // Allowed Now (the link goes even with an empty box)
-        editor.Error          = null;
+        editor.Error = null;
         editor.ContactsAccess = ContactAccess.Allowed;
         await editor.RefreshSuggestionsAsync();
     }
 
     // Closing the panel only hides an editor; editing again (the toolbar's Edit, a double-click) brings that one back
-    bool ReopenHiddenEditor()
+    private bool ReopenHiddenEditor()
     {
         if (Editing is null || Settings.DetailsPanelOpen)
         {
@@ -1432,9 +1432,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// </summary>
     public async Task MoveAsync(CalendarOccurrence occurrence, DateTimeOffset start, DateTimeOffset end, bool isAllDay)
     {
-        var moves   = BulkMoves(occurrence, start, end, isAllDay);
+        var moves = BulkMoves(occurrence, start, end, isAllDay);
         var skipped = _selection.Count > 1 && IsSelected(occurrence) ? _selection.Count - moves.Count : 0;
-        var scope   = await ScopeForAsync([.. moves.Select(m => m.Occurrence)], includeFollowing: true);
+        var scope = await ScopeForAsync([.. moves.Select(m => m.Occurrence)], includeFollowing: true);
         if (scope is null)
         {
             // Canceled: redraw the event where it was
@@ -1636,7 +1636,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Sets the color of the selected events you can change (null for the calendar's color); the rest are skipped with a hint.</summary>
     public async Task RecolorAsync(string? colorId)
     {
-        var items   = _selection.Where(CanEdit).ToList();
+        var items = _selection.Where(CanEdit).ToList();
         var skipped = _selection.Count - items.Count;
         if (items.Count == 0)
         {
@@ -1662,7 +1662,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
 
     // Something else copied since Leaf did (another app, or text in Leaf) wins; an unreadable clipboard doesn't block Leaf's paste
-    static bool ClipboardIsOurs()
+    private static bool ClipboardIsOurs()
     {
         try
         {
@@ -1675,7 +1675,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
 
     // A mixed selection changes what it can and says how many it left alone
-    void SaySkipped(int skipped)
+    private void SaySkipped(int skipped)
     {
         if (skipped > 0)
         {
@@ -1684,10 +1684,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
 
     // Where new events go: your chosen default calendar, else your main one you can write to (in one account when given), or null
-    CalendarInfo? HomeCalendar(string? accountId = null) => DefaultCalendar.Pick(Calendars, AccountEmails.Keys.ToHashSet(), Settings.DefaultCalendar, accountId, Settings.MainAccountId);
+    private CalendarInfo? HomeCalendar(string? accountId = null) => DefaultCalendar.Pick(Calendars, AccountEmails.Keys.ToHashSet(), Settings.DefaultCalendar, accountId, Settings.MainAccountId);
 
     // Where a copy is created: its own calendar when you can write to it, else the account's main one, else your main one
-    EventCopy? Writable(EventCopy copy)
+    private EventCopy? Writable(EventCopy copy)
     {
         if (Calendars.Any(c => c.AccountId == copy.AccountId && c.Id == copy.CalendarId && c.AccessRole is "owner" or "writer"))
         {
@@ -1699,7 +1699,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     // A dragged event that's part of a bigger selection takes the others you can change along (same time shift; all-day by
     // days; when the dragged one switches between timed and all-day, the others move by whole days only)
-    IReadOnlyList<EventMove> BulkMoves(CalendarOccurrence dragged, DateTimeOffset start, DateTimeOffset end, bool isAllDay)
+    private IReadOnlyList<EventMove> BulkMoves(CalendarOccurrence dragged, DateTimeOffset start, DateTimeOffset end, bool isAllDay)
     {
         if (_selection.Count < 2 || !IsSelected(dragged))
         {
@@ -1707,7 +1707,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
 
         var switched = isAllDay != dragged.IsAllDay;
-        var days     = (isAllDay ? DateOnly.FromDateTime(start.UtcDateTime) : LocalDate(start)).DayNumber - DayOf(dragged).DayNumber;
+        var days = (isAllDay ? DateOnly.FromDateTime(start.UtcDateTime) : LocalDate(start)).DayNumber - DayOf(dragged).DayNumber;
         return [.. _selection.Where(CanEdit).Select(o => o.Key == dragged.Key ? new EventMove(o, start, end, isAllDay) : Shifted(o))];
 
         EventMove Shifted(CalendarOccurrence o)
@@ -1738,7 +1738,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     // Calendars you can add events to; an edited event's own calendar is always there (a guest who may edit an
     // invite on a calendar you can only read), so leaving the picker alone never moves the event
-    IReadOnlyList<CalendarChoice> WritableCalendars(CalendarOccurrence? source = null) =>
+    private IReadOnlyList<CalendarChoice> WritableCalendars(CalendarOccurrence? source = null) =>
         [.. Calendars
             .Where(c => (c.AccessRole is "owner" or "writer" || (c.AccountId == source?.AccountId && c.Id == source.CalendarId)) && AccountEmails.ContainsKey(c.AccountId))
             .Select(c => new CalendarChoice(c.AccountId, c.Id, c.Summary, AccountEmails[c.AccountId], c.DisplayColor, c.IsPrimary))];
@@ -1754,7 +1754,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         {
             // Only Events You Can Change
             var permissions = items.Select(o => (Occurrence: o, Rights: _services.Editor.Permissions(o))).ToList();
-            var deletable   = permissions.Where(p => p.Rights.CanEdit).Select(p => p.Occurrence).ToList();
+            var deletable = permissions.Where(p => p.Rights.CanEdit).Select(p => p.Occurrence).ToList();
             if (deletable.Count == 0)
             {
                 if (permissions.Count > 0)
@@ -1905,7 +1905,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
                 return false;
             }
 
-            var o     = info.Occurrence;
+            var o = info.Occurrence;
             var scope = await ScopeForAsync([o], includeFollowing: false);
             if (scope is null)
             {
@@ -2033,7 +2033,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
 
     // "This event" for single events; otherwise the page's dialog (null means the user canceled)
-    async Task<EditScope?> ScopeForAsync(IReadOnlyList<CalendarOccurrence> items, bool includeFollowing, bool includeThis = true)
+    private async Task<EditScope?> ScopeForAsync(IReadOnlyList<CalendarOccurrence> items, bool includeFollowing, bool includeThis = true)
     {
         if (!items.Any(o => o.RecurringEventId is not null))
         {
@@ -2044,15 +2044,15 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
 
     // After an edit the event may have a new key (moved) or a new ID (one instance of a series): find it by its start
-    void ReselectAfterRefresh(CalendarOccurrence occurrence, DateTimeOffset start, bool isAllDay)
+    private void ReselectAfterRefresh(CalendarOccurrence occurrence, DateTimeOffset start, bool isAllDay)
     {
-        var day    = isAllDay ? DateOnly.FromDateTime(start.UtcDateTime) : LocalDate(start);
+        var day = isAllDay ? DateOnly.FromDateTime(start.UtcDateTime) : LocalDate(start);
         var series = occurrence.RecurringEventId ?? occurrence.EventId;
-        _reselect  = (day, o => o.AccountId == occurrence.AccountId && o.Start == start && (o.EventId == occurrence.EventId || o.RecurringEventId == series));
+        _reselect = (day, o => o.AccountId == occurrence.AccountId && o.Start == start && (o.EventId == occurrence.EventId || o.RecurringEventId == series));
     }
 
     // One selected event shows its details; zero or several show the list or the selection summary
-    void PublishSelection()
+    private void PublishSelection()
     {
         if (_selection.Count == 1)
         {
@@ -2065,7 +2065,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         OccurrencesChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    void Fail(string eventName, Exception exception)
+    private void Fail(string eventName, Exception exception)
     {
         _reselect = null;
         _services.Log.Error(eventName, exception);
@@ -2091,44 +2091,44 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
 
     // Every notice counts as new (a repeat of the same text restarts the bar's timer), so it's cleared first
-    void Say(string text, bool canUndo)
+    private void Say(string text, bool canUndo)
     {
         Notice = null;
         Notice = new NoticeInfo(text, canUndo);
     }
 
-    static bool IsEditFailure(Exception ex) =>
+    private static bool IsEditFailure(Exception ex) =>
         ex is Microsoft.Data.Sqlite.SqliteException or System.Text.Json.JsonException or InvalidOperationException;
 
     // Deletes wait out the undo window; nudge the sync loop once it has passed so they go out right away, and count
     // them as waiting from then on (offline, no sync event would say so)
-    async Task NudgeAfterUndoWindowAsync()
+    private async Task NudgeAfterUndoWindowAsync()
     {
         await Task.Delay(EventEditor.UndoWindow + TimeSpan.FromSeconds(0.5));
         _dispatcher.TryEnqueue(RefreshSyncState);
         _services.Google?.Loop.TriggerNow();
     }
 
-    EventDetails? LoadDetails(CalendarOccurrence o)
+    private EventDetails? LoadDetails(CalendarOccurrence o)
     {
         using var conn = _services.Database.Open();
         return EventStore.Get(conn, o.AccountId, o.CalendarId, o.EventId) is { } stored ? EventDetailsParser.Parse(stored.RawJson) : null;
     }
 
     // Local edits and conflict answers arrive on the UI thread
-    void OnEditsChanged(object? sender, EventArgs e)
+    private void OnEditsChanged(object? sender, EventArgs e)
     {
         RefreshSyncState();
         Run(RefreshAsync);
     }
 
-    void RefreshSyncState()
+    private void RefreshSyncState()
     {
         try
         {
             var (conflicts, pending) = _services.Conflicts.Counts();
             ConflictCount = conflicts;
-            PendingCount  = pending;
+            PendingCount = pending;
         }
         catch (Microsoft.Data.Sqlite.SqliteException ex)
         {
@@ -2139,13 +2139,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         IsOffline = _attachedSync?.IsOffline ?? false;
     }
 
-    DateOnly DayOf(CalendarOccurrence o) => o.IsAllDay ? o.AllDayStart : LocalDate(o.Start);
+    private DateOnly DayOf(CalendarOccurrence o) => o.IsAllDay ? o.AllDayStart : LocalDate(o.Start);
 
     // =========================================================================
     // INTERNALS
     // =========================================================================
 
-    Task<IReadOnlyList<CalendarOccurrence>> LoadAsync(DateOnly from, DateOnly to, CancellationToken ct)
+    private Task<IReadOnlyList<CalendarOccurrence>> LoadAsync(DateOnly from, DateOnly to, CancellationToken ct)
     {
         var includeDeclined = Settings.ShowDeclined;
         return Task.Run<IReadOnlyList<CalendarOccurrence>>(
@@ -2158,21 +2158,21 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             ct);
     }
 
-    void AttachSync()
+    private void AttachSync()
     {
         if (_attachedSync is not null)
         {
-            _attachedSync.DataChanged     -= OnSyncDataChanged;
+            _attachedSync.DataChanged -= OnSyncDataChanged;
             _attachedSync.ChangesRejected -= OnChangesRejected;
-            _attachedSync.OfflineChanged  -= OnOfflineChanged;
+            _attachedSync.OfflineChanged -= OnOfflineChanged;
         }
 
         _attachedSync = _services.Google?.Sync;
         if (_attachedSync is not null)
         {
-            _attachedSync.DataChanged     += OnSyncDataChanged;
+            _attachedSync.DataChanged += OnSyncDataChanged;
             _attachedSync.ChangesRejected += OnChangesRejected;
-            _attachedSync.OfflineChanged  += OnOfflineChanged;
+            _attachedSync.OfflineChanged += OnOfflineChanged;
         }
 
         IsOffline = _attachedSync?.IsOffline ?? false;
@@ -2189,26 +2189,26 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
-    void OnGoogleChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(AttachSync);
+    private void OnGoogleChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(AttachSync);
 
     // Sync runs on a background thread; hop to the UI thread before touching the cache
-    void OnSyncDataChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(() =>
+    private void OnSyncDataChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(() =>
     {
         RefreshSyncState();
         ReloadCalendars();
     });
 
     // Google refused edits for good (no permission): they were undone, so say so
-    void OnChangesRejected(object? sender, int count) => _dispatcher.TryEnqueue(() =>
+    private void OnChangesRejected(object? sender, int count) => _dispatcher.TryEnqueue(() =>
     {
         Say(count == 1 ? "Google didn't accept a change, so it was undone." : string.Create(CultureInfo.InvariantCulture, $"Google didn't accept {count} changes, so they were undone."), canUndo: false);
         RefreshSyncState();
     });
 
     // Reaching Google again (or losing it) also changes what's waiting to be sent
-    void OnOfflineChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(RefreshSyncState);
+    private void OnOfflineChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(RefreshSyncState);
 
-    void OnMinute()
+    private void OnMinute()
     {
         CheckTimeZone();
         var today = _services.Options.StartDate ?? LocalDate(Now);
@@ -2222,9 +2222,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
 
     // Each event's meeting service for its Join button's logo, looked up once per event (forgotten when the data changes)
-    readonly Dictionary<(string, string, string), MeetingProvider?> _providers = [];
+    private readonly Dictionary<(string, string, string), MeetingProvider?> _providers = [];
 
-    MeetingProvider? ProviderOf(CalendarOccurrence o)
+    private MeetingProvider? ProviderOf(CalendarOccurrence o)
     {
         if (!o.HasConference)
         {
@@ -2252,9 +2252,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         return provider;
     }
 
-    void RefreshUpcoming()
+    private void RefreshUpcoming()
     {
-        var now   = Now;
+        var now = Now;
         var items = UpcomingCalendar is { } calendar ? UpcomingIn(calendar, now) : Enumerable.Range(0, 2)
             .SelectMany(i => Cache.ForDay(LocalDate(now).AddDays(i)))
             .DistinctBy(o => o.Key)
@@ -2277,7 +2277,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
-    string WhenText(CalendarOccurrence o)
+    private string WhenText(CalendarOccurrence o)
     {
         if (o.IsAllDay)
         {
@@ -2290,10 +2290,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         return $"{TimeLabels.LongDate(LocalDate(o.Start))} · {TimeLabels.Range(o.Start, o.End, Zone, Settings.Use24HourTime)}";
     }
 
-    DateOnly LocalDate(DateTimeOffset instant) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, Zone).DateTime);
+    private DateOnly LocalDate(DateTimeOffset instant) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, Zone).DateTime);
 
     // Background work started from UI events: failures are logged, never thrown into the dispatcher
-    async void Run(Func<Task> work, string eventName = "calendar.load.failed")
+    private async void Run(Func<Task> work, string eventName = "calendar.load.failed")
     {
         try
         {
@@ -2372,7 +2372,7 @@ public sealed partial class AccountGroup(string accountId, string email, IEnumer
     {
         ListSync.Apply(shown, fresh, g => g.AccountId, (group, from) =>
         {
-            group.Email      = from.Email;
+            group.Email = from.Email;
             group.IsExpanded = from.IsExpanded;
             ListSync.Apply(group.Calendars, from.Calendars, r => r.Info.Id, (row, freshRow) => row.Info = freshRow.Info);
         });

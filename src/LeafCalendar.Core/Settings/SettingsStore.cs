@@ -7,7 +7,7 @@ namespace LeafCalendar.Core.Settings;
 /// <summary>Reads and writes <see cref="LeafSettings"/> as one JSON row in the <c>settings</c> table.</summary>
 public static class SettingsStore
 {
-    const string Key = "app";
+    private const string Key = "app";
 
     /// <summary>Loads settings; a missing, unreadable, or out-of-range row yields safe defaults.</summary>
     public static LeafSettings Load(SqliteConnection conn)

@@ -18,10 +18,10 @@ namespace LeafCalendar.App.Views.Settings;
 /// </summary>
 public sealed partial class CalendarsPage : Page
 {
-    SettingsContext _context = null!;
-    readonly ObservableCollection<AccountGroup> _groups = [];
-    Flyout? _colorFlyout;
-    CalendarRow? _colorRow;
+    private SettingsContext _context = null!;
+    private readonly ObservableCollection<AccountGroup> _groups = [];
+    private Flyout? _colorFlyout;
+    private CalendarRow? _colorRow;
 
     /// <summary>Creates the page.</summary>
     public CalendarsPage()
@@ -56,32 +56,32 @@ public sealed partial class CalendarsPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         _context = (SettingsContext)e.Parameter;
-        _context.Host.CalendarsChanged        += OnCalendarsChanged;
+        _context.Host.CalendarsChanged += OnCalendarsChanged;
         _context.Calendar.AccountFoldingChanged += OnCalendarsChanged;
-        _context.Host.Closed                  += OnHostClosed;
+        _context.Host.Closed += OnHostClosed;
         Rebuild();
     }
 
     /// <inheritdoc />
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
-        _context.Host.CalendarsChanged        -= OnCalendarsChanged;
+        _context.Host.CalendarsChanged -= OnCalendarsChanged;
         _context.Calendar.AccountFoldingChanged -= OnCalendarsChanged;
-        _context.Host.Closed                  -= OnHostClosed;
+        _context.Host.Closed -= OnHostClosed;
     }
 
     // Settings Left On This Page (back to the calendar, or the window closed): the page isn't navigated from, so the
     // app-lifetime view model's event is let go here, or it would keep the whole Settings view alive
-    void OnHostClosed(object? sender, EventArgs e)
+    private void OnHostClosed(object? sender, EventArgs e)
     {
-        _context.Host.Closed                  -= OnHostClosed;
+        _context.Host.Closed -= OnHostClosed;
         _context.Calendar.AccountFoldingChanged -= OnCalendarsChanged;
     }
 
-    void OnCalendarsChanged(object? sender, EventArgs e) => Rebuild();
+    private void OnCalendarsChanged(object? sender, EventArgs e) => Rebuild();
 
     // An account header folds its calendars away or shows them again (the sidebar follows)
-    void OnAccountHeaderClick(object sender, RoutedEventArgs e)
+    private void OnAccountHeaderClick(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: AccountGroup group })
         {
@@ -91,7 +91,7 @@ public sealed partial class CalendarsPage : Page
 
     // Rows are matched by calendar ID and updated in place, so focus and an open flyout stay put; only calendars that
     // came or went are added or removed. A color flyout whose calendar went away closes.
-    void Rebuild()
+    private void Rebuild()
     {
         var groups = _context.Calendar.CalendarGroups();
         EmptyText.Visibility = groups.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -104,7 +104,7 @@ public sealed partial class CalendarsPage : Page
     }
 
     // Only a real change counts: the switch also raises Toggled when the list is rebuilt
-    void OnVisibleToggled(object sender, RoutedEventArgs e)
+    private void OnVisibleToggled(object sender, RoutedEventArgs e)
     {
         if (sender is ToggleSwitch { Tag: CalendarRow row } toggle && toggle.IsOn != row.IsVisible)
         {
@@ -113,7 +113,7 @@ public sealed partial class CalendarsPage : Page
     }
 
     // Palette Flyout: the 24 colors in rows of six, the current one outlined, then "Use Google's color"
-    void OnColorClick(object sender, RoutedEventArgs e)
+    private void OnColorClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: CalendarRow row } button)
         {
@@ -121,30 +121,30 @@ public sealed partial class CalendarsPage : Page
         }
 
         var calendar = _context.Calendar;
-        var grid     = new VariableSizedWrapGrid { Orientation = Orientation.Horizontal, MaximumRowsOrColumns = 6, ItemWidth = 32, ItemHeight = 32 };
-        var flyout   = new Flyout();
+        var grid = new VariableSizedWrapGrid { Orientation = Orientation.Horizontal, MaximumRowsOrColumns = 6, ItemWidth = 32, ItemHeight = 32 };
+        var flyout = new Flyout();
         _colorFlyout = flyout;
-        _colorRow    = row;
+        _colorRow = row;
         foreach (var hex in EventColors.CalendarPalette)
         {
-            var color  = LeafBrushes.FromHex(hex).Color;
-            var ring   = LeafBrushes.PrimaryText(ActualTheme == ElementTheme.Dark);
+            var color = LeafBrushes.FromHex(hex).Color;
+            var ring = LeafBrushes.PrimaryText(ActualTheme == ElementTheme.Dark);
             var swatch = new Button
             {
-                Width           = 26,
-                Height          = 26,
-                Padding         = new Thickness(0),
-                CornerRadius    = new CornerRadius(13),
-                Background      = new SolidColorBrush(color),
-                BorderBrush     = ring,
+                Width = 26,
+                Height = 26,
+                Padding = new Thickness(0),
+                CornerRadius = new CornerRadius(13),
+                Background = new SolidColorBrush(color),
+                BorderBrush = ring,
                 BorderThickness = new Thickness(string.Equals(hex, row.Color, StringComparison.OrdinalIgnoreCase) ? 2 : 0),
             };
 
             // Hover And Press Tint The Color Instead Of Replacing It (the current one's ring stays too)
-            swatch.Resources["ButtonBackgroundPointerOver"]  = new SolidColorBrush(color) { Opacity = 0.8 };
-            swatch.Resources["ButtonBackgroundPressed"]      = new SolidColorBrush(color) { Opacity = 0.6 };
+            swatch.Resources["ButtonBackgroundPointerOver"] = new SolidColorBrush(color) { Opacity = 0.8 };
+            swatch.Resources["ButtonBackgroundPressed"] = new SolidColorBrush(color) { Opacity = 0.6 };
             swatch.Resources["ButtonBorderBrushPointerOver"] = ring;
-            swatch.Resources["ButtonBorderBrushPressed"]     = ring;
+            swatch.Resources["ButtonBorderBrushPressed"] = ring;
             AutomationProperties.SetAutomationId(swatch, $"ColorSwatch_{hex[1..]}");
             AutomationProperties.SetName(swatch, hex);
             swatch.Click += (_, _) =>
@@ -172,7 +172,7 @@ public sealed partial class CalendarsPage : Page
     // =========================================================================
 
     // Rename, order, and default reminders; Move up and Move down are off at the ends of the account's list
-    void OnMoreClick(object sender, RoutedEventArgs e)
+    private void OnMoreClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: CalendarRow row } button)
         {
@@ -181,8 +181,8 @@ public sealed partial class CalendarsPage : Page
 
         var calendar = _context.Calendar;
         var siblings = _groups.FirstOrDefault(g => g.Calendars.Contains(row))?.Calendars;
-        var index    = siblings?.IndexOf(row) ?? -1;
-        var menu     = new MenuFlyout();
+        var index = siblings?.IndexOf(row) ?? -1;
+        var menu = new MenuFlyout();
 
         menu.Items.Add(MenuItem("Rename…", "CalendarMenu_Rename", true, () => calendar.Fire(() => RenameCalendarDialog.RenameAsync(this, calendar, row.Info), "calendar.rename.failed")));
         menu.Items.Add(MenuItem("Move up", "CalendarMenu_MoveUp", index > 0, () => calendar.MoveCalendar(row.Info, -1)));
@@ -191,7 +191,7 @@ public sealed partial class CalendarsPage : Page
         menu.ShowAt(button);
     }
 
-    static MenuFlyoutItem MenuItem(string text, string automationId, bool enabled, Action click)
+    private static MenuFlyoutItem MenuItem(string text, string automationId, bool enabled, Action click)
     {
         var item = new MenuFlyoutItem { Text = text, IsEnabled = enabled };
         AutomationProperties.SetAutomationId(item, automationId);
@@ -200,13 +200,13 @@ public sealed partial class CalendarsPage : Page
     }
 
     // Default Reminders Dialog: up to five dropdowns of reminder times, each with a remove button, then "Add reminder"
-    async Task EditRemindersAsync(CalendarInfo info)
+    private async Task EditRemindersAsync(CalendarInfo info)
     {
         var minutes = ReminderTimes.Choices(_context.Calendar.DefaultRemindersOf(info));
-        var labels  = minutes.Select(ReminderTimes.Label).ToList();
-        var boxes   = new List<ComboBox>();
-        var rows    = new StackPanel { Spacing = 4 };
-        var add     = new HyperlinkButton { Content = "Add reminder" };
+        var labels = minutes.Select(ReminderTimes.Label).ToList();
+        var boxes = new List<ComboBox>();
+        var rows = new StackPanel { Spacing = 4 };
+        var add = new HyperlinkButton { Content = "Add reminder" };
         AutomationProperties.SetAutomationId(add, "AddReminderButton");
 
         // Rows Keep Their Own References; Their IDs Follow Their Place
@@ -223,9 +223,9 @@ public sealed partial class CalendarsPage : Page
 
         void AddRow(int value)
         {
-            var box    = new ComboBox { ItemsSource = labels, SelectedIndex = Math.Max(0, minutes.ToList().IndexOf(value)), HorizontalAlignment = HorizontalAlignment.Stretch };
+            var box = new ComboBox { ItemsSource = labels, SelectedIndex = Math.Max(0, minutes.ToList().IndexOf(value)), HorizontalAlignment = HorizontalAlignment.Stretch };
             var remove = new Button { Width = 32, Height = 32, Padding = new Thickness(0), Background = LeafBrushes.Transparent, BorderThickness = new Thickness(0), Content = new FontIcon { Glyph = "", FontSize = 12 } };
-            var line   = new Grid { ColumnSpacing = 4, ColumnDefinitions = { new ColumnDefinition(), new ColumnDefinition { Width = GridLength.Auto } } };
+            var line = new Grid { ColumnSpacing = 4, ColumnDefinitions = { new ColumnDefinition(), new ColumnDefinition { Width = GridLength.Auto } } };
             AutomationProperties.SetName(remove, "Remove reminder");
             ToolTipService.SetToolTip(remove, "Remove reminder");
             Grid.SetColumn(remove, 1);
@@ -254,13 +254,13 @@ public sealed partial class CalendarsPage : Page
         var description = new TextBlock { Text = "Google uses these for new events on this calendar.", TextWrapping = TextWrapping.Wrap };
         var dialog = new ContentDialog
         {
-            XamlRoot          = XamlRoot,
-            RequestedTheme    = ActualTheme,
-            Title             = "Default reminders",
-            Content           = new StackPanel { Spacing = 8, Children = { description, rows, add } },
+            XamlRoot = XamlRoot,
+            RequestedTheme = ActualTheme,
+            Title = "Default reminders",
+            Content = new StackPanel { Spacing = 8, Children = { description, rows, add } },
             PrimaryButtonText = "Save",
-            CloseButtonText   = "Cancel",
-            DefaultButton     = ContentDialogButton.Primary,
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
         };
 
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)

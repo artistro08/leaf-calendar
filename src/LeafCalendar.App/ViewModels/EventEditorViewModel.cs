@@ -71,7 +71,7 @@ public sealed partial class GuestRow(Guest guest, Action<GuestRow> remove, strin
     public string RemoveId => $"EditorGuestRemove_{Email}";
 
     [RelayCommand]
-    void Remove() => remove(this);
+    private void Remove() => remove(this);
 }
 
 /// <summary>A contact suggestion for the guest box (an App type, so WinRT can hold the list).</summary>
@@ -155,7 +155,7 @@ public sealed partial class ReminderRow(int index, List<string> choices, int cho
     }
 
     [RelayCommand]
-    void Remove() => remove(this);
+    private void Remove() => remove(this);
 }
 
 /// <summary>
@@ -169,28 +169,27 @@ public sealed partial class ReminderRow(int index, List<string> choices, int cho
 /// </remarks>
 public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
 {
-    const int MaxReminders = 5;
+    private const int MaxReminders = 5;
 
     // Google's visibility values, in the dropdown's order
-    static readonly string[] VisibilityValues = ["default", "public", "private"];
+    private static readonly string[] VisibilityValues = ["default", "public", "private"];
 
-    static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
+    private static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
 
-    readonly TimeZoneInfo _zone;
-    readonly string _localZoneId;
-    readonly bool _use24Hour;
-    readonly DayOfWeek? _wkst;
-    readonly string? _loadedLine;
-    readonly (DateOnly? StartDay, TimeSpan StartTime, DateOnly? EndDay, TimeSpan EndTime) _loadedWhen;
-    readonly string _loadedZoneId;
-    readonly int _loadedVisibility;
-    readonly int[] _reminderMinutes;
-    readonly LatestSearch<ContactResults> _contactSearch = new();
-    TimeZoneInfo _eventZone;
-    string? _searchedAccount;
-    bool _ready;
-    bool _conferenceTouched;
-    bool _applyingMeetDefault;
+    private readonly TimeZoneInfo _zone;
+    private readonly bool _use24Hour;
+    private readonly DayOfWeek? _wkst;
+    private readonly string? _loadedLine;
+    private readonly (DateOnly? StartDay, TimeSpan StartTime, DateOnly? EndDay, TimeSpan EndTime) _loadedWhen;
+    private readonly string _loadedZoneId;
+    private readonly int _loadedVisibility;
+    private readonly int[] _reminderMinutes;
+    private readonly LatestSearch<ContactResults> _contactSearch = new();
+    private TimeZoneInfo _eventZone;
+    private string? _searchedAccount;
+    private bool _ready;
+    private bool _conferenceTouched;
+    private bool _applyingMeetDefault;
 
     /// <summary>
     /// Loads the fields from <paramref name="draft"/>. <paramref name="zone"/> is the zone on screen and
@@ -198,40 +197,39 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     /// </summary>
     public EventEditorViewModel(EventDraft draft, CalendarOccurrence? occurrence, IReadOnlyList<CalendarChoice> calendars, TimeZoneInfo zone, string localZoneId, bool use24Hour, bool focusEnd = false)
     {
-        Before       = draft;
-        Occurrence   = occurrence;
-        FocusEnd     = focusEnd;
-        _zone        = zone;
-        _localZoneId = localZoneId;
-        _use24Hour   = use24Hour;
+        Before = draft;
+        Occurrence = occurrence;
+        FocusEnd = focusEnd;
+        _zone = zone;
+        _use24Hour = use24Hour;
 
         // The Event's Own Zone (one this PC doesn't know shows in the zone on screen)
-        TimeZoneId    = draft.TimeZone is { } own && TimeZoneCatalog.IsKnown(own) ? own : localZoneId;
-        _eventZone    = FindZone(TimeZoneId) ?? zone;
+        TimeZoneId = draft.TimeZone is { } own && TimeZoneCatalog.IsKnown(own) ? own : localZoneId;
+        _eventZone = FindZone(TimeZoneId) ?? zone;
         _loadedZoneId = TimeZoneId;
 
         // Show As And Visibility (confidential reads as Private)
-        ShowAsIndex       = draft.IsFree ? 1 : 0;
-        VisibilityIndex   = draft.Visibility switch { "public" => 1, "private" or "confidential" => 2, _ => 0 };
+        ShowAsIndex = draft.IsFree ? 1 : 0;
+        VisibilityIndex = draft.Visibility switch { "public" => 1, "private" or "confidential" => 2, _ => 0 };
         _loadedVisibility = VisibilityIndex;
 
         // Fields (the account email shows under each calendar only when there's more than one account)
-        var manyAccounts    = calendars.Select(c => c.AccountId).Distinct().Skip(1).Any();
-        Calendars           = new ObservableCollection<CalendarChoice>(calendars.Select(c => c with { ShowAccount = manyAccounts }));
-        CalendarIndex       = calendars.ToList().FindIndex(c => c.AccountId == draft.AccountId && c.CalendarId == draft.CalendarId);
-        Title               = draft.Title;
-        Location            = draft.Location;
-        Description         = draft.Description;
-        ColorId             = draft.ColorId;
-        IsAllDay            = draft.IsAllDay;
+        var manyAccounts = calendars.Select(c => c.AccountId).Distinct().Skip(1).Any();
+        Calendars = new ObservableCollection<CalendarChoice>(calendars.Select(c => c with { ShowAccount = manyAccounts }));
+        CalendarIndex = calendars.ToList().FindIndex(c => c.AccountId == draft.AccountId && c.CalendarId == draft.CalendarId);
+        Title = draft.Title;
+        Location = draft.Location;
+        Description = draft.Description;
+        ColorId = draft.ColorId;
+        IsAllDay = draft.IsAllDay;
         UseDefaultReminders = draft.UseDefaultReminders;
-        HasConference       = draft.HasConference;
-        Guests              = new ObservableCollection<GuestRow>(draft.Guests.Select(g => new GuestRow(g, RemoveGuest)));
+        HasConference = draft.HasConference;
+        Guests = new ObservableCollection<GuestRow>(draft.Guests.Select(g => new GuestRow(g, RemoveGuest)));
 
         // Reminders (one row per loaded time)
         _reminderMinutes = [.. ReminderTimes.Choices(draft.ReminderMinutes)];
-        ReminderChoices  = _reminderMinutes.Select(ReminderTimes.Label).ToList();
-        ReminderRows     = [];
+        ReminderChoices = _reminderMinutes.Select(ReminderTimes.Label).ToList();
+        ReminderRows = [];
         foreach (var minutes in draft.ReminderMinutes)
         {
             AddReminder(minutes);
@@ -239,30 +237,30 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
 
         // When (an all-day event shows its last day, inclusive; a timed one shows its own zone's clock)
         var start = draft.IsAllDay ? draft.Start.UtcDateTime : TimeZoneInfo.ConvertTime(draft.Start, _eventZone).DateTime;
-        var end   = draft.IsAllDay ? draft.End.UtcDateTime.AddDays(-1) : TimeZoneInfo.ConvertTime(draft.End, _eventZone).DateTime;
+        var end = draft.IsAllDay ? draft.End.UtcDateTime.AddDays(-1) : TimeZoneInfo.ConvertTime(draft.End, _eventZone).DateTime;
         StartDate = Picker(start);
         StartTime = start.TimeOfDay;
-        EndDate   = Picker(end);
-        EndTime   = end.TimeOfDay;
+        EndDate = Picker(end);
+        EndTime = end.TimeOfDay;
         _loadedWhen = (Day(StartDate), StartTime, Day(EndDate), EndTime);
 
         // Repeat
-        var line  = draft.Recurrence.FirstOrDefault(l => l.StartsWith("RRULE:", StringComparison.Ordinal));
-        var rule  = line is null ? null : RepeatRule.Parse(line, _eventZone, draft.IsAllDay);
-        RepeatIndex    = line is null ? 0 : rule is null ? 5 : (int)rule.Frequency + 1;
-        HasCustomRule  = RepeatIndex == 5;
+        var line = draft.Recurrence.FirstOrDefault(l => l.StartsWith("RRULE:", StringComparison.Ordinal));
+        var rule = line is null ? null : RepeatRule.Parse(line, _eventZone, draft.IsAllDay);
+        RepeatIndex = line is null ? 0 : rule is null ? 5 : (int)rule.Frequency + 1;
+        HasCustomRule = RepeatIndex == 5;
         RepeatInterval = rule?.Interval ?? 1;
-        EndsIndex      = rule?.Count is not null ? 2 : rule?.Until is not null ? 1 : 0;
-        EndsOn         = rule?.Until is { } until ? Picker(until.ToDateTime(TimeOnly.MinValue)) : Picker(start.AddMonths(3));
-        EndsAfter      = rule?.Count ?? 10;
-        Weekdays       = new ObservableCollection<WeekdayToggle>(Enumerable.Range(0, 7).Select(i => (DayOfWeek)i)
+        EndsIndex = rule?.Count is not null ? 2 : rule?.Until is not null ? 1 : 0;
+        EndsOn = rule?.Until is { } until ? Picker(until.ToDateTime(TimeOnly.MinValue)) : Picker(start.AddMonths(3));
+        EndsAfter = rule?.Count ?? 10;
+        Weekdays = new ObservableCollection<WeekdayToggle>(Enumerable.Range(0, 7).Select(i => (DayOfWeek)i)
             .Select(d => new WeekdayToggle(d, rule?.Weekdays?.Contains(d) ?? d == start.DayOfWeek)));
-        _wkst          = rule?.Wkst;
+        _wkst = rule?.Wkst;
 
         // The rule as the untouched fields write it, so saving without a repeat change keeps Google's exact lines
         _loadedLine = rule is null ? null : RepeatLine();
 
-        Guests.CollectionChanged       += (_, _) => OnPropertyChanged(nameof(HasGuests));
+        Guests.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasGuests));
         ReminderRows.CollectionChanged += (_, _) => OnPropertyChanged(nameof(CanAddReminder));
         _ready = true;
     }
@@ -469,7 +467,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     public partial int VisibilityIndex { get; set; }
 
     // The picked calendar, or null while the list is swapped
-    CalendarChoice? SelectedCalendar => CalendarIndex >= 0 && CalendarIndex < Calendars.Count ? Calendars[CalendarIndex] : null;
+    private CalendarChoice? SelectedCalendar => CalendarIndex >= 0 && CalendarIndex < Calendars.Count ? Calendars[CalendarIndex] : null;
 
     // A type picked with no title names the event; a type other than Event is busy
     partial void OnEventTypeIndexChanged(int value)
@@ -483,7 +481,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     }
 
     // Everything that hangs on the event type (the rows it hides, the locked switches)
-    void TypeInputsChanged()
+    private void TypeInputsChanged()
     {
         if (!IsOrdinaryType)
         {
@@ -526,7 +524,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
             }
 
             var start = TimeZoneInfo.ConvertTime(EditorTimes.ToInstant(startDay, StartTime, _eventZone), _zone);
-            var end   = TimeZoneInfo.ConvertTime(EditorTimes.ToInstant(Day(EndDate) ?? startDay, EndTime, _eventZone), _zone);
+            var end = TimeZoneInfo.ConvertTime(EditorTimes.ToInstant(Day(EndDate) ?? startDay, EndTime, _eventZone), _zone);
             var clock = _use24Hour ? "HH:mm" : "h:mm tt";
             return $"In your time: {start.ToString("ddd, MMM d", English)}, {start.ToString(clock, English)}–{end.ToString(clock, English)}";
         }
@@ -542,7 +540,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         }
     }
 
-    static TimeZoneInfo? FindZone(string id) => TimeZoneInfo.TryFindSystemTimeZoneById(id, out var zone) ? zone : null;
+    private static TimeZoneInfo? FindZone(string id) => TimeZoneInfo.TryFindSystemTimeZoneById(id, out var zone) ? zone : null;
 
     // =========================================================================
     // MEET BY DEFAULT
@@ -562,7 +560,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         }
     }
 
-    void ApplyMeetDefault()
+    private void ApplyMeetDefault()
     {
         if (!IsNew || _conferenceTouched || MeetByDefault is not { } meet)
         {
@@ -570,7 +568,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         }
 
         _applyingMeetDefault = true;
-        HasConference        = meet(ContactsAccountId);
+        HasConference = meet(ContactsAccountId);
         _applyingMeetDefault = false;
     }
 
@@ -639,7 +637,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
 
         // Google's Answers Go After Them (read again: they may have loaded meanwhile)
         _searchedAccount = account;
-        ContactsAccess   = results.Access;
+        ContactsAccess = results.Access;
         ShowSuggestions([.. LocalPeople?.Invoke(account, text) ?? [], .. results.Contacts]);
     }
 
@@ -650,7 +648,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     public Func<string, string, IReadOnlyList<Contact>>? LocalPeople { get; set; }
 
     // One row per address (ignoring case), at most as many as a Google search gives
-    void ShowSuggestions(IEnumerable<Contact> contacts)
+    private void ShowSuggestions(IEnumerable<Contact> contacts)
     {
         Suggestions.Clear();
         foreach (var contact in contacts.DistinctBy(c => c.Email, StringComparer.OrdinalIgnoreCase).Take(ContactSearch.MaxResults))
@@ -687,7 +685,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         if (_searchedAccount is not null && _searchedAccount != ContactsAccountId)
         {
             _searchedAccount = null;
-            ContactsAccess   = ContactAccess.Allowed;
+            ContactsAccess = ContactAccess.Allowed;
             ClearSuggestions();
         }
     }
@@ -769,7 +767,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
 
         // Another calendar picked meanwhile: its own load will run
         var account = ContactsAccountId;
-        var rooms   = await load(account);
+        var rooms = await load(account);
         if (account != ContactsAccountId)
         {
             return;
@@ -827,7 +825,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         }
 
         GuestInput = "";
-        Error      = null;
+        Error = null;
         return true;
     }
 
@@ -861,46 +859,46 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         var calendar = CalendarIndex >= 0 && CalendarIndex < Calendars.Count ? Calendars[CalendarIndex] : null;
         // A cleared start date keeps the loaded day as shown (the event's own clock, not UTC's)
         var startDay = Day(StartDate) ?? _loadedWhen.StartDay.GetValueOrDefault();
-        var endDay   = Day(EndDate) ?? startDay;
+        var endDay = Day(EndDate) ?? startDay;
 
         // Untouched times keep the loaded instants and zone exactly (no round trip through the pickers); another zone keeps
         // the clock and moves the instants
         var zoneChanged = !IsAllDay && TimeZoneId != _loadedZoneId;
-        var untouched   = !zoneChanged && IsAllDay == Before.IsAllDay && (Day(StartDate), StartTime, Day(EndDate), EndTime) == _loadedWhen;
+        var untouched = !zoneChanged && IsAllDay == Before.IsAllDay && (Day(StartDate), StartTime, Day(EndDate), EndTime) == _loadedWhen;
         var (start, end) = untouched
             ? (Before.Start, Before.End)
             : IsAllDay
                 ? (Midnight(startDay), Midnight(endDay.AddDays(1)))
                 : (EditorTimes.ToInstant(startDay, StartTime, _eventZone), EditorTimes.ToInstant(endDay, EndTime, _eventZone));
         var reminders = ReminderRows.Select(r => _reminderMinutes[r.ChoiceIndex]).Distinct().ToList();
-        var kind      = EffectiveType;
+        var kind = EffectiveType;
 
         return Before with
         {
-            AccountId           = calendar?.AccountId ?? Before.AccountId,
-            CalendarId          = calendar?.CalendarId ?? Before.CalendarId,
-            Title               = Title,
-            Start               = start,
-            End                 = end,
-            IsAllDay            = IsAllDay,
-            TimeZone            = zoneChanged ? TimeZoneId : untouched || IsAllDay ? Before.TimeZone : Before.TimeZone ?? TimeZoneId,
-            Location            = Location,
-            Description         = Description,
-            ColorId             = ColorId,
-            Guests              = [.. Guests.Select(g => g.Guest with { Optional = g.Optional })],
+            AccountId = calendar?.AccountId ?? Before.AccountId,
+            CalendarId = calendar?.CalendarId ?? Before.CalendarId,
+            Title = Title,
+            Start = start,
+            End = end,
+            IsAllDay = IsAllDay,
+            TimeZone = zoneChanged ? TimeZoneId : untouched || IsAllDay ? Before.TimeZone : Before.TimeZone ?? TimeZoneId,
+            Location = Location,
+            Description = Description,
+            ColorId = ColorId,
+            Guests = [.. Guests.Select(g => g.Guest with { Optional = g.Optional })],
             UseDefaultReminders = UseDefaultReminders,
-            ReminderMinutes     = UseDefaultReminders || reminders.Order().SequenceEqual(Before.ReminderMinutes.Order()) ? Before.ReminderMinutes : reminders,
-            Recurrence          = Recurrence(),
-            HasConference       = HasConference,
-            EventType           = kind,
-            IsFree              = kind == EventKind.Default ? ShowAsIndex == 1 : !IsNew && Before.IsFree,
-            Visibility          = VisibilityIndex == _loadedVisibility ? Before.Visibility : VisibilityValues[Math.Clamp(VisibilityIndex, 0, 2)],
+            ReminderMinutes = UseDefaultReminders || reminders.Order().SequenceEqual(Before.ReminderMinutes.Order()) ? Before.ReminderMinutes : reminders,
+            Recurrence = Recurrence(),
+            HasConference = HasConference,
+            EventType = kind,
+            IsFree = kind == EventKind.Default ? ShowAsIndex == 1 : !IsNew && Before.IsFree,
+            Visibility = VisibilityIndex == _loadedVisibility ? Before.Visibility : VisibilityValues[Math.Clamp(VisibilityIndex, 0, 2)],
         };
     }
 
     // The repeat lines; an untouched rule keeps Google's exact lines (Core spots an unchanged repeat by them), and
     // EXDATE lines always stay
-    IReadOnlyList<string> Recurrence()
+    private IReadOnlyList<string> Recurrence()
     {
         if (RepeatIndex == 0)
         {
@@ -922,7 +920,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     }
 
     // The RRULE line the repeat fields describe, its end date on the event's own zone's clock (the week start is kept from Google's rule)
-    string RepeatLine() => new RepeatRule(
+    private string RepeatLine() => new RepeatRule(
         (RepeatFrequency)Math.Clamp(RepeatIndex - 1, 0, 3),
         Math.Max(1, (int)RepeatInterval),
         RepeatIndex == 2 ? [.. Weekdays.Where(w => w.IsOn).Select(w => w.Day)] : null,
@@ -930,12 +928,12 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
         EndsIndex == 2 ? Math.Max(1, (int)EndsAfter) : null,
         _wkst).ToRRule(IsAllDay, _eventZone);
 
-    void RemoveGuest(GuestRow row) => Guests.Remove(row);
+    private void RemoveGuest(GuestRow row) => Guests.Remove(row);
 
     /// <summary>Adds a 10 minute reminder row (none past Google's 5).</summary>
     public void AddReminder() => AddReminder(10);
 
-    void AddReminder(int minutes)
+    private void AddReminder(int minutes)
     {
         if (!CanAddReminder)
         {
@@ -946,7 +944,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     }
 
     // The rows below move up a place
-    void RemoveReminder(ReminderRow row)
+    private void RemoveReminder(ReminderRow row)
     {
         ReminderRows.Remove(row);
         for (var i = 0; i < ReminderRows.Count; i++)
@@ -1000,14 +998,14 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
 
         _ready = false;
         StartTime = TimeSpan.FromHours(9);
-        EndTime   = TimeSpan.FromHours(10);
-        _ready    = true;
+        EndTime = TimeSpan.FromHours(10);
+        _ready = true;
     }
 
     // Date pickers hold a local wall-clock date; only its date part is read back
-    static DateTimeOffset Picker(DateTime value) => new(DateTime.SpecifyKind(value.Date, DateTimeKind.Unspecified));
+    private static DateTimeOffset Picker(DateTime value) => new(DateTime.SpecifyKind(value.Date, DateTimeKind.Unspecified));
 
-    static DateOnly? Day(DateTimeOffset? value) => value is { } v ? DateOnly.FromDateTime(v.DateTime) : null;
+    private static DateOnly? Day(DateTimeOffset? value) => value is { } v ? DateOnly.FromDateTime(v.DateTime) : null;
 
-    static DateTimeOffset Midnight(DateOnly day) => new(day.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+    private static DateTimeOffset Midnight(DateOnly day) => new(day.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
 }

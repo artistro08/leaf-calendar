@@ -13,12 +13,12 @@ namespace LeafCalendar.UITests;
 
 public sealed class ConferencingAndContactsTests : IDisposable
 {
-    const string Meeting = "Event_evt-meeting_202610011800";
-    const string Alice   = "Alice Example <alice@example.com>";
-    const string Hostile = "Ali<b>ce</b> <ali.hostile@example.com>";
+    private const string Meeting = "Event_evt-meeting_202610011800";
+    private const string Alice = "Alice Example <alice@example.com>";
+    private const string Hostile = "Ali<b>ce</b> <ali.hostile@example.com>";
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -26,7 +26,7 @@ public sealed class ConferencingAndContactsTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     /// <summary>The text box inside the guest <c>AutoSuggestBox</c> (type or set text here).</summary>
     internal static TextBox GuestEdit(LeafApp leaf) =>
@@ -34,7 +34,7 @@ public sealed class ConferencingAndContactsTests : IDisposable
         ?? throw new InvalidOperationException("The guest box has no text box inside.");
 
     // Opens the editor on the dentist appointment (an event you own)
-    static void EditDentist(LeafApp leaf)
+    private static void EditDentist(LeafApp leaf)
     {
         leaf.WaitFor("Event_evt-single_202610011300").Click();
         leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
@@ -42,7 +42,7 @@ public sealed class ConferencingAndContactsTests : IDisposable
     }
 
     // Types into the guest box the way a person does (only typing searches)
-    static void TypeGuest(LeafApp leaf, string text)
+    private static void TypeGuest(LeafApp leaf, string text)
     {
         var edit = GuestEdit(leaf);
         edit.Text = "";
@@ -51,17 +51,17 @@ public sealed class ConferencingAndContactsTests : IDisposable
     }
 
     // The suggestion rows' names (the list is a popup, so every window is searched)
-    static IEnumerable<AutomationElement> Suggestions(LeafApp leaf) =>
+    private static IEnumerable<AutomationElement> Suggestions(LeafApp leaf) =>
         leaf.FindAllAnywhere("SuggestionsList").SelectMany(list => list.FindAllDescendants(cf => cf.ByControlType(ControlType.ListItem)));
 
-    static IReadOnlyList<string> SuggestionNames(LeafApp leaf) => [.. Suggestions(leaf).Select(item => item.Properties.Name.ValueOrDefault ?? "")];
+    private static IReadOnlyList<string> SuggestionNames(LeafApp leaf) => [.. Suggestions(leaf).Select(item => item.Properties.Name.ValueOrDefault ?? "")];
 
-    static AutomationElement WaitForSuggestion(LeafApp leaf, string name) =>
+    private static AutomationElement WaitForSuggestion(LeafApp leaf, string name) =>
         Retry.WhileNull(() => Suggestions(leaf).FirstOrDefault(item => item.Properties.Name.ValueOrDefault == name), TimeSpan.FromSeconds(10)).Result
         ?? throw new InvalidOperationException($"The suggestion '{name}' didn't show. Shown: {string.Join(" | ", SuggestionNames(leaf))}");
 
     // Ctrl+Enter from the title saves
-    static void SaveWithCtrlEnter(LeafApp leaf)
+    private static void SaveWithCtrlEnter(LeafApp leaf)
     {
         leaf.WaitFor("EditorTitle").AsTextBox().Focus();
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.RETURN);
@@ -69,30 +69,30 @@ public sealed class ConferencingAndContactsTests : IDisposable
 
     // The meeting fixture gets Google's conference data for its Meet link (as a real Meet event has), and guests may
     // change it, so you can edit it
-    void GiveTheMeetingConferenceData() => _google.EditOnGoogle(SeededProfile.Email, "evt-meeting", ev =>
+    private void GiveTheMeetingConferenceData() => _google.EditOnGoogle(SeededProfile.Email, "evt-meeting", ev =>
     {
         ev["guestsCanModify"] = true;
-        ev["conferenceData"]  = new JsonObject
+        ev["conferenceData"] = new JsonObject
         {
             ["conferenceId"] = "abc-defg-hij",
-            ["entryPoints"]  = new JsonArray(new JsonObject { ["entryPointType"] = "video", ["uri"] = "https://meet.google.com/abc-defg-hij" }),
+            ["entryPoints"] = new JsonArray(new JsonObject { ["entryPointType"] = "video", ["uri"] = "https://meet.google.com/abc-defg-hij" }),
         };
     });
 
     // The element shows inside the editor's scrolling body, above the pinned footer, without scrolling by hand
-    static void AssertVisibleAboveFooter(LeafApp leaf, AutomationElement element)
+    private static void AssertVisibleAboveFooter(LeafApp leaf, AutomationElement element)
     {
         var footerTop = leaf.WaitFor("EditorSaveButton").BoundingRectangle.Top;
-        var panelTop  = leaf.WaitFor("DetailsPanel").BoundingRectangle.Top;
+        var panelTop = leaf.WaitFor("DetailsPanel").BoundingRectangle.Top;
         Assert.True(
             Retry.WhileFalse(() => element.BoundingRectangle is { Height: > 0 } box && box.Top >= panelTop && box.Bottom <= footerTop, TimeSpan.FromSeconds(5)).Success,
             $"'{element.Properties.AutomationId.ValueOrDefault}' at {element.BoundingRectangle} is hidden (footer starts at {footerTop}).");
     }
 
-    static string NoSpaces(string text) => text.Replace(" ", string.Empty, StringComparison.Ordinal);
+    private static string NoSpaces(string text) => text.Replace(" ", string.Empty, StringComparison.Ordinal);
 
     // The steps both suggestion tests share: type "ali" in the dentist's guest box and pick Alice
-    static void PickAlice(LeafApp leaf)
+    private static void PickAlice(LeafApp leaf)
     {
         EditDentist(leaf);
         TypeGuest(leaf, "ali");
@@ -236,7 +236,7 @@ public sealed class ConferencingAndContactsTests : IDisposable
     [Fact]
     public void AllowContacts_AnotherGoogleAccount_SavesNothingAndSaysWhy()
     {
-        _google.ContactsGranted   = false;
+        _google.ContactsGranted = false;
         _google.SignInAsOtherUser = true;
         using (var leaf = Launch())
         {

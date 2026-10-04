@@ -12,10 +12,10 @@ namespace LeafCalendar.UITests;
 
 public sealed class SettingsTests : IDisposable
 {
-    const string FamilyId = "family123@group.calendar.google.com";
+    private const string FamilyId = "family123@group.calendar.google.com";
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -23,7 +23,7 @@ public sealed class SettingsTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch()
+    private LeafApp Launch()
     {
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
         leaf.WaitFor($"CalendarToggle_{FamilyId}");
@@ -255,7 +255,7 @@ public sealed class SettingsTests : IDisposable
     }
 
     // Edits of the seeded account waiting in the outbox, read straight from the profile's database
-    int UnsentChanges()
+    private int UnsentChanges()
     {
         var database = new LeafDatabase(Path.Combine(LeafApp.ProfileFolder(_profile), "leaf.db"));
         try

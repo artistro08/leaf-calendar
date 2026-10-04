@@ -125,8 +125,8 @@ public sealed partial class ShortcutDialogContentControl : UserControl
     // screen are updated in place; only a missing one is made and only a surplus one removed
     private void DrawKeys()
     {
-        var keys  = _keys ?? [];
-        var caps  = KeysControl.Children;
+        var keys = _keys ?? [];
+        var caps = KeysControl.Children;
         var state = IsError ? KeyVisualState.Error : KeyVisualState.Normal;
 
         while (caps.Count > keys.Count)
@@ -138,23 +138,23 @@ public sealed partial class ShortcutDialogContentControl : UserControl
         {
             if (index < caps.Count)
             {
-                var cap     = (KeyVisual)caps[index];
+                var cap = (KeyVisual)caps[index];
                 cap.Content = keys[index];
-                cap.State   = state;
+                cap.State = state;
                 continue;
             }
 
             var keyVisual = new KeyVisual
             {
-                Padding          = new Thickness(20, 16, 20, 16),
-                Content          = keys[index],
-                CornerRadius     = new CornerRadius(8),
-                FontSize         = 16,
-                FontWeight       = FontWeights.SemiBold,
-                IsTabStop        = false,
+                Padding = new Thickness(20, 16, 20, 16),
+                Content = keys[index],
+                CornerRadius = new CornerRadius(8),
+                FontSize = 16,
+                FontWeight = FontWeights.SemiBold,
+                IsTabStop = false,
                 RenderKeyAsGlyph = true,
-                State            = state,
-                Style            = (Style)Application.Current.Resources["AccentKeyVisualStyle"],
+                State = state,
+                Style = (Style)Application.Current.Resources["AccentKeyVisualStyle"],
             };
             AutomationProperties.SetAccessibilityView(keyVisual, AccessibilityView.Raw);
             caps.Add(keyVisual);

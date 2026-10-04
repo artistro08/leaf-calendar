@@ -24,8 +24,8 @@ public static class DescriptionHtml
     public static IReadOnlyList<DescriptionLine> Lines(string html)
     {
         var lines = new List<DescriptionLine>();
-        var runs  = new List<DescriptionRun>();
-        var list  = ListKind.None;
+        var runs = new List<DescriptionRun>();
+        var list = ListKind.None;
 
         foreach (var run in DescriptionFormatter.Format(html))
         {
@@ -70,7 +70,7 @@ public static class DescriptionHtml
         // after a list item (from the list's closing tags), or right after another one (the reader keeps one blank line)
         void EndLine()
         {
-            var kept    = ReadBack(runs);
+            var kept = ReadBack(runs);
             var noBlank = lines.Count == 0 || lines[^1].List != ListKind.None || lines[^1].Runs.Count == 0;
 
             if (!(kept.Count == 0 && list == ListKind.None && noBlank))
@@ -86,8 +86,8 @@ public static class DescriptionHtml
     /// <summary>Lines as Google description HTML, using only the allowlisted tags.</summary>
     public static string Write(IReadOnlyList<DescriptionLine> lines)
     {
-        var html          = new StringBuilder();
-        var open          = ListKind.None;
+        var html = new StringBuilder();
+        var open = ListKind.None;
         var previousPlain = false;
         var previousEmpty = false;
 
@@ -155,7 +155,7 @@ public static class DescriptionHtml
     /// <summary>Google's HTML in Leaf's subset: equal results mean the same description.</summary>
     public static string Normalize(string html) => Write(Lines(html));
 
-    static void AppendRuns(StringBuilder html, IReadOnlyList<DescriptionRun> runs)
+    private static void AppendRuns(StringBuilder html, IReadOnlyList<DescriptionRun> runs)
     {
         foreach (var run in Safe(runs))
         {
@@ -178,7 +178,7 @@ public static class DescriptionHtml
     // A line's runs as Write writes them: text cleaned, empty runs dropped, and links checked again (lines can come from
     // anywhere, the editor too). Neighboring runs with one target are written as neighboring links, which read back as one
     // link, so they're checked for a disguise together
-    static List<DescriptionRun> Safe(IReadOnlyList<DescriptionRun> runs)
+    private static List<DescriptionRun> Safe(IReadOnlyList<DescriptionRun> runs)
     {
         var safe = runs
             .Select(r => r with { Text = Clean(r.Text) })
@@ -189,7 +189,7 @@ public static class DescriptionHtml
         for (var start = 0; start < safe.Count;)
         {
             var link = safe[start].Link;
-            var end  = start + 1;
+            var end = start + 1;
             while (link is not null && end < safe.Count && safe[end].Link?.AbsoluteUri == link.AbsoluteUri)
             {
                 end++;
@@ -212,18 +212,18 @@ public static class DescriptionHtml
     // A line's runs as writing them and reading them back gives them: safe (above), spaces at either end trimmed (they
     // don't read back next to a line break), and unlinked text with one style joined before bare addresses are linked
     // (it's written as one piece of text, so that's how it reads back)
-    static List<DescriptionRun> ReadBack(IReadOnlyList<DescriptionRun> runs)
+    private static List<DescriptionRun> ReadBack(IReadOnlyList<DescriptionRun> runs)
     {
-        var safe  = Safe(runs);
+        var safe = Safe(runs);
         var first = safe.FindIndex(r => !string.IsNullOrWhiteSpace(r.Text));
-        var last  = safe.FindLastIndex(r => !string.IsNullOrWhiteSpace(r.Text));
+        var last = safe.FindLastIndex(r => !string.IsNullOrWhiteSpace(r.Text));
         if (first < 0)
         {
             return [];
         }
 
         var kept = safe.GetRange(first, last - first + 1);
-        kept[0]  = kept[0] with { Text = kept[0].Text.TrimStart() };
+        kept[0] = kept[0] with { Text = kept[0].Text.TrimStart() };
         kept[^1] = kept[^1] with { Text = kept[^1].Text.TrimEnd() };
 
         // A new bare link can sit next to a link with the same target, and the two are checked together on the next read;
@@ -245,7 +245,7 @@ public static class DescriptionHtml
 
     // Unlinked text with one style joined (it's written as one piece of text, so that's how it reads back), then bare
     // addresses linked the way reading it back links them
-    static List<DescriptionRun> WithJoinedBareLinks(List<DescriptionRun> runs)
+    private static List<DescriptionRun> WithJoinedBareLinks(List<DescriptionRun> runs)
     {
         var joined = new List<DescriptionRun>();
         foreach (var run in runs)
@@ -264,7 +264,7 @@ public static class DescriptionHtml
     }
 
     // The link as Google gets it: allowlisted, ASCII host with nothing hidden (LinkSafety.DisplayForm), mailto trimmed
-    static Uri? SafeLink(Uri? link)
+    private static Uri? SafeLink(Uri? link)
     {
         if (link is null || !LinkSafety.IsClickableInDescription(link) || LinkSafety.DisplayForm(link) is not { } shown)
         {
@@ -281,6 +281,6 @@ public static class DescriptionHtml
 
     // Object placeholders (pasted pictures), control characters other than tab, and direction controls (embedding,
     // override, isolate) never reach Google
-    static string Clean(string text) => new([.. text.Where(c => c != '￼' && (c == '\t' || !char.IsControl(c))
+    private static string Clean(string text) => new([.. text.Where(c => c != '￼' && (c == '\t' || !char.IsControl(c))
         && c is not ((>= '‪' and <= '‮') or (>= '⁦' and <= '⁩')))]);
 }

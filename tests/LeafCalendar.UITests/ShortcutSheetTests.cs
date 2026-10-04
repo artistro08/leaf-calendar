@@ -9,10 +9,10 @@ namespace LeafCalendar.UITests;
 
 public sealed class ShortcutSheetTests : IDisposable
 {
-    static readonly TimeSpan Wait = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan Wait = TimeSpan.FromSeconds(5);
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create(new LeafSettings { JoinShortcut = "Ctrl+Alt+Shift+J" });
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create(new LeafSettings { JoinShortcut = "Ctrl+Alt+Shift+J" });
 
     public void Dispose()
     {
@@ -20,7 +20,7 @@ public sealed class ShortcutSheetTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch()
+    private LeafApp Launch()
     {
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
         leaf.WaitFor("Event_evt-single_202610011300");
@@ -28,7 +28,7 @@ public sealed class ShortcutSheetTests : IDisposable
     }
 
     // The sheet's in-app rows showing now
-    static List<AutomationElement> Rows(AutomationElement sheet) =>
+    private static List<AutomationElement> Rows(AutomationElement sheet) =>
         [.. sheet.FindAllDescendants().Where(e => (e.Properties.AutomationId.ValueOrDefault ?? "").StartsWith("ShortcutRow_", StringComparison.Ordinal))];
 
     [Fact]
@@ -58,8 +58,8 @@ public sealed class ShortcutSheetTests : IDisposable
         {
             leaf.Press(VirtualKeyShort.SHIFT, VirtualKeyShort.OEM_2);
             var sheet = leaf.WaitFor("ShortcutSheet");
-            var view  = leaf.WaitFor("ViewHost").BoundingRectangle;
-            var box   = sheet.BoundingRectangle;
+            var view = leaf.WaitFor("ViewHost").BoundingRectangle;
+            var box = sheet.BoundingRectangle;
             Assert.True(box.Right <= view.Right && view.Right - box.Right <= 24 * leaf.Scale, $"The sheet ({box}) isn't at the view's ({view}) right edge.");
             Assert.True(box.Top >= view.Top && box.Left > view.Left, $"The sheet ({box}) isn't a panel over the view ({view}).");
             var filter = leaf.WaitFor("ShortcutFilterBox");

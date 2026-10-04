@@ -40,7 +40,7 @@ public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials cr
         DirectoryScope,
     ];
 
-    readonly GoogleEndpoints _endpoints = endpoints ?? GoogleEndpoints.Default;
+    private readonly GoogleEndpoints _endpoints = endpoints ?? GoogleEndpoints.Default;
 
     /// <summary>Builds the consent page address to open in the user's browser.</summary>
     public Uri BuildAuthorizationUrl(Uri redirectUri, string state, string codeChallenge, string? loginHint = null)
@@ -93,7 +93,7 @@ public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials cr
     /// <summary>Revokes a token. A token Google already considers invalid counts as revoked.</summary>
     public async Task RevokeAsync(string token, CancellationToken ct)
     {
-        using var content  = new FormUrlEncodedContent([new KeyValuePair<string?, string?>("token", token)]);
+        using var content = new FormUrlEncodedContent([new KeyValuePair<string?, string?>("token", token)]);
         using var response = await http.PostAsync(_endpoints.Revoke, content, ct);
 
         if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.BadRequest)
@@ -118,13 +118,13 @@ public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials cr
             ?? throw new InvalidDataException("Google returned empty user info.");
     }
 
-    async Task<TokenSet> RequestTokenAsync(List<KeyValuePair<string?, string?>> form, CancellationToken ct)
+    private async Task<TokenSet> RequestTokenAsync(List<KeyValuePair<string?, string?>> form, CancellationToken ct)
     {
         // Add Client Credentials
         form.Add(new("client_id", credentials.ClientId));
         form.Add(new("client_secret", credentials.ClientSecret));
 
-        using var content  = new FormUrlEncodedContent(form);
+        using var content = new FormUrlEncodedContent(form);
         using var response = await http.PostAsync(_endpoints.Token, content, ct);
         var body = await response.Content.ReadAsStringAsync(ct);
 

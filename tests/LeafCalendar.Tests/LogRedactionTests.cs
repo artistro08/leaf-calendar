@@ -7,9 +7,9 @@ namespace LeafCalendar.Tests;
 
 public sealed class LogRedactionTests : IDisposable
 {
-    static readonly HttpClient Browser = new();
+    private static readonly HttpClient Browser = new();
 
-    readonly SyncHarness _h = new();
+    private readonly SyncHarness _h = new();
 
     public void Dispose() => _h.Dispose();
 

@@ -42,7 +42,7 @@ public static partial class CalendarStore
     /// <summary>Longest calendar name shown (longer names are clipped with "…").</summary>
     public const int MaxNameLength = 100;
 
-    const string SelectColumns = """
+    private const string SelectColumns = """
         SELECT c.account_id, c.id, COALESCE(c.summary_override, c.summary), c.background_color, c.access_role,
                c.is_primary, c.hidden, c.sync_token, COALESCE(c.leaf_hidden, c.hidden), c.leaf_color, c.sort_order, c.summary
         FROM calendars c
@@ -64,7 +64,7 @@ public static partial class CalendarStore
     /// </remarks>
     public static void ReplaceForAccount(SqliteConnection conn, string accountId, IReadOnlyList<CalendarListEntry> entries)
     {
-        var incoming    = entries.Where(e => !e.Deleted).ToList();
+        var incoming = entries.Where(e => !e.Deleted).ToList();
         var incomingIds = incoming.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
 
         using var tx = conn.BeginTransaction();
@@ -251,7 +251,7 @@ public static partial class CalendarStore
         return rows.ToDictionary(r => (r.Account, r.Id), r => byCalendar[r.Id]);
     }
 
-    static List<int> PopupMinutes(string? json)
+    private static List<int> PopupMinutes(string? json)
     {
         if (string.IsNullOrEmpty(json))
         {
@@ -273,7 +273,7 @@ public static partial class CalendarStore
     }
 
     // Names come from Google (or another person's calendar), so they're cleaned like any untrusted text
-    static CalendarInfo Map(SqliteDataReader r) => new(
+    private static CalendarInfo Map(SqliteDataReader r) => new(
         r.GetString(0),
         r.GetString(1),
         DisplayText.Clean(r.GetString(2), MaxNameLength),

@@ -29,14 +29,14 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
     /// <summary>Parses arguments (without the executable path).</summary>
     public static LaunchOptions Parse(IReadOnlyList<string> args)
     {
-        var profile         = "default";
-        var trayProbe       = false;
-        Uri? fake           = null;
-        DateOnly? date      = null;
+        var profile = "default";
+        var trayProbe = false;
+        Uri? fake = null;
+        DateOnly? date = null;
         DateTimeOffset? now = null;
-        string? toast       = null;
-        var gcStress        = false;
-        var restarted       = false;
+        string? toast = null;
+        var gcStress = false;
+        var restarted = false;
 
         for (var i = 0; i < args.Count; i++)
         {
@@ -95,10 +95,10 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
     {
         ArgumentNullException.ThrowIfNull(commandLine);
 
-        var args        = new List<string>();
-        var current     = new StringBuilder();
-        var quoted      = false;
-        var started     = false;
+        var args = new List<string>();
+        var current = new StringBuilder();
+        var quoted = false;
+        var started = false;
         var backslashes = 0;
 
         for (var i = 0; i < commandLine.Length; i++)
@@ -132,7 +132,7 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
                 }
 
                 backslashes = 0;
-                started     = true;
+                started = true;
                 continue;
             }
 
@@ -165,7 +165,7 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
         return args;
     }
 
-    static Uri? ParseLoopback(string value)
+    private static Uri? ParseLoopback(string value)
     {
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttp || !uri.IsLoopback)
         {
@@ -176,7 +176,7 @@ public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoog
     }
 
     // An instant with an explicit offset only, so the test clock never depends on the PC's zone
-    static DateTimeOffset? ParseInstant(string value) =>
+    private static DateTimeOffset? ParseInstant(string value) =>
         DateTimeOffset.TryParseExact(value, ["yyyy-MM-dd'T'HH:mm:sszzz", "yyyy-MM-dd'T'HH:mmzzz"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var instant)
             ? instant
             : null;

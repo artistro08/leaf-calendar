@@ -62,18 +62,18 @@ public sealed partial class AccountSettingsRow(string accountId, string email, s
 public sealed partial class AccountsViewModel : ObservableObject
 {
     // Shown when a command fails for a reason the user can't act on
-    const string GenericFailure = "Something went wrong. Try again.";
+    private const string GenericFailure = "Something went wrong. Try again.";
 
-    readonly LeafServices _services;
-    readonly Action _accountsChanged;
+    private readonly LeafServices _services;
+    private readonly Action _accountsChanged;
 
     // Cancels the sign-in waiting on the browser; null when none is
-    CancellationTokenSource? _signIn;
+    private CancellationTokenSource? _signIn;
 
     /// <summary>Loads the account list. <paramref name="accountsChanged"/> runs after an add, sync, or disconnect (the main window reloads its calendars).</summary>
     public AccountsViewModel(LeafServices services, Action accountsChanged)
     {
-        _services        = services;
+        _services = services;
         _accountsChanged = accountsChanged;
         Refresh();
     }
@@ -121,7 +121,7 @@ public sealed partial class AccountsViewModel : ObservableObject
     /// <summary>Clears the status message (a finished action's message is stale once the page is left).</summary>
     public void ClearMessage()
     {
-        Message     = null;
+        Message = null;
         MessageKind = AccountsMessageKind.Progress;
     }
 
@@ -136,8 +136,8 @@ public sealed partial class AccountsViewModel : ObservableObject
             foreach (var account in AccountStore.GetAll(conn))
             {
                 var calendars = CalendarStore.GetForAccount(conn, account.Id).Where(c => !c.Hidden).ToList();
-                var events    = calendars.Sum(c => EventStore.Count(conn, account.Id, c.Id));
-                var summary   = account.Status == AccountStatus.NeedsSignIn
+                var events = calendars.Sum(c => EventStore.Count(conn, account.Id, c.Id));
+                var summary = account.Status == AccountStatus.NeedsSignIn
                     ? "Needs sign-in"
                     : $"{calendars.Count} calendars · {events} events";
 
@@ -204,16 +204,16 @@ public sealed partial class AccountsViewModel : ObservableObject
     }
 
     // A new account's first sync saved at least one calendar and left it signed in
-    bool FirstSyncWorked(string accountId)
+    private bool FirstSyncWorked(string accountId)
     {
         using var conn = _services.Database.Open();
-        var calendars  = CalendarStore.GetForAccount(conn, accountId).Count(c => !c.Hidden);
-        var status     = AccountStore.GetAll(conn).FirstOrDefault(a => a.Id == accountId)?.Status ?? AccountStatus.NeedsSignIn;
+        var calendars = CalendarStore.GetForAccount(conn, accountId).Count(c => !c.Hidden);
+        var status = AccountStore.GetAll(conn).FirstOrDefault(a => a.Id == accountId)?.Status ?? AccountStatus.NeedsSignIn;
         return OnboardingFlow.FirstSyncWorked(calendars, status);
     }
 
     // The list here and the main window's calendars
-    void Reload()
+    private void Reload()
     {
         Refresh();
         _accountsChanged();
@@ -227,23 +227,23 @@ public sealed partial class AccountsViewModel : ObservableObject
     }
 
     // A failure the user can act on, shown as an error
-    void ShowFailure(string message) => Show(AccountsMessageKind.Error, message);
+    private void ShowFailure(string message) => Show(AccountsMessageKind.Error, message);
 
-    void Show(AccountsMessageKind kind, string message)
+    private void Show(AccountsMessageKind kind, string message)
     {
         MessageKind = kind;
-        Message     = message;
+        Message = message;
     }
 
     [RelayCommand(CanExecute = nameof(IsNotBusy))]
-    async Task AddAccountAsync()
+    private async Task AddAccountAsync()
     {
         if (_services.Google is not { } google)
         {
             return;
         }
 
-        IsBusy   = true;
+        IsBusy = true;
         IsAdding = true;
         Show(AccountsMessageKind.Progress, "Finish signing in with Google in your browser.");
 
@@ -257,8 +257,8 @@ public sealed partial class AccountsViewModel : ObservableObject
                 Account account;
                 using (var signIn = new CancellationTokenSource())
                 {
-                    canceled    = signIn.Token;
-                    _signIn     = signIn;
+                    canceled = signIn.Token;
+                    _signIn = signIn;
                     IsSigningIn = true;
                     try
                     {
@@ -267,7 +267,7 @@ public sealed partial class AccountsViewModel : ObservableObject
                     finally
                     {
                         IsSigningIn = false;
-                        _signIn     = null;
+                        _signIn = null;
                     }
                 }
 
@@ -288,7 +288,7 @@ public sealed partial class AccountsViewModel : ObservableObject
             }
             finally
             {
-                IsBusy   = false;
+                IsBusy = false;
                 IsAdding = false;
                 Reload();
             }
@@ -317,14 +317,14 @@ public sealed partial class AccountsViewModel : ObservableObject
     public void CancelSignIn() => _signIn?.Cancel();
 
     [RelayCommand(CanExecute = nameof(IsNotBusy))]
-    async Task SyncNowAsync()
+    private async Task SyncNowAsync()
     {
         if (_services.Google is not { } google)
         {
             return;
         }
 
-        IsBusy    = true;
+        IsBusy = true;
         IsSyncing = true;
         ClearMessage();
         try
@@ -335,7 +335,7 @@ public sealed partial class AccountsViewModel : ObservableObject
             }
             finally
             {
-                IsBusy    = false;
+                IsBusy = false;
                 IsSyncing = false;
                 Reload();
             }

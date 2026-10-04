@@ -30,20 +30,20 @@ public enum CommandRowKind
 /// <summary>One command-menu row (an App class, so a WinRT list never holds Core types).</summary>
 public sealed class CommandRow
 {
-    CommandRow(CommandRowKind kind, string title, string detail, string keys, string glyph, string color, string automationId)
+    private CommandRow(CommandRowKind kind, string title, string detail, string keys, string glyph, string color, string automationId)
     {
-        Kind              = kind;
-        Title             = title;
-        Detail            = detail;
-        Keys              = keys;
-        Glyph             = glyph;
-        Color             = color;
-        AutomationId      = automationId;
-        EventVisibility   = kind == CommandRowKind.Event ? Visibility.Visible : Visibility.Collapsed;
-        ActionVisibility  = kind is CommandRowKind.Action or CommandRowKind.Date ? Visibility.Visible : Visibility.Collapsed;
-        KeysVisibility    = keys.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        HeaderVisibility  = kind == CommandRowKind.Header ? Visibility.Visible : Visibility.Collapsed;
-        RowVisibility     = kind == CommandRowKind.Header ? Visibility.Collapsed : Visibility.Visible;
+        Kind = kind;
+        Title = title;
+        Detail = detail;
+        Keys = keys;
+        Glyph = glyph;
+        Color = color;
+        AutomationId = automationId;
+        EventVisibility = kind == CommandRowKind.Event ? Visibility.Visible : Visibility.Collapsed;
+        ActionVisibility = kind is CommandRowKind.Action or CommandRowKind.Date ? Visibility.Visible : Visibility.Collapsed;
+        KeysVisibility = keys.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        HeaderVisibility = kind == CommandRowKind.Header ? Visibility.Visible : Visibility.Collapsed;
+        RowVisibility = kind == CommandRowKind.Header ? Visibility.Collapsed : Visibility.Visible;
     }
 
     /// <summary>What the row does.</summary>
@@ -88,10 +88,10 @@ public sealed class CommandRow
     /// <summary>What the footer calls the row: "Event", "Action", or "Date"; empty for headers.</summary>
     public string KindLabel => Kind switch
     {
-        CommandRowKind.Event  => "Event",
+        CommandRowKind.Event => "Event",
         CommandRowKind.Action => "Action",
-        CommandRowKind.Date   => "Date",
-        _                     => "",
+        CommandRowKind.Date => "Date",
+        _ => "",
     };
 
     /// <summary>The event, for <see cref="CommandRowKind.Event"/>.</summary>
@@ -106,14 +106,14 @@ public sealed class CommandRow
     /// <summary>A found event: "Mon, Oct 12 · 9:00 AM", plus " · in location" (or guests, description) when the title didn't match.</summary>
     public static CommandRow ForHit(SearchHit hit, DateOnly today, TimeZoneInfo zone, bool use24h)
     {
-        var day   = hit.IsAllDay ? DateOnly.FromDateTime(hit.Start.UtcDateTime) : DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(hit.Start, zone).DateTime);
-        var time  = hit.IsAllDay ? "All day" : TimeLabels.TimeOfDay(hit.Start, zone, use24h);
+        var day = hit.IsAllDay ? DateOnly.FromDateTime(hit.Start.UtcDateTime) : DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(hit.Start, zone).DateTime);
+        var time = hit.IsAllDay ? "All day" : TimeLabels.TimeOfDay(hit.Start, zone, use24h);
         var where = hit.Field switch
         {
-            SearchField.Location    => " · in location",
-            SearchField.Guest       => " · in guests",
+            SearchField.Location => " · in location",
+            SearchField.Guest => " · in guests",
             SearchField.Description => " · in description",
-            _                       => "",
+            _ => "",
         };
 
         return new(CommandRowKind.Event, hit.Title, $"{DateQuery.Label(day, today)} · {time}{where}", "", "", hit.Color, $"SearchResult_{hit.EventId}") { Hit = hit };
@@ -132,24 +132,24 @@ public sealed class CommandRow
         new(CommandRowKind.Date, "Go to " + DateQuery.Label(date, today), "", "", "", "", "CommandResult_date") { Date = date };
 
     // The design standard's glyphs where it names one, Segoe Fluent Icons otherwise
-    static string GlyphFor(string id) => id switch
+    private static string GlyphFor(string id) => id switch
     {
-        "create-event"                                   => "",
-        "go-to-date" or "today"                          => "",
-        "join"                                           => "",
-        "overlay" or "meet-with"                         => "",
-        "time-travel"                                    => "",
-        "share"                                          => "",
-        "toggle-theme"                                   => "",
-        "shortcuts" or "settings-shortcuts"              => "",
-        "settings-about"                                 => "",
-        "sync"                                           => "",
-        "back"                                           => "",
-        "forward"                                        => "",
-        "quit"                                           => "\uE7E8",
+        "create-event" => "",
+        "go-to-date" or "today" => "",
+        "join" => "",
+        "overlay" or "meet-with" => "",
+        "time-travel" => "",
+        "share" => "",
+        "toggle-theme" => "",
+        "shortcuts" or "settings-shortcuts" => "",
+        "settings-about" => "",
+        "sync" => "",
+        "back" => "",
+        "forward" => "",
+        "quit" => "\uE7E8",
         _ when id.StartsWith("settings", StringComparison.Ordinal) => "",
-        _ when id.StartsWith("view-", StringComparison.Ordinal)    => "",
-        _                                                => "",
+        _ when id.StartsWith("view-", StringComparison.Ordinal) => "",
+        _ => "",
     };
 }
 
@@ -161,19 +161,19 @@ public sealed class CommandRow
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "A control isn't disposable; the running search is canceled when the menu unloads (the flyout closes).")]
 public sealed partial class CommandMenu : UserControl
 {
-    readonly CalendarViewModel _vm;
-    readonly Action<CommandRow, bool> _run;
-    readonly LatestSearch<IReadOnlyList<SearchHit>> _search = new();
-    readonly Dictionary<CommandRow, UIElement> _containers = [];
-    List<CommandRow> _rows = [];
+    private readonly CalendarViewModel _vm;
+    private readonly Action<CommandRow, bool> _run;
+    private readonly LatestSearch<IReadOnlyList<SearchHit>> _search = new();
+    private readonly Dictionary<CommandRow, UIElement> _containers = [];
+    private List<CommandRow> _rows = [];
 
     // Jump to date: the chip shows, the box asks for a date, and only the date row is offered
-    bool _dateMode;
+    private bool _dateMode;
 
     /// <summary>Creates the menu; <paramref name="run"/> gets the picked row and whether to jump (Alt+Enter).</summary>
     public CommandMenu(CalendarViewModel vm, Action<CommandRow, bool> run)
     {
-        _vm  = vm;
+        _vm = vm;
         _run = run;
         InitializeComponent();
         ScrollIndicator.ShowOnHover(ResultsScroll);
@@ -198,16 +198,16 @@ public sealed partial class CommandMenu : UserControl
     public void LimitResultsHeight(double height) => ResultsScroll.MaxHeight = Math.Min(ResultsMaxHeight, height);
 
     // What the box asks for: anything, or (Jump to date) a date in words
-    const string SearchPrompt = "Search events, or type a command or a date";
-    const string DatePrompt   = "Jump to a date: nov 5th, 10 weeks, next fri, 3 days ago…";
+    private const string SearchPrompt = "Search events, or type a command or a date";
+    private const string DatePrompt = "Jump to a date: nov 5th, 10 weeks, next fri, 3 days ago…";
 
     /// <summary>Clears the box and shows the default actions.</summary>
     public void Reset()
     {
         _search.Cancel();
-        _dateMode                        = false;
-        ModeChip.Visibility              = Visibility.Collapsed;
-        CommandSearchBox.Text            = "";
+        _dateMode = false;
+        ModeChip.Visibility = Visibility.Collapsed;
+        CommandSearchBox.Text = "";
         CommandSearchBox.PlaceholderText = SearchPrompt;
         Show(null, [], [.. CommandCatalog.Defaults.Select(CommandRow.ForAction)]);
     }
@@ -219,11 +219,11 @@ public sealed partial class CommandMenu : UserControl
     public void AskForDate()
     {
         _search.Cancel();
-        _dateMode                        = true;
-        ModeGlyph.Glyph                  = CommandRow.ForAction(CommandCatalog.All.Single(c => c.Id == "go-to-date")).Glyph;
-        ModeText.Text                    = "Jump to date";
-        ModeChip.Visibility              = Visibility.Visible;
-        CommandSearchBox.Text            = "";
+        _dateMode = true;
+        ModeGlyph.Glyph = CommandRow.ForAction(CommandCatalog.All.Single(c => c.Id == "go-to-date")).Glyph;
+        ModeText.Text = "Jump to date";
+        ModeChip.Visibility = Visibility.Visible;
+        CommandSearchBox.Text = "";
         CommandSearchBox.PlaceholderText = DatePrompt;
         Show(null, [], []);
         FocusBox();
@@ -239,20 +239,20 @@ public sealed partial class CommandMenu : UserControl
     // Every keystroke shows its results at once (no settling delay: a keyboard flow wants what's typed on screen
     // already): the date, the actions, and the events from the warmed index. Only before the index is ready does a
     // search run off the thread, and its events follow
-    void OnTextChanged(object sender, TextChangedEventArgs e) => Refresh();
+    private void OnTextChanged(object sender, TextChangedEventArgs e) => Refresh();
 
-    void Refresh()
+    private void Refresh()
     {
-        var text         = CommandSearchBox.Text;
-        var today        = _vm.Today;
-        var date         = DateQuery.TryParse(text, today, out var day) ? CommandRow.ForDate(day, today) : null;
+        var text = CommandSearchBox.Text;
+        var today = _vm.Today;
+        var date = DateQuery.TryParse(text, today, out var day) ? CommandRow.ForDate(day, today) : null;
         if (_dateMode)
         {
             Show(date, [], []);
             return;
         }
 
-        var actions      = CommandCatalog.Match(text).Select(CommandRow.ForAction).ToList();
+        var actions = CommandCatalog.Match(text).Select(CommandRow.ForAction).ToList();
         var actionsFirst = CommandCatalog.NamesAnAction(text); // an action named by what's typed leads and is selected
         var (zone, use24h) = (_vm.Zone, _vm.Settings.Use24HourTime);
 
@@ -283,7 +283,7 @@ public sealed partial class CommandMenu : UserControl
 
     // Each non-empty section under its header ("Go to", then "Events" and "Actions", in that order unless the typed
     // words name an action), the first row selected
-    void Show(CommandRow? date, List<CommandRow> events, List<CommandRow> actions, bool actionsFirst = false)
+    private void Show(CommandRow? date, List<CommandRow> events, List<CommandRow> actions, bool actionsFirst = false)
     {
         List<CommandRow> rows = [];
         var (first, second) = actionsFirst ? (("Actions", actions), ("Events", events)) : (("Events", events), ("Actions", actions));
@@ -297,12 +297,12 @@ public sealed partial class CommandMenu : UserControl
         }
 
         // The Selection Stays On The Same Row When It's Still Listed (events arriving under a chosen action don't move it)
-        var kept  = _rows.Find(r => ReferenceEquals(r, CommandResults.SelectedItem))?.AutomationId;
+        var kept = _rows.Find(r => ReferenceEquals(r, CommandResults.SelectedItem))?.AutomationId;
         var index = kept is null ? -1 : rows.FindIndex(r => r.AutomationId == kept);
 
         _rows = rows;
         _containers.Clear();
-        CommandResults.ItemsSource   = _rows;
+        CommandResults.ItemsSource = _rows;
         CommandResults.SelectedIndex = index >= 0 ? index : _rows.FindIndex(r => r.Kind != CommandRowKind.Header);
 
         // The Empty State Says Nothing Matched (an empty box asking for a date has matched nothing yet, so it stays hidden)
@@ -313,7 +313,7 @@ public sealed partial class CommandMenu : UserControl
 
     // Each row's container, kept (by reference to our own row) so Up and Down can scroll it into view. Headers are 28
     // high and can't be clicked or selected; rows are 44 high (containers are reused, so both are set every time)
-    void OnRowChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    private void OnRowChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         if (_rows.Find(r => ReferenceEquals(r, args.Item)) is not { } row)
         {
@@ -321,10 +321,10 @@ public sealed partial class CommandMenu : UserControl
         }
 
         var header = row.Kind == CommandRowKind.Header;
-        args.ItemContainer.MinHeight         = header ? 28 : 44;
-        args.ItemContainer.Height            = header ? 28 : 44;
-        args.ItemContainer.IsHitTestVisible  = !header;
-        args.ItemContainer.IsTabStop         = !header;
+        args.ItemContainer.MinHeight = header ? 28 : 44;
+        args.ItemContainer.Height = header ? 28 : 44;
+        args.ItemContainer.IsHitTestVisible = !header;
+        args.ItemContainer.IsTabStop = !header;
 
         if (args.InRecycleQueue)
         {
@@ -341,7 +341,7 @@ public sealed partial class CommandMenu : UserControl
     // =========================================================================
 
     // Preview, so the box's own caret handling doesn't take Up and Down first
-    void OnSearchKeyDown(object sender, KeyRoutedEventArgs e)
+    private void OnSearchKeyDown(object sender, KeyRoutedEventArgs e)
     {
         switch (e.Key)
         {
@@ -364,7 +364,7 @@ public sealed partial class CommandMenu : UserControl
     }
 
     // Alt+Enter when WinUI routes it as a system key instead of a key down
-    void OnJumpInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    private void OnJumpInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
         RunSelected(jump: true);
         args.Handled = true;
@@ -372,7 +372,7 @@ public sealed partial class CommandMenu : UserControl
 
     // The next row up or down, skipping headers; at the ends it stays put. Back at the first row, the list scrolls to
     // the top so its header shows too
-    void Move(int step)
+    private void Move(int step)
     {
         var index = CommandResults.SelectedIndex + step;
         while (index >= 0 && index < _rows.Count && _rows[index].Kind == CommandRowKind.Header)
@@ -396,7 +396,7 @@ public sealed partial class CommandMenu : UserControl
         }
     }
 
-    void RunSelected(bool jump)
+    private void RunSelected(bool jump)
     {
         var index = CommandResults.SelectedIndex;
         if (index >= 0 && index < _rows.Count && _rows[index].Kind != CommandRowKind.Header)
@@ -405,7 +405,7 @@ public sealed partial class CommandMenu : UserControl
         }
     }
 
-    void OnItemClick(object sender, ItemClickEventArgs e)
+    private void OnItemClick(object sender, ItemClickEventArgs e)
     {
         if (_rows.Find(r => ReferenceEquals(r, e.ClickedItem)) is { Kind: not CommandRowKind.Header } row)
         {
@@ -417,16 +417,16 @@ public sealed partial class CommandMenu : UserControl
     // FOOTER
     // =========================================================================
 
-    void OnSelectionChanged(object sender, SelectionChangedEventArgs e) => ShowHints();
+    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e) => ShowHints();
 
     // What the selected row is, and Alt+Enter's hint for events; nothing when the list is empty
-    void ShowHints()
+    private void ShowHints()
     {
         var index = CommandResults.SelectedIndex;
-        var row   = index >= 0 && index < _rows.Count ? _rows[index] : null;
+        var row = index >= 0 && index < _rows.Count ? _rows[index] : null;
 
         CommandFooter.Visibility = row is null ? Visibility.Collapsed : Visibility.Visible;
-        FooterKind.Text          = row?.KindLabel ?? "";
-        FooterJump.Visibility    = row?.Kind == CommandRowKind.Event ? Visibility.Visible : Visibility.Collapsed;
+        FooterKind.Text = row?.KindLabel ?? "";
+        FooterJump.Visibility = row?.Kind == CommandRowKind.Event ? Visibility.Visible : Visibility.Collapsed;
     }
 }

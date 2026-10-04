@@ -4,7 +4,7 @@ namespace LeafCalendar.Tests;
 
 public sealed class CredentialLockerTokenStoreTests : IDisposable
 {
-    readonly CredentialLockerTokenStore _store = new("test-" + Guid.NewGuid().ToString("N")[..12]);
+    private readonly CredentialLockerTokenStore _store = new("test-" + Guid.NewGuid().ToString("N")[..12]);
 
     public void Dispose() => _store.DeleteAll();
 

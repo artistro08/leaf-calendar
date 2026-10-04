@@ -15,13 +15,13 @@ namespace LeafCalendar.App.Interop;
 /// </summary>
 internal static unsafe class MouseDownWatch
 {
-    const uint WmLeftDown   = 0x0201;
-    const uint WmRightDown  = 0x0204;
-    const uint WmMiddleDown = 0x0207;
-    const uint WmXDown      = 0x020B;
+    private const uint WmLeftDown = 0x0201;
+    private const uint WmRightDown = 0x0204;
+    private const uint WmMiddleDown = 0x0207;
+    private const uint WmXDown = 0x020B;
 
-    static HHOOK s_hook;
-    static Action<int, int>? s_pressed;
+    private static HHOOK s_hook;
+    private static Action<int, int>? s_pressed;
 
     /// <summary>True while a watch is installed.</summary>
     public static bool IsWatching => !s_hook.IsNull;
@@ -53,7 +53,7 @@ internal static unsafe class MouseDownWatch
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
-    static LRESULT HookProc(int nCode, WPARAM wParam, LPARAM lParam)
+    private static LRESULT HookProc(int nCode, WPARAM wParam, LPARAM lParam)
     {
         try
         {

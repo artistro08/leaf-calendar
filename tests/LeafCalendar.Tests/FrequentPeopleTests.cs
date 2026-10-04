@@ -8,11 +8,11 @@ namespace LeafCalendar.Tests;
 
 public sealed class FrequentPeopleTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
-    static readonly DateTimeOffset Now = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
+    private const string Primary = "leaf.tester@gmail.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
+    private static readonly DateTimeOffset Now = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
 
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public FrequentPeopleTests()
     {
@@ -24,14 +24,14 @@ public sealed class FrequentPeopleTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    void Insert(string json, string account = "109876543210", string calendar = Primary)
+    private void Insert(string json, string account = "109876543210", string calendar = Primary)
     {
         using var conn = _db.Database.Open();
-        using var doc  = JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(json);
         EventStore.Apply(conn, null, account, calendar, doc.RootElement);
     }
 
-    static string With(string id, string start, string attendees) =>
+    private static string With(string id, string start, string attendees) =>
         $$"""{"id":"{{id}}","status":"confirmed","summary":"x","start":{"dateTime":"{{start}}"},"end":{"dateTime":"{{start}}"},"attendees":[{{attendees}}]}""";
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class FrequentPeopleTests : IDisposable
     public void Match_PrefixOfANameWordOrTheAddress(string query, int count) =>
         Assert.Equal(count, FrequentPeople.Match([new("Frank Often", "frank@example.com"), new("", "amy@example.com")], query).Count);
 
-    static string Weekly(string id, string start, string rule, string attendees) =>
+    private static string Weekly(string id, string start, string rule, string attendees) =>
         $$"""{"id":"{{id}}","status":"confirmed","summary":"x","start":{"dateTime":"{{start}}","timeZone":"America/New_York"},"end":{"dateTime":"{{start}}","timeZone":"America/New_York"},"recurrence":["{{rule}}"],"attendees":[{{attendees}}]}""";
 
     [Fact]

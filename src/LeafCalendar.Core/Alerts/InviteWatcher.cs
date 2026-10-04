@@ -36,13 +36,13 @@ public sealed record InviteAlert(CalendarOccurrence Occurrence, EventDetails Det
 /// </remarks>
 public static class InviteWatcher
 {
-    const string SeededMark = "invites-seeded:";
+    private const string SeededMark = "invites-seeded:";
 
     // How far ahead the next instance of a repeating invitation is looked for
-    const int LookaheadDays = 366;
+    private const int LookaheadDays = 366;
 
     // Each account's own calendar once its first sync finished, shown or hidden
-    const string CalendarsSql = """
+    private const string CalendarsSql = """
         SELECT account_id, id, COALESCE(leaf_hidden, hidden)
         FROM calendars
         WHERE sync_token IS NOT NULL
@@ -52,7 +52,7 @@ public static class InviteWatcher
 
     // "needsAction" in the JSON is a cheap first filter; the JSON is then read properly. Series first, so their changed
     // instances know whether the series was recorded in the same look.
-    const string Sql = """
+    private const string Sql = """
         SELECT e.id, e.raw_json, e.is_recurring_master, e.recurring_event_id, e.end_utc
         FROM events e
         WHERE e.account_id = $account
@@ -80,11 +80,11 @@ public static class InviteWatcher
         foreach (var calendar in calendars)
         {
             // The First Look At A Calendar, Or A Hidden One, Records Quietly
-            var mark   = SeededMark + calendar.Account + "|" + calendar.Id;
+            var mark = SeededMark + calendar.Account + "|" + calendar.Id;
             var seeded = AlertLedger.GetMark(conn, mark) is not null;
             var notify = seeded && !calendar.Hidden;
             var series = new HashSet<string>(StringComparer.Ordinal);
-            var rows   = conn.Query(
+            var rows = conn.Query(
                 null,
                 Sql,
                 r => (Id: r.GetString(0), Json: r.GetString(1), IsMaster: r.GetBoolean(2), SeriesId: r.IsDBNull(3) ? null : r.GetString(3), EndMs: r.IsDBNull(4) ? (long?)null : r.GetInt64(4)),
@@ -101,7 +101,7 @@ public static class InviteWatcher
 
                 // Seen Before (same event, same sequence); a series still open stays recorded, since the ledger forgets ended rows
                 var prefix = $"Invite|{calendar.Account}|{calendar.Id}|{row.Id}|";
-                var key    = prefix + sequence.ToString(CultureInfo.InvariantCulture);
+                var key = prefix + sequence.ToString(CultureInfo.InvariantCulture);
                 if (AlertLedger.Contains(conn, key))
                 {
                     if (row.IsMaster)
@@ -123,8 +123,8 @@ public static class InviteWatcher
                 // Record, Then Notify (not on a first look, a hidden calendar, a series that has ended, or a changed
                 // instance of a series recorded just now); a changed instance of an older series is an update to it
                 var isUpdate = row.SeriesId is not null || AlertLedger.HasPrefix(conn, prefix);
-                var tag      = Alert.TagFor(key);
-                var end      = row.IsMaster ? now.AddDays(LookaheadDays) : occurrence?.EndIn(zone) ?? DateTimeOffset.FromUnixTimeMilliseconds(row.EndMs!.Value);
+                var tag = Alert.TagFor(key);
+                var end = row.IsMaster ? now.AddDays(LookaheadDays) : occurrence?.EndIn(zone) ?? DateTimeOffset.FromUnixTimeMilliseconds(row.EndMs!.Value);
                 AlertLedger.TryAdd(conn, key, AlertKind.Invite, tag, end, now);
                 if (row.IsMaster)
                 {
@@ -153,20 +153,20 @@ public static class InviteWatcher
         AlertLedger.DeleteMarksStartingWith(conn, SeededMark + accountId + "|", tx);
     }
 
-    static IReadOnlyList<CalendarOccurrence> Upcoming(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone)
+    private static IReadOnlyList<CalendarOccurrence> Upcoming(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone)
     {
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
         return OccurrenceQuery.Load(conn, today.AddDays(-1), today.AddDays(LookaheadDays), zone, includeDeclined: true);
     }
 
     // Someone else organizes it and your own reply is still "needsAction"; also returns Google's sequence number
-    static bool IsOpenInvite(string json, out int sequence)
+    private static bool IsOpenInvite(string json, out int sequence)
     {
         sequence = 0;
         try
         {
             using var doc = JsonDocument.Parse(json);
-            var root      = doc.RootElement;
+            var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
             {
                 return false;

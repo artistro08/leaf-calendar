@@ -37,7 +37,7 @@ public sealed record OverlayChip(string Email, string Name, bool Unknown, SolidC
 /// </summary>
 public sealed partial class OverlayBar : UserControl
 {
-    CalendarViewModel? _vm;
+    private CalendarViewModel? _vm;
 
     /// <summary>Creates the bar (hidden until <see cref="Update"/> shows someone).</summary>
     public OverlayBar()
@@ -53,19 +53,19 @@ public sealed partial class OverlayBar : UserControl
         _vm = vm;
         if (vm is null || vm.OverlayPeople.Count == 0)
         {
-            Visibility        = Visibility.Collapsed;
+            Visibility = Visibility.Collapsed;
             Chips.ItemsSource = null;
             return;
         }
 
         // Label And Hint
-        var month       = vm.Mode == CalendarViewMode.Month;
-        Label.Text      = vm.IsMeetWith ? "Meet with" : "Busy times";
-        Hint.Text       = month ? "Busy times show in the day and week views." : vm.IsMeetWith ? "Drag on the calendar to invite them." : "";
+        var month = vm.Mode == CalendarViewMode.Month;
+        Label.Text = vm.IsMeetWith ? "Meet with" : "Busy times";
+        Hint.Text = month ? "Busy times show in the day and week views." : vm.IsMeetWith ? "Drag on the calendar to invite them." : "";
         Hint.Visibility = Hint.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         // Chips
-        var dark        = ActualTheme == ElementTheme.Dark;
+        var dark = ActualTheme == ElementTheme.Dark;
         var focusedChip = FocusedChipIndex();
         Chips.ItemsSource = vm.OverlayPeople
             .Select(p => new OverlayChip(p.Email, p.Name, p.State == PersonBusyState.Unknown, LeafBrushes.Person(p.ColorIndex, dark), vm.RemoveOverlayPerson))
@@ -81,7 +81,7 @@ public sealed partial class OverlayBar : UserControl
     }
 
     // The chip holding focus, or -1
-    int FocusedChipIndex()
+    private int FocusedChipIndex()
     {
         if (XamlRoot is null)
         {
@@ -99,7 +99,7 @@ public sealed partial class OverlayBar : UserControl
         return -1;
     }
 
-    void FocusChip(int index)
+    private void FocusChip(int index)
     {
         if (Visibility != Visibility.Visible)
         {
@@ -116,7 +116,7 @@ public sealed partial class OverlayBar : UserControl
         ClearButton.Focus(FocusState.Keyboard);
     }
 
-    static Button? FindButton(DependencyObject parent)
+    private static Button? FindButton(DependencyObject parent)
     {
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
         {
@@ -130,5 +130,5 @@ public sealed partial class OverlayBar : UserControl
         return null;
     }
 
-    void OnClearClick(object sender, RoutedEventArgs e) => _vm?.ClearOverlay();
+    private void OnClearClick(object sender, RoutedEventArgs e) => _vm?.ClearOverlay();
 }

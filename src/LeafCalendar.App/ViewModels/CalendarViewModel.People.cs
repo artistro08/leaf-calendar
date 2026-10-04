@@ -23,16 +23,16 @@ public sealed partial class CalendarViewModel
     // =========================================================================
 
     // Person colors cycle through this many (LeafBrushes.Person)
-    const int PersonColors = 4;
+    private const int PersonColors = 4;
 
     // ponytail: the overlay is fields plus one event; nothing here is stored (contacts privacy)
-    List<OverlayPerson> _people = [];
-    Dictionary<string, List<BusyBlock>> _blocks = new(StringComparer.OrdinalIgnoreCase);
-    (DateTimeOffset From, DateTimeOffset To)? _loaded;
-    bool _meetWith;
+    private List<OverlayPerson> _people = [];
+    private Dictionary<string, List<BusyBlock>> _blocks = new(StringComparer.OrdinalIgnoreCase);
+    private (DateTimeOffset From, DateTimeOffset To)? _loaded;
+    private bool _meetWith;
 
     // Bumped by every change to who is overlaid, so a lookup that finishes late is dropped
-    int _overlayVersion;
+    private int _overlayVersion;
 
     /// <summary>The people overlaid on the time grid, in the order picked.</summary>
     public IReadOnlyList<OverlayPerson> OverlayPeople => _people;
@@ -59,7 +59,7 @@ public sealed partial class CalendarViewModel
 
         _blocks.Clear();
         _meetWith = meetWith && _people.Count > 0;
-        _loaded   = null;
+        _loaded = null;
         _overlayVersion++;
         OverlayChanged?.Invoke(this, EventArgs.Empty);
 
@@ -83,9 +83,9 @@ public sealed partial class CalendarViewModel
     /// <summary>Takes everyone off the overlay and ends Meet with.</summary>
     public void ClearOverlay()
     {
-        _people   = [];
-        _blocks   = new(StringComparer.OrdinalIgnoreCase);
-        _loaded   = null;
+        _people = [];
+        _blocks = new(StringComparer.OrdinalIgnoreCase);
+        _loaded = null;
         _meetWith = false;
         _overlayVersion++;
         OverlayChanged?.Invoke(this, EventArgs.Empty);
@@ -154,10 +154,10 @@ public sealed partial class CalendarViewModel
     }
 
     // The visible period, a week each side
-    (DateTimeOffset From, DateTimeOffset To) OverlayRange() =>
+    private (DateTimeOffset From, DateTimeOffset To) OverlayRange() =>
         (OccurrenceQuery.LocalMidnight(PeriodStart.AddDays(-7), Zone), OccurrenceQuery.LocalMidnight(PeriodStart.AddDays(VisibleColumns + 7), Zone));
 
-    static bool Covers((DateTimeOffset From, DateTimeOffset To)? range, DateTimeOffset from, DateTimeOffset to) =>
+    private static bool Covers((DateTimeOffset From, DateTimeOffset To)? range, DateTimeOffset from, DateTimeOffset to) =>
         range is { } r && r.From <= from && r.To >= to;
 
     /// <summary>In Meet with mode, adds every overlaid person as a guest of the new event being edited.</summary>
@@ -189,10 +189,10 @@ public sealed partial class CalendarViewModel
     // SHARE AVAILABILITY
     // =========================================================================
 
-    bool _sharing;
-    List<BusyRange> _slots = [];
-    string _shareZoneId = "";
-    HashSet<CalendarRef> _shareCalendars = [];
+    private bool _sharing;
+    private List<BusyRange> _slots = [];
+    private string _shareZoneId = "";
+    private HashSet<CalendarRef> _shareCalendars = [];
 
     /// <summary>True while you pick times to share: a drag on the time grid adds a slot instead of a new event.</summary>
     public bool IsSharing => _sharing;
@@ -226,18 +226,18 @@ public sealed partial class CalendarViewModel
             SetMode(Settings.LastGridView ?? CalendarViewMode.Week);
         }
 
-        _slots          = [];
-        _shareZoneId    = TimeZoneCatalog.IanaId(Zone);
+        _slots = [];
+        _shareZoneId = TimeZoneCatalog.IanaId(Zone);
         _shareCalendars = [.. ShareableCalendars().Select(c => new CalendarRef(c.AccountId, c.Id))];
-        _sharing        = true;
+        _sharing = true;
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Stops sharing and forgets the picked times.</summary>
     public void StopSharing()
     {
-        _sharing        = false;
-        _slots          = [];
+        _sharing = false;
+        _slots = [];
         _shareCalendars = [];
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -275,7 +275,7 @@ public sealed partial class CalendarViewModel
         }
 
         _slots[index] = new BusyRange(start, end);
-        _slots        = [.. BusyMath.Merge(_slots)];
+        _slots = [.. BusyMath.Merge(_slots)];
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -295,7 +295,7 @@ public sealed partial class CalendarViewModel
         }
 
         var from = _slots.Min(s => s.Start);
-        var to   = _slots.Max(s => s.End);
+        var to = _slots.Max(s => s.End);
 
         try
         {
@@ -372,5 +372,5 @@ public sealed partial class CalendarViewModel
     public static bool IsAddress(string text) => MailAddress.TryCreate(text, out var address) && address.Address == text;
 
     // A status for the log: Google's HTTP status, or the kind of failure (never a message, which could carry an address)
-    static string Status(Exception ex) => ex is GoogleApiException google ? ((int)google.Status).ToString(System.Globalization.CultureInfo.InvariantCulture) : ex.GetType().Name;
+    private static string Status(Exception ex) => ex is GoogleApiException google ? ((int)google.Status).ToString(System.Globalization.CultureInfo.InvariantCulture) : ex.GetType().Name;
 }

@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 
 public class NavigationHistoryTests
 {
-    static ViewPlace Week(int day) => new(CalendarViewMode.Week, 0, new DateOnly(2026, 10, day));
+    private static ViewPlace Week(int day) => new(CalendarViewMode.Week, 0, new DateOnly(2026, 10, day));
 
     [Fact]
     public void Back_ThenForward_WalksTheVisits()

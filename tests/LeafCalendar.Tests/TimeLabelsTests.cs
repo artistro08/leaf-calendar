@@ -4,9 +4,9 @@ namespace LeafCalendar.Tests;
 
 public class TimeLabelsTests
 {
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
-    static DateTimeOffset At(int hour, int minute) => new(2026, 10, 1, hour, minute, 0, TimeSpan.FromHours(-4));
+    private static DateTimeOffset At(int hour, int minute) => new(2026, 10, 1, hour, minute, 0, TimeSpan.FromHours(-4));
 
     [Theory]
     [InlineData(0, false, "12 AM")]

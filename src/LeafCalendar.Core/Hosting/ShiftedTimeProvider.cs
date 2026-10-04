@@ -6,15 +6,15 @@ namespace LeafCalendar.Core.Hosting;
 /// </summary>
 public sealed class ShiftedTimeProvider : TimeProvider
 {
-    readonly TimeProvider _inner;
-    readonly DateTimeOffset _start;
-    readonly long _origin;
+    private readonly TimeProvider _inner;
+    private readonly DateTimeOffset _start;
+    private readonly long _origin;
 
     /// <summary>Starts at <paramref name="start"/> now.</summary>
     public ShiftedTimeProvider(TimeProvider inner, DateTimeOffset start)
     {
-        _inner  = inner;
-        _start  = start;
+        _inner = inner;
+        _start = start;
         _origin = inner.GetTimestamp();
     }
 

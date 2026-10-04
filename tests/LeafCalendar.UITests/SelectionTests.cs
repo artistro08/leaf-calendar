@@ -10,12 +10,12 @@ namespace LeafCalendar.UITests;
 
 public sealed class SelectionTests : IDisposable
 {
-    const string Dentist    = "Event_evt-single_202610011300";
-    const string SchoolPlay = "Event_evt-family-play_202610022200";
-    const string FamilyId   = "family123@group.calendar.google.com";
+    private const string Dentist = "Event_evt-single_202610011300";
+    private const string SchoolPlay = "Event_evt-family-play_202610022200";
+    private const string FamilyId = "family123@group.calendar.google.com";
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -23,9 +23,9 @@ public sealed class SelectionTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
-    static void CtrlClick(AutomationElement element)
+    private static void CtrlClick(AutomationElement element)
     {
         Keyboard.Press(VirtualKeyShort.CONTROL);
         element.Click();
@@ -93,7 +93,7 @@ public sealed class SelectionTests : IDisposable
     {
         using var leaf = Launch();
         var dentist = leaf.WaitFor(Dentist);
-        var hour    = dentist.BoundingRectangle.Height + 2;
+        var hour = dentist.BoundingRectangle.Height + 2;
         dentist.Click();
         leaf.Press(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_C);
 
@@ -173,7 +173,7 @@ public sealed class SelectionTests : IDisposable
     }
 
     // A menu item's icon shows up in the raw tree as a second text part (its glyph) next to the item's label
-    static bool HasIcon(AutomationElement item)
+    private static bool HasIcon(AutomationElement item)
     {
         var walker = item.Automation.TreeWalkerFactory.GetRawViewWalker();
         return Retry.WhileFalse(

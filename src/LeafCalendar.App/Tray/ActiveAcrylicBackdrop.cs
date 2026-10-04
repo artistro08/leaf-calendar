@@ -18,8 +18,8 @@ namespace LeafCalendar.App.Tray;
 [SuppressMessage("Design", "CA1001", Justification = "The controller is disposed in OnTargetDisconnected, the backdrop's own teardown.")]
 public sealed partial class ActiveAcrylicBackdrop : SystemBackdrop
 {
-    readonly SystemBackdropConfiguration _configuration = new() { IsInputActive = true };
-    DesktopAcrylicController? _controller;
+    private readonly SystemBackdropConfiguration _configuration = new() { IsInputActive = true };
+    private DesktopAcrylicController? _controller;
 
     /// <inheritdoc />
     protected override void OnTargetConnected(ICompositionSupportsSystemBackdrop connectedTarget, XamlRoot xamlRoot)
@@ -56,8 +56,8 @@ public sealed partial class ActiveAcrylicBackdrop : SystemBackdrop
     {
         // Copy theme changes, never the "inactive" state
         var defaults = GetDefaultSystemBackdropConfiguration(target, xamlRoot);
-        _configuration.Theme          = defaults.Theme;
+        _configuration.Theme = defaults.Theme;
         _configuration.IsHighContrast = defaults.IsHighContrast;
-        _configuration.IsInputActive  = true;
+        _configuration.IsInputActive = true;
     }
 }

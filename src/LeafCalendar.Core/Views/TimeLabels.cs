@@ -5,7 +5,7 @@ namespace LeafCalendar.Core.Views;
 /// <summary>English time and date strings for the calendar.</summary>
 public static class TimeLabels
 {
-    static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
+    private static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
 
     /// <summary>"9 AM" or "09:00".</summary>
     public static string HourLabel(int hour, bool use24h)
@@ -17,10 +17,10 @@ public static class TimeLabels
 
         return hour switch
         {
-            0    => "12 AM",
-            12   => "12 PM",
+            0 => "12 AM",
+            12 => "12 PM",
             < 12 => string.Create(CultureInfo.InvariantCulture, $"{hour} AM"),
-            _    => string.Create(CultureInfo.InvariantCulture, $"{hour - 12} PM"),
+            _ => string.Create(CultureInfo.InvariantCulture, $"{hour - 12} PM"),
         };
     }
 
@@ -49,7 +49,7 @@ public static class TimeLabels
         use24h ? Range(start, end, zone, true) : $"{Clock(start, zone)} – {Clock(end, zone)}";
 
     // "9" or "9:15" on a 12-hour clock
-    static string Clock(DateTimeOffset instant, TimeZoneInfo zone)
+    private static string Clock(DateTimeOffset instant, TimeZoneInfo zone)
     {
         var local = TimeZoneInfo.ConvertTime(instant, zone);
         return local.ToString(local.Minute == 0 ? "%h" : "h:mm", English); // "%h": a lone "h" would be read as a standard format
@@ -64,7 +64,7 @@ public static class TimeLabels
             return local.ToString("HH:mm", English);
         }
 
-        var hour   = local.Hour % 12 == 0 ? 12 : local.Hour % 12;
+        var hour = local.Hour % 12 == 0 ? 12 : local.Hour % 12;
         var suffix = local.Hour < 12 ? "a" : "p";
 
         return local.Minute == 0
@@ -98,9 +98,9 @@ public static class TimeLabels
         var minutes = (long)Math.Ceiling((start - now).TotalMinutes);
         return minutes switch
         {
-            < 60      => string.Create(CultureInfo.InvariantCulture, $"in {minutes} min"),
+            < 60 => string.Create(CultureInfo.InvariantCulture, $"in {minutes} min"),
             < 48 * 60 => string.Create(CultureInfo.InvariantCulture, $"in {minutes / 60} h"),
-            _         => string.Create(CultureInfo.InvariantCulture, $"in {minutes / (24 * 60)} days"),
+            _ => string.Create(CultureInfo.InvariantCulture, $"in {minutes / (24 * 60)} days"),
         };
     }
 }

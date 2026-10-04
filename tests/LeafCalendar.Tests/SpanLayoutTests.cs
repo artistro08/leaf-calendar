@@ -5,23 +5,23 @@ namespace LeafCalendar.Tests;
 
 public class SpanLayoutTests
 {
-    static readonly TimeZoneInfo Zone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly TimeZoneInfo Zone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
-    static DateOnly D(int day) => new(2026, 10, day);
+    private static DateOnly D(int day) => new(2026, 10, day);
 
-    static CalendarOccurrence AllDay(string id, int startDay, int days)
+    private static CalendarOccurrence AllDay(string id, int startDay, int days)
     {
         var s = new DateTimeOffset(D(startDay).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
         return new("a", "c", id, null, null, s, s.AddDays(days), true, id, EventKind.Default, ResponseStatus.Accepted, "#4285F4", null, false, false);
     }
 
-    static CalendarOccurrence Timed(string id, int day, int hour) =>
+    private static CalendarOccurrence Timed(string id, int day, int hour) =>
         new("a", "c", id, null, null,
             new DateTimeOffset(2026, 10, day, hour, 0, 0, TimeSpan.FromHours(-4)),
             new DateTimeOffset(2026, 10, day, hour + 1, 0, 0, TimeSpan.FromHours(-4)),
             false, id, EventKind.Default, ResponseStatus.Accepted, "#4285F4", null, false, false);
 
-    static List<DateOnly> Week(int firstDay, bool skipWeekends = false) =>
+    private static List<DateOnly> Week(int firstDay, bool skipWeekends = false) =>
         [.. Enumerable.Range(0, 7).Select(i => D(firstDay + i)).Where(d => !skipWeekends || !ViewNavigator.IsWeekend(d))];
 
     [Fact]

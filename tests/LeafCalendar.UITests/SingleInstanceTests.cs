@@ -6,7 +6,7 @@ namespace LeafCalendar.UITests;
 
 public sealed class SingleInstanceTests : IDisposable
 {
-    readonly FakeGoogleServer _google = new();
+    private readonly FakeGoogleServer _google = new();
 
     public void Dispose() => _google.Dispose();
 
@@ -59,11 +59,11 @@ public sealed class SingleInstanceTests : IDisposable
     [Fact]
     public void Launch_OtherProfile_StartsItsOwnLeaf()
     {
-        var first  = SeededProfile.Create();
+        var first = SeededProfile.Create();
         var second = SeededProfile.Create();
         try
         {
-            using var leaf  = LeafApp.Launch(first, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+            using var leaf = LeafApp.Launch(first, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
             using var other = LeafApp.Launch(second, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
             leaf.WaitFor("CalendarRoot");
             other.WaitFor("CalendarRoot");

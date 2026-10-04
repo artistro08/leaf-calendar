@@ -26,8 +26,8 @@ public enum RepeatFrequency
 /// <seealso href="https://datatracker.ietf.org/doc/html/rfc5545#section-3.3.10"/>
 public sealed record RepeatRule(RepeatFrequency Frequency, int Interval = 1, IReadOnlyList<DayOfWeek>? Weekdays = null, DateOnly? Until = null, int? Count = null, DayOfWeek? Wkst = null)
 {
-    static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
-    static readonly string[] DayCodes = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+    private static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
+    private static readonly string[] DayCodes = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 
     /// <summary>
     /// Reads an <c>RRULE:</c> line. <see cref="Until"/> is the last local date in <paramref name="zone"/>, or for an
@@ -55,18 +55,18 @@ public sealed record RepeatRule(RepeatFrequency Frequency, int Interval = 1, IRe
 
         foreach (var part in line["RRULE:".Length..].Split(';', StringSplitOptions.RemoveEmptyEntries))
         {
-            var pair  = part.Split('=', 2);
+            var pair = part.Split('=', 2);
             var value = pair.Length == 2 ? pair[1] : "";
             switch (pair[0])
             {
                 case "FREQ":
                     frequency = value switch
                     {
-                        "DAILY"   => RepeatFrequency.Daily,
-                        "WEEKLY"  => RepeatFrequency.Weekly,
+                        "DAILY" => RepeatFrequency.Daily,
+                        "WEEKLY" => RepeatFrequency.Weekly,
                         "MONTHLY" => RepeatFrequency.Monthly,
-                        "YEARLY"  => RepeatFrequency.Yearly,
-                        _         => null,
+                        "YEARLY" => RepeatFrequency.Yearly,
+                        _ => null,
                     };
                     if (frequency is null)
                     {
@@ -180,10 +180,10 @@ public sealed record RepeatRule(RepeatFrequency Frequency, int Interval = 1, IRe
     {
         var unit = Frequency switch
         {
-            RepeatFrequency.Daily   => ("Every day", "days"),
-            RepeatFrequency.Weekly  => ("Weekly", "weeks"),
+            RepeatFrequency.Daily => ("Every day", "days"),
+            RepeatFrequency.Weekly => ("Weekly", "weeks"),
             RepeatFrequency.Monthly => ("Monthly", "months"),
-            _                       => ("Yearly", "years"),
+            _ => ("Yearly", "years"),
         };
 
         var text = Interval > 1 ? string.Create(English, $"Every {Interval} {unit.Item2}") : unit.Item1;
@@ -213,7 +213,7 @@ public sealed record RepeatRule(RepeatFrequency Frequency, int Interval = 1, IRe
         return TimeZoneInfo.ConvertTimeToUtc(nextMidnight, zone).AddSeconds(-1).ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
     }
 
-    static DateOnly? ParseUntil(string value, TimeZoneInfo zone)
+    private static DateOnly? ParseUntil(string value, TimeZoneInfo zone)
     {
         if (DateTime.TryParseExact(value, "yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var utc))
         {

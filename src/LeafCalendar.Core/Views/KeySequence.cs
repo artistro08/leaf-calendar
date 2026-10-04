@@ -10,7 +10,7 @@ public sealed class KeySequence(TimeProvider time)
     /// <summary>How long the second key may take.</summary>
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(1.5);
 
-    DateTimeOffset? _startedAt;
+    private DateTimeOffset? _startedAt;
 
     /// <summary>True while waiting for the second key.</summary>
     public bool IsPending => _startedAt is not null;
@@ -53,7 +53,7 @@ public sealed class KeySequence(TimeProvider time)
         return new ShortcutResult(CalendarCommand.EditEvent);
     }
 
-    static CalendarCommand? Second(string key) => key switch
+    private static CalendarCommand? Second(string key) => key switch
     {
         "Y" => CalendarCommand.RsvpYes,
         "N" => CalendarCommand.RsvpNo,
@@ -62,6 +62,6 @@ public sealed class KeySequence(TimeProvider time)
         "U" => CalendarCommand.EditDuration,
         "Z" => CalendarCommand.EditTimeZone,
         "F" => CalendarCommand.ParticipantOverlay,
-        _   => null,
+        _ => null,
     };
 }

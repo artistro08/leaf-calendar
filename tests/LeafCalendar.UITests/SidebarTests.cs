@@ -10,10 +10,10 @@ namespace LeafCalendar.UITests;
 
 public sealed class SidebarTests : IDisposable
 {
-    const string FamilyId = "family123@group.calendar.google.com";
+    private const string FamilyId = "family123@group.calendar.google.com";
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -21,7 +21,7 @@ public sealed class SidebarTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     [Fact]
     public void Sidebar_AfterSync_ListsBothCalendarsUnderAccount()
@@ -58,10 +58,10 @@ public sealed class SidebarTests : IDisposable
         var inset = 8 * leaf.WaitFor("MiniDay_2026-10-01").BoundingRectangle.Width / 28.0;
         var edges = new Dictionary<string, double>
         {
-            ["checkbox"]    = box.Left,
-            ["mini month"]  = leaf.WaitFor("MiniMonthTitle").BoundingRectangle.Left,
-            ["account"]     = leaf.MainWindow.FindAllDescendants(cf => cf.ByName("leaf.tester@gmail.com")).Where(e => e.ControlType == ControlType.Text).MinBy(e => e.BoundingRectangle.Top)!.BoundingRectangle.Left,
-            ["settings"]    = leaf.WaitFor("SettingsButton").BoundingRectangle.Left + inset,
+            ["checkbox"] = box.Left,
+            ["mini month"] = leaf.WaitFor("MiniMonthTitle").BoundingRectangle.Left,
+            ["account"] = leaf.MainWindow.FindAllDescendants(cf => cf.ByName("leaf.tester@gmail.com")).Where(e => e.ControlType == ControlType.Text).MinBy(e => e.BoundingRectangle.Top)!.BoundingRectangle.Left,
+            ["settings"] = leaf.WaitFor("SettingsButton").BoundingRectangle.Left + inset,
         };
 
         Assert.All(edges, e => Assert.True(Math.Abs(e.Value - box.Left) <= 1.5, $"{e.Key} starts at {e.Value}, the checkboxes at {box.Left}"));
@@ -75,10 +75,10 @@ public sealed class SidebarTests : IDisposable
 
         // The sidebar pane is the page's left 264 DIPs (a mini-month day button is 28 DIPs wide)
         var scale = leaf.WaitFor("MiniDay_2026-10-01").BoundingRectangle.Width / 28.0;
-        var pane  = leaf.WaitFor("CalendarRoot").BoundingRectangle.Left;
+        var pane = leaf.WaitFor("CalendarRoot").BoundingRectangle.Left;
         var month = leaf.WaitFor("MiniMonth").BoundingRectangle;
-        var next  = leaf.WaitFor("MiniMonthNext").BoundingRectangle;
-        var left  = month.Left - pane;
+        var next = leaf.WaitFor("MiniMonthNext").BoundingRectangle;
+        var left = month.Left - pane;
         var right = pane + 264 * scale - month.Right;
 
         Assert.True(Math.Abs(left - right) <= 1.5, $"The mini month is {left} in from the left and {right} in from the right.");
@@ -93,13 +93,13 @@ public sealed class SidebarTests : IDisposable
         leaf.WaitFor($"CalendarToggle_{FamilyId}");
         leaf.WaitFor("CalendarToggle_church@group.calendar.google.com");
         leaf.Resize(1300, 200);
-        var list   = leaf.WaitFor("SidebarScroll");
+        var list = leaf.WaitFor("SidebarScroll");
         var scroll = list.Patterns.Scroll.Pattern;
         Assert.True(Retry.WhileFalse(() => scroll.VerticallyScrollable.ValueOrDefault, TimeSpan.FromSeconds(5)).Success);
 
         // The mini month sits above the list and the settings button below it, outside the scrolling part
-        var box    = list.BoundingRectangle;
-        var month  = leaf.WaitFor("MiniMonth").BoundingRectangle;
+        var box = list.BoundingRectangle;
+        var month = leaf.WaitFor("MiniMonth").BoundingRectangle;
         var footer = leaf.WaitFor("SettingsButton").BoundingRectangle;
         Assert.True(month.Bottom <= box.Top && footer.Top >= box.Bottom, $"The list ({box}) overlaps the mini month ({month}) or the footer ({footer}).");
 
@@ -133,7 +133,7 @@ public sealed class SidebarTests : IDisposable
         leaf.WaitFor($"CalendarToggle_{FamilyId}");
 
         var settings = leaf.WaitFor("SettingsButton");
-        var share    = leaf.WaitFor("SidebarShareAvailability");
+        var share = leaf.WaitFor("SidebarShareAvailability");
         Assert.Equal("Settings", settings.Name);
         Assert.Equal("Share availability", share.Name);
         Assert.Equal(settings.BoundingRectangle.Top, share.BoundingRectangle.Top);
@@ -145,13 +145,13 @@ public sealed class SidebarTests : IDisposable
 
     // Each calendar row's checkbox, by automation ID, with its UI Automation runtime ID (a rebuilt row gets a new one).
     // Found under the scroll viewer: the list itself (an ItemsControl) isn't in the automation tree.
-    static Dictionary<string, string> RowElements(LeafApp leaf) =>
+    private static Dictionary<string, string> RowElements(LeafApp leaf) =>
         leaf.WaitFor("SidebarScroll")
             .FindAllDescendants(cf => cf.ByControlType(ControlType.CheckBox))
             .ToDictionary(r => r.AutomationId, r => string.Join(".", r.Properties.RuntimeId.Value));
 
     // Runs "Sync now" from Settings › Accounts and waits until Leaf has fetched the calendar list again and had time to show it
-    void SyncNow(LeafApp leaf)
+    private void SyncNow(LeafApp leaf)
     {
         var lists = _google.Requests.Count(r => r.Contains("/calendarList", StringComparison.Ordinal));
         leaf.OpenSettings("Accounts");
@@ -171,7 +171,7 @@ public sealed class SidebarTests : IDisposable
 
         using var leaf = Launch();
         var toggle = leaf.WaitFor($"CalendarToggle_{FamilyId}");
-        var shown  = toggle.BoundingRectangle;
+        var shown = toggle.BoundingRectangle;
         Thread.Sleep(1000);
 
         Assert.Equal(shown, toggle.BoundingRectangle);
@@ -182,7 +182,7 @@ public sealed class SidebarTests : IDisposable
     {
         using var leaf = Launch();
         leaf.WaitFor($"CalendarToggle_{FamilyId}");
-        var rows   = leaf.WaitFor("SidebarScroll").FindAllDescendants(cf => cf.ByControlType(ControlType.CheckBox));
+        var rows = leaf.WaitFor("SidebarScroll").FindAllDescendants(cf => cf.ByControlType(ControlType.CheckBox));
         var before = rows.Select(r => string.Join(".", r.Properties.RuntimeId.Value)).ToList();
 
         rows[1].AsCheckBox().Toggle();
@@ -231,14 +231,14 @@ public sealed class SidebarTests : IDisposable
     {
         using var leaf = Launch();
         leaf.WaitFor($"CalendarToggle_{FamilyId}");
-        var toggle  = leaf.WaitFor("AppTitleBar").FindFirstDescendant(cf => cf.ByAutomationId("PART_PaneToggleButton"))!.AsButton();
+        var toggle = leaf.WaitFor("AppTitleBar").FindFirstDescendant(cf => cf.ByAutomationId("PART_PaneToggleButton"))!.AsButton();
         var details = leaf.WaitFor("DetailsPanel");
-        var grid    = leaf.WaitFor("TimeGrid");
+        var grid = leaf.WaitFor("TimeGrid");
         LeafApp.WaitUntilStill(leaf.WaitFor("DayHeader_2026-10-03"));
         Thread.Sleep(500);
 
         var panel = details.BoundingRectangle;
-        var top   = Top(grid);
+        var top = Top(grid);
         foreach (var open in new[] { false, true, false })
         {
             toggle.Invoke();
@@ -305,8 +305,8 @@ public sealed class SidebarTests : IDisposable
         Color Panel(AutomationElement button, int side)
         {
             var box = button.BoundingRectangle;
-            var x   = (int)Math.Round(box.X + box.Width / 2.0 + side * 5 * leaf.Scale);
-            var y   = (int)Math.Round(box.Y + box.Height / 2.0);
+            var x = (int)Math.Round(box.X + box.Width / 2.0 + side * 5 * leaf.Scale);
+            var y = (int)Math.Round(box.Y + box.Height / 2.0);
             using var shot = Capture.Rectangle(new Rectangle(x, y, 1, 1));
             return shot.Bitmap.GetPixel(0, 0);
         }
@@ -323,7 +323,7 @@ public sealed class SidebarTests : IDisposable
         Assert.True(Distance(detailsOpen, Panel(details, 1)) > 120, $"The details glyph's panel is {detailsOpen} open and {Panel(details, 1)} closed.");
     }
 
-    static readonly string[] ReadingOrder = ["Sidebar", "ViewHost", "DetailsPanel"];
+    private static readonly string[] ReadingOrder = ["Sidebar", "ViewHost", "DetailsPanel"];
 
     // Narrator and Tab meet the parts left to right: the sidebar, the calendar, then the details panel
     [Fact]
@@ -332,14 +332,14 @@ public sealed class SidebarTests : IDisposable
         using var leaf = Launch();
         leaf.WaitFor($"CalendarToggle_{FamilyId}");
 
-        var ids   = leaf.WaitFor("CalendarRoot").FindAllDescendants().Select(e => e.Properties.AutomationId.ValueOrDefault ?? "").ToList();
+        var ids = leaf.WaitFor("CalendarRoot").FindAllDescendants().Select(e => e.Properties.AutomationId.ValueOrDefault ?? "").ToList();
         var order = ReadingOrder.Select(id => ids.IndexOf(id)).ToList();
 
         Assert.True(order.All(i => i >= 0) && order[0] < order[1] && order[1] < order[2], $"Order: {string.Join(", ", order)}.");
     }
 
     // The time grid's vertical offset, from the state it publishes when it comes to rest
-    static string Top(AutomationElement grid) =>
+    private static string Top(AutomationElement grid) =>
         (grid.Properties.ItemStatus.ValueOrDefault ?? "").Split(';').FirstOrDefault(p => p.StartsWith("top=", StringComparison.Ordinal)) ?? "";
 
     // Measured from the page's corner: the sidebar pane runs down the page's left edge, while the Sidebar element's own
@@ -349,8 +349,8 @@ public sealed class SidebarTests : IDisposable
     {
         using var leaf = Launch();
         var sidebar = leaf.WaitFor("CalendarRoot").BoundingRectangle;
-        var glyph   = leaf.WaitFor("SettingsButton").BoundingRectangle;
-        var fromLeft   = glyph.X + glyph.Width / 2.0 - sidebar.X;
+        var glyph = leaf.WaitFor("SettingsButton").BoundingRectangle;
+        var fromLeft = glyph.X + glyph.Width / 2.0 - sidebar.X;
         var fromBottom = sidebar.Bottom - (glyph.Y + glyph.Height / 2.0);
         Assert.True(Math.Abs(fromLeft - fromBottom) <= 1.5, $"{fromLeft} from the left, {fromBottom} from the bottom.");
     }

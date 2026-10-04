@@ -14,8 +14,8 @@ public static class ShareSlotEdit
     /// </summary>
     public static BusyRange? Apply(BusyRange slot, TimeSpan start, TimeSpan end, TimeZoneInfo zone)
     {
-        var day     = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(slot.Start, zone).DateTime);
-        var endsOn  = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(slot.End, zone).DateTime);
+        var day = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(slot.Start, zone).DateTime);
+        var endsOn = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(slot.End, zone).DateTime);
         var crosses = endsOn > day;
         if (end <= start && !crosses)
         {

@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 
 public class TimeZoneCatalogTests
 {
-    static readonly DateTimeOffset Now = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset Now = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
 
     [Theory]
     [InlineData("NYC", "America/New_York")]

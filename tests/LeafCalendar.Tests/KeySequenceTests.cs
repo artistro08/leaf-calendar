@@ -5,9 +5,9 @@ namespace LeafCalendar.Tests;
 
 public class KeySequenceTests
 {
-    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero));
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero));
 
-    static CalendarCommand Press(KeySequence keys, string key, bool ctrl = false) => keys.Resolve(key, ctrl, shift: false, alt: false).Command;
+    private static CalendarCommand Press(KeySequence keys, string key, bool ctrl = false) => keys.Resolve(key, ctrl, shift: false, alt: false).Command;
 
     [Theory]
     [InlineData("Y", CalendarCommand.RsvpYes)]

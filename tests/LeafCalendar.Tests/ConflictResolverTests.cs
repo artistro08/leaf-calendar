@@ -9,16 +9,16 @@ namespace LeafCalendar.Tests;
 
 public sealed class ConflictResolverTests : IDisposable
 {
-    const string Calendar = "leaf.tester@gmail.com";
-    const string Mine     = """{"id":"evt-single","etag":"\"1\"","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""";
-    const string Googles  = """{"id":"evt-single","etag":"\"G9\"","status":"confirmed","summary":"Google's","location":"Room 9","start":{"dateTime":"2026-10-01T15:00:00Z"},"end":{"dateTime":"2026-10-01T16:00:00Z"}}""";
+    private const string Calendar = "leaf.tester@gmail.com";
+    private const string Mine = """{"id":"evt-single","etag":"\"1\"","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""";
+    private const string Googles = """{"id":"evt-single","etag":"\"G9\"","status":"confirmed","summary":"Google's","location":"Room 9","start":{"dateTime":"2026-10-01T15:00:00Z"},"end":{"dateTime":"2026-10-01T16:00:00Z"}}""";
 
-    static readonly string Account = TestDatabase.SampleAccount.Id;
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
-    readonly TestDatabase _db = new();
-    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
-    readonly ConflictResolver _resolver;
+    private readonly TestDatabase _db = new();
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
+    private readonly ConflictResolver _resolver;
 
     public ConflictResolverTests()
     {
@@ -32,7 +32,7 @@ public sealed class ConflictResolverTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    ConflictInfo Conflict(OutboxOperation operation, string? local, string? google)
+    private ConflictInfo Conflict(OutboxOperation operation, string? local, string? google)
     {
         using var conn = _db.Database.Open();
         var seq = OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Calendar, "evt-single", operation, operation == OutboxOperation.Patch ? """{"summary":"Mine"}""" : null, "\"1\"", false, EventStore.Snapshot(conn, null, Account, Calendar, "evt-single"), null));
@@ -45,13 +45,13 @@ public sealed class ConflictResolverTests : IDisposable
         return ConflictStore.GetAll(conn).Single();
     }
 
-    StoredEvent? Get(string id)
+    private StoredEvent? Get(string id)
     {
         using var conn = _db.Database.Open();
         return EventStore.Get(conn, Account, Calendar, id);
     }
 
-    IReadOnlyList<OutboxEntry> Pending()
+    private IReadOnlyList<OutboxEntry> Pending()
     {
         using var conn = _db.Database.Open();
         return OutboxStore.Pending(conn, Account);
@@ -72,7 +72,7 @@ public sealed class ConflictResolverTests : IDisposable
     [Fact]
     public void Compare_ChangedRemindersShowAsVisibilityAndCall_FlagsThem()
     {
-        const string local  = """{"id":"evt-single","summary":"Same","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"},"reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":60},{"method":"popup","minutes":10}]},"transparency":"transparent","visibility":"confidential"}""";
+        const string local = """{"id":"evt-single","summary":"Same","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"},"reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":60},{"method":"popup","minutes":10}]},"transparency":"transparent","visibility":"confidential"}""";
         const string google = """{"id":"evt-single","summary":"Same","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"},"reminders":{"useDefault":true},"conferenceData":{"entryPoints":[{"entryPointType":"video","uri":"https://meet.google.com/abc-defg-hij"}],"conferenceSolution":{"key":{"type":"hangoutsMeet"}}}}""";
 
         var fields = ConflictDiff.Compare(local, google, NewYork, use24h: false).ToDictionary(f => f.Field);
@@ -228,10 +228,10 @@ public sealed class ConflictResolverTests : IDisposable
         Assert.Equal("token-family", calendars.Single(c => c.Id == Family).SyncToken);
     }
 
-    const string NewSeries = """{"id":"leafsplit001","status":"confirmed","summary":"Standup v2","start":{"dateTime":"2026-10-09T13:30:00Z"},"end":{"dateTime":"2026-10-09T14:00:00Z"},"recurrence":["RRULE:FREQ=WEEKLY"]}""";
+    private const string NewSeries = """{"id":"leafsplit001","status":"confirmed","summary":"Standup v2","start":{"dateTime":"2026-10-09T13:30:00Z"},"end":{"dateTime":"2026-10-09T14:00:00Z"},"recurrence":["RRULE:FREQ=WEEKLY"]}""";
 
     // A split whose end (the conflicted patch) the new series waits behind
-    ConflictInfo SplitConflict()
+    private ConflictInfo SplitConflict()
     {
         var conflict = Conflict(OutboxOperation.Patch, Mine, Googles);
         using var conn = _db.Database.Open();

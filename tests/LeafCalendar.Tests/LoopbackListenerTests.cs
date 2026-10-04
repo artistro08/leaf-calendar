@@ -7,7 +7,7 @@ namespace LeafCalendar.Tests;
 
 public class LoopbackListenerTests
 {
-    static readonly HttpClient Http = new();
+    private static readonly HttpClient Http = new();
 
     [Fact]
     public void RedirectUri_Created_BindsLoopbackOnly()
@@ -56,7 +56,7 @@ public class LoopbackListenerTests
 
         using var response = await Http.GetAsync(new Uri(listener.RedirectUri, "?error=leaf_marker_%3Cb%3E&state=xyz"), ct);
         var query = await wait;
-        var page  = await response.Content.ReadAsStringAsync(ct);
+        var page = await response.Content.ReadAsStringAsync(ct);
 
         // Canceled Or Refused: Not "Signed In", And Nothing From The Query Is Echoed
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -158,7 +158,7 @@ public class LoopbackListenerTests
         var wait = listener.WaitForCallbackAsync("xyz", ct);
 
         // Any Page Can Hit The Port; A Forged Reply Must Not End Sign-In
-        using var forged    = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=stolen&state=forged"), ct);
+        using var forged = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=stolen&state=forged"), ct);
         using var stateless = await Http.GetAsync(new Uri(listener.RedirectUri, "?error=access_denied"), ct);
         Assert.Equal(HttpStatusCode.NotFound, forged.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, stateless.StatusCode);

@@ -38,7 +38,7 @@ public static class ListSync
         for (var i = 0; i < fresh.Count; i++)
         {
             var want = key(fresh[i]);
-            var at   = -1;
+            var at = -1;
             for (var j = i; j < shown.Count; j++)
             {
                 if (comparer.Equals(key(shown[j]), want))

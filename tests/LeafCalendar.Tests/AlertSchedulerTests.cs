@@ -10,21 +10,21 @@ namespace LeafCalendar.Tests;
 
 public sealed class AlertSchedulerTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
+    private const string Primary = "leaf.tester@gmail.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
 
     // A Meet call 18:00-19:00Z on Oct 1; the primary calendar's default reminder is 10 minutes (17:50Z)
-    const string Meeting = """
+    private const string Meeting = """
         {"id":"evt-meet","status":"confirmed","summary":"Design review","hangoutLink":"https://meet.google.com/abc-defg-hij",
          "start":{"dateTime":"2026-10-01T18:00:00Z"},"end":{"dateTime":"2026-10-01T19:00:00Z"}}
         """;
 
-    readonly TestDatabase _db = new();
-    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero));
-    readonly List<Alert> _due = [];
-    readonly List<string> _retracted = [];
-    readonly List<AlertScheduler> _schedulers = [];
-    int _syncSoon;
+    private readonly TestDatabase _db = new();
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero));
+    private readonly List<Alert> _due = [];
+    private readonly List<string> _retracted = [];
+    private readonly List<AlertScheduler> _schedulers = [];
+    private int _syncSoon;
 
     public AlertSchedulerTests()
     {
@@ -44,24 +44,24 @@ public sealed class AlertSchedulerTests : IDisposable
         _db.Dispose();
     }
 
-    void Store(string json)
+    private void Store(string json)
     {
         using var conn = _db.Database.Open();
         EventStore.ApplyJson(conn, null, Account, Primary, json);
     }
 
-    AlertScheduler Scheduler()
+    private AlertScheduler Scheduler()
     {
         var scheduler = new AlertScheduler(_db.Database, _time, () => TimeZoneInfo.Utc);
-        scheduler.AlertDue       += (_, alert) => _due.Add(alert);
+        scheduler.AlertDue += (_, alert) => _due.Add(alert);
         scheduler.AlertRetracted += (_, tag) => _retracted.Add(tag);
-        scheduler.SyncSoon       += (_, _) => _syncSoon++;
-        scheduler.Failed         += (_, ex) => throw new InvalidOperationException("Scheduler failed", ex);
+        scheduler.SyncSoon += (_, _) => _syncSoon++;
+        scheduler.Failed += (_, ex) => throw new InvalidOperationException("Scheduler failed", ex);
         _schedulers.Add(scheduler);
         return scheduler;
     }
 
-    void At(int hour, int minute, int second = 0) => _time.SetUtcNow(new DateTimeOffset(2026, 10, 1, hour, minute, second, TimeSpan.Zero));
+    private void At(int hour, int minute, int second = 0) => _time.SetUtcNow(new DateTimeOffset(2026, 10, 1, hour, minute, second, TimeSpan.Zero));
 
     [Fact]
     public void Check_AtReminderTime_RaisesTheReminderOnce()
@@ -84,7 +84,7 @@ public sealed class AlertSchedulerTests : IDisposable
     public void Check_Replan_ReportsWhatsAhead()
     {
         var scheduler = Scheduler();
-        var plans     = new List<PlanSummary>();
+        var plans = new List<PlanSummary>();
         scheduler.Planned += (_, plan) => plans.Add(plan);
 
         At(17, 45);
@@ -200,7 +200,7 @@ public sealed class AlertSchedulerTests : IDisposable
     public void Check_ReadsEachSettingOncePerPass()
     {
         var scheduler = Scheduler();
-        var reads     = new List<AlertKind>();
+        var reads = new List<AlertKind>();
         scheduler.IsEnabled = kind =>
         {
             reads.Add(kind);
@@ -485,7 +485,7 @@ public sealed class AlertSchedulerTests : IDisposable
             {"id":"evt-offsite","status":"confirmed","summary":"Offsite","start":{"date":"2026-10-02"},"end":{"date":"2026-10-03"},
              "reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":60}]}}
             """);
-        var tz        = TimeZoneInfo.Utc;
+        var tz = TimeZoneInfo.Utc;
         var scheduler = new AlertScheduler(_db.Database, _time, () => tz);
         scheduler.AlertDue += (_, alert) => _due.Add(alert);
         _schedulers.Add(scheduler);
@@ -505,7 +505,7 @@ public sealed class AlertSchedulerTests : IDisposable
     {
         // A Meeting On Sep 29, Two Days Before The First Pass (FakeTimeProvider can't go back, so a settable clock)
         Store(Meeting.Replace("evt-meet", "evt-earlier", StringComparison.Ordinal).Replace("2026-10-01", "2026-09-29", StringComparison.Ordinal));
-        var clock     = new SettableClock { Now = new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero) };
+        var clock = new SettableClock { Now = new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero) };
         var scheduler = new AlertScheduler(_db.Database, clock, () => TimeZoneInfo.Utc);
         scheduler.AlertDue += (_, alert) => _due.Add(alert);
         scheduler.SyncSoon += (_, _) => _syncSoon++;
@@ -528,8 +528,8 @@ public sealed class AlertSchedulerTests : IDisposable
     {
         // A Second Meeting At The Same Time, So One Pass Has Two Alerts And Two Retracts
         Store(Meeting.Replace("evt-meet", "evt-other", StringComparison.Ordinal));
-        var failures  = new List<Exception>();
-        var raised    = new List<string>();
+        var failures = new List<Exception>();
+        var raised = new List<string>();
         var scheduler = new AlertScheduler(_db.Database, _time, () => TimeZoneInfo.Utc);
         scheduler.Failed += (_, ex) => failures.Add(ex);
         _schedulers.Add(scheduler);
@@ -559,22 +559,22 @@ public sealed class AlertSchedulerTests : IDisposable
     public async Task Invalidate_WhileAPassIsRunning_DoesNotWaitForIt()
     {
         // A Pass Held Inside Its State Lock (the zone is read there, like the database)
-        using var inPass  = new ManualResetEventSlim();
+        using var inPass = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
-        var scheduler     = new AlertScheduler(_db.Database, _time, () =>
+        var scheduler = new AlertScheduler(_db.Database, _time, () =>
         {
             inPass.Set();
             release.Wait();
             return TimeZoneInfo.Utc;
         });
         _schedulers.Add(scheduler);
-        var ct   = TestContext.Current.CancellationToken;
+        var ct = TestContext.Current.CancellationToken;
         var pass = Task.Run(scheduler.Check, ct);
         inPass.Wait(ct);
 
         // An Edit On The UI Thread
         var invalidate = Task.Run(scheduler.Invalidate, ct);
-        var first      = await Task.WhenAny(invalidate, Task.Delay(TimeSpan.FromSeconds(2), ct));
+        var first = await Task.WhenAny(invalidate, Task.Delay(TimeSpan.FromSeconds(2), ct));
         release.Set();
         await pass;
 
@@ -644,7 +644,7 @@ public sealed class AlertSchedulerTests : IDisposable
             {"id":"evt-phase","status":"confirmed","summary":"Project phase",
              "start":{"dateTime":"2026-05-01T09:00:00Z"},"end":{"dateTime":"2026-11-01T09:00:00Z"}}
             """);
-        var now        = new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero);
+        var now = new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero);
         using var conn = _db.Database.Open();
 
         Assert.Equal(now - TimeSpan.FromDays(1), AlertScheduler.PlanFrom(conn, now, TimeZoneInfo.Utc));
@@ -654,7 +654,7 @@ public sealed class AlertSchedulerTests : IDisposable
     public void PlanFrom_LongRunningMeetingWithALink_GoesBackToItsStart()
     {
         Store(Meeting.Replace("2026-10-01T18:00:00Z", "2026-05-01T09:00:00Z", StringComparison.Ordinal).Replace("2026-10-01T19:00:00Z", "2026-11-01T09:00:00Z", StringComparison.Ordinal));
-        var now        = new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero);
+        var now = new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero);
         using var conn = _db.Database.Open();
 
         Assert.True(AlertScheduler.PlanFrom(conn, now, TimeZoneInfo.Utc) < new DateTimeOffset(2026, 5, 1, 9, 0, 0, TimeSpan.Zero));
@@ -671,7 +671,7 @@ public sealed class AlertSchedulerTests : IDisposable
         Assert.Equal(AlertKind.Reminder, Assert.Single(_due).Kind);
     }
 
-    sealed class SettableClock : TimeProvider
+    private sealed class SettableClock : TimeProvider
     {
         public DateTimeOffset Now { get; set; }
 

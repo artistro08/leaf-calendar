@@ -14,9 +14,9 @@ public static class ScopeDialog
     /// </summary>
     public static async Task<EditScope?> AskAsync(FrameworkElement owner, bool includeFollowing, bool includeThis = true, string title = "Change repeating event")
     {
-        var thisOne   = new RadioButton { Content = "This event", GroupName = "Scope", IsChecked = includeThis, Visibility = includeThis ? Visibility.Visible : Visibility.Collapsed };
+        var thisOne = new RadioButton { Content = "This event", GroupName = "Scope", IsChecked = includeThis, Visibility = includeThis ? Visibility.Visible : Visibility.Collapsed };
         var following = new RadioButton { Content = "This and following events", GroupName = "Scope", IsChecked = !includeThis && includeFollowing, Visibility = includeFollowing ? Visibility.Visible : Visibility.Collapsed };
-        var all       = new RadioButton { Content = "All events", GroupName = "Scope", IsChecked = !includeThis && !includeFollowing };
+        var all = new RadioButton { Content = "All events", GroupName = "Scope", IsChecked = !includeThis && !includeFollowing };
         AutomationProperties.SetAutomationId(thisOne, "ScopeThis");
         AutomationProperties.SetAutomationId(following, "ScopeFollowing");
         AutomationProperties.SetAutomationId(all, "ScopeAll");
@@ -28,13 +28,13 @@ public static class ScopeDialog
 
         var dialog = new ContentDialog
         {
-            XamlRoot          = owner.XamlRoot,
-            RequestedTheme    = owner.ActualTheme,
-            Title             = title,
-            Content           = choices,
+            XamlRoot = owner.XamlRoot,
+            RequestedTheme = owner.ActualTheme,
+            Title = title,
+            Content = choices,
             PrimaryButtonText = "OK",
-            CloseButtonText   = "Cancel",
-            DefaultButton     = ContentDialogButton.Primary,
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
         };
 
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)

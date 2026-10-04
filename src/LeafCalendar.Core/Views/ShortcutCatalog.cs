@@ -114,5 +114,5 @@ public static class ShortcutCatalog
     }
 
     // The cheat sheet's row for a command, with a shorter label
-    static ShortcutRow Hint(CalendarCommand command, string label) => Rows.First(r => r.Command == command) with { Action = label };
+    private static ShortcutRow Hint(CalendarCommand command, string label) => Rows.First(r => r.Command == command) with { Action = label };
 }

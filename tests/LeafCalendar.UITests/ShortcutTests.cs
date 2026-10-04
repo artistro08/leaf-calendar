@@ -8,13 +8,13 @@ namespace LeafCalendar.UITests;
 
 public sealed class ShortcutTests : IDisposable
 {
-    const string MeetLink = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
+    private const string MeetLink = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
 
     // Combinations nothing else uses, so a Leaf you have running doesn't hold them first (F12 is Windows' debugger key)
-    static readonly LeafSettings Shortcuts = new() { JoinShortcut = "Ctrl+Alt+Shift+F9", FlyoutShortcut = "Ctrl+Alt+Shift+F10" };
+    private static readonly LeafSettings Shortcuts = new() { JoinShortcut = "Ctrl+Alt+Shift+F9", FlyoutShortcut = "Ctrl+Alt+Shift+F10" };
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create(Shortcuts);
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create(Shortcuts);
 
     public void Dispose()
     {
@@ -22,14 +22,14 @@ public sealed class ShortcutTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch(string now)
+    private LeafApp Launch(string now)
     {
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01 --now {now}");
         leaf.WaitFor("Event_evt-meeting_202610011800");
         return leaf;
     }
 
-    static void Press(VirtualKeyShort key) => Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.ALT, VirtualKeyShort.SHIFT, key);
+    private static void Press(VirtualKeyShort key) => Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.ALT, VirtualKeyShort.SHIFT, key);
 
     [Fact]
     public void JoinShortcut_MeetingSoon_OpensMeetWithItsAccount()

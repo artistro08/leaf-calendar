@@ -24,7 +24,7 @@ internal static class InvisibleHost
         // Tiny, Borderless, Topmost, Hidden From Switchers
         var presenter = OverlappedPresenter.Create();
         presenter.SetBorderAndTitleBar(false, false);
-        presenter.IsResizable   = false;
+        presenter.IsResizable = false;
         presenter.IsMaximizable = false;
         presenter.IsMinimizable = false;
         presenter.IsAlwaysOnTop = true;
@@ -33,7 +33,7 @@ internal static class InvisibleHost
         window.AppWindow.Resize(new SizeInt32(1, 1));
 
         // Fully Transparent
-        var hwnd  = Handle(window);
+        var hwnd = Handle(window);
         var style = (WINDOW_EX_STYLE)PInvoke.GetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE) | WINDOW_EX_STYLE.WS_EX_LAYERED;
         PInvoke.SetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (nint)style);
         PInvoke.SetLayeredWindowAttributes(hwnd, new COLORREF(0), 0, LAYERED_WINDOW_ATTRIBUTES_FLAGS.LWA_ALPHA);
@@ -65,5 +65,5 @@ internal static class InvisibleHost
         return !under.IsNull && PInvoke.GetAncestor(under, GET_ANCESTOR_FLAGS.GA_ROOTOWNER) == Handle(window);
     }
 
-    static HWND Handle(Window window) => new(WindowNative.GetWindowHandle(window));
+    private static HWND Handle(Window window) => new(WindowNative.GetWindowHandle(window));
 }

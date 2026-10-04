@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 public sealed class HotkeySettingsTests
 {
     // Win32 Virtual-Key Codes
-    const int Tab = 0x09, J = 0x4A, L = 0x4C, F4 = 0x73, F7 = 0x76, F12 = 0x7B, Left = 0x25, Semicolon = 0xBA;
+    private const int Tab = 0x09, J = 0x4A, L = 0x4C, F4 = 0x73, F7 = 0x76, F12 = 0x7B, Left = 0x25, Semicolon = 0xBA;
 
     [Fact]
     public void Empty_IsEmptyAndNotValid()

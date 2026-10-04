@@ -1,5 +1,4 @@
 using FlaUI.Core.AutomationElements;
-using FlaUI.Core.Definitions;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
 using LeafCalendar.UITests.Support;
@@ -12,11 +11,11 @@ namespace LeafCalendar.UITests;
 /// </summary>
 public sealed class ChangeListTests : IDisposable
 {
-    const string FamilyId = "family123@group.calendar.google.com";
-    static readonly TimeSpan Wait = TimeSpan.FromSeconds(10);
+    private const string FamilyId = "family123@group.calendar.google.com";
+    private static readonly TimeSpan Wait = TimeSpan.FromSeconds(10);
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -24,14 +23,14 @@ public sealed class ChangeListTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch()
+    private LeafApp Launch()
     {
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
         leaf.WaitFor($"CalendarToggle_{FamilyId}");
         return leaf;
     }
 
-    static bool HasName(AutomationElement window, string name) => window.FindFirstDescendant(cf => cf.ByName(name)) is not null;
+    private static bool HasName(AutomationElement window, string name) => window.FindFirstDescendant(cf => cf.ByName(name)) is not null;
 
     // =========================================================================
     // SETTINGS › ACCOUNTS
@@ -79,7 +78,7 @@ public sealed class ChangeListTests : IDisposable
         using var leaf = Launch();
         leaf.OpenSettings("Accounts");
 
-        var add     = leaf.WaitInSettings("AddAccountButton").BoundingRectangle;
+        var add = leaf.WaitInSettings("AddAccountButton").BoundingRectangle;
         var account = leaf.WaitInSettings($"AccountExpander_{SeededProfile.AccountId}").BoundingRectangle;
 
         Assert.True(add.Bottom < account.Top, "Add a Google account isn't the first row.");
@@ -89,7 +88,7 @@ public sealed class ChangeListTests : IDisposable
     // FOLDING ACCOUNTS
     // =========================================================================
 
-    static bool Shows(LeafApp leaf, string automationId) =>
+    private static bool Shows(LeafApp leaf, string automationId) =>
         leaf.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) is { IsOffscreen: false };
 
     [Fact]
@@ -155,9 +154,9 @@ public sealed class ChangeListTests : IDisposable
     {
         using var leaf = Launch();
 
-        var button  = leaf.WaitFor("SidebarShortcutsButton");
+        var button = leaf.WaitFor("SidebarShortcutsButton");
         var sidebar = leaf.WaitFor("Sidebar").BoundingRectangle;
-        var box     = button.BoundingRectangle;
+        var box = button.BoundingRectangle;
         Assert.Equal("Keyboard shortcuts", button.Name);
         Assert.True(sidebar.Right - box.Right < box.Width, "The keyboard button isn't at the sidebar's right edge.");
         Assert.True(sidebar.Bottom - box.Bottom < box.Height, "The keyboard button isn't at the sidebar's bottom.");

@@ -34,7 +34,7 @@ public static class BoxSelection
         ArgumentNullException.ThrowIfNull(days);
 
         var (from, to) = (Math.Min(minutesA, minutesB), Math.Max(minutesA, minutesB));
-        var covered    = days.ToList();
+        var covered = days.ToList();
 
         return [.. occurrences
             .Where(o => !SpanLayout.IsSpanning(o) && covered.Exists(day => Hits(o, day, from, to, zone)))
@@ -43,10 +43,10 @@ public static class BoxSelection
 
     // The event's part of the day, in wall-clock minutes as the grid draws it, against the band. Wall-clock (not
     // instants), so both passes of the repeated fall-back hour, and a spring-forward gap, count where they're drawn
-    static bool Hits(CalendarOccurrence o, DateOnly day, double from, double to, TimeZoneInfo zone)
+    private static bool Hits(CalendarOccurrence o, DateOnly day, double from, double to, TimeZoneInfo zone)
     {
         var dayStart = DragMath.Instant(day, 0, zone);
-        var dayEnd   = DragMath.Instant(day.AddDays(1), 0, zone);
+        var dayEnd = DragMath.Instant(day.AddDays(1), 0, zone);
 
         // A Zero-Minute Event Counts When The Band Touches Its Card (drawn at the least height)
         if (o.Start == o.End)
@@ -60,10 +60,10 @@ public static class BoxSelection
         }
 
         // A Short Event's Card Is Drawn At The Least Height, Inside The Day
-        var top    = o.Start <= dayStart ? 0 : DayLayout.DrawnStart(WallMinutes(o.Start, zone));
+        var top = o.Start <= dayStart ? 0 : DayLayout.DrawnStart(WallMinutes(o.Start, zone));
         var bottom = Math.Max(o.End >= dayEnd ? 24 * 60 : WallMinutes(o.End, zone), top + DayLayout.MinVisualMinutes);
         return top < to && bottom > from;
     }
 
-    static double WallMinutes(DateTimeOffset instant, TimeZoneInfo zone) => TimeZoneInfo.ConvertTime(instant, zone).TimeOfDay.TotalMinutes;
+    private static double WallMinutes(DateTimeOffset instant, TimeZoneInfo zone) => TimeZoneInfo.ConvertTime(instant, zone).TimeOfDay.TotalMinutes;
 }

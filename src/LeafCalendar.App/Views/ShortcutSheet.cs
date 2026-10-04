@@ -29,10 +29,10 @@ public static class ShortcutSheet
 
         var dialog = new ContentDialog
         {
-            XamlRoot        = owner.XamlRoot,
-            RequestedTheme  = owner.ActualTheme,
-            Title           = "Keyboard shortcuts",
-            Content         = content,
+            XamlRoot = owner.XamlRoot,
+            RequestedTheme = owner.ActualTheme,
+            Title = "Keyboard shortcuts",
+            Content = content,
             CloseButtonText = "Close",
         };
         AutomationProperties.SetAutomationId(dialog, "ShortcutSheet");
@@ -56,7 +56,7 @@ public static class ShortcutSheet
 
         // Header (title and close button)
         var title = new TextBlock { Text = "Keyboard shortcuts", Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], VerticalAlignment = VerticalAlignment.Center };
-        var shut  = new Button { Content = new FontIcon { Glyph = "", FontSize = 12 }, Style = (Style)Application.Current.Resources["LeafBareIconButtonStyle"], HorizontalAlignment = HorizontalAlignment.Right };
+        var shut = new Button { Content = new FontIcon { Glyph = "", FontSize = 12 }, Style = (Style)Application.Current.Resources["LeafBareIconButtonStyle"], HorizontalAlignment = HorizontalAlignment.Right };
         AutomationProperties.SetName(shut, "Close");
         AutomationProperties.SetAutomationId(shut, "ShortcutSheetClose");
         ToolTipService.SetToolTip(shut, "Close (Esc)");
@@ -102,7 +102,7 @@ public static class ShortcutSheet
     }
 
     // The filter box over the scrolling list (the list as tall as maxHeight, or filling a stretched parent)
-    static (Grid Content, TextBox Filter) Build(FrameworkElement owner, LeafSettings settings, double maxHeight)
+    private static (Grid Content, TextBox Filter) Build(FrameworkElement owner, LeafSettings settings, double maxHeight)
     {
         // Colors For Code-Built Text: The Owner's Current Theme, Or The System's High Contrast Colors
         var colors = Colors.For(owner.ActualTheme == ElementTheme.Dark);
@@ -112,7 +112,7 @@ public static class ShortcutSheet
         AutomationProperties.SetName(filter, "Search shortcuts");
         AutomationProperties.SetAutomationId(filter, "ShortcutFilterBox");
 
-        var list   = new StackPanel();
+        var list = new StackPanel();
         var scroll = new ScrollViewer { Content = list, MaxHeight = maxHeight, Padding = new Thickness(0, 0, 12, 0) };
         ScrollIndicator.ShowOnHover(scroll);
 
@@ -135,12 +135,12 @@ public static class ShortcutSheet
 
         EventHandler onContrast = (_, _) => content.DispatcherQueue.TryEnqueue(Refill);
         content.ActualThemeChanged += (_, _) => Refill();
-        content.Loaded             += (_, _) => LeafBrushes.ContrastChanged += onContrast;
-        content.Unloaded           += (_, _) => LeafBrushes.ContrastChanged -= onContrast;
+        content.Loaded += (_, _) => LeafBrushes.ContrastChanged += onContrast;
+        content.Unloaded += (_, _) => LeafBrushes.ContrastChanged -= onContrast;
         return (content, filter);
     }
     // The matching rows by section, then the global shortcuts, then the footnote
-    static void Fill(StackPanel list, string query, LeafSettings settings, Colors colors)
+    private static void Fill(StackPanel list, string query, LeafSettings settings, Colors colors)
     {
         list.Children.Clear();
 
@@ -166,7 +166,7 @@ public static class ShortcutSheet
             ("Join meeting", string.IsNullOrEmpty(settings.JoinShortcut) ? "Off" : settings.JoinShortcut),
             ("Show or hide the tray flyout", string.IsNullOrEmpty(settings.FlyoutShortcut) ? "Off" : settings.FlyoutShortcut),
         ];
-        var words   = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var matches = global.Where(g => words.All(w => g.Action.Contains(w, StringComparison.OrdinalIgnoreCase) || g.Keys.Contains(w, StringComparison.OrdinalIgnoreCase))).ToList();
         if (matches.Count > 0)
         {
@@ -180,15 +180,15 @@ public static class ShortcutSheet
         // Footnote
         list.Children.Add(new TextBlock
         {
-            Text         = ShortcutCatalog.Footnote,
-            Style        = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
-            Foreground   = colors.Secondary,
+            Text = ShortcutCatalog.Footnote,
+            Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+            Foreground = colors.Secondary,
             TextWrapping = TextWrapping.Wrap,
-            Margin       = new Thickness(0, 16, 0, 0),
+            Margin = new Thickness(0, 16, 0, 0),
         });
     }
 
-    static int IndexOf(ShortcutRow row)
+    private static int IndexOf(ShortcutRow row)
     {
         for (var i = 0; i < ShortcutCatalog.Rows.Count; i++)
         {
@@ -201,15 +201,15 @@ public static class ShortcutSheet
         return -1;
     }
 
-    static TextBlock Header(string text, bool first) => new()
+    private static TextBlock Header(string text, bool first) => new()
     {
-        Text       = text,
-        Style      = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"],
-        Margin     = new Thickness(0, first ? 0 : 16, 0, 4),
+        Text = text,
+        Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"],
+        Margin = new Thickness(0, first ? 0 : 16, 0, 4),
     };
 
     // The action on the left, the keys on the right, each on its own key cap (PowerToys' legend look)
-    static Grid Row(string action, string keys, string automationId, Colors colors)
+    private static Grid Row(string action, string keys, string automationId, Colors colors)
     {
         var grid = new Grid { MinHeight = 32, ColumnSpacing = 12 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -230,7 +230,7 @@ public static class ShortcutSheet
     }
 
     /// <summary>The sheet's code-built colors: LeafBrushes per theme, or the system's text color in high contrast (the key caps take theirs from their style).</summary>
-    sealed record Colors(Brush Secondary)
+    private sealed record Colors(Brush Secondary)
     {
         public static Colors For(bool dark) =>
             new AccessibilitySettings().HighContrast

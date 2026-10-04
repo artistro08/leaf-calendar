@@ -8,13 +8,13 @@ namespace LeafCalendar.UITests;
 
 public sealed class EventShortcutTests : IDisposable
 {
-    const string Dentist = "Event_evt-single_202610011300";
-    const string Meeting = "Event_evt-meeting_202610011800";
-    const string Weekly = "Event_evt-weekly_202610051330";
-    const string MeetJoin = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
+    private const string Dentist = "Event_evt-single_202610011300";
+    private const string Meeting = "Event_evt-meeting_202610011800";
+    private const string Weekly = "Event_evt-weekly_202610051330";
+    private const string MeetJoin = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -22,9 +22,9 @@ public sealed class EventShortcutTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
-    bool Launched(string link) =>
+    private bool Launched(string link) =>
         Retry.WhileFalse(() => LeafApp.LaunchedLinks(_profile).Contains(link), TimeSpan.FromSeconds(10)).Success;
 
     [Fact]

@@ -70,18 +70,18 @@ public sealed class OnboardingFlow
     public string PrimaryText => Step switch
     {
         OnboardingStep.Welcome => "Get started",
-        OnboardingStep.SignIn  => "Sign in with Google",
+        OnboardingStep.SignIn => "Sign in with Google",
         OnboardingStep.Syncing => HasSyncFailed ? "Try again" : "Next",
-        OnboardingStep.Done    => "Open Leaf Calendar",
-        _                      => "Next",
+        OnboardingStep.Done => "Open Leaf Calendar",
+        _ => "Next",
     };
 
     /// <summary>True when the primary button is enabled.</summary>
     public bool CanRunPrimary => !IsBusy && Step switch
     {
         OnboardingStep.Syncing => HasSyncFailed,
-        OnboardingStep.Done    => HasSyncFinished,
-        _                      => true,
+        OnboardingStep.Done => HasSyncFinished,
+        _ => true,
     };
 
     /// <summary>True when onboarding shows at launch: there's no OAuth client or no account yet.</summary>
@@ -136,7 +136,7 @@ public sealed class OnboardingFlow
     /// <summary>A sync attempt started.</summary>
     public void SyncStarted()
     {
-        HasSyncFailed   = false;
+        HasSyncFailed = false;
         HasSyncFinished = false;
     }
 
@@ -149,16 +149,16 @@ public sealed class OnboardingFlow
     /// </summary>
     public void SignInExpired()
     {
-        HasSyncFailed   = false;
+        HasSyncFailed = false;
         HasSyncFinished = false;
-        Step            = OnboardingStep.SignIn;
+        Step = OnboardingStep.SignIn;
     }
 
     /// <summary>The first sync finished: move to Done, where "Open Leaf Calendar" is enabled.</summary>
     public void SyncSucceeded()
     {
-        HasSyncFailed   = false;
+        HasSyncFailed = false;
         HasSyncFinished = true;
-        Step            = OnboardingStep.Done;
+        Step = OnboardingStep.Done;
     }
 }

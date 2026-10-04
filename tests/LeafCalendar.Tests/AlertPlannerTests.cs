@@ -8,11 +8,11 @@ namespace LeafCalendar.Tests;
 
 public sealed class AlertPlannerTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private const string Primary = "leaf.tester@gmail.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public AlertPlannerTests()
     {
@@ -30,20 +30,20 @@ public sealed class AlertPlannerTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    void Insert(string json)
+    private void Insert(string json)
     {
         using var conn = _db.Database.Open();
-        using var doc  = JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(json);
         EventStore.Apply(conn, null, Account, Primary, doc.RootElement);
     }
 
-    IReadOnlyList<Alert> Plan(DateTimeOffset from, DateTimeOffset to)
+    private IReadOnlyList<Alert> Plan(DateTimeOffset from, DateTimeOffset to)
     {
         using var conn = _db.Database.Open();
         return AlertPlanner.Plan(conn, from, to, NewYork);
     }
 
-    static DateTimeOffset Utc(int month, int day, int hour, int minute = 0) => new(2026, month, day, hour, minute, 0, TimeSpan.Zero);
+    private static DateTimeOffset Utc(int month, int day, int hour, int minute = 0) => new(2026, month, day, hour, minute, 0, TimeSpan.Zero);
 
     [Fact]
     public void Plan_EventOnDefaults_UsesTheCalendarsPopup()
@@ -59,9 +59,9 @@ public sealed class AlertPlannerTests : IDisposable
     }
 
     // One shared calendar in two more accounts: shown under "222" with no reminder, and under "333" with a 30-minute one
-    const string Shared = "jazmin@group.calendar.google.com";
+    private const string Shared = "jazmin@group.calendar.google.com";
 
-    void AddSharedCalendar(bool hiddenUnder333)
+    private void AddSharedCalendar(bool hiddenUnder333)
     {
         using var conn = _db.Database.Open();
         foreach (var (id, reminders) in new[] { ("222", new List<ReminderOverride>()), ("333", [new ReminderOverride { Method = "popup", Minutes = 30 }]) })
@@ -73,7 +73,7 @@ public sealed class AlertPlannerTests : IDisposable
         CalendarStore.SetHidden(conn, "333", Shared, hiddenUnder333);
     }
 
-    void InsertShared(string accountId)
+    private void InsertShared(string accountId)
     {
         using var conn = _db.Database.Open();
         EventStore.ApplyJson(conn, null, accountId, Shared, """

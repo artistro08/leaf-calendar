@@ -5,12 +5,12 @@ namespace LeafCalendar.Tests;
 
 public sealed class WorkingHoursMathTests
 {
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
-    static readonly TimeZoneInfo Tokyo   = TimeZoneInfo.FindSystemTimeZoneById("Asia/Tokyo");
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly TimeZoneInfo Tokyo = TimeZoneInfo.FindSystemTimeZoneById("Asia/Tokyo");
 
     // 2026-10-01 is a Thursday; 2026-10-03 a Saturday
-    static readonly DateOnly Thursday = new(2026, 10, 1);
-    static readonly DateOnly Saturday = new(2026, 10, 3);
+    private static readonly DateOnly Thursday = new(2026, 10, 1);
+    private static readonly DateOnly Saturday = new(2026, 10, 3);
 
     [Fact]
     public void DaysLabel_NamesTheCommonSetsAndListsTheRestInWeekOrder()

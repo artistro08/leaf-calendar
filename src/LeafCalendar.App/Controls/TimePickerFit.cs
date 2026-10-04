@@ -30,7 +30,7 @@ public static class TimePickerFit
     }
 
     // Finds The Template's Flyout Button And Clears Its Minimum Width (true once found)
-    static bool ClearButtonMinimum(DependencyObject parent)
+    private static bool ClearButtonMinimum(DependencyObject parent)
     {
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
         {

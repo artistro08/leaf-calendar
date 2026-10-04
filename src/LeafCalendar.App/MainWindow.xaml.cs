@@ -14,7 +14,6 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Navigation;
-using Windows.Win32;
 using Windows.Win32.Foundation;
 
 namespace LeafCalendar.App;
@@ -35,47 +34,47 @@ public sealed partial class MainWindow : Window
     // Title Bar Toolbar Slide (the island's right edge moves with the details pane, so the toolbar follows it
     // on the SplitView's own timing and curve; the transform is built here and kept, since reading
     // RenderTransform back fails its cast under Native AOT)
-    static readonly TimeSpan PaneOpenDuration  = TimeSpan.FromMilliseconds(200);
-    static readonly TimeSpan PaneCloseDuration = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan PaneOpenDuration = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan PaneCloseDuration = TimeSpan.FromMilliseconds(100);
 
     // Smallest window, in DIPs: both panes open (264 + 320) around an island that still fits the
     // widest title ("September 2026": 17 in, 170 wide), a 16 gap, and the widest toolbar (about 257,
     // with "31 days" on the view button, plus 36 for the sync status slot and its gap) 6 in from the island's right edge, which also leaves the
     // week grid its 56 gutter and seven 48-wide days. The height keeps the sidebar's mini month, an account with three calendars, and
     // its footer, and shows about eight hours of the grid at the default hour height.
-    const double MinimumWidth  = CalendarPage.SidebarWidth + CalendarPage.TitleInset + 170 + 16 + 257 + 36 + CalendarPage.ToolbarInset + CalendarPage.DetailsWidth;
-    const double MinimumHeight = 540;
+    private const double MinimumWidth = CalendarPage.SidebarWidth + CalendarPage.TitleInset + 170 + 16 + 257 + 36 + CalendarPage.ToolbarInset + CalendarPage.DetailsWidth;
+    private const double MinimumHeight = 540;
 
     // The event actions' right end, in from the details panel's left edge: the edit glyph (8 in on its 32-wide
     // button) starts at the panel's 16 px content inset, and the delete button touches it
-    const double EventActionsSpan = 16 - 8 + 32 + 32;
+    private const double EventActionsSpan = 16 - 8 + 32 + 32;
 
-    readonly LeafServices _services;
+    private readonly LeafServices _services;
 
     // Lifts the whole title bar 2 physical pixels (set per display scale in LiftTitleBar)
-    readonly TranslateTransform _titleBarLift = new();
-    readonly TranslateTransform _toolbarShift = new();
-    readonly OverlappedPresenter _presenter = OverlappedPresenter.Create();
-    readonly CalendarViewModel _calendar;
+    private readonly TranslateTransform _titleBarLift = new();
+    private readonly TranslateTransform _toolbarShift = new();
+    private readonly OverlappedPresenter _presenter = OverlappedPresenter.Create();
+    private readonly CalendarViewModel _calendar;
 
     // Changes waiting (online) show only once they've waited this long
-    static readonly TimeSpan WaitingDelay = TimeSpan.FromSeconds(2);
-    readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _waitingTimer;
-    bool _waitingDue;
+    private static readonly TimeSpan WaitingDelay = TimeSpan.FromSeconds(2);
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _waitingTimer;
+    private bool _waitingDue;
 
     // The window's size while restored (not maximized or minimized), saved on close
-    Core.Views.WindowSize _restoredSize;
+    private Core.Views.WindowSize _restoredSize;
 
     // Whether the window was maximized when last not minimized, saved on close
-    bool _wasMaximized;
+    private bool _wasMaximized;
 
     // Whether the window was minimized at the last change, so MinimizedChanged is raised once per change
-    bool _wasMinimized;
-    Storyboard? _toolbarSlide;
-    (double Right, double Toggle, bool Sidebar, bool Calendar)? _titleBarLayout;
+    private bool _wasMinimized;
+    private Storyboard? _toolbarSlide;
+    private (double Right, double Toggle, bool Sidebar, bool Calendar)? _titleBarLayout;
 
     // The Settings view while it shows in place of the calendar
-    SettingsPage? _settings;
+    private SettingsPage? _settings;
 
     /// <summary>Creates the window on the App's calendar view model (Settings shares it). <see cref="App"/> owns both.</summary>
     public MainWindow(LeafServices services, CalendarViewModel calendar)
@@ -85,10 +84,10 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
 
         // Sync Status Waiting Delay
-        _waitingTimer             = DispatcherQueue.CreateTimer();
-        _waitingTimer.Interval    = WaitingDelay;
+        _waitingTimer = DispatcherQueue.CreateTimer();
+        _waitingTimer.Interval = WaitingDelay;
         _waitingTimer.IsRepeating = false;
-        _waitingTimer.Tick       += (_, _) =>
+        _waitingTimer.Tick += (_, _) =>
         {
             _waitingDue = true;
             ShowSyncState();
@@ -189,14 +188,14 @@ public sealed partial class MainWindow : Window
         };
 
         Activated += OnActivated;
-        Closed    += (_, _) =>
+        Closed += (_, _) =>
         {
             // Closing doesn't navigate, so release the page's views here; the view model is the App's (Leaf stays in
             // the tray). Settings goes with the window.
             CloseSettings();
             (ContentFrame.Content as CalendarPage)?.Detach();
             _waitingTimer.Stop();
-            _calendar.LayoutChanged   -= OnCalendarLayoutChanged;
+            _calendar.LayoutChanged -= OnCalendarLayoutChanged;
             _calendar.PropertyChanged -= OnCalendarPropertyChanged;
 
             // Remember The Size For Next Time (the restored size, and whether it was maximized)
@@ -236,8 +235,8 @@ public sealed partial class MainWindow : Window
         window.TitleBar.PreferredTheme = theme switch
         {
             AppTheme.Light => TitleBarTheme.Light,
-            AppTheme.Dark  => TitleBarTheme.Dark,
-            _              => TitleBarTheme.UseDefaultAppMode,
+            AppTheme.Dark => TitleBarTheme.Dark,
+            _ => TitleBarTheme.UseDefaultAppMode,
         };
     }
 
@@ -245,18 +244,18 @@ public sealed partial class MainWindow : Window
     internal static ElementTheme ElementThemeOf(AppTheme theme) => theme switch
     {
         AppTheme.Light => ElementTheme.Light,
-        AppTheme.Dark  => ElementTheme.Dark,
-        _              => ElementTheme.Default,
+        AppTheme.Dark => ElementTheme.Dark,
+        _ => ElementTheme.Default,
     };
 
     // =========================================================================
     // NAVIGATION
     // =========================================================================
 
-    void ShowCalendar()
+    private void ShowCalendar()
     {
         // Listen While Open (the App set the view model's OpenSettings)
-        _calendar.LayoutChanged   += OnCalendarLayoutChanged;
+        _calendar.LayoutChanged += OnCalendarLayoutChanged;
         _calendar.PropertyChanged += OnCalendarPropertyChanged;
         ApplyTheme(_calendar.Settings.Theme);
 
@@ -266,7 +265,7 @@ public sealed partial class MainWindow : Window
         ContentFrame.BackStack.Clear();
     }
 
-    void OnCalendarLayoutChanged(object? sender, EventArgs e)
+    private void OnCalendarLayoutChanged(object? sender, EventArgs e)
     {
         SyncMenu();
         ApplyTheme(_calendar.Settings.Theme);
@@ -279,8 +278,8 @@ public sealed partial class MainWindow : Window
         {
             _services.Log.Trace("settings", "open");
             SettingsFrame.Visibility = Visibility.Visible;
-            ContentFrame.Visibility  = Visibility.Collapsed;
-            AppTitleBar.Title        = "Settings";
+            ContentFrame.Visibility = Visibility.Collapsed;
+            AppTitleBar.Title = "Settings";
             SettingsFrame.Navigate(typeof(SettingsPage), new SettingsPageArgs(_services, _calendar, section), new DrillInNavigationTransitionInfo());
             _settings = SettingsFrame.Content as SettingsPage;
             UpdateChrome();
@@ -291,7 +290,7 @@ public sealed partial class MainWindow : Window
     }
 
     // Back to the calendar: the Settings view ends (its pages stop listening) and goes
-    void CloseSettings()
+    private void CloseSettings()
     {
         if (_settings is not { } settings)
         {
@@ -301,16 +300,16 @@ public sealed partial class MainWindow : Window
         _services.Log.Trace("settings", "close");
         _settings = null;
         settings.Close();
-        SettingsFrame.Content    = null;
+        SettingsFrame.Content = null;
         SettingsFrame.Visibility = Visibility.Collapsed;
-        ContentFrame.Visibility  = Visibility.Visible;
-        AppTitleBar.Title        = "";
+        ContentFrame.Visibility = Visibility.Visible;
+        AppTitleBar.Title = "";
         UpdateChrome();
     }
 
     // The title bar's Back: the OAuth client form goes back to Accounts (sliding back, like Cancel), Settings to the calendar,
     // and the calendar back from a command-menu jump
-    void GoBack()
+    private void GoBack()
     {
         if (_settings is { } settings)
         {
@@ -332,24 +331,24 @@ public sealed partial class MainWindow : Window
     // The title bar's buttons for what shows: the calendar's toolbar, search, and details toggle only on the calendar; the pane
     // toggle on both (the sidebar's, or the Settings pane's); Back in Settings and after a command-menu jump. The title bar
     // only lets clicks through where its buttons are when it computes its regions, so they're recomputed
-    void UpdateChrome()
+    private void UpdateChrome()
     {
         var onCalendar = _settings is null && ContentFrame.Content is CalendarPage;
 
-        CalendarToolbar.Visibility            = onCalendar ? Visibility.Visible : Visibility.Collapsed;
-        SearchButton.Visibility               = CalendarToolbar.Visibility;
-        DetailsToggle.Visibility              = CalendarToolbar.Visibility;
+        CalendarToolbar.Visibility = onCalendar ? Visibility.Visible : Visibility.Collapsed;
+        SearchButton.Visibility = CalendarToolbar.Visibility;
+        DetailsToggle.Visibility = CalendarToolbar.Visibility;
         AppTitleBar.IsPaneToggleButtonVisible = onCalendar || _settings is not null;
-        AppTitleBar.IsBackButtonVisible       = _settings is not null || _calendar.ShowBack;
+        AppTitleBar.IsBackButtonVisible = _settings is not null || _calendar.ShowBack;
 
         UpdateTitleBarLayout(animate: false);
         UpdateEventActions();
         AppTitleBar.RecomputeDragRegions();
     }
 
-    void OnNavigated(object sender, NavigationEventArgs e)
+    private void OnNavigated(object sender, NavigationEventArgs e)
     {
-        var page    = e.Content as CalendarPage;
+        var page = e.Content as CalendarPage;
         _searchRide = null;
 
         if (page is not null)
@@ -370,7 +369,7 @@ public sealed partial class MainWindow : Window
     }
 
     // The pane toggles' glyphs: a pane's panel is filled while it's open
-    static void ShowPaneGlyphs(CalendarPage page)
+    private static void ShowPaneGlyphs(CalendarPage page)
     {
         Controls.PaneGlyph.SetOpen("Sidebar", page.IsSidebarOpen);
         Controls.PaneGlyph.SetOpen("Details", page.IsDetailsOpen);
@@ -382,7 +381,7 @@ public sealed partial class MainWindow : Window
     // buttons' width in screen pixels as if they were DIPs, so above 100% its content area stops short
     // of the buttons (about 34 DIPs at 125%). Resizing calls this for every step of the drag, so
     // nothing happens unless the layout really changed.
-    void UpdateTitleBarLayout(bool animate)
+    private void UpdateTitleBarLayout(bool animate)
     {
         var page = ContentFrame.Content as CalendarPage;
         if (ToolbarHost.ActualWidth <= 0 || RootGrid.XamlRoot is null)
@@ -394,16 +393,16 @@ public sealed partial class MainWindow : Window
         PlaceSearchButton();
 
         // Target: The Toolbar Inset In From The Island's Right Edge, Or Up To The Toggle (the inset in from the caption buttons)
-        var scale   = RootGrid.XamlRoot.RasterizationScale;
-        var width   = RootGrid.ActualWidth;
+        var scale = RootGrid.XamlRoot.RasterizationScale;
+        var width = RootGrid.ActualWidth;
         var caption = AppWindow.TitleBar.RightInset / scale;
         var hostEnd = ToolbarHost.TransformToVisual(RootGrid).TransformPoint(new Windows.Foundation.Point(ToolbarHost.ActualWidth, 0)).X;
-        var toggle  = Math.Round((hostEnd - (width - caption - CalendarPage.ToolbarInset)) * scale) / scale;
-        var target  = width - CalendarPage.DetailsWidth - CalendarPage.ToolbarInset;
-        var right   = page is null ? 0
+        var toggle = Math.Round((hostEnd - (width - caption - CalendarPage.ToolbarInset)) * scale) / scale;
+        var target = width - CalendarPage.DetailsWidth - CalendarPage.ToolbarInset;
+        var right = page is null ? 0
             : page.IsDetailsOpen ? Math.Round((hostEnd - target) * scale) / scale
             : toggle + DetailsToggle.Width;
-        var layout  = (Right: right, Toggle: toggle, Sidebar: page?.IsSidebarOpen ?? true, Calendar: page is not null);
+        var layout = (Right: right, Toggle: toggle, Sidebar: page?.IsSidebarOpen ?? true, Calendar: page is not null);
         if (layout == _titleBarLayout)
         {
             return;
@@ -412,9 +411,9 @@ public sealed partial class MainWindow : Window
         var previous = _titleBarLayout;
         _titleBarLayout = layout;
 
-        DetailsToggle.Margin   = new Thickness(0, 0, layout.Toggle, 0);
+        DetailsToggle.Margin = new Thickness(0, 0, layout.Toggle, 0);
         CalendarToolbar.Margin = new Thickness(0, 0, layout.Right, 0);
-        EventActions.Margin    = new Thickness(0, 0, layout.Right - CalendarPage.ToolbarInset - EventActionsSpan, 0);
+        EventActions.Margin = new Thickness(0, 0, layout.Right - CalendarPage.ToolbarInset - EventActionsSpan, 0);
 
         // Slide From The Old Spot (so the toolbar tracks the island's edge instead of jumping ahead of it)
         _toolbarSlide?.Stop();
@@ -426,9 +425,9 @@ public sealed partial class MainWindow : Window
             slide.KeyFrames.Add(new DiscreteDoubleKeyFrame { KeyTime = TimeSpan.Zero, Value = distance });
             slide.KeyFrames.Add(new SplineDoubleKeyFrame
             {
-                KeyTime   = distance > 0 ? PaneOpenDuration : PaneCloseDuration,
+                KeyTime = distance > 0 ? PaneOpenDuration : PaneCloseDuration,
                 KeySpline = new KeySpline { ControlPoint1 = new Windows.Foundation.Point(0, 0.35), ControlPoint2 = new Windows.Foundation.Point(0.15, 1) },
-                Value     = 0,
+                Value = 0,
             });
             Storyboard.SetTarget(slide, _toolbarShift);
             Storyboard.SetTargetProperty(slide, "X");
@@ -444,18 +443,18 @@ public sealed partial class MainWindow : Window
     // The search icon: centered over the mini month's Next month button while the sidebar is open, else right after the
     // title bar's pane toggle (and the period title moves clear of it). Its margin is its resting spot (where it takes
     // clicks); while the sidebar slides it rides the sidebar's edge on the compositor, so it never jumps or lags.
-    void PlaceSearchButton()
+    private void PlaceSearchButton()
     {
         if (ContentFrame.Content is not CalendarPage page || RootGrid.XamlRoot is null)
         {
             return;
         }
 
-        var scale  = RootGrid.XamlRoot.RasterizationScale;
-        var hostX  = ToolbarHost.TransformToVisual(RootGrid).TransformPoint(default).X;
+        var scale = RootGrid.XamlRoot.RasterizationScale;
+        var hostX = ToolbarHost.TransformToVisual(RootGrid).TransformPoint(default).X;
         var closed = 0.0;
-        var open   = page.MiniMonthNextCenterX is { } center ? Math.Max(closed, Math.Round((center - hostX - SearchButton.Width / 2) * scale) / scale) : closed;
-        var left   = page.IsSidebarOpen ? open : closed;
+        var open = page.MiniMonthNextCenterX is { } center ? Math.Max(closed, Math.Round((center - hostX - SearchButton.Width / 2) * scale) / scale) : closed;
+        var left = page.IsSidebarOpen ? open : closed;
 
         page.KeepTitleClearOf(hostX + closed + SearchButton.Width);
         if (_searchRide == (closed, open, left))
@@ -465,31 +464,31 @@ public sealed partial class MainWindow : Window
 
         // No Forced Layout Here (it ran the whole window's layout, the calendar's included, inside a pane toggle and held up the slide):
         // FollowSearchAnchor re-punches the icon's hole once the next layout pass has moved it
-        _searchRide         = (closed, open, left);
+        _searchRide = (closed, open, left);
         SearchButton.Margin = new Thickness(left, 0, 0, 0);
         page.RideSidebarEdge(SearchButton, closed, open, left);
     }
 
     // The search icon's closed, open, and resting spots last handed to the compositor (toolbar host DIPs)
-    (double Closed, double Open, double Resting)? _searchRide;
+    private (double Closed, double Open, double Resting)? _searchRide;
 
     // The command menu's dim comes and goes at once with the menu (no fade: the menu is a keyboard flow)
-    void DimForCommandMenu(bool open)
+    private void DimForCommandMenu(bool open)
     {
-        CommandMenuDim.Opacity    = open ? 1 : 0;
+        CommandMenuDim.Opacity = open ? 1 : 0;
         CommandMenuDim.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // Where the search icon and the toolbar host were when the icon's click-through hole was last punched, and where
     // its anchor was (window DIPs)
-    (double Button, double Host, double Anchor, bool Open)? _searchSpot;
+    private (double Button, double Host, double Anchor, bool Open)? _searchSpot;
 
     // After any layout pass: the Next month button, the toolbar host, or the icon itself can move without a size change
     // (the sidebar settling, Back appearing). Re-place the icon and re-punch its
     // click-through hole. The title bar also re-punches its holes on its own when its content moves, from where the icon
     // was before the new margin landed, so the hole is punched again once that layout pass is over; a stale hole
     // leaves the icon in the drag region, where a click does nothing. Nothing happens unless something actually moved.
-    void FollowSearchAnchor()
+    private void FollowSearchAnchor()
     {
         if (ContentFrame.Content is not CalendarPage page || RootGrid.XamlRoot is null || SearchButton.ActualWidth <= 0)
         {
@@ -525,16 +524,16 @@ public sealed partial class MainWindow : Window
     // wrapper that carries it (the action while enabled, the reason while disabled); the reason is also the help text.
     // The title bar only lets clicks through where its buttons are when it computes its regions, so they're
     // recomputed once the buttons have their new layout.
-    void UpdateEventActions()
+    private void UpdateEventActions()
     {
-        var several    = _calendar is { Selection.Count: > 1 };
-        var canEdit    = _calendar?.SelectedInfo is { CanEdit: true };
-        var show       = _settings is null && ContentFrame.Content is CalendarPage { IsDetailsOpen: true } && _calendar is { Editing: null } && (several || _calendar.SelectedInfo is not null);
+        var several = _calendar is { Selection.Count: > 1 };
+        var canEdit = _calendar?.SelectedInfo is { CanEdit: true };
+        var show = _settings is null && ContentFrame.Content is CalendarPage { IsDetailsOpen: true } && _calendar is { Editing: null } && (several || _calendar.SelectedInfo is not null);
         var visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        var edit       = !several && canEdit;
-        var delete     = _calendar is { CanDeleteSelection: true };
+        var edit = !several && canEdit;
+        var delete = _calendar is { CanDeleteSelection: true };
 
-        var editReason   = several ? "Select one event to edit it" : "You can't edit this event";
+        var editReason = several ? "Select one event to edit it" : "You can't edit this event";
         var deleteReason = several ? "You can't delete these events" : "You can't delete this event";
 
         EditEventButton.IsEnabled = edit;
@@ -555,16 +554,16 @@ public sealed partial class MainWindow : Window
 
     // The minimum size is the content's, in DIPs; the presenter takes the whole window in screen pixels, so it
     // follows the monitor's scale and adds the window frame (the invisible resize borders, about 14 DIPs across)
-    void ApplyMinimumSize()
+    private void ApplyMinimumSize()
     {
         var scale = RootGrid.XamlRoot?.RasterizationScale ?? Interop.WindowPlacement.ScaleOf(AppWindow);
         var frame = AppWindow.Size;
         var inner = AppWindow.ClientSize;
-        _presenter.PreferredMinimumWidth  = (int)Math.Ceiling(MinimumWidth * scale) + Math.Max(0, frame.Width - inner.Width);
+        _presenter.PreferredMinimumWidth = (int)Math.Ceiling(MinimumWidth * scale) + Math.Max(0, frame.Width - inner.Width);
         _presenter.PreferredMinimumHeight = (int)Math.Ceiling(MinimumHeight * scale) + Math.Max(0, frame.Height - inner.Height);
     }
 
-    void OnPaneToggleRequested(TitleBar sender, object args)
+    private void OnPaneToggleRequested(TitleBar sender, object args)
     {
         if (_settings is { } settings)
         {
@@ -576,7 +575,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    void OnActivated(object sender, WindowActivatedEventArgs args)
+    private void OnActivated(object sender, WindowActivatedEventArgs args)
     {
         // The Calendar's Chrome Dims With The Title Bar While Another Window Is Active
         var active = args.WindowActivationState != WindowActivationState.Deactivated;
@@ -605,9 +604,9 @@ public sealed partial class MainWindow : Window
     // TOOLBAR
     // =========================================================================
 
-    void OnTodayClick(object sender, RoutedEventArgs e) => _calendar?.GoToToday();
+    private void OnTodayClick(object sender, RoutedEventArgs e) => _calendar?.GoToToday();
 
-    void OnSearchClick(object sender, RoutedEventArgs e)
+    private void OnSearchClick(object sender, RoutedEventArgs e)
     {
         if (ContentFrame.Content is CalendarPage page)
         {
@@ -615,13 +614,13 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    void OnBackRequested(TitleBar sender, object args) => GoBack();
+    private void OnBackRequested(TitleBar sender, object args) => GoBack();
 
-    void OnPreviousClick(object sender, RoutedEventArgs e) => _calendar?.Previous();
+    private void OnPreviousClick(object sender, RoutedEventArgs e) => _calendar?.Previous();
 
-    void OnNextClick(object sender, RoutedEventArgs e) => _calendar?.Next();
+    private void OnNextClick(object sender, RoutedEventArgs e) => _calendar?.Next();
 
-    void OnViewModeClick(object sender, RoutedEventArgs e)
+    private void OnViewModeClick(object sender, RoutedEventArgs e)
     {
         if (_calendar is null || sender is not MenuFlyoutItem { Tag: string tag })
         {
@@ -640,7 +639,7 @@ public sealed partial class MainWindow : Window
         SyncMenu();
     }
 
-    async void OnCustomDaysClick(object sender, RoutedEventArgs e)
+    private async void OnCustomDaysClick(object sender, RoutedEventArgs e)
     {
         if (_calendar is null)
         {
@@ -665,9 +664,9 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    void OnEditEventClick(object sender, RoutedEventArgs e) => _calendar?.BeginEdit();
+    private void OnEditEventClick(object sender, RoutedEventArgs e) => _calendar?.BeginEdit();
 
-    void OnDeleteEventClick(object sender, RoutedEventArgs e)
+    private void OnDeleteEventClick(object sender, RoutedEventArgs e)
     {
         if (_calendar is { } vm)
         {
@@ -675,7 +674,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    void OnDetailsToggleClick(object sender, RoutedEventArgs e)
+    private void OnDetailsToggleClick(object sender, RoutedEventArgs e)
     {
         if (ContentFrame.Content is CalendarPage page)
         {
@@ -692,10 +691,10 @@ public sealed partial class MainWindow : Window
 
     // Centered in the 48 DIP row, the title bar's glyphs sat about 2 physical pixels below the caption buttons' glyphs
     // at 125% and 150% alike (Windows draws those in whole pixels, a little above center), so the lift is in pixels, not DIPs
-    void LiftTitleBar() => _titleBarLift.Y = -2 / (RootGrid.XamlRoot?.RasterizationScale ?? 1);
+    private void LiftTitleBar() => _titleBarLift.Y = -2 / (RootGrid.XamlRoot?.RasterizationScale ?? 1);
 
     // Ctrl+Shift+L: flip between light and dark based on what's showing now
-    void ToggleTheme()
+    private void ToggleTheme()
     {
         if (_calendar is null)
         {
@@ -707,7 +706,7 @@ public sealed partial class MainWindow : Window
     }
 
     // Keep the view button's label and the details toggle in step with the settings (Settings, shortcuts, and the menu all change them)
-    void SyncMenu()
+    private void SyncMenu()
     {
         if (_calendar is null)
         {
@@ -717,12 +716,12 @@ public sealed partial class MainWindow : Window
         var s = _calendar.Settings;
         var view = s.ViewMode switch
         {
-            CalendarViewMode.Day   => "Day",
+            CalendarViewMode.Day => "Day",
             CalendarViewMode.Month => "Month",
-            CalendarViewMode.Days  => $"{s.CustomDayCount} days",
-            _                      => "Week",
+            CalendarViewMode.Days => $"{s.CustomDayCount} days",
+            _ => "Week",
         };
-        ViewModeLabel.Text      = view;
+        ViewModeLabel.Text = view;
         DetailsToggle.IsChecked = s.DetailsPanelOpen;
         AutomationProperties.SetName(ViewModeButton, view);
 
@@ -732,32 +731,32 @@ public sealed partial class MainWindow : Window
     }
 
     // The pager arrows' turn last shown: null until the first layout, which sets it without animating
-    bool? _pagersVertical;
+    private bool? _pagersVertical;
 
     // The arrows' rotations, made here and held, never read back from the glyphs (a typed read-back of a WinRT
     // property fails under Native AOT, and the arrows never turned there)
-    RotateTransform? _previousTurn;
-    RotateTransform? _nextTurn;
+    private RotateTransform? _previousTurn;
+    private RotateTransform? _nextTurn;
 
     // Turns the left and right chevrons a quarter clockwise (up and down) for Month view, animated once shown
-    void RotatePagers(bool vertical)
+    private void RotatePagers(bool vertical)
     {
         if (_pagersVertical == vertical)
         {
             return;
         }
 
-        var animate     = _pagersVertical is not null;
+        var animate = _pagersVertical is not null;
         _pagersVertical = vertical;
-        var angle       = vertical ? 90 : 0;
+        var angle = vertical ? 90 : 0;
 
         // With Windows animations off the turn still runs as a storyboard, but takes no time: an earlier spin's held
         // end value would otherwise win over a plain Angle set
-        var spinTime    = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled ? 167 : 0;
+        var spinTime = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled ? 167 : 0;
         if (_previousTurn is null || _nextTurn is null)
         {
             PreviousGlyph.RenderTransform = _previousTurn = new RotateTransform();
-            NextGlyph.RenderTransform     = _nextTurn     = new RotateTransform();
+            NextGlyph.RenderTransform = _nextTurn = new RotateTransform();
         }
 
         foreach (var turn in new[] { _previousTurn, _nextTurn })
@@ -770,8 +769,8 @@ public sealed partial class MainWindow : Window
 
             var spin = new DoubleAnimation
             {
-                To             = angle,
-                Duration       = TimeSpan.FromMilliseconds(spinTime),
+                To = angle,
+                Duration = TimeSpan.FromMilliseconds(spinTime),
                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
             };
             Storyboard.SetTarget(spin, turn);
@@ -784,7 +783,7 @@ public sealed partial class MainWindow : Window
     // SYNC STATE
     // =========================================================================
 
-    void OnCalendarPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnCalendarPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(CalendarViewModel.SelectedInfo) or nameof(CalendarViewModel.Editing) or nameof(CalendarViewModel.Selection))
         {
@@ -804,7 +803,7 @@ public sealed partial class MainWindow : Window
     // One icon slot left of the view button, by priority: conflicts, offline, changes waiting. Online, waiting shows only
     // once changes have waited a moment (an edit normally goes out within a second, so the icon doesn't flash).
     // Words live in the tooltips and accessible names.
-    void ShowSyncState()
+    private void ShowSyncState()
     {
         if (_calendar is not { } vm)
         {
@@ -823,35 +822,35 @@ public sealed partial class MainWindow : Window
         }
 
         // A Sync You Asked For Shows Its Progress Ring In The Slot Until It Ends; then the slot shows what it found
-        var syncing   = vm.IsSyncing;
+        var syncing = vm.IsSyncing;
         var conflicts = !syncing && vm.ConflictCount > 0;
-        var offline   = !syncing && !conflicts && vm.IsOffline;
-        var waiting   = !syncing && !conflicts && vm.PendingCount > 0 && (vm.IsOffline || _waitingDue);
-        var count     = vm.PendingCount == 1 ? "1 change waiting to sync" : string.Create(CultureInfo.InvariantCulture, $"{vm.PendingCount} changes waiting to sync");
-        var review    = vm.ConflictCount == 1 ? "1 change needs your review" : string.Create(CultureInfo.InvariantCulture, $"{vm.ConflictCount} changes need your review");
-        var away      = vm.PendingCount == 0
+        var offline = !syncing && !conflicts && vm.IsOffline;
+        var waiting = !syncing && !conflicts && vm.PendingCount > 0 && (vm.IsOffline || _waitingDue);
+        var count = vm.PendingCount == 1 ? "1 change waiting to sync" : string.Create(CultureInfo.InvariantCulture, $"{vm.PendingCount} changes waiting to sync");
+        var review = vm.ConflictCount == 1 ? "1 change needs your review" : string.Create(CultureInfo.InvariantCulture, $"{vm.ConflictCount} changes need your review");
+        var away = vm.PendingCount == 0
             ? "Can't reach Google. Changes you make are sent when you're back online."
             : $"Can't reach Google. {count}. They're sent when you're back online.";
 
         // Conflicts
-        ConflictsBadge.Value       = vm.ConflictCount;
+        ConflictsBadge.Value = vm.ConflictCount;
         ConflictsButton.Visibility = conflicts ? Visibility.Visible : Visibility.Collapsed;
         SetWords(ConflictsButton, review, review);
 
         // Offline (under the waiting button when both show; the waiting one then takes the offline glyph and is the tab stop)
         OfflineButton.Visibility = offline ? Visibility.Visible : Visibility.Collapsed;
-        OfflineButton.IsTabStop  = !waiting;
+        OfflineButton.IsTabStop = !waiting;
         SetWords(OfflineButton, away, away);
 
         // Waiting
-        WaitingBadge.Value       = vm.PendingCount;
-        WaitingGlyph.Glyph       = vm.IsOffline ? "" : "";
+        WaitingBadge.Value = vm.PendingCount;
+        WaitingGlyph.Glyph = vm.IsOffline ? "" : "";
         WaitingButton.Visibility = waiting ? Visibility.Visible : Visibility.Collapsed;
         SetWords(WaitingButton, count, vm.IsOffline ? away : $"{count}. Select to try now.");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(WaitingButton, vm.IsOffline ? away : "");
 
         // Syncing
-        SyncingRing.IsActive   = syncing;
+        SyncingRing.IsActive = syncing;
         SyncingRing.Visibility = syncing ? Visibility.Visible : Visibility.Collapsed;
 
         // Show The Slot And Re-Punch The Title Bar's Click-Through Holes
@@ -860,7 +859,7 @@ public sealed partial class MainWindow : Window
         AppTitleBar.RecomputeDragRegions();
     }
 
-    static void SetWords(Button button, string name, string tooltip)
+    private static void SetWords(Button button, string name, string tooltip)
     {
         var changed = Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button) != name;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, name);
@@ -875,7 +874,7 @@ public sealed partial class MainWindow : Window
 
     // Offline or waiting: try sending now
     // Try now: a sync you asked for, so its ring shows while it runs
-    void OnSyncStatusClick(object sender, RoutedEventArgs e) => _calendar?.Fire(_calendar.SyncNowAsync, "sync.now.failed");
+    private void OnSyncStatusClick(object sender, RoutedEventArgs e) => _calendar?.Fire(_calendar.SyncNowAsync, "sync.now.failed");
 
     /// <summary>Opens the conflict dialog (the toolbar's conflicts button, or the "needs your review" notification). Never throws.</summary>
     public async Task ReviewConflictsAsync()
@@ -905,5 +904,5 @@ public sealed partial class MainWindow : Window
     }
 
     // ReviewConflictsAsync never throws
-    async void OnConflictsClick(object sender, RoutedEventArgs e) => await ReviewConflictsAsync();
+    private async void OnConflictsClick(object sender, RoutedEventArgs e) => await ReviewConflictsAsync();
 }

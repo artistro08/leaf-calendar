@@ -13,9 +13,9 @@ namespace LeafCalendar.LiveTests.Support;
 /// </remarks>
 public sealed class LiveGoogle(LiveAccount live)
 {
-    static readonly Uri BaseUri = new("https://www.googleapis.com/calendar/v3/");
+    private static readonly Uri BaseUri = new("https://www.googleapis.com/calendar/v3/");
 
-    readonly HashSet<string> _owned = [];
+    private readonly HashSet<string> _owned = [];
 
     /// <summary>The calendars this instance created.</summary>
     public IReadOnlyCollection<string> Owned => _owned;
@@ -34,7 +34,7 @@ public sealed class LiveGoogle(LiveAccount live)
     {
         var body = new JsonObject { ["summary"] = $"Leaf live test {Guid.NewGuid():N}" };
         var created = await SendAsync(HttpMethod.Post, "calendars", body, ct);
-        var id      = created!["id"]!.GetValue<string>();
+        var id = created!["id"]!.GetValue<string>();
         _owned.Add(id);
         return id;
     }
@@ -50,8 +50,8 @@ public sealed class LiveGoogle(LiveAccount live)
         var body = new JsonObject
         {
             ["summary"] = summary,
-            ["start"]   = new JsonObject { ["dateTime"] = start.ToString("O") },
-            ["end"]     = new JsonObject { ["dateTime"] = start.AddHours(1).ToString("O") },
+            ["start"] = new JsonObject { ["dateTime"] = start.ToString("O") },
+            ["end"] = new JsonObject { ["dateTime"] = start.AddHours(1).ToString("O") },
         };
 
         var created = await SendAsync(HttpMethod.Post, $"calendars/{Uri.EscapeDataString(calendarId)}/events", body, ct);
@@ -71,9 +71,9 @@ public sealed class LiveGoogle(LiveAccount live)
     {
         var body = new JsonObject
         {
-            ["summary"]    = "Leaf live recurrence",
-            ["start"]      = new JsonObject { ["dateTime"] = startLocal, ["timeZone"] = timeZone },
-            ["end"]        = new JsonObject { ["dateTime"] = endLocal, ["timeZone"] = timeZone },
+            ["summary"] = "Leaf live recurrence",
+            ["start"] = new JsonObject { ["dateTime"] = startLocal, ["timeZone"] = timeZone },
+            ["end"] = new JsonObject { ["dateTime"] = endLocal, ["timeZone"] = timeZone },
             ["recurrence"] = new JsonArray([.. recurrence.Select(r => (JsonNode)r)]),
         };
 
@@ -120,9 +120,9 @@ public sealed class LiveGoogle(LiveAccount live)
         var start = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(1).AddHours(16), TimeSpan.Zero);
         var body = new JsonObject
         {
-            ["summary"]   = summary,
-            ["start"]     = new JsonObject { ["dateTime"] = start.ToString("O") },
-            ["end"]       = new JsonObject { ["dateTime"] = start.AddHours(1).ToString("O") },
+            ["summary"] = summary,
+            ["start"] = new JsonObject { ["dateTime"] = start.ToString("O") },
+            ["end"] = new JsonObject { ["dateTime"] = start.AddHours(1).ToString("O") },
             ["attendees"] = new JsonArray(new JsonObject { ["email"] = guestCalendarId }),
         };
 
@@ -152,9 +152,9 @@ public sealed class LiveGoogle(LiveAccount live)
     {
         var body = new JsonObject
         {
-            ["summary"]   = "Leaf live reminders",
-            ["start"]     = new JsonObject { ["dateTime"] = start.ToString("O", System.Globalization.CultureInfo.InvariantCulture) },
-            ["end"]       = new JsonObject { ["dateTime"] = start.AddHours(1).ToString("O", System.Globalization.CultureInfo.InvariantCulture) },
+            ["summary"] = "Leaf live reminders",
+            ["start"] = new JsonObject { ["dateTime"] = start.ToString("O", System.Globalization.CultureInfo.InvariantCulture) },
+            ["end"] = new JsonObject { ["dateTime"] = start.AddHours(1).ToString("O", System.Globalization.CultureInfo.InvariantCulture) },
             ["reminders"] = reminders,
         };
 
@@ -162,7 +162,7 @@ public sealed class LiveGoogle(LiveAccount live)
         return created!["id"]!.GetValue<string>();
     }
 
-    async Task<JsonNode?> SendAsync(HttpMethod method, string path, JsonObject? body, CancellationToken ct)
+    private async Task<JsonNode?> SendAsync(HttpMethod method, string path, JsonObject? body, CancellationToken ct)
     {
         // Guard: Writes Only Go To Calendars This Run Created
         if (method != HttpMethod.Get && path != "calendars")

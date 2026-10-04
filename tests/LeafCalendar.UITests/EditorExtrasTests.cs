@@ -12,11 +12,11 @@ namespace LeafCalendar.UITests;
 
 public sealed class EditorExtrasTests : IDisposable
 {
-    const string Dentist = "Event_evt-single_202610011300";
-    const string Meeting = "Event_evt-meeting_202610011800";
+    private const string Dentist = "Event_evt-single_202610011300";
+    private const string Meeting = "Event_evt-meeting_202610011800";
 
-    readonly FakeGoogleServer _google = new();
-    string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -24,17 +24,17 @@ public sealed class EditorExtrasTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     // A profile with settings saved before launch (the default one is deleted first)
-    void Seed(LeafSettings settings)
+    private void Seed(LeafSettings settings)
     {
         LeafApp.DeleteProfile(_profile);
         _profile = SeededProfile.Create(settings);
     }
 
     // Launches and waits until the account's Workspace domain was looked up (the event type depends on it)
-    LeafApp LaunchKnowingTheDomain()
+    private LeafApp LaunchKnowingTheDomain()
     {
         var leaf = Launch();
         leaf.WaitFor(Dentist);
@@ -42,31 +42,31 @@ public sealed class EditorExtrasTests : IDisposable
         return leaf;
     }
 
-    static void EditDentist(LeafApp leaf)
+    private static void EditDentist(LeafApp leaf)
     {
         leaf.WaitFor(Dentist).Click();
         leaf.Press(VirtualKeyShort.KEY_E);
         leaf.WaitFor("EditorTitle");
     }
 
-    static void SaveWithCtrlEnter(LeafApp leaf)
+    private static void SaveWithCtrlEnter(LeafApp leaf)
     {
         leaf.WaitFor("EditorTitle").AsTextBox().Focus();
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.RETURN);
     }
 
-    FakeWrite DentistPatch() =>
+    private FakeWrite DentistPatch() =>
         _google.WaitForWrite(w => w.Method == "PATCH" && w.Path.EndsWith("/events/evt-single", StringComparison.Ordinal));
 
     // The box takes focus the way a click or Tab gives it (its text field only shows once it has focus, so there's
     // nothing to click before that)
-    static void FocusZoneBox(LeafApp leaf)
+    private static void FocusZoneBox(LeafApp leaf)
     {
         leaf.WaitFor("EditorTimeZoneBox").Focus();
         Thread.Sleep(200);
     }
 
-    static TextBox ZoneEdit(LeafApp leaf) =>
+    private static TextBox ZoneEdit(LeafApp leaf) =>
         Retry.WhileNull(() => leaf.WaitFor("EditorTimeZoneBox").FindFirstDescendant(cf => cf.ByControlType(ControlType.Edit)), TimeSpan.FromSeconds(10)).Result?.AsTextBox()
         ?? throw new InvalidOperationException("The time zone box has no text box inside.");
 
@@ -190,8 +190,8 @@ public sealed class EditorExtrasTests : IDisposable
         Seed(new LeafSettings { PrimaryTimeZone = "America/New_York" });
         using var leaf = Launch();
         EditDentist(leaf);
-        var combo  = leaf.WaitFor("EditorTimeZoneBox").AsComboBox();
-        var edit   = ZoneEdit(leaf);
+        var combo = leaf.WaitFor("EditorTimeZoneBox").AsComboBox();
+        var edit = ZoneEdit(leaf);
         var before = edit.Text;
         Assert.StartsWith("(UTC-0", before, StringComparison.Ordinal);
 

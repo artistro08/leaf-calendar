@@ -10,10 +10,10 @@ namespace LeafCalendar.UITests;
 
 public sealed class SettingsPagesTests : IDisposable
 {
-    const string FamilyId = "family123@group.calendar.google.com";
+    private const string FamilyId = "family123@group.calendar.google.com";
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -21,32 +21,32 @@ public sealed class SettingsPagesTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch(string extra = "")
+    private LeafApp Launch(string extra = "")
     {
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01 {extra}");
         leaf.WaitFor($"CalendarToggle_{FamilyId}");
         return leaf;
     }
 
-    static string Selected(LeafApp leaf, string id) => leaf.WaitInSettings(id).AsComboBox().SelectedItem?.Name ?? "";
+    private static string Selected(LeafApp leaf, string id) => leaf.WaitInSettings(id).AsComboBox().SelectedItem?.Name ?? "";
 
-    static bool IsOn(LeafApp leaf, string id) => leaf.WaitInSettings(id).AsToggleButton().ToggleState == ToggleState.On;
+    private static bool IsOn(LeafApp leaf, string id) => leaf.WaitInSettings(id).AsToggleButton().ToggleState == ToggleState.On;
 
     // The picker's shown time ("9:00 PM"): its button's name carries it, wrapped in left-to-right marks
-    static string TimeOf(LeafApp leaf, string id) =>
+    private static string TimeOf(LeafApp leaf, string id) =>
         (PickerButton(leaf, id).Name ?? "").Replace("‎", "", StringComparison.Ordinal);
 
     // The selected item of a time picker flyout's looping column
-    static string? SelectedIn(AutomationElement column) =>
+    private static string? SelectedIn(AutomationElement column) =>
         column.FindAllChildren().FirstOrDefault(e => e.Patterns.SelectionItem.PatternOrDefault?.IsSelected.ValueOrDefault == true)?.Name;
 
     // A time picker is a group around one button
-    static AutomationElement PickerButton(LeafApp leaf, string id) =>
+    private static AutomationElement PickerButton(LeafApp leaf, string id) =>
         Retry.WhileNull(() => leaf.WaitInSettings(id).FindFirstDescendant(cf => cf.ByControlType(ControlType.Button)), TimeSpan.FromSeconds(5)).Result
         ?? throw new InvalidOperationException($"{id} has no button inside.");
 
     // Opens a time picker, picks an hour, minute, and period in its flyout, and accepts
-    static void PickTime(LeafApp leaf, string id, string hour, string minute, string period)
+    private static void PickTime(LeafApp leaf, string id, string hour, string minute, string period)
     {
         // Invoke the picker's button (the working-hours rows sit below the fold, where a mouse click can't reach)
         PickerButton(leaf, id).AsButton().Invoke();
@@ -59,7 +59,7 @@ public sealed class SettingsPagesTests : IDisposable
                 continue;
             }
 
-            var item   = column.FindAllChildren().FirstOrDefault(e => e.Name == value && !e.IsOffscreen)
+            var item = column.FindAllChildren().FirstOrDefault(e => e.Name == value && !e.IsOffscreen)
                 ?? throw new InvalidOperationException($"'{value}' isn't showing in {selector}.");
             item.Click();
             Assert.True(Retry.WhileFalse(() => SelectedIn(column) == value, TimeSpan.FromSeconds(5)).Success, $"{selector} shows {SelectedIn(column)}, not {value}.");
@@ -170,7 +170,7 @@ public sealed class SettingsPagesTests : IDisposable
     }
 
     // The highest element in the main window with this name
-    static int Top(LeafApp leaf, string name) =>
+    private static int Top(LeafApp leaf, string name) =>
         leaf.MainWindow.FindAllDescendants(cf => cf.ByName(name)).Select(e => e.BoundingRectangle.Top).DefaultIfEmpty(int.MaxValue).Min();
 
     [Fact]

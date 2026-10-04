@@ -12,10 +12,10 @@ namespace LeafCalendar.UITests;
 /// </summary>
 public sealed class CrashTests : IDisposable
 {
-    const string FamilyId = "family123@group.calendar.google.com";
+    private const string FamilyId = "family123@group.calendar.google.com";
 
     // Week Of 2026-10-01: a plain event, a long description full of links, a guest meeting, a call with a place, a family event, and an all-day event
-    static readonly string[] Events =
+    private static readonly string[] Events =
     [
         "Event_evt-single_202610011300",
         "Event_evt-rich_202610011400",
@@ -25,21 +25,21 @@ public sealed class CrashTests : IDisposable
         "AllDay_evt-crash-allday_20261001",
     ];
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     // A Long Description Full Of Links, A Call With A Place, And An All-Day Event
     public CrashTests()
     {
         var links = string.Concat(Enumerable.Range(0, 120).Select(i => $"<p><b>Line {i}</b> <a href=\"https://example.com/doc/{i}\">Doc {i}</a> https://example.org/{i}</p>"));
-        var rich  = new JsonObject
+        var rich = new JsonObject
         {
-            ["id"]          = "evt-rich",
-            ["status"]      = "confirmed",
-            ["summary"]     = "Planning",
+            ["id"] = "evt-rich",
+            ["status"] = "confirmed",
+            ["summary"] = "Planning",
             ["description"] = links,
-            ["start"]       = new JsonObject { ["dateTime"] = "2026-10-01T10:00:00-04:00" },
-            ["end"]         = new JsonObject { ["dateTime"] = "2026-10-01T11:00:00-04:00" },
+            ["start"] = new JsonObject { ["dateTime"] = "2026-10-01T10:00:00-04:00" },
+            ["end"] = new JsonObject { ["dateTime"] = "2026-10-01T11:00:00-04:00" },
         };
         _google.AddEvent(SeededProfile.Email, rich);
         _google.AddEvent(SeededProfile.Email, JsonNode.Parse("""
@@ -63,7 +63,7 @@ public sealed class CrashTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch()
+    private LeafApp Launch()
     {
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01 --gc-stress");
         leaf.WaitFor($"CalendarToggle_{FamilyId}");
@@ -93,7 +93,7 @@ public sealed class CrashTests : IDisposable
     }
 
     // The log while Leaf may be writing it
-    static string ReadShared(string path)
+    private static string ReadShared(string path)
     {
         if (!File.Exists(path))
         {
@@ -177,7 +177,7 @@ public sealed class CrashTests : IDisposable
     public void ResizingSettingsOnGeneral_AcrossEveryWidth_DoesNotCrash()
     {
         using var leaf = Launch();
-        var settings  = leaf.OpenSettings("General");
+        var settings = leaf.OpenSettings("General");
         var transform = settings.Patterns.Transform.Pattern;
         leaf.WaitInSettings("ThemeComboBox");
         transform.Move(0, 0);
@@ -197,7 +197,7 @@ public sealed class CrashTests : IDisposable
         transform.Resize(1000, 700);
         Wait.UntilInputIsProcessed();
         var bounds = settings.BoundingRectangle;
-        var edge   = new System.Drawing.Point(bounds.Right - 3, bounds.Top + bounds.Height / 2);
+        var edge = new System.Drawing.Point(bounds.Right - 3, bounds.Top + bounds.Height / 2);
         Mouse.MoveTo(edge);
         Mouse.Down(MouseButton.Left);
         for (var pass = 0; pass < 3; pass++)

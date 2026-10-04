@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 
 public class ViewNavigatorTests
 {
-    static DateOnly D(int y, int m, int d) => new(y, m, d);
+    private static DateOnly D(int y, int m, int d) => new(y, m, d);
 
     [Theory]
     [InlineData(CalendarViewMode.Day, 3, true, 1)]

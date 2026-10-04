@@ -7,13 +7,13 @@ namespace LeafCalendar.Tests;
 
 public class AccessTokenProviderTests : IDisposable
 {
-    const string TokenUrl = "https://oauth2.googleapis.com/token";
+    private const string TokenUrl = "https://oauth2.googleapis.com/token";
 
-    readonly FakeHttpHandler _google = new();
-    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
-    readonly InMemoryTokenStore _store = new();
+    private readonly FakeHttpHandler _google = new();
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
+    private readonly InMemoryTokenStore _store = new();
 
-    AccessTokenProvider CreateProvider() =>
+    private AccessTokenProvider CreateProvider() =>
         new(new GoogleOAuthClient(new HttpClient(_google), new("id.apps.googleusercontent.com", "secret"), _time), _store, _time);
 
     [Fact]
@@ -24,7 +24,7 @@ public class AccessTokenProviderTests : IDisposable
         _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
         var provider = CreateProvider();
 
-        var first  = await provider.GetAccessTokenAsync("acct", ct);
+        var first = await provider.GetAccessTokenAsync("acct", ct);
         _time.Advance(TimeSpan.FromMinutes(30));
         var second = await provider.GetAccessTokenAsync("acct", ct);
 

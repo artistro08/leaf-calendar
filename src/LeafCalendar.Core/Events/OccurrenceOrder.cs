@@ -42,7 +42,7 @@ public static class OccurrenceOrder
     }
 
     // Orders by start on the clock in the zone (an all-day event at its local midnight), then key; a null key ties with every event at that start
-    static int Compare(CalendarOccurrence o, DateTimeOffset start, string? key, TimeZoneInfo zone)
+    private static int Compare(CalendarOccurrence o, DateTimeOffset start, string? key, TimeZoneInfo zone)
     {
         var byStart = o.StartIn(zone).UtcTicks.CompareTo(start.UtcTicks);
         if (byStart != 0 || key is null)

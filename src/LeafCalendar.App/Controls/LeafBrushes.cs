@@ -15,7 +15,7 @@ namespace LeafCalendar.App.Controls;
 /// </summary>
 public static class LeafBrushes
 {
-    static readonly Dictionary<string, SolidColorBrush> Cache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, SolidColorBrush> Cache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Transparent but hit-testable.</summary>
     public static SolidColorBrush Transparent { get; } = new(Colors.Transparent);
@@ -83,11 +83,11 @@ public static class LeafBrushes
     // CONTRAST THEMES
     // =========================================================================
 
-    static readonly AccessibilitySettings Accessibility = new();
-    static readonly UISettings UiColors = new();
-    static readonly Dictionary<UIElementType, SolidColorBrush> SystemCache = [];
-    static volatile bool _systemStale;
-    static bool _wasHighContrast = Accessibility.HighContrast;
+    private static readonly AccessibilitySettings Accessibility = new();
+    private static readonly UISettings UiColors = new();
+    private static readonly Dictionary<UIElementType, SolidColorBrush> SystemCache = [];
+    private static volatile bool s_systemStale;
+    private static bool s_wasHighContrast = Accessibility.HighContrast;
 
     /// <summary>True while Windows uses a contrast theme; every brush then comes from the system's contrast colors.</summary>
     public static bool HighContrast => Accessibility.HighContrast;
@@ -101,13 +101,13 @@ public static class LeafBrushes
     static LeafBrushes() => UiColors.ColorValuesChanged += (_, _) =>
     {
         var now = Accessibility.HighContrast;
-        if (!now && !_wasHighContrast)
+        if (!now && !s_wasHighContrast)
         {
             return;
         }
 
-        _wasHighContrast = now;
-        _systemStale     = true;
+        s_wasHighContrast = now;
+        s_systemStale = true;
         ContrastChanged?.Invoke(null, EventArgs.Empty);
     };
 
@@ -127,6 +127,15 @@ public static class LeafBrushes
         return (FromHex(palette.Accent), FromHex(palette.Fill));
     }
 
+    /// <summary>
+    /// The colors for an event card in <paramref name="accentHex"/>'s calendar color, or the system's contrast
+    /// colors while a contrast theme is on.
+    /// </summary>
+    /// <param name="accentHex">The calendar or event color as <c>#RRGGBB</c>.</param>
+    /// <param name="dark">True in the dark theme.</param>
+    /// <param name="past">True for an event that has ended (drawn faded).</param>
+    /// <param name="selected">True for the selected event.</param>
+    /// <returns>The card's accent, fill and text colors.</returns>
     public static EventPalette CardPalette(string accentHex, bool dark, bool past = false, bool selected = false) =>
         HighContrast ? HighContrastPalette(selected) : EventColors.Palette(accentHex, dark, past, selected);
 
@@ -134,7 +143,7 @@ public static class LeafBrushes
     public static Thickness CardBorder(bool selected, bool outlined = false) => new(selected ? 2 : outlined || HighContrast ? 1 : 0);
 
     // A Contrast Card: The Window Color With A Text-Colored Bar And Border, Or The Highlight Pair When Selected
-    static EventPalette HighContrastPalette(bool selected)
+    private static EventPalette HighContrastPalette(bool selected)
     {
         var fill = Hex(UiColors.UIElementColor(selected ? UIElementType.Highlight : UIElementType.Window));
         var text = Hex(UiColors.UIElementColor(selected ? UIElementType.HighlightText : UIElementType.WindowText));
@@ -143,30 +152,30 @@ public static class LeafBrushes
     }
 
     // A System Contrast Color As A Brush (UI thread only)
-    static SolidColorBrush SystemBrush(UIElementType type)
+    private static SolidColorBrush SystemBrush(UIElementType type)
     {
-        if (_systemStale)
+        if (s_systemStale)
         {
             SystemCache.Clear();
-            _systemStale = false;
+            s_systemStale = false;
         }
 
         if (!SystemCache.TryGetValue(type, out var brush))
         {
-            brush             = new SolidColorBrush(UiColors.UIElementColor(type));
+            brush = new SolidColorBrush(UiColors.UIElementColor(type));
             SystemCache[type] = brush;
         }
 
         return brush;
     }
 
-    static string Hex(Color c) => string.Create(CultureInfo.InvariantCulture, $"#{c.R:X2}{c.G:X2}{c.B:X2}");
+    private static string Hex(Color c) => string.Create(CultureInfo.InvariantCulture, $"#{c.R:X2}{c.G:X2}{c.B:X2}");
 
     // ponytail: read once; an accent color change while Leaf runs shows after a restart
-    static readonly Lazy<SolidColorBrush> AccentDark  = new(() => new SolidColorBrush(new UISettings().GetColorValue(UIColorType.AccentLight2)));
-    static readonly Lazy<SolidColorBrush> AccentLight = new(() => new SolidColorBrush(new UISettings().GetColorValue(UIColorType.AccentDark1)));
+    private static readonly Lazy<SolidColorBrush> AccentDark = new(() => new SolidColorBrush(new UISettings().GetColorValue(UIColorType.AccentLight2)));
+    private static readonly Lazy<SolidColorBrush> AccentLight = new(() => new SolidColorBrush(new UISettings().GetColorValue(UIColorType.AccentDark1)));
 
-    static Color Parse(string hex)
+    private static Color Parse(string hex)
     {
         var digits = hex.TrimStart('#');
         if (digits.Length == 6)

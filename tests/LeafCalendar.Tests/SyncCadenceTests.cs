@@ -5,11 +5,11 @@ namespace LeafCalendar.Tests;
 
 public sealed class SyncCadenceTests : IDisposable
 {
-    readonly SyncHarness _h = new();
+    private readonly SyncHarness _h = new();
 
     public void Dispose() => _h.Dispose();
 
-    int CalendarListCalls() => _h.Google.Requests.Count(r => r.Uri.AbsoluteUri.StartsWith(SyncHarness.ListUrl, StringComparison.Ordinal));
+    private int CalendarListCalls() => _h.Google.Requests.Count(r => r.Uri.AbsoluteUri.StartsWith(SyncHarness.ListUrl, StringComparison.Ordinal));
 
     [Fact]
     public async Task SyncAllAsync_WithinFifteenMinutes_SkipsCalendarList()

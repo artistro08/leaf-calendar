@@ -14,7 +14,7 @@ internal readonly record struct TrayScreenInfo(PixelRect Area, TaskbarEdge Edge,
 internal static unsafe class TrayScreen
 {
     // SHAppBarMessage: the taskbar's rectangle and edge
-    const uint AbmGetTaskbarPos = 5;
+    private const uint AbmGetTaskbarPos = 5;
 
     /// <summary>The monitor holding a screen point (the tray icon or a click).</summary>
     public static TrayScreenInfo At(int x, int y) =>
@@ -24,7 +24,7 @@ internal static unsafe class TrayScreen
     public static TrayScreenInfo Primary() =>
         For(PInvoke.MonitorFromPoint(default, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTOPRIMARY));
 
-    static TrayScreenInfo For(HMONITOR monitor)
+    private static TrayScreenInfo For(HMONITOR monitor)
     {
         var info = new MONITORINFO { cbSize = (uint)sizeof(MONITORINFO) };
         if (!PInvoke.GetMonitorInfo(monitor, ref info))
@@ -35,31 +35,31 @@ internal static unsafe class TrayScreen
             if (!PInvoke.GetMonitorInfo(monitor, ref info))
             {
                 info.rcMonitor = new RECT { right = 1920, bottom = 1080 };
-                info.rcWork    = info.rcMonitor;
+                info.rcWork = info.rcMonitor;
             }
         }
 
         var bounds = Rect(info.rcMonitor);
-        var work   = Rect(info.rcWork);
-        var scale  = PInvoke.GetDpiForMonitor(monitor, MONITOR_DPI_TYPE.MDT_EFFECTIVE_DPI, out var dpi, out _).Succeeded ? dpi / 96.0 : 1.0;
+        var work = Rect(info.rcWork);
+        var scale = PInvoke.GetDpiForMonitor(monitor, MONITOR_DPI_TYPE.MDT_EFFECTIVE_DPI, out var dpi, out _).Succeeded ? dpi / 96.0 : 1.0;
 
         // The Taskbar (ABM_GETTASKBARPOS answers for the primary taskbar, so it's used only when that one is on this
         // monitor; it gives an auto-hidden taskbar's full rectangle, not the visible sliver, so the usable area clears it)
-        var edge           = TrayPlacement.DetectEdge(bounds, work);
+        var edge = TrayPlacement.DetectEdge(bounds, work);
         PixelRect? taskbar = null;
-        var bar            = new APPBARDATA { cbSize = (uint)sizeof(APPBARDATA) };
+        var bar = new APPBARDATA { cbSize = (uint)sizeof(APPBARDATA) };
         if (PInvoke.SHAppBarMessage(AbmGetTaskbarPos, ref bar) != 0)
         {
             var rect = Rect(bar.rc);
             if (rect.Left >= bounds.Left && rect.Right <= bounds.Right && rect.Top >= bounds.Top && rect.Bottom <= bounds.Bottom)
             {
                 taskbar = rect;
-                edge    = TrayPlacement.EdgeFromAppBar(bar.uEdge);
+                edge = TrayPlacement.EdgeFromAppBar(bar.uEdge);
             }
         }
 
         return new TrayScreenInfo(TrayPlacement.UsableArea(work, taskbar, edge), edge, scale);
     }
 
-    static PixelRect Rect(RECT r) => new(r.left, r.top, r.right, r.bottom);
+    private static PixelRect Rect(RECT r) => new(r.left, r.top, r.right, r.bottom);
 }

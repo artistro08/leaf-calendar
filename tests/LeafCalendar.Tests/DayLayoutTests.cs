@@ -6,16 +6,16 @@ namespace LeafCalendar.Tests;
 
 public class DayLayoutTests
 {
-    static readonly TimeZoneInfo Zone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
-    static readonly DateOnly Day = new(2026, 10, 1);
+    private static readonly TimeZoneInfo Zone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly DateOnly Day = new(2026, 10, 1);
 
-    static CalendarOccurrence At(string id, int startHour, int startMinute, int endHour, int endMinute, int endDayOffset = 0) =>
+    private static CalendarOccurrence At(string id, int startHour, int startMinute, int endHour, int endMinute, int endDayOffset = 0) =>
         new("a", "c", id, null, null,
             new DateTimeOffset(2026, 10, 1, startHour, startMinute, 0, TimeSpan.FromHours(-4)),
             new DateTimeOffset(2026, 10, 1 + endDayOffset, endHour, endMinute, 0, TimeSpan.FromHours(-4)),
             false, id, EventKind.Default, ResponseStatus.Accepted, "#4285F4", null, false, false);
 
-    static IReadOnlyList<TimedBlock> Lay(params CalendarOccurrence[] items) => DayLayout.Layout(Day, items, Zone);
+    private static IReadOnlyList<TimedBlock> Lay(params CalendarOccurrence[] items) => DayLayout.Layout(Day, items, Zone);
 
     [Fact]
     public void Layout_Alone_OneFullWidthColumn()
@@ -84,8 +84,8 @@ public class DayLayoutTests
     public void Layout_RepeatedMidnightHour_DrawsTheFirstPass()
     {
         var azores = TimeZoneInfo.FindSystemTimeZoneById("Atlantic/Azores");
-        var day    = new DateOnly(2026, 10, 25);
-        var first  = TestOccurrences.Make("first-pass", DragMath.Instant(day, 15, azores), DragMath.Instant(day, 45, azores), false);
+        var day = new DateOnly(2026, 10, 25);
+        var first = TestOccurrences.Make("first-pass", DragMath.Instant(day, 15, azores), DragMath.Instant(day, 45, azores), false);
 
         var b = Assert.Single(DayLayout.Layout(day, [first], azores));
 

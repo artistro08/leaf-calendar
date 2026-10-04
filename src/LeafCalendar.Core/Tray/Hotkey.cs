@@ -32,8 +32,8 @@ public enum HotkeyModifiers
 /// </remarks>
 public readonly record struct Hotkey(HotkeyModifiers Modifiers, int Key)
 {
-    const HotkeyModifiers AllModifiers = HotkeyModifiers.Ctrl | HotkeyModifiers.Alt | HotkeyModifiers.Shift | HotkeyModifiers.Win;
-    const HotkeyModifiers Anchors      = HotkeyModifiers.Ctrl | HotkeyModifiers.Alt | HotkeyModifiers.Win;
+    private const HotkeyModifiers AllModifiers = HotkeyModifiers.Ctrl | HotkeyModifiers.Alt | HotkeyModifiers.Shift | HotkeyModifiers.Win;
+    private const HotkeyModifiers Anchors = HotkeyModifiers.Ctrl | HotkeyModifiers.Alt | HotkeyModifiers.Win;
 
     /// <summary>Checks a pressed combination (the shortcut dialog) and makes a shortcut from it.</summary>
     public static bool TryCreate(HotkeyModifiers modifiers, int key, out Hotkey hotkey)
@@ -54,17 +54,17 @@ public readonly record struct Hotkey(HotkeyModifiers Modifiers, int Key)
         }
 
         var modifiers = HotkeyModifiers.None;
-        int? key      = null;
+        int? key = null;
         foreach (var raw in text.Split('+'))
         {
             var part = raw.Trim().ToUpperInvariant();
             HotkeyModifiers? modifier = part switch
             {
                 "CTRL" or "CONTROL" => HotkeyModifiers.Ctrl,
-                "ALT"               => HotkeyModifiers.Alt,
-                "SHIFT"             => HotkeyModifiers.Shift,
-                "WIN" or "WINDOWS"  => HotkeyModifiers.Win,
-                _                   => null,
+                "ALT" => HotkeyModifiers.Alt,
+                "SHIFT" => HotkeyModifiers.Shift,
+                "WIN" or "WINDOWS" => HotkeyModifiers.Win,
+                _ => null,
             };
 
             // A Modifier (each only once)
@@ -122,14 +122,14 @@ public readonly record struct Hotkey(HotkeyModifiers Modifiers, int Key)
     // A–Z and 0–9 are their own virtual-key codes; F1–F24 are 0x70–0x87 (F12, 0x7B, is the debugger's)
     internal static string? KeyName(int key) => key switch
     {
-        0x7B                => null,
+        0x7B => null,
         >= 0x41 and <= 0x5A => new string((char)key, 1),
         >= 0x30 and <= 0x39 => new string((char)key, 1),
         >= 0x70 and <= 0x87 => string.Create(CultureInfo.InvariantCulture, $"F{key - 0x6F}"),
-        _                   => null,
+        _ => null,
     };
 
-    static int? KeyCode(string name)
+    private static int? KeyCode(string name)
     {
         if (name.Length == 1 && (char.IsAsciiLetterUpper(name[0]) || char.IsAsciiDigit(name[0])))
         {

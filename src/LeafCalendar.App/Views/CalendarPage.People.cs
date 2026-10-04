@@ -8,15 +8,15 @@ namespace LeafCalendar.App.Views;
 
 public sealed partial class CalendarPage
 {
-    OverlayBar? _overlayBar;
-    ShareSlotsPanel? _slotsPanel;
+    private OverlayBar? _overlayBar;
+    private ShareSlotsPanel? _slotsPanel;
 
     // Whether the details panel was open when sharing started (it opens for the picked times and goes back after)
-    bool? _detailsBeforeSharing;
+    private bool? _detailsBeforeSharing;
 
     // Called once when the page opens: the overlay bar, the share panel (in the details pane), and the view model events
     // they follow
-    void AttachPeople()
+    private void AttachPeople()
     {
         // At the bottom with the other toasts, above the share hint and the notice
         _overlayBar = new OverlayBar();
@@ -27,20 +27,20 @@ public sealed partial class CalendarPage
         DetailsPane.Children.Add(_slotsPanel);
         ShowSharing();
 
-        ViewModel.ShareChanged             += OnShareChanged;
-        ViewModel.OverlayChanged           += OnOverlayChanged;
-        ViewModel.LayoutChanged            += OnOverlayChanged;
-        ViewModel.PropertyChanged          += OnPeoplePropertyChanged;
+        ViewModel.ShareChanged += OnShareChanged;
+        ViewModel.OverlayChanged += OnOverlayChanged;
+        ViewModel.LayoutChanged += OnOverlayChanged;
+        ViewModel.PropertyChanged += OnPeoplePropertyChanged;
         Sidebar.ShareAvailabilityRequested += OnShareAvailabilityRequested;
     }
 
     // Called from Detach: undo everything AttachPeople wired to the long-lived view model
-    void DetachPeople()
+    private void DetachPeople()
     {
-        ViewModel.ShareChanged             -= OnShareChanged;
-        ViewModel.OverlayChanged           -= OnOverlayChanged;
-        ViewModel.LayoutChanged            -= OnOverlayChanged;
-        ViewModel.PropertyChanged          -= OnPeoplePropertyChanged;
+        ViewModel.ShareChanged -= OnShareChanged;
+        ViewModel.OverlayChanged -= OnOverlayChanged;
+        ViewModel.LayoutChanged -= OnOverlayChanged;
+        ViewModel.PropertyChanged -= OnPeoplePropertyChanged;
         Sidebar.ShareAvailabilityRequested -= OnShareAvailabilityRequested;
 
         // Sharing Opened The Details Panel For Itself, So What's Saved Goes Back To How It Was (a reopened window or the next
@@ -67,13 +67,13 @@ public sealed partial class CalendarPage
         }
     }
 
-    void OnOverlayChanged(object? sender, EventArgs e) => _overlayBar?.Update(ViewModel);
+    private void OnOverlayChanged(object? sender, EventArgs e) => _overlayBar?.Update(ViewModel);
 
-    void OnShareChanged(object? sender, EventArgs e) => ShowSharing();
+    private void OnShareChanged(object? sender, EventArgs e) => ShowSharing();
 
     // While sharing: the share panel in the right pane in place of the details (the pane opens for it and goes back to how it
     // was when sharing stops)
-    void ShowSharing()
+    private void ShowSharing()
     {
         _slotsPanel?.Update(ViewModel);
         var sharing = ViewModel.IsSharing;
@@ -87,7 +87,7 @@ public sealed partial class CalendarPage
 
         // Started Or Stopped: the grid takes or drops the scheduling look itself (TimeGridView.OnShareChanged redraws its days)
         _slotsPanel.Visibility = sharing ? Visibility.Visible : Visibility.Collapsed;
-        Details.Visibility     = sharing ? Visibility.Collapsed : Visibility.Visible;
+        Details.Visibility = sharing ? Visibility.Collapsed : Visibility.Visible;
         if (sharing)
         {
             _detailsBeforeSharing = IsDetailsOpen;
@@ -100,9 +100,9 @@ public sealed partial class CalendarPage
         }
     }
 
-    void OnShareAvailabilityRequested(object? sender, EventArgs e) => StartShareAvailability();
+    private void OnShareAvailabilityRequested(object? sender, EventArgs e) => StartShareAvailability();
 
-    void OnPeoplePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnPeoplePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
 
         // Paging Loads Busy Times For The New Days
@@ -120,12 +120,12 @@ public sealed partial class CalendarPage
     }
 
     // P
-    void ShowPeopleOverlay() => PickPeople("Overlay a teammate", "Show", meetWith: false);
+    private void ShowPeopleOverlay() => PickPeople("Overlay a teammate", "Show", meetWith: false);
 
     // F
-    void ShowMeetWith() => PickPeople("Meet with", "Find a time", meetWith: true);
+    private void ShowMeetWith() => PickPeople("Meet with", "Find a time", meetWith: true);
 
-    void PickPeople(string title, string primaryText, bool meetWith) =>
+    private void PickPeople(string title, string primaryText, bool meetWith) =>
         ViewModel.Fire(async () =>
         {
             if (await PeoplePickerDialog.ShowAsync(this, ViewModel, title, primaryText) is { Count: > 0 } picked)
@@ -135,7 +135,7 @@ public sealed partial class CalendarPage
         }, "people.pick.failed");
 
     // E then F: the selected event's guests, without you and without rooms
-    void ShowParticipantOverlay()
+    private void ShowParticipantOverlay()
     {
         if (ViewModel.SelectedInfo is not { } info)
         {
@@ -143,7 +143,7 @@ public sealed partial class CalendarPage
             return;
         }
 
-        var mine   = ViewModel.AccountEmails.Values.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var mine = ViewModel.AccountEmails.Values.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var guests = info.Draft.Guests
             .Select(g => g.Email.Trim())
             .Where(e => CalendarViewModel.IsAddress(e) && !mine.Contains(e) && !e.EndsWith("@resource.calendar.google.com", StringComparison.OrdinalIgnoreCase))
@@ -160,7 +160,7 @@ public sealed partial class CalendarPage
     }
 
     // S, the sidebar's share button, and the command menu: S again (or Cancel) stops
-    void StartShareAvailability()
+    private void StartShareAvailability()
     {
         if (ViewModel.IsSharing)
         {

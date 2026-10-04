@@ -63,7 +63,7 @@ public sealed class ShortcutCatalogTests
     public void Filter_Empty_IsEverything() => Assert.Equal(ShortcutCatalog.Rows.Count, ShortcutCatalog.Filter(" ").Count);
 
     // The shortcuts under a selected event, as "keys: label"
-    static List<string> Hints(bool canEdit, bool canJoin, bool canRespond, bool hasGuests) =>
+    private static List<string> Hints(bool canEdit, bool canJoin, bool canRespond, bool hasGuests) =>
         [.. ShortcutCatalog.ForEvent(canEdit, canJoin, canRespond, hasGuests).Select(r => $"{r.Keys}: {r.Action}")];
 
     [Fact]

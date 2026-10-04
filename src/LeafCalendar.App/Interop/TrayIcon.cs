@@ -41,37 +41,37 @@ namespace LeafCalendar.App.Interop;
 /// </remarks>
 internal sealed unsafe class TrayIcon : IDisposable
 {
-    const string WindowClass = "LeafCalendarTray";
-    const uint IconId        = 1;
+    private const string WindowClass = "LeafCalendarTray";
+    private const uint IconId = 1;
 
     // Messages And Values (declared here, so a name missing from the metadata can't break the build)
-    const uint CallbackMessage     = 0x8000 + 1;
-    const uint WmContextMenu       = 0x007B;
-    const uint WmHotkey            = 0x0312;
-    const uint WmSettingChange     = 0x001A;
-    const uint WmDpiChanged        = 0x02E0;
-    const uint NinSelect           = 0x0400;
-    const uint NinKeySelect        = 0x0401;
-    const uint NotifyIconVersion4  = 4;
-    const uint IconResourceVersion = 0x00030000;
+    private const uint CallbackMessage = 0x8000 + 1;
+    private const uint WmContextMenu = 0x007B;
+    private const uint WmHotkey = 0x0312;
+    private const uint WmSettingChange = 0x001A;
+    private const uint WmDpiChanged = 0x02E0;
+    private const uint NinSelect = 0x0400;
+    private const uint NinKeySelect = 0x0401;
+    private const uint NotifyIconVersion4 = 4;
+    private const uint IconResourceVersion = 0x00030000;
 
-    static TrayIcon? s_current;
+    private static TrayIcon? s_current;
 
-    readonly AppLog _log;
-    readonly HWND _hwnd;
-    readonly uint _taskbarCreated;
-    HICON _icon;
-    int _iconSize;
-    readonly Guid _identity;
-    bool _byGuid = true;
-    bool _visible;
-    long _lastKeySelect;
+    private readonly AppLog _log;
+    private readonly HWND _hwnd;
+    private readonly uint _taskbarCreated;
+    private HICON _icon;
+    private int _iconSize;
+    private readonly Guid _identity;
+    private bool _byGuid = true;
+    private bool _visible;
+    private long _lastKeySelect;
 
     // Two key selects closer than this are Enter's one press
-    const long KeySelectRepeatMs = 100;
-    int _day;
-    string _tooltip = "Leaf Calendar";
-    bool _disposed;
+    private const long KeySelectRepeatMs = 100;
+    private int _day;
+    private string _tooltip = "Leaf Calendar";
+    private bool _disposed;
 
     /// <summary>Creates the hidden window and adds the icon showing <paramref name="day"/> (1–31). Only one may exist.</summary>
     /// <exception cref="InvalidOperationException">A tray icon already exists.</exception>
@@ -87,10 +87,10 @@ internal sealed unsafe class TrayIcon : IDisposable
             throw new InvalidOperationException("Only one tray icon may exist.");
         }
 
-        _log      = log;
-        _day      = day;
+        _log = log;
+        _day = day;
         _identity = IdentityFor(profile);
-        _visible  = visible;
+        _visible = visible;
         s_current = this;
 
         try
@@ -102,9 +102,9 @@ internal sealed unsafe class TrayIcon : IDisposable
             {
                 var windowClass = new WNDCLASSEXW
                 {
-                    cbSize        = (uint)sizeof(WNDCLASSEXW),
-                    lpfnWndProc   = &WindowProc,
-                    hInstance     = instance,
+                    cbSize = (uint)sizeof(WNDCLASSEXW),
+                    lpfnWndProc = &WindowProc,
+                    hInstance = instance,
                     lpszClassName = className,
                 };
                 PInvoke.RegisterClassEx(in windowClass);
@@ -224,7 +224,7 @@ internal sealed unsafe class TrayIcon : IDisposable
         }
 
         _disposed = true;
-        var data  = Data(0);
+        var data = Data(0);
         PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_DELETE, in data);
         PInvoke.DestroyWindow(_hwnd);
         if (!_icon.IsNull)
@@ -237,7 +237,7 @@ internal sealed unsafe class TrayIcon : IDisposable
 
     // Adds the icon (fails while Explorer isn't up yet at sign-in; TaskbarCreated adds it then). An icon a killed or
     // crashed Leaf left with this identity goes first; if Windows refuses the identity, the icon goes by window and ID
-    void Add()
+    private void Add()
     {
         LoadIcon();
         const NOTIFY_ICON_DATA_FLAGS Flags = NOTIFY_ICON_DATA_FLAGS.NIF_MESSAGE | NOTIFY_ICON_DATA_FLAGS.NIF_ICON | NOTIFY_ICON_DATA_FLAGS.NIF_TIP | NOTIFY_ICON_DATA_FLAGS.NIF_SHOWTIP;
@@ -247,14 +247,14 @@ internal sealed unsafe class TrayIcon : IDisposable
             PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_DELETE, in stale);
         }
 
-        var data  = Data(Flags);
+        var data = Data(Flags);
         var added = PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_ADD, in data);
         if (!added && _byGuid)
         {
             _log.Info("tray.guid.refused");
             _byGuid = false;
-            data    = Data(Flags);
-            added   = PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_ADD, in data);
+            data = Data(Flags);
+            added = PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_ADD, in data);
         }
 
         if (!added)
@@ -269,24 +269,24 @@ internal sealed unsafe class TrayIcon : IDisposable
         PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_SETVERSION, in data);
     }
 
-    NOTIFYICONDATAW Data(NOTIFY_ICON_DATA_FLAGS flags)
+    private NOTIFYICONDATAW Data(NOTIFY_ICON_DATA_FLAGS flags)
     {
         var data = new NOTIFYICONDATAW
         {
-            cbSize           = (uint)sizeof(NOTIFYICONDATAW),
-            hWnd             = _hwnd,
-            uID              = IconId,
-            uFlags           = _byGuid ? flags | NOTIFY_ICON_DATA_FLAGS.NIF_GUID : flags,
-            guidItem         = _byGuid ? _identity : Guid.Empty,
+            cbSize = (uint)sizeof(NOTIFYICONDATAW),
+            hWnd = _hwnd,
+            uID = IconId,
+            uFlags = _byGuid ? flags | NOTIFY_ICON_DATA_FLAGS.NIF_GUID : flags,
+            guidItem = _byGuid ? _identity : Guid.Empty,
             uCallbackMessage = CallbackMessage,
-            hIcon            = _icon,
+            hIcon = _icon,
         };
         _tooltip.AsSpan(0, Math.Min(_tooltip.Length, 127)).CopyTo(data.szTip.AsSpan());
         return data;
     }
 
     // The icon's fixed identity for a profile (profiles run side by side, so each has its own): a name-based GUID
-    static Guid IdentityFor(string profile)
+    private static Guid IdentityFor(string profile)
     {
         Span<byte> hash = stackalloc byte[32];
         System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("LeafCalendar.TrayIcon|" + profile), hash);
@@ -297,10 +297,10 @@ internal sealed unsafe class TrayIcon : IDisposable
 
     // Today's date for the system theme (white in dark mode, black in light mode), drawn at the taskbar's small-icon size
     // (else the next size up, else the largest), turned into an icon at that size
-    void LoadIcon()
+    private void LoadIcon()
     {
         // Remembered even when the load fails, so a failed size isn't retried on every setting change
-        var size  = IconSize();
+        var size = IconSize();
         _iconSize = size;
         try
         {
@@ -331,29 +331,29 @@ internal sealed unsafe class TrayIcon : IDisposable
     }
 
     // True when the taskbar is light (Settings > Personalization > Colors, "Choose your default Windows mode")
-    static bool TaskbarIsLight()
+    private static bool TaskbarIsLight()
     {
         using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
         return key?.GetValue("SystemUsesLightTheme") is int value && value != 0;
     }
 
     // The taskbar's small-icon size, in pixels
-    static int IconSize() => PInvoke.GetSystemMetricsForDpi(SYSTEM_METRICS_INDEX.SM_CXSMICON, TaskbarDpi());
+    private static int IconSize() => PInvoke.GetSystemMetricsForDpi(SYSTEM_METRICS_INDEX.SM_CXSMICON, TaskbarDpi());
 
     // WM_SETTINGCHANGE names the changed area in lParam; "ImmersiveColorSet" is a light/dark theme switch
-    static bool IsColorSetChange(LPARAM lParam) =>
+    private static bool IsColorSetChange(LPARAM lParam) =>
         lParam.Value != 0 && new string((char*)lParam.Value) == "ImmersiveColorSet";
 
     // The taskbar's own DPI, then 96
-    static uint TaskbarDpi()
+    private static uint TaskbarDpi()
     {
         var taskbar = PInvoke.FindWindow("Shell_TrayWnd", null);
-        var dpi     = taskbar.IsNull ? 0u : PInvoke.GetDpiForWindow(taskbar);
+        var dpi = taskbar.IsNull ? 0u : PInvoke.GetDpiForWindow(taskbar);
         return dpi == 0 ? 96u : dpi;
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
-    static LRESULT WindowProc(HWND hwnd, uint message, WPARAM wParam, LPARAM lParam)
+    private static LRESULT WindowProc(HWND hwnd, uint message, WPARAM wParam, LPARAM lParam)
     {
         try
         {
@@ -373,7 +373,7 @@ internal sealed unsafe class TrayIcon : IDisposable
     }
 
     // True when the message was handled here
-    bool OnMessage(uint message, WPARAM wParam, LPARAM lParam)
+    private bool OnMessage(uint message, WPARAM wParam, LPARAM lParam)
     {
         // Icon Events (version 4: the event in lParam's low word, the anchor point in wParam)
         if (message == CallbackMessage)

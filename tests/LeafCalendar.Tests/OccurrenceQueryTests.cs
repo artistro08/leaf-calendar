@@ -8,11 +8,11 @@ namespace LeafCalendar.Tests;
 
 public sealed class OccurrenceQueryTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private const string Primary = "leaf.tester@gmail.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public OccurrenceQueryTests()
     {
@@ -31,20 +31,20 @@ public sealed class OccurrenceQueryTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    void Insert(string json, string account = "109876543210", string calendar = Primary)
+    private void Insert(string json, string account = "109876543210", string calendar = Primary)
     {
         using var conn = _db.Database.Open();
-        using var doc  = JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(json);
         EventStore.Apply(conn, null, account, calendar, doc.RootElement);
     }
 
-    IReadOnlyList<CalendarOccurrence> Load(DateOnly from, DateOnly to, TimeZoneInfo? zone = null, bool includeDeclined = false)
+    private IReadOnlyList<CalendarOccurrence> Load(DateOnly from, DateOnly to, TimeZoneInfo? zone = null, bool includeDeclined = false)
     {
         using var conn = _db.Database.Open();
         return OccurrenceQuery.Load(conn, from, to, zone ?? NewYork, includeDeclined);
     }
 
-    static DateOnly D(int month, int day) => new(2026, month, day);
+    private static DateOnly D(int month, int day) => new(2026, month, day);
 
     [Fact]
     public void Load_SingleEvent_ReturnsInstanceWithCalendarColor()

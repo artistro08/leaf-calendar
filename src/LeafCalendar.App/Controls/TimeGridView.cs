@@ -50,72 +50,72 @@ public sealed partial class TimeGridView : Grid, IDisposable
     public const double ZoneColumnWidth = 56;
 
     // ponytail: ~8 years of days; rebuild the strip around the target date if someone scrolls past the ends
-    const int StripDaysEachSide = 1500;
+    private const int StripDaysEachSide = 1500;
 
-    readonly CalendarViewModel _vm;
+    private readonly CalendarViewModel _vm;
     // Wheel step over the gutter and header (three 16 px lines per notch, like a ScrollViewer)
-    const double WheelStep = 48.0 / 120;
+    private const double WheelStep = 48.0 / 120;
 
-    readonly ScrollViewer _headerScroll = new() { Background = LeafBrushes.Transparent, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalScrollMode = ScrollMode.Disabled, VerticalScrollMode = ScrollMode.Disabled, ZoomMode = ZoomMode.Disabled };
-    readonly ScrollViewer _gutterScroll = new() { Background = LeafBrushes.Transparent, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollMode = ScrollMode.Disabled, HorizontalScrollMode = ScrollMode.Disabled, ZoomMode = ZoomMode.Disabled };
-    readonly ScrollViewer _bodyScroll = new() { HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Enabled, ZoomMode = ZoomMode.Disabled };
+    private readonly ScrollViewer _headerScroll = new() { Background = LeafBrushes.Transparent, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalScrollMode = ScrollMode.Disabled, VerticalScrollMode = ScrollMode.Disabled, ZoomMode = ZoomMode.Disabled };
+    private readonly ScrollViewer _gutterScroll = new() { Background = LeafBrushes.Transparent, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollMode = ScrollMode.Disabled, HorizontalScrollMode = ScrollMode.Disabled, ZoomMode = ZoomMode.Disabled };
+    private readonly ScrollViewer _bodyScroll = new() { HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Enabled, ZoomMode = ZoomMode.Disabled };
     // One row of fixed-size cells: positions are exact (index × width), unlike StackLayout's estimates,
     // which drift by weeks when jumping deep into the strip after the column width changes
-    readonly UniformGridLayout _headerLayout = new() { Orientation = Orientation.Vertical, MaximumRowsOrColumns = 1 };
-    readonly UniformGridLayout _bodyLayout = new() { Orientation = Orientation.Vertical, MaximumRowsOrColumns = 1 };
-    readonly ItemsRepeater _headerRepeater = new() { HorizontalCacheLength = 2 };
-    readonly ItemsRepeater _bodyRepeater = new() { HorizontalCacheLength = 2 };
-    readonly Grid _headerContent = new();
+    private readonly UniformGridLayout _headerLayout = new() { Orientation = Orientation.Vertical, MaximumRowsOrColumns = 1 };
+    private readonly UniformGridLayout _bodyLayout = new() { Orientation = Orientation.Vertical, MaximumRowsOrColumns = 1 };
+    private readonly ItemsRepeater _headerRepeater = new() { HorizontalCacheLength = 2 };
+    private readonly ItemsRepeater _bodyRepeater = new() { HorizontalCacheLength = 2 };
+    private readonly Grid _headerContent = new();
     // What the header and gutter scrollers scroll; the header content and the gutter inside them are
     // shifted by the compositor to where the body is (see FollowBody)
-    readonly Grid _headerHost = new();
-    readonly Grid _gutterHost = new();
-    readonly AllDayCanvas _allDay;
-    readonly TimeZoneGutter _gutter;
-    readonly StackPanel _zoneLabels = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 4) };
-    readonly TextBlock _weekNumber = new() { FontSize = 11, Margin = new Thickness(30, 6, 0, 0) };
+    private readonly Grid _headerHost = new();
+    private readonly Grid _gutterHost = new();
+    private readonly AllDayCanvas _allDay;
+    private readonly TimeZoneGutter _gutter;
+    private readonly StackPanel _zoneLabels = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 4) };
+    private readonly TextBlock _weekNumber = new() { FontSize = 11, Margin = new Thickness(30, 6, 0, 0) };
     // The line under the all-day row, across the corner and the days, so the row always has a bottom edge whatever the
     // grid below is scrolled to
-    readonly Border _allDayRule = new() { Height = 1, VerticalAlignment = VerticalAlignment.Bottom, IsHitTestVisible = false };
-    readonly Button _allDayExpand = new() { Padding = new Thickness(4), Background = LeafBrushes.Transparent, BorderThickness = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
-    readonly DispatcherQueueTimer _clock;
-    readonly HashSet<DayColumn> _columns = [];
-    readonly HashSet<DayHeaderCell> _headers = [];
-    DayStrip _strip = null!;
-    bool _allDayExpanded;
+    private readonly Border _allDayRule = new() { Height = 1, VerticalAlignment = VerticalAlignment.Bottom, IsHitTestVisible = false };
+    private readonly Button _allDayExpand = new() { Padding = new Thickness(4), Background = LeafBrushes.Transparent, BorderThickness = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
+    private readonly DispatcherQueueTimer _clock;
+    private readonly HashSet<DayColumn> _columns = [];
+    private readonly HashSet<DayHeaderCell> _headers = [];
+    private DayStrip _strip = null!;
+    private bool _allDayExpanded;
 
     // The all-day default last seen in the settings: a change there applies, while your chevron clicks stay otherwise
-    bool _allDayDefault;
-    bool _disposed;
-    bool _initialized;
-    bool _following;
-    bool _renderDeferred;
-    int _firstIndex;
-    int _reportedIndex = -1;
-    double _wheelTarget = double.NaN;
+    private bool _allDayDefault;
+    private bool _disposed;
+    private bool _initialized;
+    private bool _following;
+    private bool _renderDeferred;
+    private int _firstIndex;
+    private int _reportedIndex = -1;
+    private double _wheelTarget = double.NaN;
 
     // Ctrl+wheel deltas waiting to add up to a whole notch
-    readonly WheelNotches _zoomNotches = new();
+    private readonly WheelNotches _zoomNotches = new();
 
     // The day a navigation is scrolling to. Until the body lands there, offsets it passes on the way (an
     // animation's frames, or a clamp to a stale extent right after the columns change width) are ignored
     // instead of being taken as the new first day
-    int? _pendingIndex;
+    private int? _pendingIndex;
 
     // The XamlRoot this view listens to for scale changes (kept: it's already gone when a closing window unloads the view)
-    XamlRoot? _root;
+    private XamlRoot? _root;
 
     // An animated scroll is running. A jump issued now doesn't cancel it: the ScrollViewer adds the rest of
     // the animation on top of the jump (a mode change once landed three years out), so jumps wait for it
-    bool _animating;
+    private bool _animating;
 
     // The first layout's jump to 7:30 AM, kept until the body is tall enough to reach it
-    double? _pendingTop;
+    private double? _pendingTop;
 
     /// <summary>Builds the view for <paramref name="vm"/>.</summary>
     public TimeGridView(CalendarViewModel vm)
     {
-        _vm     = vm;
+        _vm = vm;
         _allDay = new AllDayCanvas(this);
 
         // The All-Day Row Starts As Settings Say (expanded or three lanes)
@@ -149,13 +149,13 @@ public sealed partial class TimeGridView : Grid, IDisposable
         // Time Zones (opens Settings › Time zones)
         var addZone = new Button
         {
-            Content             = new FontIcon { Glyph = "", FontSize = 10 },
-            Padding             = new Thickness(4),
-            Background          = LeafBrushes.Transparent,
-            BorderThickness     = new Thickness(0),
+            Content = new FontIcon { Glyph = "", FontSize = 10 },
+            Padding = new Thickness(4),
+            Background = LeafBrushes.Transparent,
+            BorderThickness = new Thickness(0),
             HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment   = VerticalAlignment.Top,
-            Margin              = new Thickness(4, 4, 0, 0),
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(4, 4, 0, 0),
         };
         AutomationProperties.SetAutomationId(addZone, "AddTimeZoneButton");
         AutomationProperties.SetName(addZone, "Time zones");
@@ -164,8 +164,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
         Corner.Children.Add(addZone);
 
         // Header (day names + all-day row)
-        _headerRepeater.Layout       = _headerLayout;
-        _bodyRepeater.Layout         = _bodyLayout;
+        _headerRepeater.Layout = _headerLayout;
+        _bodyRepeater.Layout = _bodyLayout;
         _headerRepeater.ItemTemplate = new DayHeaderFactory(this);
         _headerRepeater.ElementPrepared += (_, e) => _headers.Add((DayHeaderCell)e.Element);
         _headerRepeater.ElementClearing += (_, e) => _headers.Remove((DayHeaderCell)e.Element);
@@ -204,15 +204,15 @@ public sealed partial class TimeGridView : Grid, IDisposable
         // No Scroll Anchoring: this view keeps its own first day. The ScrollViewer's default anchoring
         // "keeps an element in place" when the columns change width, which shifted the offset by
         // hundreds of days after every resize (the view landed years away and loaded that data).
-        _bodyScroll.HorizontalAnchorRatio   = double.NaN;
-        _bodyScroll.VerticalAnchorRatio     = double.NaN;
+        _bodyScroll.HorizontalAnchorRatio = double.NaN;
+        _bodyScroll.VerticalAnchorRatio = double.NaN;
         _headerScroll.HorizontalAnchorRatio = double.NaN;
-        _gutterScroll.VerticalAnchorRatio   = double.NaN;
+        _gutterScroll.VerticalAnchorRatio = double.NaN;
 
         // Scroll Sync And Snapping
-        _bodyScroll.ViewChanging  += OnBodyViewChanging;
-        _bodyScroll.ViewChanged   += OnBodyViewChanged;
-        _bodyScroll.SizeChanged   += (_, _) => Relayout(force: false);
+        _bodyScroll.ViewChanging += OnBodyViewChanging;
+        _bodyScroll.ViewChanged += OnBodyViewChanged;
+        _bodyScroll.SizeChanged += (_, _) => Relayout(force: false);
         _bodyRepeater.SizeChanged += (_, _) => RetryPendingScroll();
         _headerRepeater.SizeChanged += (_, _) => SyncSides();
 
@@ -227,22 +227,22 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _bodyScroll.DirectManipulationStarted += (_, _) => _pendingIndex = null;
 
         // View Model
-        _vm.OccurrencesChanged    += OnOccurrencesChanged;
-        _vm.LayoutChanged         += OnLayoutChanged;
-        _vm.NavigateRequested     += OnNavigateRequested;
+        _vm.OccurrencesChanged += OnOccurrencesChanged;
+        _vm.LayoutChanged += OnLayoutChanged;
+        _vm.NavigateRequested += OnNavigateRequested;
         _vm.ScrollToTimeRequested += OnScrollToTimeRequested;
-        _vm.OverlayChanged        += OnOverlayChanged;
-        _vm.ShareChanged          += OnShareChanged;
-        _sharingShown              = vm.IsSharing;
-        _vm.PropertyChanged       += OnViewModelPropertyChanged;
-        ActualThemeChanged        += (_, _) => RenderRealized();
-        Loaded                    += (_, _) =>
+        _vm.OverlayChanged += OnOverlayChanged;
+        _vm.ShareChanged += OnShareChanged;
+        _sharingShown = vm.IsSharing;
+        _vm.PropertyChanged += OnViewModelPropertyChanged;
+        ActualThemeChanged += (_, _) => RenderRealized();
+        Loaded += (_, _) =>
         {
             (_root = XamlRoot).Changed += OnXamlRootChanged;
             LeafBrushes.ContrastChanged += OnContrastChanged;
             FollowBody();
         };
-        Unloaded                  += (_, _) =>
+        Unloaded += (_, _) =>
         {
             _root?.Changed -= OnXamlRootChanged;
             LeafBrushes.ContrastChanged -= OnContrastChanged;
@@ -258,7 +258,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         AddHandler(PointerMovedEvent, new PointerEventHandler(OnDragMoved), handledEventsToo: true);
         AddHandler(PointerReleasedEvent, new PointerEventHandler(OnDragReleased), handledEventsToo: true);
         PointerCaptureLost += (_, _) => CancelDrag();
-        PointerCanceled    += (_, _) => CancelDrag();
+        PointerCanceled += (_, _) => CancelDrag();
 
         // Selection Box (over the whole view, so its canvas shares this view's coordinates; clicks go through)
         _boxLayer.Children.Add(_box);
@@ -273,17 +273,17 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
         // Shown By Now Whatever Happens (a layout that never lands, say at no size, mustn't leave the view invisible)
         _reveal = DispatcherQueue.GetForCurrentThread().CreateTimer();
-        _reveal.Interval    = RevealFallback;
+        _reveal.Interval = RevealFallback;
         _reveal.IsRepeating = false;
-        _reveal.Tick       += (_, _) => Opacity = 1;
+        _reveal.Tick += (_, _) => Opacity = 1;
         _reveal.Start();
     }
 
     // Shows a new view if its first layout hasn't landed in time (held here so it lives until it fires)
-    readonly DispatcherQueueTimer _reveal;
+    private readonly DispatcherQueueTimer _reveal;
 
     // How long a new view may stay hidden waiting for its first layout to land
-    static readonly TimeSpan RevealFallback = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan RevealFallback = TimeSpan.FromMilliseconds(250);
 
     /// <summary>The top-left corner above the gutter.</summary>
     public Grid Corner { get; }
@@ -312,7 +312,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
 
         // Report the destination first (title, mini month, data); data that loads now paints once the scroll lands
-        _firstIndex   = _strip.IndexOf(date);
+        _firstIndex = _strip.IndexOf(date);
         _pendingIndex = _firstIndex;
         ReportVisible();
         ScrollToIndex(_firstIndex, animate);
@@ -322,7 +322,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     public void ScrollToTime(DateTimeOffset instant)
     {
         var local = TimeZoneInfo.ConvertTime(instant, _vm.Zone);
-        var y     = local.TimeOfDay.TotalHours * HourHeight - _bodyScroll.ViewportHeight / 3;
+        var y = local.TimeOfDay.TotalHours * HourHeight - _bodyScroll.ViewportHeight / 3;
         ScrollIndicator.Hide(_bodyScroll);
         _bodyScroll.ChangeView(null, Math.Max(0, y), null, false);
     }
@@ -341,13 +341,13 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _disposed = true;
         _clock.Stop();
         _reveal.Stop();
-        _vm.OccurrencesChanged    -= OnOccurrencesChanged;
-        _vm.LayoutChanged         -= OnLayoutChanged;
-        _vm.NavigateRequested     -= OnNavigateRequested;
+        _vm.OccurrencesChanged -= OnOccurrencesChanged;
+        _vm.LayoutChanged -= OnLayoutChanged;
+        _vm.NavigateRequested -= OnNavigateRequested;
         _vm.ScrollToTimeRequested -= OnScrollToTimeRequested;
-        _vm.OverlayChanged        -= OnOverlayChanged;
-        _vm.ShareChanged          -= OnShareChanged;
-        _vm.PropertyChanged       -= OnViewModelPropertyChanged;
+        _vm.OverlayChanged -= OnOverlayChanged;
+        _vm.ShareChanged -= OnShareChanged;
+        _vm.PropertyChanged -= OnViewModelPropertyChanged;
         Track(null);
     }
 
@@ -355,24 +355,24 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // LAYOUT
     // =========================================================================
 
-    void BuildStrip(DateOnly around)
+    private void BuildStrip(DateOnly around)
     {
         _strip = new DayStrip(around, StripDaysEachSide, StripDaysEachSide, skipWeekends: !_vm.Settings.ShowWeekends);
         var items = Enumerable.Range(0, _strip.Count).Select(i => new DayItem(_strip[i])).ToList();
         _headerRepeater.ItemsSource = items;
-        _bodyRepeater.ItemsSource   = items;
-        _firstIndex    = _strip.IndexOf(around);
+        _bodyRepeater.ItemsSource = items;
+        _firstIndex = _strip.IndexOf(around);
         _reportedIndex = -1;
     }
 
     // True when the body can scroll so the date is the first column (the strip's last few days can't
     // be: the body stops a full view before its end)
-    bool CanLead(DateOnly date) => _strip.Contains(date) && _strip.IndexOf(date) <= _strip.Count - _vm.VisibleColumns;
+    private bool CanLead(DateOnly date) => _strip.Contains(date) && _strip.IndexOf(date) <= _strip.Count - _vm.VisibleColumns;
 
     // Sizes the columns for the space available and keeps the same first day. Resizing the window calls
     // this for every step of the drag, so it does nothing unless the column width or body height really
     // changed (a height-only resize costs nothing), and it only repaints what depends on the width.
-    void Relayout(bool force)
+    private void Relayout(bool force)
     {
         var available = _bodyScroll.ActualWidth + _bodyScroll.Margin.Right;
         if (_disposed || available <= 0)
@@ -389,14 +389,14 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
 
         var spare = new Thickness(0, 0, Math.Max(0, available - width * _vm.VisibleColumns), 0);
-        ColumnWidth                 = width;
-        _bodyScroll.Margin          = spare;
-        _headerScroll.Margin        = spare;
-        _bodyRepeater.Height        = BodyHeight;
-        _headerRepeater.Height      = DayHeaderHeight;
-        _bodyLayout.MinItemWidth    = ColumnWidth;
-        _bodyLayout.MinItemHeight   = BodyHeight;
-        _headerLayout.MinItemWidth  = ColumnWidth;
+        ColumnWidth = width;
+        _bodyScroll.Margin = spare;
+        _headerScroll.Margin = spare;
+        _bodyRepeater.Height = BodyHeight;
+        _headerRepeater.Height = DayHeaderHeight;
+        _bodyLayout.MinItemWidth = ColumnWidth;
+        _bodyLayout.MinItemHeight = BodyHeight;
+        _headerLayout.MinItemWidth = ColumnWidth;
         _headerLayout.MinItemHeight = DayHeaderHeight;
         _bodyRepeater.InvalidateMeasure();
         _headerRepeater.InvalidateMeasure();
@@ -406,7 +406,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         if (!_initialized)
         {
             _initialized = true;
-            _pendingTop  = Math.Max(0, 7.5 * HourHeight - 20);
+            _pendingTop = Math.Max(0, 7.5 * HourHeight - 20);
             RenderCorner();
             _gutter.Render(_strip[_firstIndex]);
         }
@@ -421,7 +421,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // trailed the columns mid-scroll. Each one gets a translation of (body offset − its own scroller's
     // offset): wherever its scroller has got to, it's drawn at the body's offset. At rest the scrollers
     // agree and the translation is 0, so hit testing and automation bounds are exact.
-    void FollowBody()
+    private void FollowBody()
     {
         if (_following)
         {
@@ -434,10 +434,10 @@ public sealed partial class TimeGridView : Grid, IDisposable
         Follow(_gutter, "Vector3(0, body.Translation.Y - side.Translation.Y, 0)", body, ElementCompositionPreview.GetScrollViewerManipulationPropertySet(_gutterScroll));
     }
 
-    static void Follow(UIElement element, string expression, Microsoft.UI.Composition.CompositionPropertySet body, Microsoft.UI.Composition.CompositionPropertySet side)
+    private static void Follow(UIElement element, string expression, Microsoft.UI.Composition.CompositionPropertySet body, Microsoft.UI.Composition.CompositionPropertySet side)
     {
         ElementCompositionPreview.SetIsTranslationEnabled(element, true);
-        var visual    = ElementCompositionPreview.GetElementVisual(element);
+        var visual = ElementCompositionPreview.GetElementVisual(element);
         var animation = visual.Compositor.CreateExpressionAnimation(expression);
         animation.SetReferenceParameter("body", body);
         animation.SetReferenceParameter("side", side);
@@ -446,31 +446,31 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     // One scroll to the exact day edge (animated for pagers and "today"; a new animated scroll retargets one
     // that's running)
-    void ScrollToIndex(int index, bool animate)
+    private void ScrollToIndex(int index, bool animate)
     {
         _pendingIndex = index;
         RetryPendingScroll(animate);
     }
 
     // A monitor with a different scale changes what a whole pixel is
-    void OnXamlRootChanged(XamlRoot sender, XamlRootChangedEventArgs args) => Relayout(force: false);
+    private void OnXamlRootChanged(XamlRoot sender, XamlRootChangedEventArgs args) => Relayout(force: false);
 
     // A Contrast Theme Turning On Or Off Redraws With The System's Colors (raised off the UI thread)
-    void OnContrastChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(RenderRealized);
+    private void OnContrastChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(RenderRealized);
 
-    void OnBodyViewChanging(object? sender, ScrollViewerViewChangingEventArgs e)
+    private void OnBodyViewChanging(object? sender, ScrollViewerViewChangingEventArgs e)
     {
         _headerScroll.ChangeView(e.NextView.HorizontalOffset, null, null, true);
         _gutterScroll.ChangeView(null, e.NextView.VerticalOffset, null, true);
     }
 
-    void OnBodyViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
+    private void OnBodyViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
         SyncSides();
         if (!e.IsIntermediate)
         {
             _wheelTarget = double.NaN;
-            _animating   = false;
+            _animating = false;
         }
 
         // A Box Being Dragged Keeps Its Press Corner On The Time It Started At
@@ -512,11 +512,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
         Settle();
     }
 
-    static bool IsAt(double target, double offset) => Math.Abs(target - offset) < 0.5;
+    private static bool IsAt(double target, double offset) => Math.Abs(target - offset) < 0.5;
 
     // Catches the header and gutter up with the body when ViewChanging's sync was clamped (right after the
     // columns change width, the header's extent is still the old one)
-    void SyncSides()
+    private void SyncSides()
     {
         if (!IsAt(_bodyScroll.HorizontalOffset, _headerScroll.HorizontalOffset))
         {
@@ -530,7 +530,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     }
 
     // Once the body is still: paint data that arrived while it was moving
-    void Settle()
+    private void Settle()
     {
         ReportVisible();
         PublishOffset();
@@ -544,7 +544,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // Heads for the pending day (and the first layout's 7:30 AM), or finishes the navigation when the body
     // is already there (no scroll means no ViewChanged to finish it). Only the navigation's own first
     // scroll animates, and only inside the measured strip; catching up after a clamp or a relayout jumps.
-    void RetryPendingScroll(bool animate = false)
+    private void RetryPendingScroll(bool animate = false)
     {
         if (_disposed || _pendingIndex is not { } pending || (_animating && !animate))
         {
@@ -567,13 +567,13 @@ public sealed partial class TimeGridView : Grid, IDisposable
         if (top is null && IsAt(target, _bodyScroll.HorizontalOffset))
         {
             _pendingIndex = null;
-            _firstIndex   = pending;
-            Opacity       = 1;
+            _firstIndex = pending;
+            Opacity = 1;
             Settle();
             return;
         }
 
-        animate    = animate && target <= _bodyScroll.ScrollableWidth;
+        animate = animate && target <= _bodyScroll.ScrollableWidth;
         _animating = animate;
         ScrollIndicator.Hide(_bodyScroll);
         _bodyScroll.ChangeView(target, top, null, !animate);
@@ -581,7 +581,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     // Tells the view model which days show (title, mini month, data), and redraws what follows the first
     // day. Runs for each new first day while scrolling, so it's skipped when the first day hasn't changed.
-    void ReportVisible()
+    private void ReportVisible()
     {
         if (_disposed || _firstIndex == _reportedIndex)
         {
@@ -612,21 +612,21 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     // Where the body came to rest, for UI tests (the first day, the offsets, and the column width)
     // (and ";box=1" while a selection box shows)
-    void PublishOffset() =>
+    private void PublishOffset() =>
         AutomationProperties.SetItemStatus(this, string.Create(CultureInfo.InvariantCulture, $"first={_strip[_firstIndex]:yyyy-MM-dd};offset={_bodyScroll.HorizontalOffset:R};column={ColumnWidth:R};top={_bodyScroll.VerticalOffset:R}{(_box.Visibility == Visibility.Visible ? ";box=1" : "")}"));
 
     // The mouse wheel over the hour gutter or the day headers scrolls the body (vertically; a tilt wheel or
     // Shift+wheel horizontally), building on a scroll that's still animating so fast notches add up
-    void OnSideWheel(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    private void OnSideWheel(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         if (TryZoom(e))
         {
             return;
         }
 
-        var point      = e.GetCurrentPoint(this).Properties;
+        var point = e.GetCurrentPoint(this).Properties;
         var horizontal = point.IsHorizontalMouseWheel || (e.KeyModifiers & Windows.System.VirtualKeyModifiers.Shift) != 0;
-        var delta      = point.MouseWheelDelta * WheelStep;
+        var delta = point.MouseWheelDelta * WheelStep;
         e.Handled = true;
 
         if (horizontal)
@@ -642,11 +642,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
     }
 
     // Ctrl+Wheel Zooms The Hours (the ScrollViewer never sees it, so the grid doesn't scroll)
-    void OnBodyWheel(object sender, PointerRoutedEventArgs e) => TryZoom(e);
+    private void OnBodyWheel(object sender, PointerRoutedEventArgs e) => TryZoom(e);
 
     // Each full notch (smooth wheels send pieces) is one Ctrl+= / Ctrl+- step; the settings keep the height inside
     // its limits. A tilt wheel isn't a zoom: it scrolls sideways as usual
-    bool TryZoom(PointerRoutedEventArgs e)
+    private bool TryZoom(PointerRoutedEventArgs e)
     {
         var point = e.GetCurrentPoint(this).Properties;
         if ((e.KeyModifiers & Windows.System.VirtualKeyModifiers.Control) == 0 || point.IsHorizontalMouseWheel)
@@ -666,7 +666,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     }
 
     // Everything that depends on the column width: the columns, the headers, and the all-day row
-    void RenderColumns()
+    private void RenderColumns()
     {
         foreach (var column in _columns)
         {
@@ -681,25 +681,25 @@ public sealed partial class TimeGridView : Grid, IDisposable
         RenderAllDay();
     }
 
-    void RenderAllDay(bool slide = false)
+    private void RenderAllDay(bool slide = false)
     {
-        var count    = _vm.VisibleColumns;
+        var count = _vm.VisibleColumns;
         var maxLanes = _allDayExpanded ? int.MaxValue : MaxCollapsedLanes;
         _allDay.Render(_strip, _firstIndex - count, count * 3, maxLanes);
-        _allDay.Width            = _strip.Count * ColumnWidth;
+        _allDay.Width = _strip.Count * ColumnWidth;
         _allDayExpand.Visibility = _allDay.LaneCount > MaxCollapsedLanes ? Visibility.Visible : Visibility.Collapsed;
         SizeAllDay(slide);
     }
 
     // The expand chevron points down while the row shows three lanes and turns up (half a turn, 167 ms) while it shows
     // them all. Its rotation is made and held here, never read back from the icon (a Native AOT trap)
-    readonly RotateTransform _allDayTurn = new();
-    static readonly TimeSpan AllDaySlide = TimeSpan.FromMilliseconds(167);
+    private readonly RotateTransform _allDayTurn = new();
+    private static readonly TimeSpan AllDaySlide = TimeSpan.FromMilliseconds(167);
 
-    void ShowAllDayChevron(bool animate)
+    private void ShowAllDayChevron(bool animate)
     {
         var angle = _allDayExpanded ? 180 : 0;
-        var name  = _allDayExpanded ? "Show fewer all-day events" : "Show all all-day events";
+        var name = _allDayExpanded ? "Show fewer all-day events" : "Show all all-day events";
         AutomationProperties.SetName(_allDayExpand, name);
         ToolTipService.SetToolTip(_allDayExpand, name);
         if (!animate || !new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
@@ -710,8 +710,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
         var turn = new DoubleAnimation
         {
-            To             = angle,
-            Duration       = AllDaySlide,
+            To = angle,
+            Duration = AllDaySlide,
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
         };
         Storyboard.SetTarget(turn, _allDayTurn);
@@ -720,7 +720,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     }
 
     // Hides the all-day ghost, giving back a lane the row grew for it
-    void ClearAllDayGhost()
+    private void ClearAllDayGhost()
     {
         var grown = _allDay.GhostLanes > 0;
         _allDay.ClearGhost();
@@ -731,25 +731,25 @@ public sealed partial class TimeGridView : Grid, IDisposable
     }
 
     // The row's height slide (the chevron's expand and collapse only), or null
-    Storyboard? _allDaySlide;
+    private Storyboard? _allDaySlide;
 
     // The all-day row's height: its shown lanes, or more while a ghost needs a lane below them. With slide, the row and
     // the corner grow or shrink to it over 167 ms; the header's scroller clips the chips below the row meanwhile, so
     // they're revealed (or covered) as it slides
-    void SizeAllDay(bool slide = false)
+    private void SizeAllDay(bool slide = false)
     {
         var maxLanes = _allDayExpanded ? int.MaxValue : MaxCollapsedLanes;
-        var lanes    = Math.Max(Math.Min(_allDay.LaneCount, maxLanes), _allDay.GhostLanes);
+        var lanes = Math.Max(Math.Min(_allDay.LaneCount, maxLanes), _allDay.GhostLanes);
 
         // Never Shorter Than EmptyAllDayHeight: empty, the row is still there to double-click for a new all-day event
-        var from   = _allDay.ActualHeight;
+        var from = _allDay.ActualHeight;
         var height = Math.Max(EmptyAllDayHeight, lanes * AllDayLaneHeight + 4);
 
         // The Final Sizes Are Set First; A Slide Only Shows The Way There (stopping it leaves them)
         _allDaySlide?.Stop();
-        _allDaySlide   = null;
+        _allDaySlide = null;
         _allDay.Height = height;
-        Corner.Height  = DayHeaderHeight + height;
+        Corner.Height = DayHeaderHeight + height;
 
         // Zone Labels Sit At The Bottom Of The Day-Header Band (the all-day row's corner keeps the expand chevron)
         _zoneLabels.Margin = new Thickness(0, 0, 0, height + 4);
@@ -764,11 +764,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
         {
             var grow = new DoubleAnimation
             {
-                From                     = from + offset,
-                To                       = height + offset,
-                Duration                 = AllDaySlide,
+                From = from + offset,
+                To = height + offset,
+                Duration = AllDaySlide,
                 EnableDependentAnimation = true,
-                EasingFunction           = new CubicEase { EasingMode = EasingMode.EaseOut },
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
             };
             Storyboard.SetTarget(grow, target);
             Storyboard.SetTargetProperty(grow, nameof(Height));
@@ -788,11 +788,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
     }
 
     // This PC's zone as the first shown day's clock reads (EST in a January week, even in October), and the one drawn
-    string _localZoneLabel = "";
+    private string _localZoneLabel = "";
 
-    string LocalZoneLabel() => ZoneAbbreviation.For(_vm.Zone, DragMath.Instant(_strip[_firstIndex], 12 * 60, _vm.Zone));
+    private string LocalZoneLabel() => ZoneAbbreviation.For(_vm.Zone, DragMath.Instant(_strip[_firstIndex], 12 * 60, _vm.Zone));
 
-    void RenderCorner()
+    private void RenderCorner()
     {
         var dark = IsDark;
         _zoneLabels.Children.Clear();
@@ -809,17 +809,17 @@ public sealed partial class TimeGridView : Grid, IDisposable
             _zoneLabels.Children.Add(text);
         }
 
-        Corner.Width           = zones.Count * ZoneColumnWidth;
+        Corner.Width = zones.Count * ZoneColumnWidth;
         _weekNumber.Foreground = LeafBrushes.SecondaryText(dark);
         _allDayRule.Background = LeafBrushes.GridLine(dark);
         RenderWeekNumber();
     }
 
     // Numbered By The Middle Shown Day (ISO weeks start Monday, so a Sunday-start week's first day belongs to the week before)
-    void RenderWeekNumber() =>
+    private void RenderWeekNumber() =>
         _weekNumber.Text = _vm.Settings.ShowWeekNumbers ? string.Create(CultureInfo.InvariantCulture, $"W{ViewNavigator.WeekNumber(_strip[_firstIndex + (_vm.VisibleColumns - 1) / 2])}") : "";
 
-    void RenderToday()
+    private void RenderToday()
     {
         foreach (var column in _columns.Where(c => c.Date == _vm.Today))
         {
@@ -833,7 +833,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     // Data only changes the columns and the all-day row. While a navigation is scrolling, painting waits
     // until it lands, so a month loading mid-scroll can't drop animation frames.
-    void OnOccurrencesChanged(object? sender, EventArgs e)
+    private void OnOccurrencesChanged(object? sender, EventArgs e)
     {
         if (_disposed)
         {
@@ -844,7 +844,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         if (_holdResize)
         {
             _holdResize = false;
-            _resized    = null;
+            _resized = null;
         }
 
         if (_pendingIndex is not null)
@@ -856,7 +856,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         RenderColumns();
     }
 
-    void OnLayoutChanged(object? sender, EventArgs e)
+    private void OnLayoutChanged(object? sender, EventArgs e)
     {
         if (_disposed)
         {
@@ -883,9 +883,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
                 BuildStrip(switching);
             }
 
-            _firstIndex   = _strip.IndexOf(switching);
+            _firstIndex = _strip.IndexOf(switching);
             _pendingIndex = null;
-            _animating    = false;
+            _animating = false;
         }
 
         _reportedIndex = -1;
@@ -895,7 +895,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         ReportVisible();
     }
 
-    void OnNavigateRequested(object? sender, DateOnly date)
+    private void OnNavigateRequested(object? sender, DateOnly date)
     {
         if (_disposed)
         {
@@ -905,10 +905,10 @@ public sealed partial class TimeGridView : Grid, IDisposable
         ScrollToDate(date, animate: true);
     }
 
-    void OnScrollToTimeRequested(object? sender, DateTimeOffset instant) => ScrollToTime(instant);
+    private void OnScrollToTimeRequested(object? sender, DateTimeOffset instant) => ScrollToTime(instant);
 
     // Only the overlay layer changes (people, their busy times)
-    void OnOverlayChanged(object? sender, EventArgs e)
+    private void OnOverlayChanged(object? sender, EventArgs e)
     {
         if (_disposed)
         {
@@ -922,7 +922,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     }
 
     // Only the shared-availability slots changed
-    void OnShareChanged(object? sender, EventArgs e)
+    private void OnShareChanged(object? sender, EventArgs e)
     {
         if (_disposed)
         {
@@ -945,18 +945,18 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     // Whether the events were last drawn for marking times to share (from the start: a grid built while scheduling draws
     // its days for it, so stopping must redraw them)
-    bool _sharingShown;
+    private bool _sharingShown;
 
     // =========================================================================
     // DRAGGING
     // =========================================================================
 
     // How far the pointer must move before a press becomes a drag (less stays a click)
-    const double DragThreshold = 4;
+    private const double DragThreshold = 4;
 
-    enum DragKind { Move, Resize, Create, CreateAllDay, AllDay, Box, Nudge }
+    private enum DragKind { Move, Resize, Create, CreateAllDay, AllDay, Box, Nudge }
 
-    sealed class DragSession(DragKind kind, Point origin)
+    private sealed class DragSession(DragKind kind, Point origin)
     {
         public DragKind Kind { get; } = kind;
         public Point Origin { get; } = origin;
@@ -978,11 +978,11 @@ public sealed partial class TimeGridView : Grid, IDisposable
         public (DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? Target { get; set; }
     }
 
-    DragSession? _drag;
+    private DragSession? _drag;
 
     // Shift+Drag Box (spec 7.3), drawn on its own layer above the grid (the probe gives UI tests something to find)
-    readonly Canvas _boxLayer = new() { IsHitTestVisible = false };
-    readonly Border _box      = SelectionBox();
+    private readonly Canvas _boxLayer = new() { IsHitTestVisible = false };
+    private readonly Border _box = SelectionBox();
 
     /// <summary>True between a press on something draggable and its release.</summary>
     public bool IsDragPending => _drag is not null;
@@ -1013,8 +1013,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _drag = new DragSession(resize && !copyOnly ? DragKind.Resize : DragKind.Move, e.GetCurrentPoint(this).Position)
         {
             Occurrence = occurrence,
-            GrabbedAt  = DragMath.Instant(day, minutes, _vm.Zone),
-            CopyOnly   = copyOnly,
+            GrabbedAt = DragMath.Instant(day, minutes, _vm.Zone),
+            CopyOnly = copyOnly,
         };
     }
 
@@ -1068,7 +1068,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         {
             Occurrence = occurrence,
             GrabbedDay = DayAt(e.GetCurrentPoint(_allDay).Position.X),
-            CopyOnly   = copyOnly,
+            CopyOnly = copyOnly,
         };
     }
 
@@ -1116,7 +1116,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         return true;
     }
 
-    void OnDragMoved(object sender, PointerRoutedEventArgs e)
+    private void OnDragMoved(object sender, PointerRoutedEventArgs e)
     {
         if (_drag is not { } drag)
         {
@@ -1172,14 +1172,14 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
 
         // Redraw The Ghost Only When The Snapped Target Or Copy Mode Changes
-        var target    = TargetFor(drag, e);
+        var target = TargetFor(drag, e);
         var duplicate = drag.CopyOnly || (drag.Kind is DragKind.Move or DragKind.AllDay && KeyState.IsDown(Windows.System.VirtualKey.Menu));
         if (target.Equals(drag.Target) && duplicate == drag.Duplicate)
         {
             return;
         }
 
-        drag.Target    = target;
+        drag.Target = target;
         drag.Duplicate = duplicate;
 
         // Resizing Resizes The Card Itself
@@ -1200,7 +1200,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         ShowGhost(target, duplicate);
     }
 
-    void OnDragReleased(object sender, PointerRoutedEventArgs e)
+    private void OnDragReleased(object sender, PointerRoutedEventArgs e)
     {
         if (_drag is not { } drag)
         {
@@ -1237,7 +1237,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         {
             e.Handled = true;
             var (day, minutes) = BodyPosition(e);
-            var days           = _strip.Between(drag.BoxDay, day);
+            var days = _strip.Between(drag.BoxDay, day);
             _vm.SelectBox(BoxSelection.InTimeBox(_vm.OnDays(days), days, drag.BoxMinutes, minutes, _vm.Zone), add: KeyState.IsDown(Windows.System.VirtualKey.Control));
             return;
         }
@@ -1279,12 +1279,12 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _vm.Fire(() => _vm.MoveAsync(o, target.Start, target.End, target.IsAllDay), "calendar.move.failed");
     }
 
-    (DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? TargetFor(DragSession drag, PointerRoutedEventArgs e)
+    private (DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? TargetFor(DragSession drag, PointerRoutedEventArgs e)
     {
-        var zone           = _vm.Zone;
+        var zone = _vm.Zone;
         var (day, minutes) = BodyPosition(e);
-        var pointerAt      = DragMath.Instant(day, minutes, zone);
-        var o              = drag.Occurrence;
+        var pointerAt = DragMath.Instant(day, minutes, zone);
+        var o = drag.Occurrence;
 
         switch (drag.Kind)
         {
@@ -1318,14 +1318,14 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
     }
 
-    void ShowGhost((DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? target, bool duplicate)
+    private void ShowGhost((DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? target, bool duplicate)
     {
         var copy = duplicate ? "+ Copy  " : "";
 
         // The Dragged Event's Color And Title Ride Along (a new event being drawn out has neither yet)
         var dragged = _drag?.Occurrence;
-        var accent  = dragged is null ? null : EventColors.ResolveAccent(dragged.ColorId, dragged.CalendarColor);
-        var title   = dragged is null ? "" : dragged.Title + "\n";
+        var accent = dragged is null ? null : EventColors.ResolveAccent(dragged.ColorId, dragged.CalendarColor);
+        var title = dragged is null ? "" : dragged.Title + "\n";
         SetPreviews(null, HeldResize);
 
         // All-Day Row
@@ -1337,7 +1337,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
             }
 
             var first = header.IsAllDay ? DateOnly.FromDateTime(header.Start.UtcDateTime) : LocalDate(header.Start);
-            var last  = header.IsAllDay ? DateOnly.FromDateTime(header.End.UtcDateTime).AddDays(-1) : LocalDate(header.End.AddTicks(-1));
+            var last = header.IsAllDay ? DateOnly.FromDateTime(header.End.UtcDateTime).AddDays(-1) : LocalDate(header.End.AddTicks(-1));
             _allDay.SetGhost(first, last < first ? first : last, duplicate, duplicate ? null : _drag?.Occurrence?.Key, accent);
             SizeAllDay();
             return;
@@ -1354,22 +1354,22 @@ public sealed partial class TimeGridView : Grid, IDisposable
             }
 
             var dayStart = OccurrenceQuery.LocalMidnight(column.Date, _vm.Zone);
-            var dayEnd   = OccurrenceQuery.LocalMidnight(column.Date.AddDays(1), _vm.Zone);
-            var end      = t.End > t.Start ? t.End : t.Start + TimeSpan.FromMinutes(DragMath.SnapMinutes);
+            var dayEnd = OccurrenceQuery.LocalMidnight(column.Date.AddDays(1), _vm.Zone);
+            var end = t.End > t.Start ? t.End : t.Start + TimeSpan.FromMinutes(DragMath.SnapMinutes);
             if (t.Start >= dayEnd || end <= dayStart)
             {
                 column.ClearGhost();
                 continue;
             }
 
-            var top    = t.Start <= dayStart ? 0 : MinutesIntoDay(t.Start);
+            var top = t.Start <= dayStart ? 0 : MinutesIntoDay(t.Start);
             var bottom = end >= dayEnd ? 24 * 60 : MinutesIntoDay(end);
             column.SetGhost(top, Math.Max(bottom, top + DragMath.SnapMinutes), copy + title + (t.Start >= dayStart ? TimeLabels.GridRange(t.Start, t.End, _vm.Zone, _vm.Settings.Use24HourTime) : ""), accent);
         }
     }
 
     // The press corner stays on the time it was pressed at (it scrolls with the body); the other follows the pointer
-    void DrawBox(DragSession drag)
+    private void DrawBox(DragSession drag)
     {
         var showing = _box.Visibility == Visibility.Visible;
         ShowBox(_box, _bodyRepeater.TransformToVisual(this).TransformPoint(drag.BoxCorner), drag.BoxPointer);
@@ -1379,7 +1379,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
     }
 
-    void HideBox()
+    private void HideBox()
     {
         if (_box.Visibility == Visibility.Collapsed)
         {
@@ -1402,23 +1402,23 @@ public sealed partial class TimeGridView : Grid, IDisposable
     /// <summary>Colors a selection box with the accent, once per drag.</summary>
     internal static void StyleBox(Border box, bool dark)
     {
-        var accent      = LeafBrushes.Accent(dark);
+        var accent = LeafBrushes.Accent(dark);
         box.BorderBrush = accent;
-        box.Background  = accent;
-        box.Opacity     = 0.25;
+        box.Background = accent;
+        box.Opacity = 0.25;
     }
 
     /// <summary>Shows a selection box between two corners in its canvas.</summary>
     internal static void ShowBox(Border box, Point a, Point b)
     {
-        box.Width      = Math.Abs(b.X - a.X);
-        box.Height     = Math.Abs(b.Y - a.Y);
+        box.Width = Math.Abs(b.X - a.X);
+        box.Height = Math.Abs(b.Y - a.Y);
         box.Visibility = Visibility.Visible;
         Canvas.SetLeft(box, Math.Min(a.X, b.X));
         Canvas.SetTop(box, Math.Min(a.Y, b.Y));
     }
 
-    void ClearGhosts()
+    private void ClearGhosts()
     {
         foreach (var column in _columns)
         {
@@ -1433,9 +1433,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // =========================================================================
 
     // The editor open on a new event (dragged out, double-clicked, or C), whose times the ghost follows
-    EventEditorViewModel? _newEvent;
+    private EventEditorViewModel? _newEvent;
 
-    void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(CalendarViewModel.Editing))
         {
@@ -1444,7 +1444,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     }
 
     // Follows a new event's editor (or none)
-    void Track(EventEditorViewModel? editor)
+    private void Track(EventEditorViewModel? editor)
     {
         _newEvent?.PropertyChanged -= OnNewEventChanged;
         _newEvent = editor;
@@ -1452,7 +1452,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         ShowNewEventGhost();
     }
 
-    void OnNewEventChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnNewEventChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(EventEditorViewModel.StartDate) or nameof(EventEditorViewModel.StartTime)
             or nameof(EventEditorViewModel.EndDate) or nameof(EventEditorViewModel.EndTime)
@@ -1464,7 +1464,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     // While the editor is open on a new event, its time range stays drawn on the grid as a ghost (the range you dragged
     // out, following edits to its times) until it's saved or canceled; otherwise no ghost. A drag in progress draws its own
-    void ShowNewEventGhost()
+    private void ShowNewEventGhost()
     {
         if (_disposed || _drag is { Started: true })
         {
@@ -1495,14 +1495,14 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     // Laid out with the day's events by the columns: a new event's range (drawn as the ghost, one more overlapping
     // column) and an event being resized (its own card, drawn at the new end)
-    CalendarOccurrence? _standIn;
-    CalendarOccurrence? _resized;
+    private CalendarOccurrence? _standIn;
+    private CalendarOccurrence? _resized;
 
     // A dropped resize: its card keeps the new end until the saved change redraws the grid
     // (ponytail: a save that fails without a redraw leaves the card at the new size until the next data change)
-    bool _holdResize;
+    private bool _holdResize;
 
-    CalendarOccurrence? HeldResize => _holdResize ? _resized : null;
+    private CalendarOccurrence? HeldResize => _holdResize ? _resized : null;
 
     /// <summary>The new event's range as the columns lay it out, or null.</summary>
     internal CalendarOccurrence? StandIn => _standIn;
@@ -1521,7 +1521,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     // A timed range the columns can lay out (one of 24 hours or more draws as the plain ghost on every day it covers).
     // Its account sorts after every real one, so at the same start and length it takes the column on the right
-    static CalendarOccurrence? StandInFor(DateTimeOffset start, DateTimeOffset end, bool isAllDay)
+    private static CalendarOccurrence? StandInFor(DateTimeOffset start, DateTimeOffset end, bool isAllDay)
     {
         if (isAllDay)
         {
@@ -1533,7 +1533,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     }
 
     // Redraws the events when a stand-in changes (a ghost left by the old new-event range is cleared)
-    void SetPreviews(CalendarOccurrence? standIn, CalendarOccurrence? resized)
+    private void SetPreviews(CalendarOccurrence? standIn, CalendarOccurrence? resized)
     {
         if (Equals(standIn, _standIn) && Equals(resized, _resized))
         {
@@ -1555,7 +1555,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     }
 
     // The card being resized is drawn at its new end, and the new time shows under that end
-    void ShowResize(CalendarOccurrence occurrence, DateTimeOffset end)
+    private void ShowResize(CalendarOccurrence occurrence, DateTimeOffset end)
     {
         var resized = occurrence with { End = end };
         ClearGhosts();
@@ -1565,7 +1565,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         foreach (var column in _columns)
         {
             var dayStart = OccurrenceQuery.LocalMidnight(column.Date, _vm.Zone);
-            var dayEnd   = OccurrenceQuery.LocalMidnight(column.Date.AddDays(1), _vm.Zone);
+            var dayEnd = OccurrenceQuery.LocalMidnight(column.Date.AddDays(1), _vm.Zone);
             if (end > dayStart && end <= dayEnd)
             {
                 column.SetTimeLabel(end == dayEnd ? 24 * 60 : MinutesIntoDay(end), label);
@@ -1574,19 +1574,19 @@ public sealed partial class TimeGridView : Grid, IDisposable
     }
 
     // Day and minutes past local midnight under the pointer, in the day columns
-    (DateOnly Day, double Minutes) BodyPosition(PointerRoutedEventArgs e)
+    private (DateOnly Day, double Minutes) BodyPosition(PointerRoutedEventArgs e)
     {
         var point = e.GetCurrentPoint(_bodyRepeater).Position;
         return (DayAt(point.X), Math.Clamp(point.Y / HourHeight * 60, 0, 24 * 60));
     }
 
     // The strip's day at an x position (the repeater and the all-day row both lay the strip out from 0)
-    DateOnly DayAt(double x) => _strip[Math.Clamp((int)Math.Floor(x / ColumnWidth), 0, _strip.Count - 1)];
+    private DateOnly DayAt(double x) => _strip[Math.Clamp((int)Math.Floor(x / ColumnWidth), 0, _strip.Count - 1)];
 
     /// <summary>Minutes past local midnight (the wall clock of the zone on screen).</summary>
     internal double MinutesIntoDay(DateTimeOffset instant) => TimeZoneInfo.ConvertTime(instant, _vm.Zone).TimeOfDay.TotalMinutes;
 
-    DateOnly LocalDate(DateTimeOffset instant) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, _vm.Zone).DateTime);
+    private DateOnly LocalDate(DateTimeOffset instant) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, _vm.Zone).DateTime);
 
     // =========================================================================
     // RECYCLING
@@ -1599,10 +1599,10 @@ public sealed partial class TimeGridView : Grid, IDisposable
         public DateOnly Date { get; } = date;
     }
 
-    sealed partial class DayColumnFactory(TimeGridView owner) : IElementFactory
+    private sealed partial class DayColumnFactory(TimeGridView owner) : IElementFactory
     {
-        readonly Stack<DayColumn> _pool = new();
-        readonly ItemPins _pins = new();
+        private readonly Stack<DayColumn> _pool = new();
+        private readonly ItemPins _pins = new();
 
         public UIElement GetElement(ElementFactoryGetArgs args)
         {
@@ -1620,10 +1620,10 @@ public sealed partial class TimeGridView : Grid, IDisposable
         }
     }
 
-    sealed partial class DayHeaderFactory(TimeGridView owner) : IElementFactory
+    private sealed partial class DayHeaderFactory(TimeGridView owner) : IElementFactory
     {
-        readonly Stack<DayHeaderCell> _pool = new();
-        readonly ItemPins _pins = new();
+        private readonly Stack<DayHeaderCell> _pool = new();
+        private readonly ItemPins _pins = new();
 
         public UIElement GetElement(ElementFactoryGetArgs args)
         {

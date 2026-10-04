@@ -17,13 +17,13 @@ namespace LeafCalendar.Core.Diagnostics;
 /// </remarks>
 public sealed partial class AppLog(string directory, TimeProvider time)
 {
-    const long MaxBytes = 1_000_000;
-    const int Generations = 2;
+    private const long MaxBytes = 1_000_000;
+    private const int Generations = 2;
 
     /// <summary>Most crash dumps kept in the log folder (the oldest goes first).</summary>
     public const int MaxDumps = 2;
 
-    readonly Lock _gate = new();
+    private readonly Lock _gate = new();
 
     /// <summary>Current log file.</summary>
     public string FilePath => Path.Combine(directory, "leaf.log");
@@ -130,14 +130,14 @@ public sealed partial class AppLog(string directory, TimeProvider time)
 
     // The stack of the exception and each inner one (every one of an AggregateException's), indented under the crash
     // line (frames come from the code, not the user)
-    static List<string> StackLines(Exception exception)
+    private static List<string> StackLines(Exception exception)
     {
         var lines = new List<string>();
         AddStack(lines, exception, top: true);
         return lines;
     }
 
-    static void AddStack(List<string> lines, Exception e, bool top)
+    private static void AddStack(List<string> lines, Exception e, bool top)
     {
         if (!top)
         {
@@ -156,7 +156,7 @@ public sealed partial class AppLog(string directory, TimeProvider time)
         }
     }
 
-    void Write(string level, string eventName, string? detail, IReadOnlyList<string>? extra = null)
+    private void Write(string level, string eventName, string? detail, IReadOnlyList<string>? extra = null)
     {
         // Sanitize newlines to prevent log forging
         var sanitized = detail?.Replace("\r", " ").Replace("\n", " ");

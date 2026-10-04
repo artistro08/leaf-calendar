@@ -6,7 +6,7 @@ namespace LeafCalendar.Core.Views;
 /// </summary>
 public sealed class DayStrip
 {
-    readonly DateOnly[] _days;
+    private readonly DateOnly[] _days;
 
     /// <summary>Builds the strip around <paramref name="origin"/>.</summary>
     public DayStrip(DateOnly origin, int daysBefore, int daysAfter, bool skipWeekends)

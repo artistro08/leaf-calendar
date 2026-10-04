@@ -46,12 +46,12 @@ public sealed record SettingsPageArgs(LeafServices Services, CalendarViewModel C
 /// </summary>
 public sealed partial class SettingsPage : Page
 {
-    readonly List<(SettingsSection Section, NavigationViewItem Item, Type Page)> _pages;
-    SettingsContext _context = null!;
-    CalendarViewModel _calendar = null!;
-    AccountsViewModel? _accounts;
-    SettingsSection? _shown;
-    bool _inClientForm;
+    private readonly List<(SettingsSection Section, NavigationViewItem Item, Type Page)> _pages;
+    private SettingsContext _context = null!;
+    private CalendarViewModel _calendar = null!;
+    private AccountsViewModel? _accounts;
+    private SettingsSection? _shown;
+    private bool _inClientForm;
 
     /// <summary>Creates the view (the main window's Settings frame navigates to it with <see cref="SettingsPageArgs"/>).</summary>
     public SettingsPage()
@@ -70,22 +70,22 @@ public sealed partial class SettingsPage : Page
             (SettingsSection.Accounts, NavItem("Accounts", 0xE77B, "SettingsNav_Accounts"), typeof(AccountsPage)),
             (SettingsSection.About, NavItem("About", 0xE946, "SettingsNav_About"), typeof(AboutPage)),
         ];
-        Navigation.MenuItemsSource       = _pages.Where(p => p.Section != SettingsSection.About).Select(p => (object)p.Item).ToList();
+        Navigation.MenuItemsSource = _pages.Where(p => p.Section != SettingsSection.About).Select(p => (object)p.Item).ToList();
         Navigation.FooterMenuItemsSource = _pages.Where(p => p.Section == SettingsSection.About).Select(p => (object)p.Item).ToList();
     }
 
     /// <inheritdoc />
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
-        var args  = (SettingsPageArgs)e.Parameter;
+        var args = (SettingsPageArgs)e.Parameter;
         _calendar = args.Calendar;
-        _context  = new SettingsContext(args.Services, args.Calendar, this);
+        _context = new SettingsContext(args.Services, args.Calendar, this);
 
         // Breadcrumb: the pane's layout changes as the window is resized
         Navigation.DisplayModeChanged += (_, a) => args.Services.Log.Trace("settings.pane", a.DisplayMode.ToString());
 
         // Follow The Calendar's Settings (pages show them)
-        _calendar.LayoutChanged    += OnLayoutChanged;
+        _calendar.LayoutChanged += OnLayoutChanged;
         _calendar.CalendarsChanged += OnCalendarsChanged;
 
         // The First Page Once The View Has Its Size: shown now, while the frame is still being laid out (it was collapsed, and
@@ -131,12 +131,12 @@ public sealed partial class SettingsPage : Page
         }
 
         // First Page: No Transition; Back From The OAuth Client Form: Slide Back; Otherwise: Drill In
-        var page       = _pages.Find(p => p.Section == section);
+        var page = _pages.Find(p => p.Section == section);
         var transition = _inClientForm
             ? new SlideNavigationTransitionInfo { Effect = SlideNavigationTransitionEffect.FromLeft }
             : _shown is null ? (NavigationTransitionInfo)new SuppressNavigationTransitionInfo() : new DrillInNavigationTransitionInfo();
         _context.Services.Log.Trace("settings.page", section.ToString());
-        _shown        = section;
+        _shown = section;
         _inClientForm = false;
         ContentFrame.Navigate(page.Page, _context, transition);
         Navigation.SelectedItem = page.Item;
@@ -151,7 +151,7 @@ public sealed partial class SettingsPage : Page
     /// <summary>Shows the OAuth client form (a sub-page of Accounts, which stays selected; it slides in, and Save and Cancel slide back).</summary>
     public void ShowClientSetup()
     {
-        _shown        = null;
+        _shown = null;
         _inClientForm = true;
         ContentFrame.Navigate(typeof(ClientPage), _context, new SlideNavigationTransitionInfo { Effect = SlideNavigationTransitionEffect.FromRight });
     }
@@ -159,13 +159,13 @@ public sealed partial class SettingsPage : Page
     /// <summary>Ends the view: the pages stop listening, and a sign-in waiting on the browser is cancelled (nothing is saved).</summary>
     public void Close()
     {
-        _calendar.LayoutChanged    -= OnLayoutChanged;
+        _calendar.LayoutChanged -= OnLayoutChanged;
         _calendar.CalendarsChanged -= OnCalendarsChanged;
         Closed?.Invoke(this, EventArgs.Empty);
         _accounts?.CancelSignIn();
     }
 
-    static NavigationViewItem NavItem(string label, int glyph, string automationId)
+    private static NavigationViewItem NavItem(string label, int glyph, string automationId)
     {
         var item = new NavigationViewItem { Content = label, Icon = new FontIcon { Glyph = char.ConvertFromUtf32(glyph), FontSize = 16 } };
         AutomationProperties.SetName(item, label);
@@ -174,7 +174,7 @@ public sealed partial class SettingsPage : Page
     }
 
     // Compared by reference: type tests on items read back from WinRT fail under Native AOT
-    void OnSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    private void OnSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         var selected = args.SelectedItem;
         foreach (var page in _pages)
@@ -188,7 +188,7 @@ public sealed partial class SettingsPage : Page
     }
 
     // Also raised for the item that's already selected, so Accounts brings you back from the OAuth client form
-    void OnItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
+    private void OnItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
     {
         var invoked = args.InvokedItemContainer;
         foreach (var page in _pages)
@@ -201,7 +201,7 @@ public sealed partial class SettingsPage : Page
         }
     }
 
-    void OnLayoutChanged(object? sender, EventArgs e) => SettingsChanged?.Invoke(this, EventArgs.Empty);
+    private void OnLayoutChanged(object? sender, EventArgs e) => SettingsChanged?.Invoke(this, EventArgs.Empty);
 
-    void OnCalendarsChanged(object? sender, EventArgs e) => CalendarsChanged?.Invoke(this, EventArgs.Empty);
+    private void OnCalendarsChanged(object? sender, EventArgs e) => CalendarsChanged?.Invoke(this, EventArgs.Empty);
 }

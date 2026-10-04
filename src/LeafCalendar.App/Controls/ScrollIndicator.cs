@@ -45,7 +45,7 @@ public static class ScrollIndicator
         }
     }
 
-    static void Show(ScrollViewer scroll)
+    private static void Show(ScrollViewer scroll)
     {
         if (scroll.VerticalScrollBarVisibility != ScrollBarVisibility.Auto)
         {

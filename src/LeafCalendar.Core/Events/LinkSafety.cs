@@ -44,9 +44,9 @@ public enum MeetingProvider
 /// </remarks>
 public static partial class LinkSafety
 {
-    static readonly string[] LaunchSchemes = ["https", "zoommtg", "zoomus", "msteams", "webex"];
+    private static readonly string[] LaunchSchemes = ["https", "zoommtg", "zoomus", "msteams", "webex"];
 
-    static readonly (string Domain, MeetingProvider Provider)[] MeetingHosts =
+    private static readonly (string Domain, MeetingProvider Provider)[] MeetingHosts =
     [
         ("meet.google.com", MeetingProvider.GoogleMeet),
         ("zoom.us", MeetingProvider.Zoom),
@@ -149,7 +149,7 @@ public static partial class LinkSafety
 
         // Swap A Unicode Host For Its ASCII Form (the host comes before anything else that could match)
         var host = uri.Host;
-        var at   = host.Length > 0 && host != asciiHost ? text.IndexOf(host, StringComparison.Ordinal) : -1;
+        var at = host.Length > 0 && host != asciiHost ? text.IndexOf(host, StringComparison.Ordinal) : -1;
         if (at >= 0)
         {
             text = string.Concat(text.AsSpan(0, at), asciiHost, text.AsSpan(at + host.Length));
@@ -183,7 +183,7 @@ public static partial class LinkSafety
 
         // Web: The Text Is The Host, Or An Address On It
         var asText = shown.Contains("://", StringComparison.Ordinal) ? shown : "https://" + shown;
-        var same   = Uri.TryCreate(asText, UriKind.Absolute, out var shownUri)
+        var same = Uri.TryCreate(asText, UriKind.Absolute, out var shownUri)
             && (shownUri.Scheme == Uri.UriSchemeHttps || shownUri.Scheme == Uri.UriSchemeHttp)
             && shownUri.UserInfo.Length == 0
             && TryIdnHost(shownUri, out var shownHost)
@@ -195,7 +195,7 @@ public static partial class LinkSafety
     }
 
     // Direction controls (U+202A-202E, U+2066-2069, U+200E/F, U+061C) and zero-width characters (U+200B-200D, U+2060, U+FEFF)
-    static bool IsHiddenCharacter(char c) =>
+    private static bool IsHiddenCharacter(char c) =>
         c is (>= '‪' and <= '‮') or (>= '⁦' and <= '⁩') or (>= '​' and <= '‏') or '؜' or '⁠' or '﻿';
 
     /// <summary>The link to open for Join: Meet gets <c>authuser=&lt;email&gt;</c> so the right Google account joins (spec 8.5); others open as-is.</summary>
@@ -208,7 +208,7 @@ public static partial class LinkSafety
 
         // Port -1 keeps UriBuilder from writing ":443" into the address it hands to the browser
         var builder = new UriBuilder(conference) { Port = conference.IsDefaultPort ? -1 : conference.Port };
-        var query  = builder.Query.TrimStart('?')
+        var query = builder.Query.TrimStart('?')
             .Split('&', StringSplitOptions.RemoveEmptyEntries)
             .Where(p => !p.StartsWith("authuser=", StringComparison.OrdinalIgnoreCase))
             .Append("authuser=" + Uri.EscapeDataString(accountEmail));
@@ -243,7 +243,7 @@ public static partial class LinkSafety
     /// </summary>
     internal static string TrimLinkEnd(string link)
     {
-        var end      = link.Length;
+        var end = link.Length;
         var unpaired = link.AsSpan().Count(')') - link.AsSpan().Count('(');
 
         while (end > 0)
@@ -284,8 +284,8 @@ public static partial class LinkSafety
         }
 
         var cleanSubject = Uri.EscapeDataString(new string(subject.Where(c => !char.IsControl(c)).ToArray()));
-        var first        = Uri.EscapeDataString(safe[0]).Replace("%40", "@", StringComparison.Ordinal);
-        var others       = safe.Count > 1 ? "to=" + string.Join(",", safe.Skip(1).Select(Uri.EscapeDataString)) + "&" : "";
+        var first = Uri.EscapeDataString(safe[0]).Replace("%40", "@", StringComparison.Ordinal);
+        var others = safe.Count > 1 ? "to=" + string.Join(",", safe.Skip(1).Select(Uri.EscapeDataString)) + "&" : "";
         if (Uri.TryCreate($"mailto:{first}?{others}subject={cleanSubject}", UriKind.Absolute, out var mailto))
         {
             return mailto;
@@ -299,7 +299,7 @@ public static partial class LinkSafety
 
     // One "@", something on both sides, and nothing that could split, add, or inject mail fields (an apostrophe can't:
     // "o'brien@a.example" is a valid address, and it's escaped like the rest)
-    static bool IsPlainAddress(string email)
+    private static bool IsPlainAddress(string email)
     {
         var at = email.IndexOf('@');
         return at > 0

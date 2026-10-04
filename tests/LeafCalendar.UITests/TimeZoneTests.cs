@@ -7,8 +7,8 @@ namespace LeafCalendar.UITests;
 
 public sealed class TimeZoneTests : IDisposable
 {
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -16,7 +16,7 @@ public sealed class TimeZoneTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     [Fact]
     public void AddTokyo_ShowsColumnAndPersists()
@@ -91,9 +91,9 @@ public sealed class TimeZoneTests : IDisposable
         }
 
         // Left To Right: Tokyo (added first), London (added last), then the PC's zone next to the days
-        var tokyo  = leaf.WaitFor("ZoneLabel_Asia/Tokyo").BoundingRectangle;
+        var tokyo = leaf.WaitFor("ZoneLabel_Asia/Tokyo").BoundingRectangle;
         var london = leaf.WaitFor("ZoneLabel_Europe/London").BoundingRectangle;
-        var local  = leaf.WaitFor("ZoneLabel_Local").BoundingRectangle;
+        var local = leaf.WaitFor("ZoneLabel_Local").BoundingRectangle;
         Assert.True(tokyo.Right <= london.Left, $"Tokyo {tokyo} should be left of London {london}");
         Assert.True(london.Right <= local.Left, $"London {london} should be left of the PC's zone {local}");
         Assert.True(local.Left - london.Right < london.Width, "London should be the column right next to the PC's zone");

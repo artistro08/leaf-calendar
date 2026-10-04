@@ -4,7 +4,6 @@ using LeafCalendar.App.Notifications;
 using LeafCalendar.App.Tray;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.App.Views.Onboarding;
-using LeafCalendar.App.Views.Settings;
 using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Events;
@@ -36,27 +35,27 @@ public partial class App : Application
     /// <summary>Leaf's icon file, for each window's title bar and taskbar button.</summary>
     internal static readonly string IconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "LeafCalendar.ico");
 
-    MainWindow? _window;
-    OnboardingWindow? _onboarding;
-    readonly RepeatFilter _toastRepeats = new(TimeProvider.System);
-    LeafServices? _services;
-    CalendarViewModel? _calendar;
-    TrayIcon? _tray;
-    TrayHost? _host;
-    Notifier? _notifier;
-    AlertCenter? _alerts;
-    SyncEngine? _attachedSync;
-    DispatcherQueue _dispatcher = null!;
-    DispatcherQueueTimer? _minuteTimer;
-    DispatcherQueueTimer? _probeTimer;
-    DispatcherQueueTimer? _gcStressTimer;
-    readonly LocalZoneWatcher _zone = new();
+    private MainWindow? _window;
+    private OnboardingWindow? _onboarding;
+    private readonly RepeatFilter _toastRepeats = new(TimeProvider.System);
+    private LeafServices? _services;
+    private CalendarViewModel? _calendar;
+    private TrayIcon? _tray;
+    private TrayHost? _host;
+    private Notifier? _notifier;
+    private AlertCenter? _alerts;
+    private SyncEngine? _attachedSync;
+    private DispatcherQueue _dispatcher = null!;
+    private DispatcherQueueTimer? _minuteTimer;
+    private DispatcherQueueTimer? _probeTimer;
+    private DispatcherQueueTimer? _gcStressTimer;
+    private readonly LocalZoneWatcher _zone = new();
 
     // The tray settings (and the day) the tooltip and agenda were last refreshed for
-    (int, bool, int, bool, string? Zone, DateTime Today) _trayKey;
-    AppLog? _log;
-    bool _trayStarted;
-    bool _quitting;
+    private (int, bool, int, bool, string? Zone, DateTime Today) _trayKey;
+    private AppLog? _log;
+    private bool _trayStarted;
+    private bool _quitting;
 
     /// <summary>Loads XAML resources and hooks crash logging.</summary>
     public App()
@@ -65,14 +64,14 @@ public partial class App : Application
 
         // Crash Logging: type and stack always, a dump with Detailed logging on. A XAML error's own message is kept (it's
         // the framework's); a managed exception's message can carry event content, so it isn't
-        UnhandledException                         += (_, e) => OnCrash("app.unhandled", e.Exception, e.Exception is System.Runtime.InteropServices.COMException ? e.Message : null);
+        UnhandledException += (_, e) => OnCrash("app.unhandled", e.Exception, e.Exception is System.Runtime.InteropServices.COMException ? e.Message : null);
         AppDomain.CurrentDomain.UnhandledException += (_, e) => OnCrash("app.unhandled.domain", e.ExceptionObject as Exception, null);
-        TaskScheduler.UnobservedTaskException      += (_, e) => _log?.Crash("app.task.unobserved", e.Exception);
-        AppDomain.CurrentDomain.ProcessExit        += (_, _) => RemoveTrayIcon();
+        TaskScheduler.UnobservedTaskException += (_, e) => _log?.Crash("app.task.unobserved", e.Exception);
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => RemoveTrayIcon();
     }
 
     // A crash is about to end Leaf: what happened, then the dump
-    void OnCrash(string eventName, Exception? exception, string? message)
+    private void OnCrash(string eventName, Exception? exception, string? message)
     {
         if (_log is not { } log || exception is null)
         {
@@ -85,7 +84,7 @@ public partial class App : Application
     }
 
     // Leaf is ending without Quit (a crash, or the process exiting): the tray icon mustn't be left behind
-    void RemoveTrayIcon()
+    private void RemoveTrayIcon()
     {
         try
         {
@@ -102,7 +101,7 @@ public partial class App : Application
     /// <inheritdoc />
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        var options     = Program.Options;
+        var options = Program.Options;
         var localFolder = ApplicationData.Current.LocalFolder.Path;
 
         // Log First, So A Startup Failure Is Recorded Before The Process Ends
@@ -119,8 +118,8 @@ public partial class App : Application
             throw;
         }
 
-        _log        = services.Log;
-        _services   = services;
+        _log = services.Log;
+        _services = services;
         _dispatcher = DispatcherQueue.GetForCurrentThread();
 
         // Back From Sign-In In The Browser: the window that asked comes to the front
@@ -134,9 +133,9 @@ public partial class App : Application
         // Crash Tests: collect constantly, so an object Windows still uses after .NET let go of it fails right away
         if (options.GcStress)
         {
-            _gcStressTimer          = _dispatcher.CreateTimer();
+            _gcStressTimer = _dispatcher.CreateTimer();
             _gcStressTimer.Interval = TimeSpan.FromMilliseconds(20);
-            _gcStressTimer.Tick    += (_, _) =>
+            _gcStressTimer.Tick += (_, _) =>
             {
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
@@ -212,20 +211,20 @@ public partial class App : Application
     // =========================================================================
 
     // The tray icon and the minute clock. From here on, closing the last window doesn't end Leaf; Quit does.
-    void StartTray(LeafServices services)
+    private void StartTray(LeafServices services)
     {
         if (_trayStarted)
         {
             return;
         }
 
-        _trayStarted           = true;
+        _trayStarted = true;
         DispatcherShutdownMode = DispatcherShutdownMode.OnExplicitShutdown;
 
         // Tray Icon (without one Leaf still runs, and launching it again brings the window back)
         try
         {
-            _tray          = new TrayIcon(services.Log, TrayDay(), services.Options.Profile, visible: !CurrentSettings().HideTrayIcon);
+            _tray = new TrayIcon(services.Log, TrayDay(), services.Options.Profile, visible: !CurrentSettings().HideTrayIcon);
             _tray.Invoked += (_, _) => ToggleAgenda();
         }
         catch (Exception ex)
@@ -238,16 +237,16 @@ public partial class App : Application
         try
         {
             var host = new TrayHost(services.Log);
-            host.OpenRequested      += (_, _) => ShowMainWindow();
-            host.NewEventRequested  += (_, _) => NewEvent();
-            host.JoinNextRequested  += (_, _) => JoinNext();
-            host.SyncRequested      += (_, _) => SyncNow();
-            host.SettingsRequested  += (_, _) => OpenSettings(SettingsSection.General);
-            host.QuitRequested      += (_, _) => Quit();
-            host.AgendaOpened       += (_, _) => UpdateSyncMode(flyoutOpened: true);
-            host.AgendaClosed       += (_, _) => UpdateSyncMode();
+            host.OpenRequested += (_, _) => ShowMainWindow();
+            host.NewEventRequested += (_, _) => NewEvent();
+            host.JoinNextRequested += (_, _) => JoinNext();
+            host.SyncRequested += (_, _) => SyncNow();
+            host.SettingsRequested += (_, _) => OpenSettings(SettingsSection.General);
+            host.QuitRequested += (_, _) => Quit();
+            host.AgendaOpened += (_, _) => UpdateSyncMode(flyoutOpened: true);
+            host.AgendaClosed += (_, _) => UpdateSyncMode();
             host.OpenEventRequested += (_, occurrence) => RevealEvent(occurrence);
-            host.JoinRequested      += (_, occurrence) => JoinEvent(occurrence);
+            host.JoinRequested += (_, occurrence) => JoinEvent(occurrence);
             _host = host;
             if (_tray is not null)
             {
@@ -280,7 +279,7 @@ public partial class App : Application
         }
 
         // Notifications (registered before any click is handled)
-        _notifier          = new Notifier(services);
+        _notifier = new Notifier(services);
         _notifier.Invoked += (_, argument) => _dispatcher.TryEnqueue(() => HandleToast(argument));
         _notifier.Register();
         // ponytail: all-day reminders count from the PC zone's midnight; pass the primary zone into AlertCenter if a pinned-zone user notices
@@ -288,9 +287,9 @@ public partial class App : Application
         _alerts.Start();
 
         // Minute Clock (tooltip countdown, time zone)
-        _minuteTimer          = _dispatcher!.CreateTimer();
+        _minuteTimer = _dispatcher!.CreateTimer();
         _minuteTimer.Interval = TimeSpan.FromMinutes(1);
-        _minuteTimer.Tick    += (_, _) => OnMinute();
+        _minuteTimer.Tick += (_, _) => OnMinute();
         _minuteTimer.Start();
 
         // Sync Changes Refresh The Tooltip (the Google services are rebuilt when the OAuth client changes)
@@ -312,7 +311,7 @@ public partial class App : Application
         }
     }
 
-    void AttachSync()
+    private void AttachSync()
     {
         if (_attachedSync is not null)
         {
@@ -327,14 +326,14 @@ public partial class App : Application
     }
 
     // Raised on the sync thread
-    void OnSyncDataChanged(object? sender, EventArgs e) => _dispatcher?.TryEnqueue(() =>
+    private void OnSyncDataChanged(object? sender, EventArgs e) => _dispatcher?.TryEnqueue(() =>
     {
         RefreshTooltip();
         RefreshAgenda();
     });
 
     // The minute clock's tick: nothing may escape it (an unhandled exception here ends Leaf; the next minute tries again)
-    void OnMinute()
+    private void OnMinute()
     {
         try
         {
@@ -358,10 +357,10 @@ public partial class App : Application
     }
 
     // Today's day of the month on the PC clock (the taskbar's date), for the tray icon
-    int TrayDay() => TimeZoneInfo.ConvertTime(_services?.Time.GetUtcNow() ?? DateTimeOffset.UtcNow, _zone.Zone).Day;
+    private int TrayDay() => TimeZoneInfo.ConvertTime(_services?.Time.GetUtcNow() ?? DateTimeOffset.UtcNow, _zone.Zone).Day;
 
     // "Standup in 12 min" (spec 8.1), within the tray lookahead setting
-    void RefreshTooltip()
+    private void RefreshTooltip()
     {
         if (_services is not { } services || _tray is null)
         {
@@ -381,11 +380,11 @@ public partial class App : Application
     }
 
     // The flyout header's and tooltip's next event: timed events within the lookahead (its own two days, so a one-day agenda still sees past midnight)
-    NextUp? LoadNext(SqliteConnection conn, LeafSettings settings, DateTimeOffset now) =>
+    private NextUp? LoadNext(SqliteConnection conn, LeafSettings settings, DateTimeOffset now) =>
         TrayAgenda.Next(TrayAgenda.Load(conn, now, DisplayZone.Resolve(null, settings.PrimaryTimeZone, _zone.Zone), TrayAgenda.NextDays, includeAllDay: false, settings.Use24HourTime), now, TimeSpan.FromMinutes(settings.TrayLookaheadMinutes));
 
     // The saved settings (the view model may not exist while Leaf is only in the tray)
-    LeafSettings CurrentSettings()
+    private LeafSettings CurrentSettings()
     {
         if (_calendar is { } vm)
         {
@@ -410,7 +409,7 @@ public partial class App : Application
     // =========================================================================
 
     // Opens the main window, or brings the open one to the front
-    void ShowMainWindow()
+    private void ShowMainWindow()
     {
         if (_services is not { } services)
         {
@@ -443,17 +442,17 @@ public partial class App : Application
         // Tray Probe: the memory budget test measures tray-only Leaf a few seconds after the window rendered
         if (services.Options.TrayProbe && _probeTimer is null)
         {
-            _probeTimer             = _dispatcher!.CreateTimer();
-            _probeTimer.Interval    = TimeSpan.FromSeconds(3);
+            _probeTimer = _dispatcher!.CreateTimer();
+            _probeTimer.Interval = TimeSpan.FromSeconds(3);
             _probeTimer.IsRepeating = false;
-            _probeTimer.Tick       += (_, _) => _window?.Close();
+            _probeTimer.Tick += (_, _) => _window?.Close();
             _probeTimer.Start();
         }
     }
 
     // A sign-in starts in onboarding or the main window (Settings › Accounts, or allowing contact suggestions): whichever is
     // showing comes back when the browser is done
-    void BringSignInWindowToFront()
+    private void BringSignInWindowToFront()
     {
         if (_onboarding is { } onboarding)
         {
@@ -466,7 +465,7 @@ public partial class App : Application
     }
 
     // Brings onboarding forward while it's open; otherwise the main window
-    void BringToFront()
+    private void BringToFront()
     {
         if (_onboarding is { } onboarding)
         {
@@ -477,7 +476,7 @@ public partial class App : Application
         ShowMainWindow();
     }
 
-    void OnActivated(Activation activation)
+    private void OnActivated(Activation activation)
     {
         // An Activation Windows Handed Over That Couldn't Be Read (the type only)
         if (activation.ReadError is { } readError)
@@ -509,26 +508,26 @@ public partial class App : Application
         }
     }
 
-    static string? TestToastAction(string? commandLine) =>
+    private static string? TestToastAction(string? commandLine) =>
         string.IsNullOrWhiteSpace(commandLine) ? null : LaunchOptions.Parse(LaunchOptions.SplitCommandLine(commandLine)).ToastAction;
 
     // The main window and Settings share one view model, so a Settings change shows in the calendar at once
-    CalendarViewModel AcquireCalendar()
+    private CalendarViewModel AcquireCalendar()
     {
         if (_calendar is null)
         {
-            _calendar              = new CalendarViewModel(_services!, _dispatcher!);
+            _calendar = new CalendarViewModel(_services!, _dispatcher!);
             _calendar.OpenSettings = OpenSettings;
-            _calendar.QuitApp      = Quit;
+            _calendar.QuitApp = Quit;
 
             // A Settings Change (the Tray page's days, all-day, lookahead; the primary zone) Shows In The Tray Right Away
             // Only when a tray setting changed or the day rolled over (other layout changes don't touch the tray)
             _calendar.LayoutChanged += (_, _) =>
             {
-                var s    = CurrentSettings();
+                var s = CurrentSettings();
                 _tray?.SetVisible(!s.HideTrayIcon);
                 var zone = DisplayZone.Resolve(null, s.PrimaryTimeZone, _zone.Zone);
-                var key  = (s.FlyoutDays, s.FlyoutAllDay, s.TrayLookaheadMinutes, s.Use24HourTime, Zone: s.PrimaryTimeZone, Today: TimeZoneInfo.ConvertTime(_services!.Time.GetUtcNow(), zone).Date);
+                var key = (s.FlyoutDays, s.FlyoutAllDay, s.TrayLookaheadMinutes, s.Use24HourTime, Zone: s.PrimaryTimeZone, Today: TimeZoneInfo.ConvertTime(_services!.Time.GetUtcNow(), zone).Date);
                 if (key == _trayKey)
                 {
                     return;
@@ -553,14 +552,14 @@ public partial class App : Application
     }
 
     // Settings shows in the main window, in place of the calendar
-    void OpenSettings(SettingsSection section)
+    private void OpenSettings(SettingsSection section)
     {
         ShowMainWindow();
         _window?.ShowSettings(section);
     }
 
     // Tray only: no window uses the view model any more, so its caches and timers go
-    void ReleaseIfHidden()
+    private void ReleaseIfHidden()
     {
         if (_window is not null)
         {
@@ -573,7 +572,7 @@ public partial class App : Application
     }
 
     // 60-second polling, efficiency mode, and a trimmed working set
-    void GoToTray()
+    private void GoToTray()
     {
         UpdateSyncMode();
         MemoryTrimmer.Trim();
@@ -584,7 +583,7 @@ public partial class App : Application
     // =========================================================================
 
     // Left-click or the flyout shortcut (raised from the tray window's procedure, so nothing may escape)
-    void ToggleAgenda()
+    private void ToggleAgenda()
     {
         if (_host is not { } host)
         {
@@ -611,7 +610,7 @@ public partial class App : Application
     }
 
     // A sync or the minute clock while the flyout is open (nothing may escape either)
-    void RefreshAgenda()
+    private void RefreshAgenda()
     {
         try
         {
@@ -627,7 +626,7 @@ public partial class App : Application
     }
 
     // The agenda (days and all-day per the Tray settings) and its header
-    AgendaModel? BuildAgenda()
+    private AgendaModel? BuildAgenda()
     {
         if (_services is not { } services)
         {
@@ -637,9 +636,9 @@ public partial class App : Application
         try
         {
             using var conn = services.Database.Open();
-            var settings   = SettingsStore.Load(conn);
-            var now        = services.Time.GetUtcNow();
-            var days       = TrayAgenda.Load(conn, now, DisplayZone.Resolve(null, settings.PrimaryTimeZone, _zone.Zone), settings.FlyoutDays, settings.FlyoutAllDay, settings.Use24HourTime);
+            var settings = SettingsStore.Load(conn);
+            var now = services.Time.GetUtcNow();
+            var days = TrayAgenda.Load(conn, now, DisplayZone.Resolve(null, settings.PrimaryTimeZone, _zone.Zone), settings.FlyoutDays, settings.FlyoutAllDay, settings.Use24HourTime);
             return new AgendaModel(days, LoadNext(conn, settings, now), TrayAgenda.NothingNext(settings.TrayLookaheadMinutes));
         }
         catch (Exception ex)
@@ -651,7 +650,7 @@ public partial class App : Application
     }
 
     // A flyout row or a notification: the main window on that event
-    void RevealEvent(CalendarOccurrence occurrence)
+    private void RevealEvent(CalendarOccurrence occurrence)
     {
         try
         {
@@ -676,7 +675,7 @@ public partial class App : Application
     }
 
     // A Join button: the event's own link, Meet with its account
-    void JoinEvent(CalendarOccurrence occurrence)
+    private void JoinEvent(CalendarOccurrence occurrence)
     {
         if (_services is not { } services)
         {
@@ -711,7 +710,7 @@ public partial class App : Application
 
     // 15 s while a window or the flyout is on screen, 60 s in the tray or minimized (spec 5.3); opening the flyout syncs
     // at once
-    void UpdateSyncMode(bool flyoutOpened = false)
+    private void UpdateSyncMode(bool flyoutOpened = false)
     {
         // Runs from the flyout's open and close events, so nothing may escape
         try
@@ -739,7 +738,7 @@ public partial class App : Application
     // =========================================================================
 
     // A notification or one of its buttons was clicked (spec 8.4); on the UI thread, and nothing may escape
-    void HandleToast(string? argument)
+    private void HandleToast(string? argument)
     {
         // Setup Isn't Finished: nothing to act on yet, so setup comes forward
         if (_onboarding is not null)
@@ -826,13 +825,13 @@ public partial class App : Application
     }
 
     // Yes / No / Maybe on an invitation: Google emails the organizer, like its own buttons; a repeating invitation is answered for the series, a changed instance of one for itself
-    void Respond(CalendarOccurrence occurrence, ToastAction action)
+    private void Respond(CalendarOccurrence occurrence, ToastAction action)
     {
         var response = action switch
         {
-            ToastAction.Accept  => ResponseStatus.Accepted,
+            ToastAction.Accept => ResponseStatus.Accepted,
             ToastAction.Decline => ResponseStatus.Declined,
-            _                   => ResponseStatus.Tentative,
+            _ => ResponseStatus.Tentative,
         };
         var scope = InviteWatcher.ReplyScope(occurrence);
         _services!.Editor.Respond(occurrence, response, note: null, sendUpdates: true, scope);
@@ -843,7 +842,7 @@ public partial class App : Application
     // =========================================================================
 
     // Right-click on the icon (raised from the tray window's procedure, so nothing may escape)
-    void ShowTrayMenu(int x, int y)
+    private void ShowTrayMenu(int x, int y)
     {
         try
         {
@@ -856,7 +855,7 @@ public partial class App : Application
     }
 
     // New event: the main window's editor, at the next free slot
-    void NewEvent()
+    private void NewEvent()
     {
         ShowMainWindow();
         _dispatcher?.TryEnqueue(DispatcherQueuePriority.Low, () => _calendar?.BeginCreateNow());
@@ -864,7 +863,7 @@ public partial class App : Application
 
     // Join next meeting: the join rule (spec 8.5) for the tray menu; the join shortcut passes a lookahead, so with nothing
     // in the next 10 minutes it opens the next meeting within it. Else "No meeting to join"
-    void JoinNext(TimeSpan? lookahead = null)
+    private void JoinNext(TimeSpan? lookahead = null)
     {
         if (_services is not { } services)
         {
@@ -897,7 +896,7 @@ public partial class App : Application
     }
 
     // Sync now: calendars and events, the calendar list included
-    async void SyncNow()
+    private async void SyncNow()
     {
         // async void: anything that escapes here would end the process
         try
@@ -919,7 +918,7 @@ public partial class App : Application
     }
 
     // Quit: the only way Leaf ends once it's in the tray
-    async void Quit()
+    private async void Quit()
     {
         if (_quitting)
         {
@@ -967,7 +966,7 @@ public partial class App : Application
     }
 
     // One Quit step: logged by its name and the error type, then Quit carries on
-    void QuitStep(string step, Action action)
+    private void QuitStep(string step, Action action)
     {
         try
         {
@@ -980,7 +979,7 @@ public partial class App : Application
     }
 
     // Nothing to show: the services go, then the app ends
-    async Task ExitQuietlyAsync(LeafServices services)
+    private async Task ExitQuietlyAsync(LeafServices services)
     {
         QuitStep("instance", () => AppInstance.GetCurrent().UnregisterKey());
         await DisposeServicesAsync(services);
@@ -988,7 +987,7 @@ public partial class App : Application
     }
 
     // Window close must not crash the process on a disposal failure, so log and carry on
-    static async Task DisposeServicesAsync(LeafServices services)
+    private static async Task DisposeServicesAsync(LeafServices services)
     {
         try
         {

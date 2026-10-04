@@ -4,10 +4,10 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
 using Microsoft.Windows.AppNotifications;
-using WinRT;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.System.Com;
+using WinRT;
 
 namespace LeafCalendar.App;
 
@@ -25,12 +25,12 @@ internal sealed record Activation(ExtendedActivationKind Kind, string? Arguments
 public static class Program
 {
     // How long a second launch waits for the running Leaf to take its activation before giving up and exiting
-    const uint RedirectTimeoutMs = 10_000;
+    private const uint RedirectTimeoutMs = 10_000;
 
     // Redirected Activations: one can arrive before the app is ready for it, so it waits here until the app is
-    static readonly Lock ActivationGate = new();
-    static readonly List<Activation> Pending = [];
-    static Action<Activation>? _onActivated;
+    private static readonly Lock ActivationGate = new();
+    private static readonly List<Activation> Pending = [];
+    private static Action<Activation>? s_onActivated;
 
     /// <summary>This launch's options.</summary>
     internal static LaunchOptions Options { get; private set; } = LaunchOptions.Parse([]);
@@ -48,11 +48,11 @@ public static class Program
     internal static bool NotificationsRegistered { get; private set; }
 
     // The command line argument Package.appxmanifest's COM server starts Leaf with for a notification click
-    const string ToastLaunchArgument = "----AppNotificationActivated:";
+    private const string ToastLaunchArgument = "----AppNotificationActivated:";
 
     /// <summary>Redirects to the running Leaf for this profile, or starts the app.</summary>
     [STAThread]
-    static void Main(string[] args)
+    private static void Main(string[] args)
     {
         WinRT.ComWrappersSupport.InitializeComWrappers();
         Options = LaunchOptions.Parse(args);
@@ -66,8 +66,8 @@ public static class Program
 
         // How This Launch Started
         var activation = AppInstance.GetCurrent().GetActivatedEventArgs();
-        var started    = Read(activation);
-        StartKind      = started.Kind;
+        var started = Read(activation);
+        StartKind = started.Kind;
         StartReadError = started.ReadError;
 
         // A leaf-calendar: Link Only Brings Leaf Forward: its address (which may arrive as the command line) is never read
@@ -110,8 +110,8 @@ public static class Program
         Activation[] pending;
         lock (ActivationGate)
         {
-            _onActivated = onActivated;
-            pending      = [.. Pending];
+            s_onActivated = onActivated;
+            pending = [.. Pending];
             Pending.Clear();
         }
 
@@ -121,12 +121,12 @@ public static class Program
         }
     }
 
-    static void OnRedirected(Activation activation)
+    private static void OnRedirected(Activation activation)
     {
         Action<Activation>? handler;
         lock (ActivationGate)
         {
-            handler = _onActivated;
+            handler = s_onActivated;
             if (handler is null)
             {
                 Pending.Add(activation);
@@ -138,7 +138,7 @@ public static class Program
 
     // The click handler first, then the registration; a later click goes where a redirected launch goes until Notifier
     // takes over. A failure leaves it to Notifier, which tries again and logs it
-    static void RegisterNotifications()
+    private static void RegisterNotifications()
     {
         try
         {
@@ -154,7 +154,7 @@ public static class Program
         }
     }
 
-    static void OnEarlyNotification(AppNotificationManager sender, AppNotificationActivatedEventArgs args) =>
+    private static void OnEarlyNotification(AppNotificationManager sender, AppNotificationActivatedEventArgs args) =>
         OnRedirected(new Activation(ExtendedActivationKind.AppNotification, args.Argument));
 
     /// <summary>Stops Main's click handler once Notifier's is attached.</summary>
@@ -162,7 +162,7 @@ public static class Program
 
     // What an activation carries: a notification's argument, or a plain launch's command line. The WinRT payload is read
     // through As<T>(), which Native AOT supports (a C# cast of a WinRT object read back isn't safe there).
-    static Activation Read(AppActivationArguments args)
+    private static Activation Read(AppActivationArguments args)
     {
         var kind = ExtendedActivationKind.Launch;
         try
@@ -176,8 +176,8 @@ public static class Program
             return kind switch
             {
                 ExtendedActivationKind.AppNotification => new Activation(kind, args.Data.As<AppNotificationActivatedEventArgs>().Argument),
-                ExtendedActivationKind.Launch          => new Activation(kind, args.Data.As<Windows.ApplicationModel.Activation.ILaunchActivatedEventArgs>().Arguments),
-                _                                      => new Activation(kind, null),
+                ExtendedActivationKind.Launch => new Activation(kind, args.Data.As<Windows.ApplicationModel.Activation.ILaunchActivatedEventArgs>().Arguments),
+                _ => new Activation(kind, null),
             };
         }
 #pragma warning disable CA1031 // A pure read on every launch: whatever fails, the launch goes on without its arguments
@@ -191,13 +191,13 @@ public static class Program
     // Microsoft's documented pattern: redirect on a background thread while this STA thread waits with COM pumping,
     // so the redirect can't deadlock it. The wait is bounded: a running Leaf that never answers doesn't keep this
     // process around; it just exits.
-    static unsafe void RedirectTo(AppInstance main, AppActivationArguments args)
+    private static unsafe void RedirectTo(AppInstance main, AppActivationArguments args)
     {
         // This process was just launched by the user, so it may hand the foreground to the running Leaf
         PInvoke.AllowSetForegroundWindow(main.ProcessId);
 
         var redirect = Task.Run(() => main.RedirectActivationToAsync(args).AsTask().Wait());
-        var handle   = (HANDLE)((IAsyncResult)redirect).AsyncWaitHandle.SafeWaitHandle.DangerousGetHandle();
+        var handle = (HANDLE)((IAsyncResult)redirect).AsyncWaitHandle.SafeWaitHandle.DangerousGetHandle();
 
         uint index;
         _ = PInvoke.CoWaitForMultipleObjects((uint)CWMO_FLAGS.CWMO_DEFAULT, RedirectTimeoutMs, 1, &handle, &index);

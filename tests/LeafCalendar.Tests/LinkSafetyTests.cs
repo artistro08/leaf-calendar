@@ -236,7 +236,7 @@ public class LinkSafetyTests
     public void DisplayForm_StripsInvisibleAndDirectionCharacters()
     {
         var hidden = "‪‮⁦⁩‎‏؜​‌‍⁠﻿";
-        var link   = new Uri("https://example.com/a", UriKind.Absolute);
+        var link = new Uri("https://example.com/a", UriKind.Absolute);
 
         var shown = LinkSafety.DisplayForm(new Uri(link.OriginalString + hidden, UriKind.Absolute)) ?? "";
 

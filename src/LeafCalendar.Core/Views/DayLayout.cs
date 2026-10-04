@@ -27,7 +27,7 @@ public static class DayLayout
         // The Day As Instants: a midnight the clock repeats (falling back from 1 AM) counts from its first pass, as in
         // DragMath, so an event made in that hour is on the day it's filed under
         var dayStart = DragMath.Instant(day, 0, zone);
-        var dayEnd   = DragMath.Instant(day.AddDays(1), 0, zone);
+        var dayEnd = DragMath.Instant(day.AddDays(1), 0, zone);
 
         // A zero-minute event belongs to the day it starts, midnight included
         var items = occurrences
@@ -38,8 +38,8 @@ public static class DayLayout
             .ThenBy(i => i.Occurrence.Key, StringComparer.Ordinal)
             .ToList();
 
-        var result     = new List<TimedBlock>(items.Count);
-        var cluster    = new List<(int Index, int Column)>();
+        var result = new List<TimedBlock>(items.Count);
+        var cluster = new List<(int Index, int Column)>();
         var columnEnds = new List<double>();
         var clusterEnd = double.MinValue;
 
@@ -52,7 +52,7 @@ public static class DayLayout
             }
 
             var visualEnd = Math.Max(item.End, item.Start + MinVisualMinutes);
-            var column    = columnEnds.FindIndex(end => end <= item.Start);
+            var column = columnEnds.FindIndex(end => end <= item.Start);
             if (column < 0)
             {
                 column = columnEnds.Count;
@@ -93,7 +93,7 @@ public static class DayLayout
     internal static double MinuteOfDay(DateTimeOffset instant, DateOnly day, TimeZoneInfo zone)
     {
         var local = TimeZoneInfo.ConvertTime(instant, zone);
-        var date  = DateOnly.FromDateTime(local.DateTime);
+        var date = DateOnly.FromDateTime(local.DateTime);
 
         return date < day ? 0 : date > day ? 1440 : local.TimeOfDay.TotalMinutes;
     }

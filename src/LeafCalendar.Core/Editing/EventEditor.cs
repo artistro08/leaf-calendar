@@ -22,7 +22,7 @@ public enum EditScope
 /// <summary>One dragged event and where it landed.</summary>
 public sealed record EventMove(CalendarOccurrence Occurrence, DateTimeOffset Start, DateTimeOffset End, bool IsAllDay);
 
-/// <summary>What a delete removed, which decides how a late <see cref="EventEditor.Undo"/> brings it back.</summary>
+/// <summary>What a delete removed, which decides how a late <see cref="EventEditor.Undo(DeleteReceipt)"/> brings it back.</summary>
 public enum DeleteKind
 {
     /// <summary>A single event or a whole series (a delete of that ID); a late undo creates a quiet copy.</summary>
@@ -38,14 +38,14 @@ public enum DeleteKind
 /// <summary>One outbox entry a delete made (as queued, with its snapshot) and what kind of delete it was.</summary>
 public sealed record DeletedItem(OutboxEntry Entry, DeleteKind Kind);
 
-/// <summary>The outbox entries a delete made; pass it to <see cref="EventEditor.Undo"/>.</summary>
+/// <summary>The outbox entries a delete made; pass it to <see cref="EventEditor.Undo(DeleteReceipt)"/>.</summary>
 public sealed record DeleteReceipt(IReadOnlyList<long> Seqs)
 {
     /// <summary>Each entry as queued, in the same order as <see cref="Seqs"/> (a late undo works from these).</summary>
     public IReadOnlyList<DeletedItem> Items { get; init; } = [];
 }
 
-/// <summary>What <see cref="EventEditor.Undo"/> did.</summary>
+/// <summary>What <see cref="EventEditor.Undo(DeleteReceipt)"/> did.</summary>
 public enum UndoResult
 {
     /// <summary>Nothing (an empty receipt, one already used, or everything in it is back already, e.g. Google refused the delete).</summary>
@@ -74,7 +74,7 @@ public sealed record EventCopy(string AccountId, string CalendarId, string RawJs
 /// instance it is the same as "All events".
 /// </para>
 /// <para>
-/// Deletes are held in the outbox for <see cref="UndoWindow"/>, so <see cref="Undo"/> can put the rows back
+/// Deletes are held in the outbox for <see cref="UndoWindow"/>, so <see cref="Undo(DeleteReceipt)"/> can put the rows back
 /// from their snapshots before anything reaches Google. Works fully offline.
 /// </para>
 /// <para>
@@ -99,13 +99,13 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         get;
         set
         {
-            field                   = value;
+            field = value;
             EventJson.FallbackZoneId = value;
         }
     } = "UTC";
 
     // Receipts already undone (each works once)
-    readonly HashSet<long> _undone = [];
+    private readonly HashSet<long> _undone = [];
 
     // =========================================================================
     // READING
@@ -151,7 +151,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     /// <summary>Creates an event under a new client-generated ID and returns the ID.</summary>
     public string Create(EventDraft draft, bool sendUpdates)
     {
-        var id   = EventIds.NewId();
+        var id = EventIds.NewId();
         var body = EventJson.BuildCreate(id, draft).ToJsonString();
         InTransaction((conn, tx) => AddCreate(conn, tx, draft.AccountId, draft.CalendarId, id, body, sendUpdates));
         return id;
@@ -168,10 +168,10 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
             foreach (var move in OncePerSeries(conn, tx, moves, m => m.Occurrence, scope))
             {
                 var before = LoadCore(conn, tx, move.Occurrence);
-                var after  = before with
+                var after = before with
                 {
-                    Start    = move.Start,
-                    End      = move.End,
+                    Start = move.Start,
+                    End = move.End,
                     IsAllDay = move.IsAllDay,
                     TimeZone = move.IsAllDay ? before.TimeZone : before.TimeZone ?? LocalZoneId,
                 };
@@ -190,12 +190,12 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
             }
         });
 
-    /// <summary>Deletes events (held for <see cref="UndoWindow"/>) and returns what <see cref="Undo"/> needs.</summary>
+    /// <summary>Deletes events (held for <see cref="UndoWindow"/>) and returns what <see cref="Undo(DeleteReceipt)"/> needs.</summary>
     public DeleteReceipt Delete(IReadOnlyList<CalendarOccurrence> items, EditScope scope, bool sendUpdates)
     {
         var notBefore = time.GetUtcNow() + UndoWindow;
-        var seqs      = new List<long>();
-        var deleted   = new List<DeletedItem>();
+        var seqs = new List<long>();
+        var deleted = new List<DeletedItem>();
 
         InTransaction((conn, tx) =>
         {
@@ -228,8 +228,8 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     public UndoResult Undo(DeleteReceipt receipt, out int restored)
     {
         var result = UndoResult.Nothing;
-        var count  = 0;
-        var now    = time.GetUtcNow();
+        var count = 0;
+        var now = time.GetUtcNow();
         InTransaction((conn, tx) =>
         {
             // Each Receipt Works Once
@@ -250,7 +250,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
                 }
 
                 result = UndoResult.Restored;
-                count  = receipt.Items.Count;
+                count = receipt.Items.Count;
             }
             else
             {
@@ -263,7 +263,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
                 }
 
                 result = brought > 0 ? UndoResult.Recreated : UndoResult.Nothing;
-                count  = brought;
+                count = brought;
             }
 
             _undone.UnionWith(receipt.Seqs);
@@ -286,7 +286,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
             var payload = new JsonObject
             {
                 ["responseStatus"] = EventJson.ResponseText(response),
-                ["comment"]        = note is { Length: > 0 } ? note : null,
+                ["comment"] = note is { Length: > 0 } ? note : null,
             };
 
             OutboxStore.Add(conn, tx, new OutboxEntry(0, occurrence.AccountId, occurrence.CalendarId, eventId, OutboxOperation.Rsvp, payload.ToJsonString(), current.Etag, sendUpdates, EventStore.Snapshot(conn, tx, occurrence.AccountId, occurrence.CalendarId, eventId), null));
@@ -305,7 +305,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     /// <summary>Creates a private copy (without its repeat or guests, see <see cref="EventJson.PrivateCopy"/>) at a new time and returns the new ID.</summary>
     public string Paste(EventCopy copy, DateTimeOffset start, DateTimeOffset end, bool isAllDay)
     {
-        var id   = EventIds.NewId();
+        var id = EventIds.NewId();
         var body = EventJson.WithTimes(EventJson.PrivateCopy(copy.RawJson, id, isAllDay), start, end, isAllDay, copy.TimeZone ?? LocalZoneId);
         InTransaction((conn, tx) => AddCreate(conn, tx, copy.AccountId, copy.CalendarId, id, body, sendUpdates: false));
         return id;
@@ -319,7 +319,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     // SAVING
     // =========================================================================
 
-    void SaveCore(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, EventDraft before, EventDraft after, EditScope scope, bool sendUpdates)
+    private void SaveCore(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, EventDraft before, EventDraft after, EditScope scope, bool sendUpdates)
     {
         RequireEdit(conn, tx, o);
 
@@ -330,7 +330,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
             return;
         }
 
-        var masterDraft   = LoadMaster(master, o);
+        var masterDraft = LoadMaster(master, o);
         var originalStart = OriginalStart(conn, tx, o);
 
         // "This And Following" From The First Instance Is The Whole Series
@@ -359,7 +359,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         }
     }
 
-    static void SaveWhole(SqliteConnection conn, SqliteTransaction tx, string accountId, string calendarId, string eventId, EventDraft before, EventDraft after, bool sendUpdates)
+    private static void SaveWhole(SqliteConnection conn, SqliteTransaction tx, string accountId, string calendarId, string eventId, EventDraft before, EventDraft after, bool sendUpdates)
     {
         var stored = Stored(conn, tx, accountId, calendarId, eventId);
 
@@ -367,8 +367,8 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         if (after.AccountId != accountId)
         {
             var newId = EventIds.NewId();
-            var copy  = EventJson.WithMeetIfWanted(EventJson.ApplyPatch(EventJson.CloneForCreate(stored.RawJson, newId), EventJson.BuildPatch(before, after, stored.RawJson)), after.HasConference && EventJson.HasMeet(stored.RawJson), newId);
-            copy      = EventJson.WithCanceledDays(copy, EventStore.Snapshot(conn, tx, accountId, calendarId, eventId));
+            var copy = EventJson.WithMeetIfWanted(EventJson.ApplyPatch(EventJson.CloneForCreate(stored.RawJson, newId), EventJson.BuildPatch(before, after, stored.RawJson)), after.HasConference && EventJson.HasMeet(stored.RawJson), newId);
+            copy = EventJson.WithCanceledDays(copy, EventStore.Snapshot(conn, tx, accountId, calendarId, eventId));
             var createSeq = AddCreate(conn, tx, after.AccountId, after.CalendarId, newId, copy, sendUpdates);
 
             // The Delete Waits Until Google Has The Copy, So A Refused Copy Never Leaves The Event Nowhere
@@ -387,7 +387,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
 
         // Changed Fields
         var current = Stored(conn, tx, accountId, target, eventId);
-        var patch   = EventJson.BuildPatch(before, after, current.RawJson);
+        var patch = EventJson.BuildPatch(before, after, current.RawJson);
         if (patch.Count > 0)
         {
             AddPatch(conn, tx, accountId, target, eventId, current, patch, sendUpdates, notBefore: null);
@@ -395,11 +395,11 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     }
 
     // One instance: its own ID; a repeat change can't apply to one instance, so it's ignored here
-    static void SaveInstance(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, StoredEvent master, DateTimeOffset originalStart, EventDraft before, EventDraft after, bool sendUpdates)
+    private static void SaveInstance(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, StoredEvent master, DateTimeOffset originalStart, EventDraft before, EventDraft after, bool sendUpdates)
     {
         var instanceId = InstanceIdOf(o, master, originalStart);
-        var current    = EventStore.Get(conn, tx, o.AccountId, o.CalendarId, instanceId) ?? Materialize(o, master, instanceId, originalStart);
-        var patch      = EventJson.BuildPatch(before, after with { Recurrence = before.Recurrence }, current.RawJson);
+        var current = EventStore.Get(conn, tx, o.AccountId, o.CalendarId, instanceId) ?? Materialize(o, master, instanceId, originalStart);
+        var patch = EventJson.BuildPatch(before, after with { Recurrence = before.Recurrence }, current.RawJson);
         if (patch.Count == 0)
         {
             return;
@@ -409,9 +409,9 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     }
 
     // The instance's changes applied to the series: only the edited fields, and its start and end move as much as the instance's did
-    EventDraft ToSeries(EventDraft master, EventDraft before, EventDraft after)
+    private EventDraft ToSeries(EventDraft master, EventDraft before, EventDraft after)
     {
-        var days       = LocalDay(after).DayNumber - LocalDay(before).DayNumber;
+        var days = LocalDay(after).DayNumber - LocalDay(before).DayNumber;
         var recurrence = after.Recurrence.SequenceEqual(before.Recurrence)
             ? RecurrenceEdits.ShiftWeekdays(master.Recurrence, days)
             : after.Recurrence;
@@ -422,43 +422,43 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         if (before.IsAllDay == after.IsAllDay)
         {
             start = WallClock(master, master.Start) + (WallClock(after, after.Start) - WallClock(before, before.Start));
-            end   = WallClock(master, master.End) + (WallClock(after, after.End) - WallClock(before, before.End));
+            end = WallClock(master, master.End) + (WallClock(after, after.End) - WallClock(before, before.End));
         }
         else
         {
             // Made All-Day Or Timed: the series' own day, moved as many days as the instance, at the instance's new time
             start = WallClock(master, master.Start).Date.AddDays(days) + WallClock(after, after.Start).TimeOfDay;
-            end   = start + (WallClock(after, after.End) - WallClock(after, after.Start));
+            end = start + (WallClock(after, after.End) - WallClock(after, after.Start));
         }
 
         return series with
         {
-            Start      = FromWallClock(series, start),
-            End        = FromWallClock(series, end),
+            Start = FromWallClock(series, start),
+            End = FromWallClock(series, end),
             Recurrence = recurrence,
         };
     }
 
     // The target with only the fields that differ between before and after (times and repeat are the caller's)
-    static EventDraft WithChanges(EventDraft target, EventDraft before, EventDraft after) => target with
+    private static EventDraft WithChanges(EventDraft target, EventDraft before, EventDraft after) => target with
     {
-        AccountId           = after.AccountId,
-        CalendarId          = after.CalendarId,
-        Title               = before.Title == after.Title ? target.Title : after.Title,
-        IsAllDay            = before.IsAllDay == after.IsAllDay ? target.IsAllDay : after.IsAllDay,
-        TimeZone            = before.TimeZone == after.TimeZone ? target.TimeZone : after.TimeZone,
-        Location            = before.Location == after.Location ? target.Location : after.Location,
-        Description         = before.DescriptionTooLong || DescriptionHtml.Normalize(before.Description) == DescriptionHtml.Normalize(after.Description) ? target.Description : after.Description,
-        ColorId             = before.ColorId == after.ColorId ? target.ColorId : after.ColorId,
-        Guests              = before.Guests.SequenceEqual(after.Guests) ? target.Guests : after.Guests,
+        AccountId = after.AccountId,
+        CalendarId = after.CalendarId,
+        Title = before.Title == after.Title ? target.Title : after.Title,
+        IsAllDay = before.IsAllDay == after.IsAllDay ? target.IsAllDay : after.IsAllDay,
+        TimeZone = before.TimeZone == after.TimeZone ? target.TimeZone : after.TimeZone,
+        Location = before.Location == after.Location ? target.Location : after.Location,
+        Description = before.DescriptionTooLong || DescriptionHtml.Normalize(before.Description) == DescriptionHtml.Normalize(after.Description) ? target.Description : after.Description,
+        ColorId = before.ColorId == after.ColorId ? target.ColorId : after.ColorId,
+        Guests = before.Guests.SequenceEqual(after.Guests) ? target.Guests : after.Guests,
         UseDefaultReminders = before.UseDefaultReminders == after.UseDefaultReminders ? target.UseDefaultReminders : after.UseDefaultReminders,
-        ReminderMinutes     = before.ReminderMinutes.SequenceEqual(after.ReminderMinutes) ? target.ReminderMinutes : after.ReminderMinutes,
-        HasConference       = before.HasConference == after.HasConference ? target.HasConference : after.HasConference,
-        IsFree              = before.IsFree == after.IsFree ? target.IsFree : after.IsFree,
-        Visibility          = before.Visibility == after.Visibility ? target.Visibility : after.Visibility,
+        ReminderMinutes = before.ReminderMinutes.SequenceEqual(after.ReminderMinutes) ? target.ReminderMinutes : after.ReminderMinutes,
+        HasConference = before.HasConference == after.HasConference ? target.HasConference : after.HasConference,
+        IsFree = before.IsFree == after.IsFree ? target.IsFree : after.IsFree,
+        Visibility = before.Visibility == after.Visibility ? target.Visibility : after.Visibility,
     };
 
-    void SplitSeries(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, StoredEvent master, EventDraft masterDraft, DateTimeOffset originalStart, EventDraft before, EventDraft after, bool sendUpdates)
+    private void SplitSeries(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, StoredEvent master, EventDraft masterDraft, DateTimeOffset originalStart, EventDraft before, EventDraft after, bool sendUpdates)
     {
         // End The Old Series Just Before This Instance (its later exceptions go with it)
         var ended = masterDraft with { Recurrence = RecurrenceEdits.EndBefore(masterDraft.Recurrence, originalStart, masterDraft.IsAllDay, masterDraft.Start, masterDraft.TimeZone) };
@@ -487,12 +487,12 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         // The New Series Keeps The Old One's Fields And Time Slot, Plus What Was Edited
         var next = WithChanges(masterDraft, before, after) with
         {
-            Start      = originalStart + (after.Start - before.Start),
-            End        = originalStart + (masterDraft.End - masterDraft.Start) + (after.End - before.End),
+            Start = originalStart + (after.Start - before.Start),
+            End = originalStart + (masterDraft.End - masterDraft.Start) + (after.End - before.End),
             Recurrence = recurrence,
         };
         var newId = EventIds.NewId();
-        var body  = EventJson.WithMeetIfWanted(EventJson.ApplyPatch(EventJson.CloneForCreate(master.RawJson, newId), EventJson.BuildPatch(masterDraft, next, master.RawJson)), next.HasConference && EventJson.HasMeet(master.RawJson), newId);
+        var body = EventJson.WithMeetIfWanted(EventJson.ApplyPatch(EventJson.CloneForCreate(master.RawJson, newId), EventJson.BuildPatch(masterDraft, next, master.RawJson)), next.HasConference && EventJson.HasMeet(master.RawJson), newId);
         // Sent Only After The Old Series' End Reaches Google, So The Meetings Are Never Doubled
         AddCreate(conn, tx, o.AccountId, o.CalendarId, newId, body, sendUpdates, dependsOn: endSeq);
     }
@@ -501,7 +501,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     // DELETING AND REPLYING
     // =========================================================================
 
-    static (long Seq, DeleteKind Kind)? DeleteCore(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, EditScope scope, bool sendUpdates, DateTimeOffset notBefore)
+    private static (long Seq, DeleteKind Kind)? DeleteCore(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, EditScope scope, bool sendUpdates, DateTimeOffset notBefore)
     {
         // Already Gone
         if (EventStore.Get(conn, tx, o.AccountId, o.CalendarId, o.EventId) is not { } stored)
@@ -517,7 +517,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
             return (AddDelete(conn, tx, o.AccountId, o.CalendarId, o.EventId, stored, sendUpdates, notBefore), DeleteKind.Event);
         }
 
-        var masterDraft   = LoadMaster(master, o);
+        var masterDraft = LoadMaster(master, o);
         var originalStart = OriginalStart(conn, tx, o);
         if (scope == EditScope.Following && originalStart <= masterDraft.Start)
         {
@@ -539,14 +539,14 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
 
             default:
                 var instanceId = InstanceIdOf(o, master, originalStart);
-                var existing   = EventStore.Get(conn, tx, o.AccountId, o.CalendarId, instanceId);
-                var seq        = OutboxStore.Add(conn, tx, new OutboxEntry(0, o.AccountId, o.CalendarId, instanceId, OutboxOperation.Delete, null, existing?.Etag, sendUpdates, EventStore.Snapshot(conn, tx, o.AccountId, o.CalendarId, instanceId), notBefore));
+                var existing = EventStore.Get(conn, tx, o.AccountId, o.CalendarId, instanceId);
+                var seq = OutboxStore.Add(conn, tx, new OutboxEntry(0, o.AccountId, o.CalendarId, instanceId, OutboxOperation.Delete, null, existing?.Etag, sendUpdates, EventStore.Snapshot(conn, tx, o.AccountId, o.CalendarId, instanceId), notBefore));
                 EventStore.ApplyJson(conn, tx, o.AccountId, o.CalendarId, EventJson.CanceledInstance(master.Id, instanceId, originalStart, masterDraft.IsAllDay, masterDraft.TimeZone));
                 return (seq, DeleteKind.Instance);
         }
     }
 
-    static (string EventId, StoredEvent Current) ReplyTarget(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, EditScope scope)
+    private static (string EventId, StoredEvent Current) ReplyTarget(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, EditScope scope)
     {
         if (o.RecurringEventId is not { } masterId || EventStore.Get(conn, tx, o.AccountId, o.CalendarId, masterId) is not { } master)
         {
@@ -559,7 +559,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         }
 
         var originalStart = OriginalStart(conn, tx, o);
-        var instanceId    = InstanceIdOf(o, master, originalStart);
+        var instanceId = InstanceIdOf(o, master, originalStart);
         return (instanceId, EventStore.Get(conn, tx, o.AccountId, o.CalendarId, instanceId) ?? Materialize(o, master, instanceId, originalStart));
     }
 
@@ -567,21 +567,21 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     // OUTBOX + LOCAL ROWS (always together, in the caller's transaction)
     // =========================================================================
 
-    static long AddCreate(SqliteConnection conn, SqliteTransaction tx, string accountId, string calendarId, string id, string bodyJson, bool sendUpdates, long? dependsOn = null)
+    private static long AddCreate(SqliteConnection conn, SqliteTransaction tx, string accountId, string calendarId, string id, string bodyJson, bool sendUpdates, long? dependsOn = null)
     {
         var seq = OutboxStore.Add(conn, tx, new OutboxEntry(0, accountId, calendarId, id, OutboxOperation.Create, bodyJson, null, sendUpdates, "[]", null, DependsOn: dependsOn));
         EventStore.ApplyJson(conn, tx, accountId, calendarId, EventJson.AsLocal(bodyJson));
         return seq;
     }
 
-    static long AddPatch(SqliteConnection conn, SqliteTransaction tx, string accountId, string calendarId, string eventId, StoredEvent current, JsonObject patch, bool sendUpdates, DateTimeOffset? notBefore)
+    private static long AddPatch(SqliteConnection conn, SqliteTransaction tx, string accountId, string calendarId, string eventId, StoredEvent current, JsonObject patch, bool sendUpdates, DateTimeOffset? notBefore)
     {
         var seq = OutboxStore.Add(conn, tx, new OutboxEntry(0, accountId, calendarId, eventId, OutboxOperation.Patch, patch.ToJsonString(), current.Etag, sendUpdates, EventStore.Snapshot(conn, tx, accountId, calendarId, eventId), notBefore));
         EventStore.ApplyJson(conn, tx, accountId, calendarId, EventJson.ApplyPatch(current.RawJson, patch));
         return seq;
     }
 
-    static long AddDelete(SqliteConnection conn, SqliteTransaction tx, string accountId, string calendarId, string eventId, StoredEvent stored, bool sendUpdates, DateTimeOffset? notBefore, long? dependsOn = null)
+    private static long AddDelete(SqliteConnection conn, SqliteTransaction tx, string accountId, string calendarId, string eventId, StoredEvent stored, bool sendUpdates, DateTimeOffset? notBefore, long? dependsOn = null)
     {
         var seq = OutboxStore.Add(conn, tx, new OutboxEntry(0, accountId, calendarId, eventId, OutboxOperation.Delete, null, stored.Etag, sendUpdates, EventStore.Snapshot(conn, tx, accountId, calendarId, eventId), notBefore, DependsOn: dependsOn));
         EventStore.Remove(conn, tx, accountId, calendarId, eventId);
@@ -589,10 +589,10 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     }
 
     // Late undo for one deleted item, sent quietly; waits behind the delete when it's still queued. False when there's nothing to bring back.
-    static bool BringBack(SqliteConnection conn, SqliteTransaction tx, DeletedItem item, long? dependsOn)
+    private static bool BringBack(SqliteConnection conn, SqliteTransaction tx, DeletedItem item, long? dependsOn)
     {
-        var e       = item.Entry;
-        var rows    = JsonNode.Parse(e.BeforeJson ?? "[]")!.AsArray().OfType<JsonObject>().ToList();
+        var e = item.Entry;
+        var rows = JsonNode.Parse(e.BeforeJson ?? "[]")!.AsArray().OfType<JsonObject>().ToList();
         var current = EventStore.Get(conn, tx, e.AccountId, e.CalendarId, e.EventId);
 
         // An instance Google never stored has an empty snapshot; restoring it still drops the local canceled row
@@ -604,9 +604,9 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         // Already Back (Google refused the delete, or "Keep Google's" won a conflict)
         var alreadyBack = item.Kind switch
         {
-            DeleteKind.Instance  => current is not { Status: "cancelled" },
+            DeleteKind.Instance => current is not { Status: "cancelled" },
             DeleteKind.Following => current is null || EventJson.RecurrenceOf(current.RawJson).SequenceEqual(EventJson.RecurrenceOf(rows[0].ToJsonString())),
-            _                    => current is not null,
+            _ => current is not null,
         };
         if (alreadyBack)
         {
@@ -633,7 +633,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
             case DeleteKind.Following:
                 // Snapshot The Ended Series First, And Keep The Etag The Row Has Now (not the snapshot's)
                 var before = EventStore.Snapshot(conn, tx, e.AccountId, e.CalendarId, e.EventId);
-                var etag   = current!.Etag;
+                var etag = current!.Etag;
                 // ponytail: later changed days (exceptions) Google dropped when the series ended come back from the snapshot but not at Google, so they show until the next sync removes them; re-send them as exceptions if that's missed
                 EventStore.Restore(conn, tx, e.AccountId, e.CalendarId, e.EventId, e.BeforeJson!);
                 EventStore.SetEtag(conn, tx, e.AccountId, e.CalendarId, e.EventId, etag);
@@ -643,7 +643,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
 
             default:
                 // A Series Keeps Its Canceled Days (as EXDATEs)
-                var id   = EventIds.NewId();
+                var id = EventIds.NewId();
                 var copy = EventJson.WithCanceledDays(EventJson.QuietCopy(rows[0].ToJsonString(), id), e.BeforeJson!);
                 AddCreate(conn, tx, e.AccountId, e.CalendarId, id, copy, sendUpdates: false, dependsOn);
                 break;
@@ -656,7 +656,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     // INTERNALS
     // =========================================================================
 
-    void InTransaction(Action<SqliteConnection, SqliteTransaction> work)
+    private void InTransaction(Action<SqliteConnection, SqliteTransaction> work)
     {
         using (var conn = database.Open())
         using (var tx = conn.BeginTransaction())
@@ -668,7 +668,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    static (bool CanEdit, bool CanRespond) PermissionsCore(SqliteConnection conn, SqliteTransaction? tx, CalendarOccurrence o)
+    private static (bool CanEdit, bool CanRespond) PermissionsCore(SqliteConnection conn, SqliteTransaction? tx, CalendarOccurrence o)
     {
         if (EventStore.Get(conn, tx, o.AccountId, o.CalendarId, o.EventId) is not { } stored)
         {
@@ -680,7 +680,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     }
 
     // Defense in depth behind the UI: a guest-only invite or a read-only calendar is never changed
-    static void RequireEdit(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o)
+    private static void RequireEdit(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o)
     {
         if (!PermissionsCore(conn, tx, o).CanEdit)
         {
@@ -689,7 +689,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     }
 
     // "All" and "Following" touch a series once (from its earliest chosen instance), so it's never shifted or split twice
-    static List<T> OncePerSeries<T>(SqliteConnection conn, SqliteTransaction tx, IReadOnlyList<T> items, Func<T, CalendarOccurrence> occurrenceOf, EditScope scope)
+    private static List<T> OncePerSeries<T>(SqliteConnection conn, SqliteTransaction tx, IReadOnlyList<T> items, Func<T, CalendarOccurrence> occurrenceOf, EditScope scope)
     {
         if (scope == EditScope.This)
         {
@@ -707,7 +707,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
             .Select(series => series.MinBy(item => OriginalStart(conn, tx, occurrenceOf(item)))!)];
     }
 
-    static EventDraft LoadCore(SqliteConnection conn, SqliteTransaction? tx, CalendarOccurrence o)
+    private static EventDraft LoadCore(SqliteConnection conn, SqliteTransaction? tx, CalendarOccurrence o)
     {
         var stored = Stored(conn, tx, o.AccountId, o.CalendarId, o.EventId);
         var series = o.RecurringEventId is { } masterId && masterId != o.EventId ? EventStore.Get(conn, tx, o.AccountId, o.CalendarId, masterId) : null;
@@ -715,33 +715,33 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         return EventJson.ReadDraft(o.AccountId, o.CalendarId, stored.RawJson, o.Start, o.End, o.IsAllDay, series is null ? null : EventJson.RecurrenceOf(series.RawJson));
     }
 
-    static EventDraft LoadMaster(StoredEvent master, CalendarOccurrence o) =>
+    private static EventDraft LoadMaster(StoredEvent master, CalendarOccurrence o) =>
         EventJson.ReadDraft(o.AccountId, o.CalendarId, master.RawJson, master.Start ?? o.Start, master.End ?? o.End, master.IsAllDay);
 
     // An expanded instance starts where the series put it; an exception row remembers where that was
-    static DateTimeOffset OriginalStart(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o) =>
+    private static DateTimeOffset OriginalStart(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o) =>
         o.EventId == o.RecurringEventId ? o.Start : EventStore.Get(conn, tx, o.AccountId, o.CalendarId, o.EventId)?.OriginalStart ?? o.Start;
 
-    static string InstanceIdOf(CalendarOccurrence o, StoredEvent master, DateTimeOffset originalStart) =>
+    private static string InstanceIdOf(CalendarOccurrence o, StoredEvent master, DateTimeOffset originalStart) =>
         o.EventId != master.Id ? o.EventId : EventIds.InstanceId(master.Id, originalStart, o.IsAllDay);
 
     // An instance Google hasn't sent as its own row: built from the series, not stored until the patch applies
-    static StoredEvent Materialize(CalendarOccurrence o, StoredEvent master, string instanceId, DateTimeOffset originalStart) =>
+    private static StoredEvent Materialize(CalendarOccurrence o, StoredEvent master, string instanceId, DateTimeOffset originalStart) =>
         new(instanceId, "confirmed", o.Start, o.End, o.IsAllDay, master.Id, originalStart, null, EventJson.MaterializeInstance(master.RawJson, instanceId, originalStart, o.IsAllDay, o.Start, o.End));
 
-    static StoredEvent Stored(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId, string id) =>
+    private static StoredEvent Stored(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId, string id) =>
         EventStore.Get(conn, tx, accountId, calendarId, id) ?? throw new InvalidOperationException("The event isn't stored on this PC anymore.");
 
-    DateOnly LocalDay(EventDraft draft) => DateOnly.FromDateTime(WallClock(draft, draft.Start));
+    private DateOnly LocalDay(EventDraft draft) => DateOnly.FromDateTime(WallClock(draft, draft.Start));
 
     // A time of the draft as its clock shows it: an all-day date as written, a timed one in the event's zone
-    DateTime WallClock(EventDraft draft, DateTimeOffset at) =>
+    private DateTime WallClock(EventDraft draft, DateTimeOffset at) =>
         draft.IsAllDay ? at.UtcDateTime : TimeZoneInfo.ConvertTime(at, ZoneOf(draft)).DateTime;
 
-    DateTimeOffset FromWallClock(EventDraft draft, DateTime local) => draft.IsAllDay
+    private DateTimeOffset FromWallClock(EventDraft draft, DateTime local) => draft.IsAllDay
         ? new DateTimeOffset(DateTime.SpecifyKind(local.Date, DateTimeKind.Unspecified), TimeSpan.Zero)
         : EditorTimes.ToInstant(DateOnly.FromDateTime(local), local.TimeOfDay, ZoneOf(draft));
 
-    TimeZoneInfo ZoneOf(EventDraft draft) =>
+    private TimeZoneInfo ZoneOf(EventDraft draft) =>
         RecurrenceExpander.FindZone(draft.TimeZone ?? LocalZoneId) ?? TimeZoneInfo.Utc;
 }

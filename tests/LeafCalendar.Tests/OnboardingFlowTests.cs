@@ -6,10 +6,10 @@ namespace LeafCalendar.Tests;
 
 public class OnboardingFlowTests
 {
-    static readonly OAuthClientCredentials Saved = new("123-abc.apps.googleusercontent.com", "GOCSPX-saved");
+    private static readonly OAuthClientCredentials Saved = new("123-abc.apps.googleusercontent.com", "GOCSPX-saved");
 
     // A flow moved forward to a step
-    static OnboardingFlow At(OnboardingStep step)
+    private static OnboardingFlow At(OnboardingStep step)
     {
         var flow = new OnboardingFlow();
         while (flow.Step < step)
@@ -33,7 +33,7 @@ public class OnboardingFlowTests
     [Fact]
     public void Advance_GoesThroughEveryStepInOrder_AndStopsAtDone()
     {
-        var flow  = new OnboardingFlow();
+        var flow = new OnboardingFlow();
         var steps = new List<OnboardingStep> { flow.Step };
         while (flow.Advance())
         {

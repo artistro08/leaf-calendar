@@ -21,31 +21,31 @@ namespace LeafCalendar.App;
 public sealed class LeafServices : IAsyncDisposable
 {
     // Test Mode "Browser": follows the fake Google's sign-in redirect itself
-    static readonly HttpClient FakeBrowser = new();
+    private static readonly HttpClient FakeBrowser = new();
 
-    readonly HttpClient _http;
+    private readonly HttpClient _http;
 
     /// <summary>Creates services for a profile under the package's local folder.</summary>
     public LeafServices(LaunchOptions options, string localFolder)
     {
-        Options  = options;
-        Time     = options.Now is { } now ? new ShiftedTimeProvider(TimeProvider.System, now) : TimeProvider.System;
-        Paths    = new LeafPaths(localFolder, options.Profile);
-        Log      = new AppLog(Paths.LogDirectory, Time);
+        Options = options;
+        Time = options.Now is { } now ? new ShiftedTimeProvider(TimeProvider.System, now) : TimeProvider.System;
+        Paths = new LeafPaths(localFolder, options.Profile);
+        Log = new AppLog(Paths.LogDirectory, Time);
         Database = new LeafDatabase(Paths.DatabasePath);
         Database.Migrate();
 
         // Local Edits (work offline; every edit and conflict answer nudges the sync loop to send it)
-        Editor    = new EventEditor(Database, Time);
+        Editor = new EventEditor(Database, Time);
         Conflicts = new ConflictResolver(Database, Time);
-        Editor.Changed    += (_, _) => Google?.Loop.TriggerNow();
+        Editor.Changed += (_, _) => Google?.Loop.TriggerNow();
         Conflicts.Changed += (_, _) => Google?.Loop.TriggerNow();
 
         // Global Shortcuts (registered by the tray once its window exists)
         Shortcuts = new GlobalShortcuts(Log);
 
         Tokens = new CredentialLockerTokenStore(options.Profile);
-        _http  = new HttpClient(new GoogleRetryHandler(Time) { InnerHandler = new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All } });
+        _http = new HttpClient(new GoogleRetryHandler(Time) { InnerHandler = new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All } });
 
         // Google only compresses its answers when the user agent says "gzip" too
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("LeafCalendar (gzip)");
@@ -55,7 +55,7 @@ public sealed class LeafServices : IAsyncDisposable
         PowerManager.SystemSuspendStatusChanged += OnSuspendStatusChanged;
 
         Endpoints = options.FakeGoogle is { } fake ? GoogleEndpoints.ForFake(fake) : GoogleEndpoints.Default;
-        Google    = CreateGoogle();
+        Google = CreateGoogle();
     }
 
     /// <summary>Real Google, or the fake Google from <c>--fake-google</c>.</summary>
@@ -258,7 +258,7 @@ public sealed class LeafServices : IAsyncDisposable
         }
     }
 
-    GoogleServices? CreateGoogle()
+    private GoogleServices? CreateGoogle()
     {
         if (Tokens.GetClientCredentials() is not { } credentials)
         {
@@ -270,9 +270,9 @@ public sealed class LeafServices : IAsyncDisposable
         return google;
     }
 
-    void OnNetworkStatusChanged(object sender) => Google?.Loop.TriggerNow();
+    private void OnNetworkStatusChanged(object sender) => Google?.Loop.TriggerNow();
 
-    void OnSuspendStatusChanged(object? sender, object e)
+    private void OnSuspendStatusChanged(object? sender, object e)
     {
         if (PowerManager.SystemSuspendStatus is SystemSuspendStatus.AutoResume or SystemSuspendStatus.ManualResume)
         {

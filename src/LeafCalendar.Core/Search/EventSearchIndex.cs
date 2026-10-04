@@ -1,5 +1,4 @@
 using LeafCalendar.Core.Data;
-using LeafCalendar.Core.Events;
 using Microsoft.Data.Sqlite;
 
 namespace LeafCalendar.Core.Search;
@@ -15,7 +14,7 @@ public static partial class EventSearch
     /// </summary>
     public sealed class Index
     {
-        const string Sql = """
+        private const string Sql = """
             SELECT e.account_id, e.calendar_id, e.id, e.ical_uid, e.start_utc, e.end_utc, e.is_all_day, e.is_recurring_master,
                    e.start_time_zone, e.raw_json, COALESCE(c.leaf_color, c.background_color, '#4285F4')
             FROM events e
@@ -27,12 +26,12 @@ public static partial class EventSearch
             """;
 
         // Null when there were more events than MaxRows
-        readonly List<Entry>? _entries;
+        private readonly List<Entry>? _entries;
 
-        Index(List<Entry>? entries, DateTimeOffset builtAt)
+        private Index(List<Entry>? entries, DateTimeOffset builtAt)
         {
             _entries = entries;
-            BuiltAt  = builtAt;
+            BuiltAt = builtAt;
         }
 
         /// <summary>When the events were read.</summary>
@@ -78,7 +77,7 @@ public static partial class EventSearch
             }
 
             var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
-            var hits  = new List<(SearchHit Hit, string Key)>();
+            var hits = new List<(SearchHit Hit, string Key)>();
             foreach (var entry in _entries)
             {
                 if (BestField(entry.Fields, words) is { } field)
@@ -90,16 +89,16 @@ public static partial class EventSearch
             return Order(hits, now, zone);
         }
 
-        sealed record Entry(Row Row, string Title, string? ColorId, string[] Fields)
+        private sealed record Entry(Row Row, string Title, string? ColorId, string[] Fields)
         {
-            (DateOnly Today, TimeZoneInfo Zone, List<Instance> Instances)? _expanded;
+            private (DateOnly Today, TimeZoneInfo Zone, List<Instance> Instances)? _expanded;
 
             // A series' instances, expanded on its first match and kept for the same day and zone (the index is rebuilt when events change)
             public List<Instance> InstancesFor(SqliteConnection conn, DateOnly today, TimeZoneInfo zone)
             {
                 if (_expanded is not { } expanded || expanded.Today != today || !expanded.Zone.Equals(zone))
                 {
-                    expanded  = (today, zone, Instances(conn, Row, today, zone));
+                    expanded = (today, zone, Instances(conn, Row, today, zone));
                     _expanded = expanded;
                 }
 

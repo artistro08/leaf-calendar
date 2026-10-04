@@ -33,7 +33,7 @@ public static class BusyMath
     public static IReadOnlyList<BusyRange> Subtract(IEnumerable<BusyRange> wanted, IEnumerable<BusyRange> busy)
     {
         var blocks = Merge(busy);
-        var free   = new List<BusyRange>();
+        var free = new List<BusyRange>();
 
         foreach (var slot in Merge(wanted))
         {

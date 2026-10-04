@@ -10,9 +10,9 @@ public partial class DescriptionHtmlTests
     [GeneratedRegex(@"<(?!/?(b|i|u|br|ul|ol|li)>|a href=""(https://|mailto:)[^""<>]*"">|/a>)", RegexOptions.IgnoreCase)]
     private static partial Regex ForeignTag();
 
-    static DescriptionLine Line(ListKind list, params DescriptionRun[] runs) => new(runs, list);
+    private static DescriptionLine Line(ListKind list, params DescriptionRun[] runs) => new(runs, list);
 
-    static string Shape(IReadOnlyList<DescriptionLine> lines) =>
+    private static string Shape(IReadOnlyList<DescriptionLine> lines) =>
         string.Join("|", lines.Select(l => $"{l.List}:{string.Concat(l.Runs.Select(r => (r.Bold ? "*" : "") + r.Text))}"));
 
     [Fact]
@@ -87,7 +87,7 @@ public partial class DescriptionHtmlTests
 
         for (var i = 0; i < 2_000; i++)
         {
-            var html   = string.Concat(Enumerable.Range(0, random.Next(1, 40)).Select(_ => pieces[random.Next(pieces.Length)]));
+            var html = string.Concat(Enumerable.Range(0, random.Next(1, 40)).Select(_ => pieces[random.Next(pieces.Length)]));
             var output = DescriptionHtml.Normalize(html);
 
             Assert.DoesNotMatch(ForeignTag(), output);
@@ -345,7 +345,7 @@ public partial class DescriptionHtmlTests
     [InlineData("&#")]
     public void Normalize_HugeHostileInput_StaysFast(string filler)
     {
-        var html      = string.Concat(Enumerable.Repeat(filler, 1_000_000 / filler.Length));
+        var html = string.Concat(Enumerable.Repeat(filler, 1_000_000 / filler.Length));
         var stopwatch = Stopwatch.StartNew();
 
         var output = DescriptionHtml.Normalize(html);

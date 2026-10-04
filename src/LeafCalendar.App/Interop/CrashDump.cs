@@ -13,7 +13,7 @@ namespace LeafCalendar.App.Interop;
 /// <remarks>
 /// Three routes, one dump per process at most (<see cref="AppLog.MaxDumps"/> kept in the folder):
 /// <list type="bullet">
-/// <item>Managed crashes: the App's unhandled-exception handlers call <see cref="Write"/>.</item>
+/// <item>Managed crashes: the App's unhandled-exception handlers call <see cref="Write(AppLog)"/>.</item>
 /// <item>Native crashes outside .NET (an access violation): the process's unhandled-exception filter.</item>
 /// <item>Fail-fast crashes (a XAML stowed exception, 0xC000027B, or a fail-fast from .NET) skip both, so Windows Error
 /// Reporting writes those, into the same folder, through <c>WerRegisterAppLocalDump</c>.</item>
@@ -26,11 +26,11 @@ namespace LeafCalendar.App.Interop;
 internal static unsafe class CrashDump
 {
     // How long a crashing thread waits for the dump writer
-    static readonly TimeSpan WriteTimeout = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan WriteTimeout = TimeSpan.FromSeconds(20);
 
-    static AppLog? _log;
-    static string? _relativeLogFolder;
-    static int _written;
+    private static AppLog? s_log;
+    private static string? s_relativeLogFolder;
+    private static int s_written;
 
     /// <summary>
     /// Hooks the native unhandled-exception filter for <paramref name="log"/> (once) and applies Detailed logging.
@@ -38,13 +38,13 @@ internal static unsafe class CrashDump
     /// </summary>
     public static void Install(AppLog log, string relativeLogFolder)
     {
-        if (_log is not null)
+        if (s_log is not null)
         {
             return;
         }
 
-        _log               = log;
-        _relativeLogFolder = relativeLogFolder;
+        s_log = log;
+        s_relativeLogFolder = relativeLogFolder;
         PInvoke.SetUnhandledExceptionFilter(&OnNativeCrash);
         Apply(log.Detailed);
     }
@@ -55,7 +55,7 @@ internal static unsafe class CrashDump
     /// </summary>
     public static void Apply(bool detailed)
     {
-        if (_log is not { } log || _relativeLogFolder is not { } folder)
+        if (s_log is not { } log || s_relativeLogFolder is not { } folder)
         {
             return;
         }
@@ -76,12 +76,12 @@ internal static unsafe class CrashDump
     public static void Write(AppLog log) => Write(log, null);
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
-    static int OnNativeCrash(EXCEPTION_POINTERS* exception)
+    private static int OnNativeCrash(EXCEPTION_POINTERS* exception)
     {
         // Nothing may escape a native crash filter; Windows goes on to end the process either way
         try
         {
-            if (_log is { Detailed: true } log)
+            if (s_log is { Detailed: true } log)
             {
                 log.Info("app.crash.native", $"code=0x{(uint)exception->ExceptionRecord->ExceptionCode.Value:X8}");
                 Write(log, exception);
@@ -100,16 +100,16 @@ internal static unsafe class CrashDump
 
     // Once per process (the XAML and AppDomain handlers can both report one crash), from a fresh thread, since a
     // process shouldn't dump the thread that's writing; the crashing thread waits a bounded time
-    static void Write(AppLog log, EXCEPTION_POINTERS* exception)
+    private static void Write(AppLog log, EXCEPTION_POINTERS* exception)
     {
-        if (!log.Detailed || Interlocked.Exchange(ref _written, 1) == 1)
+        if (!log.Detailed || Interlocked.Exchange(ref s_written, 1) == 1)
         {
             return;
         }
 
         var crashingThread = PInvoke.GetCurrentThreadId();
-        var pointers       = (nint)exception;
-        var writer         = new Thread(() => WriteFrom(log, crashingThread, pointers)) { IsBackground = true };
+        var pointers = (nint)exception;
+        var writer = new Thread(() => WriteFrom(log, crashingThread, pointers)) { IsBackground = true };
         writer.Start();
         if (!writer.Join(WriteTimeout))
         {
@@ -117,7 +117,7 @@ internal static unsafe class CrashDump
         }
     }
 
-    static void WriteFrom(AppLog log, uint crashingThread, nint pointers)
+    private static void WriteFrom(AppLog log, uint crashingThread, nint pointers)
     {
         try
         {
@@ -125,13 +125,13 @@ internal static unsafe class CrashDump
             using var file = File.Create(path);
             var info = new MINIDUMP_EXCEPTION_INFORMATION
             {
-                ThreadId          = crashingThread,
+                ThreadId = crashingThread,
                 ExceptionPointers = (EXCEPTION_POINTERS*)pointers,
-                ClientPointers    = false,
+                ClientPointers = false,
             };
 
             var type = MINIDUMP_TYPE.MiniDumpNormal | MINIDUMP_TYPE.MiniDumpWithThreadInfo | MINIDUMP_TYPE.MiniDumpWithUnloadedModules;
-            var ok   = PInvoke.MiniDumpWriteDump(
+            var ok = PInvoke.MiniDumpWriteDump(
                 PInvoke.GetCurrentProcess(),
                 PInvoke.GetCurrentProcessId(),
                 (HANDLE)file.SafeFileHandle.DangerousGetHandle(),

@@ -13,12 +13,12 @@ namespace LeafCalendar.Core.Auth;
 /// </remarks>
 public sealed class AccessTokenProvider(GoogleOAuthClient oauth, ITokenStore store, TimeProvider time) : IDisposable
 {
-    static readonly TimeSpan RefreshMargin = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan RefreshMargin = TimeSpan.FromMinutes(1);
 
-    readonly ConcurrentDictionary<string, TokenSet> _cache = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, TokenSet> _cache = new(StringComparer.Ordinal);
 
     // ponytail: one lock for all accounts; switch to per-account locks if refreshes ever contend.
-    readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
     /// <summary>Returns a valid access token for <paramref name="accountId"/>.</summary>
     /// <exception cref="AccountNeedsSignInException">No usable refresh token.</exception>
@@ -85,7 +85,7 @@ public sealed class AccessTokenProvider(GoogleOAuthClient oauth, ITokenStore sto
     /// <summary>Drops the cached token, e.g. after Google answers 401.</summary>
     public void Forget(string accountId) => _cache.TryRemove(accountId, out _);
 
-    bool TryGetFresh(string accountId, out string token)
+    private bool TryGetFresh(string accountId, out string token)
     {
         if (_cache.TryGetValue(accountId, out var tokens) && tokens.ExpiresAt - time.GetUtcNow() > RefreshMargin)
         {

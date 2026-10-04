@@ -8,27 +8,27 @@ namespace LeafCalendar.Tests;
 
 public sealed class SyncEngineTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    const string Family  = "family123@group.calendar.google.com";
-    const string Account = SyncHarness.AccountId;
+    private const string Primary = "leaf.tester@gmail.com";
+    private const string Family = "family123@group.calendar.google.com";
+    private const string Account = SyncHarness.AccountId;
 
-    readonly SyncHarness _h = new();
+    private readonly SyncHarness _h = new();
 
     public void Dispose() => _h.Dispose();
 
-    CalendarInfo Calendar(string id)
+    private CalendarInfo Calendar(string id)
     {
         using var conn = _h.Db.Database.Open();
         return CalendarStore.GetForAccount(conn, Account).Single(c => c.Id == id);
     }
 
-    int CountEvents(string calendarId)
+    private int CountEvents(string calendarId)
     {
         using var conn = _h.Db.Database.Open();
         return EventStore.Count(conn, Account, calendarId);
     }
 
-    StoredEvent? Get(string id)
+    private StoredEvent? Get(string id)
     {
         using var conn = _h.Db.Database.Open();
         return EventStore.Get(conn, Account, Primary, id);
@@ -230,9 +230,9 @@ public sealed class SyncEngineTests : IDisposable
     [Fact]
     public async Task SyncAccountAsync_CalledConcurrently_RunsOneAtATime()
     {
-        var ct       = TestContext.Current.CancellationToken;
+        var ct = TestContext.Current.CancellationToken;
         var inFlight = 0;
-        var overlap  = false;
+        var overlap = false;
 
         // Probe Route: never matches, but holds every request briefly so overlapping syncs collide
         _h.Google.On(
@@ -246,7 +246,7 @@ public sealed class SyncEngineTests : IDisposable
             _ => throw new InvalidOperationException("Probe route never answers."));
         _h.RouteStandardGoogle();
 
-        var first  = Task.Run(() => _h.Engine.SyncAccountAsync(Account, ct), ct);
+        var first = Task.Run(() => _h.Engine.SyncAccountAsync(Account, ct), ct);
         var second = Task.Run(() => _h.Engine.SyncAccountAsync(Account, ct), ct);
         await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(30), ct);
 
@@ -323,7 +323,7 @@ public sealed class SyncEngineTests : IDisposable
     [Fact]
     public async Task SyncAccountAsync_TokenClearedDuringPull_StaysCleared()
     {
-        var ct    = TestContext.Current.CancellationToken;
+        var ct = TestContext.Current.CancellationToken;
         var armed = false;
 
         // A Conflict Answer Forgets The Token While The Pull Is Fetching (the probe never answers, it only hooks the fetch)
@@ -423,7 +423,7 @@ public sealed class SyncEngineTests : IDisposable
         await _h.Engine.SyncAccountAsync(Account, ct);
 
         var patch = _h.Google.Requests.FindIndex(r => r.Method == HttpMethod.Patch);
-        var pull  = _h.Google.Requests.FindIndex(r => r.Method == HttpMethod.Get && r.Uri.AbsoluteUri.StartsWith(SyncHarness.PrimaryEventsUrl, StringComparison.Ordinal));
+        var pull = _h.Google.Requests.FindIndex(r => r.Method == HttpMethod.Get && r.Uri.AbsoluteUri.StartsWith(SyncHarness.PrimaryEventsUrl, StringComparison.Ordinal));
         Assert.InRange(patch, 0, pull - 1);
     }
 
@@ -470,9 +470,9 @@ public sealed class SyncEngineTests : IDisposable
     [Fact]
     public async Task SyncAllAsync_GoogleUnreachable_GoesOfflineThenBackOnline()
     {
-        var ct      = TestContext.Current.CancellationToken;
+        var ct = TestContext.Current.CancellationToken;
         var offline = false;
-        var flips   = new List<bool>();
+        var flips = new List<bool>();
 
         // Routes are first-match, so the dropped connection goes in before the standard routes
         _h.Google.On(_ => offline, _ => throw new HttpRequestException("No connection"));
@@ -532,7 +532,7 @@ public sealed class SyncEngineTests : IDisposable
         _h.Google.On(r => r.Form("refresh_token") == "1//revoked", _ => FakeHttpHandler.Json(HttpStatusCode.BadRequest, Fixture.Read("error-invalid-grant.json")));
         _h.RouteStandardGoogle();
         _h.Tokens.SetRefreshToken(Account, "1//revoked");
-        var engine  = _h.NewEngine();
+        var engine = _h.NewEngine();
         var signIns = new List<string>();
         engine.SignInNeeded += (_, account) => signIns.Add(account);
 

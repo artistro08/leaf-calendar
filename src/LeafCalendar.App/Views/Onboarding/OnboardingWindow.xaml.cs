@@ -8,7 +8,6 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Animation;
-using Windows.Win32;
 using Windows.Win32.Foundation;
 
 namespace LeafCalendar.App.Views.Onboarding;
@@ -25,14 +24,14 @@ namespace LeafCalendar.App.Views.Onboarding;
 public sealed partial class OnboardingWindow : Window
 {
     // Client Size In DIPs (the design standard's onboarding window; the steps fit without scrolling at 100%)
-    const double ClientWidth  = 520;
-    const double ClientHeight = 640;
+    private const double ClientWidth = 520;
+    private const double ClientHeight = 640;
 
-    readonly LeafServices _services;
-    readonly Action _openMain;
-    readonly OverlappedPresenter _presenter = OverlappedPresenter.Create();
-    bool _asking;
-    bool _closing;
+    private readonly LeafServices _services;
+    private readonly Action _openMain;
+    private readonly OverlappedPresenter _presenter = OverlappedPresenter.Create();
+    private bool _asking;
+    private bool _closing;
 
     /// <summary>Creates the window. <paramref name="openMain"/> opens the main window (when setup finishes, or is left with an account).</summary>
     public OnboardingWindow(LeafServices services, Action openMain)
@@ -44,7 +43,7 @@ public sealed partial class OnboardingWindow : Window
         StepPips.NumberOfPages = OnboardingFlow.StepCount;
 
         // Window Presenter: Fixed Size, Close Only (so double-clicking the title bar doesn't maximize)
-        _presenter.IsResizable   = false;
+        _presenter.IsResizable = false;
         _presenter.IsMaximizable = false;
         _presenter.IsMinimizable = false;
         AppWindow.SetPresenter(_presenter);
@@ -68,7 +67,7 @@ public sealed partial class OnboardingWindow : Window
 
         // Steps
         ViewModel.StepChanged += (_, forward) => ShowStep(forward ? SlideNavigationTransitionEffect.FromRight : SlideNavigationTransitionEffect.FromLeft);
-        ViewModel.Finished    += (_, _) => Finish();
+        ViewModel.Finished += (_, _) => Finish();
         StepFrame.Navigate(typeof(OnboardingStepPage), new OnboardingStepArgs(ViewModel, ViewModel.Step), new SuppressNavigationTransitionInfo());
 
         // Closing Asks First
@@ -93,21 +92,21 @@ public sealed partial class OnboardingWindow : Window
         Interop.Foreground.Take(new HWND(Win32Interop.GetWindowFromWindowId(AppWindow.Id)));
     }
 
-    void ShowStep(SlideNavigationTransitionEffect effect)
+    private void ShowStep(SlideNavigationTransitionEffect effect)
     {
         StepFrame.Navigate(typeof(OnboardingStepPage), new OnboardingStepArgs(ViewModel, ViewModel.Step), new SlideNavigationTransitionInfo { Effect = effect });
         StepFrame.BackStack.Clear();
     }
 
-    void OnBackClick(object sender, RoutedEventArgs e) => ViewModel.GoBack();
+    private void OnBackClick(object sender, RoutedEventArgs e) => ViewModel.GoBack();
 
-    void OnCancelClick(object sender, RoutedEventArgs e) => ViewModel.CancelSignIn();
+    private void OnCancelClick(object sender, RoutedEventArgs e) => ViewModel.CancelSignIn();
 
     // RunPrimaryAsync never throws (failures show on the step)
-    void OnPrimaryClick(object sender, RoutedEventArgs e) => _ = ViewModel.RunPrimaryAsync();
+    private void OnPrimaryClick(object sender, RoutedEventArgs e) => _ = ViewModel.RunPrimaryAsync();
 
     // "Open Leaf Calendar": the main window opens first, so the app doesn't exit when this one closes
-    void Finish()
+    private void Finish()
     {
         _closing = true;
         _openMain();
@@ -115,7 +114,7 @@ public sealed partial class OnboardingWindow : Window
     }
 
     // Leave Setup: exits (this is the only window) unless an account already exists, then the main window opens
-    void Leave()
+    private void Leave()
     {
         _closing = true;
         if (!OnboardingFlow.ExitsOnLeave(_services.HasAccount()))
@@ -127,7 +126,7 @@ public sealed partial class OnboardingWindow : Window
     }
 
     // The X: after the first sync it finishes; before, it asks (Keep setting up is the default)
-    async void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
+    private async void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         if (_closing)
         {
@@ -150,13 +149,13 @@ public sealed partial class OnboardingWindow : Window
         _asking = true;
         var dialog = new ContentDialog
         {
-            XamlRoot          = RootGrid.XamlRoot,
-            RequestedTheme    = RootGrid.ActualTheme,
-            Title             = "Leave setup?",
-            Content           = "Leaf needs a Google account to show your calendar. You can finish setup later.",
+            XamlRoot = RootGrid.XamlRoot,
+            RequestedTheme = RootGrid.ActualTheme,
+            Title = "Leave setup?",
+            Content = "Leaf needs a Google account to show your calendar. You can finish setup later.",
             PrimaryButtonText = "Leave",
-            CloseButtonText   = "Keep setting up",
-            DefaultButton     = ContentDialogButton.Close,
+            CloseButtonText = "Keep setting up",
+            DefaultButton = ContentDialogButton.Close,
         };
 
         // async void: anything that escapes here would end the process

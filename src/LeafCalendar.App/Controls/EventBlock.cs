@@ -23,33 +23,33 @@ namespace LeafCalendar.App.Controls;
 public sealed partial class EventBlock : Grid
 {
     // Segoe Fluent Icons; if a glyph renders empty on this Windows build, swap it for E787 (Calendar)
-    const string FocusGlyph    = ""; // Stopwatch
-    const string AwayGlyph     = ""; // Airplane
-    const string BirthdayGlyph = ""; // Giftbox
+    private const string FocusGlyph = ""; // Stopwatch
+    private const string AwayGlyph = ""; // Airplane
+    private const string BirthdayGlyph = ""; // Giftbox
 
     // Bottom strip that resizes instead of moving (only on cards tall enough to have one)
-    const double ResizeZone = 6;
-    static InputCursor? _resizeCursor;
-    readonly TimeGridView? _owner;
-    bool _inResizeZone;
+    private const double ResizeZone = 6;
+    private static InputCursor? s_resizeCursor;
+    private readonly TimeGridView? _owner;
+    private bool _inResizeZone;
 
     // Accent bars: 3 px wide, 2 px from the card's edges and from each other (one per calendar the event is on)
-    const double StripeWidth = 3;
-    const double StripeGap   = 2;
+    private const double StripeWidth = 3;
+    private const double StripeGap = 2;
 
-    readonly Border _card = new() { CornerRadius = new CornerRadius(4) };
-    readonly StackPanel _accents = new() { Orientation = Orientation.Horizontal, Spacing = StripeGap, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(StripeGap) };
-    readonly StackPanel _text = new() { Margin = new Thickness(9, 3, 4, 2) };
-    readonly TextBlock _title = new() { FontSize = 12, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.WrapWholeWords, MaxLines = 2 };
-    readonly TextBlock _time = new() { FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis };
-    readonly FontIcon _icon = new() { FontSize = 11, Margin = new Thickness(0, 1, 4, 0), Visibility = Visibility.Collapsed };
-    readonly ToolTip _tip = new();
-    CalendarOccurrence? _occurrence;
-    Action<CalendarOccurrence>? _select;
-    string _timeText = "";
+    private readonly Border _card = new() { CornerRadius = new CornerRadius(4) };
+    private readonly StackPanel _accents = new() { Orientation = Orientation.Horizontal, Spacing = StripeGap, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(StripeGap) };
+    private readonly StackPanel _text = new() { Margin = new Thickness(9, 3, 4, 2) };
+    private readonly TextBlock _title = new() { FontSize = 12, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.WrapWholeWords, MaxLines = 2 };
+    private readonly TextBlock _time = new() { FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly FontIcon _icon = new() { FontSize = 11, Margin = new Thickness(0, 1, 4, 0), Visibility = Visibility.Collapsed };
+    private readonly ToolTip _tip = new();
+    private CalendarOccurrence? _occurrence;
+    private Action<CalendarOccurrence>? _select;
+    private string _timeText = "";
 
     // The card's give while a read-only event is dragged (ElasticNudge); created here and never read back
-    readonly TranslateTransform _pull = new();
+    private readonly TranslateTransform _pull = new();
 
     /// <summary>Builds the card; <paramref name="owner"/> (the time grid) runs its drags and edits.</summary>
     public EventBlock(TimeGridView? owner = null)
@@ -66,7 +66,7 @@ public sealed partial class EventBlock : Grid
         inner.Children.Add(_accents);
         inner.Children.Add(_text);
 
-        _card.Child     = inner;
+        _card.Child = inner;
         RenderTransform = _pull;
         Children.Add(_card);
         if (owner is not null)
@@ -86,7 +86,7 @@ public sealed partial class EventBlock : Grid
 
         // Drag To Move, Bottom Edge To Resize, Double-Click To Edit
         PointerPressed += OnPointerPressed;
-        PointerMoved   += (_, e) =>
+        PointerMoved += (_, e) =>
         {
             // Swap The Cursor Only When The Pointer Crosses Into Or Out Of The Resize Strip
             var inZone = IsResizeZone(e.GetCurrentPoint(this).Position.Y);
@@ -95,10 +95,10 @@ public sealed partial class EventBlock : Grid
                 return;
             }
 
-            _inResizeZone   = inZone;
-            ProtectedCursor = inZone ? _resizeCursor ??= InputSystemCursor.Create(InputSystemCursorShape.SizeNorthSouth) : null;
+            _inResizeZone = inZone;
+            ProtectedCursor = inZone ? s_resizeCursor ??= InputSystemCursor.Create(InputSystemCursorShape.SizeNorthSouth) : null;
         };
-        DoubleTapped   += (_, e) =>
+        DoubleTapped += (_, e) =>
         {
             if (_occurrence is { } o && _owner is { } owner)
             {
@@ -135,11 +135,11 @@ public sealed partial class EventBlock : Grid
                 _tip.Content = owner.ViewModel.HoverText(o, _timeText);
             }
         };
-        PointerExited  += (_, _) => _owner?.ViewModel.PointerEvent = null;
+        PointerExited += (_, _) => _owner?.ViewModel.PointerEvent = null;
     }
 
     // One bar per color, and the text moved clear of them (a lone bar leaves the usual 9 px)
-    void BindStripes(IReadOnlyList<string> colors)
+    private void BindStripes(IReadOnlyList<string> colors)
     {
         while (_accents.Children.Count < colors.Count)
         {
@@ -161,7 +161,7 @@ public sealed partial class EventBlock : Grid
     }
 
     // The grid decides whether the press becomes a drag (it waits for the pointer to move a few pixels)
-    void OnPointerPressed(object sender, PointerRoutedEventArgs e)
+    private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
     {
         var point = e.GetCurrentPoint(this);
         if (_owner is null || _occurrence is not { } o || !point.Properties.IsLeftButtonPressed || e.Pointer.PointerDeviceType == PointerDeviceType.Touch)
@@ -172,7 +172,7 @@ public sealed partial class EventBlock : Grid
         _owner.BeginEventDrag(o, e, IsResizeZone(point.Position.Y), _pull);
     }
 
-    bool IsResizeZone(double y) => HoldsEnd && ActualHeight >= ResizeZone * 3 && y >= ActualHeight - ResizeZone;
+    private bool IsResizeZone(double y) => HoldsEnd && ActualHeight >= ResizeZone * 3 && y >= ActualHeight - ResizeZone;
 
     /// <summary>True when this card shows the event's real end (an overnight event only resizes from its last day).</summary>
     public bool HoldsEnd { get; set; } = true;
@@ -189,29 +189,29 @@ public sealed partial class EventBlock : Grid
     public void Bind(CalendarOccurrence occurrence, EventPalette palette, string timeText, bool selected, bool compact, Action<CalendarOccurrence> select, bool past, IReadOnlyList<string>? stripes = null)
     {
         _occurrence = occurrence;
-        _select     = select;
+        _select = select;
         // Spoken And Hovered With AM/PM (the card itself shows the grid form, which its place on the grid disambiguates)
-        _timeText   = _owner is { } owner ? TimeLabels.Range(occurrence.Start, occurrence.End, owner.ViewModel.Zone, owner.ViewModel.Settings.Use24HourTime) : timeText;
+        _timeText = _owner is { } owner ? TimeLabels.Range(occurrence.Start, occurrence.End, owner.ViewModel.Zone, owner.ViewModel.Settings.Use24HourTime) : timeText;
 
         // A Selected Card Is Always Solid (its palette is the accent at full strength), Even When Unanswered Or Declined
         var declined = occurrence.SelfResponse == ResponseStatus.Declined;
         var outlined = !selected && (declined || occurrence.SelfResponse is ResponseStatus.NeedsAction or ResponseStatus.Tentative);
-        var accent   = LeafBrushes.FromHex(palette.Accent);
+        var accent = LeafBrushes.FromHex(palette.Accent);
 
         // Card
-        _card.Background      = !outlined ? LeafBrushes.FromHex(palette.Fill) : declined ? LeafBrushes.Transparent : LeafBrushes.FromHex("#33" + palette.Fill[1..]);
-        _card.BorderBrush     = accent;
+        _card.Background = !outlined ? LeafBrushes.FromHex(palette.Fill) : declined ? LeafBrushes.Transparent : LeafBrushes.FromHex("#33" + palette.Fill[1..]);
+        _card.BorderBrush = accent;
         _card.BorderThickness = LeafBrushes.CardBorder(selected, outlined);
-        _accents.Visibility   = declined && !selected ? Visibility.Collapsed : Visibility.Visible;
+        _accents.Visibility = declined && !selected ? Visibility.Collapsed : Visibility.Visible;
         BindStripes(stripes is { Count: > 1 } ? stripes : [palette.Accent]);
 
         // Text
         var textBrush = outlined ? null : LeafBrushes.FromHex(palette.Text);
-        _title.Text            = occurrence.Title;
+        _title.Text = occurrence.Title;
         _title.TextDecorations = declined ? TextDecorations.Strikethrough : TextDecorations.None;
-        _title.MaxLines        = compact ? 1 : 2;
-        _time.Text             = timeText;
-        _time.Visibility       = compact ? Visibility.Collapsed : Visibility.Visible;
+        _title.MaxLines = compact ? 1 : 2;
+        _time.Text = timeText;
+        _time.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         if (textBrush is null)
         {
             _title.ClearValue(TextBlock.ForegroundProperty);
@@ -220,16 +220,16 @@ public sealed partial class EventBlock : Grid
         else
         {
             _title.Foreground = textBrush;
-            _time.Foreground  = LeafBrushes.FromHex(palette.SecondaryText);
+            _time.Foreground = LeafBrushes.FromHex(palette.SecondaryText);
         }
 
         // Kind Icon
         (_icon.Glyph, _icon.Visibility) = occurrence.Kind switch
         {
-            EventKind.FocusTime   => (FocusGlyph, Visibility.Visible),
+            EventKind.FocusTime => (FocusGlyph, Visibility.Visible),
             EventKind.OutOfOffice => (AwayGlyph, Visibility.Visible),
-            EventKind.Birthday    => (BirthdayGlyph, Visibility.Visible),
-            _                     => ("", Visibility.Collapsed),
+            EventKind.Birthday => (BirthdayGlyph, Visibility.Visible),
+            _ => ("", Visibility.Collapsed),
         };
         _icon.Foreground = textBrush ?? accent;
 

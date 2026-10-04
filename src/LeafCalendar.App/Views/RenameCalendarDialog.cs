@@ -20,9 +20,9 @@ public static class RenameCalendarDialog
         // Name Box (the placeholder is Google's own name, what an empty box goes back to)
         var box = new TextBox
         {
-            Text            = calendar.Summary,
+            Text = calendar.Summary,
             PlaceholderText = calendar.GoogleName,
-            MaxLength       = CalendarEdits.MaxName,
+            MaxLength = CalendarEdits.MaxName,
         };
         AutomationProperties.SetName(box, "Calendar name");
         AutomationProperties.SetAutomationId(box, "RenameCalendarBox");
@@ -31,20 +31,20 @@ public static class RenameCalendarDialog
         // Caption Line (caption size, set directly: no style read back from resources)
         var hint = new TextBlock
         {
-            FontSize     = 12,
+            FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
-            Text         = "Leave it empty to use the name from Google. Google Calendar shows this name too.",
+            Text = "Leave it empty to use the name from Google. Google Calendar shows this name too.",
         };
 
         var dialog = new ContentDialog
         {
-            XamlRoot          = owner.XamlRoot,
-            RequestedTheme    = owner.ActualTheme,
-            Title             = "Rename calendar",
-            Content           = new StackPanel { Spacing = 8, Children = { box, hint } },
+            XamlRoot = owner.XamlRoot,
+            RequestedTheme = owner.ActualTheme,
+            Title = "Rename calendar",
+            Content = new StackPanel { Spacing = 8, Children = { box, hint } },
             PrimaryButtonText = "Rename",
-            CloseButtonText   = "Cancel",
-            DefaultButton     = ContentDialogButton.Primary,
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
         };
 
         // The box is this method's own reference (never read back through the dialog)

@@ -21,10 +21,10 @@ public sealed class GoogleRetryHandler(TimeProvider time) : DelegatingHandler
     /// <summary>Total tries, including the first.</summary>
     public const int MaxAttempts = 5;
 
-    static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(60);
 
     /// <summary>Latest a retry may start after the first try, leaving the last try 30 seconds of HttpClient's 100.</summary>
-    static readonly TimeSpan RetryBudget = TimeSpan.FromSeconds(70);
+    private static readonly TimeSpan RetryBudget = TimeSpan.FromSeconds(70);
 
     /// <inheritdoc />
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -56,7 +56,7 @@ public sealed class GoogleRetryHandler(TimeProvider time) : DelegatingHandler
         }
     }
 
-    static async Task<bool> IsRetryableAsync(HttpResponseMessage response, CancellationToken ct)
+    private static async Task<bool> IsRetryableAsync(HttpResponseMessage response, CancellationToken ct)
     {
         var status = (int)response.StatusCode;
         if (response.StatusCode == HttpStatusCode.TooManyRequests || status is >= 500 and <= 599)
@@ -76,7 +76,7 @@ public sealed class GoogleRetryHandler(TimeProvider time) : DelegatingHandler
         return error?.Error?.Errors?.Any(e => e.Reason is "rateLimitExceeded" or "userRateLimitExceeded") == true;
     }
 
-    static TimeSpan GetDelay(int attempt, HttpResponseMessage response)
+    private static TimeSpan GetDelay(int attempt, HttpResponseMessage response)
     {
         if (response.Headers.RetryAfter?.Delta is { } retryAfter)
         {

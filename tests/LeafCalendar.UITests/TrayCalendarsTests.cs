@@ -8,10 +8,10 @@ namespace LeafCalendar.UITests;
 
 public sealed class TrayCalendarsTests : IDisposable
 {
-    const string FamilyId = "family123@group.calendar.google.com";
+    private const string FamilyId = "family123@group.calendar.google.com";
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -20,14 +20,14 @@ public sealed class TrayCalendarsTests : IDisposable
     }
 
     // 1:50 PM in New York on Oct 1, with a family event at 3 PM the same day
-    LeafApp Launch()
+    private LeafApp Launch()
     {
         _google.AddEvent(FamilyId, new JsonObject
         {
-            ["id"]      = "evt-family-today",
+            ["id"] = "evt-family-today",
             ["summary"] = "Pick up groceries",
-            ["start"]   = new JsonObject { ["dateTime"] = "2026-10-01T15:00:00-04:00" },
-            ["end"]     = new JsonObject { ["dateTime"] = "2026-10-01T15:30:00-04:00" },
+            ["start"] = new JsonObject { ["dateTime"] = "2026-10-01T15:00:00-04:00" },
+            ["end"] = new JsonObject { ["dateTime"] = "2026-10-01T15:30:00-04:00" },
         });
 
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01 --now 2026-10-01T13:50:00-04:00");

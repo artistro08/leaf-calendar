@@ -1,7 +1,6 @@
 using System.Net;
 using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Data;
-using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Hosting;
 using LeafCalendar.Tests.Support;
 using Microsoft.Extensions.Time.Testing;
@@ -10,15 +9,15 @@ namespace LeafCalendar.Tests;
 
 public sealed class GoogleServicesTests : IDisposable
 {
-    const string RevokeUrl   = "https://oauth2.googleapis.com/revoke";
-    const string UserInfoUrl = "https://openidconnect.googleapis.com/v1/userinfo";
+    private const string RevokeUrl = "https://oauth2.googleapis.com/revoke";
+    private const string UserInfoUrl = "https://openidconnect.googleapis.com/v1/userinfo";
 
-    readonly SyncHarness _h = new();
-    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
+    private readonly SyncHarness _h = new();
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
 
     public void Dispose() => _h.Dispose();
 
-    GoogleServices CreateServices() =>
+    private GoogleServices CreateServices() =>
         new(new HttpClient(_h.Google), new("id.apps.googleusercontent.com", "GOCSPX-test"), _h.Tokens, _h.Db.Database, _h.Log, _time);
 
     [Fact]

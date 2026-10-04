@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 
 public sealed class RepeatFilterTests
 {
-    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero));
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero));
 
     [Fact]
     public void IsRepeat_SameArgumentsWithinFiveSeconds_IsARepeat()

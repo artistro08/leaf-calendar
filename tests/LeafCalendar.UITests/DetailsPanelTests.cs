@@ -9,8 +9,8 @@ namespace LeafCalendar.UITests;
 
 public sealed class DetailsPanelTests : IDisposable
 {
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -18,9 +18,9 @@ public sealed class DetailsPanelTests : IDisposable
         _google.Dispose();
     }
 
-    static readonly string[] EditorDividers = ["Calendar", "Guests", "Call", "Reminder", "Description"];
+    private static readonly string[] EditorDividers = ["Calendar", "Guests", "Call", "Reminder", "Description"];
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
     [Fact]
     public void ClickEvent_ShowsDetails_EscapeReturnsToUpcoming()
@@ -44,10 +44,10 @@ public sealed class DetailsPanelTests : IDisposable
         using var leaf = Launch();
 
         leaf.WaitFor("Event_evt-meeting_202610011800").Click();
-        var list  = leaf.WaitFor("DetailsGuestList");
+        var list = leaf.WaitFor("DetailsGuestList");
         var texts = Retry.WhileNull(() => list.FindAllDescendants().FirstOrDefault(t => t.Name == "Pat Boss") is { } name ? list.FindAllDescendants() : null, TimeSpan.FromSeconds(10)).Result
             ?? throw new InvalidOperationException("The named guest's name didn't show.");
-        var name    = texts.First(t => t.Name == "Pat Boss").BoundingRectangle;
+        var name = texts.First(t => t.Name == "Pat Boss").BoundingRectangle;
         var address = texts.First(t => t.Name == "boss@example.com").BoundingRectangle;
 
         // Name on line 1, the address under it; an unnamed guest shows its address alone
@@ -61,7 +61,7 @@ public sealed class DetailsPanelTests : IDisposable
         _google.EditOnGoogle(SeededProfile.Email, "evt-single", e =>
         {
             e["transparency"] = "transparent";
-            e["visibility"]   = "private";
+            e["visibility"] = "private";
         });
         using var leaf = Launch();
 
@@ -86,10 +86,10 @@ public sealed class DetailsPanelTests : IDisposable
         // The design review has all four groups: three dividers, in order, each between two groups
         leaf.WaitFor("Event_evt-meeting_202610011800").Click();
         var status = leaf.WaitFor("DetailsStatus").BoundingRectangle;
-        var join   = leaf.WaitFor("DetailsDivider_Join").BoundingRectangle;
+        var join = leaf.WaitFor("DetailsDivider_Join").BoundingRectangle;
         var people = leaf.WaitFor("DetailsDivider_People").BoundingRectangle;
-        var text   = leaf.WaitFor("DetailsDivider_Description").BoundingRectangle;
-        var last   = leaf.WaitFor("DetailsDescription").BoundingRectangle;
+        var text = leaf.WaitFor("DetailsDivider_Description").BoundingRectangle;
+        var last = leaf.WaitFor("DetailsDescription").BoundingRectangle;
         Assert.True(status.Bottom <= join.Top && join.Bottom <= leaf.WaitFor("DetailsJoinButton").BoundingRectangle.Top, "The first divider isn't between the title block and Join.");
         Assert.True(join.Bottom < people.Top && people.Bottom < text.Top && text.Bottom <= last.Top, "The dividers are out of order or touching.");
     }
@@ -123,11 +123,11 @@ public sealed class DetailsPanelTests : IDisposable
     {
         _google.AddEvent(SeededProfile.Email, new JsonObject
         {
-            ["id"]          = "evt-lunch",
-            ["summary"]     = "Team lunch",
+            ["id"] = "evt-lunch",
+            ["summary"] = "Team lunch",
             ["description"] = "<a href=\"https://evil.example/login\">Log in at bank.example</a> or <a href=\"https://example.com/\">example.com</a>",
-            ["start"]       = new JsonObject { ["dateTime"] = "2026-10-01T16:00:00Z" },
-            ["end"]         = new JsonObject { ["dateTime"] = "2026-10-01T17:00:00Z" },
+            ["start"] = new JsonObject { ["dateTime"] = "2026-10-01T16:00:00Z" },
+            ["end"] = new JsonObject { ["dateTime"] = "2026-10-01T17:00:00Z" },
         });
         using var leaf = Launch();
 

@@ -14,7 +14,7 @@ namespace LeafCalendar.Core.Editing;
 /// </remarks>
 public static class RecurrenceEdits
 {
-    static readonly string[] DayCodes = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+    private static readonly string[] DayCodes = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 
     /// <summary>
     /// Stops the series just before <paramref name="splitStart"/>, and drops COUNT. All-day: UNTIL is the day before (a date).
@@ -27,7 +27,7 @@ public static class RecurrenceEdits
         [.. recurrence.Select(line => IsRule(line) && UntilBefore(line, splitStart, isAllDay, timeZoneId) is var until && !EndsBy(line, until, splitStart, isAllDay, seriesStart, timeZoneId) ? WithParts(line, "UNTIL", until) : line)];
 
     // The UNTIL that ends one rule just before the split
-    static string UntilBefore(string line, DateTimeOffset splitStart, bool isAllDay, string? timeZoneId)
+    private static string UntilBefore(string line, DateTimeOffset splitStart, bool isAllDay, string? timeZoneId)
     {
         // Use The Date As Written For All-Day, Not Its UTC Date
         if (isAllDay)
@@ -55,7 +55,7 @@ public static class RecurrenceEdits
         : string.Create(CultureInfo.InvariantCulture, $"EXDATE:{originalStart.UtcDateTime:yyyyMMdd'T'HHmmss'Z'}");
 
     // True when the rule already ends at or before the new end (so ending it again would extend it)
-    static bool EndsBy(string line, string until, DateTimeOffset splitStart, bool isAllDay, DateTimeOffset? seriesStart, string? timeZoneId)
+    private static bool EndsBy(string line, string until, DateTimeOffset splitStart, bool isAllDay, DateTimeOffset? seriesStart, string? timeZoneId)
     {
         if (Part(line, "UNTIL") is { } existing)
         {
@@ -69,13 +69,13 @@ public static class RecurrenceEdits
     }
 
     // An UNTIL value as the last moment it allows (a date counts through its end)
-    static DateTime? UntilEnd(string value) =>
+    private static DateTime? UntilEnd(string value) =>
         DateTime.TryParseExact(value.TrimEnd('Z'), "yyyyMMdd'T'HHmmss", CultureInfo.InvariantCulture, DateTimeStyles.None, out var instant) ? instant
         : DateTime.TryParseExact(value, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date.AddDays(1).AddSeconds(-1)
         : null;
 
     // Occurrences of one rule before the split (COUNT counts before EXDATE removes any)
-    static int CountBefore(string line, DateTimeOffset seriesStart, string? timeZoneId, DateTimeOffset splitStart, bool isAllDay)
+    private static int CountBefore(string line, DateTimeOffset seriesStart, string? timeZoneId, DateTimeOffset splitStart, bool isAllDay)
     {
         var seriesDate = DateOnly.FromDateTime(seriesStart.DateTime);
         return isAllDay
@@ -131,15 +131,15 @@ public static class RecurrenceEdits
         return [.. recurrence.Select(line => IsRule(line) && Part(line, "BYDAY") is { } byDay ? WithParts(line, "BYDAY", string.Join(",", byDay.Split(',').Select(code => Shift(code, days)))) : line)];
     }
 
-    static bool IsRule(string line) => line.StartsWith("RRULE:", StringComparison.Ordinal);
+    private static bool IsRule(string line) => line.StartsWith("RRULE:", StringComparison.Ordinal);
 
-    static string? Part(string line, string name) =>
+    private static string? Part(string line, string name) =>
         line["RRULE:".Length..].Split(';').Select(p => p.Split('=', 2)).FirstOrDefault(p => p[0] == name && p.Length == 2)?[1];
 
     // Set One Part And Drop UNTIL/COUNT When Setting The Other (A Rule Has At Most One Of Them)
-    static string WithParts(string line, string name, string value)
+    private static string WithParts(string line, string name, string value)
     {
-        var ends  = name is "UNTIL" or "COUNT";
+        var ends = name is "UNTIL" or "COUNT";
         var parts = line["RRULE:".Length..].Split(';', StringSplitOptions.RemoveEmptyEntries)
             .Where(p =>
             {
@@ -151,7 +151,7 @@ public static class RecurrenceEdits
         return "RRULE:" + string.Join(";", parts);
     }
 
-    static string Shift(string code, int days)
+    private static string Shift(string code, int days)
     {
         // Skip Empty Or Short Entries (Rules Come From Anyone)
         if (code.Length < 2)
@@ -159,7 +159,7 @@ public static class RecurrenceEdits
             return code;
         }
 
-        var day   = code[^2..];
+        var day = code[^2..];
         var index = Array.IndexOf(DayCodes, day);
         return index < 0 ? code : code[..^2] + DayCodes[((index + days) % 7 + 7) % 7];
     }

@@ -1,5 +1,5 @@
-using System.Net;
 using System.Globalization;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -42,8 +42,8 @@ public sealed record DescriptionRun(string Text, bool Bold = false, bool Italic 
 /// </remarks>
 public static partial class DescriptionFormatter
 {
-    const int MaxLength = 10_000;
-    const int MaxInput  = MaxLength * 4;
+    private const int MaxLength = 10_000;
+    private const int MaxInput = MaxLength * 4;
 
     /// <summary>Runs for an event's <c>description</c> field (empty when there is none).</summary>
     /// <exception cref="JsonException">The JSON is invalid.</exception>
@@ -69,30 +69,30 @@ public static partial class DescriptionFormatter
             html = html[..MaxInput];
         }
 
-        var runs           = new List<DescriptionRun>();
-        var lists          = new Stack<(ListKind Kind, int Count)>();
-        var bold           = 0;
-        var italic         = 0;
-        var underline      = 0;
-        Uri? link          = null;
-        var linkStart      = 0;
-        var position       = 0;
-        var lineStart      = true;
+        var runs = new List<DescriptionRun>();
+        var lists = new Stack<(ListKind Kind, int Count)>();
+        var bold = 0;
+        var italic = 0;
+        var underline = 0;
+        Uri? link = null;
+        var linkStart = 0;
+        var position = 0;
+        var lineStart = true;
         var previousBreaks = false;
-        Uri? closedLink    = null;
-        var closedStart    = 0;
-        var closedEnd      = 0;
+        Uri? closedLink = null;
+        var closedStart = 0;
+        var closedEnd = 0;
 
         foreach (Match tag in Tag().Matches(html))
         {
-            var name    = tag.Groups[2].Value.ToLowerInvariant();
+            var name = tag.Groups[2].Value.ToLowerInvariant();
             var closing = tag.Groups[1].Value == "/";
-            var step    = closing ? -1 : 1;
+            var step = closing ? -1 : 1;
 
             // Tags that end or start a line
             var breaks = name is "br" or "li" or "ul" or "ol" or "p" or "div" or "h1" or "h2" or "h3" or "h4" or "h5" or "h6";
             AddText(SourceText(html[position..tag.Index], previousBreaks, breaks));
-            position       = tag.Index + tag.Length;
+            position = tag.Index + tag.Length;
             previousBreaks = breaks;
 
             switch (name)
@@ -139,7 +139,7 @@ public static partial class DescriptionFormatter
                     break;
                 case "li":
                     // A stray item outside any list reads as a bullet
-                    var kind  = ListKind.Bullet;
+                    var kind = ListKind.Bullet;
                     var count = 0;
                     if (lists.TryPop(out var top))
                     {
@@ -233,7 +233,7 @@ public static partial class DescriptionFormatter
                 return;
             }
 
-            var text  = WebUtility.HtmlDecode(raw);
+            var text = WebUtility.HtmlDecode(raw);
             var style = new DescriptionRun("", bold > 0, italic > 0, underline > 0, link);
             if (link is not null)
             {
@@ -257,7 +257,7 @@ public static partial class DescriptionFormatter
             yield break;
         }
 
-        var text  = run.Text;
+        var text = run.Text;
         var start = 0;
         foreach (Match match in LinkSafety.HttpsLink().Matches(text))
         {
@@ -277,7 +277,7 @@ public static partial class DescriptionFormatter
 
     // Source formatting next to a tag that breaks the line isn't a line of its own: whitespace-only text there is
     // dropped, and so is one line break right after or right before the tag ("<b>a</b>\n<br>\nb" reads "a", "b")
-    static string SourceText(string raw, bool after, bool before)
+    private static string SourceText(string raw, bool after, bool before)
     {
         if (!after && !before)
         {
@@ -290,7 +290,7 @@ public static partial class DescriptionFormatter
         }
 
         var start = 0;
-        var end   = raw.Length;
+        var end = raw.Length;
 
         // One Leading Line Break
         if (after)
@@ -325,7 +325,7 @@ public static partial class DescriptionFormatter
 
     // True when the visible text names a web address whose host differs from where the link really goes
     // True when the text is the mail link's own address (name ignoring case, host compared in ASCII form)
-    static bool SameAddress(Uri target, string shown) =>
+    private static bool SameAddress(Uri target, string shown) =>
         Uri.TryCreate("mailto:" + shown, UriKind.Absolute, out var shownUri)
             && string.Equals(Uri.UnescapeDataString(shownUri.UserInfo), Uri.UnescapeDataString(target.UserInfo), StringComparison.OrdinalIgnoreCase)
             && LinkSafety.TryIdnHost(shownUri, out var shownHost)
@@ -363,7 +363,7 @@ public static partial class DescriptionFormatter
 
         // Scheme-less text counts as an address when its host part has an interior dot ("bank.example/login")
         var host = shown.Split('/', '?', '#')[0];
-        var dot  = host.IndexOf('.');
+        var dot = host.IndexOf('.');
         if (!web && (dot < 1 || dot >= host.Length - 1))
         {
             return false;
@@ -383,7 +383,7 @@ public static partial class DescriptionFormatter
             || !string.Equals(shownHost, targetHost, StringComparison.OrdinalIgnoreCase);
     }
 
-    static Uri? SafeLink(string attributes)
+    private static Uri? SafeLink(string attributes)
     {
         // Attributes are read left to right, so "href=" inside another attribute's quoted value is never a name
         string? value = null;
@@ -431,8 +431,8 @@ public static partial class DescriptionFormatter
                 .ToList();
         // Several recipients: Uri takes only one "@" in the address part, so all but the last "@" and the commas are
         // percent-encoded (mail apps decode them back to "a@b.example,c@d.example")
-        var to    = Uri.UnescapeDataString(parts[0]["mailto:".Length..]);
-        var at    = to.LastIndexOf('@');
+        var to = Uri.UnescapeDataString(parts[0]["mailto:".Length..]);
+        var at = to.LastIndexOf('@');
         var clean = "mailto:" + (to.Contains(',', StringComparison.Ordinal) ? to[..at].Replace("@", "%40", StringComparison.Ordinal).Replace(",", "%2C", StringComparison.Ordinal) + to[at..] : to)
             + (kept.Count > 0 ? "?" + string.Join("&", kept) : "");
         if (!Uri.TryCreate(clean, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeMailto)
@@ -447,7 +447,7 @@ public static partial class DescriptionFormatter
     }
 
     // A comma-separated list of plain addresses ("name@host": letters, digits, ".", "-", "_", "+"), checked once decoded
-    static bool AreAddresses(string encoded, bool allowEmpty)
+    private static bool AreAddresses(string encoded, bool allowEmpty)
     {
         if (encoded.Length == 0)
         {
@@ -463,13 +463,13 @@ public static partial class DescriptionFormatter
     }
 
     // Drops leading and trailing line breaks, keeps at most one blank line, drops empty runs, and caps the length
-    static List<DescriptionRun> Tidy(List<DescriptionRun> runs, out bool cut)
+    private static List<DescriptionRun> Tidy(List<DescriptionRun> runs, out bool cut)
     {
-        var result   = new List<DescriptionRun>();
-        cut          = false;
+        var result = new List<DescriptionRun>();
+        cut = false;
         var newlines = 0;
-        var started  = false;
-        var total    = 0;
+        var started = false;
+        var total = 0;
 
         foreach (var run in runs)
         {

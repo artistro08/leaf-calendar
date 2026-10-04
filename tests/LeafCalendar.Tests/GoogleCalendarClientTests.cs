@@ -8,19 +8,19 @@ namespace LeafCalendar.Tests;
 
 public class GoogleCalendarClientTests : IDisposable
 {
-    const string Account     = "109876543210";
-    const string TokenUrl    = "https://oauth2.googleapis.com/token";
-    const string ListUrl     = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
-    const string EventsUrl   = "https://www.googleapis.com/calendar/v3/calendars/leaf.tester%40gmail.com/events";
+    private const string Account = "109876543210";
+    private const string TokenUrl = "https://oauth2.googleapis.com/token";
+    private const string ListUrl = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
+    private const string EventsUrl = "https://www.googleapis.com/calendar/v3/calendars/leaf.tester%40gmail.com/events";
 
-    readonly FakeHttpHandler _google = new();
-    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
+    private readonly FakeHttpHandler _google = new();
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
 
-    GoogleCalendarClient CreateClient()
+    private GoogleCalendarClient CreateClient()
     {
         var store = new InMemoryTokenStore();
         store.SetRefreshToken(Account, "1//test-refresh-token");
-        var http  = new HttpClient(_google);
+        var http = new HttpClient(_google);
         var oauth = new GoogleOAuthClient(http, new("id.apps.googleusercontent.com", "secret"), _time);
         return new GoogleCalendarClient(http, new AccessTokenProvider(oauth, store, _time));
     }
@@ -93,7 +93,7 @@ public class GoogleCalendarClientTests : IDisposable
         Assert.Equal(2, _google.Requests.Count(r => r.Uri.AbsoluteUri == TokenUrl));
     }
 
-    const string SingleUrl = EventsUrl + "/evt-single";
+    private const string SingleUrl = EventsUrl + "/evt-single";
 
     [Fact]
     public async Task PatchEventAsync_TokenRefreshRefused_ThrowsUnauthorizedNeverAnEventRefusal()
@@ -270,7 +270,7 @@ public class GoogleCalendarClientTests : IDisposable
     // =========================================================================
 
     // A client whose access-token refresh succeeds
-    GoogleCalendarClient SignedIn()
+    private GoogleCalendarClient SignedIn()
     {
         _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
         return CreateClient();
@@ -303,7 +303,7 @@ public class GoogleCalendarClientTests : IDisposable
     public async Task QueryFreeBusy_MatchesIdsIgnoringCase_ClipsToWindow_AndCapsCount()
     {
         var client = SignedIn();
-        var many   = string.Join(',', Enumerable.Range(0, 600).Select(i => $"{{\"start\":\"2026-10-01T{i / 60:00}:{i % 60:00}:00Z\",\"end\":\"2026-10-01T{i / 60:00}:{i % 60:00}:30Z\"}}"));
+        var many = string.Join(',', Enumerable.Range(0, 600).Select(i => $"{{\"start\":\"2026-10-01T{i / 60:00}:{i % 60:00}:00Z\",\"end\":\"2026-10-01T{i / 60:00}:{i % 60:00}:30Z\"}}"));
         _google.Respond(HttpMethod.Post, "freeBusy", 200, "{\"calendars\":{"
             + "\"Dana@Example.com\":{\"busy\":[{\"start\":\"2026-09-30T20:00:00Z\",\"end\":\"2026-10-01T02:00:00Z\"},{\"start\":\"2026-10-03T00:00:00Z\",\"end\":\"2026-10-03T01:00:00Z\"}]},"
             + "\"big@example.com\":{\"busy\":[" + many + "]}}}");

@@ -21,7 +21,7 @@ public static class CalendarEdits
     public const int MaxReminders = 5;
 
     // Google's range for reminder minutes (four weeks)
-    const int MaxMinutes = 40_320;
+    private const int MaxMinutes = 40_320;
 
     /// <summary>
     /// A typed name as plain text: control, bidi, and other hidden characters removed, trimmed, and cut at
@@ -45,7 +45,7 @@ public static class CalendarEdits
     public static string RemindersPatch(IEnumerable<int> minutes, string? storedJson = null)
     {
         var reminders = new JsonArray();
-        var others    = OtherReminders(storedJson).ToList();
+        var others = OtherReminders(storedJson).ToList();
         foreach (var m in minutes.Where(m => m is >= 0 and <= MaxMinutes).Distinct().Order().Take(Math.Max(0, MaxReminders - others.Count)))
         {
             reminders.Add((JsonNode)new JsonObject { ["method"] = "popup", ["minutes"] = m });
@@ -60,7 +60,7 @@ public static class CalendarEdits
     }
 
     // The stored reminders that aren't popups, with a known method and minutes in Google's range
-    static IEnumerable<(string Method, int Minutes)> OtherReminders(string? storedJson)
+    private static IEnumerable<(string Method, int Minutes)> OtherReminders(string? storedJson)
     {
         JsonArray? stored;
         try

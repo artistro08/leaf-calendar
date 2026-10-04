@@ -5,8 +5,8 @@ namespace LeafCalendar.Tests.Support;
 /// <summary>In-memory <see cref="ITokenStore"/> for logic tests.</summary>
 public sealed class InMemoryTokenStore : ITokenStore
 {
-    readonly Dictionary<string, string> _refreshTokens = new(StringComparer.Ordinal);
-    OAuthClientCredentials? _client;
+    private readonly Dictionary<string, string> _refreshTokens = new(StringComparer.Ordinal);
+    private OAuthClientCredentials? _client;
 
     /// <inheritdoc />
     public OAuthClientCredentials? GetClientCredentials() => _client;

@@ -4,9 +4,9 @@ namespace LeafCalendar.Tests;
 
 public class DescriptionAnchorsTests
 {
-    static readonly Uri First  = new("https://example.com/first");
-    static readonly Uri Second = new("https://example.com/second");
-    static readonly Uri Doc    = new("https://example.com/doc");
+    private static readonly Uri First = new("https://example.com/first");
+    private static readonly Uri Second = new("https://example.com/second");
+    private static readonly Uri Doc = new("https://example.com/doc");
 
     // Two Links With The Same Text Keep Their Own Targets
     [Fact]

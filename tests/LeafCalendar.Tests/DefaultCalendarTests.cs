@@ -5,9 +5,9 @@ namespace LeafCalendar.Tests;
 
 public sealed class DefaultCalendarTests
 {
-    static readonly IReadOnlySet<string> Connected = new HashSet<string> { "a1", "a2" };
+    private static readonly IReadOnlySet<string> Connected = new HashSet<string> { "a1", "a2" };
 
-    static CalendarInfo Cal(string account, string id, string role, bool primary = false, bool hidden = false) =>
+    private static CalendarInfo Cal(string account, string id, string role, bool primary = false, bool hidden = false) =>
         new(account, id, id, null, role, primary, false, null, hidden, null, 0);
 
     [Fact]

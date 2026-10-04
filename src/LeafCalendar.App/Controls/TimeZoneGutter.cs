@@ -11,10 +11,10 @@ namespace LeafCalendar.App.Controls;
 /// </summary>
 public sealed partial class TimeZoneGutter : Canvas
 {
-    readonly TimeGridView _owner;
+    private readonly TimeGridView _owner;
 
     // The labels the last render drew, zone by zone, hours 1 to 23
-    string[] _drawn = [];
+    private string[] _drawn = [];
 
     /// <summary>Creates the gutter owned by <paramref name="owner"/>.</summary>
     public TimeZoneGutter(TimeGridView owner) => _owner = owner;
@@ -25,9 +25,9 @@ public sealed partial class TimeZoneGutter : Canvas
     /// </summary>
     public void Render(DateOnly day, bool onlyIfChanged = false)
     {
-        var vm    = _owner.ViewModel;
-        var dark  = _owner.IsDark;
-        var hour  = _owner.HourHeight;
+        var vm = _owner.ViewModel;
+        var dark = _owner.IsDark;
+        var hour = _owner.HourHeight;
         var zones = vm.Settings.TimeZones.Select(z => TimeZoneInfo.FindSystemTimeZoneById(z.Id)).ToList();
         zones.Add(vm.Zone);
         var local = zones.Count - 1;
@@ -51,7 +51,7 @@ public sealed partial class TimeZoneGutter : Canvas
 
         _drawn = labels;
         Children.Clear();
-        Width  = zones.Count * TimeGridView.ZoneColumnWidth;
+        Width = zones.Count * TimeGridView.ZoneColumnWidth;
         Height = _owner.BodyHeight;
 
         for (var z = 0; z < zones.Count; z++)
@@ -60,11 +60,11 @@ public sealed partial class TimeZoneGutter : Canvas
             {
                 var text = new TextBlock
                 {
-                    Text          = labels[z * 23 + h - 1],
-                    FontSize      = 11,
-                    Width         = TimeGridView.ZoneColumnWidth - 8,
+                    Text = labels[z * 23 + h - 1],
+                    FontSize = 11,
+                    Width = TimeGridView.ZoneColumnWidth - 8,
                     TextAlignment = TextAlignment.Right,
-                    Foreground    = z == local ? LeafBrushes.SecondaryText(dark) : LeafBrushes.DimText(dark),
+                    Foreground = z == local ? LeafBrushes.SecondaryText(dark) : LeafBrushes.DimText(dark),
                 };
                 SetLeft(text, z * TimeGridView.ZoneColumnWidth);
                 SetTop(text, h * hour - 8);

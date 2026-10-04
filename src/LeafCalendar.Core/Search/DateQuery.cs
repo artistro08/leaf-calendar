@@ -6,11 +6,11 @@ namespace LeafCalendar.Core.Search;
 /// <summary>Reads a typed date in the command menu ("tomorrow", "next fri", "nov 5th", "10/12", "10 weeks", "3 days ago").</summary>
 public static partial class DateQuery
 {
-    static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
+    private static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
 
     // Month and day without a year, then with one
-    static readonly string[] MonthDay     = ["MMM d", "MMMM d", "d MMM", "d MMMM", "M/d"];
-    static readonly string[] MonthDayYear = ["MMM d yyyy", "MMMM d yyyy", "d MMM yyyy", "d MMMM yyyy", "M/d/yyyy", "yyyy-MM-dd"];
+    private static readonly string[] MonthDay = ["MMM d", "MMMM d", "d MMM", "d MMMM", "M/d"];
+    private static readonly string[] MonthDayYear = ["MMM d yyyy", "MMMM d yyyy", "d MMM yyyy", "d MMMM yyyy", "M/d/yyyy", "yyyy-MM-dd"];
 
     /// <summary>
     /// Reads <paramref name="text"/> as a date relative to <paramref name="today"/>; false when it isn't one.
@@ -66,7 +66,7 @@ public static partial class DateQuery
         if (CountedWeekday().Match(input) is { Success: true } nth && WeekdayOf(nth.Groups[2].Value) is { } wanted)
         {
             var number = nth.Groups[1].Value;
-            var times  = number is "a" or "an" ? 1 : int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out var n) ? n : 0;
+            var times = number is "a" or "an" ? 1 : int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out var n) ? n : 0;
             if (times is < 1 or > 520)
             {
                 return false;
@@ -80,7 +80,7 @@ public static partial class DateQuery
         if (Count().Match(input) is { Success: true } counted)
         {
             var number = counted.Groups[1].Value;
-            var count  = number is "a" or "an" ? 1 : int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out var n) ? n : 0;
+            var count = number is "a" or "an" ? 1 : int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out var n) ? n : 0;
             if (count is < 1 or > 3660)
             {
                 return false;
@@ -90,9 +90,9 @@ public static partial class DateQuery
         }
 
         // Weekday, Optionally "next" (a week on) Or "after next" (two weeks on): "friday", "next fri", "friday after next"
-        var next      = input.StartsWith("next ", StringComparison.Ordinal);
+        var next = input.StartsWith("next ", StringComparison.Ordinal);
         var afterNext = input.EndsWith(" after next", StringComparison.Ordinal);
-        var weekday   = next ? input[5..].Trim() : afterNext ? input[..^11].Trim() : input;
+        var weekday = next ? input[5..].Trim() : afterNext ? input[..^11].Trim() : input;
         if (WeekdayOf(weekday) is { } day)
         {
             date = today.AddDays(((int)day - (int)today.DayOfWeek + 7) % 7 + (next ? 7 : afterNext ? 14 : 0));
@@ -131,7 +131,7 @@ public static partial class DateQuery
     }
 
     // Today moved by a count of a unit ("day", "weeks", "month", "year"), within the calendar's range
-    static bool TryShift(DateOnly today, int count, string unit, out DateOnly date)
+    private static bool TryShift(DateOnly today, int count, string unit, out DateOnly date)
     {
         date = default;
         try
@@ -141,7 +141,7 @@ public static partial class DateQuery
                 'd' => today.AddDays(count),
                 'w' => today.AddDays(count * 7),
                 'm' => today.AddMonths(count),
-                _   => today.AddYears(count),
+                _ => today.AddYears(count),
             };
             return true;
         }
@@ -156,7 +156,7 @@ public static partial class DateQuery
         date.ToString(date.Year == today.Year ? "ddd, MMM d" : "ddd, MMM d, yyyy", English);
 
     /// <summary>A full or 3-letter English weekday name.</summary>
-    static DayOfWeek? WeekdayOf(string text)
+    private static DayOfWeek? WeekdayOf(string text)
     {
         foreach (var day in Enum.GetValues<DayOfWeek>())
         {
@@ -199,9 +199,9 @@ public static partial class DateQuery
     [GeneratedRegex(@"\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b")]
     private static partial Regex NumberWords();
 
-    static readonly string[] Units = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"];
-    static readonly string[] Tens  = ["thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+    private static readonly string[] Units = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"];
+    private static readonly string[] Tens = ["thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
 
-    static int NumberOf(string word) =>
+    private static int NumberOf(string word) =>
         Array.IndexOf(Units, word) is var unit && unit >= 0 ? unit + 1 : (Array.IndexOf(Tens, word) + 3) * 10;
 }

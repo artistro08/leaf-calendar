@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 public class TrayGlyphTests
 {
     // The repo's Assets/Tray, found by walking up from the test binaries to the solution file
-    static string Assets
+    private static string Assets
     {
         get
         {

@@ -8,11 +8,11 @@ namespace LeafCalendar.Tests;
 
 public sealed class OccurrenceLookupTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private const string Primary = "leaf.tester@gmail.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public OccurrenceLookupTests()
     {
@@ -30,7 +30,7 @@ public sealed class OccurrenceLookupTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    CalendarOccurrence? Find(string eventId, DateTimeOffset start)
+    private CalendarOccurrence? Find(string eventId, DateTimeOffset start)
     {
         using var conn = _db.Database.Open();
         return OccurrenceLookup.Find(conn, Account, Primary, eventId, start, NewYork);

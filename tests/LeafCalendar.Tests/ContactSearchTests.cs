@@ -9,29 +9,29 @@ namespace LeafCalendar.Tests;
 
 public sealed class ContactSearchTests : IDisposable
 {
-    const string Account       = "109876543210";
-    const string TokenUrl      = "https://oauth2.googleapis.com/token";
-    const string ContactsUrl   = "https://people.googleapis.com/v1/people:searchContacts";
-    const string OthersUrl     = "https://people.googleapis.com/v1/otherContacts:search";
-    const string DirectoryUrl  = "https://people.googleapis.com/v1/people:searchDirectoryPeople";
-    const string AllScopes     = "openid https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly";
-    const string WithDirectory = AllScopes + " https://www.googleapis.com/auth/directory.readonly";
+    private const string Account = "109876543210";
+    private const string TokenUrl = "https://oauth2.googleapis.com/token";
+    private const string ContactsUrl = "https://people.googleapis.com/v1/people:searchContacts";
+    private const string OthersUrl = "https://people.googleapis.com/v1/otherContacts:search";
+    private const string DirectoryUrl = "https://people.googleapis.com/v1/people:searchDirectoryPeople";
+    private const string AllScopes = "openid https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly";
+    private const string WithDirectory = AllScopes + " https://www.googleapis.com/auth/directory.readonly";
 
     // Right-to-left override, a format character that can disguise text
-    static readonly string Rlo = char.ConvertFromUtf32(0x202E);
+    private static readonly string Rlo = char.ConvertFromUtf32(0x202E);
 
-    readonly FakeHttpHandler _google = new();
-    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
-    readonly TempFolder _logs = new();
-    readonly AccessTokenProvider _tokens;
-    readonly AppLog _log;
+    private readonly FakeHttpHandler _google = new();
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
+    private readonly TempFolder _logs = new();
+    private readonly AccessTokenProvider _tokens;
+    private readonly AppLog _log;
 
     public ContactSearchTests()
     {
         var store = new InMemoryTokenStore();
         store.SetRefreshToken(Account, "1//test-refresh-token");
         _tokens = new AccessTokenProvider(new GoogleOAuthClient(new HttpClient(_google), new("id.apps.googleusercontent.com", "secret"), _time), store, _time);
-        _log    = new AppLog(_logs.Path, _time);
+        _log = new AppLog(_logs.Path, _time);
     }
 
     public void Dispose()
@@ -41,10 +41,10 @@ public sealed class ContactSearchTests : IDisposable
         _logs.Dispose();
     }
 
-    ContactSearch CreateSearch(HttpMessageHandler? handler = null) => new(new HttpClient(handler ?? _google, disposeHandler: false), _tokens, _log);
+    private ContactSearch CreateSearch(HttpMessageHandler? handler = null) => new(new HttpClient(handler ?? _google, disposeHandler: false), _tokens, _log);
 
     // Holds matching requests until the release task completes (or the request is canceled)
-    sealed class GateHandler(Func<HttpRequestMessage, bool> hold, Task release) : DelegatingHandler
+    private sealed class GateHandler(Func<HttpRequestMessage, bool> hold, Task release) : DelegatingHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -57,16 +57,16 @@ public sealed class ContactSearchTests : IDisposable
         }
     }
 
-    static bool IsSearch(HttpRequestMessage r, string url) =>
+    private static bool IsSearch(HttpRequestMessage r, string url) =>
         r.RequestUri!.AbsoluteUri.StartsWith(url + "?query=a", StringComparison.Ordinal);
 
-    static string Person(string email) => $$$"""{"person":{"emailAddresses":[{"value":"{{{email}}}"}]}}""";
+    private static string Person(string email) => $$$"""{"person":{"emailAddresses":[{"value":"{{{email}}}"}]}}""";
 
-    void RouteToken(string scope) =>
+    private void RouteToken(string scope) =>
         _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, $$"""{"access_token":"ya29.people","expires_in":3599,"scope":"{{scope}}","token_type":"Bearer"}""");
 
     // Only real searches (the one-time warmup sends an empty query)
-    IEnumerable<RecordedRequest> Searches() =>
+    private IEnumerable<RecordedRequest> Searches() =>
         _google.Requests.Where(r => r.Method == HttpMethod.Get && !string.IsNullOrEmpty(r.Query("query")));
 
     [Fact]
@@ -234,11 +234,11 @@ public sealed class ContactSearchTests : IDisposable
     [Fact]
     public async Task Search_BlankOrHugeQuery_SendsNothing()
     {
-        var ct     = TestContext.Current.CancellationToken;
+        var ct = TestContext.Current.CancellationToken;
         var search = CreateSearch();
 
         var blank = await search.SearchAsync(Account, "   ", ct);
-        var huge  = await search.SearchAsync(Account, new string('a', 101), ct);
+        var huge = await search.SearchAsync(Account, new string('a', 101), ct);
 
         Assert.Empty(blank.Contacts);
         Assert.Empty(huge.Contacts);
@@ -377,8 +377,8 @@ public sealed class ContactSearchTests : IDisposable
     {
         RouteToken(AllScopes);
         var lineSeparator = char.ConvertFromUtf32(0x2028);
-        var noBreakSpace  = char.ConvertFromUtf32(0x00A0);
-        var tooLong       = new string('a', 250) + "@example.com";
+        var noBreakSpace = char.ConvertFromUtf32(0x00A0);
+        var tooLong = new string('a', 250) + "@example.com";
         _google.On(HttpMethod.Get, ContactsUrl, HttpStatusCode.OK, $$"""
             {"results":[
               {{Person("ls" + lineSeparator + "x@example.com")}},
@@ -466,9 +466,9 @@ public sealed class ContactSearchTests : IDisposable
         _google.On(HttpMethod.Get, ContactsUrl, HttpStatusCode.OK, $$"""{"results":[{{Person("alice@example.com")}}]}""");
         _google.On(HttpMethod.Get, OthersUrl, HttpStatusCode.OK, "{}");
 
-        var search    = CreateSearch();
+        var search = CreateSearch();
         var workspace = await search.SearchAsync(Account, "a", workspace: true, TestContext.Current.CancellationToken);
-        var personal  = await search.SearchAsync(Account, "a", TestContext.Current.CancellationToken);
+        var personal = await search.SearchAsync(Account, "a", TestContext.Current.CancellationToken);
 
         Assert.Equal(ContactAccess.NeedsConsent, workspace.Access);
         Assert.Equal(["alice@example.com"], workspace.Contacts.Select(c => c.Email));

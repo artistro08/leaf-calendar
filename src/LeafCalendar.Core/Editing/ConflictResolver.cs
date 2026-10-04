@@ -1,4 +1,3 @@
-using System.Text.Json;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Sync;
 using Microsoft.Data.Sqlite;
@@ -63,7 +62,7 @@ public sealed class ConflictResolver(LeafDatabase database, TimeProvider time)
 
         // Google Deleted It: a delete is done, anything else comes back as a new event
         var calendarId = OutboxSender.LocalCalendarOf(entry);
-        var local      = conflict.LocalJson ?? EventStore.Get(conn, tx, entry.AccountId, calendarId, entry.EventId)?.RawJson;
+        var local = conflict.LocalJson ?? EventStore.Get(conn, tx, entry.AccountId, calendarId, entry.EventId)?.RawJson;
         if (entry.Operation == OutboxOperation.Delete || local is null)
         {
             OutboxStore.Remove(conn, tx, entry.Seq);
@@ -77,7 +76,7 @@ public sealed class ConflictResolver(LeafDatabase database, TimeProvider time)
         }
 
         var newId = EventIds.NewId();
-        var body  = EventJson.WithCanceledDays(EventJson.WithMeetIfWanted(EventJson.CloneForCreate(local, newId), EventJson.HasMeet(local), newId), EventStore.Snapshot(conn, tx, entry.AccountId, calendarId, entry.EventId));
+        var body = EventJson.WithCanceledDays(EventJson.WithMeetIfWanted(EventJson.CloneForCreate(local, newId), EventJson.HasMeet(local), newId), EventStore.Snapshot(conn, tx, entry.AccountId, calendarId, entry.EventId));
         OutboxStore.Replace(conn, tx, entry with { CalendarId = calendarId, EventId = newId, Operation = OutboxOperation.Create, Payload = body, BaseEtag = null, BeforeJson = "[]", NotBefore = null });
         EventStore.Remove(conn, tx, entry.AccountId, calendarId, entry.EventId);
         EventStore.ApplyJson(conn, tx, entry.AccountId, calendarId, EventJson.AsLocal(body));
@@ -120,13 +119,13 @@ public sealed class ConflictResolver(LeafDatabase database, TimeProvider time)
 
     // Pulls skipped this event (and a series' exceptions) while the conflict was open but still advanced the
     // sync token; forgetting the token makes the next sync reload the calendar, so nothing skipped is lost
-    static void ReloadCalendars(SqliteConnection conn, SqliteTransaction tx, OutboxEntry entry)
+    private static void ReloadCalendars(SqliteConnection conn, SqliteTransaction tx, OutboxEntry entry)
     {
         CalendarStore.SetSyncToken(conn, tx, entry.AccountId, entry.CalendarId, null);
         CalendarStore.SetSyncToken(conn, tx, entry.AccountId, OutboxSender.LocalCalendarOf(entry), null);
     }
 
-    void InTransaction(Action<SqliteConnection, SqliteTransaction> work)
+    private void InTransaction(Action<SqliteConnection, SqliteTransaction> work)
     {
         using (var conn = database.Open())
         using (var tx = conn.BeginTransaction())

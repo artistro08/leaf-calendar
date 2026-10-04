@@ -11,10 +11,144 @@ trim_trailing_whitespace = true
 [*.{json,yml,yaml}]
 indent_size = 2
 
+# C# standard: Microsoft's .NET coding conventions, enforced by the build
+# (EnforceCodeStyleInBuild and TreatWarningsAsErrors in Directory.Build.props).
+#   https://learn.microsoft.com/dotnet/csharp/fundamentals/coding-style/coding-conventions
+#   https://learn.microsoft.com/dotnet/csharp/fundamentals/coding-style/identifier-names
+#   https://learn.microsoft.com/dotnet/standard/design-guidelines/
 [*.cs]
+
+# Namespaces: file-scoped, and the namespace is the root namespace plus the folder path (IDE0130)
 csharp_style_namespace_declarations = file_scoped:warning
-csharp_prefer_braces = when_multiline:warning
+dotnet_diagnostic.IDE0161.severity = warning
+dotnet_style_namespace_match_folder = true
+dotnet_diagnostic.IDE0130.severity = warning
+
+# Usings: outside the namespace, System first, none unused
+csharp_using_directive_placement = outside_namespace:warning
+dotnet_diagnostic.IDE0065.severity = warning
 dotnet_sort_system_directives_first = true
+dotnet_diagnostic.IDE0005.severity = warning
+
+# Formatting: Visual Studio's defaults (no column alignment)
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_indent_case_contents = true
+csharp_indent_switch_labels = true
+csharp_space_after_cast = false
+csharp_space_after_keywords_in_control_flow_statements = true
+csharp_preserve_single_line_blocks = true
+csharp_preserve_single_line_statements = true
+dotnet_diagnostic.IDE0055.severity = warning
+
+# Access modifiers are always written out
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+dotnet_diagnostic.IDE0040.severity = warning
+
+# Braces, modifier order, readonly fields
+csharp_prefer_braces = when_multiline:warning
+dotnet_diagnostic.IDE0011.severity = warning
+csharp_preferred_modifier_order = public,private,protected,internal,file,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,required,volatile,async:warning
+dotnet_diagnostic.IDE0036.severity = warning
+dotnet_style_readonly_field = true:warning
+dotnet_diagnostic.IDE0044.severity = warning
+
+# No "this." and language keywords for built-in types (int, not Int32)
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_property = false:warning
+dotnet_style_qualification_for_method = false:warning
+dotnet_style_qualification_for_event = false:warning
+dotnet_diagnostic.IDE0003.severity = warning
+dotnet_style_predefined_type_for_locals_parameters_members = true:warning
+dotnet_style_predefined_type_for_member_access = true:warning
+dotnet_diagnostic.IDE0049.severity = warning
+
+# Unused code
+dotnet_diagnostic.IDE0051.severity = warning
+dotnet_diagnostic.IDE0052.severity = warning
+dotnet_diagnostic.IDE0059.severity = warning
+dotnet_diagnostic.IDE0060.severity = warning
+
+# Naming (IDE1006)
+dotnet_diagnostic.IDE1006.severity = warning
+
+dotnet_naming_style.pascal_case.capitalization = pascal_case
+dotnet_naming_style.camel_case.capitalization = camel_case
+dotnet_naming_style.i_pascal_case.capitalization = pascal_case
+dotnet_naming_style.i_pascal_case.required_prefix = I
+dotnet_naming_style.t_pascal_case.capitalization = pascal_case
+dotnet_naming_style.t_pascal_case.required_prefix = T
+dotnet_naming_style.underscore_camel_case.capitalization = camel_case
+dotnet_naming_style.underscore_camel_case.required_prefix = _
+dotnet_naming_style.s_camel_case.capitalization = camel_case
+dotnet_naming_style.s_camel_case.required_prefix = s_
+
+# Interfaces start with I
+dotnet_naming_symbols.interfaces.applicable_kinds = interface
+dotnet_naming_rule.interfaces_start_with_i.symbols = interfaces
+dotnet_naming_rule.interfaces_start_with_i.style = i_pascal_case
+dotnet_naming_rule.interfaces_start_with_i.severity = warning
+
+# Type parameters start with T
+dotnet_naming_symbols.type_parameters.applicable_kinds = type_parameter
+dotnet_naming_rule.type_parameters_start_with_t.symbols = type_parameters
+dotnet_naming_rule.type_parameters_start_with_t.style = t_pascal_case
+dotnet_naming_rule.type_parameters_start_with_t.severity = warning
+
+# Types, namespaces, methods, properties and events are PascalCase
+dotnet_naming_symbols.types_and_members.applicable_kinds = namespace, class, struct, enum, delegate, method, property, event, local_function
+dotnet_naming_rule.types_and_members_are_pascal_case.symbols = types_and_members
+dotnet_naming_rule.types_and_members_are_pascal_case.style = pascal_case
+dotnet_naming_rule.types_and_members_are_pascal_case.severity = warning
+
+# Constants and static readonly fields are PascalCase
+dotnet_naming_symbols.constants.applicable_kinds = field
+dotnet_naming_symbols.constants.required_modifiers = const
+dotnet_naming_rule.constants_are_pascal_case.symbols = constants
+dotnet_naming_rule.constants_are_pascal_case.style = pascal_case
+dotnet_naming_rule.constants_are_pascal_case.severity = warning
+
+dotnet_naming_symbols.static_readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_fields.required_modifiers = static, readonly
+dotnet_naming_rule.static_readonly_fields_are_pascal_case.symbols = static_readonly_fields
+dotnet_naming_rule.static_readonly_fields_are_pascal_case.style = pascal_case
+dotnet_naming_rule.static_readonly_fields_are_pascal_case.severity = warning
+
+# Fields other code can see are PascalCase
+dotnet_naming_symbols.visible_fields.applicable_kinds = field
+dotnet_naming_symbols.visible_fields.applicable_accessibilities = public, protected, protected_internal
+dotnet_naming_rule.visible_fields_are_pascal_case.symbols = visible_fields
+dotnet_naming_rule.visible_fields_are_pascal_case.style = pascal_case
+dotnet_naming_rule.visible_fields_are_pascal_case.severity = warning
+
+# Private static fields are s_camelCase; private instance fields are _camelCase
+dotnet_naming_symbols.private_static_fields.applicable_kinds = field
+dotnet_naming_symbols.private_static_fields.applicable_accessibilities = private, internal, private_protected
+dotnet_naming_symbols.private_static_fields.required_modifiers = static
+dotnet_naming_rule.private_static_fields_start_with_s.symbols = private_static_fields
+dotnet_naming_rule.private_static_fields_start_with_s.style = s_camel_case
+dotnet_naming_rule.private_static_fields_start_with_s.severity = warning
+
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private, internal, private_protected
+dotnet_naming_rule.private_fields_start_with_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_start_with_underscore.style = underscore_camel_case
+dotnet_naming_rule.private_fields_start_with_underscore.severity = warning
+
+# Local constants may be PascalCase (as in dotnet/runtime) or camelCase
+dotnet_naming_symbols.local_constants.applicable_kinds = local
+dotnet_naming_symbols.local_constants.required_modifiers = const
+dotnet_naming_rule.local_constants_any_case.symbols = local_constants
+dotnet_naming_rule.local_constants_any_case.style = camel_case
+dotnet_naming_rule.local_constants_any_case.severity = none
+
+# Locals and parameters are camelCase
+dotnet_naming_symbols.locals_and_parameters.applicable_kinds = parameter, local
+dotnet_naming_rule.locals_and_parameters_are_camel_case.symbols = locals_and_parameters
+dotnet_naming_rule.locals_and_parameters_are_camel_case.style = camel_case
+dotnet_naming_rule.locals_and_parameters_are_camel_case.severity = warning
 
 # Leaf is an app, not a reusable library: public types in app assemblies are intended.
 dotnet_diagnostic.CA1515.severity = none
@@ -22,3 +156,7 @@ dotnet_diagnostic.CA1515.severity = none
 dotnet_diagnostic.CA2007.severity = none
 # Leaf exceptions carry required data; parameterless constructors would allow invalid instances.
 dotnet_diagnostic.CA1032.severity = none
+
+# XAML-generated code (x:FieldModifier="public" fields) carries no doc comments
+[*.{g.cs,g.i.cs}]
+dotnet_diagnostic.CS1591.severity = none

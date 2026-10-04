@@ -9,14 +9,14 @@ namespace LeafCalendar.UITests.Support;
 /// a DPI-unaware test process has its cursor positions scaled, and on a 125% display the pointer (and
 /// the mouse wheel) lands 1.25 times too far from the screen's corner.
 /// </summary>
-static class DpiAwareness
+internal static class DpiAwareness
 {
-    static readonly nint PerMonitorAwareV2 = -4;
+    private static readonly nint PerMonitorAwareV2 = -4;
 
     [ModuleInitializer]
     internal static void Initialize() => NativeMethods.SetProcessDpiAwarenessContext(PerMonitorAwareV2);
 
-    static class NativeMethods
+    private static class NativeMethods
     {
         [DllImport("user32.dll")]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

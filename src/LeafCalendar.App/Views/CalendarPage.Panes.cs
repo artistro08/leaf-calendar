@@ -22,27 +22,27 @@ namespace LeafCalendar.App.Views;
 public sealed partial class CalendarPage
 {
     // WinUI SplitView's timing and curve (the title bar toolbar slides on the same ones)
-    static readonly TimeSpan PaneOpenDuration  = TimeSpan.FromMilliseconds(200);
-    static readonly TimeSpan PaneCloseDuration = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan PaneOpenDuration = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan PaneCloseDuration = TimeSpan.FromMilliseconds(100);
 
-    bool _sidebarOpen = true;
-    bool _detailsOpen = true;
+    private bool _sidebarOpen = true;
+    private bool _detailsOpen = true;
 
     // Composition objects, built once and kept (never read back from XAML)
-    InsetClip? _fillClip;
-    CubicBezierEasingFunction? _paneEasing;
+    private InsetClip? _fillClip;
+    private CubicBezierEasingFunction? _paneEasing;
 
     // Each slide's number: only the latest one for a pane may collapse it when it ends
-    int _sidebarSlide;
-    int _detailsSlide;
+    private int _sidebarSlide;
+    private int _detailsSlide;
 
     // Slides running now, and the visuals drawn at their own size while they run, with the center point each had
     // (released when the last slide ends)
-    int _slidesRunning;
-    readonly Dictionary<Visual, Held> _unstretched = [];
+    private int _slidesRunning;
+    private readonly Dictionary<Visual, Held> _unstretched = [];
 
     // The day areas stretched while a slide runs, with the free room each was stretched for (its left and right)
-    readonly Dictionary<Visual, (float Left, float Right)> _days = [];
+    private readonly Dictionary<Visual, (float Left, float Right)> _days = [];
 
     /// <summary>True when the sidebar takes up room (from the moment it starts to open until it starts to close).</summary>
     public bool IsSidebarOpen => _sidebarOpen;
@@ -69,7 +69,7 @@ public sealed partial class CalendarPage
         ElementCompositionPreview.SetIsTranslationEnabled(element, true);
 
         var visual = ElementCompositionPreview.GetElementVisual(element);
-        var ride   = visual.Compositor.CreateExpressionAnimation("closed + (open - closed) * fill.LeftInset / width - rest");
+        var ride = visual.Compositor.CreateExpressionAnimation("closed + (open - closed) * fill.LeftInset / width - rest");
         ride.SetReferenceParameter("fill", _fillClip!);
         ride.SetScalarParameter("closed", (float)closed);
         ride.SetScalarParameter("open", (float)open);
@@ -79,13 +79,13 @@ public sealed partial class CalendarPage
     }
 
     // The island's stretch follows the window's width
-    void OnIslandSizeChanged(object sender, SizeChangedEventArgs e)
+    private void OnIslandSizeChanged(object sender, SizeChangedEventArgs e)
     {
         EnsurePaneVisuals();
         FollowFillWithIsland();
     }
 
-    void EnsurePaneVisuals()
+    private void EnsurePaneVisuals()
     {
         if (_fillClip is not null)
         {
@@ -93,13 +93,13 @@ public sealed partial class CalendarPage
         }
 
         // The Island's Clip (keeps the time grid's scrolling content from drawing under the panes)
-        var island  = ElementCompositionPreview.GetElementVisual(Island);
-        var fill    = ElementCompositionPreview.GetElementVisual(IslandFill);
-        _fillClip   = fill.Compositor.CreateInsetClip();
+        var island = ElementCompositionPreview.GetElementVisual(Island);
+        var fill = ElementCompositionPreview.GetElementVisual(IslandFill);
+        _fillClip = fill.Compositor.CreateInsetClip();
         _paneEasing = fill.Compositor.CreateCubicBezierEasingFunction(new Vector2(0, 0.35f), new Vector2(0.15f, 1));
         island.Clip = island.Compositor.CreateInsetClip();
-        fill.Clip   = _fillClip;
-        _fillClip.LeftInset  = _sidebarOpen ? (float)SidebarWidth : 0;
+        fill.Clip = _fillClip;
+        _fillClip.LeftInset = _sidebarOpen ? (float)SidebarWidth : 0;
         _fillClip.RightInset = _detailsOpen ? (float)DetailsWidth : 0;
 
         ElementCompositionPreview.SetIsTranslationEnabled(IslandArea, true);
@@ -110,7 +110,7 @@ public sealed partial class CalendarPage
 
     // Opens or closes one pane: the island takes its final room now; the pane, the fill's edge, and the island
     // (stretched to the room between the edges) slide there from wherever they are
-    void SlidePane(bool sidebar, bool open, bool animate, Action? started = null)
+    private void SlidePane(bool sidebar, bool open, bool animate, Action? started = null)
     {
         EnsurePaneVisuals();
         var was = sidebar ? _sidebarOpen : _detailsOpen;
@@ -123,12 +123,12 @@ public sealed partial class CalendarPage
             _detailsOpen = open;
         }
 
-        var pane     = sidebar ? (UIElement)Sidebar : DetailsPane;
-        var width    = (float)(sidebar ? SidebarWidth : DetailsWidth);
-        var fillTo   = open ? width : 0;
-        var inset    = sidebar ? "LeftInset" : "RightInset";
+        var pane = sidebar ? (UIElement)Sidebar : DetailsPane;
+        var width = (float)(sidebar ? SidebarWidth : DetailsWidth);
+        var fillTo = open ? width : 0;
+        var inset = sidebar ? "LeftInset" : "RightInset";
         var duration = open ? PaneOpenDuration : PaneCloseDuration;
-        var room     = new Thickness(_sidebarOpen ? SidebarWidth : 0, 0, _detailsOpen ? DetailsWidth : 0, 0);
+        var room = new Thickness(_sidebarOpen ? SidebarWidth : 0, 0, _detailsOpen ? DetailsWidth : 0, 0);
 
         // Already Headed There (a slide that's running keeps going)
         if (animate && was == open)
@@ -142,8 +142,8 @@ public sealed partial class CalendarPage
         // follows it, all in the compositor's same frame, so nothing shows between them, and a toggle mid-slide turns
         // around from wherever the edge is now
         var compositor = _fillClip!.Compositor;
-        var visual     = ElementCompositionPreview.GetElementVisual(pane);
-        var ride       = compositor.CreateExpressionAnimation(sidebar ? "fill.LeftInset - width" : "width - fill.RightInset");
+        var visual = ElementCompositionPreview.GetElementVisual(pane);
+        var ride = compositor.CreateExpressionAnimation(sidebar ? "fill.LeftInset - width" : "width - fill.RightInset");
         ride.SetReferenceParameter("fill", _fillClip);
         ride.SetScalarParameter("width", width);
         visual.StartAnimation("Translation.X", ride);
@@ -157,7 +157,7 @@ public sealed partial class CalendarPage
             _fillClip.StopAnimation(inset);
             SetInset(_fillClip, sidebar, fillTo);
             IslandArea.Margin = room;
-            pane.Visibility   = open ? Visibility.Visible : Visibility.Collapsed;
+            pane.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
             started?.Invoke();
             return;
         }
@@ -188,10 +188,10 @@ public sealed partial class CalendarPage
     }
 
     // Waiting for the frame that starts a slide to be rendered (one wait covers toggles in the same frame)
-    bool _framePending;
-    bool _holding;
+    private bool _framePending;
+    private bool _holding;
 
-    void AfterNextFrame()
+    private void AfterNextFrame()
     {
         if (_framePending)
         {
@@ -202,15 +202,15 @@ public sealed partial class CalendarPage
         CompositionTarget.Rendered += OnSlideFrame;
     }
 
-    void OnSlideFrame(object? sender, RenderedEventArgs e)
+    private void OnSlideFrame(object? sender, RenderedEventArgs e)
     {
         CompositionTarget.Rendered -= OnSlideFrame;
-        _framePending     = false;
+        _framePending = false;
         IslandArea.Margin = new Thickness(_sidebarOpen ? SidebarWidth : 0, 0, _detailsOpen ? DetailsWidth : 0, 0);
     }
 
     // Counts the running slides; while any runs, every layout pass of the island holds its new elements at their size
-    void HoldWhileSliding()
+    private void HoldWhileSliding()
     {
         Unstretch(IslandArea);
         _slidesRunning++;
@@ -222,7 +222,7 @@ public sealed partial class CalendarPage
     }
 
     // The last running slide is over: back to plain XAML
-    void LetGoAfterSliding()
+    private void LetGoAfterSliding()
     {
         if (--_slidesRunning > 0)
         {
@@ -238,14 +238,14 @@ public sealed partial class CalendarPage
         ReleaseUnstretched();
     }
 
-    void OnSlidingLayout(object? sender, object e) => Unstretch(IslandArea);
+    private void OnSlidingLayout(object? sender, object e) => Unstretch(IslandArea);
 
     // The island is laid out at its final size at once (one relayout), then drawn stretched to the room the sliding
     // panes' edges leave, all on the compositor: scale and shift follow the fill's insets, so the island eases
     // to its place like the pane does, however long that one relayout stalls the UI thread. Both read the island's
     // laid-out spot and size from its own visual, so a new layout and its stretch always land in the same frame
     // (whenever the layout gets there). At rest both are identity.
-    void FollowFillWithIsland()
+    private void FollowFillWithIsland()
     {
         var width = (float)Root.ActualWidth;
         if (_fillClip is null || width <= 0)
@@ -253,7 +253,7 @@ public sealed partial class CalendarPage
             return;
         }
 
-        var visual     = ElementCompositionPreview.GetElementVisual(IslandArea);
+        var visual = ElementCompositionPreview.GetElementVisual(IslandArea);
         var compositor = visual.Compositor;
 
         var scale = compositor.CreateExpressionAnimation("(width - fill.LeftInset - fill.RightInset) / Max(1, this.Target.Size.X)");
@@ -272,7 +272,7 @@ public sealed partial class CalendarPage
 
     // What the island holds at its own size while it's stretched: the visual's center point before (restored after),
     // and the width it was held at (a later layout pass only redoes what changed)
-    sealed record Held(Vector3 Center, float Width);
+    private sealed record Held(Vector3 Center, float Width);
 
     // Walks the island and undoes the stretch on everything that would look squashed or moved by it. Each held element
     // is scaled by 1 / the island's scale around a center point that keeps it where it belongs:
@@ -285,12 +285,12 @@ public sealed partial class CalendarPage
     //     notice) nothing moves but with its own side of the island: each text, icon, and control keeps its size and
     //     its distance from the island's left edge, center, or right edge, whichever it's nearest.
     // Called as a slide starts and after each layout pass while it runs.
-    void Unstretch(UIElement root)
+    private void Unstretch(UIElement root)
     {
-        var island     = ElementCompositionPreview.GetElementVisual(IslandArea);
+        var island = ElementCompositionPreview.GetElementVisual(IslandArea);
         var compositor = island.Compositor;
-        var room       = (float)IslandArea.ActualWidth;
-        var scale      = compositor.CreateExpressionAnimation("1 / island.Scale.X");
+        var room = (float)IslandArea.ActualWidth;
+        var scale = compositor.CreateExpressionAnimation("1 / island.Scale.X");
         scale.SetReferenceParameter("island", island);
         Walk(root, null);
 
@@ -351,8 +351,8 @@ public sealed partial class CalendarPage
         Visual StretchDays(FrameworkElement area)
         {
             var visual = ElementCompositionPreview.GetElementVisual(area);
-            var left   = (float)area.TransformToVisual(IslandArea).TransformPoint(default).X;
-            var right  = room - left - (float)area.ActualWidth;
+            var left = (float)area.TransformToVisual(IslandArea).TransformPoint(default).X;
+            var right = room - left - (float)area.ActualWidth;
             ElementCompositionPreview.SetIsTranslationEnabled(area, true);
 
             var key = (left, right);
@@ -383,9 +383,9 @@ public sealed partial class CalendarPage
         // distance from that side
         void Pin(FrameworkElement element)
         {
-            var left   = (float)element.TransformToVisual(IslandArea).TransformPoint(default).X;
+            var left = (float)element.TransformToVisual(IslandArea).TransformPoint(default).X;
             var middle = left + (float)element.ActualWidth / 2;
-            var side   = middle < room / 3 ? 0 : middle > room * 2 / 3 ? room : room / 2;
+            var side = middle < room / 3 ? 0 : middle > room * 2 / 3 ? room : room / 2;
             Hold(element, null, side - left, clip: false);
         }
 
@@ -394,8 +394,8 @@ public sealed partial class CalendarPage
         {
 
             var visual = ElementCompositionPreview.GetElementVisual(element);
-            var width  = (float)element.ActualWidth;
-            var held   = _unstretched.TryGetValue(visual, out var was);
+            var width = (float)element.ActualWidth;
+            var held = _unstretched.TryGetValue(visual, out var was);
 
             // Already Held At This Width (a later layout pass): only the center point can have moved
             if (!held)
@@ -426,7 +426,7 @@ public sealed partial class CalendarPage
             if (clip)
             {
                 var share = width == 0 ? 0 : center / width;
-                var box   = compositor.CreateInsetClip();
+                var box = compositor.CreateInsetClip();
                 StartInset(box, zone!, "LeftInset", share * width);
                 StartInset(box, zone!, "RightInset", (1 - share) * width);
                 visual.Clip = box;
@@ -444,59 +444,59 @@ public sealed partial class CalendarPage
     }
 
     // Text that fills its slot and trims to it (an event's title, a chip's dot and title): only it can run past a narrower slot
-    static bool FillsItsSlot(FrameworkElement element) =>
+    private static bool FillsItsSlot(FrameworkElement element) =>
         element.HorizontalAlignment == HorizontalAlignment.Stretch
         && element is StackPanel { Orientation: Orientation.Horizontal } or TextBlock { TextTrimming: not TextTrimming.None };
 
     // Icons, images, dots, circles and pills (a corner radius of half the height or more), buttons (their rounded box
     // would cut their text off as it squeezes), and lines 3 px or thinner
-    static bool IsUnstretchable(FrameworkElement element) => element switch
+    private static bool IsUnstretchable(FrameworkElement element) => element switch
     {
-        IconElement or Image or Ellipse                     => true,
-        ButtonBase                                          => true,
-        Rectangle line                                      => line.ActualWidth <= 3,
-        Border round when round.CornerRadius.TopLeft > 0    => round.CornerRadius.TopLeft * 2 >= Math.Min(round.ActualWidth, round.ActualHeight) - 1,
-        _                                                   => false,
+        IconElement or Image or Ellipse => true,
+        ButtonBase => true,
+        Rectangle line => line.ActualWidth <= 3,
+        Border round when round.CornerRadius.TopLeft > 0 => round.CornerRadius.TopLeft * 2 >= Math.Min(round.ActualWidth, round.ActualHeight) - 1,
+        _ => false,
     };
 
     // The point an element holds still when it keeps its own size in a stretched day: 0 left, 0.5 center, 1 right
-    static float AnchorOf(FrameworkElement element)
+    private static float AnchorOf(FrameworkElement element)
     {
         var alignment = element.HorizontalAlignment;
         if (alignment == HorizontalAlignment.Stretch && element is TextBlock text)
         {
             return text.TextAlignment switch
             {
-                TextAlignment.Right  => 1,
+                TextAlignment.Right => 1,
                 TextAlignment.Center => 0.5f,
-                _                    => 0,
+                _ => 0,
             };
         }
 
         return alignment switch
         {
-            HorizontalAlignment.Right  => 1,
+            HorizontalAlignment.Right => 1,
             HorizontalAlignment.Center => 0.5f,
-            _                          => 0,
+            _ => 0,
         };
     }
 
     // Back to plain XAML once the slides are over (a clip at rest would cut off text that draws past its box)
-    void ReleaseUnstretched()
+    private void ReleaseUnstretched()
     {
         foreach (var (visual, held) in _unstretched)
         {
             visual.StopAnimation("Scale.X");
-            visual.Scale       = Vector3.One;
+            visual.Scale = Vector3.One;
             visual.CenterPoint = held.Center;
-            visual.Clip        = null;
+            visual.Clip = null;
         }
 
         foreach (var visual in _days.Keys)
         {
             visual.StopAnimation("Scale.X");
             visual.StopAnimation("Translation.X");
-            visual.Scale       = Vector3.One;
+            visual.Scale = Vector3.One;
             visual.Properties.InsertVector3("Translation", Vector3.Zero);
         }
 
@@ -504,7 +504,7 @@ public sealed partial class CalendarPage
         _days.Clear();
     }
 
-    ScalarKeyFrameAnimation Slide(Compositor compositor, float to, TimeSpan duration)
+    private ScalarKeyFrameAnimation Slide(Compositor compositor, float to, TimeSpan duration)
     {
         var animation = compositor.CreateScalarKeyFrameAnimation();
         animation.InsertExpressionKeyFrame(0, "this.StartingValue");
@@ -513,7 +513,7 @@ public sealed partial class CalendarPage
         return animation;
     }
 
-    static void SetInset(InsetClip clip, bool left, float value)
+    private static void SetInset(InsetClip clip, bool left, float value)
     {
         if (left)
         {

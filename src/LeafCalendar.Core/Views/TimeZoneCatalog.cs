@@ -19,7 +19,7 @@ public sealed record TimeZoneChoice(string Id, string City, string Detail)
 /// </remarks>
 public static class TimeZoneCatalog
 {
-    static readonly (string Id, string City, string[] Aliases)[] Cities =
+    private static readonly (string Id, string City, string[] Aliases)[] Cities =
     [
         ("America/New_York", "New York", ["NYC", "NY", "EST", "EDT", "ET", "Eastern", "Boston", "Miami"]),
         ("America/Chicago", "Chicago", ["CHI", "CST", "CDT", "CT", "Central", "Dallas", "Houston"]),
@@ -54,28 +54,28 @@ public static class TimeZoneCatalog
     ];
 
     // IANA IDs with an old spelling of their city (IANA's "backward" names, which Windows still hands out), by today's name
-    static readonly Dictionary<string, string> RenamedCities = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, string> RenamedCities = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["Europe/Kiev"]        = "Kyiv",
-        ["Asia/Calcutta"]      = "Kolkata",
-        ["Asia/Katmandu"]      = "Kathmandu",
-        ["Asia/Rangoon"]       = "Yangon",
-        ["America/Godthab"]    = "Nuuk",
-        ["Asia/Saigon"]        = "Ho Chi Minh City",
-        ["Asia/Ho_Chi_Minh"]   = "Ho Chi Minh City",
-        ["Asia/Dacca"]         = "Dhaka",
-        ["Asia/Thimbu"]        = "Thimphu",
-        ["Asia/Ulan_Bator"]    = "Ulaanbaatar",
-        ["Asia/Ashkhabad"]     = "Ashgabat",
-        ["Asia/Macao"]         = "Macau",
+        ["Europe/Kiev"] = "Kyiv",
+        ["Asia/Calcutta"] = "Kolkata",
+        ["Asia/Katmandu"] = "Kathmandu",
+        ["Asia/Rangoon"] = "Yangon",
+        ["America/Godthab"] = "Nuuk",
+        ["Asia/Saigon"] = "Ho Chi Minh City",
+        ["Asia/Ho_Chi_Minh"] = "Ho Chi Minh City",
+        ["Asia/Dacca"] = "Dhaka",
+        ["Asia/Thimbu"] = "Thimphu",
+        ["Asia/Ulan_Bator"] = "Ulaanbaatar",
+        ["Asia/Ashkhabad"] = "Ashgabat",
+        ["Asia/Macao"] = "Macau",
         ["Asia/Ujung_Pandang"] = "Makassar",
-        ["Atlantic/Faeroe"]    = "Faroe",
-        ["Pacific/Enderbury"]  = "Kanton",
-        ["Pacific/Truk"]       = "Chuuk",
-        ["Pacific/Ponape"]     = "Pohnpei",
+        ["Atlantic/Faeroe"] = "Faroe",
+        ["Pacific/Enderbury"] = "Kanton",
+        ["Pacific/Truk"] = "Chuuk",
+        ["Pacific/Ponape"] = "Pohnpei",
     };
 
-    static readonly Lazy<IReadOnlyList<Entry>> AllEntries = new(BuildEntries);
+    private static readonly Lazy<IReadOnlyList<Entry>> AllEntries = new(BuildEntries);
 
     /// <summary>A zone's IANA ID (what Google wants), converting a Windows ID such as "Eastern Standard Time".</summary>
     public static string IanaId(TimeZoneInfo zone) =>
@@ -128,10 +128,10 @@ public static class TimeZoneCatalog
         return ListLabel(zone, zone.GetUtcOffset(now), CityFor(id), now);
     }
 
-    static string ListLabel(TimeZoneInfo zone, TimeSpan offset, string city, DateTimeOffset now)
+    private static string ListLabel(TimeZoneInfo zone, TimeSpan offset, string city, DateTimeOffset now)
     {
-        var sign  = offset < TimeSpan.Zero ? "-" : "+";
-        var abs   = offset.Duration();
+        var sign = offset < TimeSpan.Zero ? "-" : "+";
+        var abs = offset.Duration();
         var label = string.Create(CultureInfo.InvariantCulture, $"(UTC{sign}{abs.Hours:00}:{abs.Minutes:00}) {city}");
 
         // "UTC" Names Itself Already
@@ -160,7 +160,7 @@ public static class TimeZoneCatalog
         }
 
         var sign = offset < TimeSpan.Zero ? "−" : "+";
-        var abs  = offset.Duration();
+        var abs = offset.Duration();
 
         return abs.Minutes == 0
             ? string.Create(CultureInfo.InvariantCulture, $"UTC{sign}{abs.Hours}")
@@ -180,13 +180,13 @@ public static class TimeZoneCatalog
     /// <summary>The column label: the custom label, else the city.</summary>
     public static string ShortLabel(ExtraTimeZone zone) => zone.Label ?? CityFor(zone.Id);
 
-    static string Detail(string id, DateTimeOffset now)
+    private static string Detail(string id, DateTimeOffset now)
     {
         var zone = TimeZoneInfo.FindSystemTimeZoneById(id);
         return $"{ZoneAbbreviation.For(zone, now)} · {zone.StandardName}";
     }
 
-    static int Rank(Entry entry, string query)
+    private static int Rank(Entry entry, string query)
     {
         if (query.Length == 0)
         {
@@ -213,10 +213,10 @@ public static class TimeZoneCatalog
         return int.MaxValue;
     }
 
-    static List<Entry> BuildEntries()
+    private static List<Entry> BuildEntries()
     {
         var entries = Cities.Where(c => IsKnown(c.Id)).Select(c => new Entry(c.Id, c.City, c.Aliases, Curated: true)).ToList();
-        var ids     = entries.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
+        var ids = entries.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
 
         foreach (var zone in TimeZoneInfo.GetSystemTimeZones())
         {
@@ -229,5 +229,5 @@ public static class TimeZoneCatalog
         return entries;
     }
 
-    sealed record Entry(string Id, string City, string[] Aliases, bool Curated);
+    private sealed record Entry(string Id, string City, string[] Aliases, bool Curated);
 }

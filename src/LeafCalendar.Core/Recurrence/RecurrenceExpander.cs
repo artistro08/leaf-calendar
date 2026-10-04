@@ -33,12 +33,12 @@ public static class RecurrenceExpander
         DateTimeOffset windowStart,
         DateTimeOffset windowEnd)
     {
-        var zone      = FindZone(timeZoneId) ?? FixedZone(start.Offset);
+        var zone = FindZone(timeZoneId) ?? FixedZone(start.Offset);
         var wallClock = TimeZoneInfo.ConvertTime(start, zone).DateTime;
-        var excluded  = ReadDates(recurrence, "EXDATE", zone).Select(v => v.Utc).OfType<DateTime>().ToHashSet();
+        var excluded = ReadDates(recurrence, "EXDATE", zone).Select(v => v.Utc).OfType<DateTime>().ToHashSet();
 
         // Rule Occurrences
-        var rule   = ReadRule(recurrence);
+        var rule = ReadRule(recurrence);
         IEnumerable<DateTimeOffset> series = rule is null ? [start] : rule.GetNextOccurrences(wallClock, zone);
         var result = new SortedSet<DateTimeOffset>();
         var scanned = 0;
@@ -74,11 +74,11 @@ public static class RecurrenceExpander
     /// </summary>
     public static IReadOnlyList<DateOnly> ExpandAllDay(IReadOnlyList<string> recurrence, DateOnly start, DateOnly windowStart, DateOnly windowEnd)
     {
-        var dates    = ReadDates(recurrence, "EXDATE", TimeZoneInfo.Utc).ToList();
+        var dates = ReadDates(recurrence, "EXDATE", TimeZoneInfo.Utc).ToList();
         var excluded = dates.Select(v => v.Date ?? DateOnly.FromDateTime(v.Utc!.Value)).ToHashSet();
 
         // Rule Occurrences
-        var rule   = ReadRule(recurrence);
+        var rule = ReadRule(recurrence);
         IEnumerable<DateOnly> series = rule is null ? [start] : rule.GetNextOccurrences(start.ToDateTime(TimeOnly.MinValue)).Select(DateOnly.FromDateTime);
         var result = new SortedSet<DateOnly>();
         var scanned = 0;
@@ -109,7 +109,7 @@ public static class RecurrenceExpander
         return [.. result];
     }
 
-    static RecurrenceRule? ReadRule(IReadOnlyList<string> recurrence)
+    private static RecurrenceRule? ReadRule(IReadOnlyList<string> recurrence)
     {
         var line = recurrence.FirstOrDefault(l => l.StartsWith("RRULE:", StringComparison.OrdinalIgnoreCase));
         if (line is null || line.Length <= 6)
@@ -129,7 +129,7 @@ public static class RecurrenceExpander
 
     // Reads "EXDATE;TZID=America/New_York:20261104T090000,20261105T090000", "EXDATE;VALUE=DATE:20261104",
     // or "RDATE:20261104T140000Z". Each value is either a date (all-day) or a UTC instant.
-    static IEnumerable<(DateOnly? Date, DateTime? Utc)> ReadDates(IReadOnlyList<string> recurrence, string name, TimeZoneInfo defaultZone)
+    private static IEnumerable<(DateOnly? Date, DateTime? Utc)> ReadDates(IReadOnlyList<string> recurrence, string name, TimeZoneInfo defaultZone)
     {
         foreach (var line in recurrence)
         {
@@ -146,8 +146,8 @@ public static class RecurrenceExpander
             }
 
             var isDate = parameters.Contains("VALUE=DATE", StringComparer.OrdinalIgnoreCase);
-            var tzid   = parameters.FirstOrDefault(p => p.StartsWith("TZID=", StringComparison.OrdinalIgnoreCase))?[5..];
-            var zone   = FindZone(tzid) ?? defaultZone;
+            var tzid = parameters.FirstOrDefault(p => p.StartsWith("TZID=", StringComparison.OrdinalIgnoreCase))?[5..];
+            var zone = FindZone(tzid) ?? defaultZone;
 
             foreach (var value in line[(colon + 1)..].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
@@ -180,17 +180,17 @@ public static class RecurrenceExpander
     }
 
     // IANA zones renamed after a PC's time zone data was last updated, by their older names (which it still knows)
-    static readonly Dictionary<string, string> RenamedZones = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, string> RenamedZones = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["Europe/Kyiv"]           = "Europe/Kiev",
+        ["Europe/Kyiv"] = "Europe/Kiev",
         ["America/Ciudad_Juarez"] = "America/Ojinaga",
-        ["America/Nuuk"]          = "America/Godthab",
-        ["Pacific/Kanton"]        = "Pacific/Enderbury",
-        ["Asia/Kolkata"]          = "Asia/Calcutta",
-        ["Asia/Ho_Chi_Minh"]      = "Asia/Saigon",
-        ["Asia/Yangon"]           = "Asia/Rangoon",
-        ["Asia/Kathmandu"]        = "Asia/Katmandu",
-        ["Atlantic/Faroe"]        = "Atlantic/Faeroe",
+        ["America/Nuuk"] = "America/Godthab",
+        ["Pacific/Kanton"] = "Pacific/Enderbury",
+        ["Asia/Kolkata"] = "Asia/Calcutta",
+        ["Asia/Ho_Chi_Minh"] = "Asia/Saigon",
+        ["Asia/Yangon"] = "Asia/Rangoon",
+        ["Asia/Kathmandu"] = "Asia/Katmandu",
+        ["Atlantic/Faroe"] = "Atlantic/Faeroe",
     };
 
     /// <summary>
@@ -209,7 +209,7 @@ public static class RecurrenceExpander
             ?? (TimeZoneInfo.TryConvertIanaIdToWindowsId(id, out var windows) ? Find(windows) : null);
     }
 
-    static TimeZoneInfo? Find(string id)
+    private static TimeZoneInfo? Find(string id)
     {
         try
         {
@@ -221,10 +221,10 @@ public static class RecurrenceExpander
         }
     }
 
-    static TimeZoneInfo FixedZone(TimeSpan offset)
+    private static TimeZoneInfo FixedZone(TimeSpan offset)
     {
         var sign = offset < TimeSpan.Zero ? "-" : "+";
-        var id   = $"UTC{sign}{offset.Duration():hh\\:mm}";
+        var id = $"UTC{sign}{offset.Duration():hh\\:mm}";
         return TimeZoneInfo.CreateCustomTimeZone(id, offset, id, id);
     }
 }

@@ -50,18 +50,18 @@ public sealed partial class CalendarPage : Page
     public const double ToolbarInset = 6;
 
     // Room for the title bar's pane toggle, which sits over the island's corner while the sidebar is closed
-    const double PaneToggleClearance = 44;
+    private const double PaneToggleClearance = 44;
 
-    readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _noticeTimer;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _noticeTimer;
 
     // "E then ..." sequences; E opens the editor at once on an event you can change, while the second key may still
     // come for 1.5 s (on an invite a lone E waits for the timer)
-    readonly KeySequence _keys = new(TimeProvider.System);
-    readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _sequenceTimer;
-    bool _editorFromE;
-    CalendarPageArgs _args = null!;
-    IDisposable? _view;
-    bool _viewIsMonth;
+    private readonly KeySequence _keys = new(TimeProvider.System);
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _sequenceTimer;
+    private bool _editorFromE;
+    private CalendarPageArgs _args = null!;
+    private IDisposable? _view;
+    private bool _viewIsMonth;
 
     /// <summary>Creates the page.</summary>
     public CalendarPage()
@@ -70,20 +70,20 @@ public sealed partial class CalendarPage : Page
 
         // Notices Hide Themselves (before the delete's 6 s undo window ends)
         _noticeTimer = DispatcherQueue.CreateTimer();
-        _noticeTimer.Interval    = TimeSpan.FromSeconds(5);
+        _noticeTimer.Interval = TimeSpan.FromSeconds(5);
         _noticeTimer.IsRepeating = false;
-        _noticeTimer.Tick       += (_, _) => ViewModel.DismissNotice();
+        _noticeTimer.Tick += (_, _) => ViewModel.DismissNotice();
 
         // A Lone E Edits Once The Sequence Times Out (not while E is still held, and not if an editor opened or
         // focus moved into a text box or popup meanwhile; an instant E's editor is already open)
         _sequenceTimer = DispatcherQueue.CreateTimer();
-        _sequenceTimer.Interval    = KeySequence.Timeout;
+        _sequenceTimer.Interval = KeySequence.Timeout;
         _sequenceTimer.IsRepeating = false;
-        _sequenceTimer.Tick       += (_, _) =>
+        _sequenceTimer.Tick += (_, _) =>
         {
-            var instant  = _editorFromE;
+            var instant = _editorFromE;
             _editorFromE = false;
-            var expired  = _keys.Expire();
+            var expired = _keys.Expire();
             if (!instant && ViewModel.Editing is null && !Controls.KeyState.IsDown(VirtualKey.E) && !ShortcutsBlocked())
             {
                 Execute(expired);
@@ -108,9 +108,9 @@ public sealed partial class CalendarPage : Page
         Sidebar.Attach(ViewModel);
         Details.Attach(ViewModel);
         Sidebar.ShortcutsRequested += OnShortcutsRequested;
-        ViewModel.PropertyChanged      += OnViewModelPropertyChanged;
-        ViewModel.LayoutChanged        += OnLayoutChanged;
-        ViewModel.CalendarsChanged     += OnCalendarsChanged;
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        ViewModel.LayoutChanged += OnLayoutChanged;
+        ViewModel.CalendarsChanged += OnCalendarsChanged;
         ViewModel.DetailsOpenRequested += OnDetailsOpenRequested;
 
         // Repeating Events Ask Which Events A Change Applies To
@@ -143,8 +143,8 @@ public sealed partial class CalendarPage : Page
         DetachNavigate();
         DetachPeople();
 
-        ViewModel.LayoutChanged        -= OnLayoutChanged;
-        ViewModel.CalendarsChanged     -= OnCalendarsChanged;
+        ViewModel.LayoutChanged -= OnLayoutChanged;
+        ViewModel.CalendarsChanged -= OnCalendarsChanged;
         ViewModel.DetailsOpenRequested -= OnDetailsOpenRequested;
         ViewModel.AskScope = null;
         _noticeTimer.Stop();
@@ -177,10 +177,10 @@ public sealed partial class CalendarPage : Page
     public void SetWindowActive(bool active)
     {
         var opacity = active ? 1 : InactiveOpacity;
-        PeriodTitle.Opacity           = opacity;
-        Details.Opacity               = opacity;
+        PeriodTitle.Opacity = opacity;
+        Details.Opacity = opacity;
         ShortcutsCornerButton.Opacity = opacity;
-        _slotsPanel?.Opacity          = opacity;
+        _slotsPanel?.Opacity = opacity;
         Sidebar.SetWindowActive(active);
     }
 
@@ -214,7 +214,7 @@ public sealed partial class CalendarPage : Page
     }
 
     // Slides the pane (CalendarPage.Panes.cs) and reports the change so the title bar can follow
-    void SetPaneOpen(bool sidebar, bool open, bool animate)
+    private void SetPaneOpen(bool sidebar, bool open, bool animate)
     {
         // With the sidebar closed, its keyboard button stands in the window's bottom-left corner instead
         if (sidebar)
@@ -258,7 +258,7 @@ public sealed partial class CalendarPage : Page
     }
 
     // Selecting an event (or several) opens the panel so the details are visible; the title follows the period
-    void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(CalendarViewModel.Notice))
         {
@@ -295,18 +295,18 @@ public sealed partial class CalendarPage : Page
         }
     }
 
-    void OnDetailsOpenRequested(object? sender, EventArgs e) => SetDetailsOpen(true, animate: true);
+    private void OnDetailsOpenRequested(object? sender, EventArgs e) => SetDetailsOpen(true, animate: true);
 
     // The keyboard buttons (the sidebar's, or the window's bottom-left one while it's closed): the same cheat sheet as ?,
     // even while the editor shows (the sheet doesn't touch the edit)
-    void OnShortcutsRequested(object? sender, EventArgs e) => ShowShortcutSheet();
+    private void OnShortcutsRequested(object? sender, EventArgs e) => ShowShortcutSheet();
 
-    void OnShortcutsClick(object sender, RoutedEventArgs e) => ShowShortcutSheet();
+    private void OnShortcutsClick(object sender, RoutedEventArgs e) => ShowShortcutSheet();
 
     // A tap on empty calendar space clears the selection and ends an edit (events and chips mark their own taps handled)
-    void OnViewHostTapped(object sender, TappedRoutedEventArgs e) => ViewModel.ClearSelection();
+    private void OnViewHostTapped(object sender, TappedRoutedEventArgs e) => ViewModel.ClearSelection();
 
-    void OnEscapeInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    private void OnEscapeInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
         // Esc With The Cheat Sheet Open Only Closes It
         if (_sheet is not null)
@@ -499,17 +499,17 @@ public sealed partial class CalendarPage : Page
     }
 
     // The editor is on screen: the details panel is open and showing it, not the share panel in its place
-    bool EditorShowing => ViewModel.Editing is not null && IsDetailsOpen && !ViewModel.IsSharing;
+    private bool EditorShowing => ViewModel.Editing is not null && IsDetailsOpen && !ViewModel.IsSharing;
 
     // Typing, or focus in a flyout, menu, or dialog
-    bool ShortcutsBlocked()
+    private bool ShortcutsBlocked()
     {
         var focused = FocusManager.GetFocusedElement(XamlRoot);
         return focused is TextBox or PasswordBox or AutoSuggestBox or NumberBox or RichEditBox || IsInOpenPopup(focused);
     }
 
     // True when the focused element, or something it sits in, matches (a focused link, not in the visual tree, never does)
-    bool FocusWithin(Func<DependencyObject, bool> match)
+    private bool FocusWithin(Func<DependencyObject, bool> match)
     {
         for (DependencyObject? current = FocusManager.GetFocusedElement(XamlRoot) as UIElement; current is not null; current = VisualTreeHelper.GetParent(current))
         {
@@ -523,25 +523,25 @@ public sealed partial class CalendarPage : Page
     }
 
     // Nothing changed since it opened: the same calendar, and no field Google would be sent (every field of the draft)
-    static bool IsUntouched(EventEditorViewModel editor)
+    private static bool IsUntouched(EventEditorViewModel editor)
     {
         var now = editor.ToDraft();
         return now.AccountId == editor.Before.AccountId && now.CalendarId == editor.Before.CalendarId && EventJson.BuildPatch(editor.Before, now).Count == 0;
     }
 
-    static bool IsModifier(VirtualKey key) => key is VirtualKey.Control or VirtualKey.LeftControl or VirtualKey.RightControl
+    private static bool IsModifier(VirtualKey key) => key is VirtualKey.Control or VirtualKey.LeftControl or VirtualKey.RightControl
         or VirtualKey.Shift or VirtualKey.LeftShift or VirtualKey.RightShift
         or VirtualKey.Menu or VirtualKey.LeftMenu or VirtualKey.RightMenu
         or VirtualKey.LeftWindows or VirtualKey.RightWindows;
 
     // A key press as a shortcut; a punctuation key brings the character it types on this layout, so ? is whichever key types "?"
-    ShortcutResult ResolveShortcut(VirtualKey key)
+    private ShortcutResult ResolveShortcut(VirtualKey key)
     {
         var shift = Controls.KeyState.IsDown(VirtualKey.Shift);
         return _keys.Resolve(key.ToString(), Controls.KeyState.IsDown(VirtualKey.Control), shift, Controls.KeyState.IsDown(VirtualKey.Menu), Controls.KeyState.Typed(key, shift));
     }
 
-    void Execute(ShortcutResult result)
+    private void Execute(ShortcutResult result)
     {
         var vm = ViewModel;
         vm.Trace("command", result.Command.ToString());
@@ -564,63 +564,63 @@ public sealed partial class CalendarPage : Page
 
         switch (result.Command)
         {
-            case CalendarCommand.Today:              vm.GoToToday(); break;
-            case CalendarCommand.Previous:           vm.Previous(); break;
-            case CalendarCommand.Next:               vm.Next(); break;
-            case CalendarCommand.NavigateBack:       TryNavigateHistory(back: true); break;
-            case CalendarCommand.NavigateForward:    TryNavigateHistory(back: false); break;
-            case CalendarCommand.DayView:            vm.SetMode(Core.Settings.CalendarViewMode.Day); break;
-            case CalendarCommand.WeekView:           vm.SetMode(Core.Settings.CalendarViewMode.Week); break;
-            case CalendarCommand.MonthView:          vm.SetMode(Core.Settings.CalendarViewMode.Month); break;
-            case CalendarCommand.Days:               vm.SetMode(Core.Settings.CalendarViewMode.Days, result.Days); break;
-            case CalendarCommand.GoToDate:           ShowGoToDate(); break;
-            case CalendarCommand.ToggleWeekends:     vm.ToggleWeekends(); break;
-            case CalendarCommand.ToggleDeclined:     vm.ToggleDeclined(); break;
-            case CalendarCommand.ZoomIn:             vm.ZoomBy(8); break;
-            case CalendarCommand.ZoomOut:            vm.ZoomBy(-8); break;
-            case CalendarCommand.ZoomReset:          vm.ZoomReset(); break;
-            case CalendarCommand.ToggleTheme:        _args.ToggleTheme(); break;
-            case CalendarCommand.NextEvent:          vm.SelectAdjacent(1); break;
-            case CalendarCommand.PreviousEvent:      vm.SelectAdjacent(-1); break;
-            case CalendarCommand.DeleteSelected:     vm.Fire(() => vm.DeleteAsync([.. vm.Selection], sendUpdates: true), "event.delete.failed"); break;
-            case CalendarCommand.CreateEvent:        vm.BeginCreateNow(); break;
+            case CalendarCommand.Today: vm.GoToToday(); break;
+            case CalendarCommand.Previous: vm.Previous(); break;
+            case CalendarCommand.Next: vm.Next(); break;
+            case CalendarCommand.NavigateBack: TryNavigateHistory(back: true); break;
+            case CalendarCommand.NavigateForward: TryNavigateHistory(back: false); break;
+            case CalendarCommand.DayView: vm.SetMode(Core.Settings.CalendarViewMode.Day); break;
+            case CalendarCommand.WeekView: vm.SetMode(Core.Settings.CalendarViewMode.Week); break;
+            case CalendarCommand.MonthView: vm.SetMode(Core.Settings.CalendarViewMode.Month); break;
+            case CalendarCommand.Days: vm.SetMode(Core.Settings.CalendarViewMode.Days, result.Days); break;
+            case CalendarCommand.GoToDate: ShowGoToDate(); break;
+            case CalendarCommand.ToggleWeekends: vm.ToggleWeekends(); break;
+            case CalendarCommand.ToggleDeclined: vm.ToggleDeclined(); break;
+            case CalendarCommand.ZoomIn: vm.ZoomBy(8); break;
+            case CalendarCommand.ZoomOut: vm.ZoomBy(-8); break;
+            case CalendarCommand.ZoomReset: vm.ZoomReset(); break;
+            case CalendarCommand.ToggleTheme: _args.ToggleTheme(); break;
+            case CalendarCommand.NextEvent: vm.SelectAdjacent(1); break;
+            case CalendarCommand.PreviousEvent: vm.SelectAdjacent(-1); break;
+            case CalendarCommand.DeleteSelected: vm.Fire(() => vm.DeleteAsync([.. vm.Selection], sendUpdates: true), "event.delete.failed"); break;
+            case CalendarCommand.CreateEvent: vm.BeginCreateNow(); break;
             case CalendarCommand.CancelEventQuietly: vm.Fire(() => vm.DeleteAsync([.. vm.Selection], sendUpdates: false), "event.delete.failed"); break;
-            case CalendarCommand.SelectAll:          vm.SelectAllVisible(); break;
-            case CalendarCommand.ToggleSelect:       vm.ToggleFocused(); break;
-            case CalendarCommand.Copy:               vm.CopySelection(); break;
-            case CalendarCommand.Cut:                vm.Fire(vm.CutSelectionAsync, "calendar.cut.failed"); break;
-            case CalendarCommand.Paste:              vm.Paste(); break;
-            case CalendarCommand.Undo:               vm.Undo(); break;
-            case CalendarCommand.EditEvent:          vm.BeginEdit(); break;
-            case CalendarCommand.EditDuration:       vm.BeginEdit(focusEnd: true); break;
-            case CalendarCommand.RsvpYes:            vm.Fire(() => vm.RespondAsync(ResponseStatus.Accepted, null, emailOrganizer: true)); break;
-            case CalendarCommand.RsvpNo:             vm.Fire(() => vm.RespondAsync(ResponseStatus.Declined, null, emailOrganizer: true)); break;
-            case CalendarCommand.RsvpMaybe:          vm.Fire(() => vm.RespondAsync(ResponseStatus.Tentative, null, emailOrganizer: true)); break;
-            case CalendarCommand.EmailGuests:        vm.Fire(vm.EmailGuestsAsync); break;
-            case CalendarCommand.JoinMeeting:        vm.Fire(() => vm.JoinAsync()); break;
-            case CalendarCommand.OpenMeetingLink:    vm.Fire(vm.OpenMeetingLinkAsync); break;
+            case CalendarCommand.SelectAll: vm.SelectAllVisible(); break;
+            case CalendarCommand.ToggleSelect: vm.ToggleFocused(); break;
+            case CalendarCommand.Copy: vm.CopySelection(); break;
+            case CalendarCommand.Cut: vm.Fire(vm.CutSelectionAsync, "calendar.cut.failed"); break;
+            case CalendarCommand.Paste: vm.Paste(); break;
+            case CalendarCommand.Undo: vm.Undo(); break;
+            case CalendarCommand.EditEvent: vm.BeginEdit(); break;
+            case CalendarCommand.EditDuration: vm.BeginEdit(focusEnd: true); break;
+            case CalendarCommand.RsvpYes: vm.Fire(() => vm.RespondAsync(ResponseStatus.Accepted, null, emailOrganizer: true)); break;
+            case CalendarCommand.RsvpNo: vm.Fire(() => vm.RespondAsync(ResponseStatus.Declined, null, emailOrganizer: true)); break;
+            case CalendarCommand.RsvpMaybe: vm.Fire(() => vm.RespondAsync(ResponseStatus.Tentative, null, emailOrganizer: true)); break;
+            case CalendarCommand.EmailGuests: vm.Fire(vm.EmailGuestsAsync); break;
+            case CalendarCommand.JoinMeeting: vm.Fire(() => vm.JoinAsync()); break;
+            case CalendarCommand.OpenMeetingLink: vm.Fire(vm.OpenMeetingLinkAsync); break;
             case CalendarCommand.CommandMenu or CalendarCommand.Search: OpenCommandMenu(); break;
-            case CalendarCommand.ShortcutSheet:      ShowShortcutSheet(); break;
-            case CalendarCommand.OpenSettings:       vm.OpenSettings?.Invoke(SettingsSection.General); break;
-            case CalendarCommand.TimeTravel:         StartTimeTravel(); break;
-            case CalendarCommand.ShareAvailability:  StartShareAvailability(); break;
-            case CalendarCommand.PeopleOverlay:      ShowPeopleOverlay(); break;
-            case CalendarCommand.MeetWith:           ShowMeetWith(); break;
+            case CalendarCommand.ShortcutSheet: ShowShortcutSheet(); break;
+            case CalendarCommand.OpenSettings: vm.OpenSettings?.Invoke(SettingsSection.General); break;
+            case CalendarCommand.TimeTravel: StartTimeTravel(); break;
+            case CalendarCommand.ShareAvailability: StartShareAvailability(); break;
+            case CalendarCommand.PeopleOverlay: ShowPeopleOverlay(); break;
+            case CalendarCommand.MeetWith: ShowMeetWith(); break;
             case CalendarCommand.ParticipantOverlay: ShowParticipantOverlay(); break;
-            case CalendarCommand.EditTimeZone:       EditTimeZone(); break;
+            case CalendarCommand.EditTimeZone: EditTimeZone(); break;
         }
     }
 
     // Jump to date: the command menu, asking for a date in words ("nov 5th", "10 weeks", "next fri"); its date row goes
     // there. (A CalendarView in a flyout anchored to the page had no room, was squashed against the top, and crashed
     // in a layout cycle.)
-    void ShowGoToDate()
+    private void ShowGoToDate()
     {
         OpenCommandMenu();
         _commandMenu?.AskForDate();
     }
 
-    void ShowNotice()
+    private void ShowNotice()
     {
         _noticeTimer.Stop();
         if (ViewModel.Notice is not { } notice)
@@ -629,16 +629,16 @@ public sealed partial class CalendarPage : Page
             return;
         }
 
-        NoticeBar.Message     = notice.Text;
+        NoticeBar.Message = notice.Text;
         UndoButton.Visibility = notice.CanUndo ? Visibility.Visible : Visibility.Collapsed;
-        NoticeBar.IsOpen      = true;
+        NoticeBar.IsOpen = true;
         ResumeNoticeTimer();
     }
 
     // The Notice Waits While The Pointer Or Focus Is On It (its Undo doesn't vanish from under you), then hides 5 s later
-    bool _noticePointerOver;
+    private bool _noticePointerOver;
 
-    void ResumeNoticeTimer()
+    private void ResumeNoticeTimer()
     {
         if (ViewModel.Notice is not null && !_noticePointerOver && !FocusWithin(element => ReferenceEquals(element, NoticeBar)))
         {
@@ -646,26 +646,26 @@ public sealed partial class CalendarPage : Page
         }
     }
 
-    void OnNoticePointerEntered(object sender, PointerRoutedEventArgs e)
+    private void OnNoticePointerEntered(object sender, PointerRoutedEventArgs e)
     {
         _noticePointerOver = true;
         _noticeTimer.Stop();
     }
 
-    void OnNoticePointerExited(object sender, PointerRoutedEventArgs e)
+    private void OnNoticePointerExited(object sender, PointerRoutedEventArgs e)
     {
         _noticePointerOver = false;
         ResumeNoticeTimer();
     }
 
-    void OnNoticeGotFocus(object sender, RoutedEventArgs e) => _noticeTimer.Stop();
+    private void OnNoticeGotFocus(object sender, RoutedEventArgs e) => _noticeTimer.Stop();
 
-    void OnNoticeLostFocus(object sender, RoutedEventArgs e) => ResumeNoticeTimer();
+    private void OnNoticeLostFocus(object sender, RoutedEventArgs e) => ResumeNoticeTimer();
 
-    void OnUndoClick(object sender, RoutedEventArgs e) => ViewModel.Undo();
+    private void OnUndoClick(object sender, RoutedEventArgs e) => ViewModel.Undo();
 
     // Only the user's close counts; the bar also closes in code when one notice replaces another
-    void OnNoticeClosed(InfoBar sender, InfoBarClosedEventArgs args)
+    private void OnNoticeClosed(InfoBar sender, InfoBarClosedEventArgs args)
     {
         if (args.Reason == InfoBarCloseReason.CloseButton)
         {
@@ -675,7 +675,7 @@ public sealed partial class CalendarPage : Page
 
     // True when focus sits inside an open popup (flyouts, menus, and dialogs take focus; tooltips never do). Compared by
     // reference up the visual tree: type tests on popup content fail under Native AOT
-    bool IsInOpenPopup(object? focused)
+    private bool IsInOpenPopup(object? focused)
     {
         var roots = VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot).Select(p => p.Child).OfType<object>().ToList();
         if (roots.Count == 0)
@@ -711,41 +711,41 @@ public sealed partial class CalendarPage : Page
         return false;
     }
 
-    void OnLayoutChanged(object? sender, EventArgs e)
+    private void OnLayoutChanged(object? sender, EventArgs e)
     {
         DrillIntoView();
         ApplyView();
     }
 
     // How many days the last view showed (a month counts as 35), to tell drilling in from zooming out
-    int _viewSpan;
+    private int _viewSpan;
 
     // The drill: fewer days than before drill in (the view grows from 95%), more zoom out (it settles from 105%), the way
     // Windows moves into and out of a level, with a quick fade up from half
-    const float DrillInFrom      = 0.95f;
-    const float ZoomOutFrom      = 1.05f;
-    const float DrillFadeFrom    = 0.5f;
-    static readonly TimeSpan DrillDuration = TimeSpan.FromMilliseconds(167);
-    static readonly TimeSpan FadeDuration  = TimeSpan.FromMilliseconds(83);
+    private const float DrillInFrom = 0.95f;
+    private const float ZoomOutFrom = 1.05f;
+    private const float DrillFadeFrom = 0.5f;
+    private static readonly TimeSpan DrillDuration = TimeSpan.FromMilliseconds(167);
+    private static readonly TimeSpan FadeDuration = TimeSpan.FromMilliseconds(83);
 
     // Only a change of span animates (a layout change that keeps it, like the hour zoom, doesn't). It starts at once:
     // the view switch lays the new view out on its new days directly (CalendarViewModel.SwitchingTo), so there's no
     // scroll to wait out and nothing is hidden first; a brand-new time grid keeps itself hidden only until its first
     // layout lands (TimeGridView), which the fade covers
-    void DrillIntoView()
+    private void DrillIntoView()
     {
         var span = ViewModel.Mode == Core.Settings.CalendarViewMode.Month ? 35 : ViewModel.VisibleColumns;
-        var was  = _viewSpan;
+        var was = _viewSpan;
         _viewSpan = span;
         if (was == 0 || was == span || ViewHost.ActualWidth <= 0 || !new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
         {
             return;
         }
 
-        var from       = span < was ? DrillInFrom : ZoomOutFrom;
-        var visual     = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(ViewHost);
+        var from = span < was ? DrillInFrom : ZoomOutFrom;
+        var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(ViewHost);
         var compositor = visual.Compositor;
-        var easing     = compositor.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.1f, 0.9f), new System.Numerics.Vector2(0.2f, 1));
+        var easing = compositor.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.1f, 0.9f), new System.Numerics.Vector2(0.2f, 1));
         visual.StopAnimation("Opacity");
         visual.StopAnimation("Scale");
         visual.CenterPoint = new System.Numerics.Vector3((float)ViewHost.ActualWidth / 2, (float)ViewHost.ActualHeight / 2, 0);
@@ -763,10 +763,10 @@ public sealed partial class CalendarPage : Page
         visual.StartAnimation("Opacity", fade);
     }
 
-    void OnCalendarsChanged(object? sender, EventArgs e) => UpdateEmptyState();
+    private void OnCalendarsChanged(object? sender, EventArgs e) => UpdateEmptyState();
 
-    void UpdateEmptyState() =>
+    private void UpdateEmptyState() =>
         EmptyState.Visibility = ViewModel.Calendars.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-    void OnAddAccountClick(object sender, RoutedEventArgs e) => ViewModel.OpenSettings?.Invoke(SettingsSection.Accounts);
+    private void OnAddAccountClick(object sender, RoutedEventArgs e) => ViewModel.OpenSettings?.Invoke(SettingsSection.Accounts);
 }

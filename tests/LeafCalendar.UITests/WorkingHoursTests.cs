@@ -1,5 +1,4 @@
 using System.Text.Json.Nodes;
-using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Tools;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.UITests.Support;
@@ -8,11 +7,11 @@ namespace LeafCalendar.UITests;
 
 public sealed class WorkingHoursTests : IDisposable
 {
-    const string Dentist = "Event_evt-single_202610011300";
-    const string Meeting = "Event_evt-meeting_202610011800";
+    private const string Dentist = "Event_evt-single_202610011300";
+    private const string Meeting = "Event_evt-meeting_202610011800";
 
-    readonly FakeGoogleServer _google = new();
-    string? _profile;
+    private readonly FakeGoogleServer _google = new();
+    private string? _profile;
 
     public void Dispose()
     {
@@ -25,11 +24,11 @@ public sealed class WorkingHoursTests : IDisposable
     }
 
     // A tall window, so the grid (opened at 7:30 AM) shows both the morning and the 5 PM line
-    LeafApp Launch(LeafSettings? settings = null)
+    private LeafApp Launch(LeafSettings? settings = null)
     {
         _profile = SeededProfile.Create(settings);
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
-        var dentist = leaf.WaitFor(Dentist);
+        leaf.WaitFor(Dentist);
         leaf.Resize(1400, 1200);
         return leaf;
     }
@@ -37,18 +36,18 @@ public sealed class WorkingHoursTests : IDisposable
     // The dentist runs 9-10 AM Eastern and the design review starts at 2 PM: each card starts 1 px below its hour line,
     // so the five hours between them measure the grid
     // A wall-clock hour line in the zone on screen (Windows' zone): working hours are local, the events are Eastern
-    static double LineY(LeafApp leaf, int hour)
+    private static double LineY(LeafApp leaf, int hour)
     {
         var dentist = leaf.WaitFor(Dentist).BoundingRectangle.Top - 1;
-        var hourPx  = (leaf.WaitFor(Meeting).BoundingRectangle.Top - 1 - dentist) / 5.0;
+        var hourPx = (leaf.WaitFor(Meeting).BoundingRectangle.Top - 1 - dentist) / 5.0;
         return dentist + (hour - DentistLocalHour) * hourPx;
     }
 
-    static readonly int DentistLocalHour = TimeZoneInfo.ConvertTime(
+    private static readonly int DentistLocalHour = TimeZoneInfo.ConvertTime(
         new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time").GetUtcOffset(new DateTime(2026, 10, 1, 9, 0, 0))),
         TimeZoneInfo.Local).Hour;
 
-    static void AssertNear(double actual, double expected, string what) =>
+    private static void AssertNear(double actual, double expected, string what) =>
         Assert.True(Math.Abs(actual - expected) <= 2, $"{what} is at {actual}, expected {expected} (± 2 px).");
 
     [Fact]
@@ -109,10 +108,10 @@ public sealed class WorkingHoursTests : IDisposable
         {
             _google.AddEvent(SeededProfile.Email, new JsonObject
             {
-                ["id"]      = id,
+                ["id"] = id,
                 ["summary"] = $"All day {id[^1]}",
-                ["start"]   = new JsonObject { ["date"] = "2026-10-01" },
-                ["end"]     = new JsonObject { ["date"] = "2026-10-02" },
+                ["start"] = new JsonObject { ["date"] = "2026-10-01" },
+                ["end"] = new JsonObject { ["date"] = "2026-10-02" },
             });
         }
 

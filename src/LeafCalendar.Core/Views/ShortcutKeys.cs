@@ -19,8 +19,8 @@ public sealed record ShortcutKeyPart(string Text, bool IsKey)
 /// </remarks>
 public static class ShortcutKeys
 {
-    static readonly HashSet<string> Joiners = new(StringComparer.OrdinalIgnoreCase) { "or", "then", "and", "/", "," };
-    static readonly HashSet<string> MouseWords = new(StringComparer.OrdinalIgnoreCase) { "click", "drag", "wheel", "mouse", "back", "forward" };
+    private static readonly HashSet<string> Joiners = new(StringComparer.OrdinalIgnoreCase) { "or", "then", "and", "/", "," };
+    private static readonly HashSet<string> MouseWords = new(StringComparer.OrdinalIgnoreCase) { "click", "drag", "wheel", "mouse", "back", "forward" };
 
     /// <summary>The keys and words of <paramref name="shortcut"/>, in order; empty for a blank one.</summary>
     public static IReadOnlyList<ShortcutKeyPart> Parse(string? shortcut)
@@ -34,7 +34,7 @@ public static class ShortcutKeys
         foreach (var raw in shortcut.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
             // "Alt+Right," is a combination, then a comma ("Ctrl+," is the comma key)
-            var word  = raw;
+            var word = raw;
             var comma = word.Length > 1 && word.EndsWith(',') && word[^2] != '+';
             if (comma)
             {
@@ -63,7 +63,7 @@ public static class ShortcutKeys
     }
 
     // Words in a row read as one ("mouse back"), and a comma sticks to what's before it
-    static void AddWords(List<ShortcutKeyPart> parts, string word)
+    private static void AddWords(List<ShortcutKeyPart> parts, string word)
     {
         if (parts.Count > 0 && parts[^1] is { IsKey: false } last)
         {
@@ -75,9 +75,9 @@ public static class ShortcutKeys
     }
 
     // "Ctrl+Shift+L" → Ctrl, Shift, L; "Ctrl+-" → Ctrl, -; "Ctrl++" → Ctrl, +; a lone "+" or "-" is that key
-    static List<string> Keys(string word)
+    private static List<string> Keys(string word)
     {
-        var keys  = new List<string>();
+        var keys = new List<string>();
         var start = 0;
         for (var i = 0; i < word.Length; i++)
         {

@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 public class ShortcutKeysTests
 {
     // Keys as [key], words between them as plain text, joined by spaces
-    static string Show(string shortcut) =>
+    private static string Show(string shortcut) =>
         string.Join(' ', ShortcutKeys.Parse(shortcut).Select(p => p.IsKey ? $"[{p.Text}]" : p.Text));
 
     [Theory]

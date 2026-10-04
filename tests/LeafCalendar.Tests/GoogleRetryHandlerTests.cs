@@ -8,12 +8,12 @@ namespace LeafCalendar.Tests;
 
 public class GoogleRetryHandlerTests : IDisposable
 {
-    const string Url = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
+    private const string Url = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
 
-    readonly FakeHttpHandler _google = new();
-    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
+    private readonly FakeHttpHandler _google = new();
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
 
-    HttpClient CreateClient() => new(new GoogleRetryHandler(_time) { InnerHandler = _google });
+    private HttpClient CreateClient() => new(new GoogleRetryHandler(_time) { InnerHandler = _google });
 
     public void Dispose()
     {
@@ -22,7 +22,7 @@ public class GoogleRetryHandlerTests : IDisposable
     }
 
     // Drives fake time forward until the request finishes (bounded so a bug can't hang the run).
-    async Task<HttpResponseMessage> SendWithTimeAsync(Task<HttpResponseMessage> send)
+    private async Task<HttpResponseMessage> SendWithTimeAsync(Task<HttpResponseMessage> send)
     {
         for (var i = 0; i < 100 && !send.IsCompleted; i++)
         {

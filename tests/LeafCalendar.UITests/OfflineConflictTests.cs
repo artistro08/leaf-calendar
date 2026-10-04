@@ -7,11 +7,11 @@ namespace LeafCalendar.UITests;
 
 public sealed class OfflineConflictTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    const string Dentist = "Event_evt-single_202610011300";
+    private const string Primary = "leaf.tester@gmail.com";
+    private const string Dentist = "Event_evt-single_202610011300";
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -19,9 +19,9 @@ public sealed class OfflineConflictTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+    private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
-    static void Rename(LeafApp leaf, string title)
+    private static void Rename(LeafApp leaf, string title)
     {
         leaf.WaitFor(Dentist).Click();
         leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
@@ -30,7 +30,7 @@ public sealed class OfflineConflictTests : IDisposable
     }
 
     // Offline with Google changed behind Leaf's back, then a local rename, then back online: Leaf's patch gets 412
-    string MakeConflict(LeafApp leaf)
+    private string MakeConflict(LeafApp leaf)
     {
         leaf.WaitFor(Dentist);
         _google.Offline = true;

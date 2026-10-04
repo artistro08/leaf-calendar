@@ -23,10 +23,10 @@ public enum SyncMode
 /// </remarks>
 public sealed class SyncLoop(Func<CancellationToken, Task> syncAll, TimeProvider time, AppLog log) : IAsyncDisposable
 {
-    readonly SemaphoreSlim _wake = new(0, 1);
-    readonly CancellationTokenSource _stop = new();
-    Task? _loop;
-    bool _disposed;
+    private readonly SemaphoreSlim _wake = new(0, 1);
+    private readonly CancellationTokenSource _stop = new();
+    private Task? _loop;
+    private bool _disposed;
 
     /// <summary>Current cadence. Defaults to <see cref="SyncMode.Tray"/>.</summary>
     public SyncMode Mode { get; set; } = SyncMode.Tray;
@@ -97,7 +97,7 @@ public sealed class SyncLoop(Func<CancellationToken, Task> syncAll, TimeProvider
         }
     }
 
-    async Task RunAsync(CancellationToken ct)
+    private async Task RunAsync(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
         {
@@ -114,7 +114,7 @@ public sealed class SyncLoop(Func<CancellationToken, Task> syncAll, TimeProvider
             // Wait For Interval Or Trigger
             using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var delay = Task.Delay(IntervalFor(Mode), time, waitCts.Token);
-            var wake  = _wake.WaitAsync(waitCts.Token);
+            var wake = _wake.WaitAsync(waitCts.Token);
 
             await Task.WhenAny(delay, wake);
             await waitCts.CancelAsync();

@@ -25,24 +25,24 @@ namespace LeafCalendar.Core.Sync;
 public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase database, AppLog log, TimeProvider time) : IDisposable
 {
     // ponytail: one gate for every account; per-account gates if parallel account sync is ever wanted
-    readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly SemaphoreSlim _gate = new(1, 1);
 
     /// <summary>How often each account's calendar list is refreshed (event changes are checked every poll).</summary>
     public static readonly TimeSpan CalendarListInterval = TimeSpan.FromMinutes(15);
 
     // Guarded by _gate
-    readonly Dictionary<string, DateTimeOffset> _calendarListSyncedAt = new(StringComparer.Ordinal);
-    bool _changed;
+    private readonly Dictionary<string, DateTimeOffset> _calendarListSyncedAt = new(StringComparer.Ordinal);
+    private bool _changed;
 
     // Built on first use: a field initializer that reads the primary-constructor parameters the methods also
     // capture triggers CS9124, which warnings-as-errors turns into a build break
-    OutboxSender? _outboxSender;
-    int _rejected;
-    int _conflicts;
-    readonly List<string> _signInsNeeded = [];
-    bool _reached;
-    bool _unreachable;
-    volatile bool _offline;
+    private OutboxSender? _outboxSender;
+    private int _rejected;
+    private int _conflicts;
+    private readonly List<string> _signInsNeeded = [];
+    private bool _reached;
+    private bool _unreachable;
+    private volatile bool _offline;
 
     /// <summary>Raised after a sync in which Google refused edits for good (they were undone locally). The argument is how many.</summary>
     public event EventHandler<int>? ChangesRejected;
@@ -53,7 +53,7 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     /// <summary>Raised once when an account's sign-in stops working (it's marked "needs sign-in" and no longer syncs). The argument is its ID.</summary>
     public event EventHandler<string>? SignInNeeded;
 
-    OutboxSender Outbox => _outboxSender ??= new OutboxSender(google, database, log, time);
+    private OutboxSender Outbox => _outboxSender ??= new OutboxSender(google, database, log, time);
 
     /// <summary>Raised after a sync that wrote anything. Raised on the syncing thread, after the sync lock is released.</summary>
     public event EventHandler? DataChanged;
@@ -96,7 +96,7 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
 
             (changed, rejected, offline) = End();
             conflicts = _conflicts;
-            signIns   = [.. _signInsNeeded];
+            signIns = [.. _signInsNeeded];
         }
         finally
         {
@@ -121,7 +121,7 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
             await SyncAccountCoreAsync(accountId, refreshCalendarList: true, ct);
             (changed, rejected, offline) = End();
             conflicts = _conflicts;
-            signIns   = [.. _signInsNeeded];
+            signIns = [.. _signInsNeeded];
         }
         finally
         {
@@ -135,18 +135,18 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     public void Dispose() => _gate.Dispose();
 
     // Guarded by _gate: a pass starts with nothing changed, refused, reached, or unreachable
-    void Begin()
+    private void Begin()
     {
-        _changed     = false;
-        _rejected    = 0;
-        _reached     = false;
+        _changed = false;
+        _rejected = 0;
+        _reached = false;
         _unreachable = false;
-        _conflicts   = 0;
+        _conflicts = 0;
         _signInsNeeded.Clear();
     }
 
     // Guarded by _gate: what the pass did, and the new offline state when it flipped (null when it didn't)
-    (bool Changed, int Rejected, bool? Offline) End()
+    private (bool Changed, int Rejected, bool? Offline) End()
     {
         var offline = _unreachable && !_reached;
         if (offline == _offline)
@@ -160,7 +160,7 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     }
 
     // Outside the lock, so handlers may start another sync
-    void Raise(bool changed, int rejected, bool? offline, int conflicts, string[] signIns)
+    private void Raise(bool changed, int rejected, bool? offline, int conflicts, string[] signIns)
     {
         if (changed)
         {
@@ -188,14 +188,14 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
         }
     }
 
-    async Task SyncAccountCoreAsync(string accountId, bool refreshCalendarList, CancellationToken ct)
+    private async Task SyncAccountCoreAsync(string accountId, bool refreshCalendarList, CancellationToken ct)
     {
         try
         {
             // Local Edits First (in order; a pull never overwrites an event that still has some waiting)
             var sent = await Outbox.SendAsync(accountId, ct);
-            _changed   |= sent.Changed;
-            _rejected  += sent.Rejected;
+            _changed |= sent.Changed;
+            _rejected += sent.Rejected;
             _conflicts += sent.Conflicts;
 
             // Calendar List (When Due)
@@ -241,7 +241,7 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
         }
     }
 
-    async Task SyncCalendarAsync(CalendarInfo calendar, CancellationToken ct)
+    private async Task SyncCalendarAsync(CalendarInfo calendar, CancellationToken ct)
     {
         try
         {
@@ -262,7 +262,7 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
         }
     }
 
-    async Task PullAsync(CalendarInfo calendar, string? syncToken, CancellationToken ct)
+    private async Task PullAsync(CalendarInfo calendar, string? syncToken, CancellationToken ct)
     {
         // Fetch Every Page First
         var items = new List<JsonElement>();
@@ -281,8 +281,8 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
 
         // Apply Atomically (events with edits waiting in the outbox keep the local version until they're sent)
         using var conn = database.Open();
-        using var tx   = conn.BeginTransaction();
-        var pending    = OutboxStore.EventIdsFor(conn, tx, calendar.AccountId, calendar.Id);
+        using var tx = conn.BeginTransaction();
+        var pending = OutboxStore.EventIdsFor(conn, tx, calendar.AccountId, calendar.Id);
 
         if (syncToken is null)
         {
@@ -326,10 +326,10 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
     }
 
     // Google never answered: the connection failed or timed out (an HTTP error status means it was reached)
-    static bool IsNoConnection(Exception ex, CancellationToken ct) =>
+    private static bool IsNoConnection(Exception ex, CancellationToken ct) =>
         ex is HttpRequestException { StatusCode: null } || (ex is TaskCanceledException && !ct.IsCancellationRequested);
 
-    static bool IsSyncFailure(Exception ex, CancellationToken ct) =>
+    private static bool IsSyncFailure(Exception ex, CancellationToken ct) =>
         ex is GoogleApiException or HttpRequestException or JsonException or InvalidDataException or SqliteException or SyncTokenExpiredException ||
         (ex is TaskCanceledException && !ct.IsCancellationRequested);
 }

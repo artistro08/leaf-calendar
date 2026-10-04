@@ -6,13 +6,13 @@ namespace LeafCalendar.App.ViewModels;
 
 public sealed partial class CalendarViewModel
 {
-    readonly LocalZoneWatcher _zones = new();
+    private readonly LocalZoneWatcher _zones = new();
 
     // The zone the views were last sorted and drawn in (set by the constructor)
-    TimeZoneInfo? _applied;
+    private TimeZoneInfo? _applied;
 
     // Time travel's zone, for this session only (never saved)
-    string? _travelZoneId;
+    private string? _travelZoneId;
 
     /// <summary>
     /// The zone the grid is drawn in: time travel's, else Leaf's primary time zone, else the PC's (followed while Leaf
@@ -47,7 +47,7 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        var id          = TimeZoneCatalog.IanaId(offer);
+        var id = TimeZoneCatalog.IanaId(offer);
         ZoneSwitchOffer = null;
         Update(s => s with { PrimaryTimeZone = id });
     }
@@ -74,7 +74,7 @@ public sealed partial class CalendarViewModel
 
         if (Zone.Id != before.Id)
         {
-            ApplyZoneChange(before);
+            ApplyZoneChange();
         }
     }
 
@@ -93,16 +93,16 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        ApplyZoneChange(_applied ?? zone);
+        ApplyZoneChange();
     }
 
     // Sorts the events into the new zone's days and redraws everything that shows a time; never logs the zones (they say where you are)
-    void ApplyZoneChange(TimeZoneInfo before)
+    private void ApplyZoneChange()
     {
         _services.Log.Info("calendar.timezone.changed");
-        Cache.Zone                   = Zone;
+        Cache.Zone = Zone;
         _services.Editor.LocalZoneId = TimeZoneCatalog.IanaId(UserZone);
-        Today                        = _services.Options.StartDate ?? LocalDate(Now);
+        Today = _services.Options.StartDate ?? LocalDate(Now);
         if (SelectedInfo is { } selected)
         {
             SelectedInfo = selected with { When = WhenText(selected.Occurrence) };

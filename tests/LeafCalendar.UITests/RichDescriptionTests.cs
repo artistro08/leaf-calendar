@@ -9,10 +9,10 @@ namespace LeafCalendar.UITests;
 
 public sealed class RichDescriptionTests : IDisposable
 {
-    const string Rich = "evt-rich";
+    private const string Rich = "evt-rich";
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public RichDescriptionTests() =>
         _google.AddEvent(SeededProfile.Email, JsonNode.Parse("""
@@ -29,7 +29,7 @@ public sealed class RichDescriptionTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp OpenEditor()
+    private LeafApp OpenEditor()
     {
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
         leaf.WaitFor("Event_evt-rich_202610011400").Click();
@@ -44,7 +44,7 @@ public sealed class RichDescriptionTests : IDisposable
     }
 
     // Focuses the description (which scrolls it into view under the toolbar) and waits until it has the keyboard
-    static AutomationElement FocusDescription(LeafApp leaf)
+    private static AutomationElement FocusDescription(LeafApp leaf)
     {
         var box = leaf.WaitFor("EditorDescription");
         box.Focus();
@@ -52,11 +52,11 @@ public sealed class RichDescriptionTests : IDisposable
         return box;
     }
 
-    FakeWrite RichPatch() =>
+    private FakeWrite RichPatch() =>
         _google.WaitForWrite(w => w.Method == "PATCH" && w.Path.EndsWith("/events/" + Rich, StringComparison.Ordinal));
 
     // The description the patch sends (the body is JSON, so HTML characters arrive escaped)
-    static string SentDescription(FakeWrite write) =>
+    private static string SentDescription(FakeWrite write) =>
         JsonNode.Parse(write.Body)?["description"]?.GetValue<string>() ?? throw new InvalidOperationException("The patch sent no description: " + write.Body);
 
     // Review Focus 2: Saving Another Field Leaves Google's Description Alone
@@ -76,10 +76,10 @@ public sealed class RichDescriptionTests : IDisposable
     public void Toolbar_SitsInsideTheBox_AboveTheText()
     {
         using var leaf = OpenEditor();
-        var box      = FocusDescription(leaf);
-        var bold     = leaf.WaitFor("DescriptionBold").BoundingRectangle;
-        var numbers  = leaf.WaitFor("DescriptionNumbers").BoundingRectangle;
-        var text     = box.Patterns.Text.Pattern.DocumentRange.GetBoundingRectangles();
+        var box = FocusDescription(leaf);
+        var bold = leaf.WaitFor("DescriptionBold").BoundingRectangle;
+        var numbers = leaf.WaitFor("DescriptionNumbers").BoundingRectangle;
+        var text = box.Patterns.Text.Pattern.DocumentRange.GetBoundingRectangles();
         var firstTop = text.Min(r => r.Top);
 
         // The buttons are one row laid over the box (the box's own bounds read empty through UI Automation, so the text
@@ -133,7 +133,7 @@ public sealed class RichDescriptionTests : IDisposable
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_V);
         leaf.WaitFor("EditorSaveButton").AsButton().Invoke();
 
-        var write       = RichPatch();
+        var write = RichPatch();
         var description = SentDescription(write);
         Assert.Contains("Pasted", description, StringComparison.Ordinal);
         Assert.DoesNotContain("<b>Pasted", description, StringComparison.Ordinal);
@@ -153,7 +153,7 @@ public sealed class RichDescriptionTests : IDisposable
         Keyboard.TypeSimultaneously(VirtualKeyShort.SHIFT, VirtualKeyShort.INSERT);
         leaf.WaitFor("EditorSaveButton").AsButton().Invoke();
 
-        var write       = RichPatch();
+        var write = RichPatch();
         var description = SentDescription(write);
         Assert.Contains("Pasted", description, StringComparison.Ordinal);
         Assert.DoesNotContain("<b>Pasted", description, StringComparison.Ordinal);
@@ -167,11 +167,11 @@ public sealed class RichDescriptionTests : IDisposable
     public void DropRichTextOrFile_ChangesNothing()
     {
         using var leaf = OpenEditor();
-        var box    = FocusDescription(leaf);
+        var box = FocusDescription(leaf);
         var before = box.Patterns.Text.Pattern.DocumentRange.GetText(-1);
         var bounds = box.BoundingRectangle;
         var center = new System.Drawing.Point(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2);
-        var file   = Path.Combine(Path.GetTempPath(), $"leaf-drop-{Guid.NewGuid():N}.txt");
+        var file = Path.Combine(Path.GetTempPath(), $"leaf-drop-{Guid.NewGuid():N}.txt");
         File.WriteAllText(file, "Dropped file");
 
         try

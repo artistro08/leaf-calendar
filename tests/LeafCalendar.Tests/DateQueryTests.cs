@@ -4,7 +4,7 @@ namespace LeafCalendar.Tests;
 
 public sealed class DateQueryTests
 {
-    static readonly DateOnly Today = new(2026, 10, 1); // a Thursday
+    private static readonly DateOnly Today = new(2026, 10, 1); // a Thursday
 
     [Theory]
     [InlineData("today", 2026, 10, 1)]

@@ -32,10 +32,10 @@ public static class SharedEvents
     {
         ArgumentNullException.ThrowIfNull(occurrences);
 
-        var shown   = new List<CalendarOccurrence>();
+        var shown = new List<CalendarOccurrence>();
         var stripes = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
         var aliases = new Dictionary<string, CalendarOccurrence>(StringComparer.Ordinal);
-        var groups  = new Dictionary<(string Uid, long Start, long End, bool AllDay), (int Slot, List<CalendarOccurrence> Copies)>();
+        var groups = new Dictionary<(string Uid, long Start, long End, bool AllDay), (int Slot, List<CalendarOccurrence> Copies)>();
 
         foreach (var o in occurrences)
         {

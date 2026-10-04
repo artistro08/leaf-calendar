@@ -12,14 +12,14 @@ namespace LeafCalendar.Tests;
 
 public sealed class OutboxSenderTests : IDisposable
 {
-    const string Primary   = "leaf.tester@gmail.com";
-    const string Family    = "family123@group.calendar.google.com";
-    const string Account   = SyncHarness.AccountId;
-    const string SingleUrl = SyncHarness.PrimaryEventsUrl + "/evt-single";
-    const string BaseEtag  = "\"3181161784712000\"";
+    private const string Primary = "leaf.tester@gmail.com";
+    private const string Family = "family123@group.calendar.google.com";
+    private const string Account = SyncHarness.AccountId;
+    private const string SingleUrl = SyncHarness.PrimaryEventsUrl + "/evt-single";
+    private const string BaseEtag = "\"3181161784712000\"";
 
-    readonly SyncHarness _h = new();
-    readonly OutboxSender _sender;
+    private readonly SyncHarness _h = new();
+    private readonly OutboxSender _sender;
 
     public OutboxSenderTests()
     {
@@ -36,26 +36,26 @@ public sealed class OutboxSenderTests : IDisposable
 
     public void Dispose() => _h.Dispose();
 
-    long Queue(string eventId, OutboxOperation operation, string? payload, string? etag = BaseEtag, DateTimeOffset? notBefore = null, string calendarId = Primary, long? dependsOn = null)
+    private long Queue(string eventId, OutboxOperation operation, string? payload, string? etag = BaseEtag, DateTimeOffset? notBefore = null, string calendarId = Primary, long? dependsOn = null)
     {
         using var conn = _h.Db.Database.Open();
         return OutboxStore.Add(conn, null, new OutboxEntry(0, Account, calendarId, eventId, operation, payload, etag, false, EventStore.Snapshot(conn, null, Account, calendarId, eventId), notBefore, DependsOn: dependsOn));
     }
 
-    const string NewSeries    = """{"id":"leafsplit001","status":"confirmed","summary":"Standup v2","start":{"dateTime":"2026-10-09T13:30:00Z"},"end":{"dateTime":"2026-10-09T14:00:00Z"},"recurrence":["RRULE:FREQ=WEEKLY"]}""";
-    const string NewSeriesUrl = SyncHarness.PrimaryEventsUrl + "?";
+    private const string NewSeries = """{"id":"leafsplit001","status":"confirmed","summary":"Standup v2","start":{"dateTime":"2026-10-09T13:30:00Z"},"end":{"dateTime":"2026-10-09T14:00:00Z"},"recurrence":["RRULE:FREQ=WEEKLY"]}""";
+    private const string NewSeriesUrl = SyncHarness.PrimaryEventsUrl + "?";
 
     // A split: the old series' end (a patch of evt-single here), then the new series waiting behind it
-    (long End, long Create) QueueSplit()
+    private (long End, long Create) QueueSplit()
     {
-        var end    = Queue("evt-single", OutboxOperation.Patch, """{"recurrence":["RRULE:FREQ=WEEKLY;UNTIL=20261009T132959Z"]}""");
+        var end = Queue("evt-single", OutboxOperation.Patch, """{"recurrence":["RRULE:FREQ=WEEKLY;UNTIL=20261009T132959Z"]}""");
         var create = Queue("leafsplit001", OutboxOperation.Create, NewSeries, etag: null, dependsOn: end);
         using var conn = _h.Db.Database.Open();
         EventStore.ApplyJson(conn, null, Account, Primary, NewSeries);
         return (end, create);
     }
 
-    int Inserts() => _h.Google.Requests.Count(r => r.Method == HttpMethod.Post && r.Uri.AbsoluteUri.StartsWith(NewSeriesUrl, StringComparison.Ordinal));
+    private int Inserts() => _h.Google.Requests.Count(r => r.Method == HttpMethod.Post && r.Uri.AbsoluteUri.StartsWith(NewSeriesUrl, StringComparison.Ordinal));
 
     [Fact]
     public async Task Send_SplitWhoseEndConflicts_HoldsTheNewSeries()
@@ -102,19 +102,19 @@ public sealed class OutboxSenderTests : IDisposable
         Assert.Null(Get("leafsplit001"));
     }
 
-    StoredEvent? Get(string id, string calendarId = Primary)
+    private StoredEvent? Get(string id, string calendarId = Primary)
     {
         using var conn = _h.Db.Database.Open();
         return EventStore.Get(conn, Account, calendarId, id);
     }
 
-    IReadOnlyList<OutboxEntry> Pending()
+    private IReadOnlyList<OutboxEntry> Pending()
     {
         using var conn = _h.Db.Database.Open();
         return OutboxStore.Pending(conn, Account);
     }
 
-    Task<SendReport> Send() => _sender.SendAsync(Account, TestContext.Current.CancellationToken);
+    private Task<SendReport> Send() => _sender.SendAsync(Account, TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task Send_Patch_SendsIfMatchAndStoresGoogleVersion()
@@ -170,7 +170,7 @@ public sealed class OutboxSenderTests : IDisposable
         var editor = new EventEditor(_h.Db.Database, _h.Time) { LocalZoneId = "America/New_York" };
         using (var conn = _h.Db.Database.Open())
         {
-            var o      = OccurrenceQuery.Load(conn, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 2), TimeZoneInfo.FindSystemTimeZoneById("America/New_York"), includeDeclined: true).Single(x => x.EventId == "evt-single");
+            var o = OccurrenceQuery.Load(conn, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 2), TimeZoneInfo.FindSystemTimeZoneById("America/New_York"), includeDeclined: true).Single(x => x.EventId == "evt-single");
             var before = editor.Load(o);
             editor.Save(o, before, before with { HasConference = true }, EditScope.This, sendUpdates: false);
         }
@@ -207,7 +207,7 @@ public sealed class OutboxSenderTests : IDisposable
         Assert.Equal("\"E5\"", EventStore.Get(conn, Account, Primary, "evt-allday")!.Etag);
     }
 
-    const string MineOnGoogle = """{"id":"evt-single","etag":"\"G9\"","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""";
+    private const string MineOnGoogle = """{"id":"evt-single","etag":"\"G9\"","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""";
 
     [Fact]
     public async Task Send_412ButGoogleAlreadyHasTheChange_CountsAsSent()
@@ -399,7 +399,7 @@ public sealed class OutboxSenderTests : IDisposable
     }
 
     // A move to another account: the copy's create, then the original's delete waiting behind it (its rows already gone)
-    void QueueCopyThenDelete(string copyCalendarId)
+    private void QueueCopyThenDelete(string copyCalendarId)
     {
         const string Copy = """{"id":"leafcopy001","summary":"Dentist appointment","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""";
         var create = Queue("leafcopy001", OutboxOperation.Create, Copy, etag: null, calendarId: copyCalendarId);
@@ -718,7 +718,7 @@ public sealed class OutboxSenderTests : IDisposable
         Assert.Equal("status 403", Pending()[0].LastError);
     }
 
-    int ConflictCount()
+    private int ConflictCount()
     {
         using var conn = _h.Db.Database.Open();
         return ConflictStore.Count(conn);

@@ -23,15 +23,15 @@ public class RecurrenceExpanderTests
     [InlineData(null)]
     public void FindZone_Unknown_IsNull(string? id) => Assert.Null(RecurrenceExpander.FindZone(id));
 
-    const string NewYork = "America/New_York";
+    private const string NewYork = "America/New_York";
 
-    static readonly DateTimeOffset Always = DateTimeOffset.MinValue;
-    static readonly DateTimeOffset Never  = DateTimeOffset.MaxValue;
+    private static readonly DateTimeOffset Always = DateTimeOffset.MinValue;
+    private static readonly DateTimeOffset Never = DateTimeOffset.MaxValue;
 
-    static DateTimeOffset Ny(int year, int month, int day, int hour, int minute, int offsetHours) =>
+    private static DateTimeOffset Ny(int year, int month, int day, int hour, int minute, int offsetHours) =>
         new(year, month, day, hour, minute, 0, TimeSpan.FromHours(offsetHours));
 
-    static string[] Utc(IEnumerable<DateTimeOffset> values) =>
+    private static string[] Utc(IEnumerable<DateTimeOffset> values) =>
         [.. values.Select(v => v.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture))];
 
     [Fact]

@@ -5,7 +5,7 @@ namespace LeafCalendar.App.Views;
 public sealed partial class CalendarPage
 {
     // E then Z (spec 8.7): open the editor on the event's time zone
-    void EditTimeZone()
+    private void EditTimeZone()
     {
         if (ViewModel.SelectedInfo is { Occurrence.IsAllDay: true })
         {

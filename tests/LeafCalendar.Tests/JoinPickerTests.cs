@@ -9,13 +9,13 @@ namespace LeafCalendar.Tests;
 
 public sealed class JoinPickerTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    const string SecondId = "222222222222";
-    const string Second = "second@example.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
-    static readonly DateTimeOffset Now = new(2026, 10, 1, 17, 58, 0, TimeSpan.Zero);
+    private const string Primary = "leaf.tester@gmail.com";
+    private const string SecondId = "222222222222";
+    private const string Second = "second@example.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
+    private static readonly DateTimeOffset Now = new(2026, 10, 1, 17, 58, 0, TimeSpan.Zero);
 
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public JoinPickerTests()
     {
@@ -28,23 +28,23 @@ public sealed class JoinPickerTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    void Store(string account, string calendar, string json)
+    private void Store(string account, string calendar, string json)
     {
         using var conn = _db.Database.Open();
         EventStore.ApplyJson(conn, null, account, calendar, json);
     }
 
-    Uri? Find(DateTimeOffset? now = null)
+    private Uri? Find(DateTimeOffset? now = null)
     {
         using var conn = _db.Database.Open();
         return JoinPicker.Find(conn, now ?? Now, TimeZoneInfo.Utc);
     }
 
-    static JoinTarget Target(string id, DateTimeOffset start, int minutes = 30, bool allDay = false) =>
+    private static JoinTarget Target(string id, DateTimeOffset start, int minutes = 30, bool allDay = false) =>
         new(new CalendarOccurrence("a", "cal", id, null, null, start, start.AddMinutes(minutes), allDay, id, EventKind.Default, ResponseStatus.Accepted, "#4285F4", null, false, true),
             new Uri("https://meet.google.com/" + id));
 
-    static DateTimeOffset At(int hour, int minute) => new(2026, 10, 1, hour, minute, 0, TimeSpan.Zero);
+    private static DateTimeOffset At(int hour, int minute) => new(2026, 10, 1, hour, minute, 0, TimeSpan.Zero);
 
     [Fact]
     public void Pick_TwoUpcoming_TakesTheSoonest()
@@ -113,10 +113,10 @@ public sealed class JoinPickerTests : IDisposable
     }
 
     // A colleague's calendar you can only see, under an account listed before yours (so its copy of a shared meeting comes first)
-    const string ColleagueAccount = "000000000000";
-    const string Colleague = "colleague@example.com";
+    private const string ColleagueAccount = "000000000000";
+    private const string Colleague = "colleague@example.com";
 
-    void AddColleagueCalendar()
+    private void AddColleagueCalendar()
     {
         using var conn = _db.Database.Open();
         AccountStore.Upsert(conn, new Account(ColleagueAccount, "aaa@example.com", "A", null, AccountStatus.Ok));

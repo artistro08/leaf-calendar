@@ -5,14 +5,14 @@ namespace LeafCalendar.Tests;
 
 public sealed class AvailabilityTextTests
 {
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
-    static readonly TimeZoneInfo Tokyo   = TimeZoneInfo.FindSystemTimeZoneById("Asia/Tokyo");
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly TimeZoneInfo Tokyo = TimeZoneInfo.FindSystemTimeZoneById("Asia/Tokyo");
 
     // Wall-clock times in New York on a given day
-    static BusyRange Et(int month, int day, int h1, int m1, int h2, int m2)
+    private static BusyRange Et(int month, int day, int h1, int m1, int h2, int m2)
     {
         var start = new DateTime(2026, month, day, h1, m1, 0);
-        var end   = new DateTime(2026, month, day, h2, m2, 0);
+        var end = new DateTime(2026, month, day, h2, m2, 0);
         return new(new DateTimeOffset(start, NewYork.GetUtcOffset(start)), new DateTimeOffset(end, NewYork.GetUtcOffset(end)));
     }
 
@@ -82,7 +82,7 @@ public sealed class AvailabilityTextTests
     public void ZoneLabel_Short(string id, string expected) =>
         Assert.Equal(expected, AvailabilityText.ZoneLabel(TimeZoneInfo.FindSystemTimeZoneById(id)));
 
-    const string Times = "Thu Oct 1: 10–11 AM ET\r\nFri Oct 2: 2–4 PM ET";
+    private const string Times = "Thu Oct 1: 10–11 AM ET\r\nFri Oct 2: 2–4 PM ET";
 
     [Fact]
     public void Compose_Default_PutsTheTimesUnderTheGreeting() =>

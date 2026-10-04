@@ -23,8 +23,8 @@ namespace LeafCalendar.App.Views;
 /// </summary>
 public sealed partial class DetailsPanel : UserControl
 {
-    CalendarViewModel? _vm;
-    string? _shownKey;
+    private CalendarViewModel? _vm;
+    private string? _shownKey;
 
     /// <summary>Creates the panel.</summary>
     public DetailsPanel()
@@ -34,16 +34,16 @@ public sealed partial class DetailsPanel : UserControl
 
         // The Description's Real-Host Notes Follow A Theme Or Contrast Theme Change (contrast is raised off the UI thread)
         ActualThemeChanged += (_, _) => RecolorHostNotes();
-        Loaded             += (_, _) => LeafBrushes.ContrastChanged += OnContrastChanged;
-        Unloaded           += (_, _) => LeafBrushes.ContrastChanged -= OnContrastChanged;
+        Loaded += (_, _) => LeafBrushes.ContrastChanged += OnContrastChanged;
+        Unloaded += (_, _) => LeafBrushes.ContrastChanged -= OnContrastChanged;
     }
 
-    void OnContrastChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(RecolorHostNotes);
+    private void OnContrastChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(RecolorHostNotes);
 
     // The real-host notes in the description shown now
-    readonly List<Run> _hostNotes = [];
+    private readonly List<Run> _hostNotes = [];
 
-    void RecolorHostNotes()
+    private void RecolorHostNotes()
     {
         var brush = LeafBrushes.SecondaryText(ActualTheme == ElementTheme.Dark);
         foreach (var note in _hostNotes)
@@ -64,7 +64,7 @@ public sealed partial class DetailsPanel : UserControl
         _vm = vm;
         UpcomingList.ItemsSource = vm.Upcoming;
         vm.Upcoming.CollectionChanged += OnUpcomingChanged;
-        vm.PropertyChanged            += OnViewModelPropertyChanged;
+        vm.PropertyChanged += OnViewModelPropertyChanged;
         ShowUpcomingHeader();
         ShowCurrent();
     }
@@ -78,28 +78,28 @@ public sealed partial class DetailsPanel : UserControl
         }
 
         _vm.Upcoming.CollectionChanged -= OnUpcomingChanged;
-        _vm.PropertyChanged            -= OnViewModelPropertyChanged;
+        _vm.PropertyChanged -= OnViewModelPropertyChanged;
         EditorView?.Detach();
         _vm = null;
     }
 
-    void OnUpcomingChanged(object? sender, NotifyCollectionChangedEventArgs e) => UpdateUpcomingEmpty();
+    private void OnUpcomingChanged(object? sender, NotifyCollectionChangedEventArgs e) => UpdateUpcomingEmpty();
 
     // Nothing coming up: "Done for today" centered in the panel (or, for one calendar's list, that it's quiet), only while
     // the upcoming list is what the panel shows
-    void UpdateUpcomingEmpty()
+    private void UpdateUpcomingEmpty()
     {
-        var showing                  = ContentScroll.Visibility == Visibility.Visible && UpcomingView.Visibility == Visibility.Visible;
-        var empty                    = showing && _vm?.Upcoming.Count == 0;
-        UpcomingEmpty.Visibility     = empty ? Visibility.Visible : Visibility.Collapsed;
+        var showing = ContentScroll.Visibility == Visibility.Visible && UpcomingView.Visibility == Visibility.Visible;
+        var empty = showing && _vm?.Upcoming.Count == 0;
+        UpcomingEmpty.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
         UpcomingHeaderRow.Visibility = empty && _vm?.UpcomingCalendar is null ? Visibility.Collapsed : Visibility.Visible;
-        UpcomingEmptyTitle.Text      = _vm?.UpcomingCalendar is null ? "Done for today" : "All clear";
-        UpcomingEmptyDetail.Text     = _vm?.UpcomingCalendar is null
+        UpcomingEmptyTitle.Text = _vm?.UpcomingCalendar is null ? "Done for today" : "All clear";
+        UpcomingEmptyDetail.Text = _vm?.UpcomingCalendar is null
             ? string.Create(CultureInfo.InvariantCulture, $"Nothing in the next {_vm?.UpcomingHours ?? 8} hours.")
             : "Nothing in the next 30 days.";
     }
 
-    void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(CalendarViewModel.SelectedInfo) or nameof(CalendarViewModel.Editing) or nameof(CalendarViewModel.Selection))
         {
@@ -123,31 +123,31 @@ public sealed partial class DetailsPanel : UserControl
     }
 
     // "Upcoming", or "Upcoming in {calendar}" with the way back to every calendar
-    void ShowUpcomingHeader()
+    private void ShowUpcomingHeader()
     {
         var calendar = _vm?.UpcomingCalendar;
-        UpcomingHeader.Text        = calendar is null ? "Upcoming" : $"Upcoming in {calendar.Summary}";
+        UpcomingHeader.Text = calendar is null ? "Upcoming" : $"Upcoming in {calendar.Summary}";
         UpcomingShowAll.Visibility = Visible(calendar is not null);
         UpdateUpcomingEmpty();
     }
 
-    void OnUpcomingShowAllClick(object sender, RoutedEventArgs e) => _vm?.ShowUpcomingFor(null);
+    private void OnUpcomingShowAllClick(object sender, RoutedEventArgs e) => _vm?.ShowUpcomingFor(null);
 
     // The location button names the map service picked in Settings, and its tooltip shows where it goes
-    void ShowMapButton()
+    private void ShowMapButton()
     {
         if (_vm is not { } vm)
         {
             return;
         }
 
-        var location     = vm.SelectedInfo?.Details.Location;
+        var location = vm.SelectedInfo?.Details.Location;
         MapsLink.Content = vm.MapButtonText;
         ToolTipService.SetToolTip(MapsLink, location is { Length: > 0 } ? LinkSafety.DisplayForm(LinkSafety.MapsSearch(location, vm.Settings.MapProvider)) : null);
     }
 
     // The editor wins while it's open; otherwise the selection summary (several events), the selected event, else the upcoming list
-    void ShowCurrent()
+    private void ShowCurrent()
     {
         if (_vm?.Editing is { } editing)
         {
@@ -160,7 +160,7 @@ public sealed partial class DetailsPanel : UserControl
             var view = EditorView!;
             ContentScroll.Visibility = Visibility.Collapsed;
             UpdateUpcomingEmpty();
-            view.Visibility            = Visibility.Visible;
+            view.Visibility = Visibility.Visible;
 
             // A new editor starts at the top (a refresh behind an open editor keeps the scroll position)
             if (!ReferenceEquals(view.Editor, editing))
@@ -179,10 +179,10 @@ public sealed partial class DetailsPanel : UserControl
         if (count > 1)
         {
             EditorView?.Detach();
-            EditorView?.Visibility  = Visibility.Collapsed;
+            EditorView?.Visibility = Visibility.Collapsed;
             UpcomingView.Visibility = Visibility.Collapsed;
-            DetailsView.Visibility  = Visibility.Collapsed;
-            SelectionSummary.Text   = string.Create(CultureInfo.InvariantCulture, $"{count} events selected");
+            DetailsView.Visibility = Visibility.Collapsed;
+            SelectionSummary.Text = string.Create(CultureInfo.InvariantCulture, $"{count} events selected");
             UpdateUpcomingEmpty();
             return;
         }
@@ -196,10 +196,10 @@ public sealed partial class DetailsPanel : UserControl
         Show(_vm?.SelectedInfo);
     }
 
-    void Show(SelectedEventInfo? info)
+    private void Show(SelectedEventInfo? info)
     {
         UpcomingView.Visibility = Visible(info is null);
-        DetailsView.Visibility  = Visible(info is not null);
+        DetailsView.Visibility = Visible(info is not null);
         UpdateUpcomingEmpty();
 
         // Back To The Top For Another Event (a refresh of the same event keeps the scroll position and note)
@@ -217,25 +217,25 @@ public sealed partial class DetailsPanel : UserControl
         }
 
         var d = info.Details;
-        TitleText.Text    = Core.Tray.DisplayText.Clean(d.Title, 1000);
-        WhenText.Text     = info.When;
+        TitleText.Text = Core.Tray.DisplayText.Clean(d.Title, 1000);
+        WhenText.Text = info.When;
         CalendarText.Text = info.CalendarName;
-        StatusText.Text   = info.StatusText;
-        CalendarDot.Fill  = LeafBrushes.FromHex(info.CalendarColor);
+        StatusText.Text = info.StatusText;
+        CalendarDot.Fill = LeafBrushes.FromHex(info.CalendarColor);
 
         // Join (it shows where it really goes)
         var call = d.ConferenceUri is { } uri ? LinkSafety.DisplayForm(uri) ?? "" : "";
-        JoinGroup.Visibility    = Visible(d.ConferenceUri is not null);
-        JoinText.Text           = JoinLabel(d.ConferenceUri);
-        JoinLogo.Provider       = d.ConferenceUri is { } link ? LinkSafety.ProviderOf(link) : null;
+        JoinGroup.Visibility = Visible(d.ConferenceUri is not null);
+        JoinText.Text = JoinLabel(d.ConferenceUri);
+        JoinLogo.Provider = d.ConferenceUri is { } link ? LinkSafety.ProviderOf(link) : null;
         AutomationProperties.SetName(JoinButton, JoinText.Text);
         ToolTipService.SetToolTip(JoinButton, $"Join (Ctrl+J)\n{call}");
 
         // Location And Call
         // Shown cleaned, so a line break or bidi mark can't draw a fake line; Maps still searches the raw value
-        LocationText.Text         = Core.Tray.DisplayText.Clean(d.Location, 1000);
-        LocationRow.Visibility    = Visible(d.Location is { Length: > 0 });
-        ConferenceText.Text       = $"Video call: {call}";
+        LocationText.Text = Core.Tray.DisplayText.Clean(d.Location, 1000);
+        LocationRow.Visibility = Visible(d.Location is { Length: > 0 });
+        ConferenceText.Text = $"Video call: {call}";
         ConferenceText.Visibility = Visible(d.ConferenceUri is not null);
         ShowMapButton();
 
@@ -248,8 +248,8 @@ public sealed partial class DetailsPanel : UserControl
         var mailto = CalendarViewModel.GuestsMailto(info);
         EmailGuestsLink.Visibility = Visible(mailto is not null);
         ToolTipService.SetToolTip(EmailGuestsLink, mailto is null ? null : $"Email guests (E then E)\n{LinkSafety.DisplayForm(mailto)}");
-        GuestsRow.Visibility  = Visible(guests.Count > 0);
-        GuestsText.Text       = guests.Count == 1 ? "1 guest" : string.Create(CultureInfo.InvariantCulture, $"{guests.Count} guests");
+        GuestsRow.Visibility = Visible(guests.Count > 0);
+        GuestsText.Text = guests.Count == 1 ? "1 guest" : string.Create(CultureInfo.InvariantCulture, $"{guests.Count} guests");
         GuestList.ItemsSource = guests.Select(g => new GuestItem(Clean(g.Email), GuestDetail(g), g.Name is null ? null : Clean(g.Name))).ToList();
 
         RenderDescription(info.DescriptionRuns);
@@ -257,13 +257,13 @@ public sealed partial class DetailsPanel : UserControl
 
         // Dividers: one above each group that shows, never above the first group (the title block), so none sit
         // at the ends or side by side
-        DividerJoin.Visibility        = Visible(JoinGroup.Visibility == Visibility.Visible || LocationRow.Visibility == Visibility.Visible || ConferenceText.Visibility == Visibility.Visible);
-        DividerPeople.Visibility      = Visible(RsvpRow.Visibility == Visibility.Visible || GuestsRow.Visibility == Visibility.Visible);
+        DividerJoin.Visibility = Visible(JoinGroup.Visibility == Visibility.Visible || LocationRow.Visibility == Visibility.Visible || ConferenceText.Visibility == Visibility.Visible);
+        DividerPeople.Visibility = Visible(RsvpRow.Visibility == Visibility.Visible || GuestsRow.Visibility == Visibility.Visible);
         DividerDescription.Visibility = DescriptionBlock.Visibility;
     }
 
     // What you can press for this event: the action on the left, its keys on the right (rebuilt only for another set)
-    void ShowShortcutHints(SelectedEventInfo info, bool hasGuests)
+    private void ShowShortcutHints(SelectedEventInfo info, bool hasGuests)
     {
         var hints = ShortcutCatalog.ForEvent(info.CanEdit, info.Details.ConferenceUri is not null, info.CanRespond, hasGuests);
         if (hints.SequenceEqual(_hints))
@@ -282,11 +282,11 @@ public sealed partial class DetailsPanel : UserControl
 
             row.Children.Add(new TextBlock
             {
-                Text              = hint.Action,
+                Text = hint.Action,
                 VerticalAlignment = VerticalAlignment.Center,
-                TextTrimming      = TextTrimming.CharacterEllipsis,
-                TextWrapping      = TextWrapping.NoWrap,
-                Style             = (Style)Application.Current.Resources["LeafSecondaryTextStyle"], // its ThemeResource color follows Leaf's theme
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap,
+                Style = (Style)Application.Current.Resources["LeafSecondaryTextStyle"], // its ThemeResource color follows Leaf's theme
             });
 
             var legend = ShortcutLegend.Build(hint.Keys);
@@ -297,31 +297,31 @@ public sealed partial class DetailsPanel : UserControl
     }
 
     // The hints shown now (an unchanged set isn't rebuilt when the same event refreshes)
-    IReadOnlyList<ShortcutRow> _hints = [];
+    private IReadOnlyList<ShortcutRow> _hints = [];
 
     // The arrow opens the menu once, right-aligned under the whole button group
-    void OnJoinMenuClick(object sender, RoutedEventArgs e) =>
+    private void OnJoinMenuClick(object sender, RoutedEventArgs e) =>
         JoinMenu.ShowAt(JoinGroup, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedRight });
 
     // Esc (or a pick) puts focus back on the arrow
-    void OnJoinMenuClosed(object? sender, object e) => JoinMenuButton.Focus(FocusState.Programmatic);
+    private void OnJoinMenuClosed(object? sender, object e) => JoinMenuButton.Focus(FocusState.Programmatic);
 
     // What the Join button joins, from the link's host (Core's provider detection)
-    static string JoinLabel(Uri? link) => (link is null ? null : LinkSafety.ProviderOf(link)) switch
+    private static string JoinLabel(Uri? link) => (link is null ? null : LinkSafety.ProviderOf(link)) switch
     {
         MeetingProvider.GoogleMeet => "Join Google Meet",
-        MeetingProvider.Zoom       => "Join Zoom meeting",
-        MeetingProvider.Teams      => "Join Microsoft Teams meeting",
-        MeetingProvider.Webex      => "Join Webex meeting",
-        MeetingProvider.Around     => "Join Around meeting",
-        MeetingProvider.Whereby    => "Join Whereby meeting",
-        MeetingProvider.BlueJeans  => "Join BlueJeans meeting",
-        MeetingProvider.DoxyMe     => "Join doxy.me call",
-        _                          => "Join meeting",
+        MeetingProvider.Zoom => "Join Zoom meeting",
+        MeetingProvider.Teams => "Join Microsoft Teams meeting",
+        MeetingProvider.Webex => "Join Webex meeting",
+        MeetingProvider.Around => "Join Around meeting",
+        MeetingProvider.Whereby => "Join Whereby meeting",
+        MeetingProvider.BlueJeans => "Join BlueJeans meeting",
+        MeetingProvider.DoxyMe => "Join doxy.me call",
+        _ => "Join meeting",
     };
 
     // Styled runs as native text. Links never get a NavigateUri from event content; a click goes through the allowlist.
-    void RenderDescription(IReadOnlyList<DescriptionRun> runs)
+    private void RenderDescription(IReadOnlyList<DescriptionRun> runs)
     {
         DescriptionBlock.Blocks.Clear();
         DescriptionBlock.Visibility = Visible(runs.Count > 0);
@@ -331,7 +331,7 @@ public sealed partial class DetailsPanel : UserControl
         var linkStart = 0;
         for (var r = 0; r < runs.Count; r++)
         {
-            var run   = runs[r];
+            var run = runs[r];
             var lines = run.Text.Split('\n');
             for (var i = 0; i < lines.Length; i++)
             {
@@ -364,7 +364,7 @@ public sealed partial class DetailsPanel : UserControl
         DescriptionBlock.Blocks.Add(paragraph);
     }
 
-    Inline Styled(DescriptionRun run, string text)
+    private Inline Styled(DescriptionRun run, string text)
     {
         Inline inline = new Run { Text = text };
 
@@ -398,7 +398,7 @@ public sealed partial class DetailsPanel : UserControl
         return inline;
     }
 
-    static Span Wrap(Span span, Inline inner)
+    private static Span Wrap(Span span, Inline inner)
     {
         span.Inlines.Add(inner);
         return span;
@@ -406,12 +406,12 @@ public sealed partial class DetailsPanel : UserControl
 
     // The reply as a badge: its words in its color on that color's soft fill, with its icon (the menu marks nothing; the
     // badge is the state). Narrator reads the button as the whole line
-    void ShowResponse(ResponseStatus response)
+    private void ShowResponse(ResponseStatus response)
     {
-        var badge          = Core.Events.ResponseBadge.For(response);
+        var badge = Core.Events.ResponseBadge.For(response);
         var (state, glyph) = BadgeLook(badge.Tone);
 
-        ResponseLabel.Text  = badge.Label;
+        ResponseLabel.Text = badge.Label;
         ResponseGlyph.Glyph = glyph;
         VisualStateManager.GoToState(this, state, false);
         AutomationProperties.SetName(ResponseButton, badge.Spoken);
@@ -419,19 +419,19 @@ public sealed partial class DetailsPanel : UserControl
 
     // A tone's visual state (its text color and soft fill, the theme's status brushes in DetailsPanel.xaml, so light,
     // dark, and contrast themes all read in Leaf's own theme) and its icon (Segoe Fluent: CheckMark, Help, Cancel, Clock)
-    static (string State, string Glyph) BadgeLook(ResponseTone tone) => tone switch
+    private static (string State, string Glyph) BadgeLook(ResponseTone tone) => tone switch
     {
         ResponseTone.Positive => ("PositiveTone", "\uE73E"),
-        ResponseTone.Caution  => ("CautionTone", "\uE897"),
+        ResponseTone.Caution => ("CautionTone", "\uE897"),
         ResponseTone.Critical => ("CriticalTone", "\uE711"),
-        _                     => ("NeutralTone", "\uE823"),
+        _ => ("NeutralTone", "\uE823"),
     };
 
     // Guest names, addresses, and comments come from whoever sent the invite and sit on one-line rows: control, bidi, and
     // invisible characters go (a name of "Alice\nalice@corp.com" would otherwise draw a fake address line)
-    static string Clean(string? text) => Core.Tray.DisplayText.Clean(text, 200);
+    private static string Clean(string? text) => Core.Tray.DisplayText.Clean(text, 200);
 
-    static string GuestDetail(Guest guest)
+    private static string GuestDetail(Guest guest)
     {
         var parts = new List<string>();
         if (guest.IsOrganizer)
@@ -441,10 +441,10 @@ public sealed partial class DetailsPanel : UserControl
 
         parts.Add(guest.Response switch
         {
-            ResponseStatus.Accepted  => "Going",
+            ResponseStatus.Accepted => "Going",
             ResponseStatus.Tentative => "Maybe",
-            ResponseStatus.Declined  => "Not going",
-            _                        => "Not answered",
+            ResponseStatus.Declined => "Not going",
+            _ => "Not answered",
         });
 
         if (guest.Optional)
@@ -464,24 +464,24 @@ public sealed partial class DetailsPanel : UserControl
     // ACTIONS
     // =========================================================================
 
-    void OnDeleteClick(object sender, RoutedEventArgs e) => Act(vm => vm.DeleteAsync([.. vm.Selection], sendUpdates: true), "details.delete.failed");
+    private void OnDeleteClick(object sender, RoutedEventArgs e) => Act(vm => vm.DeleteAsync([.. vm.Selection], sendUpdates: true), "details.delete.failed");
 
-    void OnJoinClick(object sender, RoutedEventArgs e) => Act(vm => vm.JoinAsync(vm.SelectedInfo?.Occurrence), "details.join.failed");
+    private void OnJoinClick(object sender, RoutedEventArgs e) => Act(vm => vm.JoinAsync(vm.SelectedInfo?.Occurrence), "details.join.failed");
 
-    void OnCopyMeetingLinkClick(object sender, RoutedEventArgs e) => _vm?.CopyMeetingLink();
+    private void OnCopyMeetingLinkClick(object sender, RoutedEventArgs e) => _vm?.CopyMeetingLink();
 
-    void OnMapsClick(object sender, RoutedEventArgs e) => Act(vm => vm.OpenLocationAsync(), "details.maps.failed");
+    private void OnMapsClick(object sender, RoutedEventArgs e) => Act(vm => vm.OpenLocationAsync(), "details.maps.failed");
 
-    void OnEmailGuestsClick(object sender, RoutedEventArgs e) => Act(vm => vm.EmailGuestsAsync(), "details.email.failed");
+    private void OnEmailGuestsClick(object sender, RoutedEventArgs e) => Act(vm => vm.EmailGuestsAsync(), "details.email.failed");
 
-    void OnRsvpYesClick(object sender, RoutedEventArgs e) => Reply(ResponseStatus.Accepted);
+    private void OnRsvpYesClick(object sender, RoutedEventArgs e) => Reply(ResponseStatus.Accepted);
 
-    void OnRsvpMaybeClick(object sender, RoutedEventArgs e) => Reply(ResponseStatus.Tentative);
+    private void OnRsvpMaybeClick(object sender, RoutedEventArgs e) => Reply(ResponseStatus.Tentative);
 
-    void OnRsvpNoClick(object sender, RoutedEventArgs e) => Reply(ResponseStatus.Declined);
+    private void OnRsvpNoClick(object sender, RoutedEventArgs e) => Reply(ResponseStatus.Declined);
 
     // The badge keeps showing the stored reply until the new one is saved and the event reloads
-    void Reply(ResponseStatus response) =>
+    private void Reply(ResponseStatus response) =>
         Act(
             async vm =>
             {
@@ -494,7 +494,7 @@ public sealed partial class DetailsPanel : UserControl
             "details.respond.failed");
 
     // The view model runs the work and logs a failure under the given name, so nothing escapes into the dispatcher
-    void Act(Func<CalendarViewModel, Task> work, string eventName)
+    private void Act(Func<CalendarViewModel, Task> work, string eventName)
     {
         if (_vm is { } vm)
         {

@@ -8,11 +8,11 @@ namespace LeafCalendar.Tests;
 
 public sealed class CalendarPreferencesTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    const string Family  = "family123@group.calendar.google.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
+    private const string Primary = "leaf.tester@gmail.com";
+    private const string Family = "family123@group.calendar.google.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
 
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public CalendarPreferencesTests()
     {
@@ -23,10 +23,10 @@ public sealed class CalendarPreferencesTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    static List<CalendarListEntry> Entries(string fixture) =>
+    private static List<CalendarListEntry> Entries(string fixture) =>
         JsonSerializer.Deserialize(Fixture.Read(fixture), GoogleJsonContext.Default.CalendarListPage)!.Items;
 
-    CalendarInfo Get(string id)
+    private CalendarInfo Get(string id)
     {
         using var conn = _db.Database.Open();
         return CalendarStore.GetAll(conn).Single(c => c.Id == id);
@@ -94,16 +94,16 @@ public sealed class CalendarPreferencesTests : IDisposable
         Assert.Equal([Family, Primary], CalendarStore.GetAll(check).Select(c => c.Id));
     }
 
-    static CalendarListEntry Todoist(bool selected, bool hidden = false) =>
+    private static CalendarListEntry Todoist(bool selected, bool hidden = false) =>
         new() { Id = "todoist@group.calendar.google.com", Summary = "Todoist", AccessRole = "reader", Selected = selected, Hidden = hidden };
 
-    void Refresh(params CalendarListEntry[] extra)
+    private void Refresh(params CalendarListEntry[] extra)
     {
         using var conn = _db.Database.Open();
         CalendarStore.ReplaceForAccount(conn, Account, [.. Entries("calendar-list.json"), .. extra]);
     }
 
-    bool Listed(string id)
+    private bool Listed(string id)
     {
         using var conn = _db.Database.Open();
         return CalendarStore.GetAll(conn).Any(c => c.Id == id);

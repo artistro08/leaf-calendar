@@ -6,14 +6,14 @@ namespace LeafCalendar.Core.Views;
 /// <summary>Date math for the calendar views. English-only formatting (localization is deferred).</summary>
 public static class ViewNavigator
 {
-    static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
+    private static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
 
     /// <summary>How many day columns the view shows.</summary>
     public static int VisibleColumnCount(CalendarViewMode mode, int customDays, bool showWeekends) => mode switch
     {
-        CalendarViewMode.Day  => 1,
+        CalendarViewMode.Day => 1,
         CalendarViewMode.Days => Math.Clamp(customDays, 1, 31),
-        _                     => showWeekends ? 7 : 5,
+        _ => showWeekends ? 7 : 5,
     };
 
     /// <summary>
@@ -42,9 +42,9 @@ public static class ViewNavigator
     /// <summary>Where the period containing <paramref name="anchor"/> starts.</summary>
     public static DateOnly PeriodStart(CalendarViewMode mode, DateOnly anchor, DayOfWeek weekStart) => mode switch
     {
-        CalendarViewMode.Week  => WeekStartOf(anchor, weekStart),
+        CalendarViewMode.Week => WeekStartOf(anchor, weekStart),
         CalendarViewMode.Month => MonthStartOf(anchor),
-        _                      => anchor,
+        _ => anchor,
     };
 
     /// <summary>
@@ -53,14 +53,14 @@ public static class ViewNavigator
     /// </summary>
     public static DateOnly Step(CalendarViewMode mode, DateOnly periodStart, int direction, int customDays, bool showWeekends = true) => mode switch
     {
-        CalendarViewMode.Day   => StepDays(periodStart, 1, direction, showWeekends),
-        CalendarViewMode.Week  => periodStart.AddDays(7 * direction),
+        CalendarViewMode.Day => StepDays(periodStart, 1, direction, showWeekends),
+        CalendarViewMode.Week => periodStart.AddDays(7 * direction),
         CalendarViewMode.Month => MonthStartOf(periodStart).AddMonths(direction),
-        _                      => StepDays(periodStart, Math.Clamp(customDays, 1, 31), direction, showWeekends),
+        _ => StepDays(periodStart, Math.Clamp(customDays, 1, 31), direction, showWeekends),
     };
 
     // Moves count shown days, skipping Saturday and Sunday when weekends are hidden
-    static DateOnly StepDays(DateOnly start, int count, int direction, bool showWeekends)
+    private static DateOnly StepDays(DateOnly start, int count, int direction, bool showWeekends)
     {
         if (showWeekends)
         {
@@ -105,9 +105,9 @@ public static class ViewNavigator
     /// <summary>The first grid day and number of week rows needed to show the whole month.</summary>
     public static (DateOnly GridStart, int Weeks) MonthGrid(DateOnly anyDayInMonth, DayOfWeek weekStart)
     {
-        var first     = MonthStartOf(anyDayInMonth);
+        var first = MonthStartOf(anyDayInMonth);
         var gridStart = WeekStartOf(first, weekStart);
-        var last      = first.AddMonths(1).AddDays(-1);
+        var last = first.AddMonths(1).AddDays(-1);
 
         return (gridStart, (last.DayNumber - gridStart.DayNumber) / 7 + 1);
     }

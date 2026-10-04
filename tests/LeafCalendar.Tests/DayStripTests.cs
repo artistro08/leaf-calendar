@@ -4,7 +4,7 @@ namespace LeafCalendar.Tests;
 
 public class DayStripTests
 {
-    static readonly DateOnly Origin = new(2026, 10, 1); // Thursday
+    private static readonly DateOnly Origin = new(2026, 10, 1); // Thursday
 
     [Fact]
     public void Strip_AllDays_IndexRoundTrips()
@@ -36,7 +36,7 @@ public class DayStripTests
     [Fact]
     public void Between_WeekendWhileHidden_LeavesItOut()
     {
-        var strip      = new DayStrip(Origin, 14, 14, skipWeekends: true);
+        var strip = new DayStrip(Origin, 14, 14, skipWeekends: true);
         var (fri, mon) = (new DateOnly(2026, 10, 9), new DateOnly(2026, 10, 12));
 
         Assert.Equal([fri, mon], strip.Between(mon, fri));

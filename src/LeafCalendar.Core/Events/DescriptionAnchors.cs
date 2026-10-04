@@ -44,7 +44,7 @@ public static class DescriptionAnchors
     /// </summary>
     public static IReadOnlyList<Uri?> Resolve(IReadOnlyList<(string Text, Uri Link)> anchors, IReadOnlyList<(string Text, int? Slot)> runs)
     {
-        var used    = new bool[anchors.Count];
+        var used = new bool[anchors.Count];
         var targets = new Uri?[runs.Count];
 
         for (var r = 0; r < runs.Count; r++)
@@ -63,8 +63,8 @@ public static class DescriptionAnchors
 
                 // Joined With The Next Runs In The Slot While They Still Spell The Start Of The Anchor's Text
                 var whole = anchors[i].Text;
-                var text  = runs[r].Text;
-                var end   = r + 1;
+                var text = runs[r].Text;
+                var end = r + 1;
                 while (text.Length < whole.Length && whole.StartsWith(text, StringComparison.Ordinal) && end < runs.Count && runs[end].Slot == slot)
                 {
                     text += runs[end++].Text;

@@ -21,14 +21,14 @@ namespace LeafCalendar.App.Notifications;
 /// </remarks>
 internal sealed class Notifier(LeafServices services) : IDisposable
 {
-    readonly Lock _fileGate = new();
+    private readonly Lock _fileGate = new();
     // Read on the scheduler's and the sync threads, written on the UI thread
-    volatile bool _registered;
+    private volatile bool _registered;
 
     /// <summary>A notification or one of its buttons was clicked; the argument is its activation text. Raised on a background thread.</summary>
     public event EventHandler<string>? Invoked;
 
-    bool IsFake => services.Options.FakeGoogle is not null;
+    private bool IsFake => services.Options.FakeGoogle is not null;
 
     /// <summary>
     /// Registers with Windows: the click handler first, then the registration, as Windows App SDK requires. When a click
@@ -135,9 +135,9 @@ internal sealed class Notifier(LeafServices services) : IDisposable
         }
     }
 
-    void OnInvoked(AppNotificationManager sender, AppNotificationActivatedEventArgs args) => Invoked?.Invoke(this, args.Argument);
+    private void OnInvoked(AppNotificationManager sender, AppNotificationActivatedEventArgs args) => Invoked?.Invoke(this, args.Argument);
 
-    void Record(string verb, string group, string tag, string xml)
+    private void Record(string verb, string group, string tag, string xml)
     {
         try
         {

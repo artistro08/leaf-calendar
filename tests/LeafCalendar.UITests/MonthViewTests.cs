@@ -7,8 +7,8 @@ namespace LeafCalendar.UITests;
 
 public sealed class MonthViewTests : IDisposable
 {
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -16,7 +16,7 @@ public sealed class MonthViewTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp LaunchInMonth()
+    private LeafApp LaunchInMonth()
     {
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
         try
@@ -81,15 +81,15 @@ public sealed class MonthViewTests : IDisposable
     }
 
     // A one-hour event starting at a time on the PC's clock
-    static JsonObject Seed(string id, DateTime localStart)
+    private static JsonObject Seed(string id, DateTime localStart)
     {
         var start = TimeZoneInfo.ConvertTimeToUtc(localStart, TimeZoneInfo.Local);
         return new JsonObject
         {
-            ["id"]      = id,
+            ["id"] = id,
             ["summary"] = id,
-            ["start"]   = new JsonObject { ["dateTime"] = start.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture) },
-            ["end"]     = new JsonObject { ["dateTime"] = start.AddHours(1).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture) },
+            ["start"] = new JsonObject { ["dateTime"] = start.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture) },
+            ["end"] = new JsonObject { ["dateTime"] = start.AddHours(1).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture) },
         };
     }
 }

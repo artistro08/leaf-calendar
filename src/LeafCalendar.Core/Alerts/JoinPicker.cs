@@ -54,11 +54,11 @@ public static class JoinPicker
     /// </summary>
     public static IReadOnlyList<JoinTarget> Candidates(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone, TimeSpan lookahead)
     {
-        var today     = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
-        var last      = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now + lookahead, zone).DateTime);
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
+        var last = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now + lookahead, zone).DateTime);
         var calendars = CalendarStore.GetAll(conn).ToDictionary(c => (c.AccountId, c.Id));
-        var seen      = new HashSet<(string, long)>();
-        var result    = new List<JoinTarget>();
+        var seen = new HashSet<(string, long)>();
+        var result = new List<JoinTarget>();
         foreach (var o in OccurrenceQuery.Load(conn, today.AddDays(-1), last.AddDays(2), zone, includeDeclined: false, keepSharedCopies: true))
         {
             if (o.IsAllDay || o.End <= now || o.Start - now > lookahead)
@@ -98,7 +98,7 @@ public static class JoinPicker
         try
         {
             using var doc = JsonDocument.Parse(rawJson);
-            var root      = doc.RootElement;
+            var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
             {
                 return false;

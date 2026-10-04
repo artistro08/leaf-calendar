@@ -12,7 +12,7 @@ namespace LeafCalendar.Core.Views;
 public static class ZoneAbbreviation
 {
     // IANA ID → (standard, daylight); a zone without daylight saving repeats its standard name
-    static readonly Dictionary<string, (string Standard, string Daylight)> Names = Build(
+    private static readonly Dictionary<string, (string Standard, string Daylight)> Names = Build(
         (("EST", "EDT"), ["America/New_York", "America/Detroit", "America/Toronto", "America/Montreal", "America/Nassau", "America/Indiana/Indianapolis", "America/Kentucky/Louisville", "America/Indianapolis", "US/Eastern"]),
         (("CST", "CDT"), ["America/Chicago", "America/Winnipeg", "America/Indiana/Knox", "America/Menominee", "America/Matamoros", "US/Central"]),
         (("CST", "CST"), ["America/Regina", "America/Mexico_City", "America/Monterrey", "America/Guatemala", "America/Costa_Rica", "America/El_Salvador", "America/Tegucigalpa", "America/Managua", "America/Belize"]),
@@ -78,7 +78,7 @@ public static class ZoneAbbreviation
         return false;
     }
 
-    static Dictionary<string, (string Standard, string Daylight)> Build(params ((string Standard, string Daylight) Names, string[] Ids)[] groups)
+    private static Dictionary<string, (string Standard, string Daylight)> Build(params ((string Standard, string Daylight) Names, string[] Ids)[] groups)
     {
         var map = new Dictionary<string, (string Standard, string Daylight)>(StringComparer.OrdinalIgnoreCase);
         foreach (var (names, ids) in groups)

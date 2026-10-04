@@ -19,11 +19,11 @@ public sealed class EventWindowCache(Func<DateOnly, DateOnly, CancellationToken,
     /// <summary>Months kept on each side of the visible range.</summary>
     public const int MonthsAround = 3;
 
-    readonly SemaphoreSlim _gate = new(1, 1);
-    Dictionary<DateOnly, IReadOnlyList<CalendarOccurrence>> _months = [];
-    Dictionary<DateOnly, List<CalendarOccurrence>> _byDay = [];
-    IReadOnlyDictionary<string, IReadOnlyList<string>> _stripes = new Dictionary<string, IReadOnlyList<string>>();
-    IReadOnlyDictionary<string, CalendarOccurrence> _aliases = new Dictionary<string, CalendarOccurrence>();
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private Dictionary<DateOnly, IReadOnlyList<CalendarOccurrence>> _months = [];
+    private Dictionary<DateOnly, List<CalendarOccurrence>> _byDay = [];
+    private IReadOnlyDictionary<string, IReadOnlyList<string>> _stripes = new Dictionary<string, IReadOnlyList<string>>();
+    private IReadOnlyDictionary<string, CalendarOccurrence> _aliases = new Dictionary<string, CalendarOccurrence>();
 
     /// <summary>Raised on the calling thread whenever the cached data changes.</summary>
     public event EventHandler? Changed;
@@ -41,7 +41,7 @@ public sealed class EventWindowCache(Func<DateOnly, DateOnly, CancellationToken,
         try
         {
             var first = MonthOf(visibleStart).AddMonths(-MonthsAround);
-            var last  = MonthOf(visibleEnd.AddDays(-1)).AddMonths(MonthsAround);
+            var last = MonthOf(visibleEnd.AddDays(-1)).AddMonths(MonthsAround);
 
             // Evict
             var evicted = false;
@@ -128,9 +128,9 @@ public sealed class EventWindowCache(Func<DateOnly, DateOnly, CancellationToken,
     /// <inheritdoc />
     public void Dispose() => _gate.Dispose();
 
-    void Rebuild()
+    private void Rebuild()
     {
-        var byDay  = new Dictionary<DateOnly, List<CalendarOccurrence>>();
+        var byDay = new Dictionary<DateOnly, List<CalendarOccurrence>>();
         var merged = SharedEvents.Merge(_months.Values.SelectMany(m => m).DistinctBy(o => o.Key), preference);
 
         foreach (var occurrence in merged.Shown)
@@ -150,17 +150,17 @@ public sealed class EventWindowCache(Func<DateOnly, DateOnly, CancellationToken,
             }
         }
 
-        _byDay   = byDay;
+        _byDay = byDay;
         _stripes = merged.Stripes;
         _aliases = merged.Aliases;
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    DateOnly LocalDate(DateTimeOffset instant) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, Zone).DateTime);
+    private DateOnly LocalDate(DateTimeOffset instant) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, Zone).DateTime);
 
-    static DateOnly MonthOf(DateOnly day) => new(day.Year, day.Month, 1);
+    private static DateOnly MonthOf(DateOnly day) => new(day.Year, day.Month, 1);
 
-    static IEnumerable<DateOnly> Months(DateOnly first, DateOnly last)
+    private static IEnumerable<DateOnly> Months(DateOnly first, DateOnly last)
     {
         for (var month = first; month <= last; month = month.AddMonths(1))
         {

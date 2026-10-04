@@ -43,7 +43,7 @@ public class EventColorsTests
     }
 
     // Sum of per-channel differences between two #RRGGBB colors
-    static int Distance(string a, string b) =>
+    private static int Distance(string a, string b) =>
         Enumerable.Range(0, 3).Sum(i => Math.Abs(Convert.ToInt32(a.Substring(1 + 2 * i, 2), 16) - Convert.ToInt32(b.Substring(1 + 2 * i, 2), 16)));
 
     // Past Cards Are Clearly Faded (fill closer to the surface) And Their Text Still Meets 4.5:1 On The Faded Fill, Both Themes
@@ -55,8 +55,8 @@ public class EventColorsTests
             var surface = ChromeColors.Surface(dark);
             foreach (var accent in EventColors.CalendarPalette.Concat(EventColors.EventColorNames.Select(c => EventColors.ResolveAccent(c.Id, "#039BE5"))))
             {
-                var current   = EventColors.Palette(accent, dark);
-                var past      = EventColors.Palette(accent, dark, past: true);
+                var current = EventColors.Palette(accent, dark);
+                var past = EventColors.Palette(accent, dark, past: true);
                 var secondary = EventColors.Blend("#" + past.SecondaryText[3..], past.Fill, 1 - Convert.ToInt32(past.SecondaryText[1..3], 16) / 255.0);
 
                 // The fade is clearly visible: fill and accent bar both moved a good way toward the surface (at least 25% of the old distance)
@@ -94,9 +94,9 @@ public class EventColorsTests
     {
         foreach (var dark in new[] { true, false })
         {
-            var surface    = ChromeColors.Surface(dark);
+            var surface = ChromeColors.Surface(dark);
             var unselected = EventColors.Palette("#039BE5", dark);
-            var selected   = EventColors.Palette("#039BE5", dark, selected: true);
+            var selected = EventColors.Palette("#039BE5", dark, selected: true);
 
             Assert.True(Distance(selected.Fill, surface) > Distance(unselected.Fill, surface), $"dark={dark}");
         }

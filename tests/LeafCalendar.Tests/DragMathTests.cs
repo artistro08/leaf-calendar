@@ -5,12 +5,12 @@ namespace LeafCalendar.Tests;
 
 public class DragMathTests
 {
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
-    static readonly DateOnly Oct1 = new(2026, 10, 1);
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly DateOnly Oct1 = new(2026, 10, 1);
 
-    static DateTimeOffset Utc(int month, int day, int hour, int minute = 0) => new(2026, month, day, hour, minute, 0, TimeSpan.Zero);
+    private static DateTimeOffset Utc(int month, int day, int hour, int minute = 0) => new(2026, month, day, hour, minute, 0, TimeSpan.Zero);
 
-    static CalendarOccurrence Event(DateTimeOffset start, DateTimeOffset end, bool allDay = false) =>
+    private static CalendarOccurrence Event(DateTimeOffset start, DateTimeOffset end, bool allDay = false) =>
         new("acct", "cal", "evt", null, null, start, end, allDay, "Title", EventKind.Default, ResponseStatus.Accepted, "#4285F4", null, false, false);
 
     [Fact]
@@ -76,7 +76,7 @@ public class DragMathTests
     [Fact]
     public void PasteAt_KeepsSpacingBetweenCopiedEvents()
     {
-        var first  = Event(Utc(10, 1, 14), Utc(10, 1, 15));
+        var first = Event(Utc(10, 1, 14), Utc(10, 1, 15));
         var second = Event(Utc(10, 1, 15, 30), Utc(10, 1, 16));
         var allDay = Event(Utc(10, 1, 0), Utc(10, 2, 0), allDay: true);
 

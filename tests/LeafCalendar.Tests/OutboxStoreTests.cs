@@ -6,10 +6,10 @@ namespace LeafCalendar.Tests;
 
 public sealed class OutboxStoreTests : IDisposable
 {
-    const string Calendar = "leaf.tester@gmail.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
+    private const string Calendar = "leaf.tester@gmail.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
 
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public OutboxStoreTests()
     {
@@ -19,14 +19,14 @@ public sealed class OutboxStoreTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    static OutboxEntry Entry(string eventId, OutboxOperation operation = OutboxOperation.Patch, string? etag = "\"1\"") =>
+    private static OutboxEntry Entry(string eventId, OutboxOperation operation = OutboxOperation.Patch, string? etag = "\"1\"") =>
         new(0, Account, Calendar, eventId, operation, """{"summary":"x"}""", etag, SendUpdates: false, BeforeJson: "[]", NotBefore: null);
 
     [Fact]
     public void Add_ThenPending_ReturnsEntriesInOrder()
     {
         using var conn = _db.Database.Open();
-        var first  = OutboxStore.Add(conn, null, Entry("a"));
+        var first = OutboxStore.Add(conn, null, Entry("a"));
         var second = OutboxStore.Add(conn, null, Entry("b", OutboxOperation.Delete) with { SendUpdates = true, NotBefore = DateTimeOffset.UnixEpoch.AddDays(1) });
 
         var pending = OutboxStore.Pending(conn, Account);
@@ -43,9 +43,9 @@ public sealed class OutboxStoreTests : IDisposable
     public void Rebase_UpdatesOnlyLaterEntriesForThatEvent()
     {
         using var conn = _db.Database.Open();
-        var first  = OutboxStore.Add(conn, null, Entry("a"));
+        var first = OutboxStore.Add(conn, null, Entry("a"));
         var second = OutboxStore.Add(conn, null, Entry("a"));
-        var other  = OutboxStore.Add(conn, null, Entry("b"));
+        var other = OutboxStore.Add(conn, null, Entry("b"));
 
         OutboxStore.Rebase(conn, null, Account, Calendar, "a", first, "\"2\"");
 

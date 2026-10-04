@@ -18,7 +18,7 @@ public class LiveSyncTests
             return;
         }
 
-        var google     = new LiveGoogle(live);
+        var google = new LiveGoogle(live);
         var calendarId = await google.CreateTestCalendarAsync(ct);
         try
         {
@@ -56,7 +56,7 @@ public class LiveSyncTests
             return;
         }
 
-        var google     = new LiveGoogle(live);
+        var google = new LiveGoogle(live);
         var calendarId = await google.CreateTestCalendarAsync(ct);
         try
         {
@@ -72,7 +72,7 @@ public class LiveSyncTests
             // Expand from what Leaf synced, exactly as the views will
             await live.Services.Sync.SyncAccountAsync(live.AccountId, ct);
             using var raw = JsonDocument.Parse(Get(live, calendarId, eventId)!.RawJson);
-            var start      = raw.RootElement.GetProperty("start");
+            var start = raw.RootElement.GetProperty("start");
             var recurrence = raw.RootElement.GetProperty("recurrence").EnumerateArray().Select(r => r.GetString()!).ToList();
 
             var actual = RecurrenceExpander.ExpandTimed(
@@ -90,13 +90,13 @@ public class LiveSyncTests
         }
     }
 
-    static StoredEvent? Get(LiveAccount live, string calendarId, string eventId)
+    private static StoredEvent? Get(LiveAccount live, string calendarId, string eventId)
     {
         using var conn = live.Database.Open();
         return EventStore.Get(conn, live.AccountId, calendarId, eventId);
     }
 
-    static string? SyncToken(LiveAccount live, string calendarId)
+    private static string? SyncToken(LiveAccount live, string calendarId)
     {
         using var conn = live.Database.Open();
         return CalendarStore.GetForAccount(conn, live.AccountId).Single(c => c.Id == calendarId).SyncToken;

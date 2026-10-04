@@ -34,7 +34,7 @@ public static class DisplayZone
     public static string Describe(TimeZoneInfo zone, DateTimeOffset at)
     {
         var label = $"{TimeZoneCatalog.CityFor(TimeZoneCatalog.IanaId(zone))} time";
-        var name  = ZoneAbbreviation.For(zone, at);
+        var name = ZoneAbbreviation.For(zone, at);
         return label.Split(' ').Contains(name, StringComparer.Ordinal) ? label : $"{label} ({name})";
     }
 }

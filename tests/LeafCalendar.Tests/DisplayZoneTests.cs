@@ -4,7 +4,7 @@ namespace LeafCalendar.Tests;
 
 public sealed class DisplayZoneTests
 {
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
     [Fact]
     public void Resolve_TravelBeatsPrimaryBeatsWindows()

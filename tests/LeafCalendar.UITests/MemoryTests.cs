@@ -15,7 +15,7 @@ public class MemoryTests(ITestOutputHelper output)
         }
 
         using var google = new FakeGoogleServer();
-        var profile      = SeededProfile.Create();
+        var profile = SeededProfile.Create();
         try
         {
             using var leaf = LeafApp.Launch(profile, $"--fake-google {google.BaseUri} --tray-probe");
@@ -26,12 +26,12 @@ public class MemoryTests(ITestOutputHelper output)
 
             using var process = Process.GetProcessById(leaf.App.ProcessId);
             process.Refresh();
-            var privateMb    = process.PrivateMemorySize64 / (1024 * 1024);
+            var privateMb = process.PrivateMemorySize64 / (1024 * 1024);
             var workingSetMb = process.WorkingSet64 / (1024 * 1024);
             output.WriteLine($"Tray-only: private bytes {privateMb} MB, working set {workingSetMb} MB");
 
             using var budget = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "memory-budget.json"), TestContext.Current.CancellationToken));
-            var maxPrivate    = budget.RootElement.GetProperty("trayPrivateBytesMb").GetInt64();
+            var maxPrivate = budget.RootElement.GetProperty("trayPrivateBytesMb").GetInt64();
             var maxWorkingSet = budget.RootElement.GetProperty("trayWorkingSetMb").GetInt64();
 
             Assert.True(privateMb <= maxPrivate, $"Private bytes {privateMb} MB exceed budget {maxPrivate} MB.");

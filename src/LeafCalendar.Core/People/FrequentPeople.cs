@@ -16,10 +16,10 @@ namespace LeafCalendar.Core.People;
 /// </remarks>
 public static class FrequentPeople
 {
-    const int MaxPeople = 50;
+    private const int MaxPeople = 50;
 
-    static readonly TimeSpan Back  = TimeSpan.FromDays(180);
-    static readonly TimeSpan Ahead = TimeSpan.FromDays(30);
+    private static readonly TimeSpan Back = TimeSpan.FromDays(180);
+    private static readonly TimeSpan Ahead = TimeSpan.FromDays(30);
 
     /// <summary>
     /// The account's guests, most frequent first (ties: the one you met most recently), at most 50. An address counts
@@ -30,8 +30,8 @@ public static class FrequentPeople
     public static IReadOnlyList<Contact> Load(SqliteConnection conn, string accountId, DateTimeOffset now)
     {
         var people = new Dictionary<string, (string Email, string Name, int Count, long Latest)>(StringComparer.OrdinalIgnoreCase);
-        var from   = now - Back;
-        var to     = now + Ahead;
+        var from = now - Back;
+        var to = now + Ahead;
 
         // Single Events, And A Series' Moved Or Edited Instances (their own rows)
         foreach (var (start, email, name, isRoom, isSelf) in Attendees(
@@ -144,7 +144,7 @@ public static class FrequentPeople
     }
 
     // One event's attendees with a valid address, each address once; none for a row Leaf can't read
-    static List<(string Email, string Name, bool IsRoom, bool IsSelf)> Guests(string json)
+    private static List<(string Email, string Name, bool IsRoom, bool IsSelf)> Guests(string json)
     {
         List<(string Email, string Name, bool IsRoom, bool IsSelf)> found = [];
         try
@@ -175,11 +175,11 @@ public static class FrequentPeople
         return [.. found.DistinctBy(f => f.Email, StringComparer.OrdinalIgnoreCase)];
     }
 
-    static string? Text(JsonElement element, string name) =>
+    private static string? Text(JsonElement element, string name) =>
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
-    static bool Starts(string text, string prefix) => text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+    private static bool Starts(string text, string prefix) => text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
 
-    static bool StartsAnyWord(string name, string prefix) =>
+    private static bool StartsAnyWord(string name, string prefix) =>
         name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(word => Starts(word, prefix)) || (prefix.Contains(' ', StringComparison.Ordinal) && Starts(name, prefix));
 }

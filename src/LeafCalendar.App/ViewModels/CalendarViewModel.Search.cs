@@ -9,21 +9,21 @@ namespace LeafCalendar.App.ViewModels;
 public sealed partial class CalendarViewModel
 {
     // The period a command-menu jump landed on (Back shows until the calendar moves elsewhere)
-    DateOnly? _jumpedTo;
+    private DateOnly? _jumpedTo;
 
     /// <summary>True right after a command-menu jump, until you go back or move elsewhere (spec 6.2 item 2).</summary>
     [ObservableProperty]
     public partial bool ShowBack { get; set; }
 
     // The events read for the menu's search (null until read, or after they changed), and the read in progress
-    EventSearch.Index? _searchIndex;
-    Task? _searchIndexBuild;
+    private EventSearch.Index? _searchIndex;
+    private Task? _searchIndexBuild;
 
     // Bumped when the data changes, so a read that started before the change isn't kept
-    int _searchIndexGeneration;
+    private int _searchIndexGeneration;
 
     // Read again after this long, so the rows kept are the ones nearest to now
-    static readonly TimeSpan SearchIndexLife = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan SearchIndexLife = TimeSpan.FromMinutes(15);
 
     /// <summary>
     /// Reads the events for the command menu's search ahead of the first keystroke, off the UI thread (nothing to do
@@ -39,9 +39,9 @@ public sealed partial class CalendarViewModel
         _searchIndexBuild = BuildSearchIndexAsync();
     }
 
-    async Task BuildSearchIndexAsync()
+    private async Task BuildSearchIndexAsync()
     {
-        var now        = Now;
+        var now = Now;
         var generation = _searchIndexGeneration;
         try
         {
@@ -152,7 +152,7 @@ public sealed partial class CalendarViewModel
         if (PeriodStart != before)
         {
             _jumpedTo = PeriodStart;
-            ShowBack  = true;
+            ShowBack = true;
         }
 
         return true;
@@ -164,7 +164,7 @@ public sealed partial class CalendarViewModel
     /// <summary>The title bar's Back after a jump.</summary>
     public void BackFromJump()
     {
-        ShowBack  = false;
+        ShowBack = false;
         _jumpedTo = null;
         GoBack();
     }
@@ -174,7 +174,7 @@ public sealed partial class CalendarViewModel
     {
         if (ShowBack && value != _jumpedTo)
         {
-            ShowBack  = false;
+            ShowBack = false;
             _jumpedTo = null;
         }
     }

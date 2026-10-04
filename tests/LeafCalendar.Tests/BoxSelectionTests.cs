@@ -6,10 +6,10 @@ namespace LeafCalendar.Tests;
 
 public class BoxSelectionTests
 {
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
-    static readonly DateOnly Mon = new(2026, 10, 5);
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly DateOnly Mon = new(2026, 10, 5);
 
-    static CalendarOccurrence At(string id, DateOnly day, int startHour, int endHour, bool allDay = false) =>
+    private static CalendarOccurrence At(string id, DateOnly day, int startHour, int endHour, bool allDay = false) =>
         TestOccurrences.Make(id, DragMath.Instant(day, startHour * 60, NewYork), DragMath.Instant(day, endHour * 60, NewYork), allDay);
 
     [Fact]
@@ -62,8 +62,8 @@ public class BoxSelectionTests
     public void InTimeBox_FallBackDay_BandInsideRepeatedHour_PicksBothPasses()
     {
         var sunday = new DateOnly(2026, 11, 1);
-        var edt    = TimeSpan.FromHours(-4);
-        var est    = TimeSpan.FromHours(-5);
+        var edt = TimeSpan.FromHours(-4);
+        var est = TimeSpan.FromHours(-5);
         CalendarOccurrence[] all =
         [
             TestOccurrences.Make("first-pass", new DateTimeOffset(2026, 11, 1, 1, 20, 0, edt), new DateTimeOffset(2026, 11, 1, 1, 40, 0, edt), false),
@@ -100,7 +100,7 @@ public class BoxSelectionTests
     [Fact]
     public void InTimeBox_HiddenWeekendBetweenTheCorners_StaysOut()
     {
-        var fri   = new DateOnly(2026, 10, 9);
+        var fri = new DateOnly(2026, 10, 9);
         var strip = new DayStrip(fri, 7, 7, skipWeekends: true);
         CalendarOccurrence[] all = [At("fri", fri, 11, 12), At("sat", fri.AddDays(1), 11, 12), At("mon", fri.AddDays(3), 11, 12)];
 

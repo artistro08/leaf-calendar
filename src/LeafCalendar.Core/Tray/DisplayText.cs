@@ -82,6 +82,6 @@ public static class DisplayText
 
     // Format Characters (Bidi Marks/Embeddings/Isolates, Zero-Width, Soft Hyphen, Invisible Operators, ...) Except The Joiner Emoji Need And The Non-Joiner Persian Needs;
     // Plus The Combining Grapheme Joiner, Line/Paragraph Separators, And XML Noncharacters
-    static bool IsInvisible(char c) =>
-        c is not ('\u200C' or '\u200D') &&(char.GetUnicodeCategory(c) == UnicodeCategory.Format || c is '\u034F' or '\u2028' or '\u2029' or '\uFFFE' or '\uFFFF');
+    private static bool IsInvisible(char c) =>
+        c is not ('\u200C' or '\u200D') && (char.GetUnicodeCategory(c) == UnicodeCategory.Format || c is '\u034F' or '\u2028' or '\u2029' or '\uFFFE' or '\uFFFF');
 }

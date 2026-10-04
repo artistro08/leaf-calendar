@@ -8,10 +8,10 @@ namespace LeafCalendar.UITests;
 
 public sealed class TrayMenuTests : IDisposable
 {
-    const string MeetLink = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
+    private const string MeetLink = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -19,7 +19,7 @@ public sealed class TrayMenuTests : IDisposable
         _google.Dispose();
     }
 
-    LeafApp Launch(string now = "2026-10-01T08:00:00-04:00")
+    private LeafApp Launch(string now = "2026-10-01T08:00:00-04:00")
     {
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01 --now {now}");
         leaf.WaitFor("Event_evt-meeting_202610011800");

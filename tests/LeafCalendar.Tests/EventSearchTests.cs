@@ -8,12 +8,12 @@ namespace LeafCalendar.Tests;
 
 public sealed class EventSearchTests : IDisposable
 {
-    const string Primary = "leaf.tester@gmail.com";
-    static readonly string Account = TestDatabase.SampleAccount.Id;
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
-    static readonly DateTimeOffset Now = new(2026, 10, 6, 12, 0, 0, TimeSpan.FromHours(-4));
+    private const string Primary = "leaf.tester@gmail.com";
+    private static readonly string Account = TestDatabase.SampleAccount.Id;
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly DateTimeOffset Now = new(2026, 10, 6, 12, 0, 0, TimeSpan.FromHours(-4));
 
-    readonly TestDatabase _db = new();
+    private readonly TestDatabase _db = new();
 
     public EventSearchTests()
     {
@@ -32,14 +32,14 @@ public sealed class EventSearchTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    void Insert(string json, string account = "109876543210", string calendar = Primary)
+    private void Insert(string json, string account = "109876543210", string calendar = Primary)
     {
         using var conn = _db.Database.Open();
-        using var doc  = JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(json);
         EventStore.Apply(conn, null, account, calendar, doc.RootElement);
     }
 
-    IReadOnlyList<SearchHit> Find(string query)
+    private IReadOnlyList<SearchHit> Find(string query)
     {
         using var conn = _db.Database.Open();
         return EventSearch.Find(conn, query, Now, NewYork);
@@ -107,7 +107,7 @@ public sealed class EventSearchTests : IDisposable
     {
         // Sydney, 9 AM Oct 3: yesterday's all-day event is over, and a daily all-day series' next date is today
         var sydney = TimeZoneInfo.FindSystemTimeZoneById("Australia/Sydney");
-        var now    = new DateTimeOffset(2026, 10, 3, 9, 0, 0, TimeSpan.FromHours(10));
+        var now = new DateTimeOffset(2026, 10, 3, 9, 0, 0, TimeSpan.FromHours(10));
         Insert("""{"id":"offsite","status":"confirmed","summary":"Offsite","start":{"date":"2026-10-02"},"end":{"date":"2026-10-03"}}""");
         Insert(Timed("planning", "Offsite planning", "2026-10-10T10:00:00+10:00", "2026-10-10T11:00:00+10:00"));
         Insert("""{"id":"gym","status":"confirmed","summary":"Gym day","start":{"date":"2026-09-01"},"end":{"date":"2026-09-02"},"recurrence":["RRULE:FREQ=DAILY"]}""");
@@ -118,7 +118,7 @@ public sealed class EventSearchTests : IDisposable
         Assert.Equal(new DateTimeOffset(2026, 10, 3, 0, 0, 0, TimeSpan.Zero), Assert.Single(EventSearch.Find(conn, "gym", now, sydney, TestContext.Current.CancellationToken)).Start);
     }
 
-    static string Timed(string id, string title, string start, string end, string extra = "") =>
+    private static string Timed(string id, string title, string start, string end, string extra = "") =>
         $$"""{"id":"{{id}}","status":"confirmed","summary":"{{title}}","start":{"dateTime":"{{start}}"},"end":{"dateTime":"{{end}}"}{{extra}}}""";
 
     [Fact]

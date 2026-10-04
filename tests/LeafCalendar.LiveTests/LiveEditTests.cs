@@ -1,4 +1,3 @@
-using System.Text.Json.Nodes;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
@@ -8,12 +7,12 @@ namespace LeafCalendar.LiveTests;
 
 public class LiveEditTests
 {
-    const string SkipReason = "Live account not set up. Run LiveSignInTests once (see its comment).";
+    private const string SkipReason = "Live account not set up. Run LiveSignInTests once (see its comment).";
 
-    static EventEditor Editor(LiveAccount live) => new(live.Database, TimeProvider.System) { LocalZoneId = "America/New_York" };
+    private static EventEditor Editor(LiveAccount live) => new(live.Database, TimeProvider.System) { LocalZoneId = "America/New_York" };
 
     // Guard: Nothing Is Sent Unless Every Queued Change Targets A Calendar This Run Created
-    static async Task Sync(LiveAccount live, LiveGoogle google, CancellationToken ct)
+    private static async Task Sync(LiveAccount live, LiveGoogle google, CancellationToken ct)
     {
         using (var conn = live.Database.Open())
         {
@@ -49,7 +48,7 @@ public class LiveEditTests
     }
 
     // Deletes each calendar on its own so one failure neither skips the others nor hides the test's own error
-    static async Task Cleanup(LiveGoogle google, params string?[] calendarIds)
+    private static async Task Cleanup(LiveGoogle google, params string?[] calendarIds)
     {
         foreach (var id in calendarIds.OfType<string>())
         {
@@ -65,10 +64,10 @@ public class LiveEditTests
         }
     }
 
-    static CalendarOccurrence Occurrence(LiveAccount live, string calendarId, string eventId, DateTimeOffset start, DateTimeOffset end, string? recurringEventId = null) =>
+    private static CalendarOccurrence Occurrence(LiveAccount live, string calendarId, string eventId, DateTimeOffset start, DateTimeOffset end, string? recurringEventId = null) =>
         new(live.AccountId, calendarId, eventId, null, recurringEventId, start, end, false, "", EventKind.Default, ResponseStatus.Accepted, "#4285F4", null, false, false);
 
-    static CalendarOccurrence Stored(LiveAccount live, string calendarId, string eventId)
+    private static CalendarOccurrence Stored(LiveAccount live, string calendarId, string eventId)
     {
         using var conn = live.Database.Open();
         var stored = EventStore.Get(conn, live.AccountId, calendarId, eventId)!;
@@ -86,13 +85,13 @@ public class LiveEditTests
             return;
         }
 
-        var google     = new LiveGoogle(live);
+        var google = new LiveGoogle(live);
         var calendarId = await google.CreateTestCalendarAsync(ct);
         try
         {
             await Sync(live, google, ct);
             var editor = Editor(live);
-            var start  = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(2).AddHours(15), TimeSpan.Zero);
+            var start = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(2).AddHours(15), TimeSpan.Zero);
 
             // Create (client-generated ID)
             var id = editor.Create(new EventDraft { AccountId = live.AccountId, CalendarId = calendarId, Title = "Leaf live outbox", Start = start, End = start.AddHours(1), TimeZone = "America/New_York" }, sendUpdates: false);
@@ -100,7 +99,7 @@ public class LiveEditTests
             Assert.Equal("Leaf live outbox", (string?)(await google.GetEventAsync(calendarId, id, ct))!["summary"]);
 
             // Patch (If-Match with the ETag Google returned for the create)
-            var o      = Occurrence(live, calendarId, id, start, start.AddHours(1));
+            var o = Occurrence(live, calendarId, id, start, start.AddHours(1));
             var before = editor.Load(o);
             editor.Save(o, before, before with { Title = "Leaf live outbox (renamed)" }, EditScope.This, sendUpdates: false);
             await Sync(live, google, ct);
@@ -129,7 +128,7 @@ public class LiveEditTests
             return;
         }
 
-        var google     = new LiveGoogle(live);
+        var google = new LiveGoogle(live);
         var calendarId = await google.CreateTestCalendarAsync(ct);
         try
         {
@@ -161,13 +160,13 @@ public class LiveEditTests
             return;
         }
 
-        var google     = new LiveGoogle(live);
+        var google = new LiveGoogle(live);
         var calendarId = await google.CreateTestCalendarAsync(ct);
         try
         {
             await Sync(live, google, ct);
             var editor = Editor(live);
-            var start  = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(2).AddHours(15), TimeSpan.Zero);
+            var start = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(2).AddHours(15), TimeSpan.Zero);
 
             // Create With Meet
             var id = editor.Create(new EventDraft { AccountId = live.AccountId, CalendarId = calendarId, Title = "Leaf live late undo", Start = start, End = start.AddHours(1), TimeZone = "America/New_York", HasConference = true }, sendUpdates: false);
@@ -214,7 +213,7 @@ public class LiveEditTests
             return;
         }
 
-        var google     = new LiveGoogle(live);
+        var google = new LiveGoogle(live);
         var calendarId = await google.CreateTestCalendarAsync(ct);
         try
         {
@@ -255,7 +254,7 @@ public class LiveEditTests
             return;
         }
 
-        var google     = new LiveGoogle(live);
+        var google = new LiveGoogle(live);
         var calendarId = await google.CreateTestCalendarAsync(ct);
         try
         {
@@ -266,7 +265,7 @@ public class LiveEditTests
             static DateTimeOffset At(int day) => new(2026, 11, day, 14, 0, 0, TimeSpan.Zero);
 
             // This Event: Nov 9 an hour later
-            var third  = Occurrence(live, calendarId, masterId, At(9), At(9).AddMinutes(30), masterId);
+            var third = Occurrence(live, calendarId, masterId, At(9), At(9).AddMinutes(30), masterId);
             var before = editor.Load(third);
             editor.Save(third, before, before with { Start = At(9).AddHours(1), End = At(9).AddHours(1.5) }, EditScope.This, sendUpdates: false);
             await Sync(live, google, ct);
@@ -305,7 +304,7 @@ public class LiveEditTests
             return;
         }
 
-        var google     = new LiveGoogle(live);
+        var google = new LiveGoogle(live);
         var calendarId = await google.CreateTestCalendarAsync(ct);
         string? guestId = null;
         string? otherId = null;
@@ -325,7 +324,7 @@ public class LiveEditTests
             Assert.Equal("Live note", (string?)self["comment"]);
 
             // Move The Organizer's Copy To The Other Calendar (events.move)
-            var o      = Stored(live, calendarId, id);
+            var o = Stored(live, calendarId, id);
             var before = editor.Load(o);
             editor.Save(o, before, before with { CalendarId = otherId }, EditScope.This, sendUpdates: false);
             await Sync(live, google, ct);

@@ -35,15 +35,15 @@ public static class Hatch
         {
             hatch.Data = Lines(width, height);
             hatch.Clip = new RectangleGeometry { Rect = new Rect(0, 0, width, height) };
-            hatch.Tag  = size;
+            hatch.Tag = size;
         }
 
-        hatch.Stroke     = stroke;
+        hatch.Stroke = stroke;
         hatch.Visibility = Visibility.Visible;
     }
 
     // Lines from the top edge down-left at 45°, starting far enough right that the bottom-right corner is covered too
-    static PathGeometry Lines(double width, double height)
+    private static PathGeometry Lines(double width, double height)
     {
         var geometry = new PathGeometry();
         for (var x = Spacing / 2; x < width + height; x += Spacing)

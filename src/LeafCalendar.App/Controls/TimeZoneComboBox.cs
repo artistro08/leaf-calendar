@@ -18,18 +18,18 @@ namespace LeafCalendar.App.Controls;
 public sealed partial class TimeZoneComboBox : ComboBox
 {
     // The rows' IANA IDs, in the box's order
-    readonly List<string> _ids = [];
-    readonly List<string> _labels = [];
+    private readonly List<string> _ids = [];
+    private readonly List<string> _labels = [];
 
-    bool _filling;
+    private bool _filling;
 
     /// <summary>Creates the box (filled by <see cref="Show"/>).</summary>
     public TimeZoneComboBox()
     {
-        DefaultStyleKey     = typeof(ComboBox);
+        DefaultStyleKey = typeof(ComboBox);
         HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Stretch;
         SelectionChanged += OnSelectionChanged;
-        TextSubmitted    += OnTextSubmitted;
+        TextSubmitted += OnTextSubmitted;
     }
 
     /// <summary>The user picked a zone (its IANA ID). Not raised by <see cref="Show"/>.</summary>
@@ -59,12 +59,12 @@ public sealed partial class TimeZoneComboBox : ComboBox
             _labels.Insert(0, TimeZoneCatalog.ListLabel(zoneId, now));
         }
 
-        ItemsSource   = _labels.ToList();
+        ItemsSource = _labels.ToList();
         SelectedIndex = _ids.IndexOf(zoneId);
-        _filling      = false;
+        _filling = false;
     }
 
-    void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_filling && ZoneId is { } id)
         {
@@ -74,7 +74,7 @@ public sealed partial class TimeZoneComboBox : ComboBox
 
     // Typed text picks the best match (the search boxes' ranking, then any row holding the text); no match puts the
     // picked zone's row back. Handled either way, so typed text never becomes a value of its own
-    void OnTextSubmitted(ComboBox sender, ComboBoxTextSubmittedEventArgs args)
+    private void OnTextSubmitted(ComboBox sender, ComboBoxTextSubmittedEventArgs args)
     {
         args.Handled = true;
         var text = args.Text.Trim();

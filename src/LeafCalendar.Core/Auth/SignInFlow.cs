@@ -1,6 +1,6 @@
+using System.Text.Json;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Diagnostics;
-using System.Text.Json;
 using LeafCalendar.Core.Google;
 
 namespace LeafCalendar.Core.Auth;
@@ -44,11 +44,11 @@ public sealed class SignInFlow(
     {
         using var listener = new LoopbackListener();
         var verifier = Pkce.CreateVerifier();
-        var state    = Pkce.CreateState();
+        var state = Pkce.CreateState();
 
         // Start Timeout Before Opening The Browser
         using var timeout = new CancellationTokenSource(Timeout, time);
-        using var linked  = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
 
         IReadOnlyDictionary<string, string> reply;
         try
@@ -136,7 +136,7 @@ public sealed class SignInFlow(
         return account;
     }
 
-    async Task TryRevokeAsync(TokenSet tokens, CancellationToken ct)
+    private async Task TryRevokeAsync(TokenSet tokens, CancellationToken ct)
     {
         try
         {
@@ -148,7 +148,7 @@ public sealed class SignInFlow(
         }
     }
 
-    SignInException Fail(string reason, string message)
+    private SignInException Fail(string reason, string message)
     {
         log.Info("signin.failed", $"reason={reason}");
         return new SignInException(message);

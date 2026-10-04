@@ -31,11 +31,11 @@ public enum ShortcutAction
 public sealed class GlobalShortcuts(AppLog log)
 {
     // A spare ID for checking whether a combination is free
-    const int ProbeId = 0x7FFF;
+    private const int ProbeId = 0x7FFF;
 
-    readonly HashSet<ShortcutAction> _registered = [];
-    readonly HashSet<ShortcutAction> _taken      = [];
-    HWND _hwnd;
+    private readonly HashSet<ShortcutAction> _registered = [];
+    private readonly HashSet<ShortcutAction> _taken = [];
+    private HWND _hwnd;
 
     /// <summary>A shortcut was pressed.</summary>
     public event EventHandler<ShortcutAction>? Pressed;
@@ -106,7 +106,7 @@ public sealed class GlobalShortcuts(AppLog log)
     }
 
     // An empty (or unreadable) setting means no shortcut
-    void Register(ShortcutAction action, string text)
+    private void Register(ShortcutAction action, string text)
     {
         if (_hwnd.IsNull || !Hotkey.TryParse(text, out var hotkey))
         {
@@ -125,5 +125,5 @@ public sealed class GlobalShortcuts(AppLog log)
         log.Info("shortcut.register.failed", $"action={action} error={error}");
     }
 
-    static HOT_KEY_MODIFIERS Modifiers(Hotkey hotkey) => (HOT_KEY_MODIFIERS)(uint)hotkey.Modifiers | HOT_KEY_MODIFIERS.MOD_NOREPEAT;
+    private static HOT_KEY_MODIFIERS Modifiers(Hotkey hotkey) => (HOT_KEY_MODIFIERS)(uint)hotkey.Modifiers | HOT_KEY_MODIFIERS.MOD_NOREPEAT;
 }

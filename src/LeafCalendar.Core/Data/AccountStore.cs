@@ -78,7 +78,7 @@ public static class AccountStore
         conn.Execute(tx, "DELETE FROM accounts WHERE id = $id;", ("$id", id));
     }
 
-    static string ToText(AccountStatus status) => status == AccountStatus.NeedsSignIn ? "needs-sign-in" : "ok";
+    private static string ToText(AccountStatus status) => status == AccountStatus.NeedsSignIn ? "needs-sign-in" : "ok";
 
-    static AccountStatus FromText(string text) => text == "needs-sign-in" ? AccountStatus.NeedsSignIn : AccountStatus.Ok;
+    private static AccountStatus FromText(string text) => text == "needs-sign-in" ? AccountStatus.NeedsSignIn : AccountStatus.Ok;
 }

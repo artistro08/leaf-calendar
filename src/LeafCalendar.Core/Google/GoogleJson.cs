@@ -23,7 +23,7 @@ internal static class GoogleJson
     /// <summary>Builds a <see cref="GoogleApiException"/> from a failed response, keeping only status and reason.</summary>
     public static async Task<GoogleApiException> ToExceptionAsync(HttpResponseMessage response, CancellationToken ct)
     {
-        var body   = await response.Content.ReadAsStringAsync(ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
         var reason = TryParse(body, GoogleJsonContext.Default.ApiErrorEnvelope)?.Error?.Errors?.FirstOrDefault()?.Reason;
 
         return new GoogleApiException(response.StatusCode, reason, $"Google API request failed with status {(int)response.StatusCode}.");

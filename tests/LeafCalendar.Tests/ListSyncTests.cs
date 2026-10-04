@@ -7,24 +7,24 @@ namespace LeafCalendar.Tests;
 public class ListSyncTests
 {
     // Items are (Id, Version): the ID is the key, the version stands in for the row's data
-    sealed record Item(string Id, int Version);
+    private sealed record Item(string Id, int Version);
 
-    sealed class Row(Item item)
+    private sealed class Row(Item item)
     {
         public Item Item { get; set; } = item;
     }
 
-    static (ObservableCollection<Row> Shown, List<NotifyCollectionChangedAction> Changes, List<Row> Original) Shown(params string[] ids)
+    private static (ObservableCollection<Row> Shown, List<NotifyCollectionChangedAction> Changes, List<Row> Original) Shown(params string[] ids)
     {
-        var shown   = new ObservableCollection<Row>(ids.Select(id => new Row(new Item(id, 0))));
+        var shown = new ObservableCollection<Row>(ids.Select(id => new Row(new Item(id, 0))));
         var changes = new List<NotifyCollectionChangedAction>();
         shown.CollectionChanged += (_, e) => changes.Add(e.Action);
         return (shown, changes, [.. shown]);
     }
 
-    static List<Row> Fresh(params string[] ids) => [.. ids.Select(id => new Row(new Item(id, 1)))];
+    private static List<Row> Fresh(params string[] ids) => [.. ids.Select(id => new Row(new Item(id, 1)))];
 
-    static void Sync(ObservableCollection<Row> shown, List<Row> fresh) =>
+    private static void Sync(ObservableCollection<Row> shown, List<Row> fresh) =>
         ListSync.Apply(shown, fresh, r => r.Item.Id, (row, from) => row.Item = from.Item);
 
     [Fact]

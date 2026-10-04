@@ -19,9 +19,9 @@ public class EventJsonTests
         Assert.Equal(expected is null, EventJson.CanEdit(json, role));
     }
 
-    static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    private static readonly TimeZoneInfo NewYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
 
-    const string Meeting = """
+    private const string Meeting = """
         {
           "id": "evt-1", "etag": "\"7\"", "status": "confirmed", "summary": "Design review", "location": "Room 4",
           "description": "<b>Agenda</b><br>Budget", "colorId": "5",
@@ -38,10 +38,10 @@ public class EventJsonTests
         }
         """;
 
-    static readonly DateTimeOffset Start = new(2026, 10, 1, 18, 0, 0, TimeSpan.Zero);
-    static readonly DateTimeOffset End   = Start.AddHours(1);
+    private static readonly DateTimeOffset Start = new(2026, 10, 1, 18, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset End = Start.AddHours(1);
 
-    static EventDraft Read(string json = Meeting) => EventJson.ReadDraft("acct", "cal", json, Start, Start.AddHours(1), isAllDay: false);
+    private static EventDraft Read(string json = Meeting) => EventJson.ReadDraft("acct", "cal", json, Start, Start.AddHours(1), isAllDay: false);
 
     [Fact]
     public void ReadDraft_FullEvent_ReadsEveryField()
@@ -96,7 +96,7 @@ public class EventJsonTests
     [Fact]
     public void BuildPatch_TimedToAllDay_ClearsDateTime()
     {
-        var draft    = Read();
+        var draft = Read();
         var midnight = new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
 
         var patch = EventJson.BuildPatch(draft, draft with { IsAllDay = true, Start = midnight, End = midnight.AddDays(1) });
@@ -202,14 +202,14 @@ public class EventJsonTests
     public void PrivateCopy_DropsGuestsAndWhatInvitesThem()
     {
         var source = JsonNode.Parse(Meeting)!.AsObject();
-        source["creator"]                 = new JsonObject { ["email"] = "boss@example.com" };
-        source["conferenceData"]          = new JsonObject { ["conferenceId"] = "abc-defg-hij" };
-        source["attendeesOmitted"]        = true;
-        source["guestsCanModify"]         = true;
-        source["guestsCanInviteOthers"]   = true;
+        source["creator"] = new JsonObject { ["email"] = "boss@example.com" };
+        source["conferenceData"] = new JsonObject { ["conferenceId"] = "abc-defg-hij" };
+        source["attendeesOmitted"] = true;
+        source["guestsCanModify"] = true;
+        source["guestsCanInviteOthers"] = true;
         source["guestsCanSeeOtherGuests"] = true;
-        source["anyoneCanAddSelf"]        = true;
-        source["recurrence"]              = new JsonArray("RRULE:FREQ=WEEKLY");
+        source["anyoneCanAddSelf"] = true;
+        source["recurrence"] = new JsonArray("RRULE:FREQ=WEEKLY");
 
         var copy = JsonNode.Parse(EventJson.PrivateCopy(source.ToJsonString(), "newid12345"))!.AsObject();
 
@@ -255,7 +255,7 @@ public class EventJsonTests
     public void PrivateCopy_TimedFocusTime_KeepsItsType()
     {
         var source = JsonNode.Parse(Meeting)!.AsObject();
-        source["eventType"]           = "focusTime";
+        source["eventType"] = "focusTime";
         source["focusTimeProperties"] = new JsonObject { ["chatStatus"] = "doNotDisturb" };
 
         var copy = JsonNode.Parse(EventJson.PrivateCopy(source.ToJsonString(), "newid12345", isAllDay: false))!.AsObject();
@@ -267,8 +267,8 @@ public class EventJsonTests
     [Fact]
     public void QuietCopy_ResetsOtherGuestsRepliesKeepsSelfAndAsksForANewMeet()
     {
-        var raw   = """{"id":"a","etag":"\"1\"","summary":"S","attendees":[{"email":"me@x.com","self":true,"responseStatus":"accepted"},{"email":"b@x.com","responseStatus":"declined","comment":"no"}],"hangoutLink":"https://meet.google.com/q","conferenceData":{"conferenceId":"q","conferenceSolution":{"key":{"type":"hangoutsMeet"}},"createRequest":{"requestId":"r"}}}""";
-        var copy  = JsonNode.Parse(EventJson.QuietCopy(raw, "newid"))!.AsObject();
+        var raw = """{"id":"a","etag":"\"1\"","summary":"S","attendees":[{"email":"me@x.com","self":true,"responseStatus":"accepted"},{"email":"b@x.com","responseStatus":"declined","comment":"no"}],"hangoutLink":"https://meet.google.com/q","conferenceData":{"conferenceId":"q","conferenceSolution":{"key":{"type":"hangoutsMeet"}},"createRequest":{"requestId":"r"}}}""";
+        var copy = JsonNode.Parse(EventJson.QuietCopy(raw, "newid"))!.AsObject();
         var again = JsonNode.Parse(EventJson.QuietCopy(raw, "newid2"))!.AsObject();
 
         Assert.Equal("newid", (string?)copy["id"]);
@@ -286,7 +286,7 @@ public class EventJsonTests
     [Fact]
     public void QuietCopy_OtherConferenceIsDropped()
     {
-        var raw  = """{"id":"a","summary":"S","conferenceData":{"conferenceId":"z1","conferenceSolution":{"key":{"type":"addOn"}}}}""";
+        var raw = """{"id":"a","summary":"S","conferenceData":{"conferenceId":"z1","conferenceSolution":{"key":{"type":"addOn"}}}}""";
         var copy = JsonNode.Parse(EventJson.QuietCopy(raw, "newid"))!.AsObject();
 
         Assert.Equal("S", (string?)copy["summary"]);
@@ -407,7 +407,7 @@ public class EventJsonTests
     [Fact]
     public void BuildPatch_RemindersReordered_IsNotSent()
     {
-        var draft  = Read() with { ReminderMinutes = [10, 30] };
+        var draft = Read() with { ReminderMinutes = [10, 30] };
         var edited = draft with { ReminderMinutes = [30, 10] };
 
         Assert.False(EventJson.BuildPatch(draft, edited).ContainsKey("reminders"));
@@ -416,7 +416,7 @@ public class EventJsonTests
     [Fact]
     public void BuildPatch_DefaultRemindersOn_IgnoresMinutes()
     {
-        var draft  = Read() with { UseDefaultReminders = true, ReminderMinutes = [10] };
+        var draft = Read() with { UseDefaultReminders = true, ReminderMinutes = [10] };
         var edited = draft with { ReminderMinutes = [45] };
 
         Assert.False(EventJson.BuildPatch(draft, edited).ContainsKey("reminders"));
@@ -429,7 +429,7 @@ public class EventJsonTests
         const string raw = """{"id":"a","reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":10}]}}""";
         var before = EventJson.ReadDraft("acct", "cal", raw, Start, Start.AddHours(1), false);
 
-        var patch     = EventJson.BuildPatch(before, before with { UseDefaultReminders = true }, raw);
+        var patch = EventJson.BuildPatch(before, before with { UseDefaultReminders = true }, raw);
         var reminders = JsonNode.Parse(EventJson.ApplyPatch(raw, patch))!["reminders"]!;
 
         Assert.True((bool?)reminders["useDefault"]);
@@ -478,10 +478,15 @@ public class EventJsonTests
     // GOOGLE MEET
     // =========================================================================
 
-    static EventDraft MeetDraft(bool meet) => new()
+    private static EventDraft MeetDraft(bool meet) => new()
     {
-        AccountId = "a", CalendarId = "c", Title = "T", TimeZone = "America/New_York", HasConference = meet,
-        Start = new DateTimeOffset(2026, 10, 2, 14, 0, 0, TimeSpan.Zero), End = new DateTimeOffset(2026, 10, 2, 15, 0, 0, TimeSpan.Zero),
+        AccountId = "a",
+        CalendarId = "c",
+        Title = "T",
+        TimeZone = "America/New_York",
+        HasConference = meet,
+        Start = new DateTimeOffset(2026, 10, 2, 14, 0, 0, TimeSpan.Zero),
+        End = new DateTimeOffset(2026, 10, 2, 15, 0, 0, TimeSpan.Zero),
     };
 
     [Fact]
@@ -532,7 +537,7 @@ public class EventJsonTests
     // ROOMS
     // =========================================================================
 
-    static EventDraft SampleDraft() => new() { AccountId = "acct", CalendarId = "cal", Title = "Coffee", Start = Start, End = End, TimeZone = "America/New_York" };
+    private static EventDraft SampleDraft() => new() { AccountId = "acct", CalendarId = "cal", Title = "Coffee", Start = Start, End = End, TimeZone = "America/New_York" };
 
     [Fact]
     public void BuildCreate_RoomGuest_IsSentAsAResource()
@@ -564,7 +569,7 @@ public class EventJsonTests
     public void BuildPatch_AddedRoom_IsSentAsAResource()
     {
         var before = Read();
-        var after  = before with { Guests = [.. before.Guests, new Guest("c_1@resource.calendar.google.com", IsResource: true)] };
+        var after = before with { Guests = [.. before.Guests, new Guest("c_1@resource.calendar.google.com", IsResource: true)] };
 
         var attendees = (JsonArray)EventJson.BuildPatch(before, after, Meeting)["attendees"]!;
 
@@ -645,7 +650,7 @@ public class EventJsonTests
     public void BuildPatch_TimeZoneChanged_SendsBothEndsWithTheZone()
     {
         var before = SampleDraft() with { TimeZone = "America/New_York" };
-        var patch  = EventJson.BuildPatch(before, before with { TimeZone = "Asia/Tokyo" });
+        var patch = EventJson.BuildPatch(before, before with { TimeZone = "Asia/Tokyo" });
 
         Assert.Equal("Asia/Tokyo", (string?)patch["start"]!["timeZone"]);
         Assert.Equal("Asia/Tokyo", (string?)patch["end"]!["timeZone"]);

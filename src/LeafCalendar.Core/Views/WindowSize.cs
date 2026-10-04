@@ -22,7 +22,7 @@ public sealed record WindowSize(double Width, double Height, bool Maximized = fa
     /// </summary>
     public (int X, int Y, int Width, int Height) PlaceIn(int workX, int workY, int workWidth, int workHeight, double scale)
     {
-        var width  = Math.Min((int)Math.Round(Width * scale), workWidth);
+        var width = Math.Min((int)Math.Round(Width * scale), workWidth);
         var height = Math.Min((int)Math.Round(Height * scale), workHeight);
         return (workX + (workWidth - width) / 2, Math.Max(workY, workY + (workHeight - height) / 2), width, height);
     }

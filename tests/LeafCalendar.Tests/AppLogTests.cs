@@ -6,8 +6,8 @@ namespace LeafCalendar.Tests;
 
 public sealed class AppLogTests : IDisposable
 {
-    readonly TempFolder _folder = new();
-    readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
+    private readonly TempFolder _folder = new();
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero));
 
     public void Dispose() => _folder.Dispose();
 
@@ -166,7 +166,7 @@ public sealed class AppLogTests : IDisposable
     }
 
     // A dump file written that many days into 2026
-    void Dump(string name, int day)
+    private void Dump(string name, int day)
     {
         var path = Path.Combine(_folder.Path, name);
         File.WriteAllText(path, "");

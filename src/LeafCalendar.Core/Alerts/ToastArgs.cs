@@ -46,10 +46,10 @@ public enum ToastAction
 /// </remarks>
 public sealed record ToastArgs(ToastAction Action, string Profile, string? AccountId = null, string? CalendarId = null, string? EventId = null, DateTimeOffset? Start = null)
 {
-    const int MaxLength = 2048;
+    private const int MaxLength = 2048;
 
     // Largest instant DateTimeOffset can hold, in Unix milliseconds
-    const long MaxUnixMs = 253402300799999;
+    private const long MaxUnixMs = 253402300799999;
 
     /// <summary>Arguments about one event instance.</summary>
     public static ToastArgs For(ToastAction action, string profile, CalendarOccurrence occurrence) =>
@@ -99,9 +99,9 @@ public sealed record ToastArgs(ToastAction Action, string Profile, string? Accou
         }
 
         // Event Instance
-        var account  = values.GetValueOrDefault("account");
+        var account = values.GetValueOrDefault("account");
         var calendar = values.GetValueOrDefault("calendar");
-        var eventId  = values.GetValueOrDefault("event");
+        var eventId = values.GetValueOrDefault("event");
         if (account is "" || calendar is "" || eventId is "")
         {
             return null;
@@ -128,7 +128,7 @@ public sealed record ToastArgs(ToastAction Action, string Profile, string? Accou
         return new ToastArgs(action, profile, account, calendar, eventId, start);
     }
 
-    static void Add(List<string> parts, string key, string? value)
+    private static void Add(List<string> parts, string key, string? value)
     {
         if (value is not null)
         {

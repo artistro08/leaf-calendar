@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 
 public class DescriptionFormatterTests
 {
-    static string Text(IReadOnlyList<DescriptionRun> runs) => string.Concat(runs.Select(r => r.Text));
+    private static string Text(IReadOnlyList<DescriptionRun> runs) => string.Concat(runs.Select(r => r.Text));
 
     [Fact]
     public void Format_StylesAndLinks_BecomeRuns()
@@ -191,7 +191,7 @@ public class DescriptionFormatterTests
     [InlineData("<a x=", "'")]
     public void Format_HostileAttributeInput_StaysFast(string prefix, string filler)
     {
-        var html      = prefix + string.Concat(Enumerable.Repeat(filler, 200_000 / filler.Length)) + ">x</a>";
+        var html = prefix + string.Concat(Enumerable.Repeat(filler, 200_000 / filler.Length)) + ">x</a>";
         var stopwatch = Stopwatch.StartNew();
 
         _ = DescriptionFormatter.Format(html);
@@ -283,7 +283,7 @@ public class DescriptionFormatterTests
     [InlineData("<a href=x", "https://")]
     public void Format_HostileHugeInput_StaysFast(string prefix, string filler)
     {
-        var html      = prefix + string.Concat(Enumerable.Repeat(filler, 200_000 / filler.Length));
+        var html = prefix + string.Concat(Enumerable.Repeat(filler, 200_000 / filler.Length));
         var stopwatch = Stopwatch.StartNew();
 
         _ = DescriptionFormatter.Format(html);

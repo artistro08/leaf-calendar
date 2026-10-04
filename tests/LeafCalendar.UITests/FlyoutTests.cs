@@ -8,10 +8,10 @@ namespace LeafCalendar.UITests;
 
 public sealed class FlyoutTests : IDisposable
 {
-    const string MeetLink = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
+    private const string MeetLink = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
 
-    readonly FakeGoogleServer _google = new();
-    readonly string _profile = SeededProfile.Create();
+    private readonly FakeGoogleServer _google = new();
+    private readonly string _profile = SeededProfile.Create();
 
     public void Dispose()
     {
@@ -20,7 +20,7 @@ public sealed class FlyoutTests : IDisposable
     }
 
     // 1:50 PM in New York on Oct 1: Design review (2 PM, Meet) is next, 10 minutes out
-    LeafApp Launch()
+    private LeafApp Launch()
     {
         var leaf = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01 --now 2026-10-01T13:50:00-04:00");
         leaf.WaitFor("Event_evt-meeting_202610011800");
@@ -58,7 +58,7 @@ public sealed class FlyoutTests : IDisposable
         leaf.PostTrayMessage(LeafApp.TraySelect);
 
         var newEvent = leaf.WaitForPopup("FlyoutNewEvent").BoundingRectangle;
-        var open     = leaf.WaitForPopup("FlyoutOpenCalendar");
+        var open = leaf.WaitForPopup("FlyoutOpenCalendar");
         Assert.True(newEvent.Right < open.BoundingRectangle.Left, "New event isn't left of Open calendar.");
 
         open.AsButton().Invoke();
@@ -123,7 +123,7 @@ public sealed class FlyoutTests : IDisposable
         leaf.PostTrayMessage(LeafApp.TraySelect);
 
         var header = leaf.WaitForPopup("FlyoutNextHeader").BoundingRectangle;
-        var title  = leaf.WaitForPopup("FlyoutNextTitle").BoundingRectangle;
+        var title = leaf.WaitForPopup("FlyoutNextTitle").BoundingRectangle;
         Assert.True(Math.Abs(header.Left - title.Left) <= 1, $"\"Next\" starts at {header.Left}, the title at {title.Left}.");
     }
 
@@ -172,7 +172,7 @@ public sealed class FlyoutTests : IDisposable
         leaf.PostTrayMessage(LeafApp.TraySelect);
 
         var button = leaf.WaitForPopup("FlyoutNewEvent");
-        var root   = leaf.WaitForPopup("FlyoutRoot").BoundingRectangle;
+        var root = leaf.WaitForPopup("FlyoutRoot").BoundingRectangle;
         Assert.True(button.BoundingRectangle.Left - root.Left > root.Width / 2, $"New event ({button.BoundingRectangle}) isn't at the flyout's ({root}) right.");
         button.AsButton().Invoke();
 

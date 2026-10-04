@@ -180,9 +180,9 @@ public static class ShortcutMap
         {
             return ctrl || shift ? default : key switch
             {
-                "Left"  => new(CalendarCommand.NavigateBack),
+                "Left" => new(CalendarCommand.NavigateBack),
                 "Right" => new(CalendarCommand.NavigateForward),
-                _       => default,
+                _ => default,
             };
         }
 
@@ -191,11 +191,11 @@ public static class ShortcutMap
         {
             return key switch
             {
-                "E"      => new(CalendarCommand.ToggleWeekends),
-                "D"      => new(CalendarCommand.ToggleDeclined),
-                "L"      => new(CalendarCommand.ToggleTheme),
+                "E" => new(CalendarCommand.ToggleWeekends),
+                "D" => new(CalendarCommand.ToggleDeclined),
+                "L" => new(CalendarCommand.ToggleTheme),
                 "Delete" => new(CalendarCommand.CancelEventQuietly),
-                _        => default,
+                _ => default,
             };
         }
 
@@ -204,19 +204,19 @@ public static class ShortcutMap
         {
             return key switch
             {
-                "187" or "Add"             => new(CalendarCommand.ZoomIn),
-                "189" or "Subtract"        => new(CalendarCommand.ZoomOut),
-                "Number0" or "NumberPad0"  => new(CalendarCommand.ZoomReset),
-                "A"                        => new(CalendarCommand.SelectAll),
-                "C"                        => new(CalendarCommand.Copy),
-                "X"                        => new(CalendarCommand.Cut),
-                "V"                        => new(CalendarCommand.Paste),
-                "Z"                        => new(CalendarCommand.Undo),
-                "J"                        => new(CalendarCommand.JoinMeeting),
-                "K"                        => new(CalendarCommand.CommandMenu),
-                "F"                        => new(CalendarCommand.Search),
-                "188"                      => new(CalendarCommand.OpenSettings),
-                _                          => default,
+                "187" or "Add" => new(CalendarCommand.ZoomIn),
+                "189" or "Subtract" => new(CalendarCommand.ZoomOut),
+                "Number0" or "NumberPad0" => new(CalendarCommand.ZoomReset),
+                "A" => new(CalendarCommand.SelectAll),
+                "C" => new(CalendarCommand.Copy),
+                "X" => new(CalendarCommand.Cut),
+                "V" => new(CalendarCommand.Paste),
+                "Z" => new(CalendarCommand.Undo),
+                "J" => new(CalendarCommand.JoinMeeting),
+                "K" => new(CalendarCommand.CommandMenu),
+                "F" => new(CalendarCommand.Search),
+                "188" => new(CalendarCommand.OpenSettings),
+                _ => default,
             };
         }
 
@@ -225,9 +225,9 @@ public static class ShortcutMap
         {
             return key switch
             {
-                "N"   => new(CalendarCommand.PreviousEvent),
+                "N" => new(CalendarCommand.PreviousEvent),
                 "191" => new(CalendarCommand.ShortcutSheet),
-                _     => default,
+                _ => default,
             };
         }
 
@@ -244,42 +244,42 @@ public static class ShortcutMap
 
         return key switch
         {
-            "T"                 => new(CalendarCommand.Today),
-            "Left" or "K"       => new(CalendarCommand.Previous),
-            "Right" or "J"      => new(CalendarCommand.Next),
-            "D"                 => new(CalendarCommand.DayView),
-            "W"                 => new(CalendarCommand.WeekView),
-            "M"                 => new(CalendarCommand.MonthView),
-            "190" or "Decimal"  => new(CalendarCommand.GoToDate),
-            "N"                 => new(CalendarCommand.NextEvent),
-            "B"                 => new(CalendarCommand.PreviousEvent),
-            "C"                 => new(CalendarCommand.CreateEvent),
-            "E"                 => new(CalendarCommand.EditEvent),
-            "V"                 => new(CalendarCommand.OpenMeetingLink),
-            "X"                 => new(CalendarCommand.ToggleSelect),
-            "Delete"            => new(CalendarCommand.DeleteSelected),
-            "191" or "Divide"   => new(CalendarCommand.Search),
-            "Z"                 => new(CalendarCommand.TimeTravel),
-            "S"                 => new(CalendarCommand.ShareAvailability),
-            "P"                 => new(CalendarCommand.PeopleOverlay),
-            "F"                 => new(CalendarCommand.MeetWith),
-            _                   => default,
+            "T" => new(CalendarCommand.Today),
+            "Left" or "K" => new(CalendarCommand.Previous),
+            "Right" or "J" => new(CalendarCommand.Next),
+            "D" => new(CalendarCommand.DayView),
+            "W" => new(CalendarCommand.WeekView),
+            "M" => new(CalendarCommand.MonthView),
+            "190" or "Decimal" => new(CalendarCommand.GoToDate),
+            "N" => new(CalendarCommand.NextEvent),
+            "B" => new(CalendarCommand.PreviousEvent),
+            "C" => new(CalendarCommand.CreateEvent),
+            "E" => new(CalendarCommand.EditEvent),
+            "V" => new(CalendarCommand.OpenMeetingLink),
+            "X" => new(CalendarCommand.ToggleSelect),
+            "Delete" => new(CalendarCommand.DeleteSelected),
+            "191" or "Divide" => new(CalendarCommand.Search),
+            "Z" => new(CalendarCommand.TimeTravel),
+            "S" => new(CalendarCommand.ShareAvailability),
+            "P" => new(CalendarCommand.PeopleOverlay),
+            "F" => new(CalendarCommand.MeetWith),
+            _ => default,
         };
     }
 
     // The US key code and Shift state that type a shortcut's character; any other character matches no shortcut
-    static (string Key, bool Shift) UsKeyTyping(char typed) => typed switch
+    private static (string Key, bool Shift) UsKeyTyping(char typed) => typed switch
     {
         '=' or '+' => ("187", false),
-        ','        => ("188", false),
-        '-'        => ("189", false),
-        '.'        => ("190", false),
-        '/'        => ("191", false),
-        '?'        => ("191", true),
-        _          => ("", false),
+        ',' => ("188", false),
+        '-' => ("189", false),
+        '.' => ("190", false),
+        '/' => ("191", false),
+        '?' => ("191", true),
+        _ => ("", false),
     };
 
-    static int? DigitOf(string key) =>
+    private static int? DigitOf(string key) =>
         key.Length == 7 && key.StartsWith("Number", StringComparison.Ordinal) && char.IsAsciiDigit(key[6]) ? key[6] - '0'
         : key.Length == 10 && key.StartsWith("NumberPad", StringComparison.Ordinal) && char.IsAsciiDigit(key[9]) ? key[9] - '0'
         : null;

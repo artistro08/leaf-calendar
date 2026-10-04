@@ -61,13 +61,13 @@ public static class AlertPlanner
     {
         // Instances That Can Have An Alert In The Window: starting up to four weeks after it (the longest reminder)
         var fromDate = LocalDate(from, zone).AddDays(-1);
-        var toDate   = LocalDate(to, zone).AddDays(MaxMinutes / 1440 + 2);
-        var defaults  = CalendarStore.PopupDefaults(conn);
+        var toDate = LocalDate(to, zone).AddDays(MaxMinutes / 1440 + 2);
+        var defaults = CalendarStore.PopupDefaults(conn);
         var calendars = CalendarStore.GetAll(conn).ToDictionary(c => (c.AccountId, c.Id));
-        var rows      = new Dictionary<(string, string, string), RowAlerts?>();
-        var reminded  = new HashSet<(string, long)>();
-        var joined    = new HashSet<(string, long)>();
-        var alerts    = new List<Alert>();
+        var rows = new Dictionary<(string, string, string), RowAlerts?>();
+        var reminded = new HashSet<(string, long)>();
+        var joined = new HashSet<(string, long)>();
+        var alerts = new List<Alert>();
 
         foreach (var o in OccurrenceQuery.Load(conn, fromDate, toDate, zone, includeDeclined: false, keepSharedCopies: true))
         {
@@ -113,14 +113,14 @@ public static class AlertPlanner
             .DistinctBy(a => (a.Kind, a.Occurrence.CalendarId, a.Occurrence.EventId, a.Occurrence.Start, a.MinutesBefore))];
     }
 
-    static DateOnly LocalDate(DateTimeOffset instant, TimeZoneInfo zone) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, zone).DateTime);
+    private static DateOnly LocalDate(DateTimeOffset instant, TimeZoneInfo zone) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, zone).DateTime);
 
     // True for the first copy seen of an event (same iCalendar UID and start), as OccurrenceQuery keeps it; events without a UID always
     internal static bool First(HashSet<(string, long)> seen, CalendarOccurrence o) =>
         o.ICalUid is null || seen.Add((o.ICalUid, o.Start.ToUnixTimeMilliseconds()));
 
     // The row's reminder choice, meeting link, and whether it's yours; null when it's gone or unreadable (Google's JSON, so that's rare)
-    static RowAlerts? Read(SqliteConnection conn, CalendarOccurrence o, CalendarInfo? calendar)
+    private static RowAlerts? Read(SqliteConnection conn, CalendarOccurrence o, CalendarInfo? calendar)
     {
         if (EventStore.Get(conn, o.AccountId, o.CalendarId, o.EventId) is not { } stored)
         {
@@ -129,10 +129,10 @@ public static class AlertPlanner
 
         try
         {
-            using var doc  = JsonDocument.Parse(stored.RawJson);
-            var root       = doc.RootElement;
+            using var doc = JsonDocument.Parse(stored.RawJson);
+            var root = doc.RootElement;
             var useDefault = true;
-            var overrides  = new List<int>();
+            var overrides = new List<int>();
 
             if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("reminders", out var reminders) && reminders.ValueKind == JsonValueKind.Object)
             {
@@ -161,5 +161,5 @@ public static class AlertPlanner
         }
     }
 
-    sealed record RowAlerts(bool UseDefault, IReadOnlyList<int> Overrides, Uri? Link, bool IsMine);
+    private sealed record RowAlerts(bool UseDefault, IReadOnlyList<int> Overrides, Uri? Link, bool IsMine);
 }

@@ -36,23 +36,23 @@ namespace LeafCalendar.App.Tray;
 public sealed partial class TrayHost : Window
 {
     // Fluent Motion (design standard 11)
-    static readonly TimeSpan EnterDuration = TimeSpan.FromMilliseconds(250);
-    static readonly TimeSpan ExitDuration  = TimeSpan.FromMilliseconds(167);
+    private static readonly TimeSpan EnterDuration = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan ExitDuration = TimeSpan.FromMilliseconds(167);
 
     // The icon click that closed the flyout or menu (by taking focus, or a press outside) arrives just after the close,
     // so it mustn't open either again
-    const long ReopenGuardMs = 300;
+    private const long ReopenGuardMs = 300;
 
-    readonly AppLog _log;
-    Action? _pendingOpen;
-    TaskbarEdge _edge;
-    AgendaModel? _model;
-    Storyboard? _motion;
-    long _agendaClosedAt;
-    long _menuDismissedAt;
-    long _agendaDismissedAt;
-    bool _exitFinished;
-    bool _shuttingDown;
+    private readonly AppLog _log;
+    private Action? _pendingOpen;
+    private TaskbarEdge _edge;
+    private AgendaModel? _model;
+    private Storyboard? _motion;
+    private long _agendaClosedAt;
+    private long _menuDismissedAt;
+    private long _agendaDismissedAt;
+    private bool _exitFinished;
+    private bool _shuttingDown;
 
     /// <summary>Creates the hidden host; a failed open is logged to <paramref name="log"/> by event name and error type.</summary>
     public TrayHost(AppLog log)
@@ -132,7 +132,7 @@ public sealed partial class TrayHost : Window
                 Menu.Hide();
             }
 
-            var screen   = TrayScreen.At(x, y);
+            var screen = TrayScreen.At(x, y);
             var (ax, ay) = TrayPlacement.MenuAnchor(x, y, screen.Area, screen.Edge, screen.Scale);
             Root.RequestedTheme = MainWindow.ElementThemeOf(theme);
             Open(ax, ay, screen.Scale, position => Menu.ShowAt(Root, new FlyoutShowOptions { Position = position, Placement = MenuPlacement(screen.Edge) }));
@@ -159,21 +159,21 @@ public sealed partial class TrayHost : Window
             }
 
             // Placement: the panel next to the icon, opened from the frame's corner on the taskbar side
-            var screen   = icon is { } r ? TrayScreen.At((r.Left + r.Right) / 2, (r.Top + r.Bottom) / 2) : TrayScreen.Primary();
-            var panel    = TrayPlacement.Flyout(screen.Area, screen.Edge, icon, screen.Scale);
+            var screen = icon is { } r ? TrayScreen.At((r.Left + r.Right) / 2, (r.Top + r.Bottom) / 2) : TrayScreen.Primary();
+            var panel = TrayPlacement.Flyout(screen.Area, screen.Edge, icon, screen.Scale);
             var (ax, ay) = TrayPlacement.FlyoutAnchor(TrayPlacement.Frame(panel, screen.Scale), screen.Edge);
-            _edge                      = screen.Edge;
-            AgendaPanel.Width          = panel.Width / screen.Scale;
-            AgendaPanel.Height         = panel.Height / screen.Scale;
-            Root.RequestedTheme        = MainWindow.ElementThemeOf(theme);
+            _edge = screen.Edge;
+            AgendaPanel.Width = panel.Width / screen.Scale;
+            AgendaPanel.Height = panel.Height / screen.Scale;
+            Root.RequestedTheme = MainWindow.ElementThemeOf(theme);
             AgendaFrame.RequestedTheme = MainWindow.ElementThemeOf(theme);
             UpdateAgenda(model);
 
             Open(ax, ay, screen.Scale, position => Agenda.ShowAt(Root, new FlyoutShowOptions
             {
-                Position  = position,
+                Position = position,
                 Placement = AgendaPlacement(screen.Edge),
-                ShowMode  = FlyoutShowMode.Standard,
+                ShowMode = FlyoutShowMode.Standard,
             }));
         }
         catch (Exception ex)
@@ -189,13 +189,13 @@ public sealed partial class TrayHost : Window
 
         // Next Up
         var next = model.Next;
-        NextPanel.Visibility       = next is null ? Visibility.Collapsed : Visibility.Visible;
+        NextPanel.Visibility = next is null ? Visibility.Collapsed : Visibility.Visible;
         NothingNextText.Visibility = next is null ? Visibility.Visible : Visibility.Collapsed;
-        NothingNextText.Text       = model.NothingNext;
-        NextTitle.Text             = next?.Item.Title ?? "";
-        NextWhen.Text              = next is null ? "" : $"{next.Item.When} · {next.Countdown}";
-        NextJoinButton.Visibility  = next?.Item.Link is null ? Visibility.Collapsed : Visibility.Visible;
-        NextJoinLogo.Provider      = next?.Item.Link is { } link ? LinkSafety.ProviderOf(link) : null;
+        NothingNextText.Text = model.NothingNext;
+        NextTitle.Text = next?.Item.Title ?? "";
+        NextWhen.Text = next is null ? "" : $"{next.Item.When} · {next.Countdown}";
+        NextJoinButton.Visibility = next?.Item.Link is null ? Visibility.Collapsed : Visibility.Visible;
+        NextJoinLogo.Provider = next?.Item.Link is { } link ? LinkSafety.ProviderOf(link) : null;
 
         // Agenda
         List<AgendaDayRow> days = [.. model.Days.Select(d => new AgendaDayRow(d.Header, [.. d.Items.Select(Row)]))];
@@ -213,7 +213,7 @@ public sealed partial class TrayHost : Window
     }
 
     // Closes the flyout without its slide (also ending a slide-out a click on the taskbar already started)
-    void CloseAgendaAtOnce()
+    private void CloseAgendaAtOnce()
     {
         if (!Agenda.IsOpen)
         {
@@ -221,7 +221,7 @@ public sealed partial class TrayHost : Window
         }
 
         _motion?.Stop();
-        _motion       = null;
+        _motion = null;
         _exitFinished = true;
         Agenda.Hide();
     }
@@ -240,7 +240,7 @@ public sealed partial class TrayHost : Window
 
     // Moves the host to the anchor (twice: crossing into a monitor with another scale resizes it), shows it, takes the
     // foreground (light dismiss needs it), then opens at the anchor in DIPs from the host's client origin
-    void Open(int x, int y, double scale, Action<Point> open)
+    private void Open(int x, int y, double scale, Action<Point> open)
     {
         AppWindow.Move(new PointInt32(x, y));
         AppWindow.Move(new PointInt32(x, y));
@@ -252,7 +252,7 @@ public sealed partial class TrayHost : Window
             _log.Info("tray.host.foreground.refused");
         }
 
-        var origin   = InvisibleHost.ClientOrigin(this);
+        var origin = InvisibleHost.ClientOrigin(this);
         var position = new Point((x - origin.X) / scale, (y - origin.Y) / scale);
         _pendingOpen = () => open(position);
         if (Root.IsLoaded)
@@ -262,7 +262,7 @@ public sealed partial class TrayHost : Window
     }
 
     // Also runs from Root.Loaded, where an escaping exception would end the process
-    void RunPendingOpen()
+    private void RunPendingOpen()
     {
         var open = _pendingOpen;
         _pendingOpen = null;
@@ -277,7 +277,7 @@ public sealed partial class TrayHost : Window
     }
 
     // A failed open must never strand the invisible topmost host on screen; the type only, never content
-    void Fail(string eventName, Exception ex)
+    private void Fail(string eventName, Exception ex)
     {
         _log.Info(eventName, $"error={ex.GetType().Name}");
         try
@@ -292,21 +292,21 @@ public sealed partial class TrayHost : Window
     }
 
     // Grows away from the taskbar (Sony Control's tray menu)
-    static FlyoutPlacementMode MenuPlacement(TaskbarEdge edge) => edge switch
+    private static FlyoutPlacementMode MenuPlacement(TaskbarEdge edge) => edge switch
     {
-        TaskbarEdge.Top   => FlyoutPlacementMode.BottomEdgeAlignedRight,
-        TaskbarEdge.Left  => FlyoutPlacementMode.RightEdgeAlignedBottom,
+        TaskbarEdge.Top => FlyoutPlacementMode.BottomEdgeAlignedRight,
+        TaskbarEdge.Left => FlyoutPlacementMode.RightEdgeAlignedBottom,
         TaskbarEdge.Right => FlyoutPlacementMode.LeftEdgeAlignedBottom,
-        _                 => FlyoutPlacementMode.TopEdgeAlignedRight,
+        _ => FlyoutPlacementMode.TopEdgeAlignedRight,
     };
 
     // The frame's corner on the taskbar side sits on the anchor (TrayPlacement.FlyoutAnchor)
-    static FlyoutPlacementMode AgendaPlacement(TaskbarEdge edge) => edge switch
+    private static FlyoutPlacementMode AgendaPlacement(TaskbarEdge edge) => edge switch
     {
-        TaskbarEdge.Top   => FlyoutPlacementMode.BottomEdgeAlignedLeft,
-        TaskbarEdge.Left  => FlyoutPlacementMode.RightEdgeAlignedBottom,
+        TaskbarEdge.Top => FlyoutPlacementMode.BottomEdgeAlignedLeft,
+        TaskbarEdge.Left => FlyoutPlacementMode.RightEdgeAlignedBottom,
         TaskbarEdge.Right => FlyoutPlacementMode.LeftEdgeAlignedBottom,
-        _                 => FlyoutPlacementMode.TopEdgeAlignedLeft,
+        _ => FlyoutPlacementMode.TopEdgeAlignedLeft,
     };
 
     // =========================================================================
@@ -314,9 +314,9 @@ public sealed partial class TrayHost : Window
     // =========================================================================
 
     // Row IDs carry the instance's start like the main view's (FlyoutEvent_{id}_{UTC yyyyMMddHHmm}), so a series' rows differ
-    AgendaRow Row(AgendaItem item)
+    private AgendaRow Row(AgendaItem item)
     {
-        var o     = item.Occurrence;
+        var o = item.Occurrence;
         var start = o.Start.UtcDateTime.ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture);
         return new AgendaRow(
             item.Title,
@@ -331,7 +331,7 @@ public sealed partial class TrayHost : Window
     }
 
     // Closes the flyout, then hands the event to the App (a click handler, so nothing may escape)
-    void Request(EventHandler<CalendarOccurrence>? handler, CalendarOccurrence occurrence)
+    private void Request(EventHandler<CalendarOccurrence>? handler, CalendarOccurrence occurrence)
     {
         try
         {
@@ -344,7 +344,7 @@ public sealed partial class TrayHost : Window
         }
     }
 
-    void OnNextJoinClick(object sender, RoutedEventArgs e)
+    private void OnNextJoinClick(object sender, RoutedEventArgs e)
     {
         if (_model?.Next is { } next)
         {
@@ -352,7 +352,7 @@ public sealed partial class TrayHost : Window
         }
     }
 
-    void OnAgendaOpened(object sender, object e)
+    private void OnAgendaOpened(object sender, object e)
     {
         WatchPresses();
         _exitFinished = false;
@@ -361,7 +361,7 @@ public sealed partial class TrayHost : Window
     }
 
     // Esc, focus leaving, or HideAgenda: slide back behind the taskbar first, then close for real
-    void OnAgendaClosing(FlyoutBase sender, FlyoutBaseClosingEventArgs args)
+    private void OnAgendaClosing(FlyoutBase sender, FlyoutBaseClosingEventArgs args)
     {
         if (_exitFinished || _shuttingDown)
         {
@@ -376,10 +376,10 @@ public sealed partial class TrayHost : Window
         });
     }
 
-    void OnAgendaClosed(object sender, object e)
+    private void OnAgendaClosed(object sender, object e)
     {
         _agendaClosedAt = Environment.TickCount64;
-        _exitFinished   = false;
+        _exitFinished = false;
 
         // The rows stay for the next open (UpdateAgenda refills them); only the model goes
         _model = null;
@@ -389,21 +389,21 @@ public sealed partial class TrayHost : Window
     }
 
     // Far enough to put the whole panel past the frame's taskbar-side edge
-    Point HiddenOffset()
+    private Point HiddenOffset()
     {
-        var width  = AgendaPanel.Width + TrayPlacement.MarginDip;
+        var width = AgendaPanel.Width + TrayPlacement.MarginDip;
         var height = AgendaPanel.Height + TrayPlacement.MarginDip;
         return _edge switch
         {
-            TaskbarEdge.Top   => new Point(0, -height),
-            TaskbarEdge.Left  => new Point(-width, 0),
+            TaskbarEdge.Top => new Point(0, -height),
+            TaskbarEdge.Left => new Point(-width, 0),
             TaskbarEdge.Right => new Point(width, 0),
-            _                 => new Point(0, height),
+            _ => new Point(0, height),
         };
     }
 
     // Slide and fade together; the storyboard is this method's own (never read back from the panel)
-    void Slide(Point from, Point to, double fromOpacity, double toOpacity, TimeSpan duration, bool enter, Action? onDone)
+    private void Slide(Point from, Point to, double fromOpacity, double toOpacity, TimeSpan duration, bool enter, Action? onDone)
     {
         // With Windows animations off it still runs as a storyboard, but takes no time: an earlier slide's held end values
         // would otherwise win over plain property sets
@@ -431,14 +431,14 @@ public sealed partial class TrayHost : Window
     }
 
     // Fluent curves: decelerate (0,0)-(0,1) in, accelerate (1,0)-(1,1) out
-    static DoubleAnimationUsingKeyFrames Animate(DependencyObject target, string property, double from, double to, TimeSpan duration, bool enter)
+    private static DoubleAnimationUsingKeyFrames Animate(DependencyObject target, string property, double from, double to, TimeSpan duration, bool enter)
     {
         var animation = new DoubleAnimationUsingKeyFrames();
         animation.KeyFrames.Add(new DiscreteDoubleKeyFrame { KeyTime = TimeSpan.Zero, Value = from });
         animation.KeyFrames.Add(new SplineDoubleKeyFrame
         {
-            KeyTime   = duration,
-            Value     = to,
+            KeyTime = duration,
+            Value = to,
             KeySpline = enter
                 ? new KeySpline { ControlPoint1 = new Point(0, 0), ControlPoint2 = new Point(0, 1) }
                 : new KeySpline { ControlPoint1 = new Point(1, 0), ControlPoint2 = new Point(1, 1) },
@@ -453,7 +453,7 @@ public sealed partial class TrayHost : Window
     // =========================================================================
 
     // A closed window has no AppWindow to hide
-    void HideHostIfIdle()
+    private void HideHostIfIdle()
     {
         if (!_shuttingDown && !Menu.IsOpen && !Agenda.IsOpen)
         {
@@ -461,7 +461,7 @@ public sealed partial class TrayHost : Window
         }
     }
 
-    void OnMenuClosed(object sender, object e)
+    private void OnMenuClosed(object sender, object e)
     {
         HideHostIfIdle();
         StopWatchingIfIdle();
@@ -474,7 +474,7 @@ public sealed partial class TrayHost : Window
     // While the menu or flyout is open, any mouse press off them closes it. Light dismiss alone missed some: it needs the
     // host to lose the foreground, which Windows doesn't always report. A press on the tray icon closes it too, and the
     // icon's own click that follows doesn't open the flyout again
-    void WatchPresses()
+    private void WatchPresses()
     {
         if (!MouseDownWatch.IsWatching && !MouseDownWatch.Start(OnPressed))
         {
@@ -482,7 +482,7 @@ public sealed partial class TrayHost : Window
         }
     }
 
-    void StopWatchingIfIdle()
+    private void StopWatchingIfIdle()
     {
         if (!Menu.IsOpen && !Agenda.IsOpen)
         {
@@ -491,7 +491,7 @@ public sealed partial class TrayHost : Window
     }
 
     // Raised inside the hook (on this thread): only the cheap check here, the close after it returns
-    void OnPressed(int x, int y)
+    private void OnPressed(int x, int y)
     {
         if (InvisibleHost.IsOnPopup(this, x, y))
         {
@@ -524,7 +524,7 @@ public sealed partial class TrayHost : Window
     }
 
     // The flyout's Open calendar: the flyout closes, then the main window opens (a click handler, so nothing may escape)
-    void OnFlyoutOpenClick(object sender, RoutedEventArgs e)
+    private void OnFlyoutOpenClick(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -538,7 +538,7 @@ public sealed partial class TrayHost : Window
     }
 
     // A click handler, so nothing may escape
-    void OnOpenClick(object sender, RoutedEventArgs e)
+    private void OnOpenClick(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -551,7 +551,7 @@ public sealed partial class TrayHost : Window
     }
 
     // A click handler, so nothing may escape
-    void OnNewEventClick(object sender, RoutedEventArgs e)
+    private void OnNewEventClick(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -564,12 +564,12 @@ public sealed partial class TrayHost : Window
         }
     }
 
-    void OnJoinNextClick(object sender, RoutedEventArgs e) => JoinNextRequested?.Invoke(this, EventArgs.Empty);
+    private void OnJoinNextClick(object sender, RoutedEventArgs e) => JoinNextRequested?.Invoke(this, EventArgs.Empty);
 
-    void OnSyncClick(object sender, RoutedEventArgs e) => SyncRequested?.Invoke(this, EventArgs.Empty);
+    private void OnSyncClick(object sender, RoutedEventArgs e) => SyncRequested?.Invoke(this, EventArgs.Empty);
 
     // A click handler, so nothing may escape
-    void OnSettingsClick(object sender, RoutedEventArgs e)
+    private void OnSettingsClick(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -581,5 +581,5 @@ public sealed partial class TrayHost : Window
         }
     }
 
-    void OnQuitClick(object sender, RoutedEventArgs e) => QuitRequested?.Invoke(this, EventArgs.Empty);
+    private void OnQuitClick(object sender, RoutedEventArgs e) => QuitRequested?.Invoke(this, EventArgs.Empty);
 }

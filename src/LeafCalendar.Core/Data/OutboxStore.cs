@@ -63,7 +63,7 @@ public sealed record OutboxEntry(
 /// </remarks>
 public static class OutboxStore
 {
-    const string Columns = """
+    private const string Columns = """
         SELECT seq, account_id, calendar_id, event_id, operation, payload, base_etag, send_updates,
                before_json, not_before, state, attempts, last_error, depends_on
         FROM outbox
@@ -273,21 +273,21 @@ public static class OutboxStore
         r.GetStringOrNull(12),
         r.IsDBNull(13) ? null : r.GetInt64(13));
 
-    static string ToText(OutboxOperation operation) => operation switch
+    private static string ToText(OutboxOperation operation) => operation switch
     {
         OutboxOperation.Create => "create",
         OutboxOperation.Delete => "delete",
-        OutboxOperation.Move   => "move",
-        OutboxOperation.Rsvp   => "rsvp",
-        _                      => "patch",
+        OutboxOperation.Move => "move",
+        OutboxOperation.Rsvp => "rsvp",
+        _ => "patch",
     };
 
-    static OutboxOperation FromText(string text) => text switch
+    private static OutboxOperation FromText(string text) => text switch
     {
         "create" => OutboxOperation.Create,
         "delete" => OutboxOperation.Delete,
-        "move"   => OutboxOperation.Move,
-        "rsvp"   => OutboxOperation.Rsvp,
-        _        => OutboxOperation.Patch,
+        "move" => OutboxOperation.Move,
+        "rsvp" => OutboxOperation.Rsvp,
+        _ => OutboxOperation.Patch,
     };
 }
