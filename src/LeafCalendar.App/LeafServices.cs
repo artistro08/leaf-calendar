@@ -23,7 +23,11 @@ public sealed class LeafServices : IAsyncDisposable
     // Test Mode "Browser": follows the fake Google's sign-in redirect itself
     private static readonly HttpClient FakeBrowser = new();
 
+    // How often secrets that can't be read right now are tried again
+    private static readonly TimeSpan SecretsRetry = TimeSpan.FromSeconds(30);
+
     private readonly HttpClient _http;
+    private ITimer? _secretsRetry;
 
     /// <summary>Creates services for a profile under the package's local folder.</summary>
     public LeafServices(LaunchOptions options, string localFolder)
@@ -158,11 +162,28 @@ public sealed class LeafServices : IAsyncDisposable
         return AccountStore.GetAll(conn).Count > 0;
     }
 
+    /// <summary>
+    /// True when an OAuth client is saved. When the secrets can't be read right now (<see cref="InvalidDataException"/>),
+    /// it's taken as saved, so a passing failure never sends a signed-in user back to setup.
+    /// </summary>
+    public bool HasOAuthClient()
+    {
+        try
+        {
+            return Tokens.GetClientCredentials() is not null;
+        }
+        catch (InvalidDataException)
+        {
+            return true;
+        }
+    }
+
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         NetworkInformation.NetworkStatusChanged -= OnNetworkStatusChanged;
         PowerManager.SystemSuspendStatusChanged -= OnSuspendStatusChanged;
+        Interlocked.Exchange(ref _secretsRetry, null)?.Dispose();
 
         if (Google is { } google)
         {
@@ -287,7 +308,21 @@ public sealed class LeafServices : IAsyncDisposable
 
     private GoogleServices? CreateGoogle()
     {
-        if (Tokens.GetClientCredentials() is not { } credentials)
+        OAuthClientCredentials? credentials;
+        try
+        {
+            credentials = Tokens.GetClientCredentials();
+        }
+        catch (InvalidDataException ex)
+        {
+            // Secrets Can't Be Read Right Now (DPAPI failing for a passing reason): no Google until they can, never
+            // "signed out"; a timer tries again. The error type only.
+            Log.Info("auth.secrets.unavailable", $"error={ex.InnerException?.GetType().Name}");
+            _secretsRetry ??= Time.CreateTimer(_ => _ = RetryGoogleAsync(), null, SecretsRetry, SecretsRetry);
+            return null;
+        }
+
+        if (credentials is null)
         {
             return null;
         }
@@ -295,6 +330,39 @@ public sealed class LeafServices : IAsyncDisposable
         var google = new GoogleServices(_http, credentials, Tokens, Database, Log, Time, Endpoints);
         google.Loop.Start();
         return google;
+    }
+
+    // Secrets Readable Again: Google services are built, and everything listening reattaches (GoogleChanged, any thread)
+    private async Task RetryGoogleAsync()
+    {
+        try
+        {
+            Tokens.GetClientCredentials();
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
+
+        // Only one tick goes on
+        if (Interlocked.Exchange(ref _secretsRetry, null) is not { } timer)
+        {
+            return;
+        }
+
+        timer.Dispose();
+        try
+        {
+            if (Google is null)
+            {
+                await ReloadGoogleAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            // A timer callback, so nothing may escape
+            Log.Error("google.retry.failed", ex);
+        }
     }
 
     private void OnNetworkStatusChanged(object sender) => RetryNow();

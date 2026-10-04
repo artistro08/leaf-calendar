@@ -50,6 +50,17 @@ public sealed class ProtectedFileTokenStore : ITokenStore
     /// <summary>True once <c>secrets.bin</c> has been written (secrets from the Credential Locker were moved, or saved since).</summary>
     public bool Exists => File.Exists(_path);
 
+    /// <summary>True when <c>secrets.bin</c> exists but can never be read (damaged, or made for another user or profile).</summary>
+    /// <exception cref="InvalidDataException">It can't be read right now (it may be fine).</exception>
+    public bool IsUnreadable()
+    {
+        lock (_gate)
+        {
+            Load(out var unreadable);
+            return unreadable;
+        }
+    }
+
     /// <inheritdoc />
     public OAuthClientCredentials? GetClientCredentials()
     {

@@ -1,5 +1,8 @@
 using System.Security.Cryptography;
 using LeafCalendar.Core.Auth;
+using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Google;
+using LeafCalendar.Core.Sync;
 using LeafCalendar.Tests.Support;
 
 namespace LeafCalendar.Tests;
@@ -150,6 +153,43 @@ public sealed class ProtectedFileTokenStoreTests : IDisposable
         Assert.Equal(before, File.ReadAllBytes(path));
         Assert.False(File.Exists(path + ".unreadable"));
         Assert.Equal("1//a", _store.GetRefreshToken("acct-1"));
+    }
+
+    [Fact]
+    public async Task DecryptFails_DuringSync_IsRetriedLater_NeverSignedOut()
+    {
+        using var harness = new SyncHarness();
+        harness.RouteStandardGoogle();
+        _store.SetRefreshToken(SyncHarness.AccountId, "1//test-refresh-token");
+        var broken = true;
+        var store = new ProtectedFileTokenStore(_folder.Path, (data, entropy) => broken ? throw new CryptographicException(unchecked((int)0x8009000B)) : Dpapi.Unprotect(data, entropy));
+        var http = new HttpClient(harness.Google);
+        using var provider = new AccessTokenProvider(new GoogleOAuthClient(http, new("id.apps.googleusercontent.com", "GOCSPX-test"), harness.Time), store, harness.Time);
+        using var engine = new SyncEngine(new GoogleCalendarClient(http, provider), harness.Db.Database, harness.Log, harness.Time);
+        var signIns = new List<string>();
+        engine.SignInNeeded += (_, account) => signIns.Add(account);
+
+        // Secrets Unavailable: a failed sync, not a sign-out
+        await engine.SyncAllAsync(TestContext.Current.CancellationToken);
+
+        Assert.Empty(signIns);
+        Assert.Contains("sync.account.failed", File.ReadAllText(harness.LogPath), StringComparison.Ordinal);
+        Assert.Contains("InvalidDataException", File.ReadAllText(harness.LogPath), StringComparison.Ordinal);
+        using (var conn = harness.Db.Database.Open())
+        {
+            Assert.Equal(AccountStatus.Ok, Assert.Single(AccountStore.GetAll(conn)).Status);
+            Assert.Empty(CalendarStore.GetForAccount(conn, SyncHarness.AccountId));
+        }
+
+        // Readable Again: the next sync goes through
+        broken = false;
+        await engine.SyncAllAsync(TestContext.Current.CancellationToken);
+
+        Assert.Empty(signIns);
+        using (var conn = harness.Db.Database.Open())
+        {
+            Assert.NotEmpty(CalendarStore.GetForAccount(conn, SyncHarness.AccountId));
+        }
     }
 
     [Fact]

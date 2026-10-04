@@ -151,7 +151,7 @@ public partial class App : Application
         }
 
         // First Run: onboarding shows instead of the main window until there's an OAuth client and an account; the tray starts when it's done
-        if (OnboardingFlow.IsNeeded(services.Tokens.GetClientCredentials() is not null, services.HasAccount()))
+        if (OnboardingFlow.IsNeeded(services.HasOAuthClient(), services.HasAccount()))
         {
             // Started By Windows At Sign-In Before Setup Was Finished: no setup window at sign-in, just exit
             if (Program.StartKind == ExtendedActivationKind.StartupTask)

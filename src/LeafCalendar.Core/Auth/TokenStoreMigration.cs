@@ -10,8 +10,10 @@ public static class TokenStoreMigration
     /// </summary>
     /// <remarks>
     /// <para>Once <c>secrets.bin</c> exists, it's the store, whatever the Locker holds. Deleting the Locker's leftovers is only
-    /// tidying up: a failure is logged and tried again on the next start.</para>
-    /// <para>Before that, the Locker's secrets are written to <c>secrets.bin</c> in one write, and only then deleted from the
+    /// tidying up: a failure is logged and tried again on the next start. Two exceptions: when <c>secrets.bin</c> is bad
+    /// data (it can never be read), the leftovers rebuild it, as in a first move; when it can't be read right now, the
+    /// leftovers are kept until it can.</para>
+    /// <para>Before that (or to rebuild), the Locker's secrets are written to <c>secrets.bin</c> in one write, and only then deleted from the
     /// Locker. When that write fails, this run uses the Locker (untouched), and the next start tries again. When the Locker
     /// can't be opened or read, there's nothing to lose, so the file store is used.</para>
     /// <para>Never throws, so startup can't fail here. Logs only event names and exception type names, never a secret.</para>
@@ -26,11 +28,23 @@ public static class TokenStoreMigration
         ArgumentNullException.ThrowIfNull(openLocker);
         ArgumentNullException.ThrowIfNull(log);
 
-        // Already Moved: the Locker's leftovers are only tidied up
-        if (file.Exists)
+        // Already Moved: the Locker's leftovers are only tidied up, unless secrets.bin is bad data and they can rebuild it
+        var rebuilding = file.Exists;
+        if (rebuilding)
         {
-            CleanUp(openLocker, log);
-            return file;
+            try
+            {
+                if (!file.IsUnreadable())
+                {
+                    CleanUp(openLocker, log);
+                    return file;
+                }
+            }
+            catch (InvalidDataException)
+            {
+                // Can't Be Read Right Now (it may be fine): the leftovers stay until it can
+                return file;
+            }
         }
 
         // Read The Locker
@@ -72,7 +86,7 @@ public static class TokenStoreMigration
             return locker;
         }
 
-        log.Info("auth.secrets.migrated");
+        log.Info(rebuilding ? "auth.secrets.rebuilt" : "auth.secrets.migrated");
         CleanUp(() => locker, log);
         return file;
     }

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Tests.Support;
@@ -86,6 +87,40 @@ public sealed class TokenStoreMigrationTests : IDisposable
 
         Assert.False(_file.Exists);
         Assert.Equal(2, LogLines("auth.secrets.locker.unreadable").Count);
+    }
+
+    [Fact]
+    public void Open_FileIsBadData_RebuildsItFromTheLockerLeftovers()
+    {
+        // A cleanup failed after the move, then secrets.bin was damaged
+        var path = Path.Combine(_folder.Path, "profiles", "default", "secrets.bin");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllBytes(path, [1, 2, 3]);
+        var locker = Seeded();
+
+        Assert.Same(_file, TokenStoreMigration.Open(_file, () => locker, _log));
+
+        Assert.Equal(Client, _file.GetClientCredentials());
+        Assert.Equal(["a", "b"], _file.GetAccountIds().Order(StringComparer.Ordinal));
+        Assert.Equal([1, 2, 3], File.ReadAllBytes(path + ".unreadable"));
+        Assert.Empty(locker.GetAccountIds());
+        Assert.Null(locker.GetClientCredentials());
+        Assert.Single(LogLines("auth.secrets.rebuilt"));
+        Assert.Empty(LogLines("auth.secrets.migrated"));
+    }
+
+    [Fact]
+    public void Open_FileUnavailableRightNow_KeepsTheLockerLeftovers()
+    {
+        _file.SetRefreshToken("a", "1//a");
+        var file = new ProtectedFileTokenStore(Path.Combine(_folder.Path, "profiles", "default"), (_, _) => throw new CryptographicException(unchecked((int)0x8009000B)));
+        var locker = Seeded();
+
+        Assert.Same(file, TokenStoreMigration.Open(file, () => locker, _log));
+
+        Assert.Equal(["a", "b"], locker.GetAccountIds().Order(StringComparer.Ordinal));
+        Assert.Equal(Client, locker.GetClientCredentials());
+        Assert.Equal("1//a", _file.GetRefreshToken("a"));
     }
 
     [Fact]

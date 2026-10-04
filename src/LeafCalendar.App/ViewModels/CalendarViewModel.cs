@@ -973,7 +973,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         {
             await google.Calendar.PatchCalendarListAsync(calendar.AccountId, calendar.Id, patch, _life.Token);
         }
-        catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !_life.IsCancellationRequested))
+        // Secrets that can't be read right now (InvalidDataException) say the same as when Google isn't set up yet
+        catch (Exception ex) when (ex is HttpRequestException or InvalidDataException || (ex is TaskCanceledException && !_life.IsCancellationRequested))
         {
             problem = offline;
         }

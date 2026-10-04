@@ -440,7 +440,18 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     // Only the primary button's state is told: a full refresh would push the boxes' own text back into them as they type
     private void UpdateClientReady()
     {
-        _flow.IsClientReady = OnboardingFlow.HasClientInput(Client.ClientId, Client.ClientSecret, _services.Tokens.GetClientCredentials());
+        // Secrets Can't Be Read Right Now: judged as if none were saved (runs on every keystroke, so nothing may escape)
+        OAuthClientCredentials? saved;
+        try
+        {
+            saved = _services.Tokens.GetClientCredentials();
+        }
+        catch (InvalidDataException)
+        {
+            saved = null;
+        }
+
+        _flow.IsClientReady = OnboardingFlow.HasClientInput(Client.ClientId, Client.ClientSecret, saved);
         if (!_closed)
         {
             OnPropertyChanged(nameof(CanRunPrimary));
