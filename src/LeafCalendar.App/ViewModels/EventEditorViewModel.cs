@@ -248,7 +248,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
 
         // Repeat
         var line  = draft.Recurrence.FirstOrDefault(l => l.StartsWith("RRULE:", StringComparison.Ordinal));
-        var rule  = line is null ? null : RepeatRule.Parse(line, _eventZone);
+        var rule  = line is null ? null : RepeatRule.Parse(line, _eventZone, draft.IsAllDay);
         RepeatIndex    = line is null ? 0 : rule is null ? 5 : (int)rule.Frequency + 1;
         HasCustomRule  = RepeatIndex == 5;
         RepeatInterval = rule?.Interval ?? 1;

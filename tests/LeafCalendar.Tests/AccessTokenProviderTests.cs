@@ -70,6 +70,21 @@ public class AccessTokenProviderTests : IDisposable
         Assert.Equal("acct", error.AccountId);
     }
 
+    [Theory]
+    [InlineData("unauthorized_client")]
+    [InlineData("invalid_client")]
+    [InlineData("deleted_client")]
+    public async Task GetAccessTokenAsync_ClientRejected_ThrowsNeedsSignIn(string code)
+    {
+        _store.SetRefreshToken("acct", "1//issued-to-the-old-client");
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.Unauthorized, $$"""{"error":"{{code}}","error_description":"Unauthorized"}""");
+
+        var error = await Assert.ThrowsAsync<AccountNeedsSignInException>(
+            () => CreateProvider().GetAccessTokenAsync("acct", TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal("acct", error.AccountId);
+    }
+
     [Fact]
     public async Task GetAccessTokenAsync_NoRefreshToken_ThrowsNeedsSignIn()
     {

@@ -150,6 +150,50 @@ public sealed class FreeBusyLookupTests : IDisposable
     }
 
     [Fact]
+    public async Task Lookup_DetailsCallTimesOut_FallsBackToFreeBusy()
+    {
+        // HttpClient's own timeout throws TaskCanceledException though the caller never canceled
+        _handler.Respond(HttpMethod.Post, "freeBusy", 200, """{"calendars":{"dana@example.com":{"busy":[{"start":"2026-10-01T15:00:00Z","end":"2026-10-01T16:00:00Z"}]}}}""");
+        _handler.On(r => r.Method == HttpMethod.Get, _ => throw new TaskCanceledException("timed out"));
+
+        var person = Assert.Single(await _lookup.LookupAsync(Account, ["dana@example.com"], From, To, TestContext.Current.CancellationToken));
+
+        Assert.Equal([new BusyBlock(Utc(15), Utc(16), null)], person.Blocks);
+    }
+
+    [Fact]
+    public async Task Lookup_Canceled_Throws()
+    {
+        using var cts = new CancellationTokenSource();
+        _handler.Respond(HttpMethod.Post, "freeBusy", 200, """{"calendars":{"dana@example.com":{"busy":[]}}}""");
+        _handler.On(r => r.Method == HttpMethod.Get, _ =>
+        {
+            cts.Cancel();
+            throw new OperationCanceledException(cts.Token);
+        });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _lookup.LookupAsync(Account, ["dana@example.com"], From, To, cts.Token));
+    }
+
+    [Fact]
+    public async Task Lookup_MeetingThePersonDeclined_IsNotATitledBlock()
+    {
+        // Dana declined All-hands and accepted the 1:1, so free/busy has only the 1:1's half hour
+        _handler.Respond(HttpMethod.Post, "freeBusy", 200, """{"calendars":{"dana@example.com":{"busy":[{"start":"2026-10-01T13:30:00Z","end":"2026-10-01T14:00:00Z"}]}}}""");
+        _handler.Respond(HttpMethod.Get, "calendars/dana%40example.com/events", 200, """
+            {"items":[
+              {"id":"a","status":"confirmed","summary":"All-hands","attendees":[{"email":"boss@example.com","responseStatus":"accepted"},{"email":"dana@example.com","self":true,"responseStatus":"declined"}],
+               "start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}},
+              {"id":"b","status":"confirmed","summary":"1:1","attendees":[{"email":"boss@example.com","responseStatus":"declined"},{"email":"dana@example.com","self":true,"responseStatus":"accepted"}],
+               "start":{"dateTime":"2026-10-01T13:30:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}]}
+            """);
+
+        var person = Assert.Single(await _lookup.LookupAsync(Account, ["dana@example.com"], From, To, TestContext.Current.CancellationToken));
+
+        Assert.Equal([new BusyBlock(Utc(13, 30), Utc(14), "1:1")], person.Blocks);
+    }
+
+    [Fact]
     public async Task Lookup_LogsNoAddresses()
     {
         _handler.Respond(HttpMethod.Post, "freeBusy", 200, """{"calendars":{"dana@example.com":{"busy":[]}}}""");

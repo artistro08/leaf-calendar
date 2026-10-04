@@ -1,4 +1,5 @@
 using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Google;
 using LeafCalendar.Tests.Support;
 
 namespace LeafCalendar.Tests;
@@ -119,5 +120,21 @@ public sealed class OutboxStoreTests : IDisposable
         AccountStore.Delete(conn, Account);
 
         Assert.Equal(0, OutboxStore.Count(conn));
+    }
+
+    [Fact]
+    public void AccountDelete_WithACopyStillUnsent_PutsBackTheOriginalWaitingBehindIt()
+    {
+        const string Original = """{"id":"evt-a","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""";
+        using var conn = _db.Database.Open();
+        AccountStore.Upsert(conn, TestDatabase.SampleAccount with { Id = "other-account" });
+        CalendarStore.ReplaceForAccount(conn, Account, [new CalendarListEntry { Id = Calendar, Summary = "Mine", AccessRole = "owner" }]);
+        var create = OutboxStore.Add(conn, null, Entry("copy", OutboxOperation.Create) with { AccountId = "other-account" });
+        OutboxStore.Add(conn, null, Entry("evt-a", OutboxOperation.Delete) with { BeforeJson = $"[{Original}]", DependsOn = create });
+
+        AccountStore.Delete(conn, "other-account");
+
+        Assert.Equal(0, OutboxStore.Count(conn));
+        Assert.NotNull(EventStore.Get(conn, Account, Calendar, "evt-a"));
     }
 }

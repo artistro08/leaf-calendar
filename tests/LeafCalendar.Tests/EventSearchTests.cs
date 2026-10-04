@@ -60,6 +60,64 @@ public sealed class EventSearchTests : IDisposable
         Assert.Equal(Now, index.BuiltAt);
     }
 
+    [Fact]
+    public void Index_TooManyEvents_LeavesTheSearchToFind()
+    {
+        // More events than the index holds, all nearer to now than an old appointment
+        using var conn = _db.Database.Open();
+        using (var tx = conn.BeginTransaction())
+        {
+            for (var i = 0; i < EventSearch.MaxRows; i++)
+            {
+                using var doc = JsonDocument.Parse(Timed($"note-{i}", "Standup notes", "2026-10-06T10:00:00-04:00", "2026-10-06T10:30:00-04:00"));
+                EventStore.Apply(conn, tx, Account, Primary, doc.RootElement);
+            }
+
+            using var old = JsonDocument.Parse(Timed("passport", "Passport appointment", "2023-05-02T10:00:00-04:00", "2023-05-02T11:00:00-04:00"));
+            EventStore.Apply(conn, tx, Account, Primary, old.RootElement);
+            tx.Commit();
+        }
+
+        var index = EventSearch.Index.Build(conn, Now);
+
+        Assert.Equal("passport", Assert.Single(Find("passport")).EventId);
+        Assert.Null(index.Find(conn, "passport", Now, NewYork));
+    }
+
+    [Fact]
+    public void Index_Series_ExpandedOncePerIndex()
+    {
+        EventSearch.Index index;
+        IReadOnlyList<SearchHit>? first;
+        using (var conn = _db.Database.Open())
+        {
+            index = EventSearch.Index.Build(conn, Now);
+            first = index.Find(conn, "standup", Now, NewYork);
+        }
+
+        // The Next Keystroke Matches Without Reading The Database Again
+        using var closed = _db.Database.Open();
+        closed.Close();
+
+        Assert.Equal(first, index.Find(closed, "standup", Now, NewYork));
+    }
+
+    [Fact]
+    public void Find_AllDay_EndsAtLocalMidnight()
+    {
+        // Sydney, 9 AM Oct 3: yesterday's all-day event is over, and a daily all-day series' next date is today
+        var sydney = TimeZoneInfo.FindSystemTimeZoneById("Australia/Sydney");
+        var now    = new DateTimeOffset(2026, 10, 3, 9, 0, 0, TimeSpan.FromHours(10));
+        Insert("""{"id":"offsite","status":"confirmed","summary":"Offsite","start":{"date":"2026-10-02"},"end":{"date":"2026-10-03"}}""");
+        Insert(Timed("planning", "Offsite planning", "2026-10-10T10:00:00+10:00", "2026-10-10T11:00:00+10:00"));
+        Insert("""{"id":"gym","status":"confirmed","summary":"Gym day","start":{"date":"2026-09-01"},"end":{"date":"2026-09-02"},"recurrence":["RRULE:FREQ=DAILY"]}""");
+
+        using var conn = _db.Database.Open();
+
+        Assert.Equal(["planning", "offsite"], EventSearch.Find(conn, "offsite", now, sydney, TestContext.Current.CancellationToken).Select(h => h.EventId));
+        Assert.Equal(new DateTimeOffset(2026, 10, 3, 0, 0, 0, TimeSpan.Zero), Assert.Single(EventSearch.Find(conn, "gym", now, sydney, TestContext.Current.CancellationToken)).Start);
+    }
+
     static string Timed(string id, string title, string start, string end, string extra = "") =>
         $$"""{"id":"{{id}}","status":"confirmed","summary":"{{title}}","start":{"dateTime":"{{start}}"},"end":{"dateTime":"{{end}}"}{{extra}}}""";
 

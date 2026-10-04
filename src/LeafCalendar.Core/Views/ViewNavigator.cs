@@ -18,16 +18,18 @@ public static class ViewNavigator
 
     /// <summary>
     /// The day the mini month should show: the period start in Month view; otherwise today when it is in the
-    /// visible span, else the middle of the span.
+    /// visible span, else the middle of the span. With weekends hidden, the span counts shown days only.
     /// </summary>
-    public static DateOnly MiniMonthAnchor(CalendarViewMode mode, DateOnly periodStart, int visibleColumns, DateOnly today)
+    public static DateOnly MiniMonthAnchor(CalendarViewMode mode, DateOnly periodStart, int visibleColumns, DateOnly today, bool showWeekends = true)
     {
         if (mode == CalendarViewMode.Month)
         {
             return periodStart;
         }
 
-        return today >= periodStart && today < periodStart.AddDays(visibleColumns) ? today : periodStart.AddDays(visibleColumns / 2);
+        var shown = Enumerable.Range(0, 62).Select(periodStart.AddDays).Where(d => showWeekends || !IsWeekend(d)).Take(visibleColumns).ToList();
+
+        return shown.Contains(today) ? today : shown[visibleColumns / 2];
     }
 
     /// <summary>The first day of the week containing <paramref name="date"/>.</summary>

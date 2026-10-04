@@ -227,6 +227,43 @@ public class EventJsonTests
         Assert.Equal("2026-10-01T14:00:00-04:00", (string?)copy["start"]!["dateTime"]);
     }
 
+    // Google Refuses To Create A Gmail Or Birthday Event, And An All-Day Focus Time Or Out Of Office
+    [Theory]
+    [InlineData("fromGmail", false)]
+    [InlineData("birthday", false)]
+    [InlineData("workingLocation", false)]
+    [InlineData("focusTime", true)]
+    [InlineData("outOfOffice", true)]
+    public void PrivateCopy_TypeGoogleWontCreateThere_BecomesAnOrdinaryEvent(string type, bool isAllDay)
+    {
+        var source = JsonNode.Parse(Meeting)!.AsObject();
+        source["eventType"] = type;
+        foreach (var name in new[] { "birthdayProperties", "workingLocationProperties", "focusTimeProperties", "outOfOfficeProperties" })
+        {
+            source[name] = new JsonObject { ["type"] = "x" };
+        }
+
+        var copy = JsonNode.Parse(EventJson.PrivateCopy(source.ToJsonString(), "newid12345", isAllDay))!.AsObject();
+
+        foreach (var name in new[] { "eventType", "birthdayProperties", "workingLocationProperties", "focusTimeProperties", "outOfOfficeProperties" })
+        {
+            Assert.False(copy.ContainsKey(name), name);
+        }
+    }
+
+    [Fact]
+    public void PrivateCopy_TimedFocusTime_KeepsItsType()
+    {
+        var source = JsonNode.Parse(Meeting)!.AsObject();
+        source["eventType"]           = "focusTime";
+        source["focusTimeProperties"] = new JsonObject { ["chatStatus"] = "doNotDisturb" };
+
+        var copy = JsonNode.Parse(EventJson.PrivateCopy(source.ToJsonString(), "newid12345", isAllDay: false))!.AsObject();
+
+        Assert.Equal("focusTime", (string?)copy["eventType"]);
+        Assert.Equal("doNotDisturb", (string?)copy["focusTimeProperties"]!["chatStatus"]);
+    }
+
     [Fact]
     public void QuietCopy_ResetsOtherGuestsRepliesKeepsSelfAndAsksForANewMeet()
     {
@@ -305,6 +342,17 @@ public class EventJsonTests
         Assert.Same(draft, EventJson.ApplyBirthdayRule(draft, NewYork));
     }
 
+    // Focus Time And Out Of Office Must Stay Timed
+    [Theory]
+    [InlineData(EventKind.FocusTime)]
+    [InlineData(EventKind.OutOfOffice)]
+    public void ApplyBirthdayRule_TypedEvent_Unchanged(EventKind kind)
+    {
+        var draft = new EventDraft { AccountId = "acct", CalendarId = "cal", Title = "Out for my birthday", EventType = kind, Start = new DateTimeOffset(2026, 10, 2, 14, 0, 0, TimeSpan.Zero), End = new DateTimeOffset(2026, 10, 2, 22, 0, 0, TimeSpan.Zero) };
+
+        Assert.Same(draft, EventJson.ApplyBirthdayRule(draft, NewYork));
+    }
+
     // Review Focus 2: An Untouched Description Is Never Rewritten
     [Theory]
     [InlineData("<b>Agenda</b><br>Budget")]
@@ -372,6 +420,20 @@ public class EventJsonTests
         var edited = draft with { ReminderMinutes = [45] };
 
         Assert.False(EventJson.BuildPatch(draft, edited).ContainsKey("reminders"));
+    }
+
+    // A Patch Merges Objects, So The Old Overrides Must Be Cleared Or Google Sees Both
+    [Fact]
+    public void BuildPatch_BackToDefaultReminders_ClearsTheOverrides()
+    {
+        const string raw = """{"id":"a","reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":10}]}}""";
+        var before = EventJson.ReadDraft("acct", "cal", raw, Start, Start.AddHours(1), false);
+
+        var patch     = EventJson.BuildPatch(before, before with { UseDefaultReminders = true }, raw);
+        var reminders = JsonNode.Parse(EventJson.ApplyPatch(raw, patch))!["reminders"]!;
+
+        Assert.True((bool?)reminders["useDefault"]);
+        Assert.Empty((JsonArray?)reminders["overrides"] ?? new JsonArray());
     }
 
     [Fact]

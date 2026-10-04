@@ -104,8 +104,7 @@ public sealed partial class DayColumn : Canvas
         DoubleTapped += (_, e) => _owner.CreateAt(Date, e.GetPosition(this).Y);
         Tapped       += (_, e) =>
         {
-            var zone = _owner.ViewModel.Zone;
-            _owner.ViewModel.CursorTime = DragMath.Snap(DragMath.Instant(Date, e.GetPosition(this).Y / _owner.HourHeight * 60, zone), zone);
+            _owner.ViewModel.CursorTime = DragMath.SnapOnDay(Date, e.GetPosition(this).Y / _owner.HourHeight * 60, _owner.ViewModel.Zone);
         };
     }
 

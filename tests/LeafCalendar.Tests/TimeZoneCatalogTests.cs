@@ -97,6 +97,8 @@ public class TimeZoneCatalogTests
     [InlineData("Central Standard Time", "America/Chicago", true)]
     [InlineData("America/Chicago", "Central Standard Time", true)]
     [InlineData("America/New_York", "America/Chicago", false)]
+    [InlineData("Asia/Kolkata", "India Standard Time", true)]       // Windows' own IANA name is Asia/Calcutta
+    [InlineData("America/Toronto", "Eastern Standard Time", true)]  // Windows' own IANA name is America/New_York
     [InlineData("Mars/Olympus", "America/Chicago", false)]
     [InlineData(null, "America/Chicago", false)]
     public void IsSameZone_MatchesWindowsAndIanaIds(string? id, string zone, bool expected) =>

@@ -39,6 +39,24 @@ public class DescriptionAnchorsTests
         Assert.Equal([Doc, null], DescriptionAnchors.Resolve([("Doc", Doc)], [("Doc", 0), ("Doc", 0)]));
     }
 
+    // A Format Change Inside A Link (Bold On Part Of It) Splits It Into Runs; The Link Stays On Every Piece
+    [Fact]
+    public void Resolve_LinkSplitByAFormatChange_KeepsItsTarget()
+    {
+        var targets = DescriptionAnchors.Resolve([("Design doc", Doc), ("here", First)], [("See ", null), ("Design", 0), (" doc", 0), (" or ", null), ("he", 1), ("r", 1), ("e", 1)]);
+
+        Assert.Equal([null, Doc, Doc, null, First, First, First], targets);
+    }
+
+    // Pieces That Don't Add Up To The Link's Text Stay Plain
+    [Fact]
+    public void Resolve_SplitLinkWithChangedText_IsPlain()
+    {
+        Assert.Equal([null, null], DescriptionAnchors.Resolve([("Design doc", Doc)], [("Design", 0), (" docs", 0)]));
+        Assert.Equal([null, null, null], DescriptionAnchors.Resolve([("Design doc", Doc)], [("Design", 0), (" and", null), (" doc", 0)]));
+        Assert.Equal([null, Doc], DescriptionAnchors.Resolve([("Design doc", Doc)], [("Design", 0), ("Design doc", 0)]));
+    }
+
     // Anchors Past The Slot Count Share A Tint But Still Go In Order
     [Fact]
     public void Resolve_MoreLinksThanSlots_GoInOrder()

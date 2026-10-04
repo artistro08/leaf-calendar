@@ -29,9 +29,18 @@ public sealed record RepeatRule(RepeatFrequency Frequency, int Interval = 1, IRe
     static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
     static readonly string[] DayCodes = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 
-    /// <summary>Reads an <c>RRULE:</c> line. <see cref="Until"/> is the last local date in <paramref name="zone"/>.</summary>
-    public static RepeatRule? Parse(string line, TimeZoneInfo zone)
+    /// <summary>
+    /// Reads an <c>RRULE:</c> line. <see cref="Until"/> is the last local date in <paramref name="zone"/>, or for an
+    /// all-day rule the UNTIL's own date (all-day dates have no zone, so a UTC UNTIL is read as its UTC date).
+    /// </summary>
+    public static RepeatRule? Parse(string line, TimeZoneInfo zone, bool isAllDay = false)
     {
+        // All-Day Dates Have No Zone
+        if (isAllDay)
+        {
+            zone = TimeZoneInfo.Utc;
+        }
+
         if (!line.StartsWith("RRULE:", StringComparison.Ordinal))
         {
             return null;
@@ -195,7 +204,7 @@ public sealed record RepeatRule(RepeatFrequency Frequency, int Interval = 1, IRe
         return text;
     }
 
-    static string EndOfDayUtc(DateOnly day, TimeZoneInfo zone)
+    internal static string EndOfDayUtc(DateOnly day, TimeZoneInfo zone)
     {
         var nextMidnight = zone.IsInvalidTime(day.AddDays(1).ToDateTime(TimeOnly.MinValue))
             ? day.AddDays(1).ToDateTime(TimeOnly.MinValue).AddHours(1)

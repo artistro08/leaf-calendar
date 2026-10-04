@@ -156,4 +156,15 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal("Tokyo", settings.TimeZones[0].Label);
         Assert.Null(settings.TimeZones[1].Label);
     }
+
+    [Fact]
+    public void Normalize_LongZoneLabel_NeverSplitsAnEmoji()
+    {
+        var settings = new LeafSettings
+        {
+            TimeZones = [new("Asia/Tokyo", "Tokyo office - sales HQ\U0001F5FC")],
+        }.Normalize();
+
+        Assert.Equal("Tokyo office - sales HQ", settings.TimeZones[0].Label);
+    }
 }

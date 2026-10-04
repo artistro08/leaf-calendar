@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using LeafCalendar.Core.Google;
 
 namespace LeafCalendar.Core.Auth;
 
@@ -7,7 +8,7 @@ namespace LeafCalendar.Core.Auth;
 /// </summary>
 /// <remarks>
 /// Access tokens live only in memory. When Google rotates the refresh token, the new one is saved.
-/// A missing or rejected refresh token becomes <see cref="AccountNeedsSignInException"/> so callers
+/// A missing or rejected refresh token, or a rejected OAuth client, becomes <see cref="AccountNeedsSignInException"/> so callers
 /// can mark the account instead of retrying.
 /// </remarks>
 public sealed class AccessTokenProvider(GoogleOAuthClient oauth, ITokenStore store, TimeProvider time) : IDisposable
@@ -45,6 +46,12 @@ public sealed class AccessTokenProvider(GoogleOAuthClient oauth, ITokenStore sto
                 tokens = await oauth.RefreshAsync(refreshToken, ct);
             }
             catch (InvalidGrantException)
+            {
+                throw new AccountNeedsSignInException(accountId);
+            }
+
+            // The OAuth Client Was Rejected (wrong secret, deleted, or not the one that issued the token): retrying can't help
+            catch (GoogleApiException ex) when (ex.Reason is "invalid_client" or "unauthorized_client" or "deleted_client")
             {
                 throw new AccountNeedsSignInException(accountId);
             }

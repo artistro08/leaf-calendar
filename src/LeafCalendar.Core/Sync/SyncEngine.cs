@@ -292,10 +292,12 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
         bool IsQueued(JsonElement item, string property) =>
             item.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String && pending.Contains(value.GetString()!);
 
+        var skipped = false;
         foreach (var item in items)
         {
             if (item.ValueKind == JsonValueKind.Object && (IsQueued(item, "id") || IsQueued(item, "recurringEventId")))
             {
+                skipped = true;
                 continue;
             }
 
@@ -310,7 +312,9 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
             }
         }
 
-        CalendarStore.SetSyncToken(conn, tx, calendar.AccountId, calendar.Id, page.NextSyncToken);
+        // Skipped Changes Are Fetched Again: the token only moves on when nothing was skipped (an undone or later
+        // accepted edit would otherwise leave Google's change unseen), and never over a token forgotten meanwhile
+        CalendarStore.ReplaceSyncToken(conn, tx, calendar.AccountId, calendar.Id, calendar.SyncToken, skipped ? syncToken : page.NextSyncToken);
         tx.Commit();
 
         if (items.Count > 0 || syncToken is null)

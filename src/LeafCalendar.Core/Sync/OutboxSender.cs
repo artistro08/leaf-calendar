@@ -29,11 +29,13 @@ public readonly record struct SendReport(bool Changed, int Conflicts, int Reject
 /// <item>Any other <c>4xx</c> (for example no permission), a corrupt stored payload, or a move whose destination
 /// calendar is gone: it can never be sent, so the event goes back to Google's version (or the snapshot when
 /// Google's can't be read) and the entry (and later ones for that event) are dropped and reported.</item>
-/// <item>Network failure, <c>401</c>, <c>429</c>, a usage-limit <c>403</c>, or <c>5xx</c> (writes are never
-/// auto-retried), including while reading Google's copy after a conflict or refusal: the entry stays pending
-/// with its error recorded, the pass stops so the order holds, and the next sync tries again. The report of
-/// what was already done is still returned.</item>
-/// <item>An entry whose calendar is no longer in the account: dropped.</item>
+/// <item>Network failure, <c>401</c> (also a failed token refresh), <c>429</c>, a usage-limit or account-wide
+/// <c>403</c>, a <c>4xx</c> without Google's reason, or <c>5xx</c> (writes are never auto-retried), including while
+/// reading Google's copy after a conflict or refusal: the entry stays pending with its error recorded and the next
+/// sync tries again. A <c>5xx</c> or unreadable answer holds only that event; anything else stops the pass so the
+/// order holds. The report of what was already done is still returned.</item>
+/// <item>A move answered "not found" whose event is already in its destination: an earlier try got through.</item>
+/// <item>An entry whose calendar is no longer in the account, conflicted or not: dropped.</item>
 /// </list>
 /// Held entries (the undo window), entries behind a held or conflicted entry for the same event, and entries
 /// whose <see cref="OutboxEntry.DependsOn"/> is still in the outbox wait. A refused entry drops its dependents.
@@ -46,19 +48,28 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
     public async Task<SendReport> SendAsync(string accountId, CancellationToken ct)
     {
         IReadOnlyList<OutboxEntry> queue;
-        HashSet<string> waiting;
+        List<OutboxEntry> conflicted;
         HashSet<string> calendars;
         using (var conn = database.Open())
         {
-            queue     = OutboxStore.Pending(conn, accountId);
-            waiting   = [.. ConflictStore.GetAll(conn).Where(c => c.Entry.AccountId == accountId).Select(c => c.Entry.EventId)];
-            calendars = [.. CalendarStore.GetForAccount(conn, accountId).Select(c => c.Id)];
+            queue      = OutboxStore.Pending(conn, accountId);
+            conflicted = [.. ConflictStore.GetAll(conn).Select(c => c.Entry).Where(e => e.AccountId == accountId)];
+            calendars  = [.. CalendarStore.GetForAccount(conn, accountId).Select(c => c.Id)];
         }
+
+        HashSet<string> waiting = [.. conflicted.Where(e => calendars.Contains(e.CalendarId)).Select(e => e.EventId)];
 
         var changed   = false;
         var conflicts = 0;
         var rejected  = 0;
         var now       = time.GetUtcNow();
+
+        // Conflicts Of A Calendar That Left The Account: nothing is left to decide
+        foreach (var orphan in conflicted.Where(e => !calendars.Contains(e.CalendarId)))
+        {
+            Drop(orphan);
+            changed = true;
+        }
 
         foreach (var queued in queue)
         {
@@ -78,7 +89,7 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
             // Calendar Removed From The Account: Google can't take it
             if (!calendars.Contains(entry.CalendarId))
             {
-                Drop(entry.Seq);
+                Drop(entry);
                 changed = true;
                 continue;
             }
@@ -116,10 +127,14 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
             {
                 if (failure is PreconditionFailedException or EventGoneException)
                 {
+                    // A Move Google Can't Find In Its Source May Already Be In Its Destination
+                    var lostMove = failure is EventGoneException && entry.Operation == OutboxOperation.Move;
                     string? current = null;
                     try
                     {
-                        current = failure is EventGoneException ? null : await google.GetEventAsync(entry.AccountId, entry.CalendarId, entry.EventId, ct);
+                        current = failure is PreconditionFailedException || lostMove
+                            ? await google.GetEventAsync(entry.AccountId, lostMove ? LocalCalendarOf(entry) : entry.CalendarId, entry.EventId, ct)
+                            : null;
                     }
                     catch (GoogleApiException ex) when (IsPermanent(ex))
                     {
@@ -127,7 +142,7 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
                     }
 
                     // Lost Response: Google already applied this edit, so it counts as sent
-                    if (failure is PreconditionFailedException && entry.Operation == OutboxOperation.Patch && Matches(entry.Payload, current))
+                    if ((failure is PreconditionFailedException && entry.Operation == OutboxOperation.Patch && Matches(entry.Payload, current)) || (lostMove && current is not null))
                     {
                         await AcceptAsync(entry, current, ct);
                         changed = true;
@@ -146,13 +161,25 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
                 else
                 {
                     Defer(entry, failure);
-                    break;
+                    if (StopsThePass(failure))
+                    {
+                        break;
+                    }
+
+                    waiting.Add(entry.EventId);
+                    continue;
                 }
             }
             catch (Exception ex) when (IsTemporary(ex, ct))
             {
                 Defer(entry, ex);
-                break;
+                if (StopsThePass(ex))
+                {
+                    break;
+                }
+
+                waiting.Add(entry.EventId);
+                continue;
             }
 
             waiting.Add(entry.EventId);
@@ -177,13 +204,23 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
                 return false;
             }
 
-            return patch.All(p => JsonNode.DeepEquals(p.Value, current[p.Key]));
+            return Holds(patch, current);
         }
         catch (JsonException)
         {
             return false;
         }
     }
+
+    // The way a patch lands: an object sets only its own members (null clears one), so Google's copy may carry more
+    // (a filled-in conference, a guest's answer); an array's items line up one for one; anything else must be equal
+    static bool Holds(JsonNode? patch, JsonNode? current) => patch switch
+    {
+        null           => current is null,
+        JsonObject set => current is JsonObject has && set.All(p => Holds(p.Value, has[p.Key])),
+        JsonArray list => current is JsonArray items && list.Count == items.Count && list.Zip(items).All(p => Holds(p.First, p.Second)),
+        _              => JsonNode.DeepEquals(patch, current),
+    };
 
     /// <summary>The <c>etag</c> of Google's event JSON, or null (also when the JSON is invalid).</summary>
     internal static string? EtagOf(string json)
@@ -348,7 +385,6 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
     // Google will never accept this edit: put back what Google has, and drop this and later edits of the event
     async Task RejectAsync(OutboxEntry entry, CancellationToken ct)
     {
-        var localCalendar = LocalCalendarOf(entry);
         string? googleJson = null;
         if (entry.Operation != OutboxOperation.Create)
         {
@@ -365,11 +401,8 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
         using var conn = database.Open();
         using var tx   = conn.BeginTransaction();
 
-        foreach (var later in OutboxStore.ForEvent(conn, tx, entry.AccountId, localCalendar, entry.EventId).Where(e => e.Seq > entry.Seq))
-        {
-            OutboxStore.Remove(conn, tx, later.Seq);
-            OutboxStore.DropDependents(conn, tx, later.Seq);
-        }
+        // Later Edits Go Too (a later move may have taken the local row to another calendar)
+        var localCalendar = OutboxStore.DropLater(conn, tx, entry);
 
         OutboxStore.Remove(conn, tx, entry.Seq);
         OutboxStore.DropDependents(conn, tx, entry.Seq);
@@ -392,12 +425,23 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
         log.Info("outbox.deferred", $"seq={entry.Seq} error={error}");
     }
 
-    // An entry whose calendar left the account (no foreign key keeps them in step)
-    void Drop(long seq)
+    // An entry whose calendar left the account (no foreign key keeps them in step), with what waits behind it
+    void Drop(OutboxEntry entry)
     {
         using var conn = database.Open();
-        OutboxStore.Remove(conn, null, seq);
-        log.Info("outbox.dropped", $"seq={seq}");
+        using var tx   = conn.BeginTransaction();
+        OutboxStore.Remove(conn, tx, entry.Seq);
+        OutboxStore.DropDependents(conn, tx, entry.Seq);
+
+        // A Move Out Of It Left A Row Google Will Never Have (edits made on it there stay, and meet Google as conflicts)
+        var localCalendar = LocalCalendarOf(entry);
+        if (localCalendar != entry.CalendarId && OutboxStore.ForEvent(conn, tx, entry.AccountId, localCalendar, entry.EventId).Count == 0)
+        {
+            EventStore.Remove(conn, tx, entry.AccountId, localCalendar, entry.EventId);
+        }
+
+        tx.Commit();
+        log.Info("outbox.dropped", $"seq={entry.Seq}");
     }
 
     OutboxEntry? Reload(long seq)
@@ -409,14 +453,21 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
     static bool IsRejection(Exception ex) =>
         ex is UnsendableEntryException || (ex is GoogleApiException api && IsPermanent(api));
 
-    // 4xx that retrying can't fix (not 401, 408, 429, or a rate or usage limit 403)
+    // 4xx where Google refused this event: not 401, 408, 429, a rate or usage limit, a refusal of the whole account or
+    // project (the API switched off, a missing scope, an admin policy), or an answer without Google's reason (a proxy's page)
     static bool IsPermanent(GoogleApiException ex)
     {
         var status = (int)ex.Status;
         return status is >= 400 and < 500
             && ex.Status is not (HttpStatusCode.Unauthorized or HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests)
-            && ex.Reason is not ("rateLimitExceeded" or "userRateLimitExceeded" or "quotaExceeded" or "dailyLimitExceeded");
+            && ex.Reason is not (null or "rateLimitExceeded" or "userRateLimitExceeded" or "quotaExceeded" or "dailyLimitExceeded"
+                or "accessNotConfigured" or "insufficientPermissions" or "domainPolicy" or "authError");
     }
+
+    // Only Google failing on this one entry (a 5xx, an answer Leaf can't read) lets the rest of the queue go on
+    // ponytail: in a Google-wide 5xx outage each waiting event is tried once per pass; add backoff from attempts if that bites
+    static bool StopsThePass(Exception ex) =>
+        ex is not (JsonException or GoogleApiException { Status: >= HttpStatusCode.InternalServerError });
 
     static bool IsTemporary(Exception ex, CancellationToken ct) =>
         ex is HttpRequestException or GoogleApiException or JsonException or IOException

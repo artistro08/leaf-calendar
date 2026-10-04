@@ -63,6 +63,17 @@ public sealed class DefaultCalendarTests
     }
 
     [Fact]
+    public void Pick_NoPreference_PrefersTheMainAccountsPrimary()
+    {
+        // Calendars come sorted by account email, so the main account isn't necessarily first
+        var calendars = new[] { Cal("a1", "anna", "owner", primary: true), Cal("a2", "zoe", "owner", primary: true) };
+
+        Assert.Equal("zoe", DefaultCalendar.Pick(calendars, Connected, null, mainAccountId: "a2")?.Id);
+        Assert.Equal("anna", DefaultCalendar.Pick(calendars, Connected, null, mainAccountId: "a1")?.Id);
+        Assert.Equal("anna", DefaultCalendar.Pick(calendars, Connected, null)?.Id);
+    }
+
+    [Fact]
     public void Pick_NoPreference_KeepsTheOldRule()
     {
         var calendars = new[]

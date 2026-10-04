@@ -227,13 +227,41 @@ public static partial class LinkSafety
         // Bounded input, so a huge invite can't stall the UI thread
         foreach (Match match in HttpsLink().Matches(text.Length > 40_000 ? text[..40_000] : text))
         {
-            if (Uri.TryCreate(match.Value.TrimEnd('.', ',', ')', ';', '!', '?'), UriKind.Absolute, out var uri) && ProviderOf(uri) is not null)
+            if (Uri.TryCreate(TrimLinkEnd(match.Value), UriKind.Absolute, out var uri) && ProviderOf(uri) is not null)
             {
                 return uri;
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// A link found in text without the punctuation that ends the sentence around it. A closing parenthesis goes only
+    /// when the link has no opening one for it: "(see https://a.example/x)." loses both, and
+    /// "https://a.example/Mercury_(planet)" keeps its own.
+    /// </summary>
+    internal static string TrimLinkEnd(string link)
+    {
+        var end      = link.Length;
+        var unpaired = link.AsSpan().Count(')') - link.AsSpan().Count('(');
+
+        while (end > 0)
+        {
+            var last = link[end - 1];
+            if (last == ')' && unpaired > 0)
+            {
+                unpaired--;
+            }
+            else if (last is not ('.' or ',' or ';' or '!' or '?'))
+            {
+                break;
+            }
+
+            end--;
+        }
+
+        return link[..end];
     }
 
     /// <summary>
@@ -269,14 +297,15 @@ public static partial class LinkSafety
             : null;
     }
 
-    // One "@", something on both sides, and nothing that could split, add, or inject mail fields
+    // One "@", something on both sides, and nothing that could split, add, or inject mail fields (an apostrophe can't:
+    // "o'brien@a.example" is a valid address, and it's escaped like the rest)
     static bool IsPlainAddress(string email)
     {
         var at = email.IndexOf('@');
         return at > 0
             && at < email.Length - 1
             && email.IndexOf('@', at + 1) < 0
-            && !email.Any(c => char.IsControl(c) || char.IsWhiteSpace(c) || ",;<>()[]?&%=#\"'\\".Contains(c, StringComparison.Ordinal));
+            && !email.Any(c => char.IsControl(c) || char.IsWhiteSpace(c) || ",;<>()[]?&%=#\"\\".Contains(c, StringComparison.Ordinal));
     }
 
     /// <summary>A map search for a location, in Google Maps or Bing Maps (Settings › General). The location is escaped, so it never changes the address.</summary>

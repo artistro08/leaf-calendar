@@ -96,6 +96,18 @@ public class GoogleCalendarClientTests : IDisposable
     const string SingleUrl = EventsUrl + "/evt-single";
 
     [Fact]
+    public async Task PatchEventAsync_TokenRefreshRefused_ThrowsUnauthorizedNeverAnEventRefusal()
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.BadRequest, """{"error":"invalid_request"}""");
+
+        var error = await Assert.ThrowsAsync<GoogleApiException>(
+            () => CreateClient().PatchEventAsync(Account, "leaf.tester@gmail.com", "evt-single", "{}", "\"1\"", sendUpdates: false, TestContext.Current.CancellationToken));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, error.Status);
+        Assert.DoesNotContain(_google.Requests, r => r.Method == HttpMethod.Patch);
+    }
+
+    [Fact]
     public async Task PatchEventAsync_SendsIfMatchBodyAndSendUpdates()
     {
         _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
@@ -153,6 +165,33 @@ public class GoogleCalendarClientTests : IDisposable
 
         await Assert.ThrowsAsync<DuplicateEventException>(
             () => CreateClient().InsertEventAsync(Account, "leaf.tester@gmail.com", """{"id":"abcde12345"}""", false, TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.Gone)]
+    public async Task InsertEventAsync_404Or410_ThrowsApiErrorNotGone(HttpStatusCode status)
+    {
+        // The calendar is gone, not the event (it never existed)
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        _google.On(HttpMethod.Post, EventsUrl, status, """{"error":{"code":404,"errors":[{"reason":"notFound"}]}}""");
+
+        var error = await Assert.ThrowsAsync<GoogleApiException>(
+            () => CreateClient().InsertEventAsync(Account, "leaf.tester@gmail.com", """{"id":"abcde12345"}""", false, TestContext.Current.CancellationToken));
+        Assert.Equal(status, error.Status);
+    }
+
+    [Fact]
+    public async Task InsertEventAsync_SendsSupportsAttachments()
+    {
+        // A copy keeps the original's attachments; Google ignores them without this
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-refresh.json"));
+        _google.On(HttpMethod.Post, EventsUrl, HttpStatusCode.OK, """{"id":"abcde12345","status":"confirmed"}""");
+
+        await CreateClient().InsertEventAsync(Account, "leaf.tester@gmail.com", """{"id":"abcde12345","attachments":[{"fileUrl":"https://drive.google.com/open?id=1"}]}""", false, TestContext.Current.CancellationToken);
+
+        var request = _google.Requests.Single(r => r.Method == HttpMethod.Post && r.Uri.AbsoluteUri.StartsWith(EventsUrl, StringComparison.Ordinal));
+        Assert.Equal("true", request.Query("supportsAttachments"));
     }
 
     [Fact]

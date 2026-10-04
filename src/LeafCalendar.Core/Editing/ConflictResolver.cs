@@ -11,8 +11,8 @@ namespace LeafCalendar.Core.Editing;
 /// </summary>
 /// <remarks>
 /// When Google deleted the event, "Keep mine" brings it back as a new event (Google never reuses a deleted
-/// ID), and a local delete is simply done. "Keep Google's" also drops every later local edit of that event,
-/// since they were made on top of the rejected one. Either answer makes the next sync reload the event's
+/// ID), and a local delete is simply done. "Keep Google's" also drops every later local edit of that event
+/// (undoing a later move to another calendar), since they were made on top of the rejected one. Either answer makes the next sync reload the event's
 /// calendar in full, since pulls skipped Google's changes to it while the conflict was open.
 /// </remarks>
 public sealed class ConflictResolver(LeafDatabase database, TimeProvider time)
@@ -77,7 +77,7 @@ public sealed class ConflictResolver(LeafDatabase database, TimeProvider time)
         }
 
         var newId = EventIds.NewId();
-        var body  = EventJson.WithMeetIfWanted(EventJson.CloneForCreate(local, newId), EventJson.HasMeet(local), newId);
+        var body  = EventJson.WithCanceledDays(EventJson.WithMeetIfWanted(EventJson.CloneForCreate(local, newId), EventJson.HasMeet(local), newId), EventStore.Snapshot(conn, tx, entry.AccountId, calendarId, entry.EventId));
         OutboxStore.Replace(conn, tx, entry with { CalendarId = calendarId, EventId = newId, Operation = OutboxOperation.Create, Payload = body, BaseEtag = null, BeforeJson = "[]", NotBefore = null });
         EventStore.Remove(conn, tx, entry.AccountId, calendarId, entry.EventId);
         EventStore.ApplyJson(conn, tx, entry.AccountId, calendarId, EventJson.AsLocal(body));
@@ -86,15 +86,12 @@ public sealed class ConflictResolver(LeafDatabase database, TimeProvider time)
     /// <summary>Keeps Google's version and drops the local change (and later local edits of the event, and what waits behind them).</summary>
     public void KeepGoogles(ConflictInfo conflict) => InTransaction((conn, tx) =>
     {
-        var entry      = conflict.Entry;
-        var calendarId = OutboxSender.LocalCalendarOf(entry);
+        var entry = conflict.Entry;
         ReloadCalendars(conn, tx, entry);
 
-        foreach (var edit in OutboxStore.ForEvent(conn, tx, entry.AccountId, calendarId, entry.EventId).Where(e => e.Seq > entry.Seq))
-        {
-            OutboxStore.Remove(conn, tx, edit.Seq);
-            OutboxStore.DropDependents(conn, tx, edit.Seq);
-        }
+        // Later Edits Were Made On Top Of The Rejected One: they go too, and a row a later move took to another calendar comes back
+        var calendarId = OutboxStore.DropLater(conn, tx, entry);
+        CalendarStore.SetSyncToken(conn, tx, entry.AccountId, calendarId, null);
 
         // A Split's New Series Waits Behind The Old Series' End: Google kept the old series running, so it goes too
         OutboxStore.Remove(conn, tx, entry.Seq);

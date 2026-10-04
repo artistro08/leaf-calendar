@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.Recurrence;
 using Microsoft.Data.Sqlite;
 
 namespace LeafCalendar.Core.Editing;
@@ -305,7 +306,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     public string Paste(EventCopy copy, DateTimeOffset start, DateTimeOffset end, bool isAllDay)
     {
         var id   = EventIds.NewId();
-        var body = EventJson.WithTimes(EventJson.PrivateCopy(copy.RawJson, id), start, end, isAllDay, copy.TimeZone ?? LocalZoneId);
+        var body = EventJson.WithTimes(EventJson.PrivateCopy(copy.RawJson, id, isAllDay), start, end, isAllDay, copy.TimeZone ?? LocalZoneId);
         InTransaction((conn, tx) => AddCreate(conn, tx, copy.AccountId, copy.CalendarId, id, body, sendUpdates: false));
         return id;
     }
@@ -362,13 +363,16 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     {
         var stored = Stored(conn, tx, accountId, calendarId, eventId);
 
-        // Another Account: Google can't move between accounts, so copy it there and delete it here
+        // Another Account: Google can't move between accounts, so copy it there (a series with its canceled days) and delete it here
         if (after.AccountId != accountId)
         {
             var newId = EventIds.NewId();
-            var copy  = EventJson.WithMeetIfWanted(EventJson.ApplyPatch(EventJson.CloneForCreate(stored.RawJson, newId), EventJson.BuildPatch(before, after, stored.RawJson)), after.HasConference, newId);
-            AddCreate(conn, tx, after.AccountId, after.CalendarId, newId, copy, sendUpdates);
-            AddDelete(conn, tx, accountId, calendarId, eventId, stored, sendUpdates, notBefore: null);
+            var copy  = EventJson.WithMeetIfWanted(EventJson.ApplyPatch(EventJson.CloneForCreate(stored.RawJson, newId), EventJson.BuildPatch(before, after, stored.RawJson)), after.HasConference && EventJson.HasMeet(stored.RawJson), newId);
+            copy      = EventJson.WithCanceledDays(copy, EventStore.Snapshot(conn, tx, accountId, calendarId, eventId));
+            var createSeq = AddCreate(conn, tx, after.AccountId, after.CalendarId, newId, copy, sendUpdates);
+
+            // The Delete Waits Until Google Has The Copy, So A Refused Copy Never Leaves The Event Nowhere
+            AddDelete(conn, tx, accountId, calendarId, eventId, stored, sendUpdates, notBefore: null, dependsOn: createSeq);
             return;
         }
 
@@ -412,10 +416,25 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
             ? RecurrenceEdits.ShiftWeekdays(master.Recurrence, days)
             : after.Recurrence;
 
-        return WithChanges(master, before, after) with
+        // Shifted On The Wall Clock, Not By Instants: the series' first day can be in the other daylight-saving season
+        var series = WithChanges(master, before, after);
+        DateTime start, end;
+        if (before.IsAllDay == after.IsAllDay)
         {
-            Start      = master.Start + (after.Start - before.Start),
-            End        = master.End + (after.End - before.End),
+            start = WallClock(master, master.Start) + (WallClock(after, after.Start) - WallClock(before, before.Start));
+            end   = WallClock(master, master.End) + (WallClock(after, after.End) - WallClock(before, before.End));
+        }
+        else
+        {
+            // Made All-Day Or Timed: the series' own day, moved as many days as the instance, at the instance's new time
+            start = WallClock(master, master.Start).Date.AddDays(days) + WallClock(after, after.Start).TimeOfDay;
+            end   = start + (WallClock(after, after.End) - WallClock(after, after.Start));
+        }
+
+        return series with
+        {
+            Start      = FromWallClock(series, start),
+            End        = FromWallClock(series, end),
             Recurrence = recurrence,
         };
     }
@@ -435,9 +454,11 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         UseDefaultReminders = before.UseDefaultReminders == after.UseDefaultReminders ? target.UseDefaultReminders : after.UseDefaultReminders,
         ReminderMinutes     = before.ReminderMinutes.SequenceEqual(after.ReminderMinutes) ? target.ReminderMinutes : after.ReminderMinutes,
         HasConference       = before.HasConference == after.HasConference ? target.HasConference : after.HasConference,
+        IsFree              = before.IsFree == after.IsFree ? target.IsFree : after.IsFree,
+        Visibility          = before.Visibility == after.Visibility ? target.Visibility : after.Visibility,
     };
 
-    static void SplitSeries(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, StoredEvent master, EventDraft masterDraft, DateTimeOffset originalStart, EventDraft before, EventDraft after, bool sendUpdates)
+    void SplitSeries(SqliteConnection conn, SqliteTransaction tx, CalendarOccurrence o, StoredEvent master, EventDraft masterDraft, DateTimeOffset originalStart, EventDraft before, EventDraft after, bool sendUpdates)
     {
         // End The Old Series Just Before This Instance (its later exceptions go with it)
         var ended = masterDraft with { Recurrence = RecurrenceEdits.EndBefore(masterDraft.Recurrence, originalStart, masterDraft.IsAllDay, masterDraft.Start, masterDraft.TimeZone) };
@@ -452,9 +473,11 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         var endSeq = AddPatch(conn, tx, o.AccountId, o.CalendarId, master.Id, master, endPatch, sendUpdates, notBefore: null);
         EventStore.RemoveExceptionsFrom(conn, tx, o.AccountId, o.CalendarId, master.Id, originalStart);
 
-        // Start A New Series Here, With The Changes (none when a COUNT rule has nothing left at the split)
+        // Start A New Series Here, With The Changes (none when a COUNT rule has nothing left at the split); a move to another weekday takes the rule's days along
         var recurrence = after.Recurrence.SequenceEqual(before.Recurrence)
-            ? RecurrenceEdits.FollowingFrom(masterDraft.Recurrence, masterDraft.Start, masterDraft.TimeZone, originalStart, masterDraft.IsAllDay)
+            ? RecurrenceEdits.FollowingFrom(masterDraft.Recurrence, masterDraft.Start, masterDraft.TimeZone, originalStart, masterDraft.IsAllDay) is { } following
+                ? RecurrenceEdits.ShiftWeekdays(following, LocalDay(after).DayNumber - LocalDay(before).DayNumber)
+                : null
             : after.Recurrence;
         if (recurrence is null)
         {
@@ -469,7 +492,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
             Recurrence = recurrence,
         };
         var newId = EventIds.NewId();
-        var body  = EventJson.WithMeetIfWanted(EventJson.ApplyPatch(EventJson.CloneForCreate(master.RawJson, newId), EventJson.BuildPatch(masterDraft, next, master.RawJson)), next.HasConference, newId);
+        var body  = EventJson.WithMeetIfWanted(EventJson.ApplyPatch(EventJson.CloneForCreate(master.RawJson, newId), EventJson.BuildPatch(masterDraft, next, master.RawJson)), next.HasConference && EventJson.HasMeet(master.RawJson), newId);
         // Sent Only After The Old Series' End Reaches Google, So The Meetings Are Never Doubled
         AddCreate(conn, tx, o.AccountId, o.CalendarId, newId, body, sendUpdates, dependsOn: endSeq);
     }
@@ -518,7 +541,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
                 var instanceId = InstanceIdOf(o, master, originalStart);
                 var existing   = EventStore.Get(conn, tx, o.AccountId, o.CalendarId, instanceId);
                 var seq        = OutboxStore.Add(conn, tx, new OutboxEntry(0, o.AccountId, o.CalendarId, instanceId, OutboxOperation.Delete, null, existing?.Etag, sendUpdates, EventStore.Snapshot(conn, tx, o.AccountId, o.CalendarId, instanceId), notBefore));
-                EventStore.ApplyJson(conn, tx, o.AccountId, o.CalendarId, EventJson.CanceledInstance(master.Id, instanceId, originalStart, o.IsAllDay, masterDraft.TimeZone));
+                EventStore.ApplyJson(conn, tx, o.AccountId, o.CalendarId, EventJson.CanceledInstance(master.Id, instanceId, originalStart, masterDraft.IsAllDay, masterDraft.TimeZone));
                 return (seq, DeleteKind.Instance);
         }
     }
@@ -558,9 +581,9 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         return seq;
     }
 
-    static long AddDelete(SqliteConnection conn, SqliteTransaction tx, string accountId, string calendarId, string eventId, StoredEvent stored, bool sendUpdates, DateTimeOffset? notBefore)
+    static long AddDelete(SqliteConnection conn, SqliteTransaction tx, string accountId, string calendarId, string eventId, StoredEvent stored, bool sendUpdates, DateTimeOffset? notBefore, long? dependsOn = null)
     {
-        var seq = OutboxStore.Add(conn, tx, new OutboxEntry(0, accountId, calendarId, eventId, OutboxOperation.Delete, null, stored.Etag, sendUpdates, EventStore.Snapshot(conn, tx, accountId, calendarId, eventId), notBefore));
+        var seq = OutboxStore.Add(conn, tx, new OutboxEntry(0, accountId, calendarId, eventId, OutboxOperation.Delete, null, stored.Etag, sendUpdates, EventStore.Snapshot(conn, tx, accountId, calendarId, eventId), notBefore, DependsOn: dependsOn));
         EventStore.Remove(conn, tx, accountId, calendarId, eventId);
         return seq;
     }
@@ -619,20 +642,10 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
                 break;
 
             default:
-                // ponytail: a series' changed instances (moved or retitled days) aren't re-created, only canceled days (as EXDATEs); copy them as exceptions if that's missed
-                var master = rows[0];
-                var id     = EventIds.NewId();
-                var copy   = JsonNode.Parse(EventJson.QuietCopy(master.ToJsonString(), id))!.AsObject();
-                if (copy["recurrence"] is JsonArray lines)
-                {
-                    foreach (var canceled in rows.Skip(1).Where(r => (string?)r["status"] == "cancelled"))
-                    {
-                        var (start, isAllDay) = EventJson.OriginalStartOf(canceled);
-                        lines.Add((JsonNode?)JsonValue.Create(RecurrenceEdits.ExDateLine(start, isAllDay)));
-                    }
-                }
-
-                AddCreate(conn, tx, e.AccountId, e.CalendarId, id, copy.ToJsonString(), sendUpdates: false, dependsOn);
+                // A Series Keeps Its Canceled Days (as EXDATEs)
+                var id   = EventIds.NewId();
+                var copy = EventJson.WithCanceledDays(EventJson.QuietCopy(rows[0].ToJsonString(), id), e.BeforeJson!);
+                AddCreate(conn, tx, e.AccountId, e.CalendarId, id, copy, sendUpdates: false, dependsOn);
                 break;
         }
 
@@ -719,15 +732,16 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     static StoredEvent Stored(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId, string id) =>
         EventStore.Get(conn, tx, accountId, calendarId, id) ?? throw new InvalidOperationException("The event isn't stored on this PC anymore.");
 
-    DateOnly LocalDay(EventDraft draft)
-    {
-        if (draft.IsAllDay)
-        {
-            return DateOnly.FromDateTime(draft.Start.UtcDateTime);
-        }
+    DateOnly LocalDay(EventDraft draft) => DateOnly.FromDateTime(WallClock(draft, draft.Start));
 
-        var zoneId = draft.TimeZone ?? LocalZoneId;
-        var zone   = TimeZoneInfo.TryFindSystemTimeZoneById(zoneId, out var found) ? found : TimeZoneInfo.Utc;
-        return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(draft.Start, zone).DateTime);
-    }
+    // A time of the draft as its clock shows it: an all-day date as written, a timed one in the event's zone
+    DateTime WallClock(EventDraft draft, DateTimeOffset at) =>
+        draft.IsAllDay ? at.UtcDateTime : TimeZoneInfo.ConvertTime(at, ZoneOf(draft)).DateTime;
+
+    DateTimeOffset FromWallClock(EventDraft draft, DateTime local) => draft.IsAllDay
+        ? new DateTimeOffset(DateTime.SpecifyKind(local.Date, DateTimeKind.Unspecified), TimeSpan.Zero)
+        : EditorTimes.ToInstant(DateOnly.FromDateTime(local), local.TimeOfDay, ZoneOf(draft));
+
+    TimeZoneInfo ZoneOf(EventDraft draft) =>
+        RecurrenceExpander.FindZone(draft.TimeZone ?? LocalZoneId) ?? TimeZoneInfo.Utc;
 }

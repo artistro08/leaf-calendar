@@ -106,17 +106,26 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
             return new([], ContactAccess.Allowed);
         }
 
-        // Which Sources The Grant Allows
+        // Which Sources The Grant Allows (checking may refresh the token, so it's limited to Timeout too)
         bool contacts, others, directory;
         try
         {
-            contacts  = await tokens.HasScopeAsync(accountId, GoogleOAuthClient.ContactsScope, ct);
-            others    = await tokens.HasScopeAsync(accountId, GoogleOAuthClient.OtherContactsScope, ct);
-            directory = await tokens.HasScopeAsync(accountId, GoogleOAuthClient.DirectoryScope, ct);
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            limit.CancelAfter(Timeout);
+
+            contacts  = await tokens.HasScopeAsync(accountId, GoogleOAuthClient.ContactsScope, limit.Token);
+            others    = await tokens.HasScopeAsync(accountId, GoogleOAuthClient.OtherContactsScope, limit.Token);
+            directory = await tokens.HasScopeAsync(accountId, GoogleOAuthClient.DirectoryScope, limit.Token);
         }
         catch (AccountNeedsSignInException)
         {
             return new([], ContactAccess.NeedsConsent);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested && ex is not OutOfMemoryException)
+        {
+            // A token refresh that failed or hung is a failed search, never an exception
+            Failed(accountId, 0);
+            return new([], ContactAccess.Allowed);
         }
 
         if (!contacts && !others)

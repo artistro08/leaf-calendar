@@ -17,18 +17,33 @@ public static class RecurrenceEdits
     static readonly string[] DayCodes = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 
     /// <summary>
-    /// Stops the series just before <paramref name="splitStart"/>: UNTIL one second before (timed, in UTC) or the day before (all-day, a date), and no COUNT.
+    /// Stops the series just before <paramref name="splitStart"/>, and drops COUNT. All-day: UNTIL is the day before (a date).
+    /// Timed, daily or slower, in a known <paramref name="timeZoneId"/>: the end of the day before in that zone, in UTC (Google's
+    /// form, which <see cref="RepeatRule"/> reads back as that day). Other timed rules: one second before, in UTC.
     /// All-day starts are the calendar date at midnight; the offset is ignored.
     /// Never extends a series: a rule whose UNTIL is already earlier, or (given <paramref name="seriesStart"/>) whose COUNT runs out before the split, is kept as it is.
     /// </summary>
-    public static IReadOnlyList<string> EndBefore(IReadOnlyList<string> recurrence, DateTimeOffset splitStart, bool isAllDay, DateTimeOffset? seriesStart = null, string? timeZoneId = null)
+    public static IReadOnlyList<string> EndBefore(IReadOnlyList<string> recurrence, DateTimeOffset splitStart, bool isAllDay, DateTimeOffset? seriesStart = null, string? timeZoneId = null) =>
+        [.. recurrence.Select(line => IsRule(line) && UntilBefore(line, splitStart, isAllDay, timeZoneId) is var until && !EndsBy(line, until, splitStart, isAllDay, seriesStart, timeZoneId) ? WithParts(line, "UNTIL", until) : line)];
+
+    // The UNTIL that ends one rule just before the split
+    static string UntilBefore(string line, DateTimeOffset splitStart, bool isAllDay, string? timeZoneId)
     {
         // Use The Date As Written For All-Day, Not Its UTC Date
-        var until = isAllDay
-            ? DateOnly.FromDateTime(splitStart.DateTime).AddDays(-1).ToString("yyyyMMdd", CultureInfo.InvariantCulture)
-            : splitStart.UtcDateTime.AddSeconds(-1).ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
+        if (isAllDay)
+        {
+            return DateOnly.FromDateTime(splitStart.DateTime).AddDays(-1).ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+        }
 
-        return [.. recurrence.Select(line => !IsRule(line) || EndsBy(line, until, splitStart, isAllDay, seriesStart, timeZoneId) ? line : WithParts(line, "UNTIL", until))];
+        // One Instance A Day At Most: End With The Day Before, So Reading It Back As A Date Can't Bring The Split Day Back
+        if (RecurrenceExpander.FindZone(timeZoneId) is { } zone
+            && Part(line, "FREQ") is "DAILY" or "WEEKLY" or "MONTHLY" or "YEARLY"
+            && Part(line, "BYHOUR") is null && Part(line, "BYMINUTE") is null && Part(line, "BYSECOND") is null)
+        {
+            return RepeatRule.EndOfDayUtc(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(splitStart, zone).DateTime).AddDays(-1), zone);
+        }
+
+        return splitStart.UtcDateTime.AddSeconds(-1).ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
     }
 
     /// <summary>

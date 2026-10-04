@@ -97,4 +97,17 @@ public class RepeatRuleTests
         var shifted = RepeatRule.Parse(line, tokyo)!.ToRRule(isAllDay: false, NewYork);
         Assert.Equal(6, RecurrenceExpander.ExpandTimed([shifted], start, "Asia/Tokyo", start, start.AddDays(30)).Count);
     }
+
+    [Fact]
+    public void Parse_AllDayRuleWithUtcUntil_KeepsItsUtcDate()
+    {
+        // Written by another client; the expander still shows Dec 31, so the editor must too
+        const string line = "RRULE:FREQ=WEEKLY;UNTIL=20261231T000000Z";
+
+        var rule = RepeatRule.Parse(line, NewYork, isAllDay: true)!;
+
+        Assert.Equal(new DateOnly(2026, 12, 31), rule.Until);
+        Assert.Contains(new DateOnly(2026, 12, 31), RecurrenceExpander.ExpandAllDay([line], new DateOnly(2026, 12, 3), DateOnly.MinValue, DateOnly.MaxValue));
+        Assert.Equal("RRULE:FREQ=WEEKLY;UNTIL=20261231", rule.ToRRule(isAllDay: true, NewYork));
+    }
 }

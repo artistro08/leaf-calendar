@@ -6,16 +6,17 @@ public class OccurrenceOrderTests
 {
     static readonly DateTimeOffset Ten = new(2026, 10, 1, 10, 0, 0, TimeSpan.Zero);
 
-    static CalendarOccurrence At(string id, DateTimeOffset start, int minutes = 60) =>
+    static CalendarOccurrence At(string id, DateTimeOffset start, int minutes = 60, bool allDay = false) =>
         new("a", "c", id, null, null, start, start.AddMinutes(minutes),
-            false, id, EventKind.Default, ResponseStatus.Accepted, "#4285F4", null, false, false);
+            allDay, id, EventKind.Default, ResponseStatus.Accepted, "#4285F4", null, false, false);
 
     // Walks Next/Previous from an anchor until nothing is left, returning the event IDs visited
-    static List<string> Walk(IReadOnlyList<CalendarOccurrence> items, CalendarOccurrence anchor, int direction)
+    static List<string> Walk(IReadOnlyList<CalendarOccurrence> items, CalendarOccurrence anchor, int direction, TimeZoneInfo? zone = null)
     {
+        zone ??= TimeZoneInfo.Utc;
         var visited = new List<string>();
         var current = anchor;
-        while (OccurrenceOrder.Adjacent(items, current.Start, current.Key, direction) is { } next)
+        while (OccurrenceOrder.Adjacent(items, current.StartIn(zone), current.Key, direction, zone) is { } next)
         {
             visited.Add(next.EventId);
             current = next;
@@ -57,8 +58,22 @@ public class OccurrenceOrderTests
         var after  = At("after", Ten.AddMinutes(30));
         var items  = new[] { before, atNow, after };
 
-        Assert.Equal("after", OccurrenceOrder.Adjacent(items, Ten, null, 1)?.EventId);
-        Assert.Equal("before", OccurrenceOrder.Adjacent(items, Ten, null, -1)?.EventId);
-        Assert.Null(OccurrenceOrder.Adjacent([atNow], Ten, null, 1));
+        Assert.Equal("after", OccurrenceOrder.Adjacent(items, Ten, null, 1, TimeZoneInfo.Utc)?.EventId);
+        Assert.Equal("before", OccurrenceOrder.Adjacent(items, Ten, null, -1, TimeZoneInfo.Utc)?.EventId);
+        Assert.Null(OccurrenceOrder.Adjacent([atNow], Ten, null, 1, TimeZoneInfo.Utc));
+    }
+
+    [Fact]
+    public void Adjacent_AllDayEvent_IsOrderedAtLocalMidnightOfItsDate()
+    {
+        // West of UTC an all-day event's UTC midnight falls on the evening before; it still comes after that evening's events
+        var zone      = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+        var afternoon = At("afternoon", new DateTimeOffset(2026, 10, 11, 15, 0, 0, TimeSpan.FromHours(-7)));
+        var dinner    = At("dinner", new DateTimeOffset(2026, 10, 11, 19, 0, 0, TimeSpan.FromHours(-7)));
+        var holiday   = At("holiday", new DateTimeOffset(2026, 10, 12, 0, 0, 0, TimeSpan.Zero), 24 * 60, allDay: true);
+        var items     = new[] { holiday, afternoon, dinner };
+
+        Assert.Equal(["dinner", "holiday"], Walk(items, afternoon, 1, zone));
+        Assert.Equal(["dinner", "afternoon"], Walk(items, holiday, -1, zone));
     }
 }

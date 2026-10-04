@@ -735,16 +735,17 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Selects the next (+1) or previous (-1) event after the selection (or now), up to 90 days away.</summary>
     public void SelectAdjacent(int direction)
     {
+        // An All-Day Anchor Counts From Local Midnight Of Its Own Date, Not Its UTC Midnight
         var anchor = SelectedInfo?.Occurrence;
-        var from   = anchor?.Start ?? Now;
-        var day    = LocalDate(from);
+        var from   = anchor?.StartIn(Zone) ?? Now;
+        var day    = anchor is null ? LocalDate(from) : DayOf(anchor);
 
         for (var i = 0; i <= 90; i++, day = day.AddDays(direction))
         {
-            if (OccurrenceOrder.Adjacent(Cache.ForDay(day), from, anchor?.Key, direction) is { } next)
+            if (OccurrenceOrder.Adjacent(Cache.ForDay(day), from, anchor?.Key, direction, Zone) is { } next)
             {
                 Select(next);
-                NavigateTo(LocalDate(next.Start));
+                NavigateTo(DayOf(next));
                 ScrollToTimeRequested?.Invoke(this, next.Start);
                 return;
             }
@@ -1657,7 +1658,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     }
 
     // Where new events go: your chosen default calendar, else your main one you can write to (in one account when given), or null
-    CalendarInfo? HomeCalendar(string? accountId = null) => DefaultCalendar.Pick(Calendars, AccountEmails.Keys.ToHashSet(), Settings.DefaultCalendar, accountId);
+    CalendarInfo? HomeCalendar(string? accountId = null) => DefaultCalendar.Pick(Calendars, AccountEmails.Keys.ToHashSet(), Settings.DefaultCalendar, accountId, Settings.MainAccountId);
 
     // Where a copy is created: its own calendar when you can write to it, else the account's main one, else your main one
     EventCopy? Writable(EventCopy copy)
@@ -1679,7 +1680,6 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             return [new EventMove(dragged, start, end, isAllDay)];
         }
 
-        var shift    = start - dragged.Start;
         var switched = isAllDay != dragged.IsAllDay;
         var days     = (isAllDay ? DateOnly.FromDateTime(start.UtcDateTime) : LocalDate(start)).DayNumber - DayOf(dragged).DayNumber;
         return [.. _selection.Where(CanEdit).Select(o => o.Key == dragged.Key ? new EventMove(o, start, end, isAllDay) : Shifted(o))];
@@ -1688,7 +1688,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         {
             if (!o.IsAllDay && !switched)
             {
-                return new EventMove(o, o.Start + shift, o.End + shift, false);
+                // Same Shift On The Wall Clock (keeps the time of day across a DST change)
+                var (timedStart, timedEnd) = DragMath.ShiftWith(o, dragged.Start, start, Zone);
+                return new EventMove(o, timedStart, timedEnd, false);
             }
 
             var (s, e) = DragMath.ShiftDays(o, days, Zone);

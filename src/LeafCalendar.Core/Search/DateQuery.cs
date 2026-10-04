@@ -111,21 +111,23 @@ public static partial class DateQuery
             return true;
         }
 
-        // Without A Year: This Year, Or Next Year When That's More Than 2 Months Ago
-        var withYear = input + (input.Contains('/', StringComparison.Ordinal) ? "/" : " ") + today.Year.ToString(CultureInfo.InvariantCulture);
+        // Without A Year: This Year, Or Next Year When That's More Than 2 Months Ago Or Has No Such Day (Feb 29)
         string[] formats = [.. MonthDay.Select(f => f + (f.Contains('/', StringComparison.Ordinal) ? "/yyyy" : " yyyy"))];
-        if (!DateOnly.TryParseExact(withYear, formats, English, DateTimeStyles.None, out date))
+        var found = WithYear(today.Year, out date);
+        if ((!found || date < today.AddMonths(-2)) && today.Year < DateOnly.MaxValue.Year)
+        {
+            found = WithYear(today.Year + 1, out date);
+        }
+
+        if (!found)
         {
             date = default;
-            return false;
         }
 
-        if (date < today.AddMonths(-2) && date.Year < DateOnly.MaxValue.Year)
-        {
-            date = date.AddYears(1);
-        }
+        return found;
 
-        return true;
+        bool WithYear(int year, out DateOnly result) =>
+            DateOnly.TryParseExact(input + (input.Contains('/', StringComparison.Ordinal) ? "/" : " ") + year.ToString(CultureInfo.InvariantCulture), formats, English, DateTimeStyles.None, out result);
     }
 
     // Today moved by a count of a unit ("day", "weeks", "month", "year"), within the calendar's range

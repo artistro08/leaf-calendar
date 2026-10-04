@@ -174,6 +174,18 @@ public sealed class ContactSearchTests : IDisposable
     }
 
     [Fact]
+    public async Task Search_TokenRefreshUnreachable_IsAFailedSearchWithoutThrowing()
+    {
+        _google.Throw(new HttpRequestException("offline"));
+
+        var results = await CreateSearch().SearchAsync(Account, "alice", TestContext.Current.CancellationToken);
+
+        Assert.Equal(ContactAccess.Allowed, results.Access);
+        Assert.Empty(results.Contacts);
+        Assert.Contains($"contacts.search.failed account={Account} status=0", File.ReadAllText(_log.FilePath), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Search_PeopleApiDisabled_ReportsApiDisabledNotConsent()
     {
         RouteToken(AllScopes);

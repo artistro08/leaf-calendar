@@ -370,7 +370,7 @@ public sealed record LeafSettings
     static string? CleanLabel(string? label)
     {
         var trimmed = label?.Trim();
-        return string.IsNullOrEmpty(trimmed) ? null : trimmed[..Math.Min(trimmed.Length, MaxLabelLength)];
+        return string.IsNullOrEmpty(trimmed) ? null : Clip(trimmed, MaxLabelLength);
     }
 }
 

@@ -159,7 +159,8 @@ public static class OccurrenceQuery
         var anchor = ev?.Start?.DateTime ?? start;
         foreach (var s in RecurrenceExpander.ExpandTimed(recurrence, anchor, row.TimeZone, from - duration, to))
         {
-            if (s + duration > from)
+            // A zero-minute instance touches its start, so one at midnight belongs to the day it starts
+            if (s + duration > from || (duration == TimeSpan.Zero && s >= from))
             {
                 yield return (s, s + duration);
             }
@@ -169,7 +170,7 @@ public static class OccurrenceQuery
     static bool Overlaps(bool isAllDay, DateTimeOffset start, DateTimeOffset end, DateOnly fromDate, DateOnly toDate, DateTimeOffset from, DateTimeOffset to) =>
         isAllDay
             ? DateOnly.FromDateTime(start.UtcDateTime) < toDate && DateOnly.FromDateTime(end.UtcDateTime) > fromDate
-            : start < to && end > from;
+            : start < to && (end > from || (end == start && start >= from));
 
     static CalendarOccurrence Create(Row row, EventDetails details, DateTimeOffset start, DateTimeOffset end, string? recurringEventId) => new(
         row.AccountId,

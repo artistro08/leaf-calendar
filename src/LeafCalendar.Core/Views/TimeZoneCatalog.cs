@@ -59,6 +59,13 @@ public static class TimeZoneCatalog
     public static string IanaId(TimeZoneInfo zone) =>
         TimeZoneInfo.TryConvertWindowsIdToIanaId(zone.Id, out var iana) ? iana : zone.Id;
 
+    /// <summary>
+    /// A zone's Windows ID, converting an IANA ID. Windows maps several IANA IDs onto one zone ("Asia/Kolkata" and
+    /// "Asia/Calcutta" are both "India Standard Time"), so this is the ID to compare zones by.
+    /// </summary>
+    internal static string WindowsId(TimeZoneInfo zone) =>
+        zone.HasIanaId && TimeZoneInfo.TryConvertIanaIdToWindowsId(zone.Id, out var windows) ? windows : zone.Id;
+
     /// <summary>True when this PC can resolve <paramref name="id"/>.</summary>
     public static bool IsKnown(string id) => TimeZoneInfo.TryFindSystemTimeZoneById(id, out _);
 
@@ -119,7 +126,7 @@ public static class TimeZoneCatalog
 
         return id is not null
             && TimeZoneInfo.TryFindSystemTimeZoneById(id, out var other)
-            && string.Equals(IanaId(other), IanaId(zone), StringComparison.OrdinalIgnoreCase);
+            && string.Equals(WindowsId(other), WindowsId(zone), StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>"UTC", "UTC+9", "UTC−5", "UTC+5:30" (with a real minus sign).</summary>

@@ -118,22 +118,26 @@ public static partial class EventSearch
             cancel.ThrowIfCancellationRequested();
             if (Match(row.RawJson, words) is { } match)
             {
-                hits.Add(ToHit(conn, row, match, now, today, zone));
+                hits.Add(ToHit(row, match, now, zone, () => Instances(conn, row, today, zone)));
             }
         }
 
-        return Order(hits, now);
+        return Order(hits, now, zone);
     }
 
     // Each event once, title matches first, then upcoming (soonest first), then past (newest first), at most MaxResults
-    static List<SearchHit> Order(List<(SearchHit Hit, string Key)> hits, DateTimeOffset now) =>
+    static List<SearchHit> Order(List<(SearchHit Hit, string Key)> hits, DateTimeOffset now, TimeZoneInfo zone) =>
         [.. hits
             .DistinctBy(h => h.Key)
             .Select(h => h.Hit)
             .OrderBy(h => h.Field == SearchField.Title ? 0 : 1)
-            .ThenBy(h => h.End > now ? 0 : 1)
-            .ThenBy(h => h.End > now ? h.Start.UtcTicks : -h.Start.UtcTicks)
+            .ThenBy(h => InZone(h.IsAllDay, h.End, zone) > now ? 0 : 1)
+            .ThenBy(h => InZone(h.IsAllDay, h.End, zone) > now ? InZone(h.IsAllDay, h.Start, zone).UtcTicks : -InZone(h.IsAllDay, h.Start, zone).UtcTicks)
             .Take(MaxResults)];
+
+    // A time on the clock in zone: an all-day date's local midnight, not its UTC midnight (as CalendarOccurrence.EndIn)
+    static DateTimeOffset InZone(bool isAllDay, DateTimeOffset time, TimeZoneInfo zone) =>
+        isAllDay ? OccurrenceQuery.LocalMidnight(DateOnly.FromDateTime(time.UtcDateTime), zone) : time;
 
     // =========================================================================
     // MATCHING
@@ -203,9 +207,10 @@ public static partial class EventSearch
 
     /// <summary>
     /// The hit for a matched row and its dedupe key (the iCalUID when present, so one event in two accounts is listed
-    /// once). A series shows its next instance, else its latest in the last year, else its own first times.
+    /// once). A series shows its next instance (from <paramref name="instances"/>), else its latest in the last year,
+    /// else its own first times.
     /// </summary>
-    static (SearchHit Hit, string Key) ToHit(SqliteConnection conn, Row row, (string Title, string? ColorId, SearchField Field) match, DateTimeOffset now, DateOnly today, TimeZoneInfo zone)
+    static (SearchHit Hit, string Key) ToHit(Row row, (string Title, string? ColorId, SearchField Field) match, DateTimeOffset now, TimeZoneInfo zone, Func<List<Instance>> instances)
     {
         var start = DateTimeOffset.FromUnixTimeMilliseconds(row.StartMs ?? 0);
         var end   = DateTimeOffset.FromUnixTimeMilliseconds(row.EndMs ?? row.StartMs ?? 0);
@@ -213,8 +218,8 @@ public static partial class EventSearch
 
         if (row.IsMaster)
         {
-            var instances = Instances(conn, row, today, zone);
-            if ((instances.FirstOrDefault(i => i.End > now) ?? instances.LastOrDefault()) is { } instance)
+            var expanded = instances();
+            if ((expanded.FirstOrDefault(i => InZone(row.IsAllDay, i.End, zone) > now) ?? expanded.LastOrDefault()) is { } instance)
             {
                 (id, start, end) = instance;
             }

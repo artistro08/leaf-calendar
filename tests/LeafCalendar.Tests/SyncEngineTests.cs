@@ -291,7 +291,62 @@ public sealed class SyncEngineTests : IDisposable
 
         Assert.Contains("\"Mine\"", Get("evt-single")!.RawJson, StringComparison.Ordinal);
         Assert.NotNull(Get("evt-new"));
+        Assert.Equal("sync-token-1", Calendar(Primary).SyncToken);
+    }
+
+    [Fact]
+    public async Task SyncAccountAsync_ChangeSkippedForQueuedEdit_IsFetchedAgainOnceTheEditIsGone()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _h.RouteEvents(SyncHarness.PrimaryEventsUrl, "sync-token-2", null, "events-empty.json");
+        _h.RouteStandardGoogle();
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        long seq;
+        using (var conn = _h.Db.Database.Open())
+        {
+            seq = OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Primary, "evt-single", OutboxOperation.Patch, """{"summary":"Mine"}""", "\"3181161784712000\"", false, "[]", _h.Time.GetUtcNow().AddDays(1)));
+        }
+
+        // Google Moves evt-single While The Edit Waits; Then The Edit Is Undone
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        using (var conn = _h.Db.Database.Open())
+        {
+            OutboxStore.Remove(conn, null, seq);
+        }
+
+        await _h.Engine.SyncAccountAsync(Account, ct);
+
+        Assert.Equal(new DateTimeOffset(2026, 10, 1, 15, 0, 0, TimeSpan.Zero), Get("evt-single")!.Start);
         Assert.Equal("sync-token-2", Calendar(Primary).SyncToken);
+    }
+
+    [Fact]
+    public async Task SyncAccountAsync_TokenClearedDuringPull_StaysCleared()
+    {
+        var ct    = TestContext.Current.CancellationToken;
+        var armed = false;
+
+        // A Conflict Answer Forgets The Token While The Pull Is Fetching (the probe never answers, it only hooks the fetch)
+        _h.Google.On(
+            r =>
+            {
+                if (armed && r.Query("syncToken") == "sync-token-1")
+                {
+                    armed = false;
+                    using var conn = _h.Db.Database.Open();
+                    CalendarStore.SetSyncToken(conn, null, Account, Primary, null);
+                }
+
+                return false;
+            },
+            _ => throw new InvalidOperationException("Probe route never answers."));
+        _h.RouteStandardGoogle();
+        await _h.Engine.SyncAccountAsync(Account, ct);
+
+        armed = true;
+        await _h.Engine.SyncAccountAsync(Account, ct);
+
+        Assert.Null(Calendar(Primary).SyncToken);
     }
 
     [Fact]

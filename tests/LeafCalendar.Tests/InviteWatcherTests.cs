@@ -1,6 +1,7 @@
 using System.Text.Json;
 using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Tests.Support;
 
@@ -46,10 +47,75 @@ public sealed class InviteWatcherTests : IDisposable
         EventStore.ApplyJson(conn, null, Account, calendarId, json);
     }
 
-    IReadOnlyList<InviteAlert> TakeNew()
+    IReadOnlyList<InviteAlert> TakeNew(DateTimeOffset? at = null)
     {
         using var conn = _db.Database.Open();
-        return InviteWatcher.TakeNew(conn, Now, TimeZoneInfo.Utc);
+        return InviteWatcher.TakeNew(conn, at ?? Now, TimeZoneInfo.Utc);
+    }
+
+    const string Weekly = "\"recurrence\":[\"RRULE:FREQ=WEEKLY;BYDAY=MO\"],";
+
+    // The Monday 5 October instance of "evt-series", moved to Tuesday by its organizer
+    static string MovedInstance() => Invite(
+        id: "evt-series_20261005T150000Z",
+        start: "2026-10-06T15:00:00Z",
+        end: "2026-10-06T16:00:00Z",
+        extra: "\"recurringEventId\":\"evt-series\",\"originalStartTime\":{\"dateTime\":\"2026-10-05T15:00:00Z\"},");
+
+    [Fact]
+    public void TakeNew_SomeoneElsesCalendar_Ignored()
+    {
+        TakeNew();
+        Store(Invite(), Family);
+
+        Assert.Empty(TakeNew());
+    }
+
+    [Fact]
+    public void TakeNew_ChangedInstanceOfASeriesYouHave_NotifiesAsAnUpdateAnsweredAlone()
+    {
+        TakeNew();
+        Store(Invite(id: "evt-series", response: "accepted", start: "2026-09-28T15:00:00Z", end: "2026-09-28T16:00:00Z", extra: Weekly));
+        Assert.Empty(TakeNew());
+
+        Store(MovedInstance());
+
+        var invite = Assert.Single(TakeNew());
+        Assert.True(invite.IsUpdate);
+        Assert.Equal("evt-series_20261005T150000Z", invite.Occurrence.EventId);
+        Assert.Equal(EditScope.This, InviteWatcher.ReplyScope(invite.Occurrence));
+        Assert.Empty(TakeNew());
+    }
+
+    [Fact]
+    public void TakeNew_NewSeriesWithChangedInstances_NotifiesOnceAnsweredForTheSeries()
+    {
+        TakeNew();
+        Store(MovedInstance());
+        Store(Invite(id: "evt-series", start: "2026-09-28T15:00:00Z", end: "2026-09-28T16:00:00Z", extra: Weekly));
+
+        var invite = Assert.Single(TakeNew());
+
+        Assert.False(invite.IsUpdate);
+        Assert.Equal("evt-series", invite.Occurrence.EventId);
+        Assert.Equal(EditScope.All, InviteWatcher.ReplyScope(invite.Occurrence));
+        Assert.Empty(TakeNew());
+    }
+
+    [Fact]
+    public void TakeNew_UnansweredSeriesAYearOn_StaysRecorded()
+    {
+        Store(Invite(id: "evt-series", start: "2026-09-28T15:00:00Z", end: "2026-09-28T16:00:00Z", extra: Weekly));
+        Assert.Empty(TakeNew());
+        Assert.Empty(TakeNew(Now.AddDays(300)));
+
+        // What the scheduler does on every plan: forget notifications whose event ended two days ago
+        using (var conn = _db.Database.Open())
+        {
+            AlertLedger.Prune(conn, Now.AddDays(368));
+        }
+
+        Assert.Empty(TakeNew(Now.AddDays(370)));
     }
 
     [Fact]
@@ -134,10 +200,10 @@ public sealed class InviteWatcherTests : IDisposable
         TakeNew();
         using (var conn = _db.Database.Open())
         {
-            CalendarStore.SetHidden(conn, Account, Family, true);
+            CalendarStore.SetHidden(conn, Account, Primary, true);
         }
 
-        Store(Invite(), Family);
+        Store(Invite());
 
         Assert.Empty(TakeNew());
     }
@@ -187,8 +253,9 @@ public sealed class InviteWatcherTests : IDisposable
         Store(Invite(), Team);
         Assert.Empty(TakeNew());
 
+        // Not your own calendar, so its invitations are never yours to answer
         Store(Invite(id: "evt-inv2"), Team);
-        Assert.Equal("evt-inv2", Assert.Single(TakeNew()).Occurrence.EventId);
+        Assert.Empty(TakeNew());
     }
 
     [Fact]
@@ -197,15 +264,15 @@ public sealed class InviteWatcherTests : IDisposable
         TakeNew();
         using (var conn = _db.Database.Open())
         {
-            CalendarStore.SetHidden(conn, Account, Family, true);
+            CalendarStore.SetHidden(conn, Account, Primary, true);
         }
 
-        Store(Invite(), Family);
+        Store(Invite());
         Assert.Empty(TakeNew());
 
         using (var conn = _db.Database.Open())
         {
-            CalendarStore.SetHidden(conn, Account, Family, false);
+            CalendarStore.SetHidden(conn, Account, Primary, false);
         }
 
         Assert.Empty(TakeNew());

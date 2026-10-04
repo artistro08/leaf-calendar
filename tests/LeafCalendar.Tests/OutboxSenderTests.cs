@@ -149,7 +149,7 @@ public sealed class OutboxSenderTests : IDisposable
     public async Task Send_CreateRetriedAfterDrop_409TreatedAsSent()
     {
         Queue("leafnew0001", OutboxOperation.Create, """{"id":"leafnew0001","summary":"Offline","start":{"dateTime":"2026-10-02T13:00:00Z"},"end":{"dateTime":"2026-10-02T14:00:00Z"}}""", etag: null);
-        _h.Google.On(r => r.Method == HttpMethod.Post && r.Uri.AbsoluteUri == SyncHarness.PrimaryEventsUrl + "?sendUpdates=none", _ => throw new HttpRequestException("Connection dropped after Google saved it."), once: true);
+        _h.Google.On(r => r.Method == HttpMethod.Post && r.Uri.AbsoluteUri == SyncHarness.PrimaryEventsUrl + "?sendUpdates=none&supportsAttachments=true", _ => throw new HttpRequestException("Connection dropped after Google saved it."), once: true);
         _h.Google.On(r => r.Method == HttpMethod.Post && r.Uri.AbsoluteUri.StartsWith(SyncHarness.PrimaryEventsUrl + "?", StringComparison.Ordinal), _ => FakeHttpHandler.Json(HttpStatusCode.Conflict, """{"error":{"code":409,"errors":[{"reason":"duplicate"}]}}"""));
         _h.Google.On(HttpMethod.Get, SyncHarness.PrimaryEventsUrl + "/leafnew0001", HttpStatusCode.OK, """{"id":"leafnew0001","etag":"\"G1\"","status":"confirmed","summary":"Offline","start":{"dateTime":"2026-10-02T13:00:00Z"},"end":{"dateTime":"2026-10-02T14:00:00Z"}}""");
 
@@ -331,6 +331,29 @@ public sealed class OutboxSenderTests : IDisposable
     }
 
     [Fact]
+    public async Task Send_RefusedEditOfAnEventMovedLater_UndoesTheMoveAndDropsTheEditsBehindIt()
+    {
+        // Edited, then moved to another calendar, then edited there
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"Mine"}""");
+        Queue("evt-single", OutboxOperation.Move, Family);
+        using (var conn = _h.Db.Database.Open())
+        {
+            EventStore.MoveCalendar(conn, null, Account, Primary, Family, "evt-single");
+        }
+
+        Queue("evt-single", OutboxOperation.Patch, """{"location":"Mine too"}""", calendarId: Family);
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.Forbidden, Fixture.Read("error-forbidden.json"));
+        _h.Google.On(HttpMethod.Get, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","etag":"\"G2\"","status":"confirmed","summary":"Dentist appointment","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""");
+
+        var report = await Send();
+
+        Assert.Equal(1, report.Rejected);
+        Assert.Empty(Pending());
+        Assert.Null(Get("evt-single", Family));
+        Assert.Equal("\"G2\"", Get("evt-single")!.Etag);
+    }
+
+    [Fact]
     public async Task Send_HeldDelete_WaitsForUndoWindow()
     {
         Queue("evt-single", OutboxOperation.Delete, null, notBefore: _h.Time.GetUtcNow().AddSeconds(6));
@@ -373,6 +396,44 @@ public sealed class OutboxSenderTests : IDisposable
         Assert.Empty(Pending());
         Assert.DoesNotContain(_h.Google.Requests, r => r.Method == HttpMethod.Patch);
         Assert.Contains($"seq={seq}", File.ReadAllText(_h.LogPath), StringComparison.Ordinal);
+    }
+
+    // A move to another account: the copy's create, then the original's delete waiting behind it (its rows already gone)
+    void QueueCopyThenDelete(string copyCalendarId)
+    {
+        const string Copy = """{"id":"leafcopy001","summary":"Dentist appointment","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""";
+        var create = Queue("leafcopy001", OutboxOperation.Create, Copy, etag: null, calendarId: copyCalendarId);
+        Queue("evt-single", OutboxOperation.Delete, null, dependsOn: create);
+        using var conn = _h.Db.Database.Open();
+        EventStore.Remove(conn, null, Account, Primary, "evt-single");
+    }
+
+    [Fact]
+    public async Task Send_CopyToAnotherAccountRefused_PutsTheOriginalBackAndNeverDeletesIt()
+    {
+        QueueCopyThenDelete(Primary);
+        _h.Google.On(HttpMethod.Post, NewSeriesUrl, HttpStatusCode.Forbidden, Fixture.Read("error-forbidden.json"));
+
+        var report = await Send();
+        await Send();
+
+        Assert.Equal(1, report.Rejected);
+        Assert.Empty(Pending());
+        Assert.DoesNotContain(_h.Google.Requests, r => r.Method == HttpMethod.Delete);
+        Assert.Contains("Dentist appointment", Get("evt-single")!.RawJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Send_CopyWhoseCalendarIsGone_PutsTheOriginalBackAndNeverDeletesIt()
+    {
+        QueueCopyThenDelete("removed@group.calendar.google.com");
+
+        await Send();
+        await Send();
+
+        Assert.Empty(Pending());
+        Assert.DoesNotContain(_h.Google.Requests, r => r.Method == HttpMethod.Delete);
+        Assert.NotNull(Get("evt-single"));
     }
 
     [Fact]
@@ -522,5 +583,144 @@ public sealed class OutboxSenderTests : IDisposable
 
         Assert.Equal("\"M1\"", Get("evt-single", Family)!.Etag);
         Assert.Null(Get("evt-single"));
+    }
+
+    [Fact]
+    public async Task Send_ConflictOfACalendarThatLeftTheAccount_IsCleared()
+    {
+        var seq = Queue("evt-single", OutboxOperation.Patch, """{"summary":"A"}""", calendarId: "removed@group.calendar.google.com");
+        using (var conn = _h.Db.Database.Open())
+        {
+            ConflictStore.Add(conn, null, seq, null, null, _h.Time.GetUtcNow());
+        }
+
+        var report = await Send();
+
+        Assert.True(report.Changed);
+        using var check = _h.Db.Database.Open();
+        Assert.Empty(ConflictStore.GetAll(check));
+        Assert.Equal(0, OutboxStore.Count(check));
+    }
+
+    [Fact]
+    public async Task Send_MoveWhoseSourceCalendarIsGone_RemovesTheRowItLeftInTheDestination()
+    {
+        // Moved from Family to Primary, then Family left the account
+        using (var conn = _h.Db.Database.Open())
+        {
+            EventStore.MoveCalendar(conn, null, Account, Primary, Family, "evt-single");
+        }
+
+        Queue("evt-single", OutboxOperation.Move, Primary, calendarId: Family);
+        using (var conn = _h.Db.Database.Open())
+        {
+            EventStore.MoveCalendar(conn, null, Account, Family, Primary, "evt-single");
+            var remaining = JsonSerializer.Deserialize(Fixture.Read("calendar-list.json"), GoogleJsonContext.Default.CalendarListPage)!.Items.Where(c => c.Id != Family).ToList();
+            CalendarStore.ReplaceForAccount(conn, Account, remaining);
+        }
+
+        await Send();
+
+        Assert.Empty(Pending());
+        Assert.Null(Get("evt-single"));
+        Assert.DoesNotContain(_h.Google.Requests, r => r.Method == HttpMethod.Post && r.Uri.AbsoluteUri.Contains("/move", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Send_MoveWhoseAnswerWasLost_CountsAsSent()
+    {
+        using (var conn = _h.Db.Database.Open())
+        {
+            OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Primary, "evt-single", OutboxOperation.Move, Family, BaseEtag, false, "[]", null));
+            EventStore.MoveCalendar(conn, null, Account, Primary, Family, "evt-single");
+        }
+
+        // Google moved it before the connection dropped: the retry finds nothing left in the source
+        _h.Google.On(HttpMethod.Post, SingleUrl + "/move", HttpStatusCode.NotFound, "{}");
+        _h.Google.On(HttpMethod.Get, SyncHarness.FamilyEventsUrl + "/evt-single", HttpStatusCode.OK, """{"id":"evt-single","etag":"\"M1\"","status":"confirmed","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""");
+
+        var report = await Send();
+
+        Assert.Equal(0, report.Conflicts);
+        Assert.Equal(0, ConflictCount());
+        Assert.Empty(Pending());
+        Assert.Equal("\"M1\"", Get("evt-single", Family)!.Etag);
+    }
+
+    [Fact]
+    public async Task Send_OneEntryKeepsFailingOnGoogle_OtherEventsStillGo()
+    {
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"A"}""");
+        Queue("evt-allday", OutboxOperation.Patch, """{"summary":"Holiday"}""", "\"3181161784712001\"");
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.ServiceUnavailable, """{"error":{"code":503,"errors":[{"reason":"backendError"}]}}""");
+        _h.Google.On(HttpMethod.Patch, SyncHarness.PrimaryEventsUrl + "/evt-allday", HttpStatusCode.OK, """{"id":"evt-allday","etag":"\"E5\"","status":"confirmed","start":{"date":"2026-10-12"},"end":{"date":"2026-10-13"}}""");
+
+        await Send();
+
+        Assert.Equal("\"E5\"", Get("evt-allday")!.Etag);
+        var stuck = Assert.Single(Pending());
+        Assert.Equal("evt-single", stuck.EventId);
+        Assert.Equal("status 503", stuck.LastError);
+    }
+
+    [Theory]
+    [InlineData("""{"summary":"All day","start":{"date":"2026-10-01","dateTime":null,"timeZone":null},"end":{"date":"2026-10-02","dateTime":null,"timeZone":null}}""")]
+    [InlineData("""{"conferenceData":{"createRequest":{"requestId":"req-1","conferenceSolutionKey":{"type":"hangoutsMeet"}}}}""")]
+    [InlineData("""{"attendees":[{"email":"guest@example.com"}],"location":null}""")]
+    public async Task Send_412ButGoogleAlreadyHasThePartialChange_CountsAsSent(string patch)
+    {
+        Queue("evt-single", OutboxOperation.Patch, patch);
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.PreconditionFailed, "{}");
+        _h.Google.On(HttpMethod.Get, SingleUrl, HttpStatusCode.OK, """
+            {"id":"evt-single","etag":"\"G9\"","status":"confirmed","summary":"All day","start":{"date":"2026-10-01"},"end":{"date":"2026-10-02"},
+             "attendees":[{"email":"guest@example.com","responseStatus":"needsAction"}],
+             "conferenceData":{"createRequest":{"requestId":"req-1","conferenceSolutionKey":{"type":"hangoutsMeet"},"status":{"statusCode":"success"}},"conferenceId":"abc-defg-hij"}}
+            """);
+
+        var report = await Send();
+
+        Assert.Equal(0, report.Conflicts);
+        Assert.Empty(Pending());
+    }
+
+    [Theory]
+    [InlineData("""{"summary":"Other"}""")]
+    [InlineData("""{"start":{"dateTime":"2026-10-01T13:00:00Z","date":null}}""")]
+    [InlineData("""{"attendees":[{"email":"guest@example.com"},{"email":"second@example.com"}]}""")]
+    [InlineData("""{"conferenceData":{"createRequest":{"requestId":"req-2"}}}""")]
+    public async Task Send_412WhereGoogleLacksPartOfTheChange_StillAConflict(string patch)
+    {
+        Queue("evt-single", OutboxOperation.Patch, patch);
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.PreconditionFailed, "{}");
+        _h.Google.On(HttpMethod.Get, SingleUrl, HttpStatusCode.OK, """
+            {"id":"evt-single","etag":"\"G9\"","status":"confirmed","summary":"All day","start":{"date":"2026-10-01"},"end":{"date":"2026-10-02"},
+             "attendees":[{"email":"guest@example.com","responseStatus":"needsAction"}],
+             "conferenceData":{"createRequest":{"requestId":"req-1","conferenceSolutionKey":{"type":"hangoutsMeet"}},"conferenceId":"abc-defg-hij"}}
+            """);
+
+        Assert.Equal(1, (await Send()).Conflicts);
+    }
+
+    [Theory]
+    [InlineData("""{"error":{"code":403,"errors":[{"domain":"usageLimits","reason":"accessNotConfigured"}]}}""")]
+    [InlineData("""{"error":{"code":403,"errors":[{"reason":"insufficientPermissions"}]}}""")]
+    [InlineData("<html>Blocked by your network</html>")]
+    public async Task Send_403ThatIsNotAboutTheEvent_KeepsEveryEditPending(string body)
+    {
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"A"}""");
+        Queue("evt-allday", OutboxOperation.Patch, """{"summary":"B"}""", "\"3181161784712001\"");
+        _h.Google.On(r => r.Method != HttpMethod.Post, _ => FakeHttpHandler.Json(HttpStatusCode.Forbidden, body));
+
+        var report = await Send();
+
+        Assert.Equal(0, report.Rejected);
+        Assert.Equal(2, Pending().Count);
+        Assert.Equal("status 403", Pending()[0].LastError);
+    }
+
+    int ConflictCount()
+    {
+        using var conn = _h.Db.Database.Open();
+        return ConflictStore.Count(conn);
     }
 }

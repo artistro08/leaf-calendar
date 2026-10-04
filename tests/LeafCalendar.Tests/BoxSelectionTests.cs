@@ -95,4 +95,48 @@ public class BoxSelectionTests
 
         Assert.Single(BoxSelection.InTimeBox([late], Mon.AddDays(1), Mon.AddDays(1), 0, 30, NewYork));
     }
+
+    // Weekends hidden: the box's corners sit on Friday's and Monday's columns, and Saturday's events aren't on screen
+    [Fact]
+    public void InTimeBox_HiddenWeekendBetweenTheCorners_StaysOut()
+    {
+        var fri   = new DateOnly(2026, 10, 9);
+        var strip = new DayStrip(fri, 7, 7, skipWeekends: true);
+        CalendarOccurrence[] all = [At("fri", fri, 11, 12), At("sat", fri.AddDays(1), 11, 12), At("mon", fri.AddDays(3), 11, 12)];
+
+        var hits = BoxSelection.InTimeBox(all, strip.Between(fri.AddDays(3), fri), 10 * 60, 12.5 * 60, NewYork);
+
+        Assert.Equal(["fri", "mon"], hits.Select(o => o.EventId));
+    }
+
+    // A timed event of 24 hours or more is drawn in the all-day row, not under the box
+    [Fact]
+    public void InTimeBox_TimedEventOfADayOrMore_StaysOut()
+    {
+        var conference = TestOccurrences.Make("conference", DragMath.Instant(Mon, 9 * 60, NewYork), DragMath.Instant(Mon.AddDays(2), 17 * 60, NewYork), false);
+        CalendarOccurrence[] all = [conference, At("meeting", Mon.AddDays(1), 13, 14)];
+
+        Assert.Equal(["meeting"], BoxSelection.InTimeBox(all, Mon.AddDays(1), Mon.AddDays(1), 13 * 60, 15 * 60, NewYork).Select(o => o.EventId));
+    }
+
+    // Every card is drawn at least DayLayout.MinVisualMinutes tall, so a box over the lower part of a short one picks it
+    [Fact]
+    public void InTimeBox_BoxOverLowerPartOfAShortCard_PicksIt()
+    {
+        var onePm = DragMath.Instant(Mon, 13 * 60, NewYork);
+        CalendarOccurrence[] all = [TestOccurrences.Make("zero", onePm, onePm, false), TestOccurrences.Make("five", onePm, onePm.AddMinutes(5), false)];
+
+        Assert.Equal(["zero", "five"], BoxSelection.InTimeBox(all, Mon, Mon, 13 * 60 + 5, 13 * 60 + 30, NewYork).Select(o => o.EventId));
+        Assert.Empty(BoxSelection.InTimeBox(all, Mon, Mon, 13 * 60 + 20, 14 * 60, NewYork));
+    }
+
+    // A short card in the day's last minutes is drawn early enough to end at midnight (DayLayout), and picked there
+    [Fact]
+    public void InTimeBox_ShortCardAtTheEndOfTheDay_PickedWhereItIsDrawn()
+    {
+        var late = DragMath.Instant(Mon, 23 * 60 + 59, NewYork);
+        CalendarOccurrence[] all = [TestOccurrences.Make("zero", late, late, false), TestOccurrences.Make("short", late.AddMinutes(-9), late, false)];
+
+        Assert.Equal(["zero", "short"], BoxSelection.InTimeBox(all, Mon, Mon, 23 * 60 + 40, 23 * 60 + 45, NewYork).Select(o => o.EventId));
+    }
 }

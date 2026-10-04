@@ -232,6 +232,14 @@ public sealed class TrayAgendaTests : IDisposable
     }
 
     [Fact]
+    public void Clean_KeepsZeroWidthNonJoinerInPersianWords()
+    {
+        var persian = "می‌خواهم";
+
+        Assert.Equal(persian, DisplayText.Clean(persian, 50));
+    }
+
+    [Fact]
     public void Clean_BidiAndZeroWidthCharactersRemoved()
     {
         Assert.Equal("abcdefgh", DisplayText.Clean("a\u202Eb\u2066c\u200Fd\u200Be\u2060f\uFEFFg\u2028h\u2029", 50));

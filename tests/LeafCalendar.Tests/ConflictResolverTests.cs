@@ -101,6 +101,21 @@ public sealed class ConflictResolverTests : IDisposable
     }
 
     [Fact]
+    public void KeepMine_GoogleDeletedSeries_TheNewSeriesKeepsItsCanceledDays()
+    {
+        const string Series = """{"id":"evt-single","etag":"\"1\"","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"},"recurrence":["RRULE:FREQ=DAILY"]}""";
+        using (var conn = _db.Database.Open())
+        {
+            EventStore.ApplyJson(conn, null, Account, Calendar, Series);
+            EventStore.ApplyJson(conn, null, Account, Calendar, """{"id":"evt-single_20261003T130000Z","status":"cancelled","recurringEventId":"evt-single","originalStartTime":{"dateTime":"2026-10-03T13:00:00Z"}}""");
+        }
+
+        _resolver.KeepMine(Conflict(OutboxOperation.Patch, Series, null));
+
+        Assert.Contains("\"EXDATE:20261003T130000Z\"", Assert.Single(Pending()).Payload!, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void KeepMine_GoogleDeletedMeetEvent_AsksForANewMeetLink()
     {
         const string MineWithMeet = """{"id":"evt-single","etag":"\"1\"","status":"confirmed","summary":"Mine","hangoutLink":"https://meet.google.com/abc-defg-hij","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""";
@@ -127,6 +142,30 @@ public sealed class ConflictResolverTests : IDisposable
         Assert.Empty(Pending());
         Assert.Equal((0, 0), _resolver.Counts());
         Assert.Contains("Google's", Get("evt-single")!.RawJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void KeepGoogles_EventMovedAndEditedLater_UndoesTheMoveAndDropsTheEditsBehindIt()
+    {
+        const string Family = "family123@group.calendar.google.com";
+        var conflict = Conflict(OutboxOperation.Patch, Mine, Googles);
+        using (var conn = _db.Database.Open())
+        {
+            // Moved to another calendar after the conflicted edit, then edited there
+            OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Calendar, "evt-single", OutboxOperation.Move, Family, "\"1\"", false, "[]", null));
+            EventStore.MoveCalendar(conn, null, Account, Calendar, Family, "evt-single");
+            OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Family, "evt-single", OutboxOperation.Patch, """{"location":"Mine too"}""", "\"1\"", false, "[]", null));
+            CalendarStore.SetSyncToken(conn, null, Account, Family, "token-family");
+        }
+
+        _resolver.KeepGoogles(conflict);
+
+        Assert.Empty(Pending());
+        Assert.Contains("Google's", Get("evt-single")!.RawJson, StringComparison.Ordinal);
+
+        using var check = _db.Database.Open();
+        Assert.Null(EventStore.Get(check, Account, Family, "evt-single"));
+        Assert.Null(CalendarStore.GetForAccount(check, Account).Single(c => c.Id == Family).SyncToken);
     }
 
     [Fact]

@@ -87,7 +87,8 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
             throw new ArgumentException("The event JSON must carry a non-empty id.", nameof(eventJson));
         }
 
-        using var response = await SendAsync(accountId, HttpMethod.Post, $"{EventsPath(calendarId)}?sendUpdates={Updates(sendUpdates)}{ConferenceQuery(eventJson)}", eventJson, null, ct);
+        // A Copy Keeps The Original's Attachments, Which Google Ignores Unless Asked To Read Them
+        using var response = await SendAsync(accountId, HttpMethod.Post, $"{EventsPath(calendarId)}?sendUpdates={Updates(sendUpdates)}&supportsAttachments=true{ConferenceQuery(eventJson)}", eventJson, null, ct);
         return await ReadEventAsync(response, ct, isInsert: true);
     }
 
@@ -244,14 +245,15 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
     static string Updates(bool sendUpdates) => sendUpdates ? "all" : "none";
 
     // Maps write statuses to Leaf's exceptions; success returns the body ("" for 204).
-    // A 409 means "that ID exists" only for an insert; elsewhere it stays a GoogleApiException (a permanent refusal)
+    // A 409 means "that ID exists" only for an insert; elsewhere it stays a GoogleApiException (a permanent refusal).
+    // A 404 or 410 means "the event is gone" except for an insert, where it's the calendar (also a permanent refusal)
     static async Task<string> ReadEventAsync(HttpResponseMessage response, CancellationToken ct, bool isInsert = false)
     {
         switch (response.StatusCode)
         {
             case HttpStatusCode.PreconditionFailed:
                 throw new PreconditionFailedException();
-            case HttpStatusCode.NotFound or HttpStatusCode.Gone:
+            case HttpStatusCode.NotFound or HttpStatusCode.Gone when !isInsert:
                 throw new EventGoneException();
             case HttpStatusCode.Conflict when isInsert:
                 throw new DuplicateEventException();
@@ -292,7 +294,7 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
         for (var attempt = 0; ; attempt++)
         {
             using var request = new HttpRequestMessage(method, uri);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await tokens.GetAccessTokenAsync(accountId, ct));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await GetAccessTokenAsync(accountId, ct));
 
             if (body is not null)
             {
@@ -316,6 +318,19 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
             }
 
             return response;
+        }
+    }
+
+    // A token endpoint failure is a 401 for the call (never Google refusing the request itself)
+    async ValueTask<string> GetAccessTokenAsync(string accountId, CancellationToken ct)
+    {
+        try
+        {
+            return await tokens.GetAccessTokenAsync(accountId, ct);
+        }
+        catch (GoogleApiException ex)
+        {
+            throw new GoogleApiException(HttpStatusCode.Unauthorized, ex.Reason, ex.Message);
         }
     }
 }

@@ -112,8 +112,9 @@ public sealed class FreeBusyLookup(GoogleCalendarClient client, AppLog log)
         {
             page = await client.ListEventsInRangeAsync(accountId, email, from, to, ct);
         }
-        catch (Exception e) when (e is not OperationCanceledException)
+        catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested)
         {
+            // HttpClient's own timeout is a TaskCanceledException though the caller never canceled
             return [];
         }
 
@@ -125,7 +126,7 @@ public sealed class FreeBusyLookup(GoogleCalendarClient client, AppLog log)
         var blocks = new List<BusyBlock>();
         foreach (var item in page.Items)
         {
-            if (Text(item, "status") != "confirmed" || Text(item, "transparency") == "transparent")
+            if (Text(item, "status") != "confirmed" || Text(item, "transparency") == "transparent" || DeclinedByOwner(item))
             {
                 continue;
             }
@@ -141,6 +142,17 @@ public sealed class FreeBusyLookup(GoogleCalendarClient client, AppLog log)
 
         return blocks;
     }
+
+    // The Calendar's Owner (the attendee marked self) Said No, So They Aren't Busy With It
+    static bool DeclinedByOwner(JsonElement item) =>
+        item.ValueKind == JsonValueKind.Object
+        && item.TryGetProperty("attendees", out var attendees)
+        && attendees.ValueKind == JsonValueKind.Array
+        && attendees.EnumerateArray().Any(a =>
+            a.ValueKind == JsonValueKind.Object
+            && a.TryGetProperty("self", out var self)
+            && self.ValueKind == JsonValueKind.True
+            && Text(a, "responseStatus") == "declined");
 
     static string? Text(JsonElement item, string name) =>
         item.ValueKind == JsonValueKind.Object && item.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;

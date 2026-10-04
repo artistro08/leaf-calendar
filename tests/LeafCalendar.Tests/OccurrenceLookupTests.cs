@@ -77,4 +77,22 @@ public sealed class OccurrenceLookupTests : IDisposable
 
         Assert.Equal(new DateTimeOffset(2026, 10, 16, 13, 30, 0, TimeSpan.Zero), o!.Start);
     }
+
+    [Fact]
+    public void Find_SharedEvent_FindsTheSecondAccountsCopy()
+    {
+        // The same meeting (iCalUID and start) is in two accounts; the copy asked for is the one that sorts second
+        using var conn = _db.Database.Open();
+        AccountStore.Upsert(conn, new Account("222", "zzz.second@gmail.com", null, null, AccountStatus.Ok));
+        CalendarStore.ReplaceForAccount(conn, "222", [new CalendarListEntry { Id = "zzz.second@gmail.com", Summary = "Second", AccessRole = "owner", Primary = true, Selected = true }]);
+        using var doc = JsonDocument.Parse("""
+            {"id":"copy-in-second","status":"confirmed","iCalUID":"evt-single@google.com","summary":"Dentist appointment",
+             "start":{"dateTime":"2026-10-01T09:00:00-04:00"},"end":{"dateTime":"2026-10-01T10:00:00-04:00"}}
+            """);
+        EventStore.Apply(conn, null, "222", "zzz.second@gmail.com", doc.RootElement);
+
+        var o = OccurrenceLookup.Find(conn, "222", "zzz.second@gmail.com", "copy-in-second", new DateTimeOffset(2026, 10, 1, 13, 0, 0, TimeSpan.Zero), NewYork);
+
+        Assert.Equal("222", o?.AccountId);
+    }
 }

@@ -80,6 +80,27 @@ public sealed class FrequentPeopleTests : IDisposable
     public void Match_PrefixOfANameWordOrTheAddress(string query, int count) =>
         Assert.Equal(count, FrequentPeople.Match([new("Frank Often", "frank@example.com"), new("", "amy@example.com")], query).Count);
 
+    static string Weekly(string id, string start, string rule, string attendees) =>
+        $$"""{"id":"{{id}}","status":"confirmed","summary":"x","start":{"dateTime":"{{start}}","timeZone":"America/New_York"},"end":{"dateTime":"{{start}}","timeZone":"America/New_York"},"recurrence":["{{rule}}"],"attendees":[{{attendees}}]}""";
+
+    [Fact]
+    public void Load_RepeatingSeries_CountsEachInstanceInTheWindow()
+    {
+        // A weekly 1:1 since early 2025, a 4-week series that began last month, and three one-off meetings
+        Insert(Weekly("sam-1on1", "2025-01-06T10:00:00-05:00", "RRULE:FREQ=WEEKLY", """{"email":"sam@example.com"}"""));
+        Insert(Weekly("kim-series", "2026-09-01T10:00:00-04:00", "RRULE:FREQ=WEEKLY;COUNT=4", """{"email":"kim@example.com"}"""));
+        Insert(With("p1", "2026-09-02T10:00:00Z", """{"email":"pat@example.com"}"""));
+        Insert(With("p2", "2026-09-09T10:00:00Z", """{"email":"pat@example.com"}"""));
+        Insert(With("p3", "2026-09-16T10:00:00Z", """{"email":"pat@example.com"}"""));
+
+        // One 1:1 Was Moved: It Counts Once, As Its Own Row
+        Insert("""{"id":"sam-1on1_20260922T140000Z","status":"confirmed","summary":"x","recurringEventId":"sam-1on1","originalStartTime":{"dateTime":"2026-09-22T10:00:00-04:00"},"start":{"dateTime":"2026-09-23T10:00:00-04:00"},"end":{"dateTime":"2026-09-23T10:00:00-04:00"},"attendees":[{"email":"sam@example.com"}]}""");
+
+        using var conn = _db.Database.Open();
+
+        Assert.Equal(["sam@example.com", "kim@example.com", "pat@example.com"], FrequentPeople.Load(conn, Account, Now).Select(p => p.Email));
+    }
+
     [Fact]
     public void Load_AnAddressTwiceInOneEvent_CountsOnce()
     {

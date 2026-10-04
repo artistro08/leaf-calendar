@@ -89,6 +89,15 @@ public class LinkSafetyTests
         Assert.Equal(expected, LinkSafety.FindMeetingLink(text)?.AbsoluteUri);
     }
 
+    // A Closing Parenthesis That Pairs With One In The Address Is Part Of It
+    [Theory]
+    [InlineData("Join (https://zoom.us/j/123?pwd=x).", "https://zoom.us/j/123?pwd=x")]
+    [InlineData("Join https://zoom.us/my/room_(east) now", "https://zoom.us/my/room_(east)")]
+    public void FindMeetingLink_TrailingParenthesis_KeptOnlyWhenPaired(string text, string expected)
+    {
+        Assert.Equal(expected, LinkSafety.FindMeetingLink(text)?.AbsoluteUri);
+    }
+
     [Theory]
     [InlineData("․")]
     [InlineData("﷐")]
@@ -121,6 +130,16 @@ public class LinkSafetyTests
         var mailto = LinkSafety.MailtoGuests(["boss@example.com", "you+cal@example.com"], "Design review & budget");
 
         Assert.Equal("mailto:boss@example.com?to=you%2Bcal%40example.com&subject=Design%20review%20%26%20budget", mailto?.OriginalString);
+    }
+
+    // An Apostrophe Is Part Of A Valid Address And Can't Add A Mail Field
+    [Fact]
+    public void MailtoGuests_AddressWithAnApostrophe_IsKept()
+    {
+        var mailto = LinkSafety.MailtoGuests(["sam@example.com", "mary.o'brien@example.com"], "Hi");
+
+        Assert.Equal("mailto:sam@example.com?to=mary.o%27brien%40example.com&subject=Hi", mailto?.OriginalString);
+        Assert.Equal("mailto:mary.o%27brien@example.com?subject=Hi", LinkSafety.MailtoGuests(["mary.o'brien@example.com"], "Hi")?.OriginalString);
     }
 
     [Theory]

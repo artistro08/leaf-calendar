@@ -25,7 +25,7 @@ public static class DisplayZone
         prompt
         && primaryZoneId is not null
         && TimeZoneInfo.TryFindSystemTimeZoneById(primaryZoneId, out var primary)
-        && !string.Equals(TimeZoneCatalog.IanaId(primary), TimeZoneCatalog.IanaId(newWindows), StringComparison.OrdinalIgnoreCase);
+        && !string.Equals(TimeZoneCatalog.WindowsId(primary), TimeZoneCatalog.WindowsId(newWindows), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>"Tokyo time (JST)", "New York time (EDT)": the zone's short name as it is at <paramref name="at"/> (its UTC offset when it has none).</summary>
     public static string Describe(TimeZoneInfo zone, DateTimeOffset at) =>

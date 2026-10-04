@@ -79,6 +79,17 @@ public sealed class DateQueryTests
     public void TryParse_Rejects(string text) => Assert.False(DateQuery.TryParse(text, Today, out _));
 
     [Fact]
+    public void TryParse_Feb29_IsTheNextLeapDayOrRefused()
+    {
+        // Next Year Is The Leap Year
+        Assert.True(DateQuery.TryParse("feb 29", new DateOnly(2027, 12, 15), out var date));
+        Assert.Equal(new DateOnly(2028, 2, 29), date);
+
+        // This Year's Was More Than 2 Months Ago, And Next Year Has None
+        Assert.False(DateQuery.TryParse("feb 29", new DateOnly(2028, 6, 1), out _));
+    }
+
+    [Fact]
     public void Label_AddsTheYearOnlyWhenItDiffers()
     {
         Assert.Equal("Mon, Oct 12", DateQuery.Label(new DateOnly(2026, 10, 12), Today));

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Tests.Support;
 using Microsoft.Extensions.Time.Testing;
@@ -25,7 +26,7 @@ public class GoogleRetryHandlerTests : IDisposable
     {
         for (var i = 0; i < 100 && !send.IsCompleted; i++)
         {
-            _time.Advance(TimeSpan.FromSeconds(40));
+            _time.Advance(TimeSpan.FromSeconds(5));
             await Task.Delay(10, TestContext.Current.CancellationToken);
         }
 
@@ -93,6 +94,27 @@ public class GoogleRetryHandlerTests : IDisposable
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.Equal(GoogleRetryHandler.MaxAttempts, _google.Requests.Count);
+    }
+
+    [Fact]
+    public async Task SendAsync_RetryAfterWouldOutlastTheClientTimeout_ReturnsGooglesAnswer()
+    {
+        // A second 60-second wait would pass HttpClient's 100-second timeout, which reads as offline
+        static HttpResponseMessage SlowDown()
+        {
+            var response = FakeHttpHandler.Json(HttpStatusCode.TooManyRequests, "{}");
+            response.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromSeconds(60));
+            return response;
+        }
+
+        _google.On(r => r.Method == HttpMethod.Get, _ => SlowDown(), once: true);
+        _google.On(r => r.Method == HttpMethod.Get, _ => SlowDown(), once: true);
+        _google.On(HttpMethod.Get, Url, HttpStatusCode.OK, """{"items":[]}""");
+
+        using var response = await SendWithTimeAsync(CreateClient().GetAsync(new Uri(Url), TestContext.Current.CancellationToken));
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
+        Assert.Equal(2, _google.Requests.Count);
     }
 
     [Fact]

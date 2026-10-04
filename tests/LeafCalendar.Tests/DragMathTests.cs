@@ -88,6 +88,43 @@ public class DragMathTests
     }
 
     [Fact]
+    public void PasteAt_AcrossDstChange_KeepsWallClockSpacing()
+    {
+        // Fri Oct 30 9 AM EDT and Mon Nov 2 9 AM EST, pasted at Fri Nov 6 9 AM EST: the second stays at 9 AM
+        var friday = Event(Utc(10, 30, 13), Utc(10, 30, 14));
+        var monday = Event(Utc(11, 2, 14), Utc(11, 2, 15));
+
+        var pasted = DragMath.PasteAt([friday, monday], Utc(11, 6, 14), NewYork);
+
+        Assert.Equal((Utc(11, 6, 14), Utc(11, 6, 15)), (pasted[0].Start, pasted[0].End));
+        Assert.Equal((Utc(11, 9, 14), Utc(11, 9, 15)), (pasted[1].Start, pasted[1].End));
+    }
+
+    [Fact]
+    public void CreateRange_InTheLastMinutesOfADay_StaysOnThatDay()
+    {
+        // 11:55 PM and 11:58 PM on Oct 1 both snap to midnight: the step is 11:45 PM to midnight, not Oct 2
+        Assert.Equal((Utc(10, 2, 3, 45), Utc(10, 2, 4)), DragMath.CreateRange(Utc(10, 2, 3, 55), Utc(10, 2, 3, 58), NewYork));
+    }
+
+    [Fact]
+    public void SnapOnDay_InTheLastMinutesOfADay_StaysOnThatDay()
+    {
+        // 11:55 PM on Oct 1 is 11:45 PM, not Oct 2 at midnight; earlier clicks snap to the nearest quarter hour
+        Assert.Equal(Utc(10, 2, 3, 45), DragMath.SnapOnDay(Oct1, 23 * 60 + 55, NewYork));
+        Assert.Equal(Utc(10, 1, 14), DragMath.SnapOnDay(Oct1, 10 * 60 + 7, NewYork));
+    }
+
+    [Fact]
+    public void ShiftWith_AcrossDstChange_KeepsWallClockTime()
+    {
+        // Dragging one event from Fri Oct 30 9 AM EDT to Fri Nov 6 9 AM EST takes Sat Oct 31 2 PM EDT to Sat Nov 7 2 PM EST
+        var saturday = Event(Utc(10, 31, 18), Utc(10, 31, 19));
+
+        Assert.Equal((Utc(11, 7, 19), Utc(11, 7, 20)), DragMath.ShiftWith(saturday, Utc(10, 30, 13), Utc(11, 6, 14), NewYork));
+    }
+
+    [Fact]
     public void NextSlot_RoundsUpToQuarterHour()
     {
         Assert.Equal(Utc(10, 1, 14, 15), DragMath.NextSlot(Utc(10, 1, 14, 7), NewYork));

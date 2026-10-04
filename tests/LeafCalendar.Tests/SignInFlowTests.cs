@@ -149,6 +149,30 @@ public sealed class SignInFlowTests : IDisposable
     }
 
     [Fact]
+    public async Task RunAsync_TokenRequestTimesOut_FailsWithSignInException()
+    {
+        _google.On(r => r.Uri.AbsoluteUri == TokenUrl, _ => throw new TaskCanceledException("timed out", new TimeoutException()));
+
+        var error = await Assert.ThrowsAsync<SignInException>(
+            () => CreateFlow(GoogleRedirects(Approve)).RunAsync(null, TestContext.Current.CancellationToken));
+
+        Assert.Equal("Google couldn't complete sign-in. Try again.", error.Message);
+        Assert.Empty(_store.GetAccountIds());
+    }
+
+    [Fact]
+    public async Task RunAsync_RevokeTimesOut_StillAsksForCalendarAccess()
+    {
+        _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Fixture.Read("token-response-no-calendar.json"));
+        _google.On(r => r.Uri.AbsoluteUri == RevokeUrl, _ => throw new TaskCanceledException("timed out", new TimeoutException()));
+
+        var error = await Assert.ThrowsAsync<SignInException>(
+            () => CreateFlow(GoogleRedirects(Approve)).RunAsync(null, TestContext.Current.CancellationToken));
+
+        Assert.Contains("calendar access", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RunAsync_ExpectedAccount_AnotherUserSignsIn_FailsAndSavesNothing()
     {
         GoogleAccepts();

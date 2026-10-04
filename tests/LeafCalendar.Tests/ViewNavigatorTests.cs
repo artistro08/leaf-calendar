@@ -94,6 +94,16 @@ public class ViewNavigatorTests
     }
 
     [Fact]
+    public void MiniMonthAnchor_WeekendsHidden_CountsShownDays()
+    {
+        // Fri Oct 30, Mon Nov 2, Tue Nov 3 with today Nov 2 shows November
+        Assert.Equal(D(2026, 11, 2), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Days, D(2026, 10, 30), 3, D(2026, 11, 2), showWeekends: false));
+
+        // Today elsewhere: the middle shown day (Mon Nov 2), not Sat Oct 31
+        Assert.Equal(D(2026, 11, 2), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Days, D(2026, 10, 30), 3, D(2026, 12, 1), showWeekends: false));
+    }
+
+    [Fact]
     public void MiniMonthAnchor_Month_UsesPeriodStart()
     {
         Assert.Equal(D(2026, 10, 1), ViewNavigator.MiniMonthAnchor(CalendarViewMode.Month, D(2026, 10, 1), 7, D(2026, 10, 15)));

@@ -12,7 +12,9 @@ public static class OccurrenceLookup
     public static CalendarOccurrence? Find(SqliteConnection conn, string accountId, string calendarId, string eventId, DateTimeOffset start, TimeZoneInfo zone)
     {
         var day     = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(start, zone).DateTime);
-        var matches = OccurrenceQuery.Load(conn, day.AddDays(-1), day.AddDays(2), zone, includeDeclined: true)
+
+        // Every Copy Of A Shared Event, So The One Asked For Isn't Dropped In Favor Of Another Account's
+        var matches = OccurrenceQuery.Load(conn, day.AddDays(-1), day.AddDays(2), zone, includeDeclined: true, keepSharedCopies: true)
             .Where(o => o.AccountId == accountId && o.CalendarId == calendarId && o.EventId == eventId)
             .ToList();
 

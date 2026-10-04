@@ -7,7 +7,6 @@ using LeafCalendar.App.Views.Onboarding;
 using LeafCalendar.App.Views.Settings;
 using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Diagnostics;
-using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Hosting;
 using LeafCalendar.Core.Settings;
@@ -805,7 +804,7 @@ public partial class App : Application
         }
     }
 
-    // Yes / No / Maybe on an invitation: Google emails the organizer, like its own buttons; a repeating invitation is answered for the series
+    // Yes / No / Maybe on an invitation: Google emails the organizer, like its own buttons; a repeating invitation is answered for the series, a changed instance of one for itself
     void Respond(CalendarOccurrence occurrence, ToastAction action)
     {
         var response = action switch
@@ -814,7 +813,7 @@ public partial class App : Application
             ToastAction.Decline => ResponseStatus.Declined,
             _                   => ResponseStatus.Tentative,
         };
-        var scope = occurrence.RecurringEventId is not null ? EditScope.All : EditScope.This;
+        var scope = InviteWatcher.ReplyScope(occurrence);
         _services!.Editor.Respond(occurrence, response, note: null, sendUpdates: true, scope);
     }
 

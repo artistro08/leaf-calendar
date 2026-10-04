@@ -34,6 +34,16 @@ public class DayStripTests
     }
 
     [Fact]
+    public void Between_WeekendWhileHidden_LeavesItOut()
+    {
+        var strip      = new DayStrip(Origin, 14, 14, skipWeekends: true);
+        var (fri, mon) = (new DateOnly(2026, 10, 9), new DateOnly(2026, 10, 12));
+
+        Assert.Equal([fri, mon], strip.Between(mon, fri));
+        Assert.Equal(4, new DayStrip(Origin, 14, 14, skipWeekends: false).Between(fri, mon).Count);
+    }
+
+    [Fact]
     public void IndexOf_OutsideStrip_Clamps()
     {
         var strip = new DayStrip(Origin, 5, 5, skipWeekends: false);

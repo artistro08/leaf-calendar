@@ -102,7 +102,7 @@ public sealed class SignInFlow(
 
             user = await oauth.GetUserInfoAsync(tokens.AccessToken, ct);
         }
-        catch (Exception ex) when (ex is HttpRequestException or GoogleApiException or InvalidGrantException or InvalidDataException or JsonException)
+        catch (Exception ex) when (ex is HttpRequestException or GoogleApiException or InvalidGrantException or InvalidDataException or JsonException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
         {
             log.Error("signin.exchange-failed", ex);
             throw Fail("exchange-failed", "Google couldn't complete sign-in. Try again.");
@@ -135,7 +135,7 @@ public sealed class SignInFlow(
         {
             await oauth.RevokeAsync(tokens.RefreshToken ?? tokens.AccessToken, ct);
         }
-        catch (Exception ex) when (ex is HttpRequestException or GoogleApiException)
+        catch (Exception ex) when (ex is HttpRequestException or GoogleApiException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
         {
             log.Error("signin.revoke-failed", ex);
         }

@@ -123,8 +123,9 @@ public sealed partial class CalendarViewModel
         {
             found = await new FreeBusyLookup(google.Calendar, _services.Log).LookupAsync(account, [.. _people.Select(p => p.Email)], from, to, _life.Token);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException || !_life.IsCancellationRequested)
         {
+            // HttpClient's Own Timeout Is A Cancellation Too, But Only Shutting Down Is Silent
             _services.Log.Info("freebusy.lookup.failed", $"account={account} status={Status(ex)}");
 
             // Nothing Loaded For These Days: No Free/Busy Info, Never Free

@@ -75,7 +75,7 @@ public sealed partial class SidebarView : UserControl
         _viewModel.LayoutChanged         += OnLayoutChanged;
 
         UpdateCalendarList();
-        ShowMonthOf(ViewNavigator.MiniMonthAnchor(_viewModel.Mode, _viewModel.PeriodStart, _viewModel.VisibleColumns, _viewModel.Today));
+        ShowMonthOf(ViewNavigator.MiniMonthAnchor(_viewModel.Mode, _viewModel.PeriodStart, _viewModel.VisibleColumns, _viewModel.Today, _viewModel.Settings.ShowWeekends));
     }
 
     /// <summary>Disconnects from the view model.</summary>
@@ -110,7 +110,7 @@ public sealed partial class SidebarView : UserControl
     {
         if (e.PropertyName == nameof(CalendarViewModel.PeriodStart) && _viewModel is not null)
         {
-            ShowMonthOf(ViewNavigator.MiniMonthAnchor(_viewModel.Mode, _viewModel.PeriodStart, _viewModel.VisibleColumns, _viewModel.Today));
+            ShowMonthOf(ViewNavigator.MiniMonthAnchor(_viewModel.Mode, _viewModel.PeriodStart, _viewModel.VisibleColumns, _viewModel.Today, _viewModel.Settings.ShowWeekends));
         }
     }
 

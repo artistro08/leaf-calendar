@@ -69,6 +69,14 @@ public static class AlertLedger
             "DELETE FROM alert_ledger WHERE substr(key, instr(key, '|') + 1, length($account)) = $account;",
             ("$account", accountId + "|"));
 
+    /// <summary>Moves a recorded notification's event end later (never earlier), so <see cref="Prune"/> keeps it longer.</summary>
+    public static void ExtendEnd(SqliteConnection conn, string key, DateTimeOffset eventEnd) =>
+        conn.Execute(
+            null,
+            "UPDATE alert_ledger SET event_end = max(event_end, $end) WHERE key = $key;",
+            ("$key", key),
+            ("$end", eventEnd.ToUnixTimeMilliseconds()));
+
     /// <summary>Forgets notifications for events that ended before <paramref name="endedBefore"/>.</summary>
     public static void Prune(SqliteConnection conn, DateTimeOffset endedBefore) =>
         conn.Execute(null, "DELETE FROM alert_ledger WHERE event_end < $cutoff;", ("$cutoff", endedBefore.ToUnixTimeMilliseconds()));

@@ -123,6 +123,31 @@ public sealed class OccurrenceQueryTests : IDisposable
     }
 
     [Fact]
+    public void Load_ZeroMinuteEventAtMidnightOnTheFirst_IsInItsOwnMonthOnly()
+    {
+        Insert("""
+            {"id":"evt-zero","status":"confirmed","summary":"Deadline",
+             "start":{"dateTime":"2026-11-01T00:00:00-04:00"},"end":{"dateTime":"2026-11-01T00:00:00-04:00"}}
+            """);
+
+        Assert.Contains(Load(D(11, 1), D(12, 1)), o => o.EventId == "evt-zero");
+        Assert.DoesNotContain(Load(D(10, 1), D(11, 1)), o => o.EventId == "evt-zero");
+    }
+
+    [Fact]
+    public void Load_ZeroMinuteSeriesAtMidnightOnTheFirst_IsInEachMonth()
+    {
+        Insert("""
+            {"id":"evt-zero-monthly","status":"confirmed","summary":"Rent due","recurrence":["RRULE:FREQ=MONTHLY"],
+             "start":{"dateTime":"2026-11-01T00:00:00-04:00","timeZone":"America/New_York"},"end":{"dateTime":"2026-11-01T00:00:00-04:00","timeZone":"America/New_York"}}
+            """);
+
+        Assert.Single(Load(D(11, 1), D(12, 1)), o => o.EventId == "evt-zero-monthly");
+        Assert.Single(Load(D(12, 1), D(12, 2)), o => o.EventId == "evt-zero-monthly");
+        Assert.DoesNotContain(Load(D(11, 30), D(12, 1)), o => o.EventId == "evt-zero-monthly");
+    }
+
+    [Fact]
     public void Load_HiddenCalendar_Excluded()
     {
         using (var conn = _db.Database.Open())

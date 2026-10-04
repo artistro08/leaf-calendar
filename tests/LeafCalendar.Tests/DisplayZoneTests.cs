@@ -32,6 +32,10 @@ public sealed class DisplayZoneTests
     }
 
     [Fact]
+    public void ShouldOfferSwitch_CuratedCityInWindowsOwnZone_DoesNotOffer() =>
+        Assert.False(DisplayZone.ShouldOfferSwitch("Asia/Kolkata", prompt: true, TimeZoneInfo.FindSystemTimeZoneById("India Standard Time")));
+
+    [Fact]
     public void Describe_CityAndShortName() =>
         Assert.Equal("Tokyo time (JST)", DisplayZone.Describe(TimeZoneInfo.FindSystemTimeZoneById("Asia/Tokyo"), new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero)));
 

@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.People;
+using LeafCalendar.Core.Recurrence;
 
 namespace LeafCalendar.Core.Editing;
 
@@ -32,6 +33,12 @@ public static class EventJson
     static readonly string[] GuestFields =
     [
         "attendees", "guestsCanModify", "guestsCanInviteOthers", "guestsCanSeeOtherGuests", "anyoneCanAddSelf",
+    ];
+
+    // Fields that make an event a special type; a private copy drops them when Google can't create that type there
+    static readonly string[] TypeFields =
+    [
+        "eventType", "birthdayProperties", "workingLocationProperties", "focusTimeProperties", "outOfOfficeProperties",
     ];
 
     // =========================================================================
@@ -279,7 +286,15 @@ public static class EventJson
         if (before.UseDefaultReminders != after.UseDefaultReminders
             || (!after.UseDefaultReminders && !before.ReminderMinutes.Order().SequenceEqual(after.ReminderMinutes.Order())))
         {
-            patch["reminders"] = Reminders(after);
+            var reminders = Reminders(after);
+
+            // A Patch Merges Into The Stored Reminders, So Going Back To Defaults Clears The Old Overrides (Google refuses both)
+            if (after.UseDefaultReminders)
+            {
+                reminders["overrides"] = new JsonArray();
+            }
+
+            patch["reminders"] = reminders;
         }
 
         if (!before.Recurrence.SequenceEqual(after.Recurrence))
@@ -401,15 +416,29 @@ public static class EventJson
     /// <summary>
     /// A private copy for paste and Alt+drag: <see cref="CloneForCreate"/> without the repeat, and without the
     /// guests or anything that would invite people (inserting an event with attendees puts it on their calendars
-    /// even when no email is sent). Title, times, location, description, color, and reminders are kept.
+    /// even when no email is sent). Title, times, location, description, color, and reminders are kept. Only a
+    /// timed copy of a focus time or out of office event keeps its type; any other special type (from Gmail, a
+    /// birthday, a working location) becomes an ordinary event, since Google refuses to create those.
     /// </summary>
+    /// <param name="rawJson">The source event as Google sent it.</param>
+    /// <param name="newId">The copy's ID.</param>
+    /// <param name="isAllDay">Whether the copy lands in the all-day row.</param>
     /// <exception cref="JsonException">The JSON is invalid or not an object.</exception>
-    public static string PrivateCopy(string rawJson, string newId)
+    public static string PrivateCopy(string rawJson, string newId, bool isAllDay = false)
     {
         var copy = Parse(CloneForCreate(rawJson, newId, keepRecurrence: false));
         foreach (var name in GuestFields)
         {
             copy.Remove(name);
+        }
+
+        // An Ordinary Event Unless Google Can Create The Type Here
+        if (isAllDay || (string?)(copy["eventType"] as JsonValue) is not ("focusTime" or "outOfOffice"))
+        {
+            foreach (var name in TypeFields)
+            {
+                copy.Remove(name);
+            }
         }
 
         return copy.ToJsonString();
@@ -474,6 +503,32 @@ public static class EventJson
         throw new FormatException("The row has no originalStartTime.");
     }
 
+    /// <summary>
+    /// A series copy's create body with an <c>EXDATE</c> line for each canceled day in <paramref name="snapshotJson"/>
+    /// (the old series' rows, as <see cref="Data.EventStore.Snapshot"/> gives them). A new ID doesn't carry the old
+    /// one's exceptions, so its deleted days would come back.
+    /// </summary>
+    /// <remarks>
+    /// ponytail: changed days (moved or retitled instances) aren't carried, only canceled ones; send them as patches behind the create if that's missed.
+    /// </remarks>
+    /// <exception cref="JsonException">The JSON is invalid or not an object.</exception>
+    public static string WithCanceledDays(string bodyJson, string snapshotJson)
+    {
+        var body = Parse(bodyJson);
+        if (body["recurrence"] is not JsonArray lines)
+        {
+            return bodyJson;
+        }
+
+        foreach (var canceled in JsonNode.Parse(snapshotJson)!.AsArray().OfType<JsonObject>().Where(r => r["recurringEventId"] is not null && (string?)r["status"] == "cancelled"))
+        {
+            var (start, isAllDay) = OriginalStartOf(canceled);
+            lines.Add((JsonNode?)JsonValue.Create(RecurrenceEdits.ExDateLine(start, isAllDay)));
+        }
+
+        return body.ToJsonString();
+    }
+
     /// <summary>The event with new start and end (replacing both objects).</summary>
     /// <exception cref="JsonException">The JSON is invalid or not an object.</exception>
     public static string WithTimes(string rawJson, DateTimeOffset start, DateTimeOffset end, bool isAllDay, string? timeZone)
@@ -515,11 +570,12 @@ public static class EventJson
 
     /// <summary>
     /// A new event whose title contains "birthday" becomes a yearly all-day event on its local date (spec 7.2).
-    /// A draft that already repeats, or has another title, comes back unchanged.
+    /// A draft that already repeats, has another title, or is focus time or out of office (which must stay timed)
+    /// comes back unchanged.
     /// </summary>
     public static EventDraft ApplyBirthdayRule(EventDraft draft, TimeZoneInfo zone)
     {
-        if (draft.Recurrence.Count > 0 || !draft.Title.Contains("birthday", StringComparison.OrdinalIgnoreCase))
+        if (draft.Recurrence.Count > 0 || draft.EventType != EventKind.Default || !draft.Title.Contains("birthday", StringComparison.OrdinalIgnoreCase))
         {
             return draft;
         }
@@ -807,8 +863,7 @@ public static class EventJson
         _           => ResponseStatus.NeedsAction,
     };
 
-    static TimeZoneInfo? FindZone(string? id) =>
-        id is not null && TimeZoneInfo.TryFindSystemTimeZoneById(id, out var zone) ? zone : null;
+    static TimeZoneInfo? FindZone(string? id) => RecurrenceExpander.FindZone(id);
 
     // Property lookup that tolerates non-object parents (invites come from anyone)
     static JsonElement? Get(JsonElement? element, string name) =>

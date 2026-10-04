@@ -3,6 +3,7 @@ using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Tests.Support;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Time.Testing;
 
 namespace LeafCalendar.Tests;
@@ -496,6 +497,111 @@ public sealed class AlertSchedulerTests : IDisposable
 
         Assert.Equal(2, failures.Count);
         Assert.Equal(4, raised.Count);
+    }
+
+    [Fact]
+    public async Task Invalidate_WhileAPassIsRunning_DoesNotWaitForIt()
+    {
+        // A Pass Held Inside Its State Lock (the zone is read there, like the database)
+        using var inPass  = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var scheduler     = new AlertScheduler(_db.Database, _time, () =>
+        {
+            inPass.Set();
+            release.Wait();
+            return TimeZoneInfo.Utc;
+        });
+        _schedulers.Add(scheduler);
+        var ct   = TestContext.Current.CancellationToken;
+        var pass = Task.Run(scheduler.Check, ct);
+        inPass.Wait(ct);
+
+        // An Edit On The UI Thread
+        var invalidate = Task.Run(scheduler.Invalidate, ct);
+        var first      = await Task.WhenAny(invalidate, Task.Delay(TimeSpan.FromSeconds(2), ct));
+        release.Set();
+        await pass;
+
+        Assert.Same(invalidate, first);
+    }
+
+    [Fact]
+    public void Check_RePlanFails_PlansAgainOnTheNextPass()
+    {
+        // The Meeting A Day Later (Oct 2 18:00Z, reminder 17:50Z): past the end of the first plan
+        Store(Meeting.Replace("2026-10-01", "2026-10-02", StringComparison.Ordinal));
+        var scheduler = Scheduler();
+        At(17, 45);
+        scheduler.Check();
+
+        // The Plan Runs Out While The Events Can't Be Read
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 2, 17, 44, 0, TimeSpan.Zero));
+        using (var conn = _db.Database.Open())
+        {
+            conn.Execute(null, "ALTER TABLE events RENAME TO events_away;");
+        }
+
+        Assert.Throws<SqliteException>(scheduler.Check);
+
+        using (var conn = _db.Database.Open())
+        {
+            conn.Execute(null, "ALTER TABLE events_away RENAME TO events;");
+        }
+
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 2, 17, 50, 5, TimeSpan.Zero));
+        scheduler.Check();
+
+        Assert.Equal(AlertKind.Reminder, Assert.Single(_due).Kind);
+    }
+
+    [Fact]
+    public void Check_FailsAfterRecordingAnAlert_StillShowsIt()
+    {
+        // An Old Row For The Pass To Prune, And Deletes From The Ledger Fail
+        using (var conn = _db.Database.Open())
+        {
+            var ended = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero);
+            AlertLedger.TryAdd(conn, "Reminder|old", AlertKind.Reminder, "old", ended, ended);
+            conn.Execute(null, "CREATE TRIGGER ledger_delete_fails BEFORE DELETE ON alert_ledger BEGIN SELECT RAISE(ABORT, 'delete failed'); END;");
+        }
+
+        var scheduler = Scheduler();
+        At(17, 50, 5);
+        Assert.Throws<SqliteException>(scheduler.Check);
+
+        using (var conn = _db.Database.Open())
+        {
+            conn.Execute(null, "DROP TRIGGER ledger_delete_fails;");
+        }
+
+        scheduler.Check();
+
+        // The Ledger Has The Reminder, So This Was Its Only Chance To Show
+        Assert.Equal(AlertKind.Reminder, Assert.Single(_due).Kind);
+    }
+
+    [Fact]
+    public void PlanFrom_LongRunningEventWithoutALink_StaysADayBack()
+    {
+        // A Timed "Project phase" Block Since May, Still Running, With No Meeting Link (so no "Join now" to look for)
+        Store("""
+            {"id":"evt-phase","status":"confirmed","summary":"Project phase",
+             "start":{"dateTime":"2026-05-01T09:00:00Z"},"end":{"dateTime":"2026-11-01T09:00:00Z"}}
+            """);
+        var now        = new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero);
+        using var conn = _db.Database.Open();
+
+        Assert.Equal(now - TimeSpan.FromDays(1), AlertScheduler.PlanFrom(conn, now, TimeZoneInfo.Utc));
+    }
+
+    [Fact]
+    public void PlanFrom_LongRunningMeetingWithALink_GoesBackToItsStart()
+    {
+        Store(Meeting.Replace("2026-10-01T18:00:00Z", "2026-05-01T09:00:00Z", StringComparison.Ordinal).Replace("2026-10-01T19:00:00Z", "2026-11-01T09:00:00Z", StringComparison.Ordinal));
+        var now        = new DateTimeOffset(2026, 10, 1, 17, 0, 0, TimeSpan.Zero);
+        using var conn = _db.Database.Open();
+
+        Assert.True(AlertScheduler.PlanFrom(conn, now, TimeZoneInfo.Utc) < new DateTimeOffset(2026, 5, 1, 9, 0, 0, TimeSpan.Zero));
     }
 
     [Fact]

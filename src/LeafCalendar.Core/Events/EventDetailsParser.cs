@@ -23,7 +23,8 @@ public static partial class EventDetailsParser
         using var doc = JsonDocument.Parse(rawJson);
         var root = doc.RootElement;
 
-        var title = String(root, "summary") is { Length: > 0 } summary ? summary : NoTitle;
+        // A title with nothing to see once cleaned for display (only spaces or invisible characters) reads as no title
+        var title = String(root, "summary") is { } summary && Tray.DisplayText.Clean(summary, int.MaxValue).Length > 0 ? summary : NoTitle;
 
         return new EventDetails(
             title,
@@ -51,7 +52,7 @@ public static partial class EventDetailsParser
             html = html[..MaxHtmlInputLength];
         }
 
-        var text = ListItemOpen().Replace(html, "• ");
+        var text = ListItemOpen().Replace(html, "\n• ");
         text = LineBreak().Replace(text, "\n");
         text = AnyTag().Replace(text, "");
         text = WebUtility.HtmlDecode(text);
@@ -134,13 +135,17 @@ public static partial class EventDetailsParser
     static string? String(JsonElement element, string name) =>
         Get(element, name) is { ValueKind: JsonValueKind.String } value ? value.GetString() : null;
 
-    [GeneratedRegex(@"<\s*li\b[^<>]*>", RegexOptions.IgnoreCase)]
+    // As in DescriptionFormatter, it's a tag only when the name ends at a space, ">", or "/>": a link or address a
+    // plain-text invite put in angle brackets ("<https://a.example/x>", "<li@a.example>") is text
+    [GeneratedRegex(@"<\s*li(?=\s|/?>)[^<>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex ListItemOpen();
 
-    [GeneratedRegex(@"<\s*br\b[^<>]*>|<\s*/\s*(p|div|li|ul|ol|h[1-6])\s*>", RegexOptions.IgnoreCase)]
+    // A line break, a block's opening tag (it starts on a new line), or a closing tag that ends a line
+    [GeneratedRegex(@"<\s*(br|p|div|h[1-6])(?=\s|/?>)[^<>]*>|<\s*/\s*(p|div|li|ul|ol|h[1-6])\s*>", RegexOptions.IgnoreCase)]
     private static partial Regex LineBreak();
 
-    [GeneratedRegex(@"<[^<>]*>")]
+    // Any other tag, and comments, declarations, and processing instructions
+    [GeneratedRegex(@"<\s*/?[a-zA-Z][a-zA-Z0-9]*(?:[:-][a-zA-Z][a-zA-Z0-9]*)*(?=\s|/?>)[^<>]*>|<[!?][^<>]*>")]
     private static partial Regex AnyTag();
 
     [GeneratedRegex(@"\n{2,}")]

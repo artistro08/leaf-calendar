@@ -55,4 +55,12 @@ public sealed class WorkingHoursMathTests
         var hours = new WorkingHours { StartMinute = 960, EndMinute = 1380 };
         Assert.Equal([(0, 300), (720, 1440)], WorkingHoursMath.OffHours(hours, Saturday, NewYork, Tokyo));
     }
+
+    [Fact]
+    public void Traveling_OnTheTravelClocksDaylightSavingDay_UsesItsWallClock()
+    {
+        // Sun Mar 8 2026 Los Angeles springs forward: Monday 9 AM Tokyo is 5 PM PDT and Tokyo's 5 PM is past LA's midnight
+        var losAngeles = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+        Assert.Equal([(0, 1020)], WorkingHoursMath.OffHours(new WorkingHours(), new DateOnly(2026, 3, 8), Tokyo, losAngeles));
+    }
 }

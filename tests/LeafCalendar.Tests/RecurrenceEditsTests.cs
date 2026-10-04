@@ -25,6 +25,30 @@ public class RecurrenceEditsTests
     }
 
     [Fact]
+    public void EndBefore_TimedWeekly_EndsWithTheDayBeforeAndRoundTripsThroughRepeatRule()
+    {
+        var newYork = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+        var friday  = new DateTimeOffset(2026, 10, 9, 9, 30, 0, TimeSpan.FromHours(-4));
+
+        var ended = RecurrenceEdits.EndBefore(["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"], friday, isAllDay: false, SeriesStart, "America/New_York");
+
+        // The end of Thu Oct 8 in New York, so the editor reads Oct 8 and writes the same line back
+        Assert.Equal(["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;UNTIL=20261009T035959Z"], ended);
+        var rule = RepeatRule.Parse(ended[0], newYork)!;
+        Assert.Equal(new DateOnly(2026, 10, 8), rule.Until);
+        Assert.Equal(ended[0], rule.ToRRule(isAllDay: false, newYork));
+        Assert.Equal(friday.AddDays(-2), RecurrenceExpander.ExpandTimed(ended, SeriesStart, "America/New_York", DateTimeOffset.MinValue, DateTimeOffset.MaxValue)[^1]);
+    }
+
+    [Fact]
+    public void EndBefore_TimedHourly_StaysOneSecondBefore()
+    {
+        var ended = RecurrenceEdits.EndBefore(["RRULE:FREQ=HOURLY"], Split, isAllDay: false, SeriesStart, "America/New_York");
+
+        Assert.Equal(["RRULE:FREQ=HOURLY;UNTIL=20261012T132959Z"], ended);
+    }
+
+    [Fact]
     public void EndBefore_AllDay_UsesPreviousDate()
     {
         var ended = RecurrenceEdits.EndBefore(["RRULE:FREQ=DAILY;UNTIL=20261231"], new DateTimeOffset(2026, 10, 12, 0, 0, 0, TimeSpan.Zero), isAllDay: true);

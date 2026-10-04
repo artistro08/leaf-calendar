@@ -796,8 +796,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
         RenderWeekNumber();
     }
 
+    // Numbered By The Middle Shown Day (ISO weeks start Monday, so a Sunday-start week's first day belongs to the week before)
     void RenderWeekNumber() =>
-        _weekNumber.Text = _vm.Settings.ShowWeekNumbers ? string.Create(CultureInfo.InvariantCulture, $"W{ViewNavigator.WeekNumber(_strip[_firstIndex])}") : "";
+        _weekNumber.Text = _vm.Settings.ShowWeekNumbers ? string.Create(CultureInfo.InvariantCulture, $"W{ViewNavigator.WeekNumber(_strip[_firstIndex + (_vm.VisibleColumns - 1) / 2])}") : "";
 
     void RenderToday()
     {
@@ -1050,7 +1051,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
-        var start = DragMath.Snap(DragMath.Instant(day, y / HourHeight * 60, _vm.Zone), _vm.Zone);
+        var start = DragMath.SnapOnDay(day, y / HourHeight * 60, _vm.Zone);
         _vm.BeginCreate(start, start + DragMath.DefaultLength, isAllDay: false);
     }
 
@@ -1207,9 +1208,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
         {
             e.Handled = true;
             var (day, minutes) = BodyPosition(e);
-            var first          = day < drag.BoxDay ? day : drag.BoxDay;
-            var days           = Enumerable.Range(0, Math.Abs(day.DayNumber - drag.BoxDay.DayNumber) + 1).Select(first.AddDays).Where(_strip.Contains);
-            _vm.SelectBox(BoxSelection.InTimeBox(_vm.OnDays(days), drag.BoxDay, day, drag.BoxMinutes, minutes, _vm.Zone), add: KeyState.IsDown(Windows.System.VirtualKey.Control));
+            var days           = _strip.Between(drag.BoxDay, day);
+            _vm.SelectBox(BoxSelection.InTimeBox(_vm.OnDays(days), days, drag.BoxMinutes, minutes, _vm.Zone), add: KeyState.IsDown(Windows.System.VirtualKey.Control));
             return;
         }
 

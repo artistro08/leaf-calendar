@@ -147,6 +147,37 @@ public class EventDetailsParserTests
         Assert.Equal("Agenda:\n• Budget & timeline\n• Hiring\nJoin here\nThanksalert(1)", text);
     }
 
+    // An Opening Block Tag Starts A New Line, So Words Either Side Of It Don't Join
+    [Theory]
+    [InlineData("Agenda<div>Budget</div><div>Hiring</div>", "Agenda\nBudget\nHiring")]
+    [InlineData("<b>Notes</b><p class=\"x\">Bring laptop</p>", "Notes\nBring laptop")]
+    [InlineData("Intro<h2>Plan</h2>Details", "Intro\nPlan\nDetails")]
+    [InlineData("Agenda<ul><li>Budget</li><li>Hiring</li></ul>", "Agenda\n• Budget\n• Hiring")]
+    public void HtmlToText_OpeningBlockTag_StartsANewLine(string html, string expected)
+    {
+        Assert.Equal(expected, EventDetailsParser.HtmlToText(html));
+    }
+
+    // Plain-Text Invites Put Links And Addresses In Angle Brackets; They Aren't Tags (Comments Still Go)
+    [Fact]
+    public void HtmlToText_AngleBracketLinksAndAddresses_StayAsText()
+    {
+        var text = EventDetailsParser.HtmlToText("Join now<https://teams.microsoft.com/l/meetup-join/abc>\nOrganizer: Jane Doe <jane@example.com>, Wei Li <li@example.com><!-- note --><span class=\"x\">!</span>");
+
+        Assert.Equal("Join now<https://teams.microsoft.com/l/meetup-join/abc>\nOrganizer: Jane Doe <jane@example.com>, Wei Li <li@example.com>!", text);
+    }
+
+    // A Title With Nothing To See Reads As No Title
+    [Theory]
+    [InlineData(" ")]
+    [InlineData(" \\t ")]
+    [InlineData("\\u200B")]
+    [InlineData("\\u200E\\u00AD ")]
+    public void Parse_TitleWithNothingVisible_UsesNoTitle(string summary)
+    {
+        Assert.Equal(EventDetailsParser.NoTitle, EventDetailsParser.Parse($$"""{"id":"a","summary":"{{summary}}"}""").Title);
+    }
+
     [Fact]
     public void HtmlToText_Huge_IsCapped()
     {

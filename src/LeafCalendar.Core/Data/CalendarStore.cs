@@ -149,6 +149,19 @@ public static partial class CalendarStore
             ("$account", accountId),
             ("$id", calendarId));
 
+    /// <summary>
+    /// Saves the token for the calendar's next incremental sync only while the stored token is still
+    /// <paramref name="expected"/>, so a token forgotten meanwhile (to force a reload) stays forgotten.
+    /// </summary>
+    public static void ReplaceSyncToken(SqliteConnection conn, SqliteTransaction? tx, string accountId, string calendarId, string? expected, string? syncToken) =>
+        conn.Execute(
+            tx,
+            "UPDATE calendars SET sync_token = $token WHERE account_id = $account AND id = $id AND sync_token IS $expected;",
+            ("$token", syncToken),
+            ("$account", accountId),
+            ("$id", calendarId),
+            ("$expected", expected));
+
     /// <summary>Shows or hides a calendar in Leaf (Google is not changed).</summary>
     public static void SetHidden(SqliteConnection conn, string accountId, string calendarId, bool hidden) =>
         conn.Execute(

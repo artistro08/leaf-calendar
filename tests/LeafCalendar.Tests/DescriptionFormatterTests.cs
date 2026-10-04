@@ -222,6 +222,52 @@ public class DescriptionFormatterTests
         Assert.Equal("Agenda\n• a\n• b\n\nThanks", Text(DescriptionFormatter.Format("Agenda\n<ul>\n  <li>a</li>\n  <li>b</li>\n</ul>\nThanks")));
     }
 
+    // An Opening Block Tag Starts A New Line, Like A List Does
+    [Theory]
+    [InlineData("Agenda<div>Budget</div><div>Hiring</div>", "Agenda\nBudget\nHiring")]
+    [InlineData("<b>Notes</b><p>Bring laptop</p>", "Notes\nBring laptop")]
+    [InlineData("Intro<h2 class=\"x\">Plan</h2>Details", "Intro\nPlan\nDetails")]
+    [InlineData("Agenda\n<div>Budget</div>", "Agenda\nBudget")]
+    [InlineData("<p>One</p><p>Two</p>", "One\nTwo")]
+    public void Format_OpeningBlockTag_StartsANewLine(string html, string expected)
+    {
+        Assert.Equal(expected, Text(DescriptionFormatter.Format(html)));
+    }
+
+    // A Closing Parenthesis That Pairs With One In The Address Is Part Of It
+    [Theory]
+    [InlineData("See https://en.wikipedia.org/wiki/Mercury_(planet) first", "https://en.wikipedia.org/wiki/Mercury_(planet)")]
+    [InlineData("(see https://example.com/a).", "https://example.com/a")]
+    [InlineData("(https://en.wikipedia.org/wiki/Mercury_(planet)).", "https://en.wikipedia.org/wiki/Mercury_(planet)")]
+    public void Format_BareLinkEndingInAParenthesis_KeepsItOnlyWhenPaired(string html, string expected)
+    {
+        var runs = DescriptionFormatter.Format(html);
+
+        Assert.Equal(html, Text(runs));
+        Assert.Equal(expected, runs.Single(r => r.Link is not null).Text);
+        Assert.Equal(expected, runs.Single(r => r.Link is not null).Link?.OriginalString);
+    }
+
+    // Plain-Text Invites Put Links And Addresses In Angle Brackets; They Aren't Tags
+    [Fact]
+    public void Format_AngleBracketLinksAndAddresses_StayAsText()
+    {
+        const string invite = "Join the meeting now<https://teams.microsoft.com/l/meetup-join/abc>\nOrganizer: Jane Doe <jane@example.com>, Wei Li <li@example.com>";
+
+        var runs = DescriptionFormatter.Format(invite);
+
+        Assert.Equal(invite, Text(runs));
+        Assert.Equal("https://teams.microsoft.com/l/meetup-join/abc", runs.Single(r => r.Link is not null).Link?.AbsoluteUri);
+    }
+
+    // Tags With A Prefix Or A Dash In The Name (Office Markup, Custom Elements) Are Still Dropped As Unknown Tags
+    [Fact]
+    public void Format_UnknownTagsWithPrefixedOrDashedNames_AreDropped()
+    {
+        Assert.Equal("Hi there", Text(DescriptionFormatter.Format("<o:p>Hi</o:p> <my-tag class=\"x\">there</my-tag><b-x></b-x>")));
+        Assert.All(DescriptionFormatter.Format("<b-x>plain</b-x>"), r => Assert.False(r.Bold));
+    }
+
     [Fact]
     public void Format_Huge_IsCapped()
     {

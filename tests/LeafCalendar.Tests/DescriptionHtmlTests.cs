@@ -321,6 +321,16 @@ public partial class DescriptionHtmlTests
         Assert.Equal(html, DescriptionHtml.Normalize(html));
     }
 
+    // Angle-Bracket Links And Addresses From A Plain-Text Invite Are Written Back, Not Dropped As Tags
+    [Fact]
+    public void Normalize_AngleBracketLinksAndAddresses_AreKept()
+    {
+        var output = DescriptionHtml.Normalize("Join now<https://teams.microsoft.com/l/meetup-join/abc>\nOrganizer: Jane Doe <jane@example.com>");
+
+        Assert.Equal("Join now&lt;<a href=\"https://teams.microsoft.com/l/meetup-join/abc\">https://teams.microsoft.com/l/meetup-join/abc</a>&gt;<br>Organizer: Jane Doe &lt;jane@example.com&gt;", output);
+        Assert.Equal(output, DescriptionHtml.Normalize(output));
+    }
+
     [Fact]
     public void Normalize_Empty_IsEmpty()
     {

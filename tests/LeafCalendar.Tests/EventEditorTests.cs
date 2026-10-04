@@ -157,7 +157,7 @@ public sealed class EventEditorTests : IDisposable
         var entries = Outbox();
         Assert.Equal(2, entries.Count);
         Assert.Equal(OutboxOperation.Patch, entries[0].Operation);
-        Assert.Contains("UNTIL=20261009T132959Z", entries[0].Payload!, StringComparison.Ordinal);
+        Assert.Contains("UNTIL=20261009T035959Z",entries[0].Payload!, StringComparison.Ordinal);
         Assert.Equal(OutboxOperation.Create, entries[1].Operation);
         Assert.Null(entries[0].DependsOn);
         Assert.Equal(entries[0].Seq, entries[1].DependsOn);
@@ -216,6 +216,19 @@ public sealed class EventEditorTests : IDisposable
         Assert.Equal([entry.Seq], receipt.Seqs);
         Assert.DoesNotContain(Day(Oct9), x => x.RecurringEventId == "evt-weekly");
         Assert.Contains(Day(Oct12), x => x.RecurringEventId == "evt-weekly");
+    }
+
+    [Fact]
+    public void Delete_ThisInstance_MadeAllDay_StillHidesTheSeriesTimedInstance()
+    {
+        var o = Occurrence("evt-weekly", Oct9);
+        _editor.Move([new EventMove(o, Utc(10, 9, 0), Utc(10, 10, 0), IsAllDay: true)], EditScope.This, sendUpdates: false);
+        var allDay = Assert.Single(Day(Oct9), x => x.RecurringEventId == "evt-weekly");
+        Assert.True(allDay.IsAllDay);
+
+        _editor.Delete([allDay], EditScope.This, sendUpdates: false);
+
+        Assert.DoesNotContain(Day(Oct9), x => x.RecurringEventId == "evt-weekly");
     }
 
     [Fact]
@@ -712,7 +725,7 @@ public sealed class EventEditorTests : IDisposable
         _editor.Delete([mon, fri], EditScope.Following, sendUpdates: false);
 
         var entry = Assert.Single(Outbox());
-        Assert.Contains("UNTIL=20261009T132959Z", entry.Payload!, StringComparison.Ordinal);
+        Assert.Contains("UNTIL=20261009T035959Z",entry.Payload!, StringComparison.Ordinal);
         Assert.DoesNotContain(Day(Oct9), x => x.RecurringEventId == "evt-weekly");
         Assert.DoesNotContain(Day(Oct12), x => x.RecurringEventId == "evt-weekly");
         Assert.Contains(Day(Oct5), x => x.RecurringEventId == "evt-weekly");
@@ -759,7 +772,7 @@ public sealed class EventEditorTests : IDisposable
         _editor.Delete([mon], EditScope.Following, sendUpdates: false);
 
         var entry = Assert.Single(Outbox());
-        Assert.Contains("UNTIL=20261009T132959Z", entry.Payload!, StringComparison.Ordinal);
+        Assert.Contains("UNTIL=20261009T035959Z",entry.Payload!, StringComparison.Ordinal);
         Assert.DoesNotContain(Day(Oct9), x => x.RecurringEventId == "evt-weekly");
     }
 
@@ -832,5 +845,187 @@ public sealed class EventEditorTests : IDisposable
         using var check = _db.Database.Open();
         var create = OutboxStore.Pending(check, "other-account").Single(e => e.Operation == OutboxOperation.Create);
         Assert.NotNull(JsonNode.Parse(create.Payload!)!["conferenceData"]!["createRequest"]);
+    }
+
+    const string ZoomSeries = """{"id":"evt-zoom","status":"confirmed","etag":"\"9\"","summary":"Zoom sync","start":{"dateTime":"2026-10-05T10:00:00-04:00","timeZone":"America/New_York"},"end":{"dateTime":"2026-10-05T11:00:00-04:00","timeZone":"America/New_York"},"recurrence":["RRULE:FREQ=WEEKLY"],"conferenceData":{"conferenceId":"z1","conferenceSolution":{"key":{"type":"addOn"}}}}""";
+
+    [Fact]
+    public void Save_ThisAndFollowing_OtherConference_NewSeriesDoesNotAskForAMeet()
+    {
+        Seed(ZoomSeries);
+        var o      = Occurrence("evt-zoom", Oct12);
+        var before = _editor.Load(o);
+        Assert.True(before.HasConference);
+
+        _editor.Save(o, before, before with { Title = "Zoom sync v2" }, EditScope.Following, sendUpdates: false);
+
+        var create = Outbox().Single(e => e.Operation == OutboxOperation.Create);
+        Assert.Null(JsonNode.Parse(create.Payload!)!["conferenceData"]);
+    }
+
+    [Fact]
+    public void Save_OtherAccount_OtherConference_TheCopyDoesNotAskForAMeet()
+    {
+        using (var conn = _db.Database.Open())
+        {
+            AccountStore.Upsert(conn, TestDatabase.SampleAccount with { Id = "other-account" });
+            CalendarStore.ReplaceForAccount(conn, "other-account", JsonSerializer.Deserialize(Fixture.Read("calendar-list.json"), GoogleJsonContext.Default.CalendarListPage)!.Items);
+        }
+
+        Seed(ZoomSeries);
+        var o      = Occurrence("evt-zoom", Oct12);
+        var before = _editor.Load(o);
+
+        _editor.Save(o, before, before with { AccountId = "other-account", CalendarId = Calendar }, EditScope.All, sendUpdates: false);
+
+        using var check = _db.Database.Open();
+        var create = OutboxStore.Pending(check, "other-account").Single(e => e.Operation == OutboxOperation.Create);
+        Assert.Null(JsonNode.Parse(create.Payload!)!["conferenceData"]);
+    }
+
+    // =========================================================================
+    // MOVES TO ANOTHER ACCOUNT
+    // =========================================================================
+
+    const string Other = "other-account";
+
+    void AddOtherAccount()
+    {
+        using var conn = _db.Database.Open();
+        AccountStore.Upsert(conn, TestDatabase.SampleAccount with { Id = Other });
+        CalendarStore.ReplaceForAccount(conn, Other, JsonSerializer.Deserialize(Fixture.Read("calendar-list.json"), GoogleJsonContext.Default.CalendarListPage)!.Items);
+    }
+
+    [Fact]
+    public void Save_OtherAccount_Series_KeepsItsCanceledDays()
+    {
+        AddOtherAccount();
+        var o      = Occurrence("evt-weekly", Oct9);
+        var before = _editor.Load(o);
+
+        _editor.Save(o, before, before with { AccountId = Other, CalendarId = Calendar }, EditScope.All, sendUpdates: false);
+
+        using var check = _db.Database.Open();
+        var create = OutboxStore.Pending(check, Other).Single(e => e.Operation == OutboxOperation.Create);
+        Assert.Equal(["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR", "EXDATE:20261007T133000Z"], JsonNode.Parse(create.Payload!)!["recurrence"]!.AsArray().Select(l => (string?)l));
+        Assert.DoesNotContain(OccurrenceQuery.Load(check, new DateOnly(2026, 10, 7), new DateOnly(2026, 10, 8), NewYork, includeDeclined: true), x => x.EventId == create.EventId);
+    }
+
+    [Fact]
+    public void Save_OtherAccount_TheDeleteWaitsForTheCopy()
+    {
+        AddOtherAccount();
+        var o      = Occurrence("evt-single", Oct1);
+        var before = _editor.Load(o);
+
+        _editor.Save(o, before, before with { AccountId = Other, CalendarId = Calendar }, EditScope.This, sendUpdates: false);
+
+        using var check = _db.Database.Open();
+        var create = Assert.Single(OutboxStore.Pending(check, Other));
+        var delete = Assert.Single(OutboxStore.Pending(check, Account));
+        Assert.Equal(OutboxOperation.Delete, delete.Operation);
+        Assert.Equal(create.Seq, delete.DependsOn);
+    }
+
+    // =========================================================================
+    // SERIES EDITS: WALL-CLOCK SHIFTS, SHOW AS, VISIBILITY, WEEKDAYS
+    // =========================================================================
+
+    const string SummerSeries = """{"id":"evt-summer","status":"confirmed","etag":"\"4\"","summary":"Review","start":{"dateTime":"2026-09-02T09:00:00-04:00","timeZone":"America/New_York"},"end":{"dateTime":"2026-09-02T10:00:00-04:00","timeZone":"America/New_York"},"recurrence":["RRULE:FREQ=DAILY"]}""";
+    const string SummerAllDay = """{"id":"evt-summer-day","status":"confirmed","etag":"\"4\"","summary":"Review day","start":{"date":"2026-09-02"},"end":{"date":"2026-09-03"},"recurrence":["RRULE:FREQ=DAILY"]}""";
+
+    static readonly DateOnly Nov4 = new(2026, 11, 4);
+
+    [Fact]
+    public void Save_AllEvents_ToAllDayFromAnInstanceAcrossADstChange_KeepsTheSeriesDay()
+    {
+        Seed(SummerSeries);
+        var o      = Occurrence("evt-summer", Nov4);
+        var before = _editor.Load(o);
+
+        _editor.Save(o, before, before with { IsAllDay = true, Start = Utc(11, 4, 0), End = Utc(11, 5, 0) }, EditScope.All, sendUpdates: false);
+
+        var patch = JsonNode.Parse(Assert.Single(Outbox()).Payload!)!;
+        Assert.Equal("2026-09-02", (string?)patch["start"]!["date"]);
+        Assert.Equal("2026-09-03", (string?)patch["end"]!["date"]);
+    }
+
+    [Fact]
+    public void Move_AllEvents_AllDayToTimedFromAnInstanceAcrossADstChange_KeepsTheChosenTime()
+    {
+        Seed(SummerAllDay);
+        var o = Occurrence("evt-summer-day", Nov4);
+
+        _editor.Move([new EventMove(o, Utc(11, 4, 14), Utc(11, 4, 15), IsAllDay: false)], EditScope.All, sendUpdates: false);
+
+        var patch = JsonNode.Parse(Assert.Single(Outbox()).Payload!)!;
+        Assert.Equal("2026-09-02T09:00:00-04:00", (string?)patch["start"]!["dateTime"]);
+        Assert.Equal("2026-09-02T10:00:00-04:00", (string?)patch["end"]!["dateTime"]);
+    }
+
+    [Fact]
+    public void Move_AllEvents_ADayLaterAcrossTheDstWeekend_KeepsTheTimeOfDay()
+    {
+        Seed(SummerSeries);
+        var o = Occurrence("evt-summer", new DateOnly(2026, 10, 31));
+
+        // Sat Oct 31 9:00 EDT To Sun Nov 1 9:00 EST (25 hours later)
+        _editor.Move([new EventMove(o, Utc(11, 1, 14), Utc(11, 1, 15), IsAllDay: false)], EditScope.All, sendUpdates: false);
+
+        var patch = JsonNode.Parse(Assert.Single(Outbox()).Payload!)!;
+        Assert.Equal("2026-09-03T09:00:00-04:00", (string?)patch["start"]!["dateTime"]);
+        Assert.Equal("2026-09-03T10:00:00-04:00", (string?)patch["end"]!["dateTime"]);
+    }
+
+    [Fact]
+    public void Save_AllEvents_ShowAsAndVisibility_PatchTheSeries()
+    {
+        var o      = Occurrence("evt-weekly", Oct9);
+        var before = _editor.Load(o);
+
+        _editor.Save(o, before, before with { IsFree = true, Visibility = "private" }, EditScope.All, sendUpdates: false);
+
+        var entry = Assert.Single(Outbox());
+        Assert.Equal("evt-weekly", entry.EventId);
+        Assert.Equal("""{"transparency":"transparent","visibility":"private"}""", entry.Payload);
+    }
+
+    [Fact]
+    public void Save_Following_ShowAsAndVisibility_GoOnTheNewSeries()
+    {
+        var o      = Occurrence("evt-weekly", Oct9);
+        var before = _editor.Load(o);
+
+        _editor.Save(o, before, before with { IsFree = true, Visibility = "private" }, EditScope.Following, sendUpdates: false);
+
+        var created = JsonNode.Parse(Outbox().Single(e => e.Operation == OutboxOperation.Create).Payload!)!;
+        Assert.Equal("transparent", (string?)created["transparency"]);
+        Assert.Equal("private", (string?)created["visibility"]);
+    }
+
+    [Fact]
+    public void Move_Following_ToAnotherWeekday_RotatesTheNewSeriesDays()
+    {
+        var o = Occurrence("evt-weekly", Oct9);
+
+        // Fri Oct 9 To Sat Oct 10
+        _editor.Move([new EventMove(o, o.Start.AddDays(1), o.End.AddDays(1), IsAllDay: false)], EditScope.Following, sendUpdates: false);
+
+        var created = JsonNode.Parse(Outbox().Single(e => e.Operation == OutboxOperation.Create).Payload!)!;
+        Assert.Equal("2026-10-10T09:30:00-04:00", (string?)created["start"]!["dateTime"]);
+        Assert.Equal("RRULE:FREQ=WEEKLY;BYDAY=TU,TH,SA", (string?)created["recurrence"]![0]);
+    }
+
+    [Fact]
+    public void Move_AllEvents_LaterTheSameDayInARenamedZone_KeepsTheWeekday()
+    {
+        // Tuesdays In A Zone Older Zone Data Knows Only By Its Former Name
+        Seed("""{"id":"evt-juarez","status":"confirmed","etag":"\"5\"","summary":"Juarez sync","start":{"dateTime":"2026-10-06T20:00:00Z","timeZone":"America/Ciudad_Juarez"},"end":{"dateTime":"2026-10-06T21:00:00Z","timeZone":"America/Ciudad_Juarez"},"recurrence":["RRULE:FREQ=WEEKLY;BYDAY=TU"]}""");
+        var o = Occurrence("evt-juarez", new DateOnly(2026, 10, 13));
+
+        // Five Hours Later: past midnight UTC, still Tuesday on the event's clock
+        _editor.Move([new EventMove(o, o.Start.AddHours(5), o.End.AddHours(5), IsAllDay: false)], EditScope.All, sendUpdates: false);
+
+        Assert.DoesNotContain("BYDAY=WE", Assert.Single(Outbox()).Payload!, StringComparison.Ordinal);
     }
 }

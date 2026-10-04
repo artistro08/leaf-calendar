@@ -58,8 +58,8 @@ public sealed partial class CalendarViewModel
 
     /// <summary>
     /// The events matching <paramref name="query"/>, from the warmed index, on this thread (the time it takes to type the
-    /// key); null when the index isn't ready yet (it's started), so the caller searches with
-    /// <see cref="SearchEventsAsync"/> this once. The query is never logged.
+    /// key); null when the index isn't ready yet (it's started) or holds too many events, so the caller searches with
+    /// <see cref="SearchEventsAsync"/> instead. The query is never logged.
     /// </summary>
     public IReadOnlyList<SearchHit>? SearchEventsNow(string query)
     {

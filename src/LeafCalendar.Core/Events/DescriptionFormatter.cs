@@ -34,7 +34,9 @@ public sealed record DescriptionRun(string Text, bool Bold = false, bool Italic 
 /// Only <c>https</c> and <c>mailto</c> links become clickable; other links keep their text as plain text. Bare
 /// <c>https://</c> addresses in the text are linked too. A link whose visible text is itself a web address for a
 /// different host than the real target is not clickable (a best-effort check; the UI also shows the real URL). Unknown
-/// tags are dropped (their text stays, inert). Lists and list items start on a new line, and numbered list markers count.
+/// tags are dropped (their text stays, inert); a link or address in angle brackets (<c>&lt;https://...&gt;</c>, as
+/// plain-text invites write them) isn't a tag and stays as text. Lists, list items, paragraphs, and headings start on a
+/// new line, and numbered list markers count.
 /// Source line breaks right next to a tag that breaks the line aren't extra lines. Runs of more than one blank line collapse to one. The input is
 /// bounded before any regex runs, and the output is capped at 10,000 characters plus an ellipsis.
 /// </remarks>
@@ -88,7 +90,7 @@ public static partial class DescriptionFormatter
             var step    = closing ? -1 : 1;
 
             // Tags that end or start a line
-            var breaks = name is "br" or "li" or "ul" or "ol" || (closing && name is "p" or "div" or "h1" or "h2" or "h3" or "h4" or "h5" or "h6");
+            var breaks = name is "br" or "li" or "ul" or "ol" or "p" or "div" or "h1" or "h2" or "h3" or "h4" or "h5" or "h6";
             AddText(SourceText(html[position..tag.Index], previousBreaks, breaks));
             position       = tag.Index + tag.Length;
             previousBreaks = breaks;
@@ -149,9 +151,14 @@ public static partial class DescriptionFormatter
                     Add(new DescriptionRun(kind == ListKind.Numbered ? $"{count}. " : "• ", List: kind));
                     break;
                 case "p" or "div" or "h1" or "h2" or "h3" or "h4" or "h5" or "h6":
+                    // A block starts on a new line and ends its own
                     if (closing)
                     {
                         Add(new DescriptionRun("\n"));
+                    }
+                    else
+                    {
+                        NewLine();
                     }
 
                     break;
@@ -182,7 +189,7 @@ public static partial class DescriptionFormatter
             }
         }
 
-        // Lists and their items start on a new line
+        // Lists, their items, and blocks (paragraphs, headings) start on a new line
         void NewLine()
         {
             if (!lineStart)
@@ -254,7 +261,7 @@ public static partial class DescriptionFormatter
         var start = 0;
         foreach (Match match in LinkSafety.HttpsLink().Matches(text))
         {
-            var url = match.Value.TrimEnd('.', ',', ')', ';', '!', '?');
+            var url = LinkSafety.TrimLinkEnd(match.Value);
             if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !LinkSafety.IsClickableInDescription(uri))
             {
                 continue;
@@ -509,8 +516,10 @@ public static partial class DescriptionFormatter
         return result;
     }
 
-    // One unbounded quantifier per position ("<" then spaces, optional "/", name), so scanning stays linear
-    [GeneratedRegex(@"<\s*(/?)([a-zA-Z][a-zA-Z0-9]*)\b([^<>]*)>")]
+    // One unbounded quantifier per position ("<" then spaces, optional "/", name), so scanning stays linear. It's a tag
+    // only when the name ("b", "o:p", "my-tag") ends at a space, ">", or "/>": a link or address a plain-text invite put
+    // in angle brackets ("<https://a.example/x>", "<sam@a.example>") is text
+    [GeneratedRegex(@"<\s*(/?)([a-zA-Z][a-zA-Z0-9]*(?:[:-][a-zA-Z][a-zA-Z0-9]*)*)(?=\s|/?>)([^<>]*)>")]
     private static partial Regex Tag();
 
     // name=value pairs; the lookbehind starts matches only at the beginning of a name (keeps it linear and skips "data-href")

@@ -1,5 +1,6 @@
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Views;
+using LeafCalendar.Tests.Support;
 
 namespace LeafCalendar.Tests;
 
@@ -75,5 +76,43 @@ public class DayLayoutTests
     public void Layout_TwentyFourHoursOrMore_LeftToSpanRow()
     {
         Assert.Empty(Lay(At("long", 9, 0, 9, 0, endDayOffset: 1)));
+    }
+
+    // The Azores fall back from 1 AM to midnight (Oct 25 2026), so 12:00–1:00 AM happens twice. The day starts at the
+    // first midnight: a click in that hour makes its event in the first pass (DragMath), filed under this day
+    [Fact]
+    public void Layout_RepeatedMidnightHour_DrawsTheFirstPass()
+    {
+        var azores = TimeZoneInfo.FindSystemTimeZoneById("Atlantic/Azores");
+        var day    = new DateOnly(2026, 10, 25);
+        var first  = TestOccurrences.Make("first-pass", DragMath.Instant(day, 15, azores), DragMath.Instant(day, 45, azores), false);
+
+        var b = Assert.Single(DayLayout.Layout(day, [first], azores));
+
+        Assert.Equal((15, 45), (b.StartMinute, b.EndMinute));
+        Assert.Empty(DayLayout.Layout(day.AddDays(-1), [first], azores));
+    }
+
+    [Fact]
+    public void Layout_ZeroMinuteAtMidnight_IsOnTheDayItStarts()
+    {
+        var deadline = At("deadline", 0, 0, 0, 0);
+
+        var b = Assert.Single(Lay(deadline));
+
+        Assert.Equal((0, 0), (b.StartMinute, b.EndMinute));
+        Assert.Empty(DayLayout.Layout(Day.AddDays(-1), [deadline], Zone));
+    }
+
+    // A card is at least MinVisualMinutes tall, so one in the day's last minutes starts early enough to end at midnight
+    [Fact]
+    public void Layout_ShortEventAtTheEndOfTheDay_StaysInsideTheDay()
+    {
+        var blocks = Lay(At("meeting", 23, 30, 23, 45), At("deadline", 23, 59, 23, 59)).ToDictionary(b => b.Occurrence.EventId);
+
+        Assert.Equal((1420, 1439), (blocks["deadline"].StartMinute, blocks["deadline"].EndMinute));
+        Assert.Equal((1410, 1425), (blocks["meeting"].StartMinute, blocks["meeting"].EndMinute));
+        Assert.Equal((0, 1), (blocks["meeting"].Column, blocks["deadline"].Column));
+        Assert.All(blocks.Values, b => Assert.Equal(2, b.ColumnCount));
     }
 }

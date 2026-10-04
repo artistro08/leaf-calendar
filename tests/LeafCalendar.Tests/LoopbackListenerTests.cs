@@ -132,6 +132,28 @@ public class LoopbackListenerTests
     }
 
     [Fact]
+    public async Task WaitForCallbackAsync_ConnectionResetInBacklog_KeepsWaitingForRedirect()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var listener = new LoopbackListener();
+
+        // A Local Caller Connects Then Resets Before The Listener Accepts It
+        using (var reset = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+        {
+            await reset.ConnectAsync(IPAddress.Loopback, listener.RedirectUri.Port, ct);
+            reset.LingerState = new LingerOption(true, 0);
+        }
+
+        await Task.Delay(100, ct);
+        var wait = listener.WaitForCallbackAsync("xyz", ct);
+
+        using var redirect = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=abc&state=xyz"), ct);
+
+        Assert.Equal(HttpStatusCode.OK, redirect.StatusCode);
+        Assert.Equal("abc", (await wait)["code"]);
+    }
+
+    [Fact]
     public async Task WaitForCallbackAsync_HugeCookieHeader_CompletesWithSuccessPage()
     {
         var ct = TestContext.Current.CancellationToken;
