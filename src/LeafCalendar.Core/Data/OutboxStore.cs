@@ -36,7 +36,7 @@ public enum OutboxState
 /// destination calendar ID (move). <see cref="BeforeJson"/> is an <see cref="EventStore.Snapshot"/> of the
 /// rows before the edit. <see cref="NotBefore"/> holds the entry back (the undo window for deletes).
 /// <see cref="DependsOn"/> holds it while that entry is still in the outbox (a split's new series waits for
-/// the old series' end).
+/// the old series' end). <see cref="RetryAfter"/> holds it after a failed try (<see cref="OutboxStore.Backoff"/>).
 /// </summary>
 public sealed record OutboxEntry(
     long Seq,
@@ -52,7 +52,8 @@ public sealed record OutboxEntry(
     OutboxState State = OutboxState.Pending,
     int Attempts = 0,
     string? LastError = null,
-    long? DependsOn = null);
+    long? DependsOn = null,
+    DateTimeOffset? RetryAfter = null);
 
 /// <summary>
 /// Reads and writes the <c>outbox</c> table.
@@ -65,7 +66,7 @@ public static class OutboxStore
 {
     private const string Columns = """
         SELECT seq, account_id, calendar_id, event_id, operation, payload, base_etag, send_updates,
-               before_json, not_before, state, attempts, last_error, depends_on
+               before_json, not_before, state, attempts, last_error, depends_on, retry_after
         FROM outbox
         """;
 
@@ -169,9 +170,32 @@ public static class OutboxStore
         return calendarId;
     }
 
-    /// <summary>Counts a failed try. <paramref name="error"/> is a status or reason only, never event content.</summary>
-    public static void RecordAttempt(SqliteConnection conn, long seq, string error) =>
-        conn.Execute(null, "UPDATE outbox SET attempts = attempts + 1, last_error = $error WHERE seq = $seq;", ("$error", error), ("$seq", seq));
+    /// <summary>
+    /// How long a write waits after its <paramref name="attempts"/>th failed try: 30 s, doubling, at most 15 minutes.
+    /// </summary>
+    /// <param name="attempts">Failed tries so far (1 or more).</param>
+    /// <returns>The wait before the next try.</returns>
+    public static TimeSpan Backoff(int attempts) =>
+        TimeSpan.FromSeconds(Math.Min(900, 30 * Math.Pow(2, Math.Clamp(attempts, 1, 16) - 1)));
+
+    /// <summary>Counts a failed try and holds the entry back for its backoff. <paramref name="error"/> is a status or reason only, never event content.</summary>
+    public static void RecordAttempt(SqliteConnection conn, long seq, string error, DateTimeOffset now) =>
+        conn.Execute(
+            null,
+            """
+            UPDATE outbox
+            SET attempts = attempts + 1,
+                last_error = $error,
+                retry_after = $now + 1000 * MIN(900, 30 * (1 << MIN(attempts, 5)))
+            WHERE seq = $seq;
+            """,
+            ("$error", error),
+            ("$now", now.ToUnixTimeMilliseconds()),
+            ("$seq", seq));
+
+    /// <summary>Lets every backed-off entry go on the next sync (Sync now, a reconnect, a resume).</summary>
+    public static void ClearBackoff(SqliteConnection conn) =>
+        conn.Execute(null, "UPDATE outbox SET retry_after = NULL WHERE retry_after IS NOT NULL;");
 
     /// <summary>Puts an entry back in the queue with a new base ETag ("Keep mine").</summary>
     public static void Requeue(SqliteConnection conn, SqliteTransaction? tx, long seq, string? baseEtag) =>
@@ -271,7 +295,8 @@ public static class OutboxStore
         r.GetString(10) == "conflict" ? OutboxState.Conflict : OutboxState.Pending,
         r.GetInt32(11),
         r.GetStringOrNull(12),
-        r.IsDBNull(13) ? null : r.GetInt64(13));
+        r.IsDBNull(13) ? null : r.GetInt64(13),
+        r.GetUnixMsOrNull(14));
 
     private static string ToText(OutboxOperation operation) => operation switch
     {

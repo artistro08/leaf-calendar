@@ -10,10 +10,14 @@ public enum SyncMode
 
     /// <summary>Leaf is only in the tray.</summary>
     Tray,
+
+    /// <summary>Leaf is only in the tray, and Windows is on Energy Saver or the connection is metered.</summary>
+    Saver,
 }
 
 /// <summary>
-/// Smart polling. Runs one sync right away, then again after each interval (15 s visible, 60 s tray).
+/// Smart polling. Runs one sync right away, then again after each interval (15 s visible, 60 s tray, 5 minutes on
+/// Energy Saver or a metered connection).
 /// </summary>
 /// <remarks>
 /// <see cref="TriggerNow"/> cuts the wait short. The app calls it on window or flyout open, resume
@@ -27,13 +31,44 @@ public sealed class SyncLoop(Func<CancellationToken, Task> syncAll, TimeProvider
     private readonly CancellationTokenSource _stop = new();
     private Task? _loop;
     private bool _disposed;
+    private SyncMode _mode = SyncMode.Tray;
 
-    /// <summary>Current cadence. Defaults to <see cref="SyncMode.Tray"/>.</summary>
-    public SyncMode Mode { get; set; } = SyncMode.Tray;
+    /// <summary>
+    /// Current cadence. Defaults to <see cref="SyncMode.Tray"/>. A faster cadence on a running loop starts at once (a
+    /// loop not yet started syncs at once anyway).
+    /// </summary>
+    public SyncMode Mode
+    {
+        get => _mode;
+        set
+        {
+            var faster = IntervalFor(value) < IntervalFor(_mode);
+            _mode = value;
+            if (faster && _loop is not null)
+            {
+                TriggerNow();
+            }
+        }
+    }
 
-    /// <summary>Polling interval for a mode.</summary>
-    public static TimeSpan IntervalFor(SyncMode mode) =>
-        mode == SyncMode.Visible ? TimeSpan.FromSeconds(15) : TimeSpan.FromSeconds(60);
+    /// <summary>The wait between syncs: 15 s on screen, 60 s in the tray, 5 minutes on Energy Saver or a metered connection.</summary>
+    public static TimeSpan IntervalFor(SyncMode mode) => mode switch
+    {
+        SyncMode.Visible => TimeSpan.FromSeconds(15),
+        SyncMode.Saver => TimeSpan.FromMinutes(5),
+        _ => TimeSpan.FromSeconds(60),
+    };
+
+    /// <summary>
+    /// The cadence for the current state: on screen always syncs at the visible pace; otherwise Energy Saver or a
+    /// metered connection slows the tray pace.
+    /// </summary>
+    /// <param name="visible">A Leaf window or the flyout is on screen.</param>
+    /// <param name="energySaver">Windows' Energy Saver is on.</param>
+    /// <param name="metered">The internet connection is metered (fixed or variable cost).</param>
+    /// <returns>The mode to run the loop in.</returns>
+    public static SyncMode ModeFor(bool visible, bool energySaver, bool metered) =>
+        visible ? SyncMode.Visible : energySaver || metered ? SyncMode.Saver : SyncMode.Tray;
 
     /// <summary>Starts the loop (no-op if already started).</summary>
     public void Start() => _loop ??= Task.Run(() => RunAsync(_stop.Token));

@@ -9,6 +9,8 @@ namespace LeafCalendar.Core.Auth;
 /// Entries are encrypted with the current Windows user's login and namespaced by profile:
 /// <c>LeafCalendar/{profile}/client</c> holds the client ID and secret, and
 /// <c>LeafCalendar/{profile}/refresh</c> holds one entry per account, keyed by account ID.
+/// Earlier builds kept secrets here; the app now uses <see cref="ProtectedFileTokenStore"/> and only reads this store to
+/// move them out (<see cref="TokenStoreMigration"/>), or for one run when that move fails. Live tests still use it.
 /// </remarks>
 /// <seealso href="https://learn.microsoft.com/windows/apps/develop/security/credential-locker"/>
 public sealed class CredentialLockerTokenStore(string profile) : ITokenStore
@@ -36,6 +38,13 @@ public sealed class CredentialLockerTokenStore(string profile) : ITokenStore
     {
         Write(ClientResource, ClientIdUser, credentials.ClientId);
         Write(ClientResource, ClientSecretUser, credentials.ClientSecret);
+    }
+
+    /// <inheritdoc />
+    public void ClearClientCredentials()
+    {
+        Remove(ClientResource, ClientIdUser);
+        Remove(ClientResource, ClientSecretUser);
     }
 
     /// <inheritdoc />

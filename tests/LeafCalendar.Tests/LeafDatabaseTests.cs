@@ -24,8 +24,18 @@ public sealed class LeafDatabaseTests : IDisposable
         foreignKeys.CommandText = "PRAGMA foreign_keys;";
 
         Assert.Equal("wal", (string)mode.ExecuteScalar()!);
-        Assert.Equal(7L, (long)version.ExecuteScalar()!);
+        Assert.Equal(8L, (long)version.ExecuteScalar()!);
         Assert.Equal(1L, (long)foreignKeys.ExecuteScalar()!);
+    }
+
+    [Fact]
+    public void Migrate_Version8_AddsRetryAfter()
+    {
+        using var conn = _db.Database.Open();
+
+        var columns = conn.Query(null, "PRAGMA table_info(outbox);", r => r.GetString(1));
+
+        Assert.Contains("retry_after", columns);
     }
 
     [Fact]
@@ -89,7 +99,7 @@ public sealed class LeafDatabaseTests : IDisposable
             Assert.Equal(1L, pending[1].DependsOn);
             Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM calendars;", r => r.GetInt64(0)).Single());
             Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM events;", r => r.GetInt64(0)).Single());
-            Assert.Equal(7L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(8L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.True(AlertLedger.TryAdd(conn, "k", LeafCalendar.Core.Alerts.AlertKind.Reminder, "t", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
             conn.Close();
             SqliteConnection.ClearPool(conn);
@@ -120,7 +130,7 @@ public sealed class LeafDatabaseTests : IDisposable
             var account = Assert.Single(AccountStore.GetAll(conn));
             Assert.Equal(("acct", "a@example.com", "A"), (account.Id, account.Email, account.DisplayName));
             Assert.Null(account.HostedDomain);
-            Assert.Equal(7L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(8L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             conn.Close();
             SqliteConnection.ClearPool(conn);
         }
@@ -148,7 +158,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(7L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(8L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.True(Assert.Single(CalendarStore.GetAll(conn)).IsVisible);
 
             CalendarStore.ReplaceForAccount(conn, "acct", [new LeafCalendar.Core.Google.CalendarListEntry { Id = "todoist", Summary = "Todoist", Selected = false }]);

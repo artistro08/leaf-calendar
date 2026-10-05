@@ -15,6 +15,9 @@ public sealed class InMemoryTokenStore : ITokenStore
     public void SetClientCredentials(OAuthClientCredentials credentials) => _client = credentials;
 
     /// <inheritdoc />
+    public void ClearClientCredentials() => _client = null;
+
+    /// <inheritdoc />
     public string? GetRefreshToken(string accountId) => _refreshTokens.GetValueOrDefault(accountId);
 
     /// <inheritdoc />

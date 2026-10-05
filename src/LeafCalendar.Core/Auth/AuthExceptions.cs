@@ -3,6 +3,33 @@ namespace LeafCalendar.Core.Auth;
 /// <summary>Google rejected a refresh token (revoked, expired, or password changed).</summary>
 public sealed class InvalidGrantException() : Exception("Google rejected the refresh token.");
 
+/// <summary>
+/// Tells "the saved secrets (<c>secrets.bin</c>) can't be read right now" (a locked file, or DPAPI failing for a passing
+/// reason) apart from other <see cref="InvalidDataException"/>s, such as Google's empty answers.
+/// </summary>
+/// <remarks>
+/// <see cref="InvalidDataException"/> is sealed, so instead of a subclass the store throws a marked one: every catch of
+/// <see cref="InvalidDataException"/> ("try later", never "signed out") keeps working, and <see cref="Is"/> picks it out.
+/// </remarks>
+public static class SecretsUnavailable
+{
+    private const string Marker = "LeafCalendar.SecretsUnavailable";
+
+    /// <summary>Creates the marked exception the secret store throws.</summary>
+    /// <param name="message">What couldn't be done (never a secret).</param>
+    /// <param name="innerException">The failure underneath (a file or DPAPI error).</param>
+    /// <returns>An <see cref="InvalidDataException"/> that <see cref="Is"/> recognizes.</returns>
+    public static InvalidDataException Create(string message, Exception innerException)
+    {
+        var ex = new InvalidDataException(message, innerException);
+        ex.Data[Marker] = true;
+        return ex;
+    }
+
+    /// <summary>True when <paramref name="ex"/> says the saved secrets can't be read right now.</summary>
+    public static bool Is(Exception ex) => ex is InvalidDataException && ex.Data.Contains(Marker);
+}
+
 /// <summary>An account can't get an access token until the user signs in again.</summary>
 public sealed class AccountNeedsSignInException(string accountId) : Exception("The account needs to sign in again.")
 {

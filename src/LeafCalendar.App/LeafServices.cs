@@ -23,7 +23,11 @@ public sealed class LeafServices : IAsyncDisposable
     // Test Mode "Browser": follows the fake Google's sign-in redirect itself
     private static readonly HttpClient FakeBrowser = new();
 
+    // How often secrets that can't be read right now are tried again
+    private static readonly TimeSpan SecretsRetry = TimeSpan.FromSeconds(30);
+
     private readonly HttpClient _http;
+    private ITimer? _secretsRetry;
 
     /// <summary>Creates services for a profile under the package's local folder.</summary>
     public LeafServices(LaunchOptions options, string localFolder)
@@ -44,7 +48,8 @@ public sealed class LeafServices : IAsyncDisposable
         // Global Shortcuts (registered by the tray once its window exists)
         Shortcuts = new GlobalShortcuts(Log);
 
-        Tokens = new CredentialLockerTokenStore(options.Profile);
+        // Secrets Live In The Profile Folder (removed with the app); the first start after the update moves them out of the Credential Locker
+        Tokens = TokenStoreMigration.Open(new ProtectedFileTokenStore(Paths.ProfileDirectory), () => new CredentialLockerTokenStore(options.Profile), Log);
         _http = new HttpClient(new GoogleRetryHandler(Time) { InnerHandler = new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All } });
 
         // Google only compresses its answers when the user agent says "gzip" too
@@ -90,6 +95,12 @@ public sealed class LeafServices : IAsyncDisposable
 
     /// <summary>Google services, or null before the OAuth client is set up.</summary>
     public GoogleServices? Google { get; private set; }
+
+    /// <summary>
+    /// True while the saved secrets couldn't be read at startup (or a reload) and a timer is trying again, so
+    /// <see cref="Google"/> is null for that reason, not because Leaf is offline or not set up.
+    /// </summary>
+    public bool SecretsUnavailable => Volatile.Read(ref _secretsRetry) is not null;
 
     /// <summary>Raised after <see cref="ReloadGoogleAsync"/> replaces <see cref="Google"/>.</summary>
     public event EventHandler? GoogleChanged;
@@ -157,11 +168,28 @@ public sealed class LeafServices : IAsyncDisposable
         return AccountStore.GetAll(conn).Count > 0;
     }
 
+    /// <summary>
+    /// True when an OAuth client is saved. When the secrets can't be read right now (<see cref="InvalidDataException"/>),
+    /// it's taken as saved, so a passing failure never sends a signed-in user back to setup.
+    /// </summary>
+    public bool HasOAuthClient()
+    {
+        try
+        {
+            return Tokens.GetClientCredentials() is not null;
+        }
+        catch (InvalidDataException)
+        {
+            return true;
+        }
+    }
+
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         NetworkInformation.NetworkStatusChanged -= OnNetworkStatusChanged;
         PowerManager.SystemSuspendStatusChanged -= OnSuspendStatusChanged;
+        Interlocked.Exchange(ref _secretsRetry, null)?.Dispose();
 
         if (Google is { } google)
         {
@@ -286,7 +314,21 @@ public sealed class LeafServices : IAsyncDisposable
 
     private GoogleServices? CreateGoogle()
     {
-        if (Tokens.GetClientCredentials() is not { } credentials)
+        OAuthClientCredentials? credentials;
+        try
+        {
+            credentials = Tokens.GetClientCredentials();
+        }
+        catch (InvalidDataException ex)
+        {
+            // Secrets Can't Be Read Right Now (DPAPI failing for a passing reason): no Google until they can, never
+            // "signed out"; a timer tries again. The error type only.
+            Log.Info("auth.secrets.unavailable", $"error={ex.InnerException?.GetType().Name}");
+            _secretsRetry ??= Time.CreateTimer(_ => _ = RetryGoogleAsync(), null, SecretsRetry, SecretsRetry);
+            return null;
+        }
+
+        if (credentials is null)
         {
             return null;
         }
@@ -296,13 +338,63 @@ public sealed class LeafServices : IAsyncDisposable
         return google;
     }
 
-    private void OnNetworkStatusChanged(object sender) => Google?.Loop.TriggerNow();
+    // Secrets Readable Again: Google services are built, and everything listening reattaches (GoogleChanged, any thread)
+    private async Task RetryGoogleAsync()
+    {
+        try
+        {
+            Tokens.GetClientCredentials();
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
+
+        // Only one tick goes on
+        if (Interlocked.Exchange(ref _secretsRetry, null) is not { } timer)
+        {
+            return;
+        }
+
+        timer.Dispose();
+        try
+        {
+            if (Google is null)
+            {
+                await ReloadGoogleAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            // A timer callback, so nothing may escape
+            Log.Error("google.retry.failed", ex);
+        }
+    }
+
+    private void OnNetworkStatusChanged(object sender) => RetryNow();
 
     private void OnSuspendStatusChanged(object? sender, object e)
     {
         if (PowerManager.SystemSuspendStatus is SystemSuspendStatus.AutoResume or SystemSuspendStatus.ManualResume)
         {
-            Google?.Loop.TriggerNow();
+            RetryNow();
         }
+    }
+
+    // A Reconnect Or Resume: edits backing off after a failed try go on this sync
+    private void RetryNow()
+    {
+        // A system event handler, so nothing may escape; the type only, never content
+        try
+        {
+            using var conn = Database.Open();
+            OutboxStore.ClearBackoff(conn);
+        }
+        catch (Exception ex)
+        {
+            Log.Info("outbox.backoff.clear.failed", $"error={ex.GetType().Name}");
+        }
+
+        Google?.Loop.TriggerNow();
     }
 }

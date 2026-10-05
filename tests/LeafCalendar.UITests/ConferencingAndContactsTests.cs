@@ -260,7 +260,7 @@ public sealed class ConferencingAndContactsTests : IDisposable
         }
 
         SqliteConnection.ClearAllPools();
-        Assert.Null(new CredentialLockerTokenStore(_profile).GetRefreshToken(FakeGoogleServer.OtherUserId));
+        Assert.Null(new ProtectedFileTokenStore(LeafApp.ProfileFolder(_profile)).GetRefreshToken(FakeGoogleServer.OtherUserId));
     }
 
     [Fact]

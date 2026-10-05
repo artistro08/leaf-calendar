@@ -428,6 +428,27 @@ public sealed class SyncEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task SyncAllAsync_SyncNow_TriesABackedOffEditAtOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _h.RouteStandardGoogle();
+        await _h.Engine.SyncAccountAsync(Account, ct);
+        using (var conn = _h.Db.Database.Open())
+        {
+            var seq = OutboxStore.Add(conn, null, new OutboxEntry(0, Account, Primary, "evt-single", OutboxOperation.Patch, """{"summary":"Mine"}""", "\"3181161784712000\"", false, "[]", null));
+            OutboxStore.RecordAttempt(conn, seq, "status 503", _h.Time.GetUtcNow());
+        }
+
+        _h.Google.On(HttpMethod.Patch, SyncHarness.PrimaryEventsUrl + "/evt-single", HttpStatusCode.OK, """{"id":"evt-single","etag":"\"E1\"","status":"confirmed","summary":"Mine","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""");
+
+        await _h.Engine.SyncAllAsync(ct);
+        Assert.DoesNotContain(_h.Google.Requests, r => r.Method == HttpMethod.Patch);
+
+        await _h.Engine.SyncAllAsync(refreshCalendarLists: true, ct);
+        Assert.Single(_h.Google.Requests, r => r.Method == HttpMethod.Patch);
+    }
+
+    [Fact]
     public async Task SyncAccountAsync_NeedsSignIn_KeepsOutbox()
     {
         var ct = TestContext.Current.CancellationToken;

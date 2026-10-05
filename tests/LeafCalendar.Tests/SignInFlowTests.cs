@@ -35,12 +35,12 @@ public sealed class SignInFlowTests : IDisposable
         _logs.Dispose();
     }
 
-    private SignInFlow CreateFlow(Func<Uri, Task> openBrowser)
+    private SignInFlow CreateFlow(Func<Uri, Task> openBrowser, ITokenStore? store = null)
     {
         var oauth = new GoogleOAuthClient(new HttpClient(_google), new("id.apps.googleusercontent.com", "GOCSPX-test"), _time);
-        var tokens = new AccessTokenProvider(oauth, _store, _time);
+        var tokens = new AccessTokenProvider(oauth, store ?? _store, _time);
         _providers.Add(tokens);
-        return new SignInFlow(oauth, _store, tokens, _db.Database, openBrowser, _time, new AppLog(_logs.Path, _time));
+        return new SignInFlow(oauth, store ?? _store, tokens, _db.Database, openBrowser, _time, new AppLog(_logs.Path, _time));
     }
 
     // Acts like Google + the browser: reads the consent URL and hits the loopback redirect.
@@ -83,6 +83,22 @@ public sealed class SignInFlowTests : IDisposable
         Assert.Equal("1//test-refresh-token", _store.GetRefreshToken("109876543210"));
         using var conn = _db.Database.Open();
         Assert.Equal(account, AccountStore.GetAll(conn).Single());
+    }
+
+    [Fact]
+    public async Task RunAsync_SecretsUnreadableRightNow_FailsAndSavesNothing()
+    {
+        GoogleAccepts();
+        using var profile = new TempFolder();
+        new ProtectedFileTokenStore(profile.Path).SetRefreshToken("other", "1//other");
+        var store = new ProtectedFileTokenStore(profile.Path, (_, _) => throw new System.Security.Cryptography.CryptographicException(unchecked((int)0x8009000B)));
+
+        var ex = await Assert.ThrowsAsync<SignInException>(() => CreateFlow(GoogleRedirects(Approve), store).RunAsync(null, TestContext.Current.CancellationToken));
+
+        Assert.Equal("Sign-in didn't finish. Try again.", ex.Message);
+        Assert.Equal(["other"], new ProtectedFileTokenStore(profile.Path).GetAccountIds());
+        using var conn = _db.Database.Open();
+        Assert.Empty(AccountStore.GetAll(conn));
     }
 
     [Fact]

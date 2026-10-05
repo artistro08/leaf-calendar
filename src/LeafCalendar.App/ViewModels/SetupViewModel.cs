@@ -18,7 +18,16 @@ public sealed partial class SetupViewModel : ObservableObject
         _tokens = tokens;
         _onSaved = onSaved;
         _log = log;
-        ClientId = tokens.GetClientCredentials()?.ClientId ?? "";
+
+        // Secrets Can't Be Read Right Now: an empty box (saving shows the form's own error until they can)
+        try
+        {
+            ClientId = tokens.GetClientCredentials()?.ClientId ?? "";
+        }
+        catch (InvalidDataException)
+        {
+            ClientId = "";
+        }
     }
 
     /// <summary>Client ID text.</summary>

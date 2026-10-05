@@ -78,8 +78,22 @@ public sealed partial class AccountsViewModel : ObservableObject
         Refresh();
     }
 
-    /// <summary>The saved OAuth client ID, or a note that there isn't one.</summary>
-    public string ClientId => _services.Tokens.GetClientCredentials()?.ClientId ?? "No OAuth client saved";
+    /// <summary>The saved OAuth client ID, or a note that there isn't one (or that it can't be read right now).</summary>
+    public string ClientId
+    {
+        get
+        {
+            // A binding reads this, so a passing failure to read the secrets must not escape
+            try
+            {
+                return _services.Tokens.GetClientCredentials()?.ClientId ?? "No OAuth client saved";
+            }
+            catch (InvalidDataException)
+            {
+                return "Couldn't read the OAuth client right now";
+            }
+        }
+    }
 
     /// <summary>Accounts shown in the list.</summary>
     public ObservableCollection<AccountRow> Accounts { get; } = [];

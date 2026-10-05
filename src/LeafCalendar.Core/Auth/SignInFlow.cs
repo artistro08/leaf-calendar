@@ -122,8 +122,17 @@ public sealed class SignInFlow(
             throw new WrongAccountException(user.Email, loginHint);
         }
 
-        // Save Account
-        tokenStore.SetRefreshToken(user.Sub, tokens.RefreshToken!);
+        // Save Account (secrets that can't be read right now can't be added to either: nothing is saved, try again later)
+        try
+        {
+            tokenStore.SetRefreshToken(user.Sub, tokens.RefreshToken!);
+        }
+        catch (InvalidDataException ex)
+        {
+            log.Error("signin.save-failed", ex);
+            throw Fail("save-failed", "Sign-in didn't finish. Try again.");
+        }
+
         accessTokens.Seed(user.Sub, tokens);
 
         var account = new Account(user.Sub, user.Email, user.Name, user.Picture, AccountStatus.Ok, user.Hd ?? "");

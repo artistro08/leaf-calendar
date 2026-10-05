@@ -962,9 +962,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     // Sends a calendar-list change; only after Google accepts it is the local copy changed
     private async Task<bool> PatchCalendarAsync(CalendarInfo calendar, string patch, string logName, string offline, string refused, Action<Microsoft.Data.Sqlite.SqliteConnection> mirror)
     {
+        const string secretsUnavailable = "Couldn't read your sign-in right now. Try again in a moment.";
+
         if (_services.Google is not { } google || IsOffline)
         {
-            Say(offline, canUndo: false);
+            // No Google Because The Saved Secrets Couldn't Be Read (a timer is trying again), not because Leaf is offline
+            Say(_services.Google is null && _services.SecretsUnavailable ? secretsUnavailable : offline, canUndo: false);
             return false;
         }
 
@@ -973,7 +976,11 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         {
             await google.Calendar.PatchCalendarListAsync(calendar.AccountId, calendar.Id, patch, _life.Token);
         }
-        catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !_life.IsCancellationRequested))
+        catch (InvalidDataException ex) when (SecretsUnavailable.Is(ex))
+        {
+            problem = secretsUnavailable;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidDataException || (ex is TaskCanceledException && !_life.IsCancellationRequested))
         {
             problem = offline;
         }

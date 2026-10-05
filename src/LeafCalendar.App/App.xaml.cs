@@ -53,9 +53,16 @@ public partial class App : Application
 
     // The tray settings (and the day) the tooltip and agenda were last refreshed for
     private (int, bool, int, bool, string? Zone, DateTime Today) _trayKey;
+
+    // Each tray read off the UI thread takes the next number; only the newest one's result is shown
+    private int _tooltipGeneration;
+    private int _agendaGeneration;
     private AppLog? _log;
     private bool _trayStarted;
     private bool _quitting;
+
+    // Whether the internet connection is metered, read off the UI thread on each network change
+    private volatile bool _metered;
 
     /// <summary>Loads XAML resources and hooks crash logging.</summary>
     public App()
@@ -151,7 +158,7 @@ public partial class App : Application
         }
 
         // First Run: onboarding shows instead of the main window until there's an OAuth client and an account; the tray starts when it's done
-        if (OnboardingFlow.IsNeeded(services.Tokens.GetClientCredentials() is not null, services.HasAccount()))
+        if (OnboardingFlow.IsNeeded(services.HasOAuthClient(), services.HasAccount()))
         {
             // Started By Windows At Sign-In Before Setup Was Finished: no setup window at sign-in, just exit
             if (Program.StartKind == ExtendedActivationKind.StartupTask)
@@ -303,6 +310,12 @@ public partial class App : Application
         AttachSync();
         RefreshTooltip();
 
+        // Energy Saver Or A Metered Connection Changes The Tray's Sync Pace (both events arrive off the UI thread). The
+        // connection's cost is read there and on the pool now, never on the UI thread: it can stall on some VPN setups.
+        Windows.System.Power.PowerManager.EnergySaverStatusChanged += (_, _) => _dispatcher?.TryEnqueue(() => UpdateSyncMode());
+        Windows.Networking.Connectivity.NetworkInformation.NetworkStatusChanged += _ => OnNetworkChanged();
+        _ = Task.Run(OnNetworkChanged);
+
         // Windows Restarts Leaf Into The Tray After An Update Or A Crash, So Reminders Go On (a sign-in restart is the
         // startup task's; UI tests' fake profiles don't register)
         if (services.Options.FakeGoogle is null)
@@ -359,29 +372,54 @@ public partial class App : Application
     // Today's day of the month on the PC clock (the taskbar's date), for the tray icon
     private int TrayDay() => TimeZoneInfo.ConvertTime(_services?.Time.GetUtcNow() ?? DateTimeOffset.UtcNow, _zone.Zone).Day;
 
-    // "Standup in 12 min" (spec 8.1), within the tray lookahead setting
-    private void RefreshTooltip()
+    // "Standup in 12 min" (spec 8.1), within the tray lookahead setting. The read runs on the thread pool: the flyout's
+    // mouse hook runs on this thread, and a synthetic 2,000-event profile measured medians of 31.5 ms (tooltip) and
+    // 54.8 ms (agenda) per tray read here.
+    private async void RefreshTooltip()
     {
-        if (_services is not { } services || _tray is null)
-        {
-            return;
-        }
-
+        // async void: anything that escapes here would end the process (runs from the minute clock and syncs)
         try
         {
-            using var conn = services.Database.Open();
-            _tray.SetTooltip(TrayAgenda.Tooltip(LoadNext(conn, SettingsStore.Load(conn), services.Time.GetUtcNow())));
+            if (_services is not { } services || _tray is null)
+            {
+                return;
+            }
+
+            var generation = ++_tooltipGeneration;
+            var zone = _zone.Zone;
+            var tooltip = await Task.Run(() => LoadTooltip(services, zone));
+
+            // An Older Refresh Finishing Late Never Replaces A Newer One (and Quit may have taken the icon meanwhile)
+            if (generation == _tooltipGeneration && tooltip is not null && _tray is { } tray)
+            {
+                tray.SetTooltip(tooltip);
+            }
         }
         catch (Exception ex)
         {
-            // Runs from the minute clock and syncs, so nothing may escape; the type only, never content
+            _log?.Info("tray.tooltip.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // The tooltip's text, or null when the database can't be read (runs on the thread pool; the zone comes from the UI thread)
+    private static string? LoadTooltip(LeafServices services, TimeZoneInfo localZone)
+    {
+        try
+        {
+            using var conn = services.Database.Open();
+            return TrayAgenda.Tooltip(LoadNext(conn, SettingsStore.Load(conn), services.Time.GetUtcNow(), localZone));
+        }
+        catch (Exception ex)
+        {
+            // The type only, never content
             services.Log.Info("tray.tooltip.failed", $"error={ex.GetType().Name}");
+            return null;
         }
     }
 
     // The flyout header's and tooltip's next event: timed events within the lookahead (its own two days, so a one-day agenda still sees past midnight)
-    private NextUp? LoadNext(SqliteConnection conn, LeafSettings settings, DateTimeOffset now) =>
-        TrayAgenda.Next(TrayAgenda.Load(conn, now, DisplayZone.Resolve(null, settings.PrimaryTimeZone, _zone.Zone), TrayAgenda.NextDays, includeAllDay: false, settings.Use24HourTime), now, TimeSpan.FromMinutes(settings.TrayLookaheadMinutes));
+    private static NextUp? LoadNext(SqliteConnection conn, LeafSettings settings, DateTimeOffset now, TimeZoneInfo localZone) =>
+        TrayAgenda.Next(TrayAgenda.Load(conn, now, DisplayZone.Resolve(null, settings.PrimaryTimeZone, localZone), TrayAgenda.NextDays, includeAllDay: false, settings.Use24HourTime), now, TimeSpan.FromMinutes(settings.TrayLookaheadMinutes));
 
     // The saved settings (the view model may not exist while Leaf is only in the tray)
     private LeafSettings CurrentSettings()
@@ -571,7 +609,8 @@ public partial class App : Application
         GoToTray();
     }
 
-    // 60-second polling, efficiency mode, and a trimmed working set
+    // Tray-pace polling (60 s, or 5 minutes on Energy Saver or a metered connection), efficiency mode, and a trimmed
+    // working set
     private void GoToTray()
     {
         UpdateSyncMode();
@@ -599,7 +638,9 @@ public partial class App : Application
                 return;
             }
 
-            if (BuildAgenda() is { } model)
+            // The First Build Stays On This Thread, So The Flyout Opens With Its Content (a refresh still running is now stale)
+            ++_agendaGeneration;
+            if (_services is { } services && BuildAgenda(services, _zone.Zone) is { } model)
             {
                 host.ShowAgenda(model, _tray?.IconRect(), CurrentSettings().Theme, byKeyboard);
             }
@@ -610,12 +651,23 @@ public partial class App : Application
         }
     }
 
-    // A sync or the minute clock while the flyout is open (nothing may escape either)
-    private void RefreshAgenda()
+    // A sync or the minute clock while the flyout is open (async void, so nothing may escape); the read runs on the
+    // thread pool, like the tooltip's
+    private async void RefreshAgenda()
     {
         try
         {
-            if (_host is { IsAgendaOpen: true } host && BuildAgenda() is { } model)
+            if (_host is not { IsAgendaOpen: true } host || _services is not { } services)
+            {
+                return;
+            }
+
+            var generation = ++_agendaGeneration;
+            var zone = _zone.Zone;
+            var model = await Task.Run(() => BuildAgenda(services, zone));
+
+            // An Older Refresh Finishing Late Never Replaces A Newer One, And A Closed Flyout Stays Closed
+            if (generation == _agendaGeneration && model is not null && !_quitting && host.IsAgendaOpen)
             {
                 host.UpdateAgenda(model);
             }
@@ -626,21 +678,16 @@ public partial class App : Application
         }
     }
 
-    // The agenda (days and all-day per the Tray settings) and its header
-    private AgendaModel? BuildAgenda()
+    // The agenda (days and all-day per the Tray settings) and its header; any thread (the zone comes from the UI thread)
+    private static AgendaModel? BuildAgenda(LeafServices services, TimeZoneInfo localZone)
     {
-        if (_services is not { } services)
-        {
-            return null;
-        }
-
         try
         {
             using var conn = services.Database.Open();
             var settings = SettingsStore.Load(conn);
             var now = services.Time.GetUtcNow();
-            var days = TrayAgenda.Load(conn, now, DisplayZone.Resolve(null, settings.PrimaryTimeZone, _zone.Zone), settings.FlyoutDays, settings.FlyoutAllDay, settings.Use24HourTime);
-            return new AgendaModel(days, LoadNext(conn, settings, now), TrayAgenda.NothingNext(settings.TrayLookaheadMinutes));
+            var days = TrayAgenda.Load(conn, now, DisplayZone.Resolve(null, settings.PrimaryTimeZone, localZone), settings.FlyoutDays, settings.FlyoutAllDay, settings.Use24HourTime);
+            return new AgendaModel(days, LoadNext(conn, settings, now, localZone), TrayAgenda.NothingNext(settings.TrayLookaheadMinutes));
         }
         catch (Exception ex)
         {
@@ -709,8 +756,8 @@ public partial class App : Application
         }
     }
 
-    // 15 s while a window or the flyout is on screen, 60 s in the tray or minimized (spec 5.3); opening the flyout syncs
-    // at once
+    // 15 s while a window or the flyout is on screen, 60 s in the tray or minimized, 5 minutes there on Energy Saver or a
+    // metered connection (spec 5.3); opening the flyout syncs at once
     private void UpdateSyncMode(bool flyoutOpened = false)
     {
         // Runs from the flyout's open and close events, so nothing may escape
@@ -719,7 +766,7 @@ public partial class App : Application
             var visible = _window is { IsMinimized: false } || _host?.IsAgendaOpen == true;
             if (_services?.Google is { } google)
             {
-                google.Loop.Mode = visible ? SyncMode.Visible : SyncMode.Tray;
+                google.Loop.Mode = SyncLoop.ModeFor(visible, IsEnergySaverOn(), _metered);
                 if (flyoutOpened)
                 {
                     google.Loop.TriggerNow();
@@ -731,6 +778,44 @@ public partial class App : Application
         catch (Exception ex)
         {
             _log?.Info("tray.syncmode.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // Windows' Energy Saver (Windows 11's battery saver); a failed read counts as off
+    private static bool IsEnergySaverOn()
+    {
+        try
+        {
+            return Windows.System.Power.PowerManager.EnergySaverStatus == Windows.System.Power.EnergySaverStatus.On;
+        }
+#pragma warning disable CA1031 // Any WinRT failure means "not on", so the pace still updates
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return false;
+        }
+    }
+
+    // The Connection Changed (off the UI thread): its cost is read here, then the pace updates on the UI thread
+    private void OnNetworkChanged()
+    {
+        _metered = IsMetered();
+        _dispatcher?.TryEnqueue(() => UpdateSyncMode());
+    }
+
+    // A metered internet connection (fixed or variable cost); no connection, or a failed read, counts as unmetered
+    private static bool IsMetered()
+    {
+        try
+        {
+            return Windows.Networking.Connectivity.NetworkInformation.GetInternetConnectionProfile()?.GetConnectionCost().NetworkCostType
+                is Windows.Networking.Connectivity.NetworkCostType.Fixed or Windows.Networking.Connectivity.NetworkCostType.Variable;
+        }
+#pragma warning disable CA1031 // Any WinRT failure means "not metered", so the pace still updates
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return false;
         }
     }
 

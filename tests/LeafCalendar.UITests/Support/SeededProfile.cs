@@ -23,7 +23,7 @@ public static class SeededProfile
         var profile = LeafApp.NewProfile();
 
         // Secrets
-        var store = new CredentialLockerTokenStore(profile);
+        var store = new ProtectedFileTokenStore(LeafApp.ProfileFolder(profile));
         store.SetClientCredentials(new OAuthClientCredentials("123-uitest.apps.googleusercontent.com", "GOCSPX-uitest"));
         store.SetRefreshToken(AccountId, "1//test-refresh-token");
 

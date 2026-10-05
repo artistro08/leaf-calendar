@@ -156,6 +156,7 @@ public sealed class OutboxSenderTests : IDisposable
         await Send();
         Assert.Equal(1, Assert.Single(Pending()).Attempts);
 
+        _h.Time.Advance(OutboxStore.Backoff(1));
         await Send();
 
         Assert.Equal(2, _h.Google.Requests.Count(r => r.Method == HttpMethod.Post && r.Uri.AbsoluteUri.StartsWith(SyncHarness.PrimaryEventsUrl + "?", StringComparison.Ordinal)));
@@ -179,6 +180,7 @@ public sealed class OutboxSenderTests : IDisposable
         _h.Google.On(r => r.Method == HttpMethod.Patch && r.Uri.AbsoluteUri.StartsWith(SingleUrl + "?", StringComparison.Ordinal), _ => FakeHttpHandler.Json(HttpStatusCode.OK, MineOnGoogle));
 
         await Send();
+        _h.Time.Advance(OutboxStore.Backoff(1));
         await Send();
 
         var ids = _h.Google.Requests.Where(r => r.Method == HttpMethod.Patch).Select(r => (string?)JsonNode.Parse(r.Body!)!["conferenceData"]!["createRequest"]!["requestId"]).ToList();
@@ -661,6 +663,78 @@ public sealed class OutboxSenderTests : IDisposable
         var stuck = Assert.Single(Pending());
         Assert.Equal("evt-single", stuck.EventId);
         Assert.Equal("status 503", stuck.LastError);
+    }
+
+    [Fact]
+    public async Task Send_GoogleFailsWithA503_WaitsOutTheBackoffBeforeTryingAgain()
+    {
+        // Google answers 503 to the patch; the entry stays, and isn't tried again until 30 s later
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"A"}""");
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.ServiceUnavailable, """{"error":{"code":503,"errors":[{"reason":"backendError"}]}}""");
+
+        await Send();
+        await Send();
+        Assert.Single(_h.Google.Requests, r => r.Method == HttpMethod.Patch);
+
+        _h.Time.Advance(TimeSpan.FromSeconds(31));
+        await Send();
+        Assert.Equal(2, _h.Google.Requests.Count(r => r.Method == HttpMethod.Patch));
+    }
+
+    [Fact]
+    public async Task Send_BackoffBeyondTheLongestOne_TheClockWentBack_SendsNow()
+    {
+        // The failed try was stamped two hours ahead of today's clock (the PC's clock was set back since), which no backoff reaches
+        var seq = Queue("evt-single", OutboxOperation.Patch, """{"summary":"A"}""");
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","etag":"\"E1\"","status":"confirmed","summary":"A","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""");
+        using (var conn = _h.Db.Database.Open())
+        {
+            OutboxStore.RecordAttempt(conn, seq, "network", _h.Time.GetUtcNow().AddHours(2));
+        }
+
+        await Send();
+
+        Assert.Empty(Pending());
+    }
+
+    [Fact]
+    public async Task Send_503Backoff_OtherEventsStillGoOnTheNextPass()
+    {
+        // A 5xx is Google failing on this one entry: while it backs off, an edit of another event made since goes
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"A"}""");
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.ServiceUnavailable, """{"error":{"code":503,"errors":[{"reason":"backendError"}]}}""");
+        _h.Google.On(HttpMethod.Patch, SyncHarness.PrimaryEventsUrl + "/evt-allday", HttpStatusCode.OK, """{"id":"evt-allday","etag":"\"E5\"","status":"confirmed","start":{"date":"2026-10-12"},"end":{"date":"2026-10-13"}}""");
+
+        await Send();
+        Queue("evt-allday", OutboxOperation.Patch, """{"summary":"Holiday"}""", "\"3181161784712001\"");
+        await Send();
+
+        Assert.Equal("\"E5\"", Get("evt-allday")!.Etag);
+        Assert.Equal("evt-single", Assert.Single(Pending()).EventId);
+    }
+
+    [Fact]
+    public async Task Send_NetworkFailure_LaterEventsWaitOutItsBackoffSoTheOrderHolds()
+    {
+        // The first edit can't reach Google; while it backs off, the second event's edit must not go ahead of it
+        var offline = true;
+        Queue("evt-single", OutboxOperation.Patch, """{"summary":"A"}""");
+        Queue("evt-allday", OutboxOperation.Patch, """{"summary":"Holiday"}""", "\"3181161784712001\"");
+        _h.Google.On(_ => offline, _ => throw new HttpRequestException("No network."));
+        _h.Google.On(HttpMethod.Patch, SingleUrl, HttpStatusCode.OK, """{"id":"evt-single","etag":"\"E1\"","status":"confirmed","summary":"A","start":{"dateTime":"2026-10-01T13:00:00Z"},"end":{"dateTime":"2026-10-01T14:00:00Z"}}""");
+        _h.Google.On(HttpMethod.Patch, SyncHarness.PrimaryEventsUrl + "/evt-allday", HttpStatusCode.OK, """{"id":"evt-allday","etag":"\"E5\"","status":"confirmed","start":{"date":"2026-10-12"},"end":{"date":"2026-10-13"}}""");
+
+        await Send();
+        offline = false;
+        await Send();
+        Assert.Equal(2, Pending().Count);
+        Assert.DoesNotContain(_h.Google.Requests, r => r.Method == HttpMethod.Patch && r.Uri.AbsoluteUri.Contains("/evt-allday", StringComparison.Ordinal));
+
+        _h.Time.Advance(OutboxStore.Backoff(1));
+        await Send();
+        Assert.Empty(Pending());
+        var sent = _h.Google.Requests.Where(r => r.Method == HttpMethod.Patch).Skip(1).Select(r => r.Uri.AbsolutePath.Split('/')[^1]);
+        Assert.Equal(["evt-single", "evt-allday"], sent);
     }
 
     [Theory]

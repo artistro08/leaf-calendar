@@ -153,7 +153,7 @@ Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manag
 
 Built in Milestone 3 (owner redesign) as its own onboarding window, shown instead of the main window until there's an OAuth client and an account:
 - A small fixed-size window (520 × 640 DIP), centered on the monitor under the cursor, Mica, custom title bar, only the Close button.
-- Steps: Welcome, OAuth client (guide with the fixed Google Cloud Console link, client ID and secret saved to Credential Locker), Sign in with Google, Syncing (calendars and events found so far), Done ("Open Leaf Calendar" closes onboarding and opens the main window).
+- Steps: Welcome, OAuth client (guide with the fixed Google Cloud Console link, client ID and secret saved encrypted in the profile folder, spec 4.3), Sign in with Google, Syncing (calendars and events found so far), Done ("Open Leaf Calendar" closes onboarding and opens the main window).
 - Steps slide in from the right going forward and from the left going back. A stock `PipsPager`, restyled so each pip is a short line, shows the step at the bottom.
 - Closing before the end asks "Leave setup?" first. Leaving without an account exits Leaf.
 - Changing the OAuth client later happens in Settings › Accounts.
@@ -174,9 +174,11 @@ Built in Milestone 3 (owner redesign) as its own onboarding window, shown instea
 
 ### 4.3 Secret Storage
 
-- Client ID, client secret, and each account's refresh token are stored in the **Windows Credential Locker** (`PasswordVault`), scoped to the current Windows user. Leaf is a full-trust app, so the vault is user-wide, not per-package.
+- Client ID, client secret, and each account's refresh token are stored in `secrets.bin` in the profile folder (`LocalState\profiles\{profile}`), encrypted with **Windows DPAPI** for the current Windows user (`CryptProtectData`, with `LeafCalendar/{profile}` as extra entropy, the profile name lowercased since profiles are case-insensitive, so a copy in another profile folder doesn't open). The profile folder belongs to the package, so uninstalling Leaf deletes the secrets.
+- Writes go to a temp file that replaces `secrets.bin` in one move, so a crash never leaves half a file. A file DPAPI reports as bad data (damaged, or made for another user or profile) reads as empty (the user signs in again), and the next write moves it aside to `secrets.bin.unreadable` before replacing it. Any other failure to read it (DPAPI failing for a passing reason, such as a key not yet available after a password change, or a locked file) is reported as "try later", never as signed out, and nothing overwrites the file. Sync retries on its own schedule; at startup Leaf opens as usual without Google services (as before setup, but never showing setup to a signed-in user) and tries the secrets again every 30 seconds; sign-in and calendar changes show their usual "try again" messages.
+- Earlier builds kept secrets in the user-wide **Windows Credential Locker** (`PasswordVault`), which uninstalling doesn't clear. While `secrets.bin` doesn't exist, each start copies the Locker's secrets into it in one write, then deletes them from the Locker. If that write fails, the Locker stays untouched, that run uses it (nobody looks signed out), and the next start tries again. If the Locker can't be read, there's nothing to lose, so the file store is used. Once `secrets.bin` exists it's the store; deleting Locker leftovers is best effort and retried each start. If `secrets.bin` is bad data and leftovers exist, they rebuild it in one write first; if it can't be read right now, the leftovers are kept. The move itself never stops Leaf from starting.
 - Access tokens live in memory only.
-- Disconnecting an account calls Google's revoke endpoint, removes its Credential Locker entry, and deletes its local data. If it has pending outbox changes, Leaf warns first.
+- Disconnecting an account calls Google's revoke endpoint, removes its refresh token, and deletes its local data. If it has pending outbox changes, Leaf warns first.
 
 ### 4.4 Local Data
 
@@ -205,7 +207,8 @@ Anyone can send an invite, so event content is treated as hostile.
 
 | Threat | Defense |
 |---|---|
-| Stolen refresh token from disk | Stored in Credential Locker, encrypted to the Windows user. Never in SQLite, logs, or settings files. |
+| Stolen refresh token from disk | Stored in the profile folder, encrypted with DPAPI to the Windows user. Never in SQLite, logs, or settings files. |
+| Secrets left behind after uninstall | Stored in the package's `LocalState`, which Windows deletes on uninstall. Older Credential Locker entries are moved out on the first start after the update. |
 | Intercepted OAuth redirect | PKCE, `state` check, loopback bound to `127.0.0.1`, one request, 5-minute timeout. |
 | A web page opens `leaf-calendar:` links | The link only brings Leaf to the front; its address is never read or logged. |
 | Malicious invite link launches a local program | Scheme allowlist for launching. |
@@ -213,7 +216,7 @@ Anyone can send an invite, so event content is treated as hostile.
 | Look-alike meeting link host | Host matching through parsed `Uri`, exact or suffix match on registered domains. |
 | Sensitive data in logs | Redaction rules plus a test that scans logs produced by a full test run. |
 | Vulnerable dependency | Vulnerable package check on every build. |
-| Other local users reading data | Package `LocalFolder` and Credential Locker are per user. |
+| Other local users reading data | Package `LocalFolder` is per user, and DPAPI ties the secrets to the Windows user. |
 | Test-mode switch pointed at a hostile server | `--fake-google` accepts only an absolute `http` loopback address, and only with a throwaway `uitest-` profile. Real profiles never run in fake mode, so their client secret and refresh token are never sent to the fake server. |
 
 ---
@@ -242,6 +245,7 @@ Anyone can send an invite, so event content is treated as hostile.
 - Cadence:
   - Every 15 seconds while the main window or flyout is visible.
   - Every 60 seconds while in the tray.
+  - Every 5 minutes while in the tray when Windows is on Energy Saver or the internet connection is metered. Leaving Energy Saver or the metered connection (or opening a window or the flyout) syncs at once instead of waiting out the 5 minutes. Reminders keep their own timing, since they read only the local database.
   - Immediately on window/flyout open, resume from sleep, network reconnect, and one minute before each reminder fires.
 - `410 Gone` (token expired): full resync of that calendar. The outbox is untouched.
 - The calendar list, colors, and settings sync on startup and every 15 minutes.
@@ -255,7 +259,7 @@ Anyone can send an invite, so event content is treated as hostile.
 4. Patches and deletes send `If-Match: <base etag>`. A `412 Precondition Failed` becomes a conflict.
 5. New events use a client-generated ID (base32hex, per Google's rules), so retrying a create after a dropped connection can't produce duplicates.
 6. Google Meet links requested offline are sent as `conferenceData.createRequest` when online. The link appears after Google creates it.
-7. Rate limits (`429`, `403 rateLimitExceeded`) and `5xx` retry with exponential backoff and jitter.
+7. Rate limits (`429`, `403 rateLimitExceeded`) and `5xx` retry with exponential backoff and jitter. Writes are never retried inside one request: a failed write (a `5xx`, a rate limit, the network) stays in the outbox and waits 30 s, doubling to at most 15 minutes, before its next try. Sync now, a reconnect, or a resume tries it at once.
 
 ### 5.5 Conflicts
 

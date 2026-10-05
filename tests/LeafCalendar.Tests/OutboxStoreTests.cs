@@ -60,12 +60,48 @@ public sealed class OutboxStoreTests : IDisposable
         using var conn = _db.Database.Open();
         var seq = OutboxStore.Add(conn, null, Entry("a"));
 
-        OutboxStore.RecordAttempt(conn, seq, "network");
-        OutboxStore.RecordAttempt(conn, seq, "status 503");
+        OutboxStore.RecordAttempt(conn, seq, "network", DateTimeOffset.UnixEpoch);
+        OutboxStore.RecordAttempt(conn, seq, "status 503", DateTimeOffset.UnixEpoch);
 
         var entry = OutboxStore.Get(conn, null, seq)!;
         Assert.Equal(2, entry.Attempts);
         Assert.Equal("status 503", entry.LastError);
+    }
+
+    [Theory]
+    [InlineData(1, 30)]
+    [InlineData(2, 60)]
+    [InlineData(3, 120)]
+    [InlineData(6, 900)]
+    [InlineData(40, 900)]
+    public void Backoff_DoublesFromThirtySecondsUpToFifteenMinutes(int attempts, int seconds) =>
+        Assert.Equal(TimeSpan.FromSeconds(seconds), OutboxStore.Backoff(attempts));
+
+    [Fact]
+    public void RecordAttempt_SetsRetryAfterFromTheAttemptCount()
+    {
+        using var conn = _db.Database.Open();
+        var seq = OutboxStore.Add(conn, null, Entry("a"));
+        var now = new DateTimeOffset(2026, 10, 4, 12, 0, 0, TimeSpan.Zero);
+
+        OutboxStore.RecordAttempt(conn, seq, "status 503", now);
+        OutboxStore.RecordAttempt(conn, seq, "status 503", now);
+
+        var entry = OutboxStore.Get(conn, null, seq)!;
+        Assert.Equal(2, entry.Attempts);
+        Assert.Equal(now.AddSeconds(60), entry.RetryAfter);
+    }
+
+    [Fact]
+    public void ClearBackoff_LetsEveryEntryGoNow()
+    {
+        using var conn = _db.Database.Open();
+        var seq = OutboxStore.Add(conn, null, Entry("a"));
+        OutboxStore.RecordAttempt(conn, seq, "network", DateTimeOffset.UtcNow);
+
+        OutboxStore.ClearBackoff(conn);
+
+        Assert.Null(OutboxStore.Get(conn, null, seq)!.RetryAfter);
     }
 
     [Fact]
