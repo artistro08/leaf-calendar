@@ -46,8 +46,8 @@ public sealed partial class CalendarsPage : Page
     /// <summary>x:Bind helper: the show/hide switch's accessible name ("Show Family").</summary>
     public static string ShowName(string calendar) => $"Show {calendar}";
 
-    /// <summary>x:Bind helper: an account header's chevron, pointing like an Expander's (down while folded, up while open).</summary>
-    public static string ExpanderChevron(bool expanded) => expanded ? "" : "";
+    /// <summary>x:Bind helper: automation ID of an account's expander.</summary>
+    public static string ExpanderId(string accountId) => $"CalendarsExpander_{accountId}";
 
     /// <summary>x:Bind helper: the color button's accessible name.</summary>
     public static string ColorName(string calendar) => $"Color for {calendar}";
@@ -86,12 +86,17 @@ public sealed partial class CalendarsPage : Page
 
     private void OnCalendarsChanged(object? sender, EventArgs e) => Rebuild();
 
-    // An account header folds its calendars away or shows them again (the sidebar follows)
-    private void OnAccountHeaderClick(object sender, RoutedEventArgs e)
+    // An account's expander folds its calendars away or shows them again (the sidebar follows); a change that came from
+    // the calendar (the expander following the bound value) is already there and does nothing
+    private void OnAccountExpanding(Expander sender, ExpanderExpandingEventArgs args) => SetExpanded(sender, true);
+
+    private void OnAccountCollapsed(Expander sender, ExpanderCollapsedEventArgs args) => SetExpanded(sender, false);
+
+    private void SetExpanded(Expander expander, bool expanded)
     {
-        if (sender is Button { Tag: AccountGroup group })
+        if (expander.Tag is AccountGroup group && group.IsExpanded != expanded)
         {
-            _context.Calendar.SetAccountExpanded(group.AccountId, !group.IsExpanded);
+            _context.Calendar.SetAccountExpanded(group.AccountId, expanded);
         }
     }
 
@@ -281,6 +286,7 @@ public sealed partial class CalendarsPage : Page
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
         };
+        CtrlEnter.Submits(dialog);
 
         // Focus Starts On The First Reminder (or Add reminder with none), Without The Ring Windows Gave Add reminder
         dialog.Opened += (_, _) => ((Control?)boxes.FirstOrDefault() ?? add).Focus(FocusState.Programmatic);

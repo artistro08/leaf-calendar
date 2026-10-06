@@ -4,7 +4,7 @@
 # update, so settings, the OAuth client, and sign-ins carry over.
 # Run from an elevated PowerShell the first time (trusting the certificate writes to LocalMachine\TrustedPeople);
 # later runs reuse the trusted certificate and don't need elevation.
-param([string]$Publisher = 'CN=Artistro08')
+param([string]$Publisher = 'CN=BF59F607-536B-4252-888F-7B3ED9D56F96')
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -69,7 +69,7 @@ if (-not $msix) { throw 'No .msix produced under AppPackages.' }
 
 # Install As An Update (keeps Leaf's settings, OAuth client, and cache). A dev registration can't be updated by a
 # package, so it's removed first with its app data kept (only a development registration can keep it that way)
-$existing = Get-AppxPackage LeafCalendar
+$existing = Get-AppxPackage LeafCalendar | Where-Object Publisher -eq $Publisher
 if ($existing -and $existing.IsDevelopmentMode) {
     Remove-AppxPackage $existing.PackageFullName -PreserveApplicationData
 }

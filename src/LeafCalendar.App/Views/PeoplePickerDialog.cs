@@ -27,6 +27,7 @@ public static class PeoplePickerDialog
         var box = new AutoSuggestBox { PlaceholderText = "Name or email", UpdateTextOnSelect = false, MinWidth = 320 };
         AutomationProperties.SetAutomationId(box, "PeoplePickerBox");
         AutomationProperties.SetName(box, "Name or email");
+        Controls.FirstSuggestion.Highlight(box);
 
         // Hint (caption, secondary color that follows the theme), Then The Picked People (collapsed while empty, so no
         // blank strip sits under the hint)
@@ -59,7 +60,7 @@ public static class PeoplePickerDialog
         timer.IsRepeating = false;
         timer.Tick += (_, _) => vm.Fire(SuggestAsync, "people.suggest.failed");
 
-        // The suggestion Up/Down or a click last picked; typing drops it
+        // The suggestion highlighted (the first one as they list, or where Up/Down moved to) or clicked; typing drops it
         object? chosen = null;
         box.TextChanged += (_, args) =>
         {
@@ -83,10 +84,11 @@ public static class PeoplePickerDialog
             }
         };
 
-        // Enter: the ContentDialog takes Enter before the box can raise QuerySubmitted, so the box handles it first
+        // Enter: the ContentDialog takes Enter before the box can raise QuerySubmitted, so the box handles it first.
+        // Ctrl+Enter adds what Enter would, then shows the busy times (the button turns on with the first person)
         box.AddHandler(UIElement.PreviewKeyDownEvent, new Microsoft.UI.Xaml.Input.KeyEventHandler((_, args) =>
         {
-            if (args.Key != Windows.System.VirtualKey.Enter)
+            if (args.Key != Windows.System.VirtualKey.Enter || Controls.KeyState.IsDown(Windows.System.VirtualKey.Control))
             {
                 return;
             }
@@ -96,6 +98,8 @@ public static class PeoplePickerDialog
             var pick = chosen;
             box.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => Submit(pick));
         }), handledEventsToo: true);
+
+        Controls.CtrlEnter.Submits(dialog, () => Submit(chosen));
 
         var result = await dialog.ShowAsync();
         timer.Stop();

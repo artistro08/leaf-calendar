@@ -126,6 +126,10 @@ public sealed class ScreenshotTour : IDisposable
                     {
                         leaf.ExpandInSettings($"AccountExpander_{SeededProfile.AccountId}");
                     }
+                    else if (page == "Notifications")
+                    {
+                        leaf.ExpandInSettings("JoinNowExpander");
+                    }
 
                     settings.SetForeground();
                     Thread.Sleep(400);

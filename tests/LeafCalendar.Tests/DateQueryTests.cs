@@ -78,6 +78,28 @@ public sealed class DateQueryTests
     [InlineData("3 days ago from now")]
     public void TryParse_Rejects(string text) => Assert.False(DateQuery.TryParse(text, Today, out _));
 
+    [Theory]
+    [InlineData("18", 2026, 10, 20, 2026, 11, 18)]   // passed this month: next month
+    [InlineData("18th", 2026, 10, 15, 2026, 10, 18)] // still ahead this month
+    [InlineData("15", 2026, 10, 15, 2026, 10, 15)]   // today
+    [InlineData("20", 2026, 11, 21, 2026, 12, 20)]
+    [InlineData("20th", 2026, 12, 21, 2027, 1, 20)]  // into next year
+    [InlineData("31", 2026, 9, 5, 2026, 10, 31)]     // September has no 31st
+    [InlineData("31st", 2026, 1, 31, 2026, 1, 31)]
+    [InlineData("30", 2027, 1, 31, 2027, 3, 30)]     // February has no 30th
+    public void TryParse_DayAlone_IsTheNextSuchDay(string text, int ty, int tm, int td, int y, int m, int d)
+    {
+        Assert.True(DateQuery.TryParse(text, new DateOnly(ty, tm, td), out var date));
+        Assert.Equal(new DateOnly(y, m, d), date);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("32")]
+    [InlineData("00")]
+    [InlineData("123")]
+    public void TryParse_DayAlone_RejectsImpossibleDays(string text) => Assert.False(DateQuery.TryParse(text, Today, out _));
+
     [Fact]
     public void TryParse_Feb29_IsTheNextLeapDayOrRefused()
     {

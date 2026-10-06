@@ -2379,11 +2379,11 @@ public sealed partial class AccountGroup(string accountId, string email, IEnumer
 
     /// <summary>The calendars show under the header (false: folded away).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Chevron), nameof(FoldTip))]
+    [NotifyPropertyChangedFor(nameof(ChevronAngle), nameof(FoldTip))]
     public partial bool IsExpanded { get; set; } = isExpanded;
 
-    /// <summary>The header's chevron: down while open, right while folded.</summary>
-    public string Chevron => IsExpanded ? "\uE70D" : "\uE76C";
+    /// <summary>The header's right-pointing chevron's turn: a quarter (pointing down) while open, none while folded.</summary>
+    public float ChevronAngle => IsExpanded ? 90 : 0;
 
     /// <summary>The header's tooltip.</summary>
     public string FoldTip => IsExpanded ? "Collapse" : "Expand";

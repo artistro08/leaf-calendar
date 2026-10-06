@@ -21,7 +21,8 @@ public static partial class DateQuery
     /// year; a weekday, full or 3-letter (the soonest one on or after today; "next" adds a week); ISO
     /// <c>yyyy-MM-dd</c>; <c>M/d</c> and <c>M/d/yyyy</c>; and month names before or after the day ("nov 5th",
     /// "5 nov", "Nov 5th, 2027"), with an optional year. A month and day without a year mean this year, unless that's
-    /// more than 2 months ago, which means next year. Impossible dates ("feb 30") are refused.
+    /// more than 2 months ago, which means next year. A day alone ("18", "18th") is that day this month when it's today
+    /// or still ahead, otherwise the next month that has it. Impossible dates ("feb 30") are refused.
     /// </remarks>
     public static bool TryParse(string? text, DateOnly today, out DateOnly date)
     {
@@ -97,6 +98,28 @@ public static partial class DateQuery
         {
             date = today.AddDays(((int)day - (int)today.DayOfWeek + 7) % 7 + (next ? 7 : afterNext ? 14 : 0));
             return true;
+        }
+
+        // A Day Alone ("18", "18th"): The Next Such Day On Or After Today, Skipping Months Without It
+        if (DayAlone().IsMatch(input))
+        {
+            var number = int.Parse(input, NumberStyles.None, CultureInfo.InvariantCulture);
+            if (number is < 1 or > 31)
+            {
+                return false;
+            }
+
+            var month = new DateOnly(today.Year, today.Month, 1);
+            for (var tries = 0; tries < 12 && month.Year < DateOnly.MaxValue.Year; tries++, month = month.AddMonths(1))
+            {
+                if (number <= DateTime.DaysInMonth(month.Year, month.Month) && month.AddDays(number - 1) is var candidate && candidate >= today)
+                {
+                    date = candidate;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         // "Week After Next", "Month After Next"
@@ -182,6 +205,9 @@ public static partial class DateQuery
     // ASCII digits only (\d also matches other scripts' digits)
     [GeneratedRegex(@"^(?:in )?(a|an|[0-9]{1,4}) (days?|weeks?|months?|years?)(?: (?:from (?:now|today)|ahead)|( ago))?$")]
     private static partial Regex Count();
+
+    [GeneratedRegex(@"^[0-9]{1,2}$")]
+    private static partial Regex DayAlone();
 
     [GeneratedRegex(@"^(next|last) (week|month|year)$")]
     private static partial Regex NextLast();

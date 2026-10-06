@@ -963,7 +963,8 @@ public sealed partial class TimeGridView : Grid, IDisposable
         public Point Origin { get; } = origin;
         public CalendarOccurrence? Occurrence { get; init; }
 
-        // A Read-Only Event's Card Or Chip Transform: pulled a little while dragged, sprung back on release
+        // A Read-Only Event's Card Or Chip And Its Transform: pulled a little while dragged, sprung back on release
+        public UIElement? Card { get; init; }
         public TranslateTransform? Pull { get; init; }
         public DateTimeOffset GrabbedAt { get; init; }
         public DateOnly GrabbedDay { get; init; }
@@ -990,10 +991,10 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     /// <summary>
     /// A timed event was pressed: dragging moves it, or resizes it from the bottom edge. An event you can't change gives
-    /// a little (<paramref name="pull"/>, its card's transform) and springs back, with a notice saying why, unless Alt is
-    /// down: then the drag makes a copy.
+    /// a little (<paramref name="card"/>, moved by its transform <paramref name="pull"/>) and springs back, with a notice
+    /// saying why, unless Alt is down: then the drag makes a copy.
     /// </summary>
-    public void BeginEventDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e, bool resize, TranslateTransform pull)
+    public void BeginEventDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e, bool resize, UIElement card, TranslateTransform pull)
     {
         // Picking Times To Share: a drag that starts on an event picks times too (busy ones are left out when copying)
         if (_vm.IsSharing)
@@ -1006,7 +1007,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         var copyOnly = !_vm.CanEdit(occurrence);
         if (copyOnly && !KeyState.IsDown(Windows.System.VirtualKey.Menu))
         {
-            _drag = new DragSession(DragKind.Nudge, e.GetCurrentPoint(this).Position) { Occurrence = occurrence, Pull = pull };
+            _drag = new DragSession(DragKind.Nudge, e.GetCurrentPoint(this).Position) { Occurrence = occurrence, Card = card, Pull = pull };
             return;
         }
 
@@ -1053,15 +1054,15 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     /// <summary>
     /// An all-day chip was pressed: dragging moves it across days, or into the grid to become timed. An event you can't
-    /// change gives a little (<paramref name="pull"/>, the chip's transform) and springs back, with a notice saying why,
-    /// unless Alt is down: then the drag makes a copy.
+    /// change gives a little (<paramref name="chip"/>, moved by its transform <paramref name="pull"/>) and springs back,
+    /// with a notice saying why, unless Alt is down: then the drag makes a copy.
     /// </summary>
-    public void BeginAllDayDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e, TranslateTransform pull)
+    public void BeginAllDayDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e, UIElement chip, TranslateTransform pull)
     {
         var copyOnly = !_vm.CanEdit(occurrence);
         if (copyOnly && !KeyState.IsDown(Windows.System.VirtualKey.Menu))
         {
-            _drag = new DragSession(DragKind.Nudge, e.GetCurrentPoint(this).Position) { Occurrence = occurrence, Pull = pull };
+            _drag = new DragSession(DragKind.Nudge, e.GetCurrentPoint(this).Position) { Occurrence = occurrence, Card = chip, Pull = pull };
             return;
         }
 
@@ -1105,9 +1106,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return false;
         }
 
-        if (_drag is { Kind: DragKind.Nudge, Started: true, Pull: { } pulled })
+        if (_drag is { Kind: DragKind.Nudge, Started: true, Card: { } card, Pull: { } pulled })
         {
-            ElasticNudge.SnapBack(pulled);
+            ElasticNudge.SnapBack(card, pulled);
         }
 
         _drag = null;
@@ -1152,7 +1153,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         // A Read-Only Event Gives A Little With The Pointer
         if (drag.Kind == DragKind.Nudge)
         {
-            ElasticNudge.Pull(drag.Pull!, at.X - drag.Origin.X, at.Y - drag.Origin.Y);
+            ElasticNudge.Pull(drag.Card!, drag.Pull!, at.X - drag.Origin.X, at.Y - drag.Origin.Y);
             e.Handled = true;
             return;
         }
@@ -1218,7 +1219,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
             if (drag.Started)
             {
                 e.Handled = true;
-                ElasticNudge.SnapBack(drag.Pull!);
+                ElasticNudge.SnapBack(drag.Card!, drag.Pull!);
                 _vm.ExplainReadOnly(drag.Occurrence!);
             }
 

@@ -107,8 +107,9 @@ public sealed class KeyboardTests : IDisposable
         Assert.False(Retry.WhileFalse(() => leaf.Exists("MonthGrid"), TimeSpan.FromSeconds(2)).Success);
     }
 
+    // The View menu shows each view's key, so the key works while it's open: it picks the view and closes the menu
     [Fact]
-    public void TypingM_WithFocusInFlyout_DoesNotSwitchView()
+    public void TypingM_InTheOpenViewMenu_SwitchesToMonthAndCloses()
     {
         using var leaf = Launch();
 
@@ -116,6 +117,7 @@ public sealed class KeyboardTests : IDisposable
         leaf.WaitForAnywhere("ViewDay").Focus();
         FlaUI.Core.Input.Keyboard.Type("m");
 
-        Assert.False(Retry.WhileFalse(() => leaf.Exists("MonthGrid"), TimeSpan.FromSeconds(2)).Success);
+        Assert.True(Retry.WhileFalse(() => leaf.Exists("MonthGrid"), TimeSpan.FromSeconds(5)).Success, "M in the View menu didn't switch to Month.");
+        Assert.True(Retry.WhileTrue(() => leaf.ExistsAnywhere("ViewDay"), TimeSpan.FromSeconds(5)).Success, "The View menu stayed open.");
     }
 }

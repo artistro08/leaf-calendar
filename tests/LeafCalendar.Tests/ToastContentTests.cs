@@ -125,6 +125,42 @@ public class ToastContentTests
     }
 
     [Fact]
+    public void Reminder_NotPersistent_HasNoScenario()
+    {
+        var toast = Parse(ToastContent.Reminder(Reminder(Meet), Details(), "Today", "default", sound: true, persistent: false));
+
+        Assert.Null(toast.Attribute("scenario"));
+        Assert.Contains(Actions(toast), a => (string?)a.Attribute("content") == "Join");
+    }
+
+    [Fact]
+    public void JoinNow_NotPersistent_HasNoScenario()
+    {
+        var alert = new Alert(AlertKind.JoinNow, Occurrence(), Start, 0, Meet);
+        var toast = Parse(ToastContent.JoinNow(alert, Details(), "Today", "default", sound: true, persistent: false));
+
+        Assert.Null(toast.Attribute("scenario"));
+        Assert.Equal("Join", (string?)Actions(toast)[0].Attribute("content"));
+    }
+
+    // The switch, then either box: a meeting link, or nobody but you on the event
+    [Theory]
+    [InlineData(true, true, false, true, true, true)]
+    [InlineData(true, true, false, false, true, false)]
+    [InlineData(true, false, true, false, false, true)]
+    [InlineData(true, false, true, false, true, false)]
+    [InlineData(true, false, false, true, false, false)]
+    [InlineData(true, true, true, false, false, true)]
+    [InlineData(false, true, true, true, false, false)]
+    public void StaysOnScreen_FollowsTheSwitchAndItsBoxes(bool persistent, bool forMeetings, bool whenAlone, bool hasLink, bool otherGuests, bool expected)
+    {
+        var settings = new LeafCalendar.Core.Settings.LeafSettings { JoinNowNotifications = persistent, PersistForMeetings = forMeetings, PersistWhenAlone = whenAlone };
+        var details = Details() with { HasOtherGuests = otherGuests };
+
+        Assert.Equal(expected, ToastContent.StaysOnScreen(settings, details, hasLink ? Meet : null));
+    }
+
+    [Fact]
     public void Invite_Update_HasYesNoMaybe()
     {
         var toast = Parse(ToastContent.Invite(Occurrence(), Details(), isUpdate: true, "TAG", "Today \u00B7 2 PM \u2013 3 PM", "default", sound: true));

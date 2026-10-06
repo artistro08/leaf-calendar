@@ -505,6 +505,7 @@ public sealed partial class CalendarPage
         var box = new AutoSuggestBox { PlaceholderText = "Search a city or zone (Tokyo, NYC, UTC)", Width = 360, UpdateTextOnSelect = false };
         AutomationProperties.SetName(box, "Time zone");
         AutomationProperties.SetAutomationId(box, "TimeTravelBox");
+        Controls.FirstSuggestion.Highlight(box);
 
         var dialog = new ContentDialog
         {
@@ -532,29 +533,29 @@ public sealed partial class CalendarPage
             rows = Controls.ZoneSuggestions.Rows(suggestions, ViewModel.Zone);
             sender.ItemsSource = rows;
         };
+        // The highlighted suggestion (the first one as they list, or where Up/Down moved to) is the pick, so Go takes it;
+        // the typed text stays until Enter
         box.SuggestionChosen += (_, args) =>
         {
             picked = Controls.ZoneSuggestions.Chosen(rows, suggestions, args.SelectedItem);
             dialog.IsPrimaryButtonEnabled = picked is not null;
-            if (picked is not null)
-            {
-                box.Text = picked.ToString();
-            }
         };
-        // Enter: a highlighted suggestion is picked (else the first one); Enter on a pick goes. Esc: a typed search is
-        // cleared; Esc on an empty box closes (the dialog's own Esc)
+        // Enter: the highlighted suggestion (else the first one) fills the box; Enter on a filled-in pick goes. Esc: a
+        // typed search is cleared; Esc on an empty box closes (the dialog's own Esc)
         var went = false;
         box.QuerySubmitted += (sender, args) =>
         {
-            if (args.ChosenSuggestion is not null)
-            {
-                return;
-            }
-
-            if (picked is not null)
+            if (picked is not null && sender.Text == picked.ToString())
             {
                 went = true;
                 dialog.Hide();
+            }
+            else if (args.ChosenSuggestion is not null)
+            {
+                if (picked is not null)
+                {
+                    sender.Text = picked.ToString();
+                }
             }
             else if (rows.Count > 0 && Controls.ZoneSuggestions.Chosen(rows, suggestions, rows[0]) is { } first)
             {
@@ -575,6 +576,7 @@ public sealed partial class CalendarPage
             }
         };
         dialog.Opened += (_, _) => box.Focus(FocusState.Programmatic);
+        Controls.CtrlEnter.Submits(dialog);
 
         var result = await dialog.ShowAsync();
         return went || result == ContentDialogResult.Primary ? picked?.Id : null;

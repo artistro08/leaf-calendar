@@ -37,7 +37,8 @@ public static partial class EventDetailsParser
             String(root, "transparency") == "transparent",
             Get(root, "attendees") is { ValueKind: JsonValueKind.Array } guests ? guests.GetArrayLength() : 0,
             Get(root, "organizer") is { } organizer ? String(organizer, "email") : null,
-            VisibilityOf(String(root, "visibility")));
+            VisibilityOf(String(root, "visibility")),
+            HasOtherGuests(root));
     }
 
     /// <summary>
@@ -72,6 +73,11 @@ public static partial class EventDetailsParser
         "workingLocation" => EventKind.WorkingLocation,
         _ => EventKind.Default,
     };
+
+    // Anyone on the guest list but you and the rooms
+    private static bool HasOtherGuests(JsonElement root) =>
+        Get(root, "attendees") is { ValueKind: JsonValueKind.Array } attendees
+        && attendees.EnumerateArray().Any(a => Get(a, "self") is not { ValueKind: JsonValueKind.True } && Get(a, "resource") is not { ValueKind: JsonValueKind.True });
 
     private static ResponseStatus SelfResponse(JsonElement root)
     {

@@ -10,8 +10,8 @@
     <!-- Top padding clears the title bar row (app icon, name, and sidebar toggle) this sidebar runs under.
          Everything inside starts 9 in from the 5 px left padding, so all the text, the mini month, and the
          checkboxes share one left edge 14 px in, under the title bar's sidebar toggle icon; hover fills, the
-         visible-days band, and today's circle reach out into that 9 px. The mini month mirrors that on the
-         right (5 px padding); the calendar list keeps its own right margin. Only the calendar list scrolls;
+         visible-days band, and today's circle reach out into that 9 px. The mini month and the calendar list
+         both end at the right 5 px padding. Only the calendar list scrolls;
          the mini month and the settings button stay put. The 6 px bottom padding is optical: it puts the settings
          glyph's center 22 px from the bottom (6 + 16, half its 32 px button), the same as from the left (5 + 1 + 16). -->
     <Grid Padding="5,48,5,6">
@@ -70,11 +70,12 @@
         </StackPanel>
         <!-- /Mini Month -->
 
-        <!-- Calendars (the only part that scrolls; the right margin keeps the rows clear of the scroll indicator). The list is
+        <!-- Calendars (the only part that scrolls; the rows reach the mini month's right edge, and the scroll indicator shows
+             over them on hover). The list is
              kept in step with the calendars in place, never rebuilt: only a calendar that comes or goes animates
              (it fades in or out and the rows below slide), and nothing else on the list moves. -->
         <ScrollViewer x:Name="ContentScroll" Grid.Row="1" Margin="0,4,0,0" AutomationProperties.AutomationId="SidebarScroll">
-            <controls:PinnedItemsControl x:Name="CalendarList" Margin="0,0,11,0" AutomationProperties.AutomationId="CalendarList">
+            <controls:PinnedItemsControl x:Name="CalendarList" AutomationProperties.AutomationId="CalendarList">
                 <!-- Accounts only slide when the rows above them grow or shrink: an add or delete transition here played on
                      every launch (each account group scaled in), which read as the whole list moving on its own -->
                 <controls:PinnedItemsControl.ItemContainerTransitions>
@@ -102,7 +103,18 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{x:Bind Email, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
-                                    <FontIcon Grid.Column="1" FontSize="10" Glyph="{x:Bind Chevron, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
+                                    <!-- Chevron (points right while folded and turns a quarter to point down while open, 167 ms like the
+                                         pagers; it turns around its center, half its 10 px box) -->
+                                    <FontIcon
+                                        Grid.Column="1"
+                                        Width="10"
+                                        Height="10"
+                                        FontSize="10"
+                                        Glyph="&#xE76C;"
+                                        CenterPoint="5,5,0"
+                                        Rotation="{x:Bind ChevronAngle, Mode=OneWay}"
+                                        Loaded="OnChevronLoaded"
+                                        AutomationProperties.AccessibilityView="Raw" />
                                 </Grid>
                             </Button>
                             <controls:PinnedListView

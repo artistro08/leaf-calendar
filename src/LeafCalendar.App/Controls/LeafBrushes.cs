@@ -139,8 +139,11 @@ public static class LeafBrushes
     public static EventPalette CardPalette(string accentHex, bool dark, bool past = false, bool selected = false) =>
         HighContrast ? HighContrastPalette(selected) : EventColors.Palette(accentHex, dark, past, selected);
 
-    /// <summary>A card's border: 2 when selected, 1 when outlined or in a contrast theme (where the fill matches the window), else none.</summary>
-    public static Thickness CardBorder(bool selected, bool outlined = false) => new(selected ? 2 : outlined || HighContrast ? 1 : 0);
+    /// <summary>
+    /// A card's border: 1 when outlined, none otherwise, since a selected card already shows as a full fill. In a contrast
+    /// theme (where the fill matches the window) every card has 1, and a selected one 2.
+    /// </summary>
+    public static Thickness CardBorder(bool selected, bool outlined = false) => new(HighContrast ? (selected ? 2 : 1) : outlined ? 1 : 0);
 
     // A Contrast Card: The Window Color With A Text-Colored Bar And Border, Or The Highlight Pair When Selected
     private static EventPalette HighContrastPalette(bool selected)

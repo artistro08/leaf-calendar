@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Xml.Linq;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Tray;
 using LeafCalendar.Core.Views;
 
@@ -24,8 +25,9 @@ public sealed record ToastMessage(string Tag, string Group, string Xml);
 /// an event goes into a tag or into activation arguments (those carry IDs only).
 /// </para>
 /// <para>
-/// Reminders and "Join now" use <c>scenario="reminder"</c>, like other calendar apps, so they stay on screen until
-/// acted on and show through Do Not Disturb when Windows allows reminders. Reminders carry Join (when there's a link),
+/// Reminders and "Join now" that <see cref="StaysOnScreen"/> picks use <c>scenario="reminder"</c>, like other calendar
+/// apps, so they stay on screen until acted on and show through Do Not Disturb when Windows allows reminders; the others
+/// are plain notifications that go to Notification Center after a few seconds. Reminders carry Join (when there's a link),
 /// Windows' own Snooze with a 5/10/15/30-minute choice, and Dismiss; "Join now" a background-activated Join button
 /// (Windows requires a button for that scenario) and Dismiss, and no Snooze. Invites carry Yes / No / Maybe. Clicking a
 /// notification's body opens what it's about. With sound off, the toast is silent.
@@ -71,8 +73,22 @@ public static class ToastContent
         return o.IsAllDay ? date + Dot + "All day" : date + Dot + TimeLabels.Range(o.Start, o.End, zone, use24Hour);
     }
 
-    /// <summary>A reminder: title, time, location; Join (with a link), Snooze, Dismiss.</summary>
-    public static ToastMessage Reminder(Alert alert, EventDetails details, string when, string profile, bool sound)
+    /// <summary>
+    /// True when an event's reminder or "Join now" stays on screen: the persistent notification setting is on, and the
+    /// event has a meeting link (<paramref name="meetingLink"/>) with <see cref="LeafSettings.PersistForMeetings"/>, or
+    /// nobody but you on it with <see cref="LeafSettings.PersistWhenAlone"/>.
+    /// </summary>
+    public static bool StaysOnScreen(LeafSettings settings, EventDetails details, Uri? meetingLink)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(details);
+
+        return settings.JoinNowNotifications
+            && ((settings.PersistForMeetings && meetingLink is not null) || (settings.PersistWhenAlone && !details.HasOtherGuests));
+    }
+
+    /// <summary>A reminder: title, time, location; Join (with a link), Snooze, Dismiss. On screen until acted on when <paramref name="persistent"/>.</summary>
+    public static ToastMessage Reminder(Alert alert, EventDetails details, string when, string profile, bool sound, bool persistent = true)
     {
         var o = alert.Occurrence;
         var actions = new List<XElement> { SnoozeInput() };
@@ -84,18 +100,18 @@ public static class ToastContent
         actions.Add(SystemButton("snooze", SnoozeInputId));
         actions.Add(SystemButton("dismiss"));
 
-        return Build(alert.Tag, ReminderGroup, ToastArgs.For(ToastAction.Open, profile, o), "reminder", [details.Title, when, details.Location], actions, sound);
+        return Build(alert.Tag, ReminderGroup, ToastArgs.For(ToastAction.Open, profile, o), persistent ? "reminder" : null, [details.Title, when, details.Location], actions, sound);
     }
 
-    /// <summary>The persistent "Join now": title and "Starting now &#x00B7; time"; Join and Dismiss.</summary>
-    public static ToastMessage JoinNow(Alert alert, EventDetails details, string when, string profile, bool sound)
+    /// <summary>"Join now": title and "Starting now &#x00B7; time"; Join and Dismiss. On screen until acted on when <paramref name="persistent"/>.</summary>
+    public static ToastMessage JoinNow(Alert alert, EventDetails details, string when, string profile, bool sound, bool persistent = true)
     {
         var o = alert.Occurrence;
         return Build(
             alert.Tag,
             JoinGroup,
             ToastArgs.For(ToastAction.Open, profile, o),
-            "reminder",
+            persistent ? "reminder" : null,
             [details.Title, "Starting now" + Dot + when],
             [Button("Join", ToastArgs.For(ToastAction.Join, profile, o)), SystemButton("dismiss")],
             sound);

@@ -358,6 +358,7 @@ A view inside the main window, modeled on the Windows 11 Settings app. See Secti
 - Drag on the grid, press `C`, double-click, or use the command menu. The editor opens in the right panel.
 - Dragging across several days creates a multi-day timed event. Zero-minute events are allowed.
 - `Ctrl+Enter` saves and emails guests. `Ctrl+Shift+Enter` saves without emailing.
+- In a dialog, `Ctrl+Enter` presses its main button from anywhere in it, a text box included (for example "Show" in Show busy times). Dialogs whose main button is destructive (Disconnect, Leave setup, the conflict dialog) and the shortcut recorder leave it alone.
 
 ### 7.2 Editor Fields
 
@@ -397,6 +398,7 @@ A view inside the main window, modeled on the Windows 11 Settings app. See Secti
 - `P`: overlay a teammate's calendar using `freebusy.query`. Busy blocks only, unless their calendar is shared with details.
 - `F` "Meet with": pick one or more people, see combined busy times, then drag to create an event with them as guests.
 - `E` then `F`: participant overlay for the selected event's guests.
+- The overlay bar at the bottom of the calendar shows one person as a chip with a remove button; two or more as a dropdown ("3 people") listing each with a remove button. The bar never scrolls; Clear removes everyone.
 
 ### 7.6 Share Availability
 
@@ -430,7 +432,7 @@ A view inside the main window, modeled on the Windows 11 Settings app. See Secti
 
 ### 8.3 Tray Menu (Right-Click)
 
-- XAML `MenuFlyout` with Fluent styling and icons, shown from a small host window at the icon, using the same taskbar-aware placement.
+- XAML `MenuFlyout` with Fluent styling and icons, shown from a small host window at the icon, using the same taskbar-aware placement. Its background is the flyout's always-active desktop acrylic.
 - Items: Open Leaf Calendar, New event, Join next meeting, Sync now, Settings, Quit.
 
 ### 8.4 Notifications
@@ -438,7 +440,9 @@ A view inside the main window, modeled on the Windows 11 Settings app. See Secti
 All notifications are Windows App SDK app notifications.
 
 1. **Reminder:** fires at each reminder time (the event's own reminders, else the calendar's Google defaults). Shows title, time, and location, with Join (if the event has a link), Snooze, and Dismiss.
-2. **Persistent "Join now":** fires at start time for your own meetings with a meeting link (see 8.5), not a colleague's meetings on a calendar you can see. Uses `scenario="reminder"`. It always carries a Join button that activates in the background, which Windows requires for the reminder scenario to stay on screen. It stays until you click Join or Dismiss, or until the meeting ends, moves, is declined, or is deleted (then Leaf withdraws it).
+2. **"Join now":** fires at start time for your own meetings with a meeting link (see 8.5), not a colleague's meetings on a calendar you can see, while the persistent notification setting is on. It always carries a Join button that activates in the background, which Windows requires for the reminder scenario to stay on screen. It's withdrawn when the meeting ends, moves, is declined, or is deleted.
+
+Which reminders and "Join now" notifications stay on screen (`scenario="reminder"`, until you click Join, Snooze, or Dismiss): with the persistent notification setting on, an event with a meeting link when "Stay persistent for meetings" is checked (the default), and an event with nobody but you on it (rooms don't count) when "Stay persistent for reminders" is checked. Every other reminder is a plain notification that goes to Notification Center after a few seconds.
 3. **New or updated invite:** Yes / No / Maybe buttons in the notification.
 4. **Conflict needs review** and **Sign in again**.
 
@@ -577,7 +581,7 @@ Ctrl+wheel over the time grid zooms like Ctrl+= / Ctrl+-.
 
 **Notifications**
 - Reminder notifications on or off
-- Persistent "Join now" notification on or off
+- Persistent "Join now" notification on or off, with two checkboxes under it: "Stay persistent for meetings" and "Stay persistent for reminders" (see 8.4)
 - Invite notifications on or off
 - Sound on or off
 

@@ -289,6 +289,16 @@ public sealed partial class SidebarView : UserControl
         _viewModel.NavigateTo(DateOnly.ParseExact(tag, "O", System.Globalization.CultureInfo.InvariantCulture));
     }
 
+    // An account header's chevron turns when the account folds or opens, unless Windows animations are off; the turn
+    // is set once it's on screen, so the first angle shows without one
+    private void OnChevronLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is FontIcon chevron)
+        {
+            chevron.RotationTransition = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled ? new ScalarTransition { Duration = TimeSpan.FromMilliseconds(167) } : null;
+        }
+    }
+
     // An account header folds its calendars away or shows them again (Settings › Calendars follows)
     private void OnAccountHeaderClick(object sender, RoutedEventArgs e)
     {
@@ -315,6 +325,13 @@ public sealed partial class SidebarView : UserControl
         {
             viewModel.SetAccountExpanded(group.AccountId, expand);
             return;
+        }
+
+        // The Chevron Turns On The Click, Alongside The Slide (a fold-away only commits once its slide ends; the bound
+        // angle then lands where the chevron already is)
+        if (header.Children.OfType<Button>().FirstOrDefault() is { Content: Grid row } && row.Children.OfType<FontIcon>().FirstOrDefault() is { } chevron)
+        {
+            chevron.Rotation = expand ? 90 : 0;
         }
 
         // Unfold: shown at its full height for a moment (to learn it), then grown from nothing. Fold: shrunk to nothing,

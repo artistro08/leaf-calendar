@@ -328,7 +328,8 @@ public sealed class OnboardingTests : IDisposable
             leaf.WaitInOnboarding("OnboardingDone");
             Assert.Equal("leaf.tester@gmail.com", leaf.WaitInOnboarding("OnboardingEmail").Name);
             Assert.Equal("2 calendars · 8 events", leaf.WaitInOnboarding("OnboardingSyncSummary").Name);
-            Assert.True(leaf.WaitInOnboarding("OnboardingPrimaryButton").IsEnabled);
+            // (the button is off for a moment after each step change, so it settles first)
+            Assert.True(Retry.WhileFalse(() => leaf.WaitInOnboarding("OnboardingPrimaryButton").IsEnabled, TimeSpan.FromSeconds(5)).Success, "Open Leaf Calendar stayed off.");
             Assert.False(leaf.InOnboarding("OnboardingBackButton"));
             Assert.Equal(0, leaf.MainWindowCount());
 

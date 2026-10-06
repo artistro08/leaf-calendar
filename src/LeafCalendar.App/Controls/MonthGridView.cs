@@ -477,6 +477,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
 
         // A Read-Only Event: the chip gives a little (its transform) and springs back, instead of moving
         public bool ReadOnly { get; init; }
+        public UIElement? Chip { get; init; }
         public TranslateTransform? Pull { get; init; }
         public Point Origin { get; } = origin;
         public DateOnly GrabbedDay { get; } = grabbedDay;
@@ -524,13 +525,15 @@ public sealed partial class MonthGridView : Grid, IDisposable
 
     /// <summary>
     /// A chip was pressed: dragging moves the event to another day (keeping its time). An event you can't change gives a
-    /// little (<paramref name="pull"/>, the chip's transform) and springs back, with a notice saying why.
+    /// little (<paramref name="chip"/>, moved by its transform <paramref name="pull"/>) and springs back, with a notice
+    /// saying why.
     /// </summary>
-    public void BeginChipDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e, TranslateTransform pull)
+    public void BeginChipDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e, UIElement chip, TranslateTransform pull)
     {
         _drag = new ChipDrag(occurrence, e.GetCurrentPoint(this).Position, DateAt(e.GetCurrentPoint(_repeater).Position))
         {
             ReadOnly = !_vm.CanEdit(occurrence),
+            Chip = chip,
             Pull = pull,
         };
     }
@@ -551,9 +554,9 @@ public sealed partial class MonthGridView : Grid, IDisposable
             return false;
         }
 
-        if (_drag is { ReadOnly: true, Started: true, Pull: { } pulled })
+        if (_drag is { ReadOnly: true, Started: true, Chip: { } chip, Pull: { } pulled })
         {
-            ElasticNudge.SnapBack(pulled);
+            ElasticNudge.SnapBack(chip, pulled);
         }
 
         _drag = null;
@@ -622,7 +625,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
         // A Read-Only Event Gives A Little With The Pointer
         if (drag.ReadOnly)
         {
-            ElasticNudge.Pull(drag.Pull!, at.X - drag.Origin.X, at.Y - drag.Origin.Y);
+            ElasticNudge.Pull(drag.Chip!, drag.Pull!, at.X - drag.Origin.X, at.Y - drag.Origin.Y);
             e.Handled = true;
             return;
         }
@@ -736,7 +739,7 @@ public sealed partial class MonthGridView : Grid, IDisposable
             if (drag.Started)
             {
                 e.Handled = true;
-                ElasticNudge.SnapBack(drag.Pull!);
+                ElasticNudge.SnapBack(drag.Chip!, drag.Pull!);
                 _vm.ExplainReadOnly(drag.Occurrence);
             }
 

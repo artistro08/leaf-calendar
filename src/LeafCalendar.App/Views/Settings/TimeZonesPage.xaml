@@ -87,7 +87,6 @@
                         QueryIcon="Add"
                         UpdateTextOnSelect="False"
                         TextChanged="OnSearchTextChanged"
-                        SuggestionChosen="OnSuggestionChosen"
                         QuerySubmitted="OnQuerySubmitted"
                         AutomationProperties.Name="Add a time zone"
                         AutomationProperties.AutomationId="TimeZoneSearch" />

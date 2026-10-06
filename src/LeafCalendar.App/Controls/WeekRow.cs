@@ -412,7 +412,7 @@ public sealed partial class WeekRow : Canvas
             {
                 if (_occurrence is { } o && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed && e.Pointer.PointerDeviceType != PointerDeviceType.Touch)
                 {
-                    _owner.BeginChipDrag(o, e, _pull);
+                    _owner.BeginChipDrag(o, e, this, _pull);
                 }
             };
         }

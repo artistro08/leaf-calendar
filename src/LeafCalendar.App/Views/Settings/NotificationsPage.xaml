@@ -22,14 +22,44 @@
                         AutomationProperties.Name="Reminder notifications"
                         AutomationProperties.AutomationId="RemindersSwitch" />
                 </controls:SettingRow>
-                <controls:SettingRow Glyph="&#xE718;" Header="Persistent “Join now” notification" Description="When a meeting with a link starts, keep a notification on screen until you join or dismiss it.">
-                    <ToggleSwitch
-                        x:Name="JoinNowSwitch"
-                        Style="{StaticResource LeafCardToggleSwitchStyle}"
-                        Toggled="OnJoinNowToggled"
-                        AutomationProperties.Name="Persistent “Join now” notification"
-                        AutomationProperties.AutomationId="JoinNowSwitch" />
-                </controls:SettingRow>
+                <!-- Persistent Notifications (an expander, like Windows' Notifications: the switch in its header, and inside, the
+                     events whose notifications stay on screen, off as one while the switch is off) -->
+                <Expander
+                    x:Name="JoinNowExpander"
+                    Style="{StaticResource LeafSettingExpanderStyle}"
+                    AutomationProperties.Name="Persistent “Join now” notification"
+                    AutomationProperties.AutomationId="JoinNowExpander">
+                    <Expander.Header>
+                        <controls:SettingRow
+                            Style="{StaticResource LeafExpanderHeaderRowStyle}"
+                            Glyph="&#xE718;"
+                            Header="Persistent “Join now” notification"
+                            Description="Show “Join now” when a meeting with a link starts, and keep the notifications checked below on screen until you join, snooze, or dismiss them.">
+                            <ToggleSwitch
+                                x:Name="JoinNowSwitch"
+                                Style="{StaticResource LeafCardToggleSwitchStyle}"
+                                Toggled="OnJoinNowToggled"
+                                AutomationProperties.Name="Persistent “Join now” notification"
+                                AutomationProperties.AutomationId="JoinNowSwitch" />
+                        </controls:SettingRow>
+                    </Expander.Header>
+                    <!-- Text On The Expander Rows' 48 DIP Edge, Lined Up With The Header's -->
+                    <ContentControl x:Name="PersistRows" HorizontalContentAlignment="Stretch" IsTabStop="False">
+                        <StackPanel Padding="48,8,16,8" Spacing="4">
+                            <CheckBox
+                                x:Name="PersistMeetingsBox"
+                                Content="Stay persistent for meetings"
+                                Click="OnPersistMeetingsClick"
+                                AutomationProperties.AutomationId="PersistMeetingsBox" />
+                            <CheckBox
+                                x:Name="PersistAloneBox"
+                                Content="Stay persistent for reminders"
+                                Click="OnPersistAloneClick"
+                                AutomationProperties.AutomationId="PersistAloneBox" />
+                        </StackPanel>
+                    </ContentControl>
+                </Expander>
+                <!-- /Persistent Notifications -->
                 <controls:SettingRow Glyph="&#xE715;" Header="Invite notifications" Description="Show new and updated invitations with Yes, No, and Maybe buttons.">
                     <ToggleSwitch
                         x:Name="InvitesSwitch"
