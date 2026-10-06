@@ -2,9 +2,9 @@
     <img src="src/LeafCalendar.App/Assets/AppLogo.png" alt="Leaf Calendar icon" width="96">
 </p>
 
-# Leaf Calendar
+<h1 style="text-align: center">Leaf Calendar</h1>
 
-A fast, native Windows 11 app for your Google Calendar, with no server in between.
+<p style="text-align: center">A fast, native Windows 11 app for your Google Calendar, with no server in between.</p>
 
 ## Introduction
 
