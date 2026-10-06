@@ -108,6 +108,15 @@ public class EventDetailsParserTests
     }
 
     [Theory]
+    [InlineData("""{"id":"a"}""", false)]
+    [InlineData("""{"id":"a","attendees":[{"email":"me@example.com","self":true}]}""", false)]
+    [InlineData("""{"id":"a","attendees":[{"email":"me@example.com","self":true},{"email":"room@resource.calendar.google.com","resource":true}]}""", false)]
+    [InlineData("""{"id":"a","attendees":[{"email":"me@example.com","self":true},{"email":"you@example.com"}]}""", true)]
+    [InlineData("""{"id":"a","attendees":[{"email":"you@example.com"}]}""", true)]
+    public void Parse_OtherGuests_CountsPeopleButYouAndRooms(string json, bool expected) =>
+        Assert.Equal(expected, EventDetailsParser.Parse(json).HasOtherGuests);
+
+    [Theory]
     [InlineData("outOfOffice", EventKind.OutOfOffice)]
     [InlineData("birthday", EventKind.Birthday)]
     [InlineData("workingLocation", EventKind.WorkingLocation)]

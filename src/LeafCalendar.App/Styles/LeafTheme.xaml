@@ -320,8 +320,9 @@
         <Setter Property="Margin" Value="9,12,0,4" />
     </Style>
 
-    <!-- Fold Header (an account's header that folds its calendars away: the whole row is the button, a subtle fill fades in
-         on hover and press like the icon buttons, and the content is laid out by the page, its chevron on the right) -->
+    <!-- Fold Header (an account's header in the sidebar that folds its calendars away: the whole row is the button, plain
+         like a section header with no hover or press fill, and the content is laid out by the page, its chevron on the
+         right, which turns to show the fold) -->
     <Style x:Key="LeafFoldHeaderButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -337,26 +338,12 @@
                         x:Name="Root"
                         Padding="{TemplateBinding Padding}"
                         Background="{TemplateBinding Background}"
-                        BorderThickness="{ThemeResource LeafHoverOutlineThickness}"
                         CornerRadius="{TemplateBinding CornerRadius}">
-                        <Border.BackgroundTransition>
-                            <BrushTransition Duration="0:0:0.083" />
-                        </Border.BackgroundTransition>
                         <VisualStateManager.VisualStateGroups>
                             <VisualStateGroup x:Name="CommonStates">
                                 <VisualState x:Name="Normal" />
-                                <VisualState x:Name="PointerOver">
-                                    <VisualState.Setters>
-                                        <Setter Target="Root.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
-                                        <Setter Target="Root.BorderBrush" Value="{ThemeResource LeafHoverOutlineBrush}" />
-                                    </VisualState.Setters>
-                                </VisualState>
-                                <VisualState x:Name="Pressed">
-                                    <VisualState.Setters>
-                                        <Setter Target="Root.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
-                                        <Setter Target="Root.BorderBrush" Value="{ThemeResource LeafHoverOutlineBrush}" />
-                                    </VisualState.Setters>
-                                </VisualState>
+                                <VisualState x:Name="PointerOver" />
+                                <VisualState x:Name="Pressed" />
                                 <VisualState x:Name="Disabled">
                                     <VisualState.Setters>
                                         <Setter Target="Presenter.Opacity" Value="0.4" />

@@ -9,10 +9,19 @@
     <!-- Invisible Anchor For The Tray Menu And The Flyout -->
     <Grid x:Name="Root" Background="Transparent">
 
-        <!-- Tray Menu (spec 8.3): every item pins the narrow padding, or the first open is touch-sized -->
+        <!-- Tray Menu (spec 8.3): every item pins the narrow padding, or the first open is touch-sized. Its background is
+             the agenda's always-on desktop acrylic (the stock in-app acrylic has only this invisible window behind it) -->
         <Grid x:Name="MenuAnchor">
             <FlyoutBase.AttachedFlyout>
                 <MenuFlyout x:Name="Menu" ShouldConstrainToRootBounds="False" Closed="OnMenuClosed">
+                    <MenuFlyout.SystemBackdrop>
+                        <local:ActiveAcrylicBackdrop />
+                    </MenuFlyout.SystemBackdrop>
+                    <MenuFlyout.MenuFlyoutPresenterStyle>
+                        <Style TargetType="MenuFlyoutPresenter" BasedOn="{StaticResource DefaultMenuFlyoutPresenterStyle}">
+                            <Setter Property="Background" Value="Transparent" />
+                        </Style>
+                    </MenuFlyout.MenuFlyoutPresenterStyle>
                     <MenuFlyoutItem
                         x:Name="MenuOpen"
                         Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}"

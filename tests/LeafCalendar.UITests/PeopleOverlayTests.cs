@@ -220,9 +220,11 @@ public sealed class PeopleOverlayTests : IDisposable
         leaf.Press(VirtualKeyShort.KEY_E);
         leaf.Press(VirtualKeyShort.KEY_F);
 
-        Assert.NotNull(leaf.WaitFor("OverlayChip_boss@example.com"));
-        Assert.NotNull(leaf.WaitFor($"OverlayChip_{Sam}"));
-        Assert.False(leaf.Exists($"OverlayChip_{SeededProfile.Email}"));
+        // Two or more people are listed in the bar's dropdown
+        leaf.WaitFor("OverlayPeopleButton").AsButton().Invoke();
+        Assert.NotNull(leaf.WaitForAnywhere("OverlayChip_boss@example.com"));
+        Assert.NotNull(leaf.WaitForAnywhere($"OverlayChip_{Sam}"));
+        Assert.False(leaf.ExistsAnywhere($"OverlayChip_{SeededProfile.Email}"));
     }
 
     [Fact]
@@ -262,9 +264,13 @@ public sealed class PeopleOverlayTests : IDisposable
         Pick(leaf, VirtualKeyShort.KEY_P, Dana, Sam);
         Assert.NotNull(leaf.WaitFor($"OverlayBlock_{Sam}_0"));
 
-        leaf.WaitFor($"OverlayRemove_{Sam}").AsButton().Invoke();
-        Assert.True(Retry.WhileTrue(() => leaf.Exists($"OverlayChip_{Sam}") || leaf.Exists($"OverlayBlock_{Sam}_0"), TimeSpan.FromSeconds(5)).Success, "Sam's chip or block is still shown.");
-        Assert.True(leaf.Exists($"OverlayChip_{Dana}"));
+        // Two people are a dropdown; removing one leaves the other's chip in the bar
+        Assert.False(leaf.Exists($"OverlayChip_{Dana}"));
+        leaf.WaitFor("OverlayPeopleButton").AsButton().Invoke();
+        leaf.WaitForAnywhere($"OverlayRemove_{Sam}").AsButton().Invoke();
+        Assert.True(Retry.WhileTrue(() => leaf.ExistsAnywhere($"OverlayChip_{Sam}") || leaf.Exists($"OverlayBlock_{Sam}_0"), TimeSpan.FromSeconds(5)).Success, "Sam's chip or block is still shown.");
+        Assert.True(Retry.WhileFalse(() => leaf.Exists($"OverlayChip_{Dana}"), TimeSpan.FromSeconds(5)).Success, "Dana's chip isn't in the bar.");
+        Assert.False(leaf.Exists("OverlayPeopleButton"), "The dropdown still shows for one person.");
 
         leaf.WaitFor("OverlayClear").AsButton().Invoke();
         Assert.True(Retry.WhileTrue(() => leaf.Exists("OverlayBar") && !leaf.WaitFor("OverlayBar").IsOffscreen, TimeSpan.FromSeconds(5)).Success, "The overlay bar still shows.");

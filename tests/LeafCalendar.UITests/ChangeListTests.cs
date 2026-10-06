@@ -122,7 +122,7 @@ public sealed class ChangeListTests : IDisposable
         using var leaf = Launch();
         leaf.OpenSettings("Calendars");
 
-        leaf.WaitInSettings($"AccountHeader_{SeededProfile.AccountId}").AsButton().Invoke();
+        leaf.WaitInSettings($"CalendarsExpander_{SeededProfile.AccountId}").Patterns.ExpandCollapse.Pattern.Collapse();
 
         Assert.True(Retry.WhileFalse(() => leaf.SettingsView.FindFirstDescendant(cf => cf.ByAutomationId($"CalendarVisible_{FamilyId}")) is null or { IsOffscreen: true }, Wait).Success, "Settings didn't fold the account.");
         Assert.True(Retry.WhileFalse(() => !Shows(leaf, $"CalendarToggle_{FamilyId}"), Wait).Success, "The sidebar didn't follow.");

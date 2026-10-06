@@ -31,6 +31,7 @@ public sealed partial class TimeZonesPage : Page
     {
         InitializeComponent();
         ScrollIndicator.ShowOnHover(PageScroll);
+        FirstSuggestion.Highlight(Search);
         ZoneList.ItemsSource = _rows;
     }
 
@@ -140,14 +141,7 @@ public sealed partial class TimeZonesPage : Page
         }
     }
 
-    private void OnSuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
-    {
-        if (ZoneSuggestions.Chosen(_suggestionRows, _suggestions, args.SelectedItem) is { } choice)
-        {
-            Add(choice);
-        }
-    }
-
+    // Enter or a click adds the highlighted (or clicked) zone, else the best match; highlighting alone adds nothing
     private void OnQuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
         var found = TimeZoneCatalog.Search(args.QueryText, _vm.Now);

@@ -17,6 +17,8 @@ public sealed class AlertSettingsTests : IDisposable
 
         Assert.True(s.ReminderNotifications);
         Assert.True(s.JoinNowNotifications);
+        Assert.True(s.PersistForMeetings);
+        Assert.False(s.PersistWhenAlone);
         Assert.True(s.InviteNotifications);
         Assert.True(s.NotificationSound);
         Assert.Equal(3, s.FlyoutDays);
@@ -89,6 +91,8 @@ public sealed class AlertSettingsTests : IDisposable
         {
             ReminderNotifications = false,
             JoinNowNotifications = false,
+            PersistForMeetings = false,
+            PersistWhenAlone = true,
             InviteNotifications = false,
             NotificationSound = false,
             FlyoutDays = 5,
@@ -102,6 +106,8 @@ public sealed class AlertSettingsTests : IDisposable
 
         Assert.False(s.ReminderNotifications);
         Assert.False(s.JoinNowNotifications);
+        Assert.False(s.PersistForMeetings);
+        Assert.True(s.PersistWhenAlone);
         Assert.False(s.InviteNotifications);
         Assert.False(s.NotificationSound);
         Assert.Equal(5, s.FlyoutDays);

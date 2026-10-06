@@ -169,7 +169,7 @@ public sealed partial class EventBlock : Grid
             return;
         }
 
-        _owner.BeginEventDrag(o, e, IsResizeZone(point.Position.Y), _pull);
+        _owner.BeginEventDrag(o, e, IsResizeZone(point.Position.Y), this, _pull);
     }
 
     private bool IsResizeZone(double y) => HoldsEnd && ActualHeight >= ResizeZone * 3 && y >= ActualHeight - ResizeZone;

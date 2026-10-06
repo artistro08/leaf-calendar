@@ -161,8 +161,17 @@ public sealed record LeafSettings
     /// <summary>Show a notification at each reminder time.</summary>
     public bool ReminderNotifications { get; set; } = true;
 
-    /// <summary>Show the persistent "Join now" notification when a meeting with a link starts.</summary>
+    /// <summary>
+    /// Show the "Join now" notification when a meeting with a link starts, and let reminders and "Join now" stay on screen
+    /// for the events <see cref="PersistForMeetings"/> and <see cref="PersistWhenAlone"/> pick.
+    /// </summary>
     public bool JoinNowNotifications { get; set; } = true;
+
+    /// <summary>With <see cref="JoinNowNotifications"/> on, an event with a meeting link keeps its notification on screen.</summary>
+    public bool PersistForMeetings { get; set; } = true;
+
+    /// <summary>With <see cref="JoinNowNotifications"/> on, an event with nobody but you on it keeps its notification on screen.</summary>
+    public bool PersistWhenAlone { get; set; }
 
     /// <summary>Show new and updated invitations.</summary>
     public bool InviteNotifications { get; set; } = true;

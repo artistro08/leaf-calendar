@@ -9,9 +9,15 @@ using Microsoft.UI.Xaml.Media;
 
 namespace LeafCalendar.App.Views;
 
-/// <summary>A person's chip on the overlay bar (an App type, so WinRT can hold the list). Remove x:Binds to <see cref="Remove"/>.</summary>
-public sealed record OverlayChip(string Email, string Name, bool Unknown, SolidColorBrush Dot, Action<string> OnRemove)
+/// <summary>
+/// A person's chip on the overlay bar, or their row in its dropdown (an App type, so WinRT can hold the list). Remove
+/// x:Binds to <see cref="Remove"/>.
+/// </summary>
+public sealed record OverlayChip(string Email, string Name, bool Unknown, SolidColorBrush Dot, Action<string> OnRemove, bool InDropdown = false)
 {
+    /// <summary>The chip's outline in the bar; a row in the dropdown has none.</summary>
+    public Thickness Outline => new(InDropdown ? 0 : 1);
+
     /// <summary>Automation ID of the chip.</summary>
     public string ChipId => $"OverlayChip_{Email}";
 
@@ -32,8 +38,9 @@ public sealed record OverlayChip(string Email, string Name, bool Unknown, SolidC
 }
 
 /// <summary>
-/// The bar above the calendar while people are overlaid: "Busy times" (or "Meet with"), a chip per person in their
-/// color with a remove button, and Clear. Hidden when nobody is overlaid.
+/// The bar above the calendar while people are overlaid: "Busy times" (or "Meet with"), the person's chip in their color
+/// with a remove button (or, for two or more, a dropdown listing a chip for each), and Clear. Hidden when nobody is
+/// overlaid.
 /// </summary>
 public sealed partial class OverlayBar : UserControl
 {
@@ -43,7 +50,6 @@ public sealed partial class OverlayBar : UserControl
     public OverlayBar()
     {
         InitializeComponent();
-        ScrollIndicator.ShowOnHover(ChipScroll);
         ActualThemeChanged += (_, _) => Update(_vm);
     }
 
@@ -55,6 +61,8 @@ public sealed partial class OverlayBar : UserControl
         {
             Visibility = Visibility.Collapsed;
             Chips.ItemsSource = null;
+            PeopleList.ItemsSource = null;
+            PeopleFlyout.Hide();
             return;
         }
 
@@ -64,33 +72,43 @@ public sealed partial class OverlayBar : UserControl
         Hint.Text = month ? "Busy times show in the day and week views." : vm.IsMeetWith ? "Drag on the calendar to invite them." : "";
         Hint.Visibility = Hint.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        // Chips
+        // One Person's Chip, Or The Dropdown Of Everyone (it stays open while people are removed from it)
         var dark = ActualTheme == ElementTheme.Dark;
-        var focusedChip = FocusedChipIndex();
-        Chips.ItemsSource = vm.OverlayPeople
-            .Select(p => new OverlayChip(p.Email, p.Name, p.State == PersonBusyState.Unknown, LeafBrushes.Person(p.ColorIndex, dark), vm.RemoveOverlayPerson))
+        var chips = vm.OverlayPeople
+            .Select(p => new OverlayChip(p.Email, p.Name, p.State == PersonBusyState.Unknown, LeafBrushes.Person(p.ColorIndex, dark), vm.RemoveOverlayPerson, vm.OverlayPeople.Count > 1))
             .ToList();
+        var one = chips.Count == 1;
+        var list = one ? Chips : PeopleList;
+        var focusedChip = Math.Max(FocusedChipIndex(Chips), FocusedChipIndex(PeopleList));
+        Chips.ItemsSource = one ? chips : null;
+        PeopleList.ItemsSource = one ? null : chips;
+        PeopleCount.Text = $"{chips.Count} people";
+        PeopleButton.Visibility = one ? Visibility.Collapsed : Visibility.Visible;
+        if (one)
+        {
+            PeopleFlyout.Hide();
+        }
 
         Visibility = Visibility.Visible;
 
         // The Rebuilt Chips Drop A Focused Remove Button, So Focus Goes Back To The One Now In Its Place (or Clear, past the last)
         if (focusedChip >= 0)
         {
-            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => FocusChip(focusedChip));
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => FocusChip(list, focusedChip));
         }
     }
 
-    // The chip holding focus, or -1
-    private int FocusedChipIndex()
+    // The chip in this list holding focus, or -1
+    private int FocusedChipIndex(ItemsControl list)
     {
         if (XamlRoot is null)
         {
             return -1;
         }
 
-        for (DependencyObject? current = FocusManager.GetFocusedElement(XamlRoot) as UIElement; current is not null && current != Chips; current = VisualTreeHelper.GetParent(current))
+        for (DependencyObject? current = FocusManager.GetFocusedElement(XamlRoot) as UIElement; current is not null && current != list; current = VisualTreeHelper.GetParent(current))
         {
-            if (Chips.IndexFromContainer(current) is var index and >= 0)
+            if (list.IndexFromContainer(current) is var index and >= 0)
             {
                 return index;
             }
@@ -99,15 +117,16 @@ public sealed partial class OverlayBar : UserControl
         return -1;
     }
 
-    private void FocusChip(int index)
+    // The remove button now at this place in the list, or the one above it, or Clear once the list is gone
+    private void FocusChip(ItemsControl list, int index)
     {
         if (Visibility != Visibility.Visible)
         {
             return;
         }
 
-        Chips.UpdateLayout();
-        if (Chips.ContainerFromIndex(index) is { } container && FindButton(container) is { } remove)
+        list.UpdateLayout();
+        if ((list.ContainerFromIndex(index) ?? (index > 0 ? list.ContainerFromIndex(index - 1) : null)) is { } container && FindButton(container) is { } remove)
         {
             remove.Focus(FocusState.Keyboard);
             return;

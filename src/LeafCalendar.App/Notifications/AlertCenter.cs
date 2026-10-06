@@ -128,9 +128,10 @@ internal sealed class AlertCenter : IDisposable
             var details = EventDetailsParser.Parse(stored.RawJson, includeDescription: true);
             var when = ToastContent.When(o, _zone(), settings.Use24HourTime, _services.Time.GetUtcNow());
             var profile = _services.Options.Profile;
+            var persistent = ToastContent.StaysOnScreen(settings, details, alert.MeetingLink);
             var shown = _notifier.Show(alert.Kind == AlertKind.JoinNow
-                ? ToastContent.JoinNow(alert, details, when, profile, settings.NotificationSound)
-                : ToastContent.Reminder(alert, details, when, profile, settings.NotificationSound));
+                ? ToastContent.JoinNow(alert, details, when, profile, settings.NotificationSound, persistent)
+                : ToastContent.Reminder(alert, details, when, profile, settings.NotificationSound, persistent));
             if (!shown)
             {
                 // Not Shown: forgotten, so the next pass tries again while it's still due

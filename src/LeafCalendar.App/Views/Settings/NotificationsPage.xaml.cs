@@ -44,6 +44,9 @@ public sealed partial class NotificationsPage : Page
 
         RemindersSwitch.IsOn = s.ReminderNotifications;
         JoinNowSwitch.IsOn = s.JoinNowNotifications;
+        PersistRows.IsEnabled = s.JoinNowNotifications;
+        PersistMeetingsBox.IsChecked = s.PersistForMeetings;
+        PersistAloneBox.IsChecked = s.PersistWhenAlone;
         InvitesSwitch.IsOn = s.InviteNotifications;
         SoundSwitch.IsOn = s.NotificationSound;
 
@@ -64,8 +67,22 @@ public sealed partial class NotificationsPage : Page
         if (!_loading)
         {
             var on = JoinNowSwitch.IsOn;
+            PersistRows.IsEnabled = on;
             _context.Save(s => s with { JoinNowNotifications = on });
         }
+    }
+
+    // Which events' notifications stay on screen: one with a meeting link, or one with nobody but you on it
+    private void OnPersistMeetingsClick(object sender, RoutedEventArgs e)
+    {
+        var on = PersistMeetingsBox.IsChecked == true;
+        _context.Save(s => s with { PersistForMeetings = on });
+    }
+
+    private void OnPersistAloneClick(object sender, RoutedEventArgs e)
+    {
+        var on = PersistAloneBox.IsChecked == true;
+        _context.Save(s => s with { PersistWhenAlone = on });
     }
 
     private void OnInvitesToggled(object sender, RoutedEventArgs e)

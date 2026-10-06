@@ -38,6 +38,8 @@ public sealed partial class EventEditorView : UserControl
     {
         InitializeComponent();
         ScrollIndicator.ShowOnHover(BodyScroll);
+        FirstSuggestion.Highlight(GuestBox);
+        FirstSuggestion.Highlight(RoomBox);
         TimePickerFit.Shrink(StartTimePicker);
         TimePickerFit.Shrink(EndTimePicker);
 
@@ -321,7 +323,8 @@ public sealed partial class EventEditorView : UserControl
         }
     }
 
-    // A picked suggestion (click, or arrows then Enter) adds its address; Enter on typed text adds that. The pick is
+    // A picked suggestion (click, or Enter on the highlighted one) adds its address; Enter on typed text with nothing
+    // suggested adds that. The pick is
     // found by reference in our own list (never cast back from WinRT). SuggestionChosen isn't used: arrowing through
     // the list raises it for every row passed.
     private void OnGuestQuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)

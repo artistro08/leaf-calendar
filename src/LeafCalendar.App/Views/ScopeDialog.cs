@@ -36,6 +36,7 @@ public static class ScopeDialog
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
         };
+        Controls.CtrlEnter.Submits(dialog);
 
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
         {

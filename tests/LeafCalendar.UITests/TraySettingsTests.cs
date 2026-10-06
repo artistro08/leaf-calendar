@@ -60,6 +60,23 @@ public sealed class TraySettingsTests : IDisposable
     }
 
     [Fact]
+    public void PersistentNotificationBoxes_AreSaved()
+    {
+        using var leaf = Launch(Profile());
+        leaf.OpenSettings("Notifications");
+        leaf.ExpandInSettings("JoinNowExpander");
+        leaf.WaitInSettings("PersistMeetingsBox").AsCheckBox().Toggle();
+        leaf.WaitInSettings("PersistAloneBox").AsCheckBox().Toggle();
+
+        leaf.CloseSettings();
+        leaf.OpenSettings("Notifications");
+        leaf.ExpandInSettings("JoinNowExpander");
+
+        Assert.Equal(ToggleState.Off, leaf.WaitInSettings("PersistMeetingsBox").AsCheckBox().ToggleState);
+        Assert.Equal(ToggleState.On, leaf.WaitInSettings("PersistAloneBox").AsCheckBox().ToggleState);
+    }
+
+    [Fact]
     public void RemindersOff_NoReminderShows()
     {
         // 10 seconds before the meeting starts, its reminder (due at 1:50) would show at once if it were on; Join now at 2:00 is the proof the scheduler ran

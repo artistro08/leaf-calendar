@@ -14,7 +14,7 @@ public sealed record EventPalette(string Accent, string Fill, string Text, strin
 public static partial class EventColors
 {
     /// <summary>How far a past card's colors (accent and fill) move toward the calendar surface; its text is not faded but picked against the faded fill.</summary>
-    public const double PastFade = 0.45;
+    public const double PastFade = 0.6;
 
     private const string DarkSurface = "#202020";
     private const string LightSurface = "#FFFFFF";

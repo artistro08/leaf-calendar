@@ -317,7 +317,7 @@ public sealed partial class AllDayCanvas : Canvas
         {
             if (_shown.TryGetValue(chip, out var o) && e.GetCurrentPoint(chip).Properties.IsLeftButtonPressed && e.Pointer.PointerDeviceType != PointerDeviceType.Touch)
             {
-                _owner.BeginAllDayDrag(o, e, pull);
+                _owner.BeginAllDayDrag(o, e, chip, pull);
             }
         };
 

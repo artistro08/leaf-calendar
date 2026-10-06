@@ -129,23 +129,24 @@
                                  capitals' middles line up with the caption glyphs; the chevron stays centered) -->
                             <DropDownButton x:Name="ViewModeButton" Height="32" AutomationProperties.Name="Week" AutomationProperties.AutomationId="ViewModeButton">
                                 <!-- One radio group marks the view showing (MainWindow.SyncMenu keeps it in step); the key text is the
-                                     calendar's own shortcut, shown only, since the calendar already handles the key -->
+                                     calendar's own shortcut, which also works while the menu is open (MainWindow.OnViewMenuKeyDown:
+                                     on the open menu, and on every item for the Number of days submenu) -->
                                 <DropDownButton.Flyout>
-                                    <MenuFlyout Placement="BottomEdgeAlignedRight">
-                                        <RadioMenuFlyoutItem x:Name="ViewDayItem" Text="Day" Tag="Day" GroupName="ViewMode" KeyboardAcceleratorTextOverride="D" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDay" />
-                                        <RadioMenuFlyoutItem x:Name="ViewWeekItem" Text="Week" Tag="Week" GroupName="ViewMode" KeyboardAcceleratorTextOverride="W" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewWeek" />
-                                        <RadioMenuFlyoutItem x:Name="ViewMonthItem" Text="Month" Tag="Month" GroupName="ViewMode" KeyboardAcceleratorTextOverride="M" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewMonth" />
-                                        <MenuFlyoutSubItem Text="Number of days">
-                                            <RadioMenuFlyoutItem x:Name="ViewDays2Item" Text="2 days" Tag="Days:2" GroupName="ViewMode" KeyboardAcceleratorTextOverride="2" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays2" />
-                                            <RadioMenuFlyoutItem x:Name="ViewDays3Item" Text="3 days" Tag="Days:3" GroupName="ViewMode" KeyboardAcceleratorTextOverride="3" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays3" />
-                                            <RadioMenuFlyoutItem x:Name="ViewDays4Item" Text="4 days" Tag="Days:4" GroupName="ViewMode" KeyboardAcceleratorTextOverride="4" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays4" />
-                                            <RadioMenuFlyoutItem x:Name="ViewDays5Item" Text="5 days" Tag="Days:5" GroupName="ViewMode" KeyboardAcceleratorTextOverride="5" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays5" />
-                                            <RadioMenuFlyoutItem x:Name="ViewDays6Item" Text="6 days" Tag="Days:6" GroupName="ViewMode" KeyboardAcceleratorTextOverride="6" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays6" />
-                                            <RadioMenuFlyoutItem x:Name="ViewDays7Item" Text="7 days" Tag="Days:7" GroupName="ViewMode" KeyboardAcceleratorTextOverride="7" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays7" />
-                                            <RadioMenuFlyoutItem x:Name="ViewDays8Item" Text="8 days" Tag="Days:8" GroupName="ViewMode" KeyboardAcceleratorTextOverride="8" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays8" />
-                                            <RadioMenuFlyoutItem x:Name="ViewDays9Item" Text="9 days" Tag="Days:9" GroupName="ViewMode" KeyboardAcceleratorTextOverride="9" Click="OnViewModeClick" AutomationProperties.AutomationId="ViewDays9" />
+                                    <MenuFlyout x:Name="ViewMenu" Placement="BottomEdgeAlignedRight" Opened="OnViewMenuOpened" Closed="OnViewMenuClosed">
+                                        <RadioMenuFlyoutItem x:Name="ViewDayItem" Text="Day" Tag="Day" GroupName="ViewMode" KeyboardAcceleratorTextOverride="D" Click="OnViewModeClick" PreviewKeyDown="OnViewMenuKeyDown" AutomationProperties.AutomationId="ViewDay" />
+                                        <RadioMenuFlyoutItem x:Name="ViewWeekItem" Text="Week" Tag="Week" GroupName="ViewMode" KeyboardAcceleratorTextOverride="W" Click="OnViewModeClick" PreviewKeyDown="OnViewMenuKeyDown" AutomationProperties.AutomationId="ViewWeek" />
+                                        <RadioMenuFlyoutItem x:Name="ViewMonthItem" Text="Month" Tag="Month" GroupName="ViewMode" KeyboardAcceleratorTextOverride="M" Click="OnViewModeClick" PreviewKeyDown="OnViewMenuKeyDown" AutomationProperties.AutomationId="ViewMonth" />
+                                        <MenuFlyoutSubItem Text="Number of days" PreviewKeyDown="OnViewMenuKeyDown">
+                                            <RadioMenuFlyoutItem x:Name="ViewDays2Item" Text="2 days" Tag="Days:2" GroupName="ViewMode" KeyboardAcceleratorTextOverride="2" Click="OnViewModeClick" PreviewKeyDown="OnViewMenuKeyDown" AutomationProperties.AutomationId="ViewDays2" />
+                                            <RadioMenuFlyoutItem x:Name="ViewDays3Item" Text="3 days" Tag="Days:3" GroupName="ViewMode" KeyboardAcceleratorTextOverride="3" Click="OnViewModeClick" PreviewKeyDown="OnViewMenuKeyDown" AutomationProperties.AutomationId="ViewDays3" />
+                                            <RadioMenuFlyoutItem x:Name="ViewDays4Item" Text="4 days" Tag="Days:4" GroupName="ViewMode" KeyboardAcceleratorTextOverride="4" Click="OnViewModeClick" PreviewKeyDown="OnViewMenuKeyDown" AutomationProperties.AutomationId="ViewDays4" />
+                                            <RadioMenuFlyoutItem x:Name="ViewDays5Item" Text="5 days" Tag="Days:5" GroupName="ViewMode" KeyboardAcceleratorTextOverride="5" Click="OnViewModeClick" PreviewKeyDown="OnViewMenuKeyDown" AutomationProperties.AutomationId="ViewDays5" />
+                                            <RadioMenuFlyoutItem x:Name="ViewDays6Item" Text="6 days" Tag="Days:6" GroupName="ViewMode" KeyboardAcceleratorTextOverride="6" Click="OnViewModeClick" PreviewKeyDown="OnViewMenuKeyDown" AutomationProperties.AutomationId="ViewDays6" />
+                                            <RadioMenuFlyoutItem x:Name="ViewDays7Item" Text="7 days" Tag="Days:7" GroupName="ViewMode" KeyboardAcceleratorTextOverride="7" Click="OnViewModeClick" PreviewKeyDown="OnViewMenuKeyDown" AutomationProperties.AutomationId="ViewDays7" />
+                                            <RadioMenuFlyoutItem x:Name="ViewDays8Item" Text="8 days" Tag="Days:8" GroupName="ViewMode" KeyboardAcceleratorTextOverride="8" Click="OnViewModeClick" PreviewKeyDown="OnViewMenuKeyDown" AutomationProperties.AutomationId="ViewDays8" />
+                                            <RadioMenuFlyoutItem x:Name="ViewDays9Item" Text="9 days" Tag="Days:9" GroupName="ViewMode" KeyboardAcceleratorTextOverride="9" Click="OnViewModeClick" PreviewKeyDown="OnViewMenuKeyDown" AutomationProperties.AutomationId="ViewDays9" />
                                             <MenuFlyoutSeparator />
-                                            <MenuFlyoutItem Text="Custom…" Click="OnCustomDaysClick" AutomationProperties.AutomationId="ViewDaysCustom" />
+                                            <MenuFlyoutItem Text="Custom…" Click="OnCustomDaysClick" PreviewKeyDown="OnViewMenuKeyDown" AutomationProperties.AutomationId="ViewDaysCustom" />
                                         </MenuFlyoutSubItem>
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>

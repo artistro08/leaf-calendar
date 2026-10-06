@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Numerics;
+using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.App.Views;
 using LeafCalendar.App.Views.Settings;
@@ -11,9 +13,12 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Hosting;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Navigation;
+using Windows.System;
 using Windows.Win32.Foundation;
 
 namespace LeafCalendar.App;
@@ -333,11 +338,47 @@ public sealed partial class MainWindow : Window
         SearchButton.Visibility = CalendarToolbar.Visibility;
         DetailsToggle.Visibility = CalendarToolbar.Visibility;
         AppTitleBar.IsPaneToggleButtonVisible = onCalendar || _settings is not null;
+        var backAppears = !AppTitleBar.IsBackButtonVisible && _settings is not null;
         AppTitleBar.IsBackButtonVisible = _settings is not null || _calendar.ShowBack;
+        if (backAppears)
+        {
+            SlideBackIn();
+        }
 
         UpdateTitleBarLayout(animate: false);
         UpdateEventActions();
         AppTitleBar.RecomputeDragRegions();
+    }
+
+    // Opening Settings, Back glides in from the window's left edge (250 ms, on the panes' glide curve) and pushes the pane toggle, icon,
+    // and title along to their new spots, rather than all of them jumping at once. They're the stock title bar's parts in
+    // the columns from Back's to the subtitle's (1 to 7), moved on the compositor, so the layout and clicks are already final
+    private void SlideBackIn()
+    {
+        if (!new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
+        {
+            return;
+        }
+
+        AppTitleBar.UpdateLayout();
+        if (VisualTreeHelper.GetChildrenCount(AppTitleBar) == 0 || VisualTreeHelper.GetChild(AppTitleBar, 0) is not Grid root
+            || root.FindName("PART_BackButton") is not FrameworkElement back || back.ActualWidth <= 0)
+        {
+            return;
+        }
+
+        var distance = (float)(back.ActualWidth + back.Margin.Left + back.Margin.Right);
+        var compositor = ElementCompositionPreview.GetElementVisual(root).Compositor;
+        var easing = compositor.CreateCubicBezierEasingFunction(new Vector2(0, 0.35f), new Vector2(0.15f, 1));
+        foreach (var part in root.Children.OfType<FrameworkElement>().Where(c => Grid.GetColumn(c) is >= 1 and <= 7 && c.Visibility == Visibility.Visible))
+        {
+            var glide = compositor.CreateScalarKeyFrameAnimation();
+            glide.InsertKeyFrame(0, -distance);
+            glide.InsertKeyFrame(1, 0, easing);
+            glide.Duration = TimeSpan.FromMilliseconds(250);
+            ElementCompositionPreview.SetIsTranslationEnabled(part, true);
+            ElementCompositionPreview.GetElementVisual(part).StartAnimation("Translation.X", glide);
+        }
     }
 
     private void OnNavigated(object sender, NavigationEventArgs e)
@@ -633,6 +674,57 @@ public sealed partial class MainWindow : Window
         SyncMenu();
     }
 
+    // The open View menu's presenters (its popups aren't under the window's root, so its keys never reach the calendar)
+    private readonly List<UIElement> _viewMenuPresenters = [];
+
+    private void OnViewMenuOpened(object? sender, object e)
+    {
+        foreach (var popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(RootGrid.XamlRoot))
+        {
+            if (popup.Child is MenuFlyoutPresenter presenter && !_viewMenuPresenters.Contains(presenter))
+            {
+                presenter.PreviewKeyDown += OnViewMenuKeyDown;
+                _viewMenuPresenters.Add(presenter);
+            }
+        }
+    }
+
+    private void OnViewMenuClosed(object? sender, object e)
+    {
+        foreach (var presenter in _viewMenuPresenters)
+        {
+            presenter.PreviewKeyDown -= OnViewMenuKeyDown;
+        }
+
+        _viewMenuPresenters.Clear();
+    }
+
+    // A view's key (the text shown beside it: D, W, M, 2 to 9) picks that view while the menu is open, then the menu closes
+    private void OnViewMenuKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Handled || KeyState.IsDown(VirtualKey.Control) || KeyState.IsDown(VirtualKey.Menu) || KeyState.IsDown(VirtualKey.Shift))
+        {
+            return;
+        }
+
+        var text = e.Key switch
+        {
+            >= VirtualKey.A and <= VirtualKey.Z => ((char)e.Key).ToString(),
+            >= VirtualKey.Number0 and <= VirtualKey.Number9 => ((char)('0' + (e.Key - VirtualKey.Number0))).ToString(),
+            >= VirtualKey.NumberPad0 and <= VirtualKey.NumberPad9 => ((char)('0' + (e.Key - VirtualKey.NumberPad0))).ToString(),
+            _ => null,
+        };
+        RadioMenuFlyoutItem[] items = [ViewDayItem, ViewWeekItem, ViewMonthItem, ViewDays2Item, ViewDays3Item, ViewDays4Item, ViewDays5Item, ViewDays6Item, ViewDays7Item, ViewDays8Item, ViewDays9Item];
+        if (text is null || items.FirstOrDefault(i => i.KeyboardAcceleratorTextOverride == text) is not { } item)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        ViewMenu.Hide();
+        OnViewModeClick(item, e);
+    }
+
     private async void OnCustomDaysClick(object sender, RoutedEventArgs e)
     {
         if (_calendar is null)
@@ -646,6 +738,7 @@ public sealed partial class MainWindow : Window
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(box, "CustomDaysBox");
 
             var dialog = new ContentDialog { XamlRoot = RootGrid.XamlRoot, RequestedTheme = RootGrid.ActualTheme, Title = "Number of days", Content = box, PrimaryButtonText = "Show", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary };
+            CtrlEnter.Submits(dialog);
             if (await dialog.ShowAsync() == ContentDialogResult.Primary && !double.IsNaN(box.Value))
             {
                 _calendar.SetMode(CalendarViewMode.Days, (int)box.Value);

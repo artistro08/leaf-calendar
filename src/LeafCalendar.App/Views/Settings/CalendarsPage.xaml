@@ -21,45 +21,41 @@
                     Text="No calendars yet. Add a Google account in Accounts."
                     Visibility="Collapsed" />
 
-                <!-- Accounts (the -24 top margin cancels the first group header's gap below the page title) -->
-                <controls:PinnedItemsControl x:Name="GroupList" Margin="0,-24,0,0" IsTabStop="False" AutomationProperties.AutomationId="SettingsCalendarList">
+                <!-- One Expander Per Account (its calendars inside, like Settings › Accounts; folding it folds the sidebar's
+                     account too, so a fold is passed to the calendar rather than bound two-way) -->
+                <controls:PinnedItemsControl x:Name="GroupList" IsTabStop="False" AutomationProperties.AutomationId="SettingsCalendarList">
+                    <controls:PinnedItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="4" />
+                        </ItemsPanelTemplate>
+                    </controls:PinnedItemsControl.ItemsPanel>
                     <controls:PinnedItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:AccountGroup">
-                            <StackPanel Spacing="4">
-                                <!-- Account Header (click to fold the account's calendars away, the sidebar follows; the -8 margin and
-                                     8 padding keep the email on the cards' left edge with the hover fill reaching past it, and the
-                                     margin plus padding keep the group header's 24 above the text. The chevron points like an
-                                     Expander's: down while folded, up while open) -->
-                                <Button
-                                    Margin="-8,16,0,0"
-                                    Padding="8"
-                                    Style="{StaticResource LeafFoldHeaderButtonStyle}"
-                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                                    Click="OnAccountHeaderClick"
-                                    Tag="{x:Bind}"
-                                    ToolTipService.ToolTip="{x:Bind FoldTip, Mode=OneWay}"
-                                    AutomationProperties.Name="{x:Bind Email, Mode=OneWay}"
-                                    AutomationProperties.HelpText="{x:Bind FoldTip, Mode=OneWay}"
-                                    AutomationProperties.AutomationId="{x:Bind HeaderId}">
-                                    <Grid ColumnSpacing="8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{x:Bind Email, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
-                                        <FontIcon Grid.Column="1" FontSize="12" Glyph="{x:Bind local:CalendarsPage.ExpanderChevron(IsExpanded), Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
-                                    </Grid>
-                                </Button>
-                                <controls:PinnedItemsControl ItemsSource="{x:Bind Calendars}" IsTabStop="False" Visibility="{x:Bind IsExpanded, Mode=OneWay}">
-                                    <controls:PinnedItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel Spacing="4" />
-                                        </ItemsPanelTemplate>
-                                    </controls:PinnedItemsControl.ItemsPanel>
+                            <Expander
+                                Style="{StaticResource LeafSettingExpanderStyle}"
+                                IsExpanded="{x:Bind IsExpanded, Mode=OneWay}"
+                                Expanding="OnAccountExpanding"
+                                Collapsed="OnAccountCollapsed"
+                                Tag="{x:Bind}"
+                                AutomationProperties.Name="{x:Bind Email, Mode=OneWay}"
+                                AutomationProperties.AutomationId="{x:Bind local:CalendarsPage.ExpanderId(AccountId)}">
+                                <Expander.Header>
+                                    <controls:SettingRow
+                                        Style="{StaticResource LeafExpanderHeaderRowStyle}"
+                                        Glyph="&#xE8D4;"
+                                        Header="{x:Bind Email, Mode=OneWay}" />
+                                </Expander.Header>
+                                <!-- Calendars (every row has the divider line above it; the -1 top margin tucks the first row's line
+                                     under the header's own bottom edge, since the rows come from a template that can't tell
+                                     which one is first) -->
+                                <controls:PinnedItemsControl Margin="0,-1,0,0" ItemsSource="{x:Bind Calendars}" IsTabStop="False">
                                     <controls:PinnedItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:CalendarRow">
                                             <!-- Calendar Row (color picker, then the show/hide switch with its "Show in Leaf" label) -->
-                                            <controls:SettingRow Header="{x:Bind Name, Mode=OneWay}" Description="{x:Bind local:CalendarsPage.ColorSource(Info), Mode=OneWay}">
+                                            <controls:SettingRow
+                                                Style="{StaticResource LeafExpanderItemRowStyle}"
+                                                Header="{x:Bind Name, Mode=OneWay}"
+                                                Description="{x:Bind local:CalendarsPage.ColorSource(Info), Mode=OneWay}">
                                                 <StackPanel Orientation="Horizontal" Spacing="16">
                                                     <DropDownButton
                                                         Click="OnColorClick"
@@ -96,11 +92,12 @@
                                         </DataTemplate>
                                     </controls:PinnedItemsControl.ItemTemplate>
                                 </controls:PinnedItemsControl>
-                            </StackPanel>
+                                <!-- /Calendars -->
+                            </Expander>
                         </DataTemplate>
                     </controls:PinnedItemsControl.ItemTemplate>
                 </controls:PinnedItemsControl>
-                <!-- /Accounts -->
+                <!-- /One Expander Per Account -->
             </StackPanel>
         </Grid>
     </ScrollViewer>

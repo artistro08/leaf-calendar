@@ -50,6 +50,7 @@ public enum ResponseStatus
 /// <param name="GuestCount">The number of guests.</param>
 /// <param name="OrganizerEmail">The organizer's email address, or null.</param>
 /// <param name="Visibility">Google's event visibility: <c>default</c>, <c>public</c>, <c>private</c>, or <c>confidential</c>. Anything else reads as <c>default</c>.</param>
+/// <param name="HasOtherGuests">True when a guest other than you is on the event (rooms don't count).</param>
 public sealed record EventDetails(
     string Title,
     string? Location,
@@ -61,4 +62,5 @@ public sealed record EventDetails(
     bool IsFree,
     int GuestCount,
     string? OrganizerEmail,
-    string Visibility = "default");
+    string Visibility = "default",
+    bool HasOtherGuests = false);

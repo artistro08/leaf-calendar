@@ -46,6 +46,7 @@ public static class RenameCalendarDialog
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
         };
+        Controls.CtrlEnter.Submits(dialog);
 
         // The box is this method's own reference (never read back through the dialog)
         return await dialog.ShowAsync() == ContentDialogResult.Primary ? (true, box.Text) : (false, null);
