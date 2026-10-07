@@ -155,4 +155,27 @@ internal static class Schema
     public const string V8 = """
         ALTER TABLE outbox ADD COLUMN retry_after INTEGER;
         """;
+
+    /// <summary>
+    /// Version 9: shared availability saved when it's copied (owner request 2026-10-06). <c>share_groups</c> holds the
+    /// title and message as typed and the IANA zone the text was written in; <c>share_slots</c> its free times, in UTC.
+    /// Local only: never sent anywhere.
+    /// </summary>
+    public const string V9 = """
+        CREATE TABLE share_groups (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            title       TEXT NOT NULL,
+            message     TEXT NOT NULL,
+            zone_id     TEXT NOT NULL,
+            created_utc INTEGER NOT NULL
+        );
+
+        CREATE TABLE share_slots (
+            group_id  INTEGER NOT NULL REFERENCES share_groups(id) ON DELETE CASCADE,
+            start_utc INTEGER NOT NULL,
+            end_utc   INTEGER NOT NULL
+        );
+
+        CREATE INDEX ix_share_slots_group ON share_slots (group_id);
+        """;
 }
