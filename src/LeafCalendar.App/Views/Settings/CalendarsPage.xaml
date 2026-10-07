@@ -125,9 +125,10 @@
                             LostFocus="OnDefaultMessageLostFocus"
                             AutomationProperties.Name="Share availability message"
                             AutomationProperties.AutomationId="DefaultShareMessageBox" />
-                        <HyperlinkButton
-                            Content="Use Leaf's message"
-                            Padding="0"
+                        <!-- Reset (Leaf's own message back), at the right like the Windows Settings reset buttons -->
+                        <Button
+                            HorizontalAlignment="Right"
+                            Content="Reset to default"
                             Click="OnDefaultMessageReset"
                             AutomationProperties.AutomationId="DefaultShareMessageReset" />
                     </StackPanel>

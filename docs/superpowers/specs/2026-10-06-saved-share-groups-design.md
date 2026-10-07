@@ -141,7 +141,7 @@ A new card on the Calendars page, following the Windows 11 Settings pattern (one
 
 - Card header "Share availability message", with the description "{times} is replaced with your proposed times."
 - A multi-line `TextBox` under the header (full width, since a message doesn't fit on the right), `MaxLength` `AvailabilityText.MaxMessageLength`, placeholder "Only the times" (as in the panel). Saves on lost focus.
-- A "Use Leaf's message" link that puts back `AvailabilityText.DefaultMessage` and saves.
+- A "Reset to default" button, right-aligned under the box (owner change 2026-10-07; it replaced the "Use Leaf's message" link), that puts back `AvailabilityText.DefaultMessage` and saves.
 - The setting is the existing `LeafSettings.ShareMessage` (no new setting, no migration; owners who already changed it in the panel keep their text as the default).
 - AutomationIds: `DefaultShareMessageBox`, `DefaultShareMessageReset`.
 
@@ -169,7 +169,7 @@ A new card on the Calendars page, following the Windows 11 Settings pattern (one
 New wording not yet approved; it must be approved before shipping:
 
 - Grid slot automation name: "{title}, {time range}". Approve automation name: "Approve {time range}".
-- Settings card header "Share availability message"; its reset link "Use Leaf's message" (the panel's link keeps "Use the default message", which now means your Settings default).
+- Settings card header "Share availability message"; its reset button "Reset to default" (approved 2026-10-07, replacing the link "Use Leaf's message"); the panel's link keeps "Use the default message", which means your Settings default, and sits in a strip along the inside bottom of the message box, under a divider, like the event editor's description toolbar.
 
 ## 10. Testing
 

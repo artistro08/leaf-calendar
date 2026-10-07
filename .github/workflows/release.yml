@@ -1,8 +1,9 @@
 name: Release
 
-# A version tag (v0.1.305) builds the signed Release (Native AOT) MSIX and opens a draft GitHub release with it and the
-# certificate that verifies it. The owner approves the notes, then publishes the draft. The signing certificate lives
-# only in the repository secrets (SIGNING_PFX, base64; SIGNING_PASSWORD).
+# A version tag (v0.1.305) builds the signed Release (Native AOT) MSIX and publishes a GitHub release with it and the
+# certificate that verifies it. The changelog is the list of commits since the previous version tag (merges and version
+# bumps left out), followed by the install steps. The signing certificate lives only in the repository secrets
+# (SIGNING_PFX, base64; SIGNING_PASSWORD).
 on:
   push:
     tags: ['v*']
@@ -16,7 +17,10 @@ jobs:
     env:
       TAG: ${{ github.ref_name }}
     steps:
+      # Full History (the changelog needs the previous version tag and the commits since it)
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -60,11 +64,39 @@ jobs:
       # Package Size: no AI libraries, under budget
       - run: pwsh tools/check-package.ps1
 
-      # Draft Release: the installer and its certificate; the notes are written and approved before it's published
-      - name: Create the draft release
+      # Changelog: every commit since the previous version tag (the whole history for the first one), merges and version
+      # bumps left out, then the install steps
+      - name: Write the changelog
+        shell: pwsh
+        run: |
+          $previous = git describe --tags --abbrev=0 --match 'v*' "$env:TAG^" 2>$null
+          $range = if ($LASTEXITCODE -eq 0) { "$previous..$env:TAG" } else { $env:TAG }
+          $changes = git log $range --no-merges --format='- %s' | Where-Object { $_ -notmatch '^- chore\(release\)' }
+          $notes = @(
+              '## Changes'
+              ''
+              $changes
+              ''
+              '## Install or update'
+              ''
+              "1. Download ``LeafCalendar.cer`` and ``LeafCalendar_$($env:VERSION)_x64.msix`` below."
+              '2. If you haven''t trusted this certificate before, trust it once, in an elevated PowerShell:'
+              ''
+              '    ```powershell'
+              '    Import-Certificate -FilePath .\LeafCalendar.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople'
+              '    ```'
+              ''
+              '3. Double-click the `.msix`. It installs as an update, so your accounts, settings and saved times are kept.'
+              ''
+              'Requires Windows 11 (x64). See the [README](https://github.com/artistro08/leaf-calendar#readme) and [PRIVACY.md](https://github.com/artistro08/leaf-calendar/blob/main/PRIVACY.md).'
+          )
+          Set-Content -Path notes.md -Value $notes -Encoding utf8
+
+      # Release: the installer and its certificate, published as the latest
+      - name: Publish the release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:TAG --draft --title "Leaf Calendar $env:NAME" --notes "Notes to come." "LeafCalendar_$($env:VERSION)_x64.msix" LeafCalendar.cer
+          gh release create $env:TAG --latest --title "Leaf Calendar $env:NAME" --notes-file notes.md "LeafCalendar_$($env:VERSION)_x64.msix" LeafCalendar.cer
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

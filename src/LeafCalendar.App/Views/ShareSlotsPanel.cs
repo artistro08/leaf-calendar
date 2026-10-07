@@ -37,7 +37,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         Header = "Message",
         AcceptsReturn = true,
         TextWrapping = TextWrapping.Wrap,
-        MinHeight = 88,
+        MinHeight = 136,
         MaxLength = AvailabilityText.MaxMessageLength,
         PlaceholderText = "Only the times",
     };
@@ -53,6 +53,9 @@ public sealed partial class ShareSlotsPanel : UserControl
     private readonly AutoSuggestBox _guest = new() { PlaceholderText = "name@example.com", UpdateTextOnSelect = false };
     private readonly StackPanel _guestRows = new() { Spacing = 4 };
     private readonly Border _line = new() { Height = 1, Margin = new Thickness(0, 8, 0, 8) };
+
+    // The divider between the message's text and its "Use the default message" strip, inside the box's border
+    private readonly Border _messageLine = new() { Height = 1 };
     private readonly Button _close = new() { Content = "Cancel", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Grid _buttons = new() { ColumnSpacing = 8 };
     private List<Contact> _guestsShown = [];
@@ -121,7 +124,7 @@ public sealed partial class ShareSlotsPanel : UserControl
             Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
             TextWrapping = TextWrapping.Wrap,
         };
-        var resetMessage = new HyperlinkButton { Content = "Use the default message", Padding = new Thickness(0) };
+        var resetMessage = new HyperlinkButton { Content = "Use the default message", Padding = new Thickness(0), Margin = new Thickness(10, 8, 10, 8) };
         AutomationProperties.SetName(_message, "Message");
         AutomationProperties.SetAutomationId(_message, "ShareMessageBox");
         AutomationProperties.SetAutomationId(resetMessage, "ShareMessageReset");
@@ -135,14 +138,25 @@ public sealed partial class ShareSlotsPanel : UserControl
             }
         };
 
+        // Message Box: the link sits in a strip along the inside of the box's bottom edge, under a 1 px divider, like the
+        // event editor's description toolbar along its top; the box's bottom padding keeps typed text above the strip
+        // (the 1 DIP margins keep the strip inside the box's border)
+        var messageStrip = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(1, 0, 1, 1) };
+        messageStrip.Children.Add(_messageLine);
+        messageStrip.Children.Add(resetMessage);
+        var textPadding = (Thickness)Application.Current.Resources["TextControlThemePadding"];
+        messageStrip.SizeChanged += (_, e) => _message.Padding = new Thickness(textPadding.Left, textPadding.Top, textPadding.Right, textPadding.Bottom + e.NewSize.Height);
+        var messageBox = new Grid();
+        messageBox.Children.Add(_message);
+        messageBox.Children.Add(messageStrip);
+
         var stack = new StackPanel { Spacing = 8, Margin = new Thickness(16, 0, 16, 16) };
         stack.Children.Add(_title);
         stack.Children.Add(hint);
         stack.Children.Add(_titleBox);
         stack.Children.Add(_zoneBox);
-        stack.Children.Add(_message);
+        stack.Children.Add(messageBox);
         stack.Children.Add(messageHint);
-        stack.Children.Add(resetMessage);
         stack.Children.Add(_line);
         stack.Children.Add(guestsHeading);
         stack.Children.Add(_guest);
@@ -182,7 +196,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         {
             var dark = ActualTheme == ElementTheme.Dark;
             _footer.BorderBrush = LeafBrushes.GridLine(dark);
-            _line.Background = LeafBrushes.GridLine(dark);
+            _line.Background = _messageLine.Background = LeafBrushes.GridLine(dark);
             _shown.ForEach(r => r.Paint(dark));
         };
     }
@@ -228,7 +242,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         _save.IsEnabled = vm.ShareSlots.Count > 0;
         _copy.IsEnabled = vm.ShareSlots.Count > 0;
         _footer.BorderBrush = LeafBrushes.GridLine(ActualTheme == ElementTheme.Dark);
-        _line.Background = LeafBrushes.GridLine(ActualTheme == ElementTheme.Dark);
+        _line.Background = _messageLine.Background = LeafBrushes.GridLine(ActualTheme == ElementTheme.Dark);
         _empty.Visibility = vm.ShareSlots.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         while (_shown.Count < vm.ShareSlots.Count)
         {

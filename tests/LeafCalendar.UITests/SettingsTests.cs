@@ -319,7 +319,12 @@ public sealed class SettingsTests : IDisposable
         leaf.OpenSettings("Calendars");
         var box = leaf.WaitInSettings("DefaultShareMessageBox").AsTextBox();
         box.Text = "Mine {times}";
-        leaf.WaitInSettings("DefaultShareMessageReset").AsButton().Invoke();
+
+        // A Button Named Reset To Default, At The Box's Right Edge
+        var reset = leaf.WaitInSettings("DefaultShareMessageReset");
+        Assert.Equal("Reset to default", reset.Name);
+        Assert.True(Math.Abs(reset.BoundingRectangle.Right - box.BoundingRectangle.Right) <= 2, $"Reset to default ({reset.BoundingRectangle}) isn't right-aligned with the box ({box.BoundingRectangle}).");
+        reset.AsButton().Invoke();
 
         Assert.Equal(AvailabilityText.DefaultMessage.Replace("\r\n", "\r", StringComparison.Ordinal), box.Text.Replace("\r\n", "\r", StringComparison.Ordinal));
     }

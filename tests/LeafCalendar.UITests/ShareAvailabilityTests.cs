@@ -297,8 +297,12 @@ public sealed class ShareAvailabilityTests : IDisposable
         Assert.True(copy.Right < stop.Left && Math.Abs(copy.Width - stop.Width) <= 1, $"Copy & Save ({copy}) and Cancel ({stop}) aren't two equal buttons in that order.");
         Assert.True(panel.Bottom - copy.Bottom <= edge, $"The buttons ({copy}) aren't at the panel's ({panel}) bottom.");
 
-        // The Line, Then The Heading, Then The Guest Box, All Under The Message
+        // The Default-Message Link Sits Inside The Message Box, Along Its Bottom
         var reset = leaf.WaitFor("ShareMessageReset").BoundingRectangle;
+        var message = leaf.WaitFor("ShareMessageBox").BoundingRectangle;
+        Assert.True(reset.Left >= message.Left && reset.Right <= message.Right && reset.Bottom <= message.Bottom && reset.Top > message.Top + message.Height / 2, $"The message link ({reset}) isn't inside the bottom of the message box ({message}).");
+
+        // The Line, Then The Heading, Then The Guest Box, All Under The Message
         var line = leaf.WaitFor("ShareGuestsLine").BoundingRectangle;
         var heading = leaf.WaitFor("ShareGuestsHeading");
         var guest = leaf.WaitFor("ShareGuestBox").BoundingRectangle;
