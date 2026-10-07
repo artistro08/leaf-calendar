@@ -54,9 +54,7 @@ public sealed class SavedShareGroupTests : IDisposable
     private static string Flat(string text) => text.Replace("\r", "", StringComparison.Ordinal).Replace("\n", "", StringComparison.Ordinal);
 
     // The text box inside the guest AutoSuggestBox
-    private static TextBox GuestEdit(LeafApp leaf) =>
-        Retry.WhileNull(() => leaf.WaitFor("ShareGuestBox").FindFirstDescendant(cf => cf.ByControlType(ControlType.Edit)), TimeSpan.FromSeconds(10)).Result?.AsTextBox()
-        ?? throw new InvalidOperationException("The guest box has no text box inside.");
+    private static TextBox GuestEdit(LeafApp leaf) => LeafApp.TextIn(leaf.WaitFor("ShareGuestBox"));
 
     // Types a new title into the open panel's Title box, like a person does
     private static void TypeTitle(LeafApp leaf, string title)
@@ -379,6 +377,39 @@ public sealed class SavedShareGroupTests : IDisposable
         Assert.True(Retry.WhileFalse(() => GuestEdit(leaf).Text.Length == 0, TimeSpan.FromSeconds(5)).Success, $"The guest box reads \"{GuestEdit(leaf).Text}\".");
         var approve = leaf.WaitFor("SharePanelApprove_0").AsButton();
         Assert.True(Retry.WhileFalse(() => approve.IsEnabled, TimeSpan.FromSeconds(5)).Success, "Approve… stayed off after picking a contact.");
+    }
+
+    // A picked contact keeps their name, and a typed address of someone from your own events gets theirs; both names are
+    // saved with the group and shown when it's opened again
+    [Fact]
+    public void Guests_ShowTheirNames_AfterSaveAndReopen()
+    {
+        using var leaf = Launch();
+        Save(leaf);
+        OpenFirst(leaf);
+        var edit = GuestEdit(leaf);
+        edit.Focus();
+        Keyboard.Type("ali");
+        var alice = Retry.WhileNull(
+            () => leaf.FindAllAnywhere("SuggestionsList").SelectMany(list => list.FindAllDescendants(cf => cf.ByControlType(ControlType.ListItem)))
+                .FirstOrDefault(item => item.Properties.Name.ValueOrDefault == "Alice Example <alice@example.com>"),
+            TimeSpan.FromSeconds(10)).Result;
+        Assert.NotNull(alice);
+        alice.Click();
+        Assert.True(Retry.WhileFalse(() => GuestIs(leaf, 0, "Alice Example"), TimeSpan.FromSeconds(5)).Success, "Picking Alice didn't add her to the guests.");
+
+        // Frank Is A Guest In The Seeded Events, Typed By Address
+        GuestEdit(leaf).Focus();
+        Thread.Sleep(300);
+        Keyboard.Type("frank@example.com");
+        Keyboard.Type(VirtualKeyShort.ENTER);
+        Assert.True(Retry.WhileFalse(() => GuestIs(leaf, 1, "Frank Often"), TimeSpan.FromSeconds(10)).Success, "The typed address didn't get Frank's name.");
+
+        leaf.WaitFor("ShareSaveButton").AsButton().Invoke();
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(10)).Success, "Save didn't close the panel.");
+
+        OpenFirst(leaf);
+        Assert.True(Retry.WhileFalse(() => GuestIs(leaf, 0, "Alice Example") && GuestIs(leaf, 1, "Frank Often"), TimeSpan.FromSeconds(5)).Success, "The saved guests' names didn't show.");
     }
 
     // A message typed in the panel goes with that share and its saved group; the next new share starts from the default

@@ -31,6 +31,8 @@ internal static class OwnerInputGuard
     private static int s_anchorX;
     private static int s_anchorY;
     private static bool s_hasAnchor;
+    private static int s_seenX;
+    private static int s_seenY;
 
     /// <summary>The file whose existence means the run is paused. Only the owner resumes, by deleting it.</summary>
     public static string PauseFile { get; } = Path.Combine(
@@ -77,6 +79,7 @@ internal static class OwnerInputGuard
         ready.Set();
         if (hook == 0)
         {
+            Console.Error.WriteLine("The pause guard is off: the mouse hook couldn't be installed, so moving the mouse won't pause UI tests.");
             return;
         }
 
@@ -87,7 +90,12 @@ internal static class OwnerInputGuard
         }
     }
 
-    // Called by Windows for every mouse event; it must return quickly, so the file is written on the thread pool
+    // Called by Windows for every mouse event; it must return quickly, so the file is written on the thread pool.
+    // A real move is measured from an anchor: where the cursor settled after FlaUI last moved it. FlaUI moves the cursor
+    // with SetCursorPos too, which this hook never sees, so before judging an event the cursor is read with
+    // GetCursorPos (in the hook it still shows where the cursor was before this event). When that differs from the
+    // last point this hook saw, something unseen moved the cursor, so the anchor moves there; a 1 px twitch right after
+    // a FlaUI move is then measured from where FlaUI left the cursor, not from where it was before
     private static nint OnMouse(int code, nint message, nint data)
     {
         if (code >= 0)
@@ -95,6 +103,12 @@ internal static class OwnerInputGuard
             var info = Marshal.PtrToStructure<MouseHookInfo>(data);
             var injected = (info.Flags & InjectedFlag) != 0;
             var isMove = message == MouseMove;
+            if (s_hasAnchor && NativeMethods.GetCursorPos(out var cursor) && (cursor.X != s_seenX || cursor.Y != s_seenY))
+            {
+                (s_anchorX, s_anchorY) = (cursor.X, cursor.Y);
+            }
+
+            (s_seenX, s_seenY) = (info.X, info.Y);
             if (injected || !s_hasAnchor)
             {
                 // Injected moves (and the first event seen) set where the cursor settled, so a real move is measured from there
@@ -137,6 +151,13 @@ internal static class OwnerInputGuard
     }
 
     private delegate nint HookProc(int code, nint message, nint data);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Point
+    {
+        public int X;
+        public int Y;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MouseHookInfo
@@ -184,6 +205,11 @@ internal static class OwnerInputGuard
         [DllImport("user32.dll")]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         internal static extern nint DispatchMessageW(in Message message);
+
+        [DllImport("user32.dll")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetCursorPos(out Point point);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

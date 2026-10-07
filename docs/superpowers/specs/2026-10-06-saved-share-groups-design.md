@@ -21,7 +21,7 @@ You share some times with someone, they write back with the one they want, and y
 | Editing an open group | Changes wait for Save or Copy & Save; Close throws them away. Removing its last time leaves no times (Save is off); Delete is how a group goes. |
 | Deleting a group | A trash icon in the title bar row above the right panel ("Delete saved times"), like an event's Delete, shown only while a saved group is open. Deletes at once, no undo. |
 | Guests | Several per group, like an event (owner, 2026-10-07). The guest box shows for new picks and saved groups and suggests Google contacts as you type (the same search as the people picker); a pick, or Enter on a valid address, adds the guest to a list under the box and empties it. Repeats (any case) aren't added twice. A valid address typed but not yet added counts for Save, Copy & Save and Approve…. |
-| What a group keeps | The times exactly as dragged (the ones in the copied text), its title, its message, the zone the text was written in, and its guests in order (saved with Save or Copy & Save; database version 11). |
+| What a group keeps | The times exactly as dragged (the ones in the copied text), its title, its message, the zone the text was written in, and its guests in order with their names (saved with Save or Copy & Save; database version 12). |
 | Default message | Set in Settings › Calendars. Each new share starts from it. Edits in the share panel apply to that share (and its saved group) only. |
 | Title | A new Title box in the share panel. Empty means the generic title. Shown on every saved time; pre-fills the event title on approve. |
 | Opening a group | Click one of its times on the grid. |
@@ -58,7 +58,8 @@ CREATE INDEX ix_share_slots_group ON share_slots (group_id);
 CREATE TABLE share_guests (
     group_id INTEGER NOT NULL REFERENCES share_groups(id) ON DELETE CASCADE,
     position INTEGER NOT NULL,
-    email    TEXT NOT NULL
+    email    TEXT NOT NULL,
+    name     TEXT NOT NULL DEFAULT ''  -- version 12: the guest's name as shown when saved; empty when only the address is known
 );
 
 CREATE INDEX ix_share_guests_group ON share_guests (group_id);
@@ -89,7 +90,7 @@ Sharing gains a "which group" field:
 - `SavedGroups` (`IReadOnlyList<ShareGroup>`): loaded off the UI thread at start (generation counter, as the tray reads do) and after each change. `ShareChanged` fires when it changes.
 - `ShareTitle` (string): the panel's Title box.
 - `ShareText` (string): this share's message. `StartSharing` sets it from `Settings.ShareMessage` (the default); the panel's edits change only `ShareText`, never the setting. `SetShareMessage` is replaced by this property, and `BuildAvailability` composes from `ShareText`.
-- `ShareGuests` (`IReadOnlyList<Contact>`): the guests added, in order (a picked contact's name; empty when only the address is known, as for a reopened group). `AddShareGuest(email, name)` adds a valid address once (false for an invalid one); `RemoveShareGuest(index)` removes one. Nothing is written until Save or Copy & Save.
+- `ShareGuests` (`IReadOnlyList<Contact>`): the guests added, in order (a picked contact's name, kept on save; empty when only the address is known). A guest without a name gets the name Leaf knows for that exact address: from the people in your own events, else, only for a guest just typed or added in the box, from Google's contacts. Reopening a saved group looks names up on this PC only, never from Google. A late answer is dropped once that guest has a name or is gone. `AddShareGuest(email, name)` adds a valid address once (false for an invalid one); `RemoveShareGuest(index)` removes one. Nothing is written until Save or Copy & Save.
 - Settings › Calendars' box saves `Settings.ShareMessage` through `SettingsContext.Save` (an empty box saves empty, meaning only the times, as today).
 - `OpenGroup(long id)`: starts sharing on that group (its times, title, message, guests and zone). It opens only when not already sharing (a click on a saved time is refused while sharing).
 - `AddShareSlot`, `UpdateShareSlot`, `RemoveShareSlot` change only the picks, for new picks and an open group alike; nothing is written until Save or Copy & Save. Removing a group's last time leaves no times (Save is off); the group stays saved. `ShareTitle` and `ShareText` are plain values too.
@@ -161,10 +162,12 @@ A new card on the Calendars page, following the Windows 11 Settings pattern (one
 | Title bar delete icon tooltip and name | Delete saved times (approved 2026-10-07) |
 | Open-group heading | Saved times |
 | Save failed | Couldn't save that. Try again. |
+| Settings card description (approved 2026-10-07) | {times} is replaced with your proposed times. |
+| Guest row screen reader name | {name}, {email} (the address alone when there's no name) |
+| Notice when the copy worked but saving failed (shipped since 0.1.300) | Copied, but couldn't save these times. |
 
 New wording not yet approved; it must be approved before shipping:
 
-- Notice when the copy worked but saving failed: "Copied, but couldn't save these times."
 - Grid slot automation name: "{title}, {time range}". Approve automation name: "Approve {time range}".
 - Settings card header "Share availability message"; its reset link "Use Leaf's message" (the panel's link keeps "Use the default message", which now means your Settings default).
 
@@ -173,7 +176,7 @@ New wording not yet approved; it must be approved before shipping:
 Logic tests (`tests/LeafCalendar.Tests`), written first:
 
 - `ShareGroupStoreTests`: insert/read round trip, update replaces times, last time removed deletes the group, delete cascades (times and guests), `GetAll` hides ended times, `Prune` drops ended times and empty groups, title clean and cap; guests round trip in order, update replaces them, empty ones and repeats are dropped, each is capped and at most 50 are kept.
-- Migration tests: `user_version` is 11; a version-8 database upgrades with its data intact; a version-10 database moves a saved `guest_email` into the guest list and keeps the group.
+- Migration tests: `user_version` is 12; a version-8 database upgrades with its data intact; a version-10 database moves a saved `guest_email` into the guest list and keeps the group; a version-11 database keeps its guests, with no names.
 - `DragMathTests`: `ResizeRange` snaps either edge, keeps at least 15 minutes, crosses DST days and midnight correctly.
 
 UI tests (`tests/LeafCalendar.UITests`), affected classes only:

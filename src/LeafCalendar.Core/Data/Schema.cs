@@ -204,4 +204,12 @@ internal static class Schema
         INSERT INTO share_guests (group_id, position, email)
             SELECT id, 0, guest_email FROM share_groups WHERE guest_email <> '';
         """;
+
+    /// <summary>
+    /// Version 12: <c>share_guests.name</c>, a saved guest's name (owner request 2026-10-07, saved groups show their
+    /// guests' names), empty when Leaf doesn't know it and for guests saved before. Local only.
+    /// </summary>
+    public const string V12 = """
+        ALTER TABLE share_guests ADD COLUMN name TEXT NOT NULL DEFAULT '';
+        """;
 }

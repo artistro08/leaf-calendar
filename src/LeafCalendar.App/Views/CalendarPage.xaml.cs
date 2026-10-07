@@ -385,7 +385,7 @@ public sealed partial class CalendarPage : Page
     public bool HandleShortcut(KeyRoutedEventArgs e)
     {
         // Esc While Scheduling Stops It Wherever Focus Is, Typing Included (the page's Esc accelerator never hears it from a
-        // control that takes Esc for itself, like the editable zone box); an open dropdown, suggestion list, picker or flyout
+        // control that takes Esc for itself, like the zone search box); an open dropdown, suggestion list, picker or flyout
         // closes first
         if (e.Key == VirtualKey.Escape && ViewModel.IsSharing && !IsInOpenPopup(FocusManager.GetFocusedElement(XamlRoot))
             && !FocusWithin(element => element is ComboBox { IsDropDownOpen: true } or AutoSuggestBox { IsSuggestionListOpen: true }))
