@@ -64,6 +64,19 @@ public class TimeZoneCatalogTests
     public void Search_ShortOrTooFarOff_NoTypoMatch(string query) => Assert.Empty(TimeZoneCatalog.Search(query, Now));
 
     [Fact]
+    public void Search_WithoutTypos_LeavesOutTypoOnlyMatches()
+    {
+        Assert.Empty(TimeZoneCatalog.Search("Pheonix", Now, typos: false));
+
+        // "CEST" is Paris's alias, and one letter off "West" (West Asia, West Pacific...), which only the typo pass finds
+        var exact = TimeZoneCatalog.Search("CEST", Now, 500, typos: false).Select(r => r.Id).ToList();
+        var all = TimeZoneCatalog.Search("CEST", Now, 500).Select(r => r.Id).ToList();
+        Assert.Contains("Europe/Paris", exact);
+        Assert.True(all.Count > exact.Count);
+        Assert.Equal(exact, all.Take(exact.Count));
+    }
+
+    [Fact]
     public void Search_StillReturnsAtMostMax()
     {
         Assert.Single(TimeZoneCatalog.Search("Pheonix", Now, 1));

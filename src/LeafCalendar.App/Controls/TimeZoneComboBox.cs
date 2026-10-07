@@ -182,6 +182,13 @@ public sealed partial class TimeZoneComboBox : ComboBox
         var caret = field.SelectionStart;
         var ids = text.Trim().Length == 0 ? [.. _allIds] : Matches(text);
 
+        // The same rows as before (a trailing space, say) stay as they are
+        if (_filtered && ids.SequenceEqual(_ids))
+        {
+            IsDropDownOpen = ids.Count > 0;
+            return;
+        }
+
         _filling = true;
         _ids = ids;
         _labels = [.. ids.Select(id => _allLabels[_allIds.IndexOf(id)])];
@@ -199,14 +206,16 @@ public sealed partial class TimeZoneComboBox : ComboBox
         _filling = false;
     }
 
-    // The search boxes' ranking first (cities, aliases, Windows names, small typos), then any row holding the text
+    // The search boxes' exact and part-of-a-name matches (cities, aliases, Windows names) first, then any row holding the
+    // text ("CEST" in Berlin's row), then small typos
     private List<string> Matches(string text)
     {
         text = text.Trim();
-        return [.. TimeZoneCatalog.Search(text, _now, int.MaxValue)
+        return [.. TimeZoneCatalog.Search(text, _now, int.MaxValue, typos: false)
             .Select(c => c.Id)
             .Where(_allIds.Contains)
             .Concat(_allIds.Where((_, i) => _allLabels[i].Contains(text, StringComparison.OrdinalIgnoreCase)))
+            .Concat(TimeZoneCatalog.Search(text, _now, int.MaxValue).Select(c => c.Id).Where(_allIds.Contains))
             .Distinct()];
     }
 

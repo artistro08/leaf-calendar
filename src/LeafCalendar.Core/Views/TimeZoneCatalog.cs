@@ -93,13 +93,16 @@ public static class TimeZoneCatalog
     /// <summary>True when this PC can resolve <paramref name="id"/>.</summary>
     public static bool IsKnown(string id) => TimeZoneInfo.TryFindSystemTimeZoneById(id, out _);
 
-    /// <summary>Best matches for <paramref name="query"/> (curated cities when empty).</summary>
-    public static IReadOnlyList<TimeZoneChoice> Search(string query, DateTimeOffset now, int max = 20)
+    /// <summary>
+    /// Best matches for <paramref name="query"/> (curated cities when empty). With <paramref name="typos"/> off, only exact
+    /// and part-of-a-name matches, so a caller can list its own matches between those and the typo matches.
+    /// </summary>
+    public static IReadOnlyList<TimeZoneChoice> Search(string query, DateTimeOffset now, int max = 20, bool typos = true)
     {
         var q = query.Trim();
 
         return AllEntries.Value
-            .Select((entry, order) => (entry, order, rank: Rank(entry, q)))
+            .Select((entry, order) => (entry, order, rank: Rank(entry, q, typos)))
             .Where(x => x.rank < int.MaxValue)
             .OrderBy(x => x.rank)
             .ThenBy(x => x.order)
@@ -194,7 +197,7 @@ public static class TimeZoneCatalog
         return $"{ZoneAbbreviation.For(zone, now)} · {zone.StandardName}";
     }
 
-    private static int Rank(Entry entry, string query)
+    private static int Rank(Entry entry, string query, bool typos)
     {
         if (query.Length == 0)
         {
@@ -219,7 +222,7 @@ public static class TimeZoneCatalog
         }
 
         // A Small Typo In A Whole Word, Closer Ones First
-        var allowed = query.Length switch { < 4 => 0, <= 6 => 1, _ => 2 };
+        var allowed = !typos ? 0 : query.Length switch { < 4 => 0, <= 6 => 1, _ => 2 };
         var closest = allowed == 0 ? int.MaxValue : entry.Words.Min(w => TypoDistance(query, w, allowed));
 
         return closest <= allowed ? (closest * 2) + (entry.Curated ? 3 : 4) : int.MaxValue;
