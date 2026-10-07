@@ -124,7 +124,9 @@ public sealed partial class ShareSlotsPanel : UserControl
             Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
             TextWrapping = TextWrapping.Wrap,
         };
-        var resetMessage = new HyperlinkButton { Content = "Use the default message", Padding = new Thickness(0), Margin = new Thickness(10, 8, 10, 8) };
+        // (the link lines up with the typed text: both sit the box's text padding in from its border)
+        var textPadding = (Thickness)Application.Current.Resources["TextControlThemePadding"];
+        var resetMessage = new HyperlinkButton { Content = "Use the default message", Padding = new Thickness(0), Margin = new Thickness(textPadding.Left, 8, textPadding.Right, 8) };
         AutomationProperties.SetName(_message, "Message");
         AutomationProperties.SetAutomationId(_message, "ShareMessageBox");
         AutomationProperties.SetAutomationId(resetMessage, "ShareMessageReset");
@@ -144,7 +146,6 @@ public sealed partial class ShareSlotsPanel : UserControl
         var messageStrip = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(1, 0, 1, 1) };
         messageStrip.Children.Add(_messageLine);
         messageStrip.Children.Add(resetMessage);
-        var textPadding = (Thickness)Application.Current.Resources["TextControlThemePadding"];
         messageStrip.SizeChanged += (_, e) => _message.Padding = new Thickness(textPadding.Left, textPadding.Top, textPadding.Right, textPadding.Bottom + e.NewSize.Height);
         var messageBox = new Grid();
         messageBox.Children.Add(_message);
