@@ -4,11 +4,14 @@
 //     leaf-calendar-main.svg;
 //   - the tray icons from icons/daily: one per day of the month, white for dark mode and black for light mode, at every
 //     small-icon size Windows uses from 100% to 400% display scale, so the taskbar never scales one (which blurs it).
-// Every PNG is drawn at its exact pixel size; nothing is resized after rendering.
+// The main icon carries photo-like images that the renderer shrinks in one step (stray pixels and smudged strokes at
+// taskbar sizes), so each of its PNGs is drawn at least 1024 px across and averaged down to its exact size. The tray
+// icons are plain shapes and are drawn at their exact size.
 // Usage: node make-icons.cjs <tools/icons> <Assets>   (needs @resvg/resvg-js resolvable from the working folder)
 
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const { Resvg } = require(require.resolve('@resvg/resvg-js', { paths: [process.cwd()] }));
 const [iconsDir, assets] = process.argv.slice(2);
 
@@ -24,12 +27,69 @@ const style = (open.match(/style="([^"]+)"/) || [, ''])[1];
 const inner = source.slice(source.indexOf(open) + open.length, source.lastIndexOf('</svg>'));
 const namespaces = (open.match(/xmlns(:\w+)?="[^"]*"/g) || []).join(' ');
 
-// The logo at size `logo`, centered on a transparent w x h canvas
+// How big the logo is drawn before it's averaged down to its size
+const drawAt = 1024;
+
+// The logo at size `logo`, centered on a transparent w x h canvas: drawn k times larger, then each k x k block of
+// (premultiplied) pixels averaged into one. Returns premultiplied RGBA pixels, like the renderer's own images
 function render(w, h, size) {
-    const x = (w - size) / 2, y = (h - size) / 2;
-    const svg = `<svg ${namespaces} width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
-        `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="${viewBox}" style="${style}">${inner}</svg></svg>`;
-    return new Resvg(svg, { fitTo: { mode: 'original' } }).render();
+    const k = Math.max(1, Math.ceil(drawAt / size));
+    const x = (w - size) / 2 * k, y = (h - size) / 2 * k;
+    const svg = `<svg ${namespaces} width="${w * k}" height="${h * k}" viewBox="0 0 ${w * k} ${h * k}">` +
+        `<svg x="${x}" y="${y}" width="${size * k}" height="${size * k}" viewBox="${viewBox}" style="${style}">${inner}</svg></svg>`;
+    const big = new Resvg(svg, { fitTo: { mode: 'original' } }).render().pixels;
+    const pixels = Buffer.alloc(w * h * 4);
+    for (let y0 = 0; y0 < h; y0++) {
+        for (let x0 = 0; x0 < w; x0++) {
+            const sum = [0, 0, 0, 0];
+            for (let dy = 0; dy < k; dy++) {
+                const row = ((y0 * k + dy) * w * k + x0 * k) * 4;
+                for (let i = 0; i < k * 4; i++) {
+                    sum[i % 4] += big[row + i];
+                }
+            }
+
+            for (let c = 0; c < 4; c++) {
+                pixels[(y0 * w + x0) * 4 + c] = Math.round(sum[c] / (k * k));
+            }
+        }
+    }
+
+    return { pixels, asPng: () => png(pixels, w, h) };
+}
+
+// Premultiplied RGBA pixels as a PNG (straight alpha, no filtering, deflated)
+function png(pixels, w, h) {
+    const raw = Buffer.alloc((w * 4 + 1) * h);
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const s = (y * w + x) * 4, d = y * (w * 4 + 1) + 1 + x * 4, a = pixels[s + 3];
+            for (let c = 0; c < 3; c++) {
+                raw[d + c] = a === 0 ? 0 : Math.min(255, Math.round(pixels[s + c] * 255 / a));
+            }
+
+            raw[d + 3] = a;
+        }
+    }
+
+    const chunk = (type, data) => {
+        const head = Buffer.alloc(8);
+        head.writeUInt32BE(data.length, 0);
+        head.write(type, 4, 'ascii');
+        const crc = Buffer.alloc(4);
+        crc.writeUInt32BE(zlib.crc32(Buffer.concat([head.subarray(4), data])), 0);
+        return Buffer.concat([head, data, crc]);
+    };
+    const ihdr = Buffer.alloc(13);
+    ihdr.writeUInt32BE(w, 0);
+    ihdr.writeUInt32BE(h, 4);
+    ihdr.set([8, 6, 0, 0, 0], 8);
+    return Buffer.concat([
+        Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+        chunk('IHDR', ihdr),
+        chunk('IDAT', zlib.deflateSync(raw, { level: 9 })),
+        chunk('IEND', Buffer.alloc(0)),
+    ]);
 }
 
 function logo(w, h, size) {

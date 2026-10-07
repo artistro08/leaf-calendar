@@ -39,16 +39,21 @@ if (-not $trusted) {
     }
 }
 
-# Build Version: the manifest's major.minor, then days since 2026 and minutes into the day, so every build is newer
-# than the last and installs as an update (an update keeps Leaf's settings and sign-in; a remove and reinstall
-# deletes them). Stamped into the manifest for the publish only, then put back
+# Build Version: the manifest's release version (major.minor.build) with its last part counting minutes since the
+# manifest was last committed (by the release that set it), so every build is newer than that release and than the
+# build before it, and installs as an update (an update keeps Leaf's settings and sign-in; a remove and reinstall
+# deletes them). The last part stops at 65535 (about 45 days): past that, a release raises the build number first.
+# Stamped into the manifest for the publish only, then put back
 $manifest = Join-Path $app 'Package.appxmanifest'
 $original = [IO.File]::ReadAllText($manifest)
-$now      = Get-Date
-$base     = [regex]::Match($original, '<Identity [^>]*Version="(\d+\.\d+)\.').Groups[1].Value
-$days     = ($now.Date - [datetime]'2026-01-01').Days
-$minutes  = [int][math]::Floor($now.TimeOfDay.TotalMinutes)
-$version  = "$base.$days.$minutes"
+$base     = [regex]::Match($original, '<Identity [^>]*Version="(\d+\.\d+\.\d+)\.').Groups[1].Value
+$released = [DateTimeOffset]::FromUnixTimeSeconds([long](git -C $root log -1 --format=%ct -- src/LeafCalendar.App/Package.appxmanifest))
+$minutes  = [int][math]::Floor(([DateTimeOffset]::UtcNow - $released).TotalMinutes) + 1
+if ($minutes -gt 65535) {
+    throw "The manifest's version $base was set over 45 days ago; raise its third number (a release) before installing."
+}
+
+$version = "$base.$minutes"
 [IO.File]::WriteAllText($manifest, [regex]::Replace($original, '(<Identity [^>]*Version=")[^"]+', "`${1}$version"))
 
 # Publish Signed MSIX (the AOT linker setup calls vswhere.exe by bare name)
