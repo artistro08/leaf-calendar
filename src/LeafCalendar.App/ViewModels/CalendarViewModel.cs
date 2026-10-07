@@ -153,11 +153,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         Cache.Changed += (_, _) =>
         {
             // The Data Changed: one calendar's upcoming list is read again, meeting links looked up again, and the
-            // command menu's search index read again when it's next needed
+            // command menu's search index and the people from your events read again when they're next needed
             ForgetCalendarSoon();
             _providers.Clear();
             _searchIndex = null;
             _searchIndexGeneration++;
+            _localPeople.Clear();
             RefreshUpcoming();
             OccurrencesChanged?.Invoke(this, EventArgs.Empty);
         };

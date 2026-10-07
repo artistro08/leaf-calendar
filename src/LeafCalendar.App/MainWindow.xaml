@@ -216,9 +216,11 @@
                             </Border>
                             <!-- /Delete -->
 
-                            <!-- Delete Saved Times (in Delete's place, while the share panel shows a saved group) -->
+                            <!-- Delete Saved Times (in Edit's place, the first spot, while the share panel shows a saved
+                                 group: the right margin is the empty 32-wide spot the second button would take) -->
                             <Button
                                 x:Name="DeleteSavedTimesButton"
+                                Margin="0,0,32,0"
                                 Style="{StaticResource LeafBareIconButtonStyle}"
                                 Click="OnDeleteSavedTimesClick"
                                 Visibility="Collapsed"

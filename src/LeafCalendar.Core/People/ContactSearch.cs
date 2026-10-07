@@ -124,7 +124,7 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
         catch (Exception ex) when (!ct.IsCancellationRequested && ex is not OutOfMemoryException)
         {
             // A token refresh that failed or hung is a failed search, never an exception
-            Failed(accountId, 0);
+            Failed(accountId, 0, "token");
             return new([], ContactAccess.Allowed);
         }
 
@@ -243,13 +243,21 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
             status = ex is HttpRequestException { StatusCode: { } code } ? (int)code : status;
         }
 
-        Failed(accountId, status);
+        Failed(accountId, status, Source(uri));
         return (null, ContactAccess.Allowed);
     }
 
-    // Account ID and status only: never the query, names, or addresses
-    private void Failed(string accountId, int status) =>
-        log.Info("contacts.search.failed", string.Create(CultureInfo.InvariantCulture, $"account={accountId} status={status}"));
+    // Account ID, status, and which source failed only: never the query, names, or addresses
+    private void Failed(string accountId, int status, string source) =>
+        log.Info("contacts.search.failed", string.Create(CultureInfo.InvariantCulture, $"account={accountId} status={status} source={source}"));
+
+    // The source a request went to, by its path
+    private static string Source(Uri uri) => uri.AbsolutePath switch
+    {
+        var p when p.EndsWith(OthersPath[1..], StringComparison.Ordinal) => "others",
+        var p when p.EndsWith(DirectoryPath[1..], StringComparison.Ordinal) => "directory",
+        _ => "contacts",
+    };
 
     // One call with a fresh access token; a 401 drops the cached token and retries once
     private async Task<HttpResponseMessage> SendAsync(string accountId, Uri uri, CancellationToken ct)

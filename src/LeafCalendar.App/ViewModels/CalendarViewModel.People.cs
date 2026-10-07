@@ -191,6 +191,30 @@ public sealed partial class CalendarViewModel
             ? google.Contacts.SearchAsync(account, text, ct)
             : Task.FromResult(new ContactResults([], ContactAccess.Allowed));
 
+    // People from your own events, per account: read once off the UI thread, read again after the events change
+    private readonly Dictionary<string, Task<IReadOnlyList<Contact>>> _localPeople = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// People from your own calendar events (the guests you meet with, as the editor's guest box suggests them) who
+    /// match <paramref name="text"/>, for the people picker and the share panel's guest box. Read from the local
+    /// database only; none without an account.
+    /// </summary>
+    public async Task<IReadOnlyList<Contact>> LocalPeopleAsync(string text)
+    {
+        if (PeopleAccountId() is not { } account)
+        {
+            return [];
+        }
+
+        if (!_localPeople.TryGetValue(account, out var load))
+        {
+            var now = Now;
+            _localPeople[account] = load = Task.Run(() => ReadLocal(conn => FrequentPeople.Load(conn, account, now)));
+        }
+
+        return FrequentPeople.Match(await load, text);
+    }
+
     // =========================================================================
     // SHARE AVAILABILITY
     // =========================================================================
