@@ -1266,6 +1266,15 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     partial void OnEditingChanged(EventEditorViewModel? oldValue, EventEditorViewModel? newValue)
     {
         oldValue?.Dispose();
+
+        // An Approve Editor Closed Without Saving (or another editor took its place): the group stays, no longer
+        // resizable. ApproveSlot sets the group after its editor opens, so the open itself doesn't clear it
+        if (_approvingGroupId is not null)
+        {
+            _approvingGroupId = null;
+            ShareChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         if (newValue is null)
         {
             return;
@@ -1419,6 +1428,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
                 string? id = null;
                 _reselect = (draft.IsAllDay ? DateOnly.FromDateTime(draft.Start.UtcDateTime) : LocalDate(draft.Start), x => x.EventId == id);
                 id = _services.Editor.Create(draft, sendUpdates);
+
+                // Approved From A Saved Group: the group's job is done
+                if (_approvingGroupId is { } approved)
+                {
+                    _approvingGroupId = null;
+                    WriteGroups("share.group.delete.failed", conn => ShareGroupStore.Delete(conn, approved));
+                }
             }
             else
             {

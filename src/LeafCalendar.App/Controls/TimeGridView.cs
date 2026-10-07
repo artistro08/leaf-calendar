@@ -1051,10 +1051,21 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _drag = new DragSession(DragKind.Create, e.GetCurrentPoint(this).Position) { GrabbedAt = DragMath.Instant(day, minutes, _vm.Zone) };
     }
 
-    /// <summary>A click on empty time: a saved time there opens its group (not while sharing or editing). True when one opened.</summary>
+    /// <summary>
+    /// A click on empty time: a click inside a saved time opens its group (not while sharing or editing). True when one
+    /// opened.
+    /// </summary>
     public bool OpenSlotAt(DateOnly day, double y)
     {
-        if (_vm.IsSharing || _vm.Editing is not null || SlotAt(day, y / HourHeight * 60) is not { Slot: { Title: not null, GroupId: { } id } })
+        var minutes = y / HourHeight * 60;
+        if (_vm.IsSharing || _vm.Editing is not null || SlotAt(day, minutes) is not { Slot: { Title: not null, GroupId: { } id } slot })
+        {
+            return false;
+        }
+
+        // The edge strip reaches 6 DIP outside the time: a click there is on empty time, not the group
+        var at = DragMath.Instant(day, minutes, _vm.Zone);
+        if (at < slot.Range.Start || at >= slot.Range.End)
         {
             return false;
         }

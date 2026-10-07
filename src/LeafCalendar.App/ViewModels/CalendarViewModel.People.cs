@@ -225,8 +225,8 @@ public sealed partial class CalendarViewModel
     private List<ShareGroup> _savedGroups = [];
     private int _groupsGeneration;
 
-    // The saved group whose times can be resized on the grid (the one being approved), or null. The approve editor
-    // (not built yet) sets it; until then only the picks can be resized
+    // The saved group whose times can be resized on the grid (the one being approved), or null. ApproveSlot sets it;
+    // the approve editor saving deletes the group, and the editor closing any other way clears it
     private long? _approvingGroupId;
 
     /// <summary>The saved groups with times still to come, oldest first.</summary>
@@ -342,6 +342,35 @@ public sealed partial class CalendarViewModel
         StopSharing();
     }
 
+    /// <summary>
+    /// Books one time of the open group: sharing stops (the editor needs the right panel), and the event editor opens on
+    /// that time with the group's title and <paramref name="email"/> as a guest. The group is deleted only once the event
+    /// saves; until then its times stay on the grid, resizable.
+    /// </summary>
+    public void ApproveSlot(int index, string email)
+    {
+        if (_openGroupId is not { } id || index < 0 || index >= _slots.Count || !IsAddress(email))
+        {
+            return;
+        }
+
+        var slot = _slots[index];
+        var title = _shareTitle.Length > 0 ? _shareTitle : GenericShareTitle;
+        StopSharing();
+        BeginCreate(slot.Start, slot.End, isAllDay: false);
+        if (Editing is not { IsNew: true } editor)
+        {
+            return;
+        }
+
+        // Set after the editor opens, so opening it doesn't clear it
+        _approvingGroupId = id;
+        editor.Title = title;
+        editor.GuestInput = email;
+        editor.AddGuest();
+        ShareChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>Stops sharing and forgets the picked times (a saved group stays saved).</summary>
     public void StopSharing()
     {
@@ -420,17 +449,25 @@ public sealed partial class CalendarViewModel
         return list;
     }
 
-    /// <summary>A drawn time resized on the grid: a pick changes (and its open group saves), or a group being approved saves.</summary>
+    /// <summary>
+    /// A drawn time resized on the grid: a pick changes (and its open group saves), or a group being approved saves.
+    /// Nothing happens when the times were read again during the drag and that place no longer holds the dragged time.
+    /// </summary>
     public void ResizeGridSlot(GridSlot slot, DateTimeOffset start, DateTimeOffset end)
     {
         ArgumentNullException.ThrowIfNull(slot);
         if (slot.Title is null)
         {
-            UpdateShareSlot(slot.Index, start, end);
+            if (slot.Index < _slots.Count && _slots[slot.Index] == slot.Range)
+            {
+                UpdateShareSlot(slot.Index, start, end);
+            }
+
             return;
         }
 
-        if (slot.GroupId is { } id && slot.Resizable)
+        if (slot.GroupId is { } id && slot.Resizable
+            && _savedGroups.FirstOrDefault(g => g.Id == id) is { } group && slot.Index < group.Slots.Count && group.Slots[slot.Index] == slot.Range)
         {
             UpdateSavedSlot(id, slot.Index, start, end);
         }

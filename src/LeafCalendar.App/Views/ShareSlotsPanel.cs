@@ -255,13 +255,13 @@ public sealed partial class ShareSlotsPanel : UserControl
         _shown.ForEach(r => r.CanApprove = can);
     }
 
-    // Approve…: the title as typed so far counts (the event editor with this time and the guest comes with ApproveSlot)
+    // Approve…: the title and message as typed so far count, then the event editor opens on this time with the guest
     private void Approve(SlotRow row)
     {
-        _ = row;
-        if (_vm is { } vm && CalendarViewModel.IsAddress(_guest.Text.Trim()))
+        if (_vm is { } vm)
         {
-            vm.ShareTitle = _titleBox.Text;
+            Commit();
+            vm.ApproveSlot(row.Index, _guest.Text.Trim());
         }
     }
 
