@@ -1,6 +1,5 @@
 using System.Text.Json.Nodes;
 using FlaUI.Core.AutomationElements;
-using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
@@ -58,19 +57,17 @@ public sealed class EditorExtrasTests : IDisposable
     private FakeWrite DentistPatch() =>
         _google.WaitForWrite(w => w.Method == "PATCH" && w.Path.EndsWith("/events/evt-single", StringComparison.Ordinal));
 
-    // The box takes focus the way a click or Tab gives it (its text field only shows once it has focus, so there's
-    // nothing to click before that). First the instant E's 1.5 s sequence runs out: until then the next key is E's second
-    // key, and any key that isn't one types into the title (a person's click in the panel ends it; a focus from here doesn't)
+    // The box's text field takes focus the way a click or Tab gives it. First the instant E's 1.5 s sequence runs out:
+    // until then the next key is E's second key, and any key that isn't one types into the title (a person's click in the
+    // panel ends it; a focus from here doesn't)
     private static void FocusZoneBox(LeafApp leaf)
     {
         Thread.Sleep(1600);
-        leaf.WaitFor("EditorTimeZoneBox").Focus();
+        ZoneEdit(leaf).Focus();
         Thread.Sleep(200);
     }
 
-    private static TextBox ZoneEdit(LeafApp leaf) =>
-        Retry.WhileNull(() => leaf.WaitFor("EditorTimeZoneBox").FindFirstDescendant(cf => cf.ByControlType(ControlType.Edit)), TimeSpan.FromSeconds(10)).Result?.AsTextBox()
-        ?? throw new InvalidOperationException("The time zone box has no text box inside.");
+    private static TextBox ZoneEdit(LeafApp leaf) => LeafApp.TextIn(leaf.WaitFor("EditorTimeZoneBox"));
 
     [Fact]
     public void ShowAsFree_PatchesTransparencyOnly()
@@ -192,17 +189,20 @@ public sealed class EditorExtrasTests : IDisposable
         Seed(new LeafSettings { PrimaryTimeZone = "America/New_York" });
         using var leaf = Launch();
         EditDentist(leaf);
-        var combo = leaf.WaitFor("EditorTimeZoneBox").AsComboBox();
         var edit = ZoneEdit(leaf);
         var before = edit.Text;
         Assert.StartsWith("(UTC-0", before, StringComparison.Ordinal);
 
-        // The stock dropdown lists every zone, not a short list of cities
-        combo.Expand();
+        // Coming into the box lists every zone, not a short list of cities
+        FocusZoneBox(leaf);
         // (the list builds only the rows in view, so the last zone of the full list is looked up rather than counted)
         var last = TimeZoneCatalog.All(DateTimeOffset.Now)[^1].Label;
-        Assert.True(Retry.WhileFalse(() => combo.Patterns.ItemContainer.Pattern.FindItemByProperty(null, combo.Automation.PropertyLibrary.Element.Name, last) is not null, TimeSpan.FromSeconds(10)).Success, $"The dropdown has no \"{last}\" row.");
-        combo.Collapse();
+        Assert.True(Retry.WhileFalse(() => leaf.FindAllAnywhere("SuggestionsList").Any(list => list.Patterns.ItemContainer.Pattern.FindItemByProperty(null, list.Automation.PropertyLibrary.Element.Name, last) is not null), TimeSpan.FromSeconds(10)).Success, $"The list has no \"{last}\" row.");
+
+        // Esc closes only the list (the editor stays open)
+        Keyboard.Type(VirtualKeyShort.ESCAPE);
+        Assert.True(Retry.WhileFalse(() => leaf.SuggestionNames().Count == 0, TimeSpan.FromSeconds(5)).Success, "Esc left the list open.");
+        Assert.True(leaf.Exists("EditorTitle"), "Esc in the open zone list closed the editor.");
 
         // Typed text that matches no zone changes nothing, on Enter or when focus leaves; the editor stays open
         FocusZoneBox(leaf);

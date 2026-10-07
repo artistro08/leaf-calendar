@@ -283,6 +283,15 @@ public sealed class LeafApp : IDisposable
             TimeSpan.FromSeconds(15)).Result
         ?? throw new InvalidOperationException($"Element '{automationId}' didn't appear in any window.");
 
+    /// <summary>The rows of every open suggestion list (a search box's), by name.</summary>
+    public IReadOnlyList<string> SuggestionNames() =>
+        [.. FindAllAnywhere("SuggestionsList").SelectMany(list => list.FindAllDescendants(cf => cf.ByControlType(ControlType.ListItem))).Select(item => item.Properties.Name.ValueOrDefault ?? "")];
+
+    /// <summary>The text field inside a search box (or any box holding one).</summary>
+    public static TextBox TextIn(AutomationElement box) =>
+        Retry.WhileNull(() => box.FindFirstDescendant(cf => cf.ByControlType(ControlType.Edit)), TimeSpan.FromSeconds(10)).Result?.AsTextBox()
+        ?? throw new InvalidOperationException($"'{box.Properties.AutomationId.ValueOrDefault}' has no text field inside.");
+
     /// <summary>Every element with this ID in any of the app's windows right now (popups can be separate).</summary>
     public IReadOnlyList<AutomationElement> FindAllAnywhere(string automationId) =>
         [.. App.GetAllTopLevelWindows(_automation).SelectMany(w => w.FindAllDescendants(cf => cf.ByAutomationId(automationId)))];

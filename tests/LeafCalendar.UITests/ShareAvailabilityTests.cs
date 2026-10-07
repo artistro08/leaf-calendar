@@ -1,6 +1,5 @@
 using System.Drawing;
 using FlaUI.Core.AutomationElements;
-using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
@@ -104,13 +103,13 @@ public sealed class ShareAvailabilityTests : IDisposable
         DragHours(leaf, 10, 12);
         leaf.WaitFor("ShareSlot_0");
 
-        // Typed Like A Person (the box is editable, and a typed city submitted with Enter picks its zone)
-        var zone = leaf.WaitFor("ShareZoneBox");
+        // Typed Like A Person (a typed city submitted with Enter picks its zone)
+        var zone = LeafApp.TextIn(leaf.WaitFor("ShareZoneBox"));
         zone.Focus();
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("Tokyo");
         Keyboard.Type(VirtualKeyShort.ENTER);
-        Assert.True(Retry.WhileFalse(() => (zone.Patterns.Value.PatternOrDefault?.Value.ValueOrDefault ?? "").Contains("Tokyo", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success, "The zone box didn't take Tokyo.");
+        Assert.True(Retry.WhileFalse(() => zone.Text.Contains("Tokyo", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success, "The zone box didn't take Tokyo.");
 
         Assert.Equal("Thu Oct 1: 11 PM–12 AM Tokyo time\r\nFri Oct 2: 12–1 AM Tokyo time", Copy(leaf));
     }
@@ -180,10 +179,10 @@ public sealed class ShareAvailabilityTests : IDisposable
         Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Esc left the share panel up.");
     }
 
-    // Wherever focus is in the share panel (pressed straight to the focused control, not through the window)
+    // Wherever focus is in the share panel (pressed straight to the focused control, not through the window). The zone
+    // box opens its list when it takes focus, so its first Esc closes only the list (Escape_InTheOpenZoneList_ClosesOnlyTheList)
     [Theory]
     [InlineData("ShareMessageBox")]
-    [InlineData("ShareZoneBox")]
     [InlineData("SharePanelStart_0")]
     [InlineData("SharePanelEnd_0")]
     [InlineData("SharePanelRemove_0")]
@@ -225,14 +224,13 @@ public sealed class ShareAvailabilityTests : IDisposable
     {
         using var leaf = Launch();
         StartSharing(leaf);
-        var zone = leaf.WaitFor("ShareZoneBox");
-        zone.Focus();
+        LeafApp.TextIn(leaf.WaitFor("ShareZoneBox")).Focus();
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("Tokyo");
-        Assert.True(Retry.WhileFalse(() => zone.Patterns.ExpandCollapse.PatternOrDefault?.ExpandCollapseState.ValueOrDefault == ExpandCollapseState.Expanded, TimeSpan.FromSeconds(5)).Success, "Typing didn't open the zone list.");
+        Assert.True(Retry.WhileFalse(() => leaf.SuggestionNames().Count > 0, TimeSpan.FromSeconds(5)).Success, "Typing didn't open the zone list.");
 
         Keyboard.Press(VirtualKeyShort.ESCAPE);
-        Assert.True(Retry.WhileTrue(() => zone.Patterns.ExpandCollapse.PatternOrDefault?.ExpandCollapseState.ValueOrDefault == ExpandCollapseState.Expanded, TimeSpan.FromSeconds(5)).Success, "Esc left the zone list open.");
+        Assert.True(Retry.WhileFalse(() => leaf.SuggestionNames().Count == 0, TimeSpan.FromSeconds(5)).Success, "Esc left the zone list open.");
         Thread.Sleep(500);
         Assert.True(leaf.Exists("ShareSlotsPanel"), "Esc in the zone list stopped sharing.");
 

@@ -137,9 +137,8 @@ public sealed class ZoneTests : IDisposable
         follow.Toggle();
         Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("ZonePromptSwitch").IsEnabled, Wait).Success);
 
-        // The dropdown is searchable: typing a city and pressing Enter picks it
-        // (focused the way a click or Tab does: its text field only shows once it has focus)
-        leaf.WaitInSettings("PrimaryZoneBox").Focus();
+        // The box is searchable: typing a city and pressing Enter picks it
+        LeafApp.TextIn(leaf.WaitInSettings("PrimaryZoneBox")).Focus();
         Thread.Sleep(200);
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("London");
@@ -172,14 +171,13 @@ public sealed class ZoneTests : IDisposable
         Assert.True(Retry.WhileFalse(() => box.IsEnabled, Wait).Success);
 
         // A misspelled city filters the list down to it, and the typed text stays exactly as typed
-        box.Focus();
+        var edit = LeafApp.TextIn(box);
+        edit.Focus();
         Thread.Sleep(200);
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("Pheonix");
-        var combo = box.AsComboBox();
-        var edit = box.FindFirstDescendant(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.Edit))!.AsTextBox();
-        Assert.True(Retry.WhileFalse(() => combo.Items is { Length: > 0 and < 10 } rows && rows.Any(r => r.Name.Contains("Phoenix", StringComparison.Ordinal)), Wait).Success,
-            $"The list shows {string.Join(", ", combo.Items.Select(r => r.Name))}.");
+        Assert.True(Retry.WhileFalse(() => leaf.SuggestionNames() is { Count: > 0 and < 10 } rows && rows.Any(r => r.Contains("Phoenix", StringComparison.Ordinal)), Wait).Success,
+            $"The list shows {string.Join(", ", leaf.SuggestionNames())}.");
         Assert.Equal("Pheonix", edit.Text);
 
         // Enter picks it
@@ -197,21 +195,50 @@ public sealed class ZoneTests : IDisposable
         var box = leaf.WaitInSettings("PrimaryZoneBox");
         Assert.True(Retry.WhileFalse(() => box.IsEnabled, Wait).Success);
 
-        // One Letter Opens The List; Opening It Must Not Select The Text, Or The Next Letter Replaces It
-        box.Focus();
+        // One Letter Filters The List; Filtering Must Not Select The Text, Or The Next Letter Replaces It
+        var edit = LeafApp.TextIn(box);
+        edit.Focus();
         Thread.Sleep(200);
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("p");
-        var combo = box.AsComboBox();
-        Assert.True(Retry.WhileFalse(() => combo.Patterns.ExpandCollapse.Pattern.ExpandCollapseState.Value == FlaUI.Core.Definitions.ExpandCollapseState.Expanded, Wait).Success, "The list didn't open.");
+        Assert.True(Retry.WhileFalse(() => leaf.SuggestionNames().Any(r => r.Contains("Phoenix", StringComparison.Ordinal)), Wait).Success, "The list didn't show Phoenix.");
         Thread.Sleep(800);
-        var edit = box.FindFirstDescendant(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.Edit))!;
         var selected = string.Concat(edit.Patterns.Text.Pattern.GetSelection().Select(r => r.GetText(-1)));
         Assert.Equal("", selected);
 
         // The Next Letter Adds To It
         Keyboard.Type("h");
-        Assert.True(Retry.WhileFalse(() => edit.AsTextBox().Text == "ph", Wait).Success, $"The box reads {edit.AsTextBox().Text}.");
+        Assert.True(Retry.WhileFalse(() => edit.Text == "ph", Wait).Success, $"The box reads {edit.Text}.");
+    }
+
+    [Fact]
+    public void PrimaryZone_TypingLetterByLetter_KeepsFocusAndText()
+    {
+        using var leaf = Launch();
+        leaf.OpenSettings("TimeZones");
+        leaf.ExpandInSettings("PrimaryZoneExpander");
+        leaf.WaitInSettings("FollowWindowsZoneSwitch").AsToggleButton().Toggle();
+        var box = leaf.WaitInSettings("PrimaryZoneBox");
+        Assert.True(Retry.WhileFalse(() => box.IsEnabled, Wait).Success);
+
+        // Focusing Selects The Zone's Text, So The First Letter Replaces It
+        var edit = LeafApp.TextIn(box);
+        edit.Focus();
+        Thread.Sleep(300);
+
+        // After Every Letter The Text Field Still Has Focus And Reads Exactly What Was Typed
+        var typed = "";
+        foreach (var letter in "Pheonix")
+        {
+            Keyboard.Type(letter);
+            typed += letter;
+            Thread.Sleep(400);
+            Assert.True(edit.Properties.HasKeyboardFocus.ValueOrDefault, $"After \"{typed}\" the text field lost focus.");
+            Assert.Equal(typed, edit.Text);
+        }
+
+        Assert.True(Retry.WhileFalse(() => leaf.SuggestionNames().Any(r => r.Contains("Phoenix", StringComparison.Ordinal)), Wait).Success,
+            $"The list shows {string.Join(", ", leaf.SuggestionNames())}.");
     }
 
     [Fact]
