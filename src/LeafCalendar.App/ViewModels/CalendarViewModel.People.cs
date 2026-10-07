@@ -265,6 +265,7 @@ public sealed partial class CalendarViewModel
     private long? _openGroupId;
     private string _shareTitle = "";
     private string _shareText = "";
+    private string _shareGuest = "";
     private List<ShareGroup> _savedGroups = [];
     private int _groupsGeneration;
 
@@ -299,6 +300,20 @@ public sealed partial class CalendarViewModel
         }
     }
 
+    /// <summary>
+    /// The guest's address typed in an open group's Guest email box. An open group keeps its saved address until Save
+    /// or Copy; new picks have none.
+    /// </summary>
+    public string ShareGuest
+    {
+        get => _shareGuest;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _shareGuest = value;
+        }
+    }
+
     /// <summary>A group's title, or the generic one when it has none.</summary>
     public static string GroupTitle(ShareGroup group)
     {
@@ -328,12 +343,13 @@ public sealed partial class CalendarViewModel
         _openGroupId = null;
         _shareTitle = "";
         _shareText = Settings.ShareMessage;
+        _shareGuest = "";
         _sharing = true;
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
-    /// Opens a saved group in the share panel: its times (editable; changes wait for Save or Copy), title, message and zone, checked
+    /// Opens a saved group in the share panel: its times (editable; changes wait for Save or Copy), title, message, guest address and zone, checked
     /// against the calendars that can be shared now. Only opens when not already sharing (a click on a saved time is
     /// refused while sharing).
     /// </summary>
@@ -353,6 +369,7 @@ public sealed partial class CalendarViewModel
         _slots = [.. group.Slots];
         _shareTitle = group.Title;
         _shareText = group.Message;
+        _shareGuest = group.GuestEmail;
         _shareZoneId = group.ZoneId;
         _shareCalendars = [.. ShareableCalendars().Select(c => new CalendarRef(c.AccountId, c.Id))];
         _sharing = true;
@@ -373,7 +390,7 @@ public sealed partial class CalendarViewModel
 
     /// <summary>
     /// Save: keeps the picked times as a group (new picks become a new group; an open group gets its times, title,
-    /// message and zone updated), then stops sharing. Needs a time. When the database write fails it says so and sharing
+    /// message, guest address and zone updated), then stops sharing. Needs a time. When the database write fails it says so and sharing
     /// goes on, so nothing typed is lost.
     /// </summary>
     public void SaveShare()
@@ -383,16 +400,16 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        var (group, title, text, zone, slots, now) = (_openGroupId, _shareTitle, _shareText, _shareZoneId, _slots.ToList(), Now);
+        var (group, title, text, zone, slots, now, guest) = (_openGroupId, _shareTitle, _shareText, _shareZoneId, _slots.ToList(), Now, _shareGuest);
         var saved = WriteGroups("share.group.save.failed", conn =>
         {
             if (group is { } id)
             {
-                ShareGroupStore.Update(conn, id, title, text, zone, slots);
+                ShareGroupStore.Update(conn, id, title, text, zone, slots, guest);
             }
             else
             {
-                ShareGroupStore.Insert(conn, title, text, zone, slots, now);
+                ShareGroupStore.Insert(conn, title, text, zone, slots, now, guest);
             }
         });
 
@@ -542,7 +559,7 @@ public sealed partial class CalendarViewModel
         var slots = group.Slots.ToList();
         slots[index] = new BusyRange(start, end);
         var merged = BusyMath.Merge(slots);
-        WriteGroups("share.group.save.failed", conn => ShareGroupStore.Update(conn, group.Id, group.Title, group.Message, group.ZoneId, merged));
+        WriteGroups("share.group.save.failed", conn => ShareGroupStore.Update(conn, group.Id, group.Title, group.Message, group.ZoneId, merged, group.GuestEmail));
     }
 
     // A write to the saved groups, then a fresh read of them; a failure is logged (never its content), says so, and
@@ -722,11 +739,11 @@ public sealed partial class CalendarViewModel
             using var conn = _services.Database.Open();
             if (_openGroupId is { } id)
             {
-                ShareGroupStore.Update(conn, id, _shareTitle, _shareText, _shareZoneId, free);
+                ShareGroupStore.Update(conn, id, _shareTitle, _shareText, _shareZoneId, free, _shareGuest);
             }
             else
             {
-                ShareGroupStore.Insert(conn, _shareTitle, _shareText, _shareZoneId, free, Now);
+                ShareGroupStore.Insert(conn, _shareTitle, _shareText, _shareZoneId, free, Now, _shareGuest);
             }
         }
         catch (Microsoft.Data.Sqlite.SqliteException ex)

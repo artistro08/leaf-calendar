@@ -24,7 +24,7 @@ public sealed class LeafDatabaseTests : IDisposable
         foreignKeys.CommandText = "PRAGMA foreign_keys;";
 
         Assert.Equal("wal", (string)mode.ExecuteScalar()!);
-        Assert.Equal(9L, (long)version.ExecuteScalar()!);
+        Assert.Equal(10L, (long)version.ExecuteScalar()!);
         Assert.Equal(1L, (long)foreignKeys.ExecuteScalar()!);
     }
 
@@ -99,7 +99,7 @@ public sealed class LeafDatabaseTests : IDisposable
             Assert.Equal(1L, pending[1].DependsOn);
             Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM calendars;", r => r.GetInt64(0)).Single());
             Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM events;", r => r.GetInt64(0)).Single());
-            Assert.Equal(9L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(10L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.True(AlertLedger.TryAdd(conn, "k", LeafCalendar.Core.Alerts.AlertKind.Reminder, "t", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
             conn.Close();
             SqliteConnection.ClearPool(conn);
@@ -130,7 +130,7 @@ public sealed class LeafDatabaseTests : IDisposable
             var account = Assert.Single(AccountStore.GetAll(conn));
             Assert.Equal(("acct", "a@example.com", "A"), (account.Id, account.Email, account.DisplayName));
             Assert.Null(account.HostedDomain);
-            Assert.Equal(9L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(10L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             conn.Close();
             SqliteConnection.ClearPool(conn);
         }
@@ -158,7 +158,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(9L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(10L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.True(Assert.Single(CalendarStore.GetAll(conn)).IsVisible);
 
             CalendarStore.ReplaceForAccount(conn, "acct", [new LeafCalendar.Core.Google.CalendarListEntry { Id = "todoist", Summary = "Todoist", Selected = false }]);
@@ -190,9 +190,40 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(9L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(10L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.Single(AccountStore.GetAll(conn));
             Assert.Empty(ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow));
+            conn.Close();
+            SqliteConnection.ClearPool(conn);
+        }
+    }
+
+    [Fact]
+    public void Migrate_FromVersion9_KeepsSavedGroupsWithNoGuest()
+    {
+        using var folder = new TempFolder();
+        var database = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
+        var end = DateTimeOffset.UtcNow.AddDays(1).ToUnixTimeMilliseconds();
+
+        // A Version 9 Database With One Saved Group (what 0.1.300 and 0.1.301 install)
+        using (var conn = database.Open())
+        using (var setup = conn.CreateCommand())
+        {
+            setup.CommandText = Schema.V1 + Schema.V2 + Schema.V3 + Schema.V4 + Schema.V5 + Schema.V6 + Schema.V7 + Schema.V8 + Schema.V9 + $"""
+                PRAGMA user_version = 9;
+                INSERT INTO share_groups (id, title, message, zone_id, created_utc) VALUES (1, 'Coffee', '', 'UTC', 0);
+                INSERT INTO share_slots (group_id, start_utc, end_utc) VALUES (1, {end - 3_600_000}, {end});
+                """;
+            setup.ExecuteNonQuery();
+        }
+
+        database.Migrate();
+
+        using (var conn = database.Open())
+        {
+            Assert.Equal(10L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            var group = Assert.Single(ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow));
+            Assert.Equal(("Coffee", ""), (group.Title, group.GuestEmail));
             conn.Close();
             SqliteConnection.ClearPool(conn);
         }

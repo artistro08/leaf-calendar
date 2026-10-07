@@ -19,7 +19,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        var id = ShareGroupStore.Insert(conn, "Coffee", "Here:\r\n{times}", "America/New_York", [At(3, 4), At(1, 2)], Now);
+        var id = ShareGroupStore.Insert(conn, "Coffee", "Here:\r\n{times}", "America/New_York", [At(3, 4), At(1, 2)], Now, "");
 
         var group = Assert.Single(ShareGroupStore.GetAll(conn, Now));
         Assert.Equal(id, group.Id);
@@ -34,7 +34,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        ShareGroupStore.Insert(conn, "  Lunch\r\n" + new string('x', 200), "", "UTC", [At(1, 2)], Now);
+        ShareGroupStore.Insert(conn, "  Lunch\r\n" + new string('x', 200), "", "UTC", [At(1, 2)], Now, "");
 
         var title = Assert.Single(ShareGroupStore.GetAll(conn, Now)).Title;
         Assert.True(title.Length <= ShareGroupStore.MaxTitleLength);
@@ -47,7 +47,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        ShareGroupStore.Insert(conn, "", new string('m', 5000), "UTC", [At(1, 2)], Now);
+        ShareGroupStore.Insert(conn, "", new string('m', 5000), "UTC", [At(1, 2)], Now, "");
 
         Assert.Equal(LeafCalendar.Core.People.AvailabilityText.MaxMessageLength, Assert.Single(ShareGroupStore.GetAll(conn, Now)).Message.Length);
     }
@@ -57,7 +57,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 3), At(2, 4)], Now);
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 3), At(2, 4)], Now, "");
 
         Assert.Equal([At(1, 4)], Assert.Single(ShareGroupStore.GetAll(conn, Now)).Slots);
     }
@@ -66,9 +66,9 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void Update_ReplacesTitleMessageZoneAndTimes()
     {
         using var conn = _db.Database.Open();
-        var id = ShareGroupStore.Insert(conn, "Old", "old", "UTC", [At(1, 2)], Now);
+        var id = ShareGroupStore.Insert(conn, "Old", "old", "UTC", [At(1, 2)], Now, "");
 
-        ShareGroupStore.Update(conn, id, "New", "new", "Europe/Paris", [At(5, 6)]);
+        ShareGroupStore.Update(conn, id, "New", "new", "Europe/Paris", [At(5, 6)], "");
 
         var group = Assert.Single(ShareGroupStore.GetAll(conn, Now));
         Assert.Equal(("New", "new", "Europe/Paris"), (group.Title, group.Message, group.ZoneId));
@@ -79,9 +79,9 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void Update_NoTimesLeft_DeletesTheGroup()
     {
         using var conn = _db.Database.Open();
-        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now);
+        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, "");
 
-        ShareGroupStore.Update(conn, id, "", "", "UTC", []);
+        ShareGroupStore.Update(conn, id, "", "", "UTC", [], "");
 
         Assert.Empty(ShareGroupStore.GetAll(conn, Now));
         Assert.Equal(0L, conn.Query(null, "SELECT COUNT(*) FROM share_groups;", r => r.GetInt64(0)).Single());
@@ -91,7 +91,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void Delete_RemovesItsTimesToo()
     {
         using var conn = _db.Database.Open();
-        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2), At(3, 4)], Now);
+        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2), At(3, 4)], Now, "");
 
         ShareGroupStore.Delete(conn, id);
 
@@ -103,7 +103,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void GetAll_HidesEndedTimes()
     {
         using var conn = _db.Database.Open();
-        ShareGroupStore.Insert(conn, "", "", "UTC", [At(-3, -2), At(-1, 1), At(2, 3)], Now);
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(-3, -2), At(-1, 1), At(2, 3)], Now, "");
 
         // A time still running stays (only an end at or before now is past)
         Assert.Equal([At(-1, 1), At(2, 3)], Assert.Single(ShareGroupStore.GetAll(conn, Now)).Slots);
@@ -113,7 +113,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void GetAll_GroupWithOnlyEndedTimes_IsLeftOut()
     {
         using var conn = _db.Database.Open();
-        ShareGroupStore.Insert(conn, "", "", "UTC", [At(-3, -2)], Now);
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(-3, -2)], Now, "");
 
         Assert.Empty(ShareGroupStore.GetAll(conn, Now));
     }
@@ -122,8 +122,8 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void GetAll_OldestGroupFirst()
     {
         using var conn = _db.Database.Open();
-        var first = ShareGroupStore.Insert(conn, "A", "", "UTC", [At(5, 6)], Now);
-        var second = ShareGroupStore.Insert(conn, "B", "", "UTC", [At(1, 2)], Now.AddMinutes(1));
+        var first = ShareGroupStore.Insert(conn, "A", "", "UTC", [At(5, 6)], Now, "");
+        var second = ShareGroupStore.Insert(conn, "B", "", "UTC", [At(1, 2)], Now.AddMinutes(1), "");
 
         Assert.Equal([first, second], ShareGroupStore.GetAll(conn, Now).Select(g => g.Id));
     }
@@ -132,12 +132,43 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void Prune_DropsEndedTimesAndEmptyGroups()
     {
         using var conn = _db.Database.Open();
-        ShareGroupStore.Insert(conn, "Gone", "", "UTC", [At(-3, -2)], Now);
-        ShareGroupStore.Insert(conn, "Kept", "", "UTC", [At(-3, -2), At(1, 2)], Now);
+        ShareGroupStore.Insert(conn, "Gone", "", "UTC", [At(-3, -2)], Now, "");
+        ShareGroupStore.Insert(conn, "Kept", "", "UTC", [At(-3, -2), At(1, 2)], Now, "");
 
         ShareGroupStore.Prune(conn, Now);
 
         Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM share_groups;", r => r.GetInt64(0)).Single());
         Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM share_slots;", r => r.GetInt64(0)).Single());
+    }
+
+    [Fact]
+    public void Insert_KeepsTheGuestEmail_Trimmed()
+    {
+        using var conn = _db.Database.Open();
+
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, " pat@example.com ");
+
+        Assert.Equal("pat@example.com", Assert.Single(ShareGroupStore.GetAll(conn, Now)).GuestEmail);
+    }
+
+    [Fact]
+    public void Update_ReplacesTheGuestEmail()
+    {
+        using var conn = _db.Database.Open();
+        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, "pat@example.com");
+
+        ShareGroupStore.Update(conn, id, "", "", "UTC", [At(1, 2)], "sam@example.com");
+
+        Assert.Equal("sam@example.com", Assert.Single(ShareGroupStore.GetAll(conn, Now)).GuestEmail);
+    }
+
+    [Fact]
+    public void Insert_CapsTheGuestEmail()
+    {
+        using var conn = _db.Database.Open();
+
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, new string('g', 400));
+
+        Assert.Equal(ShareGroupStore.MaxGuestEmailLength, Assert.Single(ShareGroupStore.GetAll(conn, Now)).GuestEmail.Length);
     }
 }

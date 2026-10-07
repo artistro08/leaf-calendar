@@ -179,7 +179,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         _vm = vm;
         _guestSuggestions ??= new ContactSuggestions(_guest, vm);
 
-        // Sharing Started Or Another Group Opened: the boxes show its title, message and zone. An open group whose times
+        // Sharing Started Or Another Group Opened: the boxes show its title, message, guest and zone. An open group whose times
         // all passed turns back into new picks with the boxes as typed
         if (vm.IsSharing && (!_sharing || (vm.OpenGroupId is not null && _group != vm.OpenGroupId)))
         {
@@ -187,7 +187,7 @@ public sealed partial class ShareSlotsPanel : UserControl
             _message.Text = vm.ShareText.Replace("\r\n", "\r", StringComparison.Ordinal);
             _titleBox.Text = vm.ShareTitle;
             _guestSuggestions.Cancel();
-            _guest.Text = "";
+            _guest.Text = vm.ShareGuest;
         }
 
         // Sharing Stopped (Close, Esc, S, Approve…, Save, Copy or Delete): a search still waiting or running is dropped and
@@ -231,8 +231,8 @@ public sealed partial class ShareSlotsPanel : UserControl
     }
 
     /// <summary>
-    /// Hands the Title and Message boxes as typed so far to the view model, even while a box still has focus. Save, Copy
-    /// and Approve… call it first; nothing is saved until Save or Copy.
+    /// Hands the Title, Message and Guest email boxes as typed so far to the view model, even while a box still has focus.
+    /// Save, Copy and Approve… call it first; nothing is saved until Save or Copy.
     /// </summary>
     public void Commit()
     {
@@ -240,6 +240,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         {
             vm.ShareTitle = _titleBox.Text;
             vm.ShareText = _message.Text;
+            vm.ShareGuest = _guest.Text;
         }
     }
 

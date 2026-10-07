@@ -178,4 +178,12 @@ internal static class Schema
 
         CREATE INDEX ix_share_slots_group ON share_slots (group_id);
         """;
+
+    /// <summary>
+    /// Version 10: <c>share_groups.guest_email</c>, the guest's address typed in a saved group's Guest email box, kept
+    /// with the group when it's saved (empty for none, and for groups saved before). Local only.
+    /// </summary>
+    public const string V10 = """
+        ALTER TABLE share_groups ADD COLUMN guest_email TEXT NOT NULL DEFAULT '';
+        """;
 }
