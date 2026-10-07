@@ -15,7 +15,7 @@ When you sign in, Google asks you to allow these. Leaf uses each one only for wh
 
 - **Your name, email address, and profile** (`openid`, `email`, `profile`): to tell your accounts apart.
 - **Your calendars** (`calendar`, read and write): to show your events and to save the events you create, change, or delete, your replies to invitations, and the calendar names and default reminders you change in Leaf. Calendar colors, order, and which calendars show stay in Leaf.
-- **Your contacts and "other contacts"** (`contacts.readonly`, `contacts.other.readonly`, read-only): to suggest people as you type a guest's name.
+- **Your contacts and "other contacts"** (`contacts.readonly`, `contacts.other.readonly`, read-only): to suggest people as you type a guest's name. Leaf searches every account you've signed in with. People from your own events are suggested too; those come from the copy of your calendars on your PC, not from Google.
 - **Your Google Workspace directory** (`directory.readonly`, read-only): to suggest coworkers as guests. Personal Google accounts don't have one, so nothing comes back.
 
 Leaf also asks Google for people's free and busy times when you look at them (overlaying a teammate or finding a time). Google decides what you can see.
@@ -34,7 +34,7 @@ In Leaf's app data folder (the `LocalState` folder of Leaf's package, under `%LO
 
 - **A copy of your calendars** in a SQLite database (`leaf.db`): your accounts' email addresses, your calendars, and their events (titles, times, descriptions, locations, guests, and meeting links), so Leaf opens quickly and works offline. Changes you make while offline wait there until Google has them.
 - **Your Leaf settings**, in the same database.
-- **Saved share times.** When you copy your availability, Leaf keeps the times, the title and the message you shared, and any guest email you save with them, in its local database, so they stay on your calendar. They're deleted when you approve a time, delete the group, or the times pass. They never leave your PC.
+- **Saved share times.** When you save or copy your availability, Leaf keeps the times, the title and the message you shared, and any guest email you save with them, in its local database, so they stay on your calendar. They're deleted when you approve a time, delete the group, or the times pass. They never leave your PC.
 - **A log** (`leaf.log` in the `Logs` folder, at most about 3 MB): what Leaf did and what went wrong, by internal IDs only. It never includes event titles, descriptions, guests, locations, searches, sign-in tokens, codes, or your client secret, and a second pass masks tokens, secrets, and email addresses anyway.
 - **Crash files**, only while Settings › About › Detailed logging is on: at most two, in the log folder. A crash file can include bits of what was on screen. Turning Detailed logging off deletes them.
 
@@ -54,6 +54,7 @@ Leaf also shows Windows notifications for reminders, meetings, and invitations. 
 ## Removing Your Data
 
 - **Disconnect an account** (Settings › Accounts, open the account, then Disconnect): Leaf asks Google to revoke its access, deletes that account's sign-in token, and deletes its calendars and events from your PC. Your Google Calendar itself isn't changed.
+- **Delete saved share times**: open the saved times on your calendar and use Delete saved times at the top of the panel. They aren't tied to an account, so disconnecting an account doesn't remove them; they also go once a time is approved or they pass.
 - **Uninstall Leaf**: Windows deletes Leaf's app data folder, with the database, settings, log, crash files, and your sign-in secrets (OAuth client ID and secret, and sign-in tokens) once Leaf has moved them there. Uninstalling doesn't tell Google, so to revoke Leaf's access too, disconnect your accounts first or remove it at Google (below).
 - **At Google**: you can remove Leaf's access at any time at [myaccount.google.com/permissions](https://myaccount.google.com/permissions), and delete the OAuth client in your Google Cloud project.
 
