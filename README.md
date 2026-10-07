@@ -2,9 +2,9 @@
     <img src="src/LeafCalendar.App/Assets/AppLogo.png" alt="Leaf Calendar icon" width="96">
 </p>
 
-<h1 style="text-align: center">Leaf Calendar</h1>
+<h1 align="center">Leaf Calendar</h1>
 
-<p style="text-align: center">A fast, native Windows 11 app for your Google Calendar, with no server in between.</p>
+<p align="center">A fast, native Windows 11 app for your Google Calendar, with no server in between.</p>
 
 <p align="center">
     <img src="docs/screenshots/01-week-light.png" alt="Leaf Calendar showing a week of events, the month and calendar list on the left, and upcoming events on the right">
@@ -39,7 +39,7 @@ Leaf signs in with your own Google Cloud OAuth client and talks only to Google. 
 3. Double-click the `.msix` to install it, or run:
 
     ```powershell
-    Add-AppxPackage .\LeafCalendar_0.1.302.0_x64.msix
+    Add-AppxPackage .\LeafCalendar_0.1.303.0_x64.msix
     ```
 
 4. Open Leaf Calendar and follow the setup steps to connect your Google account.
