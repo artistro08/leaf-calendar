@@ -8,7 +8,7 @@
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   IgnorableNamespaces="uap uap5 com desktop rescap">
 
-  <Identity Name="LeafCalendar" Publisher="CN=BF59F607-536B-4252-888F-7B3ED9D56F96" Version="0.1.0.0" />
+  <Identity Name="LeafCalendar" Publisher="CN=BF59F607-536B-4252-888F-7B3ED9D56F96" Version="0.2.0.0" />
 
   <Properties>
     <DisplayName>Leaf Calendar</DisplayName>
