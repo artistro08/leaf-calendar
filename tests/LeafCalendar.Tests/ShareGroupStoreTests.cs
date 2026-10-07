@@ -1,5 +1,6 @@
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Google;
+using LeafCalendar.Core.People;
 using LeafCalendar.Tests.Support;
 
 namespace LeafCalendar.Tests;
@@ -13,6 +14,10 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void Dispose() => _db.Dispose();
 
     private static BusyRange At(int startHour, int endHour) => new(Now.AddHours(startHour), Now.AddHours(endHour));
+
+    private static Contact G(string email, string name = "") => new(name, email);
+
+    private static IEnumerable<string> Emails(ShareGroup group) => group.Guests.Select(g => g.Email);
 
     [Fact]
     public void Insert_ThenGetAll_ReadsTheGroupBack()
@@ -146,20 +151,56 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, ["sam@example.com", " pat@example.com "]);
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("sam@example.com"), G(" pat@example.com ")]);
 
-        Assert.Equal(["sam@example.com", "pat@example.com"], Assert.Single(ShareGroupStore.GetAll(conn, Now)).Guests);
+        Assert.Equal(["sam@example.com", "pat@example.com"], Emails(Assert.Single(ShareGroupStore.GetAll(conn, Now))));
     }
 
     [Fact]
     public void Update_ReplacesTheGuests()
     {
         using var conn = _db.Database.Open();
-        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, ["pat@example.com", "lee@example.com"]);
+        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("pat@example.com"), G("lee@example.com")]);
 
-        ShareGroupStore.Update(conn, id, "", "", "UTC", [At(1, 2)], ["sam@example.com"]);
+        ShareGroupStore.Update(conn, id, "", "", "UTC", [At(1, 2)], [G("sam@example.com")]);
 
-        Assert.Equal(["sam@example.com"], Assert.Single(ShareGroupStore.GetAll(conn, Now)).Guests);
+        Assert.Equal(["sam@example.com"], Emails(Assert.Single(ShareGroupStore.GetAll(conn, Now))));
+    }
+
+    [Fact]
+    public void Insert_KeepsTheGuestsNamesInOrder()
+    {
+        using var conn = _db.Database.Open();
+
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("sam@example.com", "Sam Lee"), G("pat@example.com"), G("lee@example.com", "Lee Park")]);
+
+        Assert.Equal(
+            [G("sam@example.com", "Sam Lee"), G("pat@example.com"), G("lee@example.com", "Lee Park")],
+            Assert.Single(ShareGroupStore.GetAll(conn, Now)).Guests);
+    }
+
+    [Fact]
+    public void Update_ReplacesTheGuestsNames()
+    {
+        using var conn = _db.Database.Open();
+        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("pat@example.com", "Pat Old")]);
+
+        ShareGroupStore.Update(conn, id, "", "", "UTC", [At(1, 2)], [G("pat@example.com", "Pat New")]);
+
+        Assert.Equal([G("pat@example.com", "Pat New")], Assert.Single(ShareGroupStore.GetAll(conn, Now)).Guests);
+    }
+
+    [Fact]
+    public void Insert_CleansAndCapsAGuestsName()
+    {
+        using var conn = _db.Database.Open();
+
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("pat@example.com", "  Pat\r\nKim" + new string('n', 300))]);
+
+        var name = Assert.Single(Assert.Single(ShareGroupStore.GetAll(conn, Now)).Guests).Name;
+        Assert.StartsWith("Pat Kim", name, StringComparison.Ordinal);
+        Assert.DoesNotContain('\n', name);
+        Assert.True(name.Length <= ContactSearch.MaxName);
     }
 
     [Fact]
@@ -167,9 +208,9 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, ["pat@example.com", " ", "PAT@example.com", "", "sam@example.com"]);
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("pat@example.com"), G(" "), G("PAT@example.com"), G(""), G("sam@example.com")]);
 
-        Assert.Equal(["pat@example.com", "sam@example.com"], Assert.Single(ShareGroupStore.GetAll(conn, Now)).Guests);
+        Assert.Equal(["pat@example.com", "sam@example.com"], Emails(Assert.Single(ShareGroupStore.GetAll(conn, Now))));
     }
 
     [Fact]
@@ -177,18 +218,18 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [new string('g', 400), .. Enumerable.Range(0, 60).Select(i => $"p{i}@example.com")]);
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G(new string('g', 400)), .. Enumerable.Range(0, 60).Select(i => G($"p{i}@example.com"))]);
 
         var guests = Assert.Single(ShareGroupStore.GetAll(conn, Now)).Guests;
         Assert.Equal(ShareGroupStore.MaxGuests, guests.Count);
-        Assert.Equal(ShareGroupStore.MaxGuestEmailLength, guests[0].Length);
+        Assert.Equal(ShareGroupStore.MaxGuestEmailLength, guests[0].Email.Length);
     }
 
     [Fact]
     public void Delete_RemovesItsGuestsToo()
     {
         using var conn = _db.Database.Open();
-        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, ["pat@example.com"]);
+        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("pat@example.com")]);
 
         ShareGroupStore.Delete(conn, id);
 

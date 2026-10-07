@@ -360,7 +360,9 @@ public sealed partial class ShareSlotsPanel : UserControl
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.Children.Add(lines);
         grid.Children.Add(remove);
-        return new Border { Style = (Style)Application.Current.Resources["LeafGuestChipStyle"], Child = grid };
+        var chip = new Border { Style = (Style)Application.Current.Resources["LeafGuestChipStyle"], Child = grid };
+        AutomationProperties.SetName(chip, named ? $"{guest.Name}, {guest.Email}" : guest.Email);
+        return chip;
     }
 
     // Approve… is enabled once there's a guest (added, or a valid address typed and not yet added)

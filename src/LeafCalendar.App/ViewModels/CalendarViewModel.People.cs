@@ -303,7 +303,8 @@ public sealed partial class CalendarViewModel
     public IReadOnlyList<Contact> ShareGuests => _shareGuests;
 
     /// <summary>
-    /// Adds a guest to this share (<paramref name="name"/> is a picked contact's, shown on its row). False when
+    /// Adds a guest to this share (<paramref name="name"/> is a picked contact's, shown on its row; without one, the name
+    /// Leaf knows for that address fills in once found). False when
     /// <paramref name="email"/> isn't one valid address; an address already added (any case) isn't added again.
     /// </summary>
     public bool AddShareGuest(string email, string name = "")
@@ -320,6 +321,10 @@ public sealed partial class CalendarViewModel
         {
             _shareGuests.Add(new Contact(name.Trim(), email));
             ShareChanged?.Invoke(this, EventArgs.Empty);
+            if (name.Trim().Length == 0)
+            {
+                FillShareGuestName(email);
+            }
         }
 
         return true;
@@ -391,10 +396,39 @@ public sealed partial class CalendarViewModel
         _shareTitle = group.Title;
         _shareText = group.Message;
         // Only real addresses (0.1.302 could save unchecked text, and migration 11 copied it)
-        _shareGuests = [.. group.Guests.Where(IsAddress).Select(g => new Contact("", g))];
+        _shareGuests = [.. group.Guests.Where(g => IsAddress(g.Email))];
         _shareZoneId = group.ZoneId;
         _sharing = true;
         ShareChanged?.Invoke(this, EventArgs.Empty);
+        foreach (var guest in _shareGuests.Where(g => g.Name.Length == 0).ToList())
+        {
+            FillShareGuestName(guest.Email);
+        }
+    }
+
+    // A guest added by address alone gets the name Leaf knows for that exact address: from the people in your own
+    // events, else Google's contacts. Applied only while that guest is still listed without a name
+    private async void FillShareGuestName(string email)
+    {
+        try
+        {
+            static bool Same(Contact c, string email) => string.Equals(c.Email, email, StringComparison.OrdinalIgnoreCase) && c.Name.Length > 0;
+
+            var name = (await LocalPeopleAsync(email)).FirstOrDefault(c => Same(c, email))?.Name
+                ?? (await SearchPeopleAsync(email, CancellationToken.None)).Contacts.FirstOrDefault(c => Same(c, email))?.Name;
+            var index = _shareGuests.FindIndex(g => string.Equals(g.Email, email, StringComparison.OrdinalIgnoreCase) && g.Name.Length == 0);
+            if (name is null || index < 0)
+            {
+                return;
+            }
+
+            _shareGuests[index] = _shareGuests[index] with { Name = name };
+            ShareChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            _services.Log.Info("share.guest.name.failed", ex.GetType().Name);
+        }
     }
 
     /// <summary>Deletes the open saved group at once (the title bar's Delete saved times) and stops sharing.</summary>
@@ -421,7 +455,7 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        var (group, title, text, zone, slots, now, guests) = (_openGroupId, _shareTitle, _shareText, _shareZoneId, _slots.ToList(), Now, GuestEmails());
+        var (group, title, text, zone, slots, now, guests) = (_openGroupId, _shareTitle, _shareText, _shareZoneId, _slots.ToList(), Now, _shareGuests.ToList());
         var saved = WriteGroups("share.group.save.failed", conn =>
         {
             if (group is { } id)
@@ -696,11 +730,11 @@ public sealed partial class CalendarViewModel
             using var conn = _services.Database.Open();
             if (_openGroupId is { } id)
             {
-                ShareGroupStore.Update(conn, id, _shareTitle, _shareText, _shareZoneId, _slots, GuestEmails());
+                ShareGroupStore.Update(conn, id, _shareTitle, _shareText, _shareZoneId, _slots, _shareGuests.ToList());
             }
             else
             {
-                ShareGroupStore.Insert(conn, _shareTitle, _shareText, _shareZoneId, _slots, Now, GuestEmails());
+                ShareGroupStore.Insert(conn, _shareTitle, _shareText, _shareZoneId, _slots, Now, _shareGuests.ToList());
             }
         }
         catch (Microsoft.Data.Sqlite.SqliteException ex)
@@ -714,9 +748,6 @@ public sealed partial class CalendarViewModel
         ReloadGroups();
         ShowMessage(saved ? "Availability copied" : "Copied, but couldn't save these times.");
     }
-
-    // The guests' addresses, in order, as saved with the group
-    private List<string> GuestEmails() => [.. _shareGuests.Select(g => g.Email)];
 
     /// <summary>True when <paramref name="text"/> is exactly one valid email address.</summary>
     public static bool IsAddress(string text) => MailAddress.TryCreate(text, out var address) && address.Address == text;

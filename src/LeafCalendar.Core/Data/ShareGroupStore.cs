@@ -7,9 +7,9 @@ namespace LeafCalendar.Core.Data;
 
 /// <summary>
 /// A saved share: its title and message as typed, the zone its text is written in, its times (merged, in order), and
-/// the guests added to it (in the order added; empty for none).
+/// the guests added to it with their names (in the order added; empty for none, a name empty when Leaf doesn't know it).
 /// </summary>
-public sealed record ShareGroup(long Id, string Title, string Message, string ZoneId, IReadOnlyList<BusyRange> Slots, IReadOnlyList<string> Guests);
+public sealed record ShareGroup(long Id, string Title, string Message, string ZoneId, IReadOnlyList<BusyRange> Slots, IReadOnlyList<Contact> Guests);
 
 /// <summary>
 /// Reads and writes the <c>share_groups</c>, <c>share_slots</c> and <c>share_guests</c> tables: availability you copied, kept so it stays on
@@ -41,9 +41,9 @@ public static class ShareGroupStore
             .ToLookup(s => s.Group, s => s.Range);
         var guests = conn.Query(
             null,
-            "SELECT group_id, email FROM share_guests ORDER BY group_id, position;",
-            r => (Group: r.GetInt64(0), Email: r.GetString(1)))
-            .ToLookup(g => g.Group, g => g.Email);
+            "SELECT group_id, email, name FROM share_guests ORDER BY group_id, position;",
+            r => (Group: r.GetInt64(0), Guest: new Contact(r.GetString(2), r.GetString(1))))
+            .ToLookup(g => g.Group, g => g.Guest);
 
         return [.. groups
             .Where(g => slots[g.Id].Any())
@@ -52,9 +52,10 @@ public static class ShareGroupStore
 
     /// <summary>
     /// Saves a new group and returns its ID. The title is cleaned and capped, the message capped, the times merged, and
-    /// the guests trimmed and capped (empty ones and repeats dropped, at most <see cref="MaxGuests"/>).
+    /// the guests' addresses trimmed and capped and their names cleaned and capped (empty addresses and repeats dropped, at most
+    /// <see cref="MaxGuests"/>).
     /// </summary>
-    public static long Insert(SqliteConnection conn, string title, string message, string zoneId, IReadOnlyList<BusyRange> slots, DateTimeOffset now, IReadOnlyList<string> guests)
+    public static long Insert(SqliteConnection conn, string title, string message, string zoneId, IReadOnlyList<BusyRange> slots, DateTimeOffset now, IReadOnlyList<Contact> guests)
     {
         using var tx = conn.BeginTransaction();
         conn.Execute(
@@ -72,7 +73,7 @@ public static class ShareGroupStore
     }
 
     /// <summary>Replaces a group's title, message, zone, times and guests. With no times left the group is deleted.</summary>
-    public static void Update(SqliteConnection conn, long id, string title, string message, string zoneId, IReadOnlyList<BusyRange> slots, IReadOnlyList<string> guests)
+    public static void Update(SqliteConnection conn, long id, string title, string message, string zoneId, IReadOnlyList<BusyRange> slots, IReadOnlyList<Contact> guests)
     {
         if (slots.Count == 0)
         {
@@ -121,24 +122,25 @@ public static class ShareGroupStore
         }
     }
 
-    // Trimmed and capped, empty ones and repeats (any case) dropped, the first MaxGuests kept, in order
-    private static void WriteGuests(SqliteConnection conn, SqliteTransaction tx, long id, IReadOnlyList<string> guests)
+    // Addresses trimmed and capped, names cleaned and capped, empty addresses and repeats (any case) dropped, the first MaxGuests kept, in order
+    private static void WriteGuests(SqliteConnection conn, SqliteTransaction tx, long id, IReadOnlyList<Contact> guests)
     {
         var kept = guests
-            .Select(g => g.Trim())
-            .Select(g => g.Length > MaxGuestEmailLength ? g[..MaxGuestEmailLength] : g)
-            .Where(g => g.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(g => (Email: g.Email.Trim(), Name: DisplayText.Clean(g.Name, ContactSearch.MaxName)))
+            .Select(g => g.Email.Length > MaxGuestEmailLength ? g with { Email = g.Email[..MaxGuestEmailLength] } : g)
+            .Where(g => g.Email.Length > 0)
+            .DistinctBy(g => g.Email, StringComparer.OrdinalIgnoreCase)
             .Take(MaxGuests)
             .ToList();
         for (var i = 0; i < kept.Count; i++)
         {
             conn.Execute(
                 tx,
-                "INSERT INTO share_guests (group_id, position, email) VALUES ($id, $position, $email);",
+                "INSERT INTO share_guests (group_id, position, email, name) VALUES ($id, $position, $email, $name);",
                 ("$id", id),
                 ("$position", i),
-                ("$email", kept[i]));
+                ("$email", kept[i].Email),
+                ("$name", kept[i].Name));
         }
     }
 
