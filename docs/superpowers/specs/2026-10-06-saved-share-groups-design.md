@@ -98,12 +98,12 @@ Saved groups' times are drawn even when not sharing. The faded, lined look of ev
 **Hit testing.** The slots layer stays click-through. On a press, the grid checks the pointer against the slots on that day (the same place the event cards are checked):
 
 - Within 6 DIP of a slot's top or bottom edge (the event resize grip's size): a new `DragKind.ResizeSlot` drag, holding which edge, which group (or the open picks) and which slot.
-- Inside a saved slot when not on an edge, with no group open: a click opens that group. A drag there starts a normal new-event drag, as on empty time.
+- A click within a saved time (`OpenSlotAt`), while not sharing or editing, opens that group; a click in the edge strip just outside the time is on empty time. A drag inside a saved time, away from its edges, starts a normal new-event drag, as on empty time.
 - Inside an open slot (not an edge) while sharing: a drag picks a new time, as today.
 
 The pointer shows the up-down resize cursor over slot edges.
 
-**Resizing.** `DragMath` gets `ResizeRange(start, end, topEdge, pointer, zone)`: the dragged edge snaps to `SnapMinutes` (15) and the slot keeps at least 15 minutes (the existing `ResizeEnd` takes an event, so it stays as is). While dragging, the slot redraws at the new size. On release the view model gets `UpdateShareSlot` (open picks or an open group) or `UpdateSavedSlot(groupId, index, start, end)` (a saved group shown under the approve editor), which merges and saves.
+**Resizing.** `DragMath` gets `ResizeRange(start, end, topEdge, pointer, zone)`: the dragged edge snaps to `SnapMinutes` (15) and the slot keeps at least 15 minutes (the existing `ResizeEnd` takes an event, so it stays as is). During the drag the plain drag ghost shows the new size, and the time's box takes it on release. On release the view model gets `UpdateShareSlot` (open picks or an open group) or `UpdateSavedSlot(groupId, index, start, end)` (a saved group shown under the approve editor), which merges and saves.
 
 Resizing a saved group's time while no group is open is not offered (click it to open it first). This keeps a stray drag from changing what you offered someone.
 
