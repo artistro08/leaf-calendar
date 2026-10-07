@@ -57,6 +57,7 @@ One class: add `--filter-class "*ClassName"`. One test: `--filter-method "*Class
 - Each test uses a throwaway profile (`--profile uitest-…`) and the fake Google server (`--fake-google <uri>`), so the owner's data is never touched. Other launch flags: `--start-date`, `--now`, `--toast-action`, `--tray-probe`, `--gc-stress`, `--restarted`.
 - The tests find the main window by its title bar (`AppTitleBar`), not its title, because the window title is the date range on screen.
 - The owner's own Leaf can be running and holding the global shortcuts (Ctrl+Alt+J, Ctrl+Alt+K). If a whole block of tests fails at once, re-run before diagnosing: the installer restarting the owner's app has caused mass false failures.
+- If the owner moves the mouse (real, not injected input) during a UI run, the run pauses: the test in progress fails with `Interrupted:`, the pause file `%LOCALAPPDATA%\LeafCalendar.UITests\paused` is written, and every later test fails at once with `Paused:` until it is deleted. Only the owner resumes; never delete the pause file without the owner's say-so.
 - Screenshots: set `LEAF_SCREENSHOTS` to a folder and run the `ScreenshotTour` class to capture every screen in light and dark, at the minimum and wide window, every Settings page, the tray flyout and menu, onboarding, and the command menu with queries typed and run. Review the shots after UI changes.
 
 ### CI
