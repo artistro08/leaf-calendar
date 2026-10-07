@@ -405,7 +405,8 @@ A view inside the main window, modeled on the Windows 11 Settings app. See Secti
 - Press `S` or use the sidebar button. Drag on the calendar to pick candidate slots.
 - Leaf checks free/busy across the visible calendars and removes busy time.
 - It copies text such as "Tue Sep 30: 10–11 AM, 2–4 PM ET" to the clipboard, in a selectable time zone.
-- The share controls sit in the right panel: the zone, the message the times are wrapped in, then the picked times, where each one's start and end can be changed or removed, with Copy and Cancel pinned at the bottom. A hint at the bottom center of the calendar says to mark available times. Copy copies the text, stops sharing, and shows "Availability copied" in the notice.
+- The share controls sit in the right panel: a title, the zone, the message the times are wrapped in (it starts from the default set in Settings › Calendars; a change here is for this share only), then the picked times, where each one's start and end can be changed or removed, with Copy and Cancel pinned at the bottom. On the grid, a picked time's top and bottom edges drag to resize it. A hint at the bottom center of the calendar says to mark available times. Copy copies the text, stops sharing, and shows "Availability copied" in the notice. Esc stops sharing.
+- Copy also saves the free times as a group (title, message, zone; see `2026-10-06-saved-share-groups-design.md`). Saved groups stay on the calendar as dashed outlines with their title ("Held times" with none) until a time is approved, the group is deleted, or its times pass. Clicking one opens it in the panel ("Saved times"): its changes save at once, Copy copies it again, Delete deletes it. With a guest email, Approve… opens the event editor on that time with the title and the guest; the group is deleted once the event saves.
 - Needs a connection (Google free/busy). Zone choices: the zone on screen, Windows' zone, and the extra zone columns.
 
 ---

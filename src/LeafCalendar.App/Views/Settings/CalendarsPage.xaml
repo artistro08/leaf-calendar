@@ -98,6 +98,41 @@
                     </controls:PinnedItemsControl.ItemTemplate>
                 </controls:PinnedItemsControl>
                 <!-- /One Expander Per Account -->
+
+                <!-- Share Availability Message (where every new share starts; the share panel's changes are for that share only).
+                     An open expander card holds the full-width box under the header; MaxLength is AvailabilityText.MaxMessageLength -->
+                <Expander
+                    Style="{StaticResource LeafSettingExpanderStyle}"
+                    IsExpanded="True"
+                    Margin="0,24,0,0"
+                    AutomationProperties.Name="Share availability message"
+                    AutomationProperties.AutomationId="DefaultShareMessageExpander">
+                    <Expander.Header>
+                        <controls:SettingRow
+                            Style="{StaticResource LeafExpanderHeaderRowStyle}"
+                            Glyph="&#xE8BD;"
+                            Header="Share availability message"
+                            Description="{}{times} is replaced with your free times." />
+                    </Expander.Header>
+                    <StackPanel Margin="16" Spacing="8">
+                        <TextBox
+                            x:Name="DefaultMessageBox"
+                            AcceptsReturn="True"
+                            TextWrapping="Wrap"
+                            MinHeight="88"
+                            MaxLength="2000"
+                            PlaceholderText="Only the times"
+                            LostFocus="OnDefaultMessageLostFocus"
+                            AutomationProperties.Name="Share availability message"
+                            AutomationProperties.AutomationId="DefaultShareMessageBox" />
+                        <HyperlinkButton
+                            Content="Use Leaf's message"
+                            Padding="0"
+                            Click="OnDefaultMessageReset"
+                            AutomationProperties.AutomationId="DefaultShareMessageReset" />
+                    </StackPanel>
+                </Expander>
+                <!-- /Share Availability Message -->
             </StackPanel>
         </Grid>
     </ScrollViewer>

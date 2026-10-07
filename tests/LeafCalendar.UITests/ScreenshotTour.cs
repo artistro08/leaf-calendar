@@ -229,12 +229,20 @@ public sealed class ScreenshotTour : IDisposable
             }),
             ("MeetWith", t => new LeafSettings { Theme = t }, l => { l.WaitFor(dentist); l.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.KEY_F); l.WaitForAnywhere("PeoplePickerBox"); }),
 
+            // Saved Share Groups (Eastern time, which the share helpers' drags measure by): new picks, a saved group on
+            // the grid, the group open in the panel, and the approve editor
+            ("SharePicks", t => new LeafSettings { Theme = t, PrimaryTimeZone = "America/New_York" }, l => { ShareAvailabilityTests.StartSharing(l); ShareAvailabilityTests.DragHours(l, 10, 12); l.WaitFor("ShareSlot_0"); }),
+            ("SavedTimes", t => new LeafSettings { Theme = t, PrimaryTimeZone = "America/New_York" }, SavedShareGroupTests.Save),
+            ("SavedGroup", t => new LeafSettings { Theme = t, PrimaryTimeZone = "America/New_York" }, l => { SavedShareGroupTests.Save(l); SavedShareGroupTests.OpenFirst(l); }),
+            ("SavedApprove", t => new LeafSettings { Theme = t, PrimaryTimeZone = "America/New_York" }, SavedShareGroupTests.SaveAndApprove),
+
             // Wide Windows (2200 x 1100 screen pixels): at 125% scale 1366 x 768 is barely past the minimum
             ("WideWeek", t => new LeafSettings { Theme = t }, l => l.WaitFor(dentist)),
             ("WideMonth", t => new LeafSettings { Theme = t, ViewMode = CalendarViewMode.Month }, l => l.WaitFor("PeriodTitle")),
             ("WideDetails", t => new LeafSettings { Theme = t }, l => l.WaitFor(dentist).Click()),
             ("WideEditor", t => new LeafSettings { Theme = t }, l => { l.WaitFor(dentist).Click(); l.WaitFor("DetailsEditButton").AsButton().Invoke(); l.WaitFor("EditorTitle"); }),
             ("WideSettings", t => new LeafSettings { Theme = t }, l => { l.WaitFor(dentist); l.OpenSettings("General"); }),
+            ("WideSavedGroup", t => new LeafSettings { Theme = t, PrimaryTimeZone = "America/New_York" }, l => { SavedShareGroupTests.Save(l); SavedShareGroupTests.OpenFirst(l); }),
         };
 
         Directory.CreateDirectory(folder);

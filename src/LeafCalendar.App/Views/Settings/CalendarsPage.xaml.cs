@@ -3,6 +3,7 @@ using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Editing;
+using LeafCalendar.Core.People;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -66,6 +67,7 @@ public sealed partial class CalendarsPage : Page
         _context.Calendar.AccountFoldingChanged += OnCalendarsChanged;
         _context.Host.Closed += OnHostClosed;
         Rebuild();
+        ShowDefaultMessage();
     }
 
     /// <inheritdoc />
@@ -74,6 +76,7 @@ public sealed partial class CalendarsPage : Page
         _context.Host.CalendarsChanged -= OnCalendarsChanged;
         _context.Calendar.AccountFoldingChanged -= OnCalendarsChanged;
         _context.Host.Closed -= OnHostClosed;
+        SaveDefaultMessage();
     }
 
     // Settings Left On This Page (back to the calendar, or the window closed): the page isn't navigated from, so the
@@ -82,6 +85,7 @@ public sealed partial class CalendarsPage : Page
     {
         _context.Host.Closed -= OnHostClosed;
         _context.Calendar.AccountFoldingChanged -= OnCalendarsChanged;
+        SaveDefaultMessage();
     }
 
     private void OnCalendarsChanged(object? sender, EventArgs e) => Rebuild();
@@ -112,6 +116,28 @@ public sealed partial class CalendarsPage : Page
         {
             _colorFlyout?.Hide();
         }
+    }
+
+    // The default share message as saved (the box shows \r line breaks, the setting keeps \r\n like the share panel's)
+    private void ShowDefaultMessage() => DefaultMessageBox.Text = _context.Calendar.Settings.ShareMessage.Replace("\r\n", "\r", StringComparison.Ordinal);
+
+    // Losing focus saves it, the way every Settings change saves at once
+    private void OnDefaultMessageLostFocus(object sender, RoutedEventArgs e) => SaveDefaultMessage();
+
+    // Leaving the page or Settings saves it too, so typing that never lost focus isn't lost; only a change is saved
+    private void SaveDefaultMessage()
+    {
+        var message = DefaultMessageBox.Text.Replace("\r", "\r\n", StringComparison.Ordinal);
+        if (message != _context.Calendar.Settings.ShareMessage)
+        {
+            _context.Save(s => s with { ShareMessage = message });
+        }
+    }
+
+    private void OnDefaultMessageReset(object sender, RoutedEventArgs e)
+    {
+        _context.Save(s => s with { ShareMessage = AvailabilityText.DefaultMessage });
+        ShowDefaultMessage();
     }
 
     // Only a real change counts: the switch also raises Toggled when the list is rebuilt

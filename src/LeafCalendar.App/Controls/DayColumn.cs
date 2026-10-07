@@ -41,10 +41,14 @@ public sealed partial class DayColumn : Canvas
     private readonly Canvas _overlay = new() { IsHitTestVisible = false };
     private readonly List<(Border Block, TextBlock Title)> _overlayBlocks = [];
     private readonly Canvas _slots = new() { IsHitTestVisible = false };
-    private readonly List<(Grid Slot, Rectangle Fill, Rectangle Edge)> _slotItems = [];
+    private readonly List<(Grid Slot, Rectangle Fill, Rectangle Edge, TextBlock Title)> _slotItems = [];
     private readonly Canvas _slotButtons = new();
     private readonly List<Button> _slotRemoves = [];
     private readonly List<int> _slotRemoveIndexes = [];
+
+    // The pointer is over a time's edge that can be resized (the up-down cursor shows)
+    private static InputSystemCursor? s_resizeCursor;
+    private bool _onSlotEdge;
 
     /// <summary>Creates a column owned by <paramref name="owner"/>.</summary>
     public DayColumn(TimeGridView owner)
@@ -103,8 +107,19 @@ public sealed partial class DayColumn : Canvas
         DoubleTapped += (_, e) => _owner.CreateAt(Date, e.GetPosition(this).Y);
         Tapped += (_, e) =>
         {
+            // A Saved Time Opens Its Group
+            if (_owner.OpenSlotAt(Date, e.GetPosition(this).Y))
+            {
+                e.Handled = true;
+                return;
+            }
+
             _owner.ViewModel.CursorTime = DragMath.SnapOnDay(Date, e.GetPosition(this).Y / _owner.HourHeight * 60, _owner.ViewModel.Zone);
         };
+
+        // The Up-Down Cursor Over A Time's Edge That Can Be Resized (swapped only when crossing in or out)
+        PointerMoved += (_, e) => ShowResizeCursor(_owner.ResizableEdgeAt(Date, e.GetCurrentPoint(this).Position.Y));
+        PointerExited += (_, _) => ShowResizeCursor(false);
     }
 
     /// <summary>The day shown.</summary>
@@ -387,23 +402,25 @@ public sealed partial class DayColumn : Canvas
     }
 
     /// <summary>
-    /// Draws the times picked for sharing that fall on this day (accent fill, dashed edge), each with a remove button
-    /// at its top right on the day it starts. A slot's number is its place in the view model's list.
+    /// Draws the saved groups' times and the times picked for sharing that fall on this day (accent fill, dashed edge).
+    /// A saved time shows its group's title at its top left; a pick has a remove button at its top right on the day it
+    /// starts. A time's number is its place in its group, or in the view model's picks.
     /// </summary>
     public void RenderSlots()
     {
         var vm = _owner.ViewModel;
         var dark = _owner.IsDark;
         var accent = LeafBrushes.Accent(dark);
+        var text = LeafBrushes.PrimaryText(dark);
         var dayStart = OccurrenceQuery.LocalMidnight(Date, vm.Zone);
         var dayEnd = OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
         var width = Math.Max(_owner.ColumnWidth - 6, 10);
         var shown = 0;
         var buttons = 0;
 
-        for (var n = 0; n < vm.ShareSlots.Count; n++)
+        foreach (var slot in vm.GridSlots())
         {
-            var s = vm.ShareSlots[n];
+            var s = slot.Range;
             if (s.Start >= dayEnd || s.End <= dayStart)
             {
                 continue;
@@ -414,14 +431,23 @@ public sealed partial class DayColumn : Canvas
             {
                 var fill = new Rectangle { RadiusX = 4, RadiusY = 4, Opacity = 0.15 };
                 var edge = new Rectangle { RadiusX = 4, RadiusY = 4, StrokeThickness = 1.5, StrokeDashArray = [4, 2] };
-                var slot = new Grid();
-                slot.Children.Add(fill);
-                slot.Children.Add(edge);
-                _slotItems.Add((slot, fill, edge));
-                _slots.Children.Add(slot);
+                var label = new TextBlock
+                {
+                    Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    TextWrapping = TextWrapping.NoWrap,
+                    Margin = new Thickness(8, 4, 8, 0),
+                    IsHitTestVisible = false,
+                };
+                var item = new Grid();
+                item.Children.Add(fill);
+                item.Children.Add(edge);
+                item.Children.Add(label);
+                _slotItems.Add((item, fill, edge, label));
+                _slots.Children.Add(item);
             }
 
-            var (box, inside, border) = _slotItems[shown++];
+            var (box, inside, border, title) = _slotItems[shown++];
             var top = s.Start <= dayStart ? 0 : _owner.MinutesIntoDay(s.Start);
             var bottom = s.End >= dayEnd ? 24 * 60 : _owner.MinutesIntoDay(s.End);
             var y = top / 60 * _owner.HourHeight;
@@ -433,11 +459,15 @@ public sealed partial class DayColumn : Canvas
             border.Stroke = accent;
             SetLeft(box, 2);
             SetTop(box, y + 1);
-            AutomationProperties.SetAutomationId(box, $"ShareSlot_{n}");
-            AutomationProperties.SetName(box, $"Time to share {TimeLabels.Range(s.Start, s.End, vm.Zone, vm.Settings.Use24HourTime)}");
+            var range = TimeLabels.Range(s.Start, s.End, vm.Zone, vm.Settings.Use24HourTime);
+            title.Text = slot.Title ?? "";
+            title.Foreground = text;
+            title.Visibility = slot.Title is null ? Visibility.Collapsed : Visibility.Visible;
+            AutomationProperties.SetAutomationId(box, slot.Title is null ? $"ShareSlot_{slot.Index}" : $"SavedSlot_{slot.GroupId}_{slot.Index}");
+            AutomationProperties.SetName(box, slot.Title is null ? $"Time to share {range}" : $"{slot.Title}, {range}");
 
-            // Remove Button, On The Day The Slot Starts
-            if (s.Start < dayStart)
+            // Remove Button For A Pick, On The Day It Starts
+            if (slot.Title is not null || s.Start < dayStart)
             {
                 continue;
             }
@@ -457,14 +487,14 @@ public sealed partial class DayColumn : Canvas
                 ToolTipService.SetToolTip(remove, "Remove this time");
                 remove.Click += (_, _) => _owner.ViewModel.RemoveShareSlot(_slotRemoveIndexes[index]);
                 _slotRemoves.Add(remove);
-                _slotRemoveIndexes.Add(n);
+                _slotRemoveIndexes.Add(slot.Index);
                 _slotButtons.Children.Add(remove);
             }
 
             var button = _slotRemoves[buttons];
-            _slotRemoveIndexes[buttons++] = n;
+            _slotRemoveIndexes[buttons++] = slot.Index;
             button.Visibility = Visibility.Visible;
-            AutomationProperties.SetAutomationId(button, $"ShareSlot_{n}_Remove");
+            AutomationProperties.SetAutomationId(button, $"ShareSlot_{slot.Index}_Remove");
             SetLeft(button, 2 + width - 22);
             SetTop(button, y + 3);
         }
@@ -478,6 +508,17 @@ public sealed partial class DayColumn : Canvas
         {
             _slotRemoves[i].Visibility = Visibility.Collapsed;
         }
+    }
+
+    private void ShowResizeCursor(bool onEdge)
+    {
+        if (onEdge == _onSlotEdge)
+        {
+            return;
+        }
+
+        _onSlotEdge = onEdge;
+        ProtectedCursor = onEdge ? s_resizeCursor ??= InputSystemCursor.Create(InputSystemCursorShape.SizeNorthSouth) : null;
     }
 
     private void EnsureBlocks(int count)

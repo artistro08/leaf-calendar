@@ -165,6 +165,7 @@ public sealed partial class CalendarPage
     {
         if (ViewModel.IsSharing)
         {
+            _slotsPanel?.Commit();
             ViewModel.StopSharing();
             return;
         }

@@ -83,6 +83,19 @@ public static class DragMath
         return end < min ? min : end;
     }
 
+    /// <summary>
+    /// A picked time with its top (<paramref name="topEdge"/>) or bottom edge dragged to the pointer: that edge snaps,
+    /// and the time keeps at least one snap step.
+    /// </summary>
+    public static (DateTimeOffset Start, DateTimeOffset End) ResizeRange(DateTimeOffset start, DateTimeOffset end, bool topEdge, DateTimeOffset pointerAt, TimeZoneInfo zone)
+    {
+        var step = TimeSpan.FromMinutes(SnapMinutes);
+        var moved = Snap(pointerAt, zone);
+        return topEdge
+            ? (moved > end - step ? end - step : moved, end)
+            : (start, moved < start + step ? start + step : moved);
+    }
+
     /// <summary>The range a create drag covers, in either direction (a single step when both ends snap together).</summary>
     public static (DateTimeOffset Start, DateTimeOffset End) CreateRange(DateTimeOffset anchor, DateTimeOffset pointerAt, TimeZoneInfo zone)
     {

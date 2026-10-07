@@ -342,31 +342,34 @@ public sealed partial class CalendarPage : Page
 
     private void OnEscapeInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        Escape();
+        args.Handled = true;
+    }
+
+    private void Escape()
+    {
         // Esc With The Cheat Sheet Open Only Closes It
         if (_sheet is not null)
         {
             CloseShortcutSheet();
-            args.Handled = true;
             return;
         }
 
         // Esc During A Drag Only Cancels The Drag
         if ((_view is Controls.TimeGridView grid && grid.CancelDrag()) || (_view is Controls.MonthGridView month && month.CancelDrag()))
         {
-            args.Handled = true;
             return;
         }
 
-        // Esc While Scheduling Stops It
+        // Esc While Scheduling Stops It (like Cancel or Close: what's typed in an open group's boxes is kept)
         if (ViewModel.IsSharing)
         {
-            args.Handled = true;
+            _slotsPanel?.Commit();
             ViewModel.StopSharing();
             return;
         }
 
         ViewModel.ClearSelection();
-        args.Handled = true;
     }
 
     /// <summary>
@@ -376,10 +379,21 @@ public sealed partial class CalendarPage : Page
     /// and starts a 1.5 s sequence (spec 8.7): while the editor is untouched, Y / N / M / E close it and reply or email,
     /// U moves to the end time, and any other key types into the title. With several events selected, Delete and
     /// Ctrl+Shift+Delete act on all of them, while the one-event shortcuts (E, E then Y / N / M / E / U, V) show "Select one event" and Ctrl+J joins the next meeting.
+    /// While sharing availability, Esc stops it wherever focus is, even in a text box (an open dropdown, picker or flyout
+    /// closes first).
     /// </summary>
     /// <returns>True when the key was a shortcut and has been handled.</returns>
     public bool HandleShortcut(KeyRoutedEventArgs e)
     {
+        // Esc While Scheduling Stops It Wherever Focus Is, Typing Included (the page's Esc accelerator never hears it from a
+        // control that takes Esc for itself, like the editable zone box); an open dropdown, picker or flyout closes first
+        if (e.Key == VirtualKey.Escape && ViewModel.IsSharing && !IsInOpenPopup(FocusManager.GetFocusedElement(XamlRoot))
+            && !FocusWithin(element => element is ComboBox { IsDropDownOpen: true }))
+        {
+            Escape();
+            return true;
+        }
+
         // Second Key After An Instant E (the editor opened but nothing was typed yet)
         if (_editorFromE && _keys.IsPending && ViewModel.Editing is not null && !IsModifier(e.Key))
         {
