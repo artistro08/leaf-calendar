@@ -175,6 +175,23 @@ public sealed class SavedShareGroupTests : IDisposable
     // Delete saved times shows in the title bar row only while a saved group is open (not for new picks, never with the
     // event's Edit and Delete); it deletes the group and stops sharing, and goes with the panel
     [Fact]
+    public void GuestEmail_SavedWithTheGroup_ShowsWhenReopened()
+    {
+        using var leaf = Launch();
+        Save(leaf);
+        OpenFirst(leaf);
+
+        // Typed Without Approving, Then Saved
+        GuestEdit(leaf).Text = "pat@example.com";
+        leaf.WaitFor("ShareSaveButton").AsButton().Invoke();
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(10)).Success, "Save didn't close the panel.");
+
+        // Reopened, The Address Is Still There
+        OpenFirst(leaf);
+        Assert.True(Retry.WhileFalse(() => GuestEdit(leaf).Text == "pat@example.com", TimeSpan.FromSeconds(5)).Success, $"The guest box reads {GuestEdit(leaf).Text}.");
+    }
+
+    [Fact]
     public void Delete_InTheTitleBar_RemovesTheGroup()
     {
         using var leaf = Launch();

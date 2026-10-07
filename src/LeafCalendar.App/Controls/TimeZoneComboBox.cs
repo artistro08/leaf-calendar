@@ -39,6 +39,9 @@ public sealed partial class TimeZoneComboBox : ComboBox
     private TextBox? _editable;
     private bool _filling;
 
+    // The caret typed text left, put back once the list has opened (opening an editable box's list selects all its text)
+    private (string Text, int Caret)? _typed;
+
     /// <summary>Creates the box (filled by <see cref="Show"/>).</summary>
     public TimeZoneComboBox()
     {
@@ -52,6 +55,7 @@ public sealed partial class TimeZoneComboBox : ComboBox
         IsTextSearchEnabled = false;
 
         SelectionChanged += OnSelectionChanged;
+        DropDownOpened += (_, _) => KeepTyped();
         DropDownClosed += OnDropDownClosed;
         TextSubmitted += OnTextSubmitted;
         PreviewKeyDown += OnPreviewKeyDown;
@@ -110,6 +114,7 @@ public sealed partial class TimeZoneComboBox : ComboBox
     // changed them: new rows while the box has focus take focus back, which kept Tab from leaving it
     private void ShowPicked()
     {
+        _typed = null;
         _filling = true;
         if (_filtered)
         {
@@ -185,7 +190,7 @@ public sealed partial class TimeZoneComboBox : ComboBox
         // The same rows as before (a trailing space, say) stay as they are
         if (_filtered && ids.SequenceEqual(_ids))
         {
-            IsDropDownOpen = ids.Count > 0;
+            Open(ids.Count > 0, text, caret);
             return;
         }
 
@@ -202,8 +207,38 @@ public sealed partial class TimeZoneComboBox : ComboBox
 
         field.SelectionStart = Math.Min(caret, text.Length);
         field.SelectionLength = 0;
-        IsDropDownOpen = ids.Count > 0;
+        Open(ids.Count > 0, text, caret);
         _filling = false;
+    }
+
+    // Opens or closes the list. Opening it selects all the text, so the typed text's caret is put back when the list says
+    // it opened and once more after (the select-all can land after the opened event)
+    private void Open(bool open, string text, int caret)
+    {
+        if (!open || IsDropDownOpen)
+        {
+            IsDropDownOpen = open;
+            return;
+        }
+
+        _typed = (text, caret);
+        IsDropDownOpen = true;
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, KeepTyped);
+    }
+
+    // The typed text's caret back, with nothing selected (only while the text is still what was typed)
+    private void KeepTyped()
+    {
+        if (_typed is not { } typed || _editable is not { } field)
+        {
+            return;
+        }
+
+        if (field.Text == typed.Text)
+        {
+            field.SelectionStart = Math.Min(typed.Caret, typed.Text.Length);
+            field.SelectionLength = 0;
+        }
     }
 
     // The search boxes' exact and part-of-a-name matches (cities, aliases, Windows names) first, then any row holding the

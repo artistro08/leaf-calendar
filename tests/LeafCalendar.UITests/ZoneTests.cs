@@ -188,6 +188,33 @@ public sealed class ZoneTests : IDisposable
     }
 
     [Fact]
+    public void PrimaryZone_FirstLetter_LeavesNothingSelected()
+    {
+        using var leaf = Launch();
+        leaf.OpenSettings("TimeZones");
+        leaf.ExpandInSettings("PrimaryZoneExpander");
+        leaf.WaitInSettings("FollowWindowsZoneSwitch").AsToggleButton().Toggle();
+        var box = leaf.WaitInSettings("PrimaryZoneBox");
+        Assert.True(Retry.WhileFalse(() => box.IsEnabled, Wait).Success);
+
+        // One Letter Opens The List; Opening It Must Not Select The Text, Or The Next Letter Replaces It
+        box.Focus();
+        Thread.Sleep(200);
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
+        Keyboard.Type("p");
+        var combo = box.AsComboBox();
+        Assert.True(Retry.WhileFalse(() => combo.Patterns.ExpandCollapse.Pattern.ExpandCollapseState.Value == FlaUI.Core.Definitions.ExpandCollapseState.Expanded, Wait).Success, "The list didn't open.");
+        Thread.Sleep(800);
+        var edit = box.FindFirstDescendant(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.Edit))!;
+        var selected = string.Concat(edit.Patterns.Text.Pattern.GetSelection().Select(r => r.GetText(-1)));
+        Assert.Equal("", selected);
+
+        // The Next Letter Adds To It
+        Keyboard.Type("h");
+        Assert.True(Retry.WhileFalse(() => edit.AsTextBox().Text == "ph", Wait).Success, $"The box reads {edit.AsTextBox().Text}.");
+    }
+
+    [Fact]
     public void AtMinimumWindow_NothingOverlaps()
     {
         using var leaf = Launch();

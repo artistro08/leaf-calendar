@@ -20,7 +20,7 @@ You share some times with someone, they write back with the one they want, and y
 | Editing an open group | Changes wait for Save or Copy; Close throws them away. Removing its last time leaves no times (Save is off); Delete is how a group goes. |
 | Deleting a group | A trash icon in the title bar row above the right panel ("Delete saved times"), like an event's Delete, shown only while a saved group is open. Deletes at once, no undo. |
 | Guest email | Suggests Google contacts as you type (the same search as the people picker); a pick fills in its address, and a typed address works too. |
-| What a group keeps | The free times that went into the copied text (busy parts already cut), its title, its message, and the zone the text was written in. |
+| What a group keeps | The free times that went into the copied text (busy parts already cut), its title, its message, the zone the text was written in, and the guest email typed for it (saved with Save or Copy; added 2026-10-07, database version 10). |
 | Default message | Set in Settings › Calendars. Each new share starts from it. Edits in the share panel apply to that share (and its saved group) only. |
 | Title | A new Title box in the share panel. Empty means the generic title. Shown on every saved time; pre-fills the event title on approve. |
 | Opening a group | Click one of its times on the grid. |
@@ -40,6 +40,7 @@ CREATE TABLE share_groups (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     title       TEXT NOT NULL,
     message     TEXT NOT NULL,
+    guest_email TEXT NOT NULL DEFAULT '',  -- version 10
     zone_id     TEXT NOT NULL,
     created_utc INTEGER NOT NULL
 );
