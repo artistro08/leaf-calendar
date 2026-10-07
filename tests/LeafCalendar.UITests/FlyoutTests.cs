@@ -188,9 +188,10 @@ public sealed class FlyoutTests : IDisposable
         Assert.True(Retry.WhileFalse(() => leaf.Exists("DetailsTitle") && leaf.WaitFor("DetailsTitle").Name == "Design review", TimeSpan.FromSeconds(15)).Success);
     }
 
-    // Each Join is its own button beside its row (not inside it), named for its meeting
+    // Each Join is its own button (not inside its row's button), named for its meeting, sitting over the right end of its
+    // row so the row's highlight covers the whole width
     [Fact]
-    public void RowJoin_IsNamedForItsMeeting_AndSitsBesideTheRow()
+    public void RowJoin_IsNamedForItsMeeting_AndSitsAtTheRowsRightEnd()
     {
         _google.EditOnGoogle("family123@group.calendar.google.com", "evt-family-play", e => e["hangoutLink"] = "https://meet.google.com/pqr-stuv-wxy");
         using var leaf = Launch();
@@ -201,7 +202,8 @@ public sealed class FlyoutTests : IDisposable
         var join = leaf.WaitForPopup("FlyoutJoin_evt-family-play_202610022200");
         Assert.Equal("Join School play", join.Name);
         Assert.Null(row.FindFirstDescendant(cf => cf.ByAutomationId("FlyoutJoin_evt-family-play_202610022200")));
-        Assert.True(join.BoundingRectangle.Left >= row.BoundingRectangle.Right, $"Join ({join.BoundingRectangle}) overlaps its row ({row.BoundingRectangle}).");
+        var (r, j) = (row.BoundingRectangle, join.BoundingRectangle);
+        Assert.True(j.Left > r.Left + r.Width / 2 && j.Right <= r.Right && j.Top >= r.Top && j.Bottom <= r.Bottom, $"Join ({j}) isn't at the right end of its row ({r}).");
     }
 
     [Fact]

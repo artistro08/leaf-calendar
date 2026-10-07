@@ -630,6 +630,37 @@ public sealed partial class TrayHost : Window
         }
     }
 
+    // An agenda row's button, under its Join button (the first child of the pair's grid)
+    private static Button? AgendaRowUnder(object join) =>
+        join is FrameworkElement { Parent: Panel { Children.Count: > 0 } pair } && pair.Children[0] is Button row ? row : null;
+
+    // The pointer on Join keeps its row highlighted (Join sits on top of the row, so the row alone would lose it), so
+    // the row and its Join read as one; leaving Join for the row lets the row take over, leaving both drops it
+    private void OnAgendaJoinPointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (AgendaRowUnder(sender) is { } row)
+        {
+            VisualStateManager.GoToState(row, "PointerOver", true);
+        }
+    }
+
+    private void OnAgendaJoinPointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (AgendaRowUnder(sender) is { } row)
+        {
+            VisualStateManager.GoToState(row, "Normal", true);
+        }
+    }
+
+    // The row's text stops 4 DIP before Join (Join and the row's padding both end 8 DIP in from the right)
+    private void OnAgendaJoinSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (AgendaRowUnder(sender) is { Content: FrameworkElement content })
+        {
+            content.Margin = new Thickness(0, 0, e.NewSize.Width + 4, 0);
+        }
+    }
+
     // A click handler, so nothing may escape
     private void OnOpenClick(object sender, RoutedEventArgs e)
     {

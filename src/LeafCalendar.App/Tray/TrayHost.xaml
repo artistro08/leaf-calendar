@@ -198,11 +198,14 @@
                                                     <controls:PinnedItemsControl ItemsSource="{x:Bind Items}">
                                                         <controls:PinnedItemsControl.ItemTemplate>
                                                             <DataTemplate x:DataType="local:AgendaRow">
-                                                                <!-- Row And Join, side by side (sibling buttons, so Narrator and Tab meet each one on its own) -->
-                                                                <Grid ColumnSpacing="4" ColumnDefinitions="*,Auto">
+                                                                <!-- Row And Join (sibling buttons, so Narrator and Tab meet each one on its own). The row
+                                                                     spans the whole width under Join, so its highlight covers the whole row, and stays on
+                                                                     while the pointer is on Join; its text stops before Join (OnAgendaJoinSizeChanged) -->
+                                                                <Grid ColumnDefinitions="*,Auto">
                                                                     <!-- Row: opens the event in the main window, with the calendar's color bar like the main
                                                                          window's Upcoming list -->
                                                                     <Button
+                                                                        Grid.ColumnSpan="2"
                                                                         Padding="8,4"
                                                                         HorizontalAlignment="Stretch"
                                                                         HorizontalContentAlignment="Stretch"
@@ -226,6 +229,9 @@
                                                                         VerticalAlignment="Center"
                                                                         Visibility="{x:Bind JoinVisibility}"
                                                                         Click="{x:Bind Join}"
+                                                                        PointerEntered="OnAgendaJoinPointerEntered"
+                                                                        PointerExited="OnAgendaJoinPointerExited"
+                                                                        SizeChanged="OnAgendaJoinSizeChanged"
                                                                         ToolTipService.ToolTip="{x:Bind JoinTip}"
                                                                         AutomationProperties.Name="{x:Bind JoinName}"
                                                                         AutomationProperties.AutomationId="{x:Bind JoinId}">
