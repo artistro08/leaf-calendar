@@ -101,7 +101,12 @@
 
                 <!-- Share Availability Message (where every new share starts; the share panel's changes are for that share only).
                      An open expander card holds the full-width box under the header; MaxLength is AvailabilityText.MaxMessageLength -->
-                <Expander Style="{StaticResource LeafSettingExpanderStyle}" IsExpanded="True" Margin="0,24,0,0">
+                <Expander
+                    Style="{StaticResource LeafSettingExpanderStyle}"
+                    IsExpanded="True"
+                    Margin="0,24,0,0"
+                    AutomationProperties.Name="Share availability message"
+                    AutomationProperties.AutomationId="DefaultShareMessageExpander">
                     <Expander.Header>
                         <controls:SettingRow
                             Style="{StaticResource LeafExpanderHeaderRowStyle}"
