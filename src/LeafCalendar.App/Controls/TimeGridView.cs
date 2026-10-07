@@ -1000,7 +1000,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     /// </summary>
     public void BeginEventDrag(CalendarOccurrence occurrence, PointerRoutedEventArgs e, bool resize, UIElement card, TranslateTransform pull)
     {
-        // Picking Times To Share: a drag that starts on an event picks times too (busy ones are left out when copying)
+        // Picking Times To Share: a drag that starts on an event picks times too (copied exactly as dragged)
         if (_vm.IsSharing)
         {
             BeginCreateDrag(e);

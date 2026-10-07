@@ -273,7 +273,7 @@ public sealed class LeafDatabaseTests : IDisposable
         var database = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
         var end = DateTimeOffset.UtcNow.AddDays(1).ToUnixTimeMilliseconds();
 
-        // A Version 11 Database With A Saved Group And Two Guests (what 0.1.303 installs)
+        // A Version 11 Database With A Saved Group And Two Guests (from a build before names were kept; no release installed it)
         using (var conn = database.Open())
         using (var setup = conn.CreateCommand())
         {

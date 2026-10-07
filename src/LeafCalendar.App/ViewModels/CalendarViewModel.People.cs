@@ -203,7 +203,8 @@ public sealed partial class CalendarViewModel
             answers.FirstOrDefault()?.Access ?? ContactAccess.Allowed);
     }
 
-    // People from your own events, per account: read once off the UI thread, read again after the events change
+    // People from your own events, per account: read once off the UI thread, read again after the events change or
+    // after a read that failed
     private readonly Dictionary<string, Task<IReadOnlyList<Contact>>> _localPeople = new(StringComparer.Ordinal);
 
     /// <summary>
@@ -216,7 +217,8 @@ public sealed partial class CalendarViewModel
         var now = Now;
         var loads = PeopleAccounts().Select(account =>
         {
-            if (!_localPeople.TryGetValue(account, out var load))
+            // A read that failed isn't kept, so the next call tries again
+            if (!_localPeople.TryGetValue(account, out var load) || load.IsFaulted)
             {
                 _localPeople[account] = load = Task.Run(() => ReadLocal(conn => FrequentPeople.Load(conn, account, now)));
             }
@@ -323,7 +325,7 @@ public sealed partial class CalendarViewModel
             ShareChanged?.Invoke(this, EventArgs.Empty);
             if (name.Trim().Length == 0)
             {
-                FillShareGuestName(email);
+                FillShareGuestName(email, askGoogle: true);
             }
         }
 
@@ -402,20 +404,21 @@ public sealed partial class CalendarViewModel
         ShareChanged?.Invoke(this, EventArgs.Empty);
         foreach (var guest in _shareGuests.Where(g => g.Name.Length == 0).ToList())
         {
-            FillShareGuestName(guest.Email);
+            FillShareGuestName(guest.Email, askGoogle: false);
         }
     }
 
     // A guest added by address alone gets the name Leaf knows for that exact address: from the people in your own
-    // events, else Google's contacts. Applied only while that guest is still listed without a name
-    private async void FillShareGuestName(string email)
+    // events, else (only for a guest just typed or added, never on reopening a saved group) Google's contacts.
+    // Applied only while that guest is still listed without a name, so a late answer is dropped
+    private async void FillShareGuestName(string email, bool askGoogle)
     {
         try
         {
             static bool Same(Contact c, string email) => string.Equals(c.Email, email, StringComparison.OrdinalIgnoreCase) && c.Name.Length > 0;
 
             var name = (await LocalPeopleAsync(email)).FirstOrDefault(c => Same(c, email))?.Name
-                ?? (await SearchPeopleAsync(email, CancellationToken.None)).Contacts.FirstOrDefault(c => Same(c, email))?.Name;
+                ?? (askGoogle ? (await SearchPeopleAsync(email, _life.Token)).Contacts.FirstOrDefault(c => Same(c, email))?.Name : null);
             var index = _shareGuests.FindIndex(g => string.Equals(g.Email, email, StringComparison.OrdinalIgnoreCase) && g.Name.Length == 0);
             if (name is null || index < 0)
             {

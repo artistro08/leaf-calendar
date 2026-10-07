@@ -276,7 +276,8 @@ public sealed partial class ShareSlotsPanel : UserControl
         if (_vm is { } vm)
         {
             Commit();
-            vm.SaveShare();
+            // Through Fire, so anything unexpected is logged rather than thrown into the dispatcher
+            vm.Fire(() => { vm.SaveShare(); return Task.CompletedTask; }, "share.save.failed");
         }
     }
 
@@ -286,7 +287,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         if (_vm is { } vm)
         {
             Commit();
-            vm.CopyAndSaveShare();
+            vm.Fire(() => { vm.CopyAndSaveShare(); return Task.CompletedTask; }, "share.copy.failed");
         }
     }
 

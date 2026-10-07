@@ -59,6 +59,7 @@ One class: add `--filter-class "*ClassName"`. One test: `--filter-method "*Class
 - The owner's own Leaf can be running and holding the global shortcuts (Ctrl+Alt+J, Ctrl+Alt+K). If a whole block of tests fails at once, re-run before diagnosing: the installer restarting the owner's app has caused mass false failures.
 - If the owner moves the mouse (real, not injected input) during a UI run, the run pauses: the test in progress fails with `Interrupted:`, the pause file `%LOCALAPPDATA%\LeafCalendar.UITests\paused` is written, and every later test fails at once with `Paused:` until it is deleted. Only the owner resumes; never delete the pause file without the owner's say-so.
 - Screenshots: set `LEAF_SCREENSHOTS` to a folder and run the `ScreenshotTour` class to capture every screen in light and dark, at the minimum and wide window, every Settings page, the tray flyout and menu, onboarding, and the command menu with queries typed and run. Review the shots after UI changes.
+- Showcase: set `LEAF_SHOWCASE` to a folder and run the `ShowcaseTour` class for ten desktop shots of Leaf at up to 1366 × 768. It presses Win+M to minimize every other window and doesn't restore them.
 
 ### CI
 

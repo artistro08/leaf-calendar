@@ -54,9 +54,7 @@ public sealed class SavedShareGroupTests : IDisposable
     private static string Flat(string text) => text.Replace("\r", "", StringComparison.Ordinal).Replace("\n", "", StringComparison.Ordinal);
 
     // The text box inside the guest AutoSuggestBox
-    private static TextBox GuestEdit(LeafApp leaf) =>
-        Retry.WhileNull(() => leaf.WaitFor("ShareGuestBox").FindFirstDescendant(cf => cf.ByControlType(ControlType.Edit)), TimeSpan.FromSeconds(10)).Result?.AsTextBox()
-        ?? throw new InvalidOperationException("The guest box has no text box inside.");
+    private static TextBox GuestEdit(LeafApp leaf) => LeafApp.TextIn(leaf.WaitFor("ShareGuestBox"));
 
     // Types a new title into the open panel's Title box, like a person does
     private static void TypeTitle(LeafApp leaf, string title)

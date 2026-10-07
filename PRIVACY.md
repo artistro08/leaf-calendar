@@ -15,7 +15,7 @@ When you sign in, Google asks you to allow these. Leaf uses each one only for wh
 
 - **Your name, email address, and profile** (`openid`, `email`, `profile`): to tell your accounts apart.
 - **Your calendars** (`calendar`, read and write): to show your events and to save the events you create, change, or delete, your replies to invitations, and the calendar names and default reminders you change in Leaf. Calendar colors, order, and which calendars show stay in Leaf.
-- **Your contacts and "other contacts"** (`contacts.readonly`, `contacts.other.readonly`, read-only): to suggest people as you type a guest's name. Leaf searches every account you've signed in with. People from your own events are suggested too; those come from the copy of your calendars on your PC, not from Google.
+- **Your contacts and "other contacts"** (`contacts.readonly`, `contacts.other.readonly`, read-only): to suggest people as you type a guest's name or email address. Leaf searches every account you've signed in with. People from your own events are suggested too; those come from the copy of your calendars on your PC, not from Google.
 - **Your Google Workspace directory** (`directory.readonly`, read-only): to suggest coworkers as guests. Personal Google accounts don't have one, so nothing comes back.
 
 Leaf also asks Google for people's free and busy times when you look at them (overlaying a teammate or finding a time). Google decides what you can see.
