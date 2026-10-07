@@ -439,6 +439,13 @@ public sealed partial class CalendarViewModel
             }
 
             _savedGroups = [.. groups];
+
+            // The Open Group Is Gone (its times all passed): the panel goes on as new picks, so Copy saves a new group
+            if (_openGroupId is { } open && !_savedGroups.Any(g => g.Id == open))
+            {
+                _openGroupId = null;
+            }
+
             ShareChanged?.Invoke(this, EventArgs.Empty);
         }, "share.groups.load.failed");
     }

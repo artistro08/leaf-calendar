@@ -361,9 +361,10 @@ public sealed partial class CalendarPage : Page
             return;
         }
 
-        // Esc While Scheduling Stops It
+        // Esc While Scheduling Stops It (like Cancel or Close: what's typed in an open group's boxes is kept)
         if (ViewModel.IsSharing)
         {
+            _slotsPanel?.Commit();
             ViewModel.StopSharing();
             return;
         }

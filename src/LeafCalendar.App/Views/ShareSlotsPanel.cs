@@ -122,7 +122,11 @@ public sealed partial class ShareSlotsPanel : UserControl
         AutomationProperties.SetAutomationId(_cancel, "ShareCancelButton");
         AutomationProperties.SetAutomationId(_delete, "ShareDeleteButton");
         _copy.Click += (_, _) => Copy();
-        _cancel.Click += (_, _) => _vm?.StopSharing();
+        _cancel.Click += (_, _) =>
+        {
+            Commit();
+            _vm?.StopSharing();
+        };
         _delete.Click += (_, _) => _vm?.DeleteOpenGroup();
 
         _buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -169,8 +173,9 @@ public sealed partial class ShareSlotsPanel : UserControl
         ArgumentNullException.ThrowIfNull(vm);
         _vm = vm;
 
-        // Sharing Started Or Another Group Opened: the boxes show its title, message and zone
-        if (vm.IsSharing && (!_sharing || _group != vm.OpenGroupId))
+        // Sharing Started Or Another Group Opened: the boxes show its title, message and zone. An open group whose times
+        // all passed turns back into new picks with the boxes as typed
+        if (vm.IsSharing && (!_sharing || (vm.OpenGroupId is not null && _group != vm.OpenGroupId)))
         {
             _zoneBox.Show(vm.ShareZoneId, vm.Now);
             _message.Text = vm.ShareText.Replace("\r\n", "\r", StringComparison.Ordinal);
@@ -220,13 +225,25 @@ public sealed partial class ShareSlotsPanel : UserControl
         ShowCanApprove();
     }
 
+    /// <summary>
+    /// Hands the Title and Message boxes as typed so far to the view model (an open group saves them), even while a box
+    /// still has focus. Call it before anything stops sharing (Esc, S, Cancel or Close), or the typing is lost.
+    /// </summary>
+    public void Commit()
+    {
+        if (_vm is { IsSharing: true } vm)
+        {
+            vm.ShareTitle = _titleBox.Text;
+            vm.ShareText = _message.Text;
+        }
+    }
+
     // The title and message as typed so far count, even if a box still has focus
     private void Copy()
     {
         if (_vm is { } vm)
         {
-            vm.ShareTitle = _titleBox.Text;
-            vm.ShareText = _message.Text;
+            Commit();
             vm.Fire(vm.CopyAvailabilityAsync, "share.copy.failed");
         }
     }
