@@ -48,10 +48,9 @@
                         <controls:SettingRow
                             Style="{StaticResource LeafExpanderItemRowStyle}"
                             Header="Leaf's time zone">
-                            <controls:TimeZoneComboBox
+                            <controls:TimeZoneBox
                                 x:Name="PrimaryZoneBox"
                                 Width="320"
-                                IsEditable="True"
                                 ZoneChanged="OnPrimaryZoneChanged"
                                 AutomationProperties.Name="Leaf's time zone"
                                 AutomationProperties.AutomationId="PrimaryZoneBox" />

@@ -1,7 +1,5 @@
 using System.Drawing;
-using System.Text.Json.Nodes;
 using FlaUI.Core.AutomationElements;
-using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
@@ -14,7 +12,6 @@ namespace LeafCalendar.UITests;
 public sealed class ShareAvailabilityTests : IDisposable
 {
     private const string Dentist = "Event_evt-single_202610011300";
-    private const string Family = "family123@group.calendar.google.com";
 
     private readonly FakeGoogleServer _google = new();
     // Leaf shows Eastern time (the copied text names ET), whatever this PC's time zone is
@@ -81,7 +78,7 @@ public sealed class ShareAvailabilityTests : IDisposable
     }
 
     [Fact]
-    public void S_DragSlots_CopyGivesFreeTimesOnly()
+    public void S_DragSlots_CopyGivesExactlyTheDraggedTimes()
     {
         using var leaf = Launch();
         StartSharing(leaf);
@@ -91,8 +88,8 @@ public sealed class ShareAvailabilityTests : IDisposable
         Assert.NotNull(leaf.WaitFor("ShareSlot_0"));
         Assert.False(leaf.Exists("EventEditor"));
 
-        // The dentist (9-10) is busy
-        Assert.Equal("Thu Oct 1: 10 AM–12 PM ET", Copy(leaf));
+        // The dentist (9-10) doesn't cut the time: what's dragged is what's copied
+        Assert.Equal("Thu Oct 1: 9 AM–12 PM ET", Copy(leaf));
     }
 
     [Fact]
@@ -106,41 +103,15 @@ public sealed class ShareAvailabilityTests : IDisposable
         DragHours(leaf, 10, 12);
         leaf.WaitFor("ShareSlot_0");
 
-        // Typed Like A Person (the box is editable, and a typed city submitted with Enter picks its zone)
-        var zone = leaf.WaitFor("ShareZoneBox");
+        // Typed Like A Person (a typed city submitted with Enter picks its zone)
+        var zone = LeafApp.TextIn(leaf.WaitFor("ShareZoneBox"));
         zone.Focus();
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("Tokyo");
         Keyboard.Type(VirtualKeyShort.ENTER);
-        Assert.True(Retry.WhileFalse(() => (zone.Patterns.Value.PatternOrDefault?.Value.ValueOrDefault ?? "").Contains("Tokyo", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success, "The zone box didn't take Tokyo.");
+        Assert.True(Retry.WhileFalse(() => zone.Text.Contains("Tokyo", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success, "The zone box didn't take Tokyo.");
 
         Assert.Equal("Thu Oct 1: 11 PM–12 AM Tokyo time\r\nFri Oct 2: 12–1 AM Tokyo time", Copy(leaf));
-    }
-
-    [Fact]
-    public void AHiddenCalendar_ItsEventsDontBlock()
-    {
-        _google.AddEvent(Family, new JsonObject
-        {
-            ["id"] = "evt-family-practice",
-            ["summary"] = "Practice",
-            ["start"] = new JsonObject { ["dateTime"] = "2026-10-01T10:00:00-04:00" },
-            ["end"] = new JsonObject { ["dateTime"] = "2026-10-01T11:00:00-04:00" },
-        });
-        using var leaf = Launch();
-        StartSharing(leaf);
-        DragHours(leaf, 10, 12);
-        leaf.WaitFor("ShareSlot_0");
-
-        Assert.Equal("Thu Oct 1: 11 AM–12 PM ET", Copy(leaf));
-
-        // Copy Ends Sharing: Hide The Calendar In The Sidebar (busy times come from the visible ones), Then Pick Again
-        leaf.WaitFor($"CalendarToggle_{Family}").Click();
-        StartSharing(leaf);
-        DragHours(leaf, 10, 12);
-        leaf.WaitFor("ShareSlot_0");
-
-        Assert.Equal("Thu Oct 1: 10 AM–12 PM ET", Copy(leaf));
     }
 
     // A picked time's bottom edge dragged down an hour: 10-11 AM grows to 10 AM-12 PM
@@ -208,10 +179,10 @@ public sealed class ShareAvailabilityTests : IDisposable
         Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Esc left the share panel up.");
     }
 
-    // Wherever focus is in the share panel (pressed straight to the focused control, not through the window)
+    // Wherever focus is in the share panel (pressed straight to the focused control, not through the window). The zone
+    // box opens its list when it takes focus, so its first Esc closes only the list (Escape_InTheOpenZoneList_ClosesOnlyTheList)
     [Theory]
     [InlineData("ShareMessageBox")]
-    [InlineData("ShareZoneBox")]
     [InlineData("SharePanelStart_0")]
     [InlineData("SharePanelEnd_0")]
     [InlineData("SharePanelRemove_0")]
@@ -253,14 +224,13 @@ public sealed class ShareAvailabilityTests : IDisposable
     {
         using var leaf = Launch();
         StartSharing(leaf);
-        var zone = leaf.WaitFor("ShareZoneBox");
-        zone.Focus();
+        LeafApp.TextIn(leaf.WaitFor("ShareZoneBox")).Focus();
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("Tokyo");
-        Assert.True(Retry.WhileFalse(() => zone.Patterns.ExpandCollapse.PatternOrDefault?.ExpandCollapseState.ValueOrDefault == ExpandCollapseState.Expanded, TimeSpan.FromSeconds(5)).Success, "Typing didn't open the zone list.");
+        Assert.True(Retry.WhileFalse(() => leaf.SuggestionNames().Count > 0, TimeSpan.FromSeconds(5)).Success, "Typing didn't open the zone list.");
 
         Keyboard.Press(VirtualKeyShort.ESCAPE);
-        Assert.True(Retry.WhileTrue(() => zone.Patterns.ExpandCollapse.PatternOrDefault?.ExpandCollapseState.ValueOrDefault == ExpandCollapseState.Expanded, TimeSpan.FromSeconds(5)).Success, "Esc left the zone list open.");
+        Assert.True(Retry.WhileFalse(() => leaf.SuggestionNames().Count == 0, TimeSpan.FromSeconds(5)).Success, "Esc left the zone list open.");
         Thread.Sleep(500);
         Assert.True(leaf.Exists("ShareSlotsPanel"), "Esc in the zone list stopped sharing.");
 
@@ -298,31 +268,42 @@ public sealed class ShareAvailabilityTests : IDisposable
         DragHours(leaf, 9, 12);
         leaf.WaitFor("ShareSlot_0");
 
-        Assert.Equal("Thu Oct 1: 10 AM–12 PM ET", Copy(leaf));
+        Assert.Equal("Thu Oct 1: 9 AM–12 PM ET", Copy(leaf));
 
         Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel") || leaf.Exists("ShareSlot_0"), TimeSpan.FromSeconds(5)).Success, "Sharing didn't stop.");
         Assert.True(NoticeSays(leaf, "Availability copied"), "The notice didn't say the availability was copied.");
     }
 
-    // Everything sits in the right panel: the zone, the times, then Save, Copy and Close splitting the full width at the
-    // bottom; the panel keeps its width as times are picked, and there's no calendars dropdown
+    // Everything sits in the right panel: the zone and message, a line, the Guests & proposed times heading over the guest
+    // box, then (new picks) only Copy & Save and Cancel splitting the full width at the bottom; the panel keeps its width
+    // as times are picked, and there's no calendars dropdown
     [Fact]
-    public void Panel_HoldsTheZoneTimesAndButtons_AtAFixedWidth()
+    public void Panel_HoldsTheZoneGuestsTimesAndButtons_AtAFixedWidth()
     {
         using var leaf = Launch();
         StartSharing(leaf);
 
         var panel = leaf.WaitFor("ShareSlotsPanel").BoundingRectangle;
         var zone = leaf.WaitFor("ShareZoneBox").BoundingRectangle;
-        var save = leaf.WaitFor("ShareSaveButton").BoundingRectangle;
         var copy = leaf.WaitFor("ShareCopyButton").BoundingRectangle;
         var stop = leaf.WaitFor("ShareCancelButton").BoundingRectangle;
         var edge = 16 * leaf.Scale + 1;
+        Assert.False(leaf.Exists("ShareSaveButton"), "Save showed for new picks.");
+        Assert.Equal("Copy & Save", leaf.WaitFor("ShareCopyButton").Name);
+        Assert.Equal("Cancel", leaf.WaitFor("ShareCancelButton").Name);
         Assert.False(leaf.Exists("ShareCalendarsButton"), "The calendars dropdown still shows.");
         Assert.True(zone.Left - panel.Left <= edge && panel.Right - zone.Right <= edge, $"The zone box ({zone}) doesn't span the panel ({panel}).");
-        Assert.True(save.Left - panel.Left <= edge && panel.Right - stop.Right <= edge && save.Top == copy.Top && copy.Top == stop.Top, $"Save ({save}), Copy ({copy}) and Close ({stop}) don't span the panel ({panel}).");
-        Assert.True(save.Right < copy.Left && copy.Right < stop.Left && Math.Abs(save.Width - stop.Width) <= 1 && Math.Abs(copy.Width - stop.Width) <= 1, $"Save ({save}), Copy ({copy}) and Close ({stop}) aren't three equal buttons in that order.");
+        Assert.True(copy.Left - panel.Left <= edge && panel.Right - stop.Right <= edge && copy.Top == stop.Top, $"Copy & Save ({copy}) and Cancel ({stop}) don't span the panel ({panel}).");
+        Assert.True(copy.Right < stop.Left && Math.Abs(copy.Width - stop.Width) <= 1, $"Copy & Save ({copy}) and Cancel ({stop}) aren't two equal buttons in that order.");
         Assert.True(panel.Bottom - copy.Bottom <= edge, $"The buttons ({copy}) aren't at the panel's ({panel}) bottom.");
+
+        // The Line, Then The Heading, Then The Guest Box, All Under The Message
+        var reset = leaf.WaitFor("ShareMessageReset").BoundingRectangle;
+        var line = leaf.WaitFor("ShareGuestsLine").BoundingRectangle;
+        var heading = leaf.WaitFor("ShareGuestsHeading");
+        var guest = leaf.WaitFor("ShareGuestBox").BoundingRectangle;
+        Assert.Equal("Guests & proposed times", heading.Name);
+        Assert.True(reset.Bottom <= line.Top && line.Bottom <= heading.BoundingRectangle.Top && heading.BoundingRectangle.Bottom <= guest.Top, $"The message link ({reset}), line ({line}), heading ({heading.BoundingRectangle}) and guest box ({guest}) aren't in that order.");
 
         DragHours(leaf, 10, 11);
         leaf.WaitFor("SharePanelSlot_0");
@@ -406,8 +387,9 @@ public sealed class ShareAvailabilityTests : IDisposable
         Assert.Equal("Thu Oct 1: 10–11 AM ET", Copy(leaf));
     }
 
+    // Copy asks nothing of Google, so it works offline
     [Fact]
-    public void Offline_CopySaysWhy_AndKeepsTheSlots()
+    public void Offline_CopyStillWorks()
     {
         using var leaf = Launch();
         StartSharing(leaf);
@@ -415,10 +397,9 @@ public sealed class ShareAvailabilityTests : IDisposable
         leaf.WaitFor("ShareSlot_0");
         _google.Offline = true;
 
-        leaf.WaitFor("ShareCopyButton").AsButton().Invoke();
+        Assert.Equal("Thu Oct 1: 10 AM–12 PM ET", Copy(leaf));
 
-        Assert.True(NoticeSays(leaf, "Couldn't check your calendars. Check your connection."), "The notice didn't say why.");
-        Assert.True(leaf.Exists("ShareSlot_0"));
+        Assert.True(NoticeSays(leaf, "Availability copied"), "The notice didn't say the availability was copied.");
     }
 
     [Fact]
@@ -429,12 +410,12 @@ public sealed class ShareAvailabilityTests : IDisposable
             StartSharing(leaf);
             DragHours(leaf, 9, 12);
             leaf.WaitFor("ShareSlot_0");
-            Assert.Equal("Thu Oct 1: 10 AM–12 PM ET", Copy(leaf));
+            Assert.Equal("Thu Oct 1: 9 AM–12 PM ET", Copy(leaf));
         }
 
         var text = ReadLog(_profile);
         Assert.Contains("share.copy", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("10 AM", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("9 AM", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Thu Oct 1", text, StringComparison.Ordinal);
     }
 }

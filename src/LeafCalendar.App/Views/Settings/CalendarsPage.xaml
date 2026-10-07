@@ -112,7 +112,7 @@
                             Style="{StaticResource LeafExpanderHeaderRowStyle}"
                             Glyph="&#xE8BD;"
                             Header="Share availability message"
-                            Description="{}{times} is replaced with your free times." />
+                            Description="{}{times} is replaced with your proposed times." />
                     </Expander.Header>
                     <StackPanel Margin="16" Spacing="8">
                         <TextBox

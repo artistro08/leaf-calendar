@@ -13,13 +13,15 @@ namespace LeafCalendar.App.Views;
 
 /// <summary>
 /// The right panel while you share availability (S): a title (shown on the saved times), the zone the copied text is
-/// written in, the message Copy wraps the times in (it starts from your default and changes only this share;
-/// <c>{times}</c> marks where they go), the picked times, one row each (the day, then start and end time pickers and a
-/// remove button, in the zone on screen), then Save (saves the times as a group and stops sharing), Copy (copies, saves
-/// the free times as a group, stops sharing, and says so in the notice) and Close (throws away anything unsaved) pinned at
-/// the bottom. With a saved group open the heading says so, Save and Copy update the group (nothing changes it until
-/// then), a guest email box with contact suggestions shows, and each time gets an Approve… button (enabled for one valid
-/// address); the group's Delete is in the title bar row (MainWindow). Busy times come from the visible calendars.
+/// written in, the message Copy &amp; Save wraps the times in (it starts from your default and changes only this share;
+/// <c>{times}</c> marks where they go), then under a line the Guests &amp; proposed times section: a guest box with contact
+/// suggestions (Enter or a pick adds the guest to the list under it, each with a remove button), then the picked times, one
+/// row each (the day, then start and end time pickers and a remove button, in the zone on screen). Pinned at the bottom:
+/// for new picks Copy &amp; Save (copies the times exactly as picked, saves them with the guests as a group, stops sharing,
+/// and says so in the notice) and Cancel (throws away the picks); with a saved group open, Save, Copy &amp; Save (both
+/// update the group; nothing changes it until then) and Close, the heading says so, and each time gets an Approve… button
+/// (enabled once the group has a guest); the group's Delete is in the title bar row (MainWindow). A valid address typed
+/// but not yet added counts as a guest for Save, Copy &amp; Save and Approve….
 /// A change goes straight to the view model, so the grid's slots and the copied text follow it; a time moved onto
 /// another merges with it. An end at or before the start that makes no sense (<see cref="ShareSlotEdit.Apply"/>) puts
 /// the pickers back. Rows are kept and refreshed in place, so focus stays on the picker you used. The panel keeps the
@@ -29,7 +31,7 @@ public sealed partial class ShareSlotsPanel : UserControl
 {
     private readonly StackPanel _rows = new() { Spacing = 8 };
     private readonly TextBlock _empty = new() { Text = "No times yet.", Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] };
-    private readonly TimeZoneComboBox _zoneBox = new() { Header = "Time zone", IsEditable = true };
+    private readonly TimeZoneBox _zoneBox = new() { Header = "Time zone" };
     private readonly TextBox _message = new()
     {
         Header = "Message",
@@ -39,8 +41,8 @@ public sealed partial class ShareSlotsPanel : UserControl
         MaxLength = AvailabilityText.MaxMessageLength,
         PlaceholderText = "Only the times",
     };
-    private readonly Button _save = new() { Content = "Save", IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Stretch, Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
-    private readonly Button _copy = new() { Content = "Copy", IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly Button _save = new() { Content = "Save", IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly Button _copy = new() { Content = "Copy & Save", IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Border _footer = new() { Padding = new Thickness(16, 12, 16, 12), BorderThickness = new Thickness(0, 1, 0, 0) };
     private readonly List<SlotRow> _shown = [];
 
@@ -48,13 +50,17 @@ public sealed partial class ShareSlotsPanel : UserControl
     // sidebar's month title
     private readonly TextBlock _title = new() { Text = "Times to share", Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"], TextTrimming = TextTrimming.CharacterEllipsis, Padding = new Thickness(0, 4, 0, 4) };
     private readonly TextBox _titleBox = new() { Header = "Title", PlaceholderText = CalendarViewModel.GenericShareTitle, MaxLength = ShareGroupStore.MaxTitleLength };
-    private readonly AutoSuggestBox _guest = new() { Header = "Guest email", PlaceholderText = "name@example.com", UpdateTextOnSelect = false, Visibility = Visibility.Collapsed };
-    private readonly Button _close = new() { Content = "Close", HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly AutoSuggestBox _guest = new() { PlaceholderText = "name@example.com", UpdateTextOnSelect = false };
+    private readonly StackPanel _guestRows = new() { Spacing = 4 };
+    private readonly Border _line = new() { Height = 1, Margin = new Thickness(0, 8, 0, 8) };
+    private readonly Button _close = new() { Content = "Cancel", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Grid _buttons = new() { ColumnSpacing = 8 };
+    private List<Contact> _guestsShown = [];
     private ContactSuggestions? _guestSuggestions;
     private CalendarViewModel? _vm;
     private bool _sharing;
     private long? _group;
+    private bool? _savedLayout;
 
     /// <summary>Builds the panel (filled by <see cref="Update"/>).</summary>
     public ShareSlotsPanel()
@@ -62,7 +68,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         AutomationProperties.SetAutomationId(_title, "SharePanelTitle");
         var hint = new TextBlock
         {
-            Text = "Drag on the calendar to pick times. Leaf leaves out the busy ones.",
+            Text = "Drag on the calendar to pick times.",
             Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
             TextWrapping = TextWrapping.Wrap,
         };
@@ -77,26 +83,41 @@ public sealed partial class ShareSlotsPanel : UserControl
         AutomationProperties.SetAutomationId(_titleBox, "ShareTitleBox");
         _titleBox.LostFocus += (_, _) => _vm?.ShareTitle = _titleBox.Text;
 
-        // Guest (a saved group only: Approve needs one address). Contacts are suggested as you type (set up with the view
-        // model in Update); a picked one fills in its address, and a typed address works without picking
+        // Guest Box (new picks and saved groups). Contacts are suggested as you type (set up with the view model in
+        // Update); a pick, or Enter on a valid address, adds the guest to the list under the box and empties the box
         AutomationProperties.SetName(_guest, "Guest email");
         AutomationProperties.SetAutomationId(_guest, "ShareGuestBox");
         FirstSuggestion.Highlight(_guest);
         _guest.TextChanged += (_, _) => ShowCanApprove();
         _guest.QuerySubmitted += (_, args) =>
         {
-            if (_guestSuggestions?.Find(args.ChosenSuggestion) is { } contact)
+            if (_vm is not { } vm)
             {
-                _guestSuggestions.Cancel();
-                _guest.Text = contact.Email;
+                return;
+            }
+
+            var added = _guestSuggestions?.Find(args.ChosenSuggestion) is { } contact
+                ? vm.AddShareGuest(contact.Email, contact.Name)
+                : vm.AddShareGuest(args.QueryText);
+            if (added)
+            {
+                _guestSuggestions?.Cancel();
+                _guest.Text = "";
                 _guest.IsSuggestionListOpen = false;
             }
         };
 
-        // Message (what Copy wraps the free times in, for this share only; {times} marks where they go)
+        // Section Heading (the guests and the picked times, under a line like the footer's)
+        AutomationProperties.SetName(_line, "Divider");
+        AutomationProperties.SetAutomationId(_line, "ShareGuestsLine");
+        var guestsHeading = new TextBlock { Text = "Guests & proposed times", Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"], TextWrapping = TextWrapping.Wrap };
+        AutomationProperties.SetAutomationId(guestsHeading, "ShareGuestsHeading");
+        AutomationProperties.SetAutomationId(_guestRows, "ShareGuestList");
+
+        // Message (what Copy wraps the proposed times in, for this share only; {times} marks where they go)
         var messageHint = new TextBlock
         {
-            Text = "{times} is replaced with your free times.",
+            Text = "{times} is replaced with your proposed times.",
             Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
             TextWrapping = TextWrapping.Wrap,
         };
@@ -122,25 +143,22 @@ public sealed partial class ShareSlotsPanel : UserControl
         stack.Children.Add(_message);
         stack.Children.Add(messageHint);
         stack.Children.Add(resetMessage);
+        stack.Children.Add(_line);
+        stack.Children.Add(guestsHeading);
         stack.Children.Add(_guest);
+        stack.Children.Add(_guestRows);
         stack.Children.Add(_empty);
         stack.Children.Add(_rows);
 
-        // Save, Copy And Close, pinned and sharing the width like the editor's footer; Save is the one accent. Close
-        // throws away anything unsaved, as Esc and S do
+        // Footer Buttons, pinned and sharing the width like the editor's footer (which ones show is set in Update). Cancel
+        // and Close throw away anything unsaved, as Esc and S do
         AutomationProperties.SetAutomationId(_save, "ShareSaveButton");
         AutomationProperties.SetAutomationId(_copy, "ShareCopyButton");
         AutomationProperties.SetAutomationId(_close, "ShareCancelButton");
         _save.Click += (_, _) => Save();
         _copy.Click += (_, _) => Copy();
         _close.Click += (_, _) => _vm?.StopSharing();
-
-        foreach (var (button, column) in new (Button, int)[] { (_save, 0), (_copy, 1), (_close, 2) })
-        {
-            _buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            Grid.SetColumn(button, column);
-            _buttons.Children.Add(button);
-        }
+        ShowButtons(saved: false);
 
         _footer.Child = _buttons;
         AutomationProperties.SetAutomationId(_footer, "ShareFooter");
@@ -159,19 +177,20 @@ public sealed partial class ShareSlotsPanel : UserControl
         AutomationProperties.SetName(this, "Times to share");
         AutomationProperties.SetAutomationId(this, "ShareSlotsPanel");
 
-        // The Day Labels' And The Footer Line's Colors Follow The Theme
+        // The Day Labels' And The Two Lines' Colors Follow The Theme
         ActualThemeChanged += (_, _) =>
         {
             var dark = ActualTheme == ElementTheme.Dark;
             _footer.BorderBrush = LeafBrushes.GridLine(dark);
+            _line.Background = LeafBrushes.GridLine(dark);
             _shown.ForEach(r => r.Paint(dark));
         };
     }
 
     /// <summary>
     /// Shows the view model's picked times (existing rows refreshed in place, extra ones added or removed); the title,
-    /// zone and message when sharing starts or another group opens; the saved-group controls while one is open; and
-    /// enables Save and Copy once a time is picked.
+    /// zone and message when sharing starts or another group opens; the guests; the saved-group controls while one is
+    /// open; and enables Save and Copy &amp; Save once a time is picked.
     /// </summary>
     public void Update(CalendarViewModel vm)
     {
@@ -179,15 +198,15 @@ public sealed partial class ShareSlotsPanel : UserControl
         _vm = vm;
         _guestSuggestions ??= new ContactSuggestions(_guest, vm);
 
-        // Sharing Started Or Another Group Opened: the boxes show its title, message, guest and zone. An open group whose times
-        // all passed turns back into new picks with the boxes as typed
+        // Sharing Started Or Another Group Opened: the boxes show its title, message and zone, and the guest box starts
+        // empty. An open group whose times all passed turns back into new picks with the boxes as typed
         if (vm.IsSharing && (!_sharing || (vm.OpenGroupId is not null && _group != vm.OpenGroupId)))
         {
             _zoneBox.Show(vm.ShareZoneId, vm.Now);
             _message.Text = vm.ShareText.Replace("\r\n", "\r", StringComparison.Ordinal);
             _titleBox.Text = vm.ShareTitle;
             _guestSuggestions.Cancel();
-            _guest.Text = vm.ShareGuest;
+            _guest.Text = "";
         }
 
         // Sharing Stopped (Close, Esc, S, Approve…, Save, Copy or Delete): a search still waiting or running is dropped and
@@ -202,12 +221,14 @@ public sealed partial class ShareSlotsPanel : UserControl
         _group = vm.OpenGroupId;
         var saved = _group is not null;
         _title.Text = saved ? "Saved times" : "Times to share";
-        _guest.Visibility = saved ? Visibility.Visible : Visibility.Collapsed;
+        ShowButtons(saved);
+        ShowGuests(vm);
 
         _sharing = vm.IsSharing;
         _save.IsEnabled = vm.ShareSlots.Count > 0;
-        _copy.IsEnabled = vm.ShareSlots.Count > 0 && !vm.IsCopying;
+        _copy.IsEnabled = vm.ShareSlots.Count > 0;
         _footer.BorderBrush = LeafBrushes.GridLine(ActualTheme == ElementTheme.Dark);
+        _line.Background = LeafBrushes.GridLine(ActualTheme == ElementTheme.Dark);
         _empty.Visibility = vm.ShareSlots.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         while (_shown.Count < vm.ShareSlots.Count)
         {
@@ -231,8 +252,9 @@ public sealed partial class ShareSlotsPanel : UserControl
     }
 
     /// <summary>
-    /// Hands the Title, Message and Guest email boxes as typed so far to the view model, even while a box still has focus.
-    /// Save, Copy and Approve… call it first; nothing is saved until Save or Copy.
+    /// Hands the Title and Message boxes as typed so far to the view model, even while a box still has focus, and adds a
+    /// valid address typed in the guest box but not yet added (so no typed guest is lost). Save, Copy &amp; Save and
+    /// Approve… call it first; nothing is saved until Save or Copy &amp; Save.
     /// </summary>
     public void Commit()
     {
@@ -240,11 +262,15 @@ public sealed partial class ShareSlotsPanel : UserControl
         {
             vm.ShareTitle = _titleBox.Text;
             vm.ShareText = _message.Text;
-            vm.ShareGuest = _guest.Text;
+            if (vm.AddShareGuest(_guest.Text))
+            {
+                _guestSuggestions?.Cancel();
+                _guest.Text = "";
+            }
         }
     }
 
-    // The title and message as typed so far count, even if a box still has focus
+    // The boxes as typed so far count, even if one still has focus
     private void Save()
     {
         if (_vm is { } vm)
@@ -254,30 +280,103 @@ public sealed partial class ShareSlotsPanel : UserControl
         }
     }
 
-    // The title and message as typed so far count, even if a box still has focus
+    // The boxes as typed so far count, even if one still has focus
     private void Copy()
     {
         if (_vm is { } vm)
         {
             Commit();
-            vm.Fire(vm.CopyAvailabilityAsync, "share.copy.failed");
+            vm.CopyAndSaveShare();
         }
     }
 
-    // Approve… is enabled while the guest box holds one valid address
+    // New picks: Copy & Save (the accent) and Cancel. A saved group: Save (the accent), Copy & Save and Close
+    private void ShowButtons(bool saved)
+    {
+        if (_savedLayout == saved)
+        {
+            return;
+        }
+
+        _savedLayout = saved;
+        _save.Style = (Style)Application.Current.Resources[saved ? "AccentButtonStyle" : "DefaultButtonStyle"];
+        _copy.Style = (Style)Application.Current.Resources[saved ? "DefaultButtonStyle" : "AccentButtonStyle"];
+        _close.Content = saved ? "Close" : "Cancel";
+        _buttons.Children.Clear();
+        _buttons.ColumnDefinitions.Clear();
+        Button[] buttons = saved ? [_save, _copy, _close] : [_copy, _close];
+        for (var i = 0; i < buttons.Length; i++)
+        {
+            _buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            Grid.SetColumn(buttons[i], i);
+            _buttons.Children.Add(buttons[i]);
+        }
+    }
+
+    // The guests added, one row each (rebuilt only when the list changed, so a remove button keeps focus otherwise)
+    private void ShowGuests(CalendarViewModel vm)
+    {
+        if (_guestsShown.SequenceEqual(vm.ShareGuests))
+        {
+            return;
+        }
+
+        _guestsShown = [.. vm.ShareGuests];
+        _guestRows.Children.Clear();
+        for (var i = 0; i < _guestsShown.Count; i++)
+        {
+            _guestRows.Children.Add(GuestChip(_guestsShown[i], i));
+        }
+    }
+
+    // One guest: the name (else the address), then a named person's address on its own line, the remove button pinned top
+    // right (the event editor's guest chip)
+    private Border GuestChip(Contact guest, int index)
+    {
+        var named = guest.Name.Length > 0;
+        var name = new TextBlock { Text = named ? guest.Name : guest.Email, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        AutomationProperties.SetAutomationId(name, string.Create(CultureInfo.InvariantCulture, $"ShareGuest_{index}"));
+        var lines = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        lines.Children.Add(name);
+        if (named)
+        {
+            lines.Children.Add(new TextBlock { Text = guest.Email, Style = (Style)Application.Current.Resources["LeafSecondaryTextStyle"], TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis });
+        }
+
+        var remove = new Button
+        {
+            Content = new FontIcon { Glyph = "", FontSize = 12 },
+            Style = (Style)Application.Current.Resources["LeafIconButtonStyle"],
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        ToolTipService.SetToolTip(remove, "Remove guest");
+        AutomationProperties.SetName(remove, "Remove guest");
+        AutomationProperties.SetAutomationId(remove, string.Create(CultureInfo.InvariantCulture, $"ShareGuestRemove_{index}"));
+        remove.Click += (_, _) => _vm?.RemoveShareGuest(index);
+        Grid.SetColumn(remove, 1);
+
+        var grid = new Grid { ColumnSpacing = 8 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.Children.Add(lines);
+        grid.Children.Add(remove);
+        return new Border { Style = (Style)Application.Current.Resources["LeafGuestChipStyle"], Child = grid };
+    }
+
+    // Approve… is enabled once there's a guest (added, or a valid address typed and not yet added)
     private void ShowCanApprove()
     {
-        var can = CalendarViewModel.IsAddress(_guest.Text.Trim());
+        var can = _vm is { ShareGuests.Count: > 0 } || CalendarViewModel.IsAddress(_guest.Text.Trim());
         _shown.ForEach(r => r.CanApprove = can);
     }
 
-    // Approve…: the title and message as typed so far count, then the event editor opens on this time with the guest
+    // Approve…: the boxes as typed so far count, then the event editor opens on this time with every guest
     private void Approve(SlotRow row)
     {
         if (_vm is { } vm)
         {
             Commit();
-            vm.ApproveSlot(row.Index, _guest.Text.Trim());
+            vm.ApproveSlot(row.Index);
         }
     }
 
@@ -328,13 +427,13 @@ public sealed partial class ShareSlotsPanel : UserControl
             To.SelectedTimeChanged += (_, _) => { if (!_showing) { owner.Changed(this); } };
             drop.Click += (_, _) => owner._vm?.RemoveShareSlot(Index);
 
-            // Approve… (a saved group only): this time as an event with the guest; a check mark, then the text, centered in
+            // Approve… (a saved group only): this time as an event with the guests; a check mark, then the text, centered in
             // a button as wide as the row
             var approveContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             approveContent.Children.Add(new FontIcon { Glyph = "", FontSize = 16 });
             approveContent.Children.Add(new TextBlock { Text = "Approve…" });
             Approve = new Button { Content = approveContent, IsEnabled = false, Visibility = Visibility.Collapsed, HorizontalAlignment = HorizontalAlignment.Stretch };
-            ToolTipService.SetToolTip(Approve, "Save this time as an event with the guest");
+            ToolTipService.SetToolTip(Approve, "Save this time as an event with the guests");
             AutomationProperties.SetAutomationId(Approve, string.Create(CultureInfo.InvariantCulture, $"SharePanelApprove_{index}"));
             Approve.Click += (_, _) => owner.Approve(this);
             Grid.SetRow(Approve, 2);

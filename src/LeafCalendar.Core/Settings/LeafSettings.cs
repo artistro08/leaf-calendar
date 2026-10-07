@@ -229,7 +229,7 @@ public sealed record LeafSettings
     public IReadOnlyList<string> MeetByDefaultAccounts { get; init; } = [];
 
     /// <summary>
-    /// The message Copy wraps your free times in while scheduling (Share availability); <c>{times}</c> marks where they
+    /// The message Copy wraps your proposed times in while scheduling (Share availability); <c>{times}</c> marks where they
     /// go. Empty copies the times alone.
     /// </summary>
     public string ShareMessage { get; init; } = AvailabilityText.DefaultMessage;

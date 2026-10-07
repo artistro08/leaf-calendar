@@ -31,7 +31,7 @@ public sealed class SavedShareGroupTests : IDisposable
 
     private LeafApp Launch() => LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
 
-    // Picks 10 AM-12 PM on Oct 1, titles it and copies it, which saves it as a group and stops sharing
+    // Picks 10 AM-12 PM on Oct 1, titles it and copies it (Copy & Save), which saves it as a group and stops sharing
     internal static void Save(LeafApp leaf)
     {
         ShareAvailabilityTests.StartSharing(leaf);
@@ -71,7 +71,23 @@ public sealed class SavedShareGroupTests : IDisposable
     private static bool SavedTitleIs(LeafApp leaf, string title) =>
         Retry.WhileFalse(() => leaf.Exists(FirstSaved) && leaf.WaitFor(FirstSaved).Name.StartsWith($"{title}, ", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success;
 
-    // Saves the group, opens it with a click, types the guest and approves its time
+    // Types an address in the guest box and presses Enter, which adds it to the list under the box as guest index
+    private static void AddGuest(LeafApp leaf, string email, int index)
+    {
+        var edit = GuestEdit(leaf);
+        edit.Focus();
+        Thread.Sleep(300);
+        Keyboard.Type(email);
+        Keyboard.Type(VirtualKeyShort.ENTER);
+        Assert.True(Retry.WhileFalse(() => GuestIs(leaf, index, email), TimeSpan.FromSeconds(5)).Success, $"{email} wasn't added as guest {index}.");
+        Assert.True(Retry.WhileFalse(() => GuestEdit(leaf).Text.Length == 0, TimeSpan.FromSeconds(5)).Success, "Adding the guest didn't empty the box.");
+    }
+
+    // The guest row at index shows text (its name, else its address)
+    private static bool GuestIs(LeafApp leaf, int index, string text) =>
+        leaf.Exists($"ShareGuest_{index}") && leaf.WaitFor($"ShareGuest_{index}").Name == text;
+
+    // Saves the group, opens it with a click, types the guest (not added: a typed address counts) and approves its time
     internal static void SaveAndApprove(LeafApp leaf)
     {
         Save(leaf);
@@ -122,30 +138,35 @@ public sealed class SavedShareGroupTests : IDisposable
         Assert.StartsWith($"{Title}, ", again.WaitFor(FirstSaved).Name, StringComparison.Ordinal);
     }
 
-    // Copy is off while Google answers, and Cancel during that wait throws the picks away: nothing is copied or saved
+    // Copy & Save asks nothing of Google: no free/busy query is sent
     [Fact]
-    public void CancelWhileCopying_CopiesAndSavesNothing()
+    public void CopyAndSave_SendsNoFreeBusyQuery()
+    {
+        using var leaf = Launch();
+        Save(leaf);
+
+        Thread.Sleep(1000);
+        Assert.Empty(_google.FreeBusyQueries);
+    }
+
+    // New picks with no times can't be copied and saved, and Cancel on new picks saves nothing
+    [Fact]
+    public void NewPicks_CopyAndSaveNeedsATime_AndCancelSavesNothing()
     {
         using var leaf = Launch();
         ShareAvailabilityTests.StartSharing(leaf);
+        Assert.False(leaf.WaitFor("ShareCopyButton").AsButton().IsEnabled, "Copy & Save was on with no times.");
+
         ShareAvailabilityTests.DragHours(leaf, 10, 12);
         leaf.WaitFor("ShareSlot_0");
-        _google.FreeBusyDelay = TimeSpan.FromSeconds(4);
-        Clipboard.Clear();
-
-        var copy = leaf.WaitFor("ShareCopyButton").AsButton();
-        copy.Invoke();
-        Assert.True(Retry.WhileTrue(() => copy.IsEnabled, TimeSpan.FromSeconds(2)).Success, "Copy stayed on while copying.");
         leaf.WaitFor("ShareCancelButton").AsButton().Invoke();
-        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(2)).Success, "Cancel left the panel up.");
 
-        Assert.True(Retry.WhileTrue(() => _google.FreeBusyQueries.IsEmpty, TimeSpan.FromSeconds(5)).Success, "Copy sent no free/busy query.");
-        Thread.Sleep(TimeSpan.FromSeconds(6));
-        Assert.False(leaf.Exists(FirstSaved), "The canceled share was saved.");
-        Assert.Null(Clipboard.Text());
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Cancel left the panel up.");
+        Thread.Sleep(1000);
+        Assert.False(leaf.Exists(FirstSaved), "Cancel saved the picks.");
     }
 
-    // A click on a saved time opens its group in the panel with its title
+    // A click on a saved time opens its group in the panel with its title, and Save (the accent), Copy & Save and Close
     [Fact]
     public void Click_OpensTheGroup()
     {
@@ -156,6 +177,11 @@ public sealed class SavedShareGroupTests : IDisposable
 
         Assert.Equal(Title, leaf.WaitFor("ShareTitleBox").AsTextBox().Text);
         Assert.NotNull(leaf.WaitFor("ShareSlot_0"));
+        var save = leaf.WaitFor("ShareSaveButton").BoundingRectangle;
+        var copy = leaf.WaitFor("ShareCopyButton");
+        var close = leaf.WaitFor("ShareCancelButton");
+        Assert.Equal(("Save", "Copy & Save", "Close"), (leaf.WaitFor("ShareSaveButton").Name, copy.Name, close.Name));
+        Assert.True(save.Right < copy.BoundingRectangle.Left && copy.BoundingRectangle.Right < close.BoundingRectangle.Left, "Save, Copy & Save and Close aren't in that order.");
     }
 
     // A click just above a saved time (in its edge strip, but outside the time) is on empty time and opens nothing
@@ -172,25 +198,105 @@ public sealed class SavedShareGroupTests : IDisposable
         Assert.False(leaf.Exists("ShareSlotsPanel"), "A click outside the saved time opened its group.");
     }
 
-    // Delete saved times shows in the title bar row only while a saved group is open (not for new picks, never with the
-    // event's Edit and Delete); it deletes the group and stops sharing, and goes with the panel
+    // Two guests added (a repeat in another case isn't added again), saved, and both shown when the group reopens; one
+    // removed and saved again leaves the other
     [Fact]
-    public void GuestEmail_SavedWithTheGroup_ShowsWhenReopened()
+    public void TwoGuests_SavedWithTheGroup_ShowWhenReopened_AndOneCanBeRemoved()
     {
         using var leaf = Launch();
         Save(leaf);
         OpenFirst(leaf);
+        AddGuest(leaf, "pat@example.com", 0);
+        AddGuest(leaf, "sam@example.com", 1);
+        GuestEdit(leaf).Focus();
+        Keyboard.Type("PAT@example.com");
+        Keyboard.Type(VirtualKeyShort.ENTER);
+        Assert.True(Retry.WhileFalse(() => GuestEdit(leaf).Text.Length == 0, TimeSpan.FromSeconds(5)).Success, "Enter on a repeat didn't empty the box.");
+        Assert.False(leaf.Exists("ShareGuest_2"), "A repeat address was added again.");
 
-        // Typed Without Approving, Then Saved
-        GuestEdit(leaf).Text = "pat@example.com";
         leaf.WaitFor("ShareSaveButton").AsButton().Invoke();
         Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(10)).Success, "Save didn't close the panel.");
 
-        // Reopened, The Address Is Still There
+        // Reopened, Both Guests Are There, In Order
         OpenFirst(leaf);
-        Assert.True(Retry.WhileFalse(() => GuestEdit(leaf).Text == "pat@example.com", TimeSpan.FromSeconds(5)).Success, $"The guest box reads {GuestEdit(leaf).Text}.");
+        Assert.True(Retry.WhileFalse(() => GuestIs(leaf, 0, "pat@example.com") && GuestIs(leaf, 1, "sam@example.com"), TimeSpan.FromSeconds(5)).Success, "The saved guests didn't show.");
+
+        // One Removed, Then Saved
+        var remove = leaf.WaitFor("ShareGuestRemove_0");
+        Assert.Equal("Remove guest", remove.Name);
+        remove.AsButton().Invoke();
+        Assert.True(Retry.WhileFalse(() => GuestIs(leaf, 0, "sam@example.com") && !leaf.Exists("ShareGuest_1"), TimeSpan.FromSeconds(5)).Success, "Remove didn't take the guest off the list.");
+        leaf.WaitFor("ShareSaveButton").AsButton().Invoke();
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(10)).Success, "Save didn't close the panel.");
+
+        OpenFirst(leaf);
+        Assert.True(Retry.WhileFalse(() => GuestIs(leaf, 0, "sam@example.com"), TimeSpan.FromSeconds(5)).Success, "The guest left didn't show.");
+        Assert.False(leaf.Exists("ShareGuest_1"), "The removed guest came back.");
     }
 
+    // New picks have the guest box too: a guest added there is saved by Copy & Save
+    [Fact]
+    public void NewPicks_GuestIsSavedByCopyAndSave()
+    {
+        using var leaf = Launch();
+        ShareAvailabilityTests.StartSharing(leaf);
+        ShareAvailabilityTests.DragHours(leaf, 10, 12);
+        leaf.WaitFor("ShareSlot_0");
+        AddGuest(leaf, "pat@example.com", 0);
+
+        leaf.WaitFor("ShareCopyButton").AsButton().Invoke();
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(10)).Success, "Copy & Save didn't close the panel.");
+
+        OpenFirst(leaf);
+        Assert.True(Retry.WhileFalse(() => GuestIs(leaf, 0, "pat@example.com"), TimeSpan.FromSeconds(5)).Success, "The guest wasn't saved with the group.");
+    }
+
+    // Approve opens the editor with every guest: two added and one typed but not added; the event Google gets has all three
+    [Fact]
+    public void Approve_AddsEveryGuestToTheEvent()
+    {
+        using var leaf = Launch();
+        Save(leaf);
+        OpenFirst(leaf);
+        AddGuest(leaf, "pat@example.com", 0);
+        AddGuest(leaf, "sam@example.com", 1);
+        GuestEdit(leaf).Text = Guest;
+
+        leaf.WaitFor("SharePanelApprove_0").AsButton().Invoke();
+
+        Assert.NotNull(leaf.WaitFor("EventEditor"));
+        Assert.NotNull(leaf.WaitFor("EditorGuest_pat@example.com"));
+        Assert.NotNull(leaf.WaitFor("EditorGuest_sam@example.com"));
+        Assert.NotNull(leaf.WaitFor($"EditorGuest_{Guest}"));
+        leaf.WaitFor("EditorSaveButton").AsButton().Invoke();
+
+        var write = _google.WaitForWrite(w => w.Method == "POST" && w.Body.Contains(Guest, StringComparison.Ordinal));
+        var attendees = JsonNode.Parse(write.Body)!["attendees"]!.AsArray().Select(a => (string)a!["email"]!).ToList();
+        Assert.Contains("pat@example.com", attendees);
+        Assert.Contains("sam@example.com", attendees);
+        Assert.Contains(Guest, attendees);
+    }
+
+    // Copy & Save over an event copies the dragged time whole and saves it whole: the dentist (9-10 AM) cuts nothing
+    [Fact]
+    public void CopyAndSave_OverAnEvent_SavesTheDraggedTimeWhole()
+    {
+        using var leaf = Launch();
+        ShareAvailabilityTests.StartSharing(leaf);
+        ShareAvailabilityTests.DragHours(leaf, 9, 11);
+        leaf.WaitFor("ShareSlot_0");
+        Clipboard.Clear();
+
+        leaf.WaitFor("ShareCopyButton").AsButton().Invoke();
+
+        var text = Retry.WhileNull(Clipboard.Text, TimeSpan.FromSeconds(10)).Result;
+        Assert.NotNull(text);
+        Assert.EndsWith("Thu Oct 1: 9–11 AM ET", text, StringComparison.Ordinal);
+        Assert.True(Retry.WhileFalse(() => leaf.Exists(FirstSaved) && leaf.WaitFor(FirstSaved).Name.EndsWith("9 AM – 11 AM", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success, "The saved time isn't 9-11 AM.");
+    }
+
+    // Delete saved times shows in the title bar row only while a saved group is open (not for new picks, never with the
+    // event's Edit and Delete); it deletes the group and stops sharing, and goes with the panel
     [Fact]
     public void Delete_InTheTitleBar_RemovesTheGroup()
     {
@@ -211,26 +317,6 @@ public sealed class SavedShareGroupTests : IDisposable
 
         Assert.True(Retry.WhileTrue(() => leaf.Exists(FirstSaved) || leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Delete left the group.");
         Assert.True(Retry.WhileTrue(() => leaf.Exists("DeleteSavedTimesButton"), TimeSpan.FromSeconds(5)).Success, "Delete saved times stayed after the panel closed.");
-    }
-
-    // Save on new picks saves them as a group and closes the panel, with nothing copied
-    [Fact]
-    public void Save_OnNewPicks_SavesAGroupAndCloses()
-    {
-        using var leaf = Launch();
-        ShareAvailabilityTests.StartSharing(leaf);
-        var save = leaf.WaitFor("ShareSaveButton").AsButton();
-        Assert.False(save.IsEnabled, "Save was on with no times.");
-        ShareAvailabilityTests.DragHours(leaf, 10, 12);
-        leaf.WaitFor("ShareSlot_0");
-        leaf.WaitFor("ShareTitleBox").AsTextBox().Text = Title;
-        Clipboard.Clear();
-
-        save.Invoke();
-
-        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Save left the panel up.");
-        Assert.True(SavedTitleIs(leaf, Title), "Save didn't save the group with its title.");
-        Assert.Null(Clipboard.Text());
     }
 
     // Edits to an open group wait for Save: a new title and a removed time, then Close, leave the group as it was
@@ -270,9 +356,10 @@ public sealed class SavedShareGroupTests : IDisposable
         Assert.Equal("Lunch", leaf.WaitFor("ShareTitleBox").AsTextBox().Text);
     }
 
-    // The guest box suggests Google contacts as you type; picking one fills in its address, and Approve… turns on
+    // The guest box suggests Google contacts as you type; picking one adds them to the list (their name, then their
+    // address) and empties the box, and Approve… turns on
     [Fact]
-    public void GuestBox_SuggestsAContact_AndPickingFillsTheEmail()
+    public void GuestBox_SuggestsAContact_AndPickingAddsThem()
     {
         using var leaf = Launch();
         Save(leaf);
@@ -288,7 +375,8 @@ public sealed class SavedShareGroupTests : IDisposable
         Assert.NotNull(alice);
         alice.Click();
 
-        Assert.True(Retry.WhileFalse(() => GuestEdit(leaf).Text == "alice@example.com", TimeSpan.FromSeconds(5)).Success, $"The guest box reads \"{GuestEdit(leaf).Text}\".");
+        Assert.True(Retry.WhileFalse(() => GuestIs(leaf, 0, "Alice Example"), TimeSpan.FromSeconds(5)).Success, "Picking Alice didn't add her to the guests.");
+        Assert.True(Retry.WhileFalse(() => GuestEdit(leaf).Text.Length == 0, TimeSpan.FromSeconds(5)).Success, $"The guest box reads \"{GuestEdit(leaf).Text}\".");
         var approve = leaf.WaitFor("SharePanelApprove_0").AsButton();
         Assert.True(Retry.WhileFalse(() => approve.IsEnabled, TimeSpan.FromSeconds(5)).Success, "Approve… stayed off after picking a contact.");
     }

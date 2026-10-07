@@ -193,7 +193,6 @@ public sealed partial class EventEditorView : UserControl
         WeekdayList.ItemsSource = null;
         GuestList.ItemsSource = null;
         ReminderList.ItemsSource = null;
-        TimeZoneBox.ItemsSource = null;
         GuestBox.ItemsSource = null;
         RoomBox.ItemsSource = null;
     }
@@ -292,7 +291,7 @@ public sealed partial class EventEditorView : UserControl
 
         // Esc in an open dropdown (or the guest suggestions) only closes it
         if (e.Key == VirtualKey.Escape && !RepeatBox.IsDropDownOpen && !EndsBox.IsDropDownOpen && !CalendarBox.IsDropDownOpen && !_reminderDropDownOpen && !GuestBox.IsSuggestionListOpen && !RoomBox.IsSuggestionListOpen
-            && !TimeZoneBox.IsDropDownOpen && !EventTypeBox.IsDropDownOpen && !ShowAsBox.IsDropDownOpen && !VisibilityBox.IsDropDownOpen)
+            && !TimeZoneBox.IsSuggestionListOpen && !EventTypeBox.IsDropDownOpen && !ShowAsBox.IsDropDownOpen && !VisibilityBox.IsDropDownOpen)
         {
             e.Handled = true;
             _owner?.CancelEdit();
