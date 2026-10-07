@@ -194,7 +194,9 @@ public sealed partial class TimeZoneBox : UserControl
     // focus stay as typed; a row the arrow keys moved to isn't a search
     private void OnTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
-        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
+        // The box writing the picked row back into its text field also reads as user input; that isn't a search, and
+        // neither is any change while the box doesn't have focus
+        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput || !_focused || _box.Text == PickedText())
         {
             return;
         }
