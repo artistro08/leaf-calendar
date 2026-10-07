@@ -71,7 +71,7 @@ public sealed class AccessibilityTests : IDisposable
         // Milestone 5
         "CommandMenu" => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_K); leaf.WaitForAnywhere("CommandSearchBox"); }, []),
         "CheatSheet" => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.SHIFT, VirtualKeyShort.OEM_2); leaf.WaitForAnywhere("ShortcutSheet"); }, ["ShortcutFilterBox"]),
-        "SharePanel" => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.KEY_S); leaf.WaitFor("ShareSlotsPanel"); }, ["ShareZoneBox", "ShareCancelButton"]),
+        "SharePanel" => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.KEY_S); leaf.WaitFor("ShareSlotsPanel"); }, ["ShareZoneBox", "ShareGuestBox", "ShareCancelButton"]),
         "SavedSharePanel" => ("", leaf => { SavedShareGroupTests.Save(leaf); SavedShareGroupTests.OpenFirst(leaf); }, ["DeleteSavedTimesButton", "ShareSaveButton", "ShareCancelButton"]),
         "PeoplePicker" => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.KEY_P); leaf.WaitForAnywhere("PeoplePickerBox"); }, []),
         "OverlayBar" => ("", OpenOverlay, ["OverlayClear"]),

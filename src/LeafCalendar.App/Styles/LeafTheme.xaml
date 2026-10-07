@@ -378,6 +378,15 @@
         <Setter Property="AutomationProperties.Name" Value="Divider" />
     </Style>
 
+    <!-- Guest Chip (the share panel's guest rows, built in code: the event editor's guest chip look) -->
+    <Style x:Key="LeafGuestChipStyle" TargetType="Border">
+        <Setter Property="Padding" Value="8,4,4,4" />
+        <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
+        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
     <!-- Secondary Text (descriptions and status lines) -->
     <Style x:Key="LeafSecondaryTextStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
         <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />

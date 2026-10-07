@@ -238,13 +238,9 @@ public sealed partial class CalendarViewModel
     private bool _sharing;
     private List<BusyRange> _slots = [];
     private string _shareZoneId = "";
-    private HashSet<CalendarRef> _shareCalendars = [];
 
     /// <summary>True while you pick times to share: a drag on the time grid adds a slot instead of a new event.</summary>
     public bool IsSharing => _sharing;
-
-    /// <summary>True while Copy waits for Google's free/busy answer (Copy is off until it's back).</summary>
-    public bool IsCopying { get; private set; }
 
     /// <summary>The picked times, merged and in order.</summary>
     public IReadOnlyList<BusyRange> ShareSlots => _slots;
@@ -265,7 +261,7 @@ public sealed partial class CalendarViewModel
     private long? _openGroupId;
     private string _shareTitle = "";
     private string _shareText = "";
-    private string _shareGuest = "";
+    private List<Contact> _shareGuests = [];
     private List<ShareGroup> _savedGroups = [];
     private int _groupsGeneration;
 
@@ -301,17 +297,44 @@ public sealed partial class CalendarViewModel
     }
 
     /// <summary>
-    /// The guest's address typed in an open group's Guest email box. An open group keeps its saved address until Save
-    /// or Copy; new picks have none.
+    /// The guests added to this share, in order (a picked contact's name, empty when only the address is known). An open
+    /// group keeps its saved guests until Save or Copy &amp; Save; new picks start with none.
     /// </summary>
-    public string ShareGuest
+    public IReadOnlyList<Contact> ShareGuests => _shareGuests;
+
+    /// <summary>
+    /// Adds a guest to this share (<paramref name="name"/> is a picked contact's, shown on its row). False when
+    /// <paramref name="email"/> isn't one valid address; an address already added (any case) isn't added again.
+    /// </summary>
+    public bool AddShareGuest(string email, string name = "")
     {
-        get => _shareGuest;
-        set
+        ArgumentNullException.ThrowIfNull(email);
+        ArgumentNullException.ThrowIfNull(name);
+        email = email.Trim();
+        if (!_sharing || !IsAddress(email))
         {
-            ArgumentNullException.ThrowIfNull(value);
-            _shareGuest = value;
+            return false;
         }
+
+        if (!_shareGuests.Any(g => string.Equals(g.Email, email, StringComparison.OrdinalIgnoreCase)))
+        {
+            _shareGuests.Add(new Contact(name.Trim(), email));
+            ShareChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        return true;
+    }
+
+    /// <summary>Removes the guest at <paramref name="index"/> from this share (saved with Save or Copy &amp; Save).</summary>
+    public void RemoveShareGuest(int index)
+    {
+        if (index < 0 || index >= _shareGuests.Count)
+        {
+            return;
+        }
+
+        _shareGuests.RemoveAt(index);
+        ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>A group's title, or the generic one when it has none.</summary>
@@ -339,19 +362,17 @@ public sealed partial class CalendarViewModel
 
         _slots = [];
         _shareZoneId = TimeZoneCatalog.IanaId(Zone);
-        _shareCalendars = [.. ShareableCalendars().Select(c => new CalendarRef(c.AccountId, c.Id))];
         _openGroupId = null;
         _shareTitle = "";
         _shareText = Settings.ShareMessage;
-        _shareGuest = "";
+        _shareGuests = [];
         _sharing = true;
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
-    /// Opens a saved group in the share panel: its times (editable; changes wait for Save or Copy), title, message, guest address and zone, checked
-    /// against the calendars that can be shared now. Only opens when not already sharing (a click on a saved time is
-    /// refused while sharing).
+    /// Opens a saved group in the share panel: its times (editable; changes wait for Save or Copy &amp; Save), title,
+    /// message, guests and zone. Only opens when not already sharing (a click on a saved time is refused while sharing).
     /// </summary>
     public void OpenGroup(long id)
     {
@@ -369,9 +390,8 @@ public sealed partial class CalendarViewModel
         _slots = [.. group.Slots];
         _shareTitle = group.Title;
         _shareText = group.Message;
-        _shareGuest = group.GuestEmail;
+        _shareGuests = [.. group.Guests.Select(g => new Contact("", g))];
         _shareZoneId = group.ZoneId;
-        _shareCalendars = [.. ShareableCalendars().Select(c => new CalendarRef(c.AccountId, c.Id))];
         _sharing = true;
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -390,8 +410,8 @@ public sealed partial class CalendarViewModel
 
     /// <summary>
     /// Save: keeps the picked times as a group (new picks become a new group; an open group gets its times, title,
-    /// message, guest address and zone updated), then stops sharing. Needs a time. When the database write fails it says so and sharing
-    /// goes on, so nothing typed is lost.
+    /// message, guests and zone updated), then stops sharing. Needs a time. When the database write fails it says so and
+    /// sharing goes on, so nothing typed is lost.
     /// </summary>
     public void SaveShare()
     {
@@ -400,16 +420,16 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        var (group, title, text, zone, slots, now, guest) = (_openGroupId, _shareTitle, _shareText, _shareZoneId, _slots.ToList(), Now, _shareGuest);
+        var (group, title, text, zone, slots, now, guests) = (_openGroupId, _shareTitle, _shareText, _shareZoneId, _slots.ToList(), Now, GuestEmails());
         var saved = WriteGroups("share.group.save.failed", conn =>
         {
             if (group is { } id)
             {
-                ShareGroupStore.Update(conn, id, title, text, zone, slots, guest);
+                ShareGroupStore.Update(conn, id, title, text, zone, slots, guests);
             }
             else
             {
-                ShareGroupStore.Insert(conn, title, text, zone, slots, now, guest);
+                ShareGroupStore.Insert(conn, title, text, zone, slots, now, guests);
             }
         });
 
@@ -421,17 +441,18 @@ public sealed partial class CalendarViewModel
 
     /// <summary>
     /// Books one time of the open group: sharing stops (the editor needs the right panel), and the event editor opens on
-    /// that time with the group's title and <paramref name="email"/> as a guest. The group is deleted only once the event
+    /// that time with the group's title and every guest added. Needs a guest. The group is deleted only once the event
     /// saves; until then its times stay on the grid, resizable.
     /// </summary>
-    public void ApproveSlot(int index, string email)
+    public void ApproveSlot(int index)
     {
-        if (_openGroupId is not { } id || index < 0 || index >= _slots.Count || !IsAddress(email))
+        if (_openGroupId is not { } id || index < 0 || index >= _slots.Count || _shareGuests.Count == 0)
         {
             return;
         }
 
         var slot = _slots[index];
+        var guests = _shareGuests.ToList();
         var cleaned = DisplayText.Clean(_shareTitle, ShareGroupStore.MaxTitleLength);
         var title = cleaned.Length > 0 ? cleaned : GenericShareTitle;
         StopSharing();
@@ -447,8 +468,12 @@ public sealed partial class CalendarViewModel
         // Set after the editor opens, so opening it doesn't clear it
         _approvingGroupId = id;
         editor.Title = title;
-        editor.GuestInput = email;
-        editor.AddGuest();
+        foreach (var guest in guests)
+        {
+            editor.GuestInput = guest.Email;
+            editor.AddGuest(guest.Name);
+        }
+
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -458,7 +483,7 @@ public sealed partial class CalendarViewModel
         _sharing = false;
         _openGroupId = null;
         _slots = [];
-        _shareCalendars = [];
+        _shareGuests = [];
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -559,7 +584,7 @@ public sealed partial class CalendarViewModel
         var slots = group.Slots.ToList();
         slots[index] = new BusyRange(start, end);
         var merged = BusyMath.Merge(slots);
-        WriteGroups("share.group.save.failed", conn => ShareGroupStore.Update(conn, group.Id, group.Title, group.Message, group.ZoneId, merged, group.GuestEmail));
+        WriteGroups("share.group.save.failed", conn => ShareGroupStore.Update(conn, group.Id, group.Title, group.Message, group.ZoneId, merged, group.Guests));
     }
 
     // A write to the saved groups, then a fresh read of them; a failure is logged (never its content), says so, and
@@ -622,106 +647,37 @@ public sealed partial class CalendarViewModel
         }, "share.groups.load.failed");
     }
 
-    /// <summary>The calendars whose busy times can block shared times: the visible ones you own or can write to.</summary>
-    public IReadOnlyList<CalendarInfo> ShareableCalendars() => [.. Calendars.Where(c => c.IsVisible && c.AccessRole is "owner" or "writer")];
-
     /// <summary>
-    /// The picked times minus everything busy on the visible calendars (Google free/busy): as text in the chosen zone,
-    /// and the free ranges themselves. <c>("", [])</c> when none is free, null when Google couldn't be asked or had no
-    /// answer for a calendar.
+    /// The picked times exactly as dragged (merged, in order), as text in the share's zone, wrapped in this share's
+    /// message. Nothing is asked of Google, so it works offline. Empty with no times.
     /// </summary>
-    public async Task<(string Text, IReadOnlyList<BusyRange> Free)?> BuildAvailabilityAsync(CancellationToken ct)
+    public string BuildAvailability()
     {
         if (_slots.Count == 0)
         {
-            return ("", []);
+            return "";
         }
 
-        if (_services.Google is not { } google)
-        {
-            return null;
-        }
-
-        var from = _slots.Min(s => s.Start);
-        var to = _slots.Max(s => s.End);
-
-        try
-        {
-            // One Query Per Account (At Most 50 Calendars Each), Accounts In Parallel
-            var queries = _shareCalendars
-                .GroupBy(c => c.AccountId)
-                .SelectMany(g => g.Select(c => c.CalendarId).Chunk(GoogleCalendarClient.MaxFreeBusyIds).Select(ids => google.Calendar.QueryFreeBusyAsync(g.Key, ids, from, to, ct)))
-                .ToList();
-            var answers = await Task.WhenAll(queries);
-
-            if (answers.SelectMany(a => a.Values).Any(r => r.Error is not null))
-            {
-                return null;
-            }
-
-            var busy = answers.SelectMany(a => a.Values).SelectMany(r => r.Busy);
-            var free = BusyMath.Subtract(_slots, busy);
-            return (AvailabilityText.Format(free, TimeZoneInfo.TryFindSystemTimeZoneById(_shareZoneId, out var shareZone) ? shareZone : Zone, Settings.Use24HourTime), free);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _services.Log.Info("share.build.failed", $"status={Status(ex)}");
-            return null;
-        }
+        var zone = TimeZoneInfo.TryFindSystemTimeZoneById(_shareZoneId, out var shareZone) ? shareZone : Zone;
+        return AvailabilityText.Compose(_shareText, AvailabilityText.Format(BusyMath.Merge(_slots), zone, Settings.Use24HourTime));
     }
 
     /// <summary>
-    /// Copies the free picked times as text, in this share's message (never logged), saves them as a group (or updates the
-    /// open one) so they stay on the calendar, then stops sharing and says so in the notice; or says why it couldn't
-    /// (sharing goes on). Nothing happens when the share stopped, or its group or times changed, while Google answered.
+    /// Copy &amp; Save: copies the picked times as text, in this share's message (never logged), saves them as a group
+    /// (or updates the open one) with the title and guests so they stay on the calendar, then stops sharing and says so in
+    /// the notice. When another app holds the clipboard it says so and sharing goes on.
     /// </summary>
-    public async Task CopyAvailabilityAsync()
+    public void CopyAndSaveShare()
     {
-        if (IsCopying)
+        if (!_sharing || _slots.Count == 0)
         {
-            return;
-        }
-
-        var group = _openGroupId;
-        var picks = _slots.ToList();
-        IsCopying = true;
-        ShareChanged?.Invoke(this, EventArgs.Empty);
-        (string Text, IReadOnlyList<BusyRange> Free)? built;
-        try
-        {
-            built = await BuildAvailabilityAsync(_life.Token);
-        }
-        finally
-        {
-            IsCopying = false;
-            ShareChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        // Canceled, deleted, another group opened, or the times changed while Google answered: the answer is stale, so
-        // nothing is copied or saved (a share still going can be copied again)
-        if (!_sharing || _openGroupId != group || !_slots.SequenceEqual(picks))
-        {
-            return;
-        }
-
-        if (built is not { } availability)
-        {
-            ShowMessage("Couldn't check your calendars. Check your connection.");
-            return;
-        }
-
-        var (text, free) = availability;
-
-        if (text.Length == 0)
-        {
-            ShowMessage("None of those times are free");
             return;
         }
 
         try
         {
             var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            package.SetText(AvailabilityText.Compose(_shareText, text));
+            package.SetText(BuildAvailability());
             Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
             Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
         }
@@ -732,18 +688,18 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        // Saved As A Group (or the open group updated) with the free times that went into the text
+        // Saved As A Group (or the open group updated) with the times that went into the text
         var saved = true;
         try
         {
             using var conn = _services.Database.Open();
             if (_openGroupId is { } id)
             {
-                ShareGroupStore.Update(conn, id, _shareTitle, _shareText, _shareZoneId, free, _shareGuest);
+                ShareGroupStore.Update(conn, id, _shareTitle, _shareText, _shareZoneId, _slots, GuestEmails());
             }
             else
             {
-                ShareGroupStore.Insert(conn, _shareTitle, _shareText, _shareZoneId, free, Now, _shareGuest);
+                ShareGroupStore.Insert(conn, _shareTitle, _shareText, _shareZoneId, _slots, Now, GuestEmails());
             }
         }
         catch (Microsoft.Data.Sqlite.SqliteException ex)
@@ -752,11 +708,14 @@ public sealed partial class CalendarViewModel
             saved = false;
         }
 
-        _services.Log.Info("share.copy", $"slots={_slots.Count} calendars={_shareCalendars.Count}");
+        _services.Log.Info("share.copy", $"slots={_slots.Count} guests={_shareGuests.Count}");
         StopSharing();
         ReloadGroups();
         ShowMessage(saved ? "Availability copied" : "Copied, but couldn't save these times.");
     }
+
+    // The guests' addresses, in order, as saved with the group
+    private List<string> GuestEmails() => [.. _shareGuests.Select(g => g.Email)];
 
     /// <summary>True when <paramref name="text"/> is exactly one valid email address.</summary>
     public static bool IsAddress(string text) => MailAddress.TryCreate(text, out var address) && address.Address == text;

@@ -186,4 +186,22 @@ internal static class Schema
     public const string V10 = """
         ALTER TABLE share_groups ADD COLUMN guest_email TEXT NOT NULL DEFAULT '';
         """;
+
+    /// <summary>
+    /// Version 11: <c>share_guests</c>, every guest added to a saved group, in the order added (owner request 2026-10-07,
+    /// several guests per group). Each saved <c>share_groups.guest_email</c> moves in as that group's first guest; the
+    /// column stays in place but is no longer read or written. Local only.
+    /// </summary>
+    public const string V11 = """
+        CREATE TABLE share_guests (
+            group_id INTEGER NOT NULL REFERENCES share_groups(id) ON DELETE CASCADE,
+            position INTEGER NOT NULL,
+            email    TEXT NOT NULL
+        );
+
+        CREATE INDEX ix_share_guests_group ON share_guests (group_id);
+
+        INSERT INTO share_guests (group_id, position, email)
+            SELECT id, 0, guest_email FROM share_groups WHERE guest_email <> '';
+        """;
 }
