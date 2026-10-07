@@ -16,6 +16,12 @@ public sealed record OverlayPerson(string Email, string Name, int ColorIndex, Pe
 /// <summary>One of an overlaid person's busy stretches, with its title when their calendar is shared with details.</summary>
 public sealed record OverlayBlock(string Email, int ColorIndex, DateTimeOffset Start, DateTimeOffset End, string? Title);
 
+/// <summary>
+/// A time the grid draws: a saved group's (<see cref="Title"/> set) or a pick while sharing (<see cref="Title"/> null,
+/// <see cref="GroupId"/> the open group's, if any). <see cref="Index"/> is its place in its group or in the picks.
+/// </summary>
+public sealed record GridSlot(long? GroupId, int Index, BusyRange Range, string? Title, bool Resizable);
+
 public sealed partial class CalendarViewModel
 {
     // =========================================================================
@@ -219,6 +225,10 @@ public sealed partial class CalendarViewModel
     private List<ShareGroup> _savedGroups = [];
     private int _groupsGeneration;
 
+    // The saved group whose times can be resized on the grid (the one being approved), or null. The approve editor
+    // (not built yet) sets it; until then only the picks can be resized
+    private long? _approvingGroupId;
+
     /// <summary>The saved groups with times still to come, oldest first.</summary>
     public IReadOnlyList<ShareGroup> SavedGroups => _savedGroups;
 
@@ -388,6 +398,58 @@ public sealed partial class CalendarViewModel
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// The times the grid draws: every saved group's (oldest first; not the open group's, which are the picks), then the
+    /// picks while sharing. The last drawn is on top, so the picks win a click. Only the picks, and a group being
+    /// approved, can be resized.
+    /// </summary>
+    public IReadOnlyList<GridSlot> GridSlots()
+    {
+        var list = new List<GridSlot>();
+        foreach (var g in _savedGroups.Where(g => !_sharing || g.Id != _openGroupId))
+        {
+            var title = GroupTitle(g);
+            list.AddRange(g.Slots.Select((s, i) => new GridSlot(g.Id, i, s, title, Resizable: g.Id == _approvingGroupId)));
+        }
+
+        if (_sharing)
+        {
+            list.AddRange(_slots.Select((s, i) => new GridSlot(_openGroupId, i, s, null, Resizable: true)));
+        }
+
+        return list;
+    }
+
+    /// <summary>A drawn time resized on the grid: a pick changes (and its open group saves), or a group being approved saves.</summary>
+    public void ResizeGridSlot(GridSlot slot, DateTimeOffset start, DateTimeOffset end)
+    {
+        ArgumentNullException.ThrowIfNull(slot);
+        if (slot.Title is null)
+        {
+            UpdateShareSlot(slot.Index, start, end);
+            return;
+        }
+
+        if (slot.GroupId is { } id && slot.Resizable)
+        {
+            UpdateSavedSlot(id, slot.Index, start, end);
+        }
+    }
+
+    /// <summary>Changes one time of a saved group (the one being approved) and saves it, merged again.</summary>
+    public void UpdateSavedSlot(long groupId, int index, DateTimeOffset start, DateTimeOffset end)
+    {
+        if (_savedGroups.FirstOrDefault(g => g.Id == groupId) is not { } group || index < 0 || index >= group.Slots.Count || end <= start)
+        {
+            return;
+        }
+
+        var slots = group.Slots.ToList();
+        slots[index] = new BusyRange(start, end);
+        var merged = BusyMath.Merge(slots);
+        WriteGroups("share.group.save.failed", conn => ShareGroupStore.Update(conn, group.Id, group.Title, group.Message, group.ZoneId, merged));
+    }
+
     // An open saved group follows every change (no times left deletes it)
     private void SaveOpenGroup()
     {
@@ -444,6 +506,12 @@ public sealed partial class CalendarViewModel
             if (_openGroupId is { } open && !_savedGroups.Any(g => g.Id == open))
             {
                 _openGroupId = null;
+            }
+
+            // The Group Being Approved Is Gone Too: its times can't be resized any more
+            if (_approvingGroupId is { } approving && !_savedGroups.Any(g => g.Id == approving))
+            {
+                _approvingGroupId = null;
             }
 
             ShareChanged?.Invoke(this, EventArgs.Empty);

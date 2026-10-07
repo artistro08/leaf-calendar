@@ -143,6 +143,24 @@ public sealed class ShareAvailabilityTests : IDisposable
         Assert.Equal("Thu Oct 1: 10 AM–12 PM ET", Copy(leaf));
     }
 
+    // A picked time's bottom edge dragged down an hour: 10-11 AM grows to 10 AM-12 PM
+    [Fact]
+    public void EdgeDrag_ResizesAPickedTime()
+    {
+        using var leaf = Launch();
+        StartSharing(leaf);
+        DragHours(leaf, 10, 11);
+        var slot = leaf.WaitFor("ShareSlot_0").BoundingRectangle;
+        var hour = slot.Height + 2;
+        var x = slot.Left + slot.Width / 2;
+
+        LeafApp.Drag(new Point(x, slot.Bottom - 1), new Point(x, slot.Bottom - 1 + hour));
+
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("ShareSlot_0").BoundingRectangle.Height > hour * 1.5, TimeSpan.FromSeconds(5)).Success, "The time didn't grow.");
+        Assert.False(leaf.Exists("ShareSlot_1"));
+        Assert.Equal("Thu Oct 1: 10 AM–12 PM ET", Copy(leaf));
+    }
+
     [Fact]
     public void RemoveASlot_AndCancel()
     {
