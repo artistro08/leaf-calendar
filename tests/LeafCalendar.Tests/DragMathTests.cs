@@ -13,6 +13,51 @@ public class DragMathTests
     private static CalendarOccurrence Event(DateTimeOffset start, DateTimeOffset end, bool allDay = false) =>
         new("acct", "cal", "evt", null, null, start, end, allDay, "Title", EventKind.Default, ResponseStatus.Accepted, "#4285F4", null, false, false);
 
+    private static DateTimeOffset Ny(int month, int day, int hour, int minute = 0) =>
+        DragMath.ToInstant(new DateTime(2026, month, day, hour, minute, 0), NewYork);
+
+    [Fact]
+    public void ResizeRange_BottomEdge_SnapsTheEnd()
+    {
+        var (start, end) = DragMath.ResizeRange(Ny(10, 1, 9), Ny(10, 1, 10), topEdge: false, Ny(10, 1, 11, 7), NewYork);
+
+        Assert.Equal((Ny(10, 1, 9), Ny(10, 1, 11)), (start, end));
+    }
+
+    [Fact]
+    public void ResizeRange_TopEdge_SnapsTheStart()
+    {
+        var (start, end) = DragMath.ResizeRange(Ny(10, 1, 9), Ny(10, 1, 10), topEdge: true, Ny(10, 1, 8, 22), NewYork);
+
+        Assert.Equal((Ny(10, 1, 8, 15), Ny(10, 1, 10)), (start, end));
+    }
+
+    [Fact]
+    public void ResizeRange_TopDraggedPastTheEnd_KeepsFifteenMinutes()
+    {
+        var (start, end) = DragMath.ResizeRange(Ny(10, 1, 9), Ny(10, 1, 10), topEdge: true, Ny(10, 1, 12), NewYork);
+
+        Assert.Equal((Ny(10, 1, 9, 45), Ny(10, 1, 10)), (start, end));
+    }
+
+    [Fact]
+    public void ResizeRange_BottomDraggedAboveTheStart_KeepsFifteenMinutes()
+    {
+        var (start, end) = DragMath.ResizeRange(Ny(10, 1, 9), Ny(10, 1, 10), topEdge: false, Ny(10, 1, 7), NewYork);
+
+        Assert.Equal((Ny(10, 1, 9), Ny(10, 1, 9, 15)), (start, end));
+    }
+
+    [Fact]
+    public void ResizeRange_OnTheFallBackDay_EndIsARealInstant()
+    {
+        // Nov 1 2026: 1:00-2:00 AM happens twice in New York; 3 AM is 4 real hours after midnight
+        var (start, end) = DragMath.ResizeRange(Ny(11, 1, 0), Ny(11, 1, 1), topEdge: false, Ny(11, 1, 3), NewYork);
+
+        Assert.Equal(Ny(11, 1, 0), start);
+        Assert.Equal(TimeSpan.FromHours(4), end - start);
+    }
+
     [Fact]
     public void InstantAndSnap_RoundToQuarterHourOnTheWallClock()
     {
