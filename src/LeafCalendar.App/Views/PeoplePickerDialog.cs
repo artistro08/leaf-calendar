@@ -97,7 +97,7 @@ public static class PeoplePickerDialog
         // A picked suggestion, or else exactly one valid address in the box
         void Submit(object? suggestion)
         {
-            suggest.Cancel();
+            suggest.StopWaiting();
             if (suggest.Find(suggestion) is { } person)
             {
                 Add(person);

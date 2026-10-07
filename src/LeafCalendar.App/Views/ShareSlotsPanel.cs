@@ -190,6 +190,15 @@ public sealed partial class ShareSlotsPanel : UserControl
             _guest.Text = "";
         }
 
+        // Sharing Stopped (Close, Esc, S, Approve…, Save, Copy or Delete): a search still waiting or running is dropped and
+        // the list goes, so stale suggestions never land on the hidden box or come back next time
+        if (!vm.IsSharing)
+        {
+            _guestSuggestions.Cancel();
+            _guest.IsSuggestionListOpen = false;
+            _guest.ItemsSource = null;
+        }
+
         _group = vm.OpenGroupId;
         var saved = _group is not null;
         _title.Text = saved ? "Saved times" : "Times to share";

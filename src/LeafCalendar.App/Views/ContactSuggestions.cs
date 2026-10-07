@@ -44,6 +44,9 @@ internal sealed class ContactSuggestions : IDisposable
     public Contact? Find(object? suggestion) =>
         suggestion is null ? null : _shown.Find(s => ReferenceEquals(s.View, suggestion)).Person;
 
+    /// <summary>Stops waiting for a pause in typing (a search already running still lands).</summary>
+    public void StopWaiting() => _timer.Stop();
+
     /// <summary>Drops a search waiting for a pause or still running, so its suggestions never show.</summary>
     public void Cancel()
     {
