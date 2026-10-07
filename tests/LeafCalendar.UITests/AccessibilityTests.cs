@@ -36,7 +36,7 @@ public sealed class AccessibilityTests : IDisposable
         "TrayFlyout", "TrayMenu", "SettingsNotifications", "SettingsTray", "SettingsShortcuts",
 
         // Milestone 5
-        "CommandMenu", "CheatSheet", "SharePanel", "PeoplePicker", "OverlayBar", "TimeTravelBar", "RenameDialog", "RemindersDialog", "RoomInput",
+        "CommandMenu", "CheatSheet", "SharePanel", "SavedSharePanel", "PeoplePicker", "OverlayBar", "TimeTravelBar", "RenameDialog", "RemindersDialog", "RoomInput",
 
         // Milestone 6
         "BoxSelect", "RichEditor", "PastCards",
@@ -72,6 +72,7 @@ public sealed class AccessibilityTests : IDisposable
         "CommandMenu" => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_K); leaf.WaitForAnywhere("CommandSearchBox"); }, []),
         "CheatSheet" => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.SHIFT, VirtualKeyShort.OEM_2); leaf.WaitForAnywhere("ShortcutSheet"); }, ["ShortcutFilterBox"]),
         "SharePanel" => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.KEY_S); leaf.WaitFor("ShareSlotsPanel"); }, ["ShareZoneBox", "ShareCancelButton"]),
+        "SavedSharePanel" => ("", leaf => { SavedShareGroupTests.Save(leaf); SavedShareGroupTests.OpenFirst(leaf); }, ["DeleteSavedTimesButton", "ShareSaveButton", "ShareCancelButton"]),
         "PeoplePicker" => ("", leaf => { leaf.WaitFor(Dentist); leaf.Press(VirtualKeyShort.KEY_P); leaf.WaitForAnywhere("PeoplePickerBox"); }, []),
         "OverlayBar" => ("", OpenOverlay, ["OverlayClear"]),
         "TimeTravelBar" => ("", OpenTimeTravel, ["TimeTravelReturn"]),

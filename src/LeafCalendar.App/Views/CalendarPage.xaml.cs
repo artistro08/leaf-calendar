@@ -361,10 +361,9 @@ public sealed partial class CalendarPage : Page
             return;
         }
 
-        // Esc While Scheduling Stops It (like Cancel or Close: what's typed in an open group's boxes is kept)
+        // Esc While Scheduling Stops It (like Close: anything not saved is thrown away)
         if (ViewModel.IsSharing)
         {
-            _slotsPanel?.Commit();
             ViewModel.StopSharing();
             return;
         }
@@ -386,9 +385,10 @@ public sealed partial class CalendarPage : Page
     public bool HandleShortcut(KeyRoutedEventArgs e)
     {
         // Esc While Scheduling Stops It Wherever Focus Is, Typing Included (the page's Esc accelerator never hears it from a
-        // control that takes Esc for itself, like the editable zone box); an open dropdown, picker or flyout closes first
+        // control that takes Esc for itself, like the editable zone box); an open dropdown, suggestion list, picker or flyout
+        // closes first
         if (e.Key == VirtualKey.Escape && ViewModel.IsSharing && !IsInOpenPopup(FocusManager.GetFocusedElement(XamlRoot))
-            && !FocusWithin(element => element is ComboBox { IsDropDownOpen: true }))
+            && !FocusWithin(element => element is ComboBox { IsDropDownOpen: true } or AutoSuggestBox { IsSuggestionListOpen: true }))
         {
             Escape();
             return true;

@@ -187,6 +187,7 @@ public sealed partial class MainWindow : Window
             (ContentFrame.Content as CalendarPage)?.Detach();
             _calendar.LayoutChanged -= OnCalendarLayoutChanged;
             _calendar.PropertyChanged -= OnCalendarPropertyChanged;
+            _calendar.ShareChanged -= OnCalendarShareChanged;
 
             // Remember The Size For Next Time (the restored size, and whether it was maximized)
             var size = _restoredSize with { Maximized = _wasMaximized };
@@ -247,6 +248,7 @@ public sealed partial class MainWindow : Window
         // Listen While Open (the App set the view model's OpenSettings)
         _calendar.LayoutChanged += OnCalendarLayoutChanged;
         _calendar.PropertyChanged += OnCalendarPropertyChanged;
+        _calendar.ShareChanged += OnCalendarShareChanged;
         ApplyTheme(_calendar.Settings.Theme);
 
         ShowSyncState();
@@ -558,13 +560,17 @@ public sealed partial class MainWindow : Window
     // selected events delete the ones you can change. A disabled button shows no tooltip, so each button sits in a
     // wrapper that carries it (the action while enabled, the reason while disabled); the reason is also the help text.
     // The title bar only lets clicks through where its buttons are when it computes its regions, so they're
-    // recomputed once the buttons have their new layout.
+    // recomputed once the buttons have their new layout. While the share panel shows a saved group, Delete saved times
+    // takes Delete's place instead (never with Edit and Delete).
     private void UpdateEventActions()
     {
         var several = _calendar is { Selection.Count: > 1 };
         var canEdit = _calendar?.SelectedInfo is { CanEdit: true };
-        var show = _settings is null && ContentFrame.Content is CalendarPage { IsDetailsOpen: true } && _calendar is { Editing: null } && (several || _calendar.SelectedInfo is not null);
-        var visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        var panel = _settings is null && ContentFrame.Content is CalendarPage { IsDetailsOpen: true };
+        var savedTimes = panel && _calendar is { IsSharing: true, OpenGroupId: not null };
+        var show = panel && !savedTimes && _calendar is { IsSharing: false, Editing: null } && (several || _calendar.SelectedInfo is not null);
+        var visibility = show || savedTimes ? Visibility.Visible : Visibility.Collapsed;
+        var savedVisibility = savedTimes ? Visibility.Visible : Visibility.Collapsed;
         var edit = !several && canEdit;
         var delete = _calendar is { CanDeleteSelection: true };
 
@@ -577,12 +583,14 @@ public sealed partial class MainWindow : Window
         DeleteEventButton.IsEnabled = delete;
         ToolTipService.SetToolTip(DeleteEventTip, delete ? "Delete event (Delete)" : deleteReason);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(DeleteEventButton, delete ? "" : deleteReason);
-        if (EventActions.Visibility == visibility)
+        if (EventActions.Visibility == visibility && DeleteSavedTimesButton.Visibility == savedVisibility)
         {
             return;
         }
 
         EventActions.Visibility = visibility;
+        DeleteSavedTimesButton.Visibility = savedVisibility;
+        EditEventTip.Visibility = DeleteEventTip.Visibility = savedTimes ? Visibility.Collapsed : Visibility.Visible;
         EventActions.UpdateLayout();
         AppTitleBar.RecomputeDragRegions();
     }
@@ -753,6 +761,9 @@ public sealed partial class MainWindow : Window
 
     private void OnEditEventClick(object sender, RoutedEventArgs e) => _calendar?.BeginEdit();
 
+    // Delete saved times: the open group goes at once (no undo) and the share panel closes
+    private void OnDeleteSavedTimesClick(object sender, RoutedEventArgs e) => _calendar?.DeleteOpenGroup();
+
     private void OnDeleteEventClick(object sender, RoutedEventArgs e)
     {
         if (_calendar is { } vm)
@@ -881,6 +892,9 @@ public sealed partial class MainWindow : Window
     // =========================================================================
     // SYNC STATE
     // =========================================================================
+
+    // Sharing started or stopped, or a saved group opened or went: Delete saved times shows or hides
+    private void OnCalendarShareChanged(object? sender, EventArgs e) => UpdateEventActions();
 
     private void OnCalendarPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

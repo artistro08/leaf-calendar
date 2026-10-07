@@ -238,25 +238,16 @@ public sealed partial class CalendarViewModel
     /// <summary>The saved group the share panel shows, or null while picking new times.</summary>
     public long? OpenGroupId => _openGroupId;
 
-    /// <summary>This share's title (the panel's Title box). With a group open, a change saves it.</summary>
+    /// <summary>This share's title (the panel's Title box). An open group keeps its saved title until Save or Copy.</summary>
     public string ShareTitle
     {
         get => _shareTitle;
-        set
-        {
-            if (value == _shareTitle)
-            {
-                return;
-            }
-
-            _shareTitle = value;
-            SaveOpenGroup();
-        }
+        set => _shareTitle = value;
     }
 
     /// <summary>
     /// This share's message (<c>{times}</c> marks where the free times go). Each new share starts from the default in
-    /// Settings › Calendars; a change here is for this share (and its saved group) only.
+    /// Settings › Calendars; a change here is for this share (and its saved group, once saved) only.
     /// </summary>
     public string ShareText
     {
@@ -264,13 +255,7 @@ public sealed partial class CalendarViewModel
         set
         {
             ArgumentNullException.ThrowIfNull(value);
-            if (value == _shareText)
-            {
-                return;
-            }
-
             _shareText = value;
-            SaveOpenGroup();
         }
     }
 
@@ -308,7 +293,7 @@ public sealed partial class CalendarViewModel
     }
 
     /// <summary>
-    /// Opens a saved group in the share panel: its times (editable, each change saved), title, message and zone, checked
+    /// Opens a saved group in the share panel: its times (editable; changes wait for Save or Copy), title, message and zone, checked
     /// against the calendars that can be shared now. Only opens when not already sharing (a click on a saved time is
     /// refused while sharing).
     /// </summary>
@@ -334,7 +319,7 @@ public sealed partial class CalendarViewModel
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Deletes the open saved group and stops sharing.</summary>
+    /// <summary>Deletes the open saved group at once (the title bar's Delete saved times) and stops sharing.</summary>
     public void DeleteOpenGroup()
     {
         if (_openGroupId is not { } id)
@@ -344,6 +329,37 @@ public sealed partial class CalendarViewModel
 
         WriteGroups("share.group.delete.failed", conn => ShareGroupStore.Delete(conn, id));
         StopSharing();
+    }
+
+    /// <summary>
+    /// Save: keeps the picked times as a group (new picks become a new group; an open group gets its times, title,
+    /// message and zone updated), then stops sharing. Needs a time. When the database write fails it says so and sharing
+    /// goes on, so nothing typed is lost.
+    /// </summary>
+    public void SaveShare()
+    {
+        if (!_sharing || _slots.Count == 0)
+        {
+            return;
+        }
+
+        var (group, title, text, zone, slots, now) = (_openGroupId, _shareTitle, _shareText, _shareZoneId, _slots.ToList(), Now);
+        var saved = WriteGroups("share.group.save.failed", conn =>
+        {
+            if (group is { } id)
+            {
+                ShareGroupStore.Update(conn, id, title, text, zone, slots);
+            }
+            else
+            {
+                ShareGroupStore.Insert(conn, title, text, zone, slots, now);
+            }
+        });
+
+        if (saved)
+        {
+            StopSharing();
+        }
     }
 
     /// <summary>
@@ -398,11 +414,13 @@ public sealed partial class CalendarViewModel
         }
 
         _slots = [.. BusyMath.Merge([.. _slots, new BusyRange(start, end)])];
-        SaveOpenGroup();
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Removes the picked time at <paramref name="index"/> (an open group's last time deletes the group and stops sharing).</summary>
+    /// <summary>
+    /// Removes the picked time at <paramref name="index"/>. An open group keeps its saved times until Save; with none
+    /// left, Save is off and Delete is how the group goes.
+    /// </summary>
     public void RemoveShareSlot(int index)
     {
         if (index < 0 || index >= _slots.Count)
@@ -411,13 +429,6 @@ public sealed partial class CalendarViewModel
         }
 
         _slots.RemoveAt(index);
-        SaveOpenGroup();
-        if (_openGroupId is not null && _slots.Count == 0)
-        {
-            StopSharing();
-            return;
-        }
-
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -431,7 +442,6 @@ public sealed partial class CalendarViewModel
 
         _slots[index] = new BusyRange(start, end);
         _slots = [.. BusyMath.Merge(_slots)];
-        SaveOpenGroup();
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -458,7 +468,7 @@ public sealed partial class CalendarViewModel
     }
 
     /// <summary>
-    /// A drawn time resized on the grid: a pick changes (and its open group saves), or a group being approved saves.
+    /// A drawn time resized on the grid: a pick changes (an open group's waits for Save), or a group being approved saves.
     /// Nothing happens when the times were read again during the drag and that place no longer holds the dragged time.
     /// </summary>
     public void ResizeGridSlot(GridSlot slot, DateTimeOffset start, DateTimeOffset end)
@@ -495,21 +505,11 @@ public sealed partial class CalendarViewModel
         WriteGroups("share.group.save.failed", conn => ShareGroupStore.Update(conn, group.Id, group.Title, group.Message, group.ZoneId, merged));
     }
 
-    // An open saved group follows every change (no times left deletes it)
-    private void SaveOpenGroup()
+    // A write to the saved groups, then a fresh read of them; a failure is logged (never its content), says so, and
+    // returns false
+    private bool WriteGroups(string failure, Action<Microsoft.Data.Sqlite.SqliteConnection> write)
     {
-        if (_openGroupId is not { } id)
-        {
-            return;
-        }
-
-        var (title, text, zone, slots) = (_shareTitle, _shareText, _shareZoneId, _slots.ToList());
-        WriteGroups("share.group.save.failed", conn => ShareGroupStore.Update(conn, id, title, text, zone, slots));
-    }
-
-    // A write to the saved groups, then a fresh read of them; a failure is logged (never its content) and says so
-    private void WriteGroups(string failure, Action<Microsoft.Data.Sqlite.SqliteConnection> write)
-    {
+        var written = true;
         try
         {
             using var conn = _services.Database.Open();
@@ -519,9 +519,11 @@ public sealed partial class CalendarViewModel
         {
             _services.Log.Error(failure, ex);
             ShowMessage("Couldn't save that. Try again.");
+            written = false;
         }
 
         ReloadGroups();
+        return written;
     }
 
     /// <summary>Reads the saved groups again off the UI thread, dropping ended times first; only the newest read lands.</summary>

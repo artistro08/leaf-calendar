@@ -183,7 +183,8 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- Event Actions (the details panel's, in its title bar row; the edit glyph starts at the panel's content edge) -->
+                        <!-- Event Actions (the details panel's, in its title bar row; the edit glyph starts at the panel's content edge),
+                             or the share panel's Delete saved times -->
                         <StackPanel
                             x:Name="EventActions"
                             HorizontalAlignment="Right"
@@ -214,6 +215,18 @@
                                 </Button>
                             </Border>
                             <!-- /Delete -->
+
+                            <!-- Delete Saved Times (in Delete's place, while the share panel shows a saved group) -->
+                            <Button
+                                x:Name="DeleteSavedTimesButton"
+                                Style="{StaticResource LeafBareIconButtonStyle}"
+                                Click="OnDeleteSavedTimesClick"
+                                Visibility="Collapsed"
+                                ToolTipService.ToolTip="Delete saved times"
+                                AutomationProperties.Name="Delete saved times"
+                                AutomationProperties.AutomationId="DeleteSavedTimesButton">
+                                <FontIcon Glyph="&#xE74D;" FontSize="16" />
+                            </Button>
                         </StackPanel>
                         <!-- /Event Actions -->
                     </Grid>
