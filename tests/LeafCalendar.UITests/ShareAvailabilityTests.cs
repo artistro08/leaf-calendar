@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Text.Json.Nodes;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
@@ -162,6 +163,91 @@ public sealed class ShareAvailabilityTests : IDisposable
         // Dragging makes events again
         DragHours(leaf, 15, 16);
         Assert.NotNull(leaf.WaitFor("EventEditor"));
+    }
+
+    // Esc stops sharing right after S, and after a drag on the grid picked a time
+    [Fact]
+    public void Escape_RightAfterS_StopsSharing()
+    {
+        using var leaf = Launch();
+        StartSharing(leaf);
+
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Esc left the share panel up.");
+    }
+
+    [Fact]
+    public void Escape_OnTheGrid_StopsSharing()
+    {
+        using var leaf = Launch();
+        StartSharing(leaf);
+        DragHours(leaf, 14, 15);
+        leaf.WaitFor("ShareSlot_0");
+
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Esc left the share panel up.");
+    }
+
+    // Wherever focus is in the share panel (pressed straight to the focused control, not through the window)
+    [Theory]
+    [InlineData("ShareMessageBox")]
+    [InlineData("ShareZoneBox")]
+    [InlineData("SharePanelStart_0")]
+    [InlineData("SharePanelEnd_0")]
+    [InlineData("SharePanelRemove_0")]
+    [InlineData("ShareCopyButton")]
+    public void Escape_WithFocusInThePanel_StopsSharing(string focusId)
+    {
+        using var leaf = Launch();
+        StartSharing(leaf);
+        DragHours(leaf, 14, 15);
+        leaf.WaitFor(focusId).Focus();
+        Thread.Sleep(300);
+
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, $"Esc with focus on {focusId} left the share panel up.");
+    }
+
+    // Esc in an open time picker or zone list only closes it; the next Esc stops sharing
+    [Fact]
+    public void Escape_InAnOpenPicker_ClosesOnlyThePicker()
+    {
+        using var leaf = Launch();
+        StartSharing(leaf);
+        DragHours(leaf, 14, 15);
+
+        leaf.WaitFor("SharePanelEnd_0").Click();
+        leaf.WaitForPopup("MinuteLoopingSelector");
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Assert.True(Retry.WhileTrue(() => leaf.PopupExists("MinuteLoopingSelector"), TimeSpan.FromSeconds(5)).Success, "Esc left the time picker open.");
+        Thread.Sleep(500);
+        Assert.True(leaf.Exists("ShareSlotsPanel"), "Esc in the time picker stopped sharing.");
+
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "The second Esc left the share panel up.");
+    }
+
+    [Fact]
+    public void Escape_InTheOpenZoneList_ClosesOnlyTheList()
+    {
+        using var leaf = Launch();
+        StartSharing(leaf);
+        var zone = leaf.WaitFor("ShareZoneBox");
+        zone.Focus();
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
+        Keyboard.Type("Tokyo");
+        Assert.True(Retry.WhileFalse(() => zone.Patterns.ExpandCollapse.PatternOrDefault?.ExpandCollapseState.ValueOrDefault == ExpandCollapseState.Expanded, TimeSpan.FromSeconds(5)).Success, "Typing didn't open the zone list.");
+
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Assert.True(Retry.WhileTrue(() => zone.Patterns.ExpandCollapse.PatternOrDefault?.ExpandCollapseState.ValueOrDefault == ExpandCollapseState.Expanded, TimeSpan.FromSeconds(5)).Success, "Esc left the zone list open.");
+        Thread.Sleep(500);
+        Assert.True(leaf.Exists("ShareSlotsPanel"), "Esc in the zone list stopped sharing.");
+
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "The second Esc left the share panel up.");
     }
 
     [Fact]
