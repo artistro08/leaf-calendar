@@ -178,6 +178,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         services.Editor.Changed += OnEditsChanged;
         services.Conflicts.Changed += OnEditsChanged;
         RefreshSyncState();
+        ReloadGroups();
 
         _minuteTimer = dispatcher.CreateTimer();
         _minuteTimer.Interval = TimeSpan.FromMinutes(1);
@@ -2250,6 +2251,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
 
         RefreshUpcoming();
+
+        // A Saved Time Ended: read the groups again (ended times and empty groups go)
+        if (_savedGroups.Any(g => g.Slots.Any(s => s.End <= Now)))
+        {
+            ReloadGroups();
+        }
     }
 
     // Each event's meeting service for its Join button's logo, looked up once per event (forgotten when the data changes)

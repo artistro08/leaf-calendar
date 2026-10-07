@@ -34,6 +34,7 @@ In Leaf's app data folder (the `LocalState` folder of Leaf's package, under `%LO
 
 - **A copy of your calendars** in a SQLite database (`leaf.db`): your accounts' email addresses, your calendars, and their events (titles, times, descriptions, locations, guests, and meeting links), so Leaf opens quickly and works offline. Changes you make while offline wait there until Google has them.
 - **Your Leaf settings**, in the same database.
+- **Saved share times.** When you copy your availability, Leaf keeps the times, the title and the message you shared in its local database, so they stay on your calendar. They're deleted when you approve a time, delete the group, or the times pass. They never leave your PC.
 - **A log** (`leaf.log` in the `Logs` folder, at most about 3 MB): what Leaf did and what went wrong, by internal IDs only. It never includes event titles, descriptions, guests, locations, searches, sign-in tokens, codes, or your client secret, and a second pass masks tokens, secrets, and email addresses anyway.
 - **Crash files**, only while Settings › About › Detailed logging is on: at most two, in the log folder. A crash file can include bits of what was on screen. Turning Detailed logging off deletes them.
 
