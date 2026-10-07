@@ -149,6 +149,23 @@ public sealed class SavedShareGroupTests : IDisposable
         Assert.Empty(_google.FreeBusyQueries);
     }
 
+    // New picks with no times can't be copied and saved, and Cancel on new picks saves nothing
+    [Fact]
+    public void NewPicks_CopyAndSaveNeedsATime_AndCancelSavesNothing()
+    {
+        using var leaf = Launch();
+        ShareAvailabilityTests.StartSharing(leaf);
+        Assert.False(leaf.WaitFor("ShareCopyButton").AsButton().IsEnabled, "Copy & Save was on with no times.");
+
+        ShareAvailabilityTests.DragHours(leaf, 10, 12);
+        leaf.WaitFor("ShareSlot_0");
+        leaf.WaitFor("ShareCancelButton").AsButton().Invoke();
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Cancel left the panel up.");
+        Thread.Sleep(1000);
+        Assert.False(leaf.Exists(FirstSaved), "Cancel saved the picks.");
+    }
+
     // A click on a saved time opens its group in the panel with its title, and Save (the accent), Copy & Save and Close
     [Fact]
     public void Click_OpensTheGroup()

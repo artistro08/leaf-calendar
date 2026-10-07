@@ -138,7 +138,7 @@ Resizing a saved group's time while no group is open is not offered (click it to
 
 A new card on the Calendars page, following the Windows 11 Settings pattern (one setting per card, saves on change):
 
-- Card header "Share availability message", with the description "{times} is replaced with your free times."
+- Card header "Share availability message", with the description "{times} is replaced with your proposed times."
 - A multi-line `TextBox` under the header (full width, since a message doesn't fit on the right), `MaxLength` `AvailabilityText.MaxMessageLength`, placeholder "Only the times" (as in the panel). Saves on lost focus.
 - A "Use Leaf's message" link that puts back `AvailabilityText.DefaultMessage` and saves.
 - The setting is the existing `LeafSettings.ShareMessage` (no new setting, no migration; owners who already changed it in the panel keep their text as the default).
@@ -155,7 +155,7 @@ A new card on the Calendars page, following the Windows 11 Settings pattern (one
 | Section heading (approved 2026-10-07) | Guests & proposed times |
 | Guest remove button tooltip and name (the event editor's) | Remove guest |
 | Row button | Approve… |
-| Row button tooltip | Save this time as an event with the guest |
+| Row button tooltip | Save this time as an event with the guests |
 | Footer buttons | New picks: Copy & Save, Cancel. Open group: Save, Copy & Save, Close (approved 2026-10-07) |
 | Panel hint (owner, 2026-10-07) | Drag on the calendar to pick times. |
 | Title bar delete icon tooltip and name | Delete saved times (approved 2026-10-07) |

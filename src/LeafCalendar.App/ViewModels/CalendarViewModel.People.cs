@@ -283,7 +283,7 @@ public sealed partial class CalendarViewModel
     }
 
     /// <summary>
-    /// This share's message (<c>{times}</c> marks where the free times go). Each new share starts from the default in
+    /// This share's message (<c>{times}</c> marks where the proposed times go). Each new share starts from the default in
     /// Settings › Calendars; a change here is for this share (and its saved group, once saved) only.
     /// </summary>
     public string ShareText
@@ -390,7 +390,8 @@ public sealed partial class CalendarViewModel
         _slots = [.. group.Slots];
         _shareTitle = group.Title;
         _shareText = group.Message;
-        _shareGuests = [.. group.Guests.Select(g => new Contact("", g))];
+        // Only real addresses (0.1.302 could save unchecked text, and migration 11 copied it)
+        _shareGuests = [.. group.Guests.Where(IsAddress).Select(g => new Contact("", g))];
         _shareZoneId = group.ZoneId;
         _sharing = true;
         ShareChanged?.Invoke(this, EventArgs.Empty);

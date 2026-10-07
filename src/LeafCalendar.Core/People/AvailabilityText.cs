@@ -77,7 +77,7 @@ public static class AvailabilityText
         return string.Join("\r\n", lines);
     }
 
-    /// <summary>Where the free times go in a share message.</summary>
+    /// <summary>Where the proposed times go in a share message.</summary>
     public const string TimesPlaceholder = "{times}";
 
     /// <summary>The share message out of the box.</summary>

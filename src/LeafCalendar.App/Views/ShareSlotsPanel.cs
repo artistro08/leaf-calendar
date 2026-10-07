@@ -114,10 +114,10 @@ public sealed partial class ShareSlotsPanel : UserControl
         AutomationProperties.SetAutomationId(guestsHeading, "ShareGuestsHeading");
         AutomationProperties.SetAutomationId(_guestRows, "ShareGuestList");
 
-        // Message (what Copy wraps the free times in, for this share only; {times} marks where they go)
+        // Message (what Copy wraps the proposed times in, for this share only; {times} marks where they go)
         var messageHint = new TextBlock
         {
-            Text = "{times} is replaced with your free times.",
+            Text = "{times} is replaced with your proposed times.",
             Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
             TextWrapping = TextWrapping.Wrap,
         };
@@ -427,13 +427,13 @@ public sealed partial class ShareSlotsPanel : UserControl
             To.SelectedTimeChanged += (_, _) => { if (!_showing) { owner.Changed(this); } };
             drop.Click += (_, _) => owner._vm?.RemoveShareSlot(Index);
 
-            // Approve… (a saved group only): this time as an event with the guest; a check mark, then the text, centered in
+            // Approve… (a saved group only): this time as an event with the guests; a check mark, then the text, centered in
             // a button as wide as the row
             var approveContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             approveContent.Children.Add(new FontIcon { Glyph = "", FontSize = 16 });
             approveContent.Children.Add(new TextBlock { Text = "Approve…" });
             Approve = new Button { Content = approveContent, IsEnabled = false, Visibility = Visibility.Collapsed, HorizontalAlignment = HorizontalAlignment.Stretch };
-            ToolTipService.SetToolTip(Approve, "Save this time as an event with the guest");
+            ToolTipService.SetToolTip(Approve, "Save this time as an event with the guests");
             AutomationProperties.SetAutomationId(Approve, string.Create(CultureInfo.InvariantCulture, $"SharePanelApprove_{index}"));
             Approve.Click += (_, _) => owner.Approve(this);
             Grid.SetRow(Approve, 2);
