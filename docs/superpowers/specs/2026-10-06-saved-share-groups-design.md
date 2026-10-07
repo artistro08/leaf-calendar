@@ -16,7 +16,10 @@ You share some times with someone, they write back with the one they want, and y
 
 | Topic | Decision |
 | --- | --- |
-| When a group is saved | On Copy. Cancel still throws the picks away. |
+| When a group is saved | On Save or Copy (owner, 2026-10-07: Save added). Close, Esc and S throw away anything unsaved. |
+| Editing an open group | Changes wait for Save or Copy; Close throws them away. Removing its last time leaves no times (Save is off); Delete is how a group goes. |
+| Deleting a group | A trash icon in the title bar row above the right panel ("Delete saved times"), like an event's Delete, shown only while a saved group is open. Deletes at once, no undo. |
+| Guest email | Suggests Google contacts as you type (the same search as the people picker); a pick fills in its address, and a typed address works too. |
 | What a group keeps | The free times that went into the copied text (busy parts already cut), its title, its message, and the zone the text was written in. |
 | Default message | Set in Settings › Calendars. Each new share starts from it. Edits in the share panel apply to that share (and its saved group) only. |
 | Title | A new Title box in the share panel. Empty means the generic title. Shown on every saved time; pre-fills the event title on approve. |
@@ -26,7 +29,7 @@ You share some times with someone, they write back with the one they want, and y
 | Past times | A time that has ended is dropped; a group with no times left is deleted. |
 | Look | Dashed accent edge, faint accent fill, the title inside; behind events. |
 | Resizing | Top and bottom edges, while picking, while a saved group is open, and while the approve editor is open. |
-| Esc | Leaves scheduling (new picks or an open saved group) unless a dropdown, picker or suggestion list is open, which Esc closes first. |
+| Esc | Leaves scheduling (new picks or an open saved group), the same as Close, unless a dropdown, picker or suggestion list is open, which Esc closes first. |
 
 ## 3. Data
 
@@ -75,9 +78,12 @@ Sharing gains a "which group" field:
 - `ShareText` (string): this share's message. `StartSharing` sets it from `Settings.ShareMessage` (the default); the panel's edits change only `ShareText`, never the setting. `SetShareMessage` is replaced by this property, and `CopyAvailabilityAsync` composes from `ShareText`.
 - Settings › Calendars' box saves `Settings.ShareMessage` through `SettingsContext.Save` (an empty box saves empty, meaning only the times, as today).
 - `OpenGroup(long id)`: starts sharing on that group (its times, title, message and zone, the shareable calendars as they are now). It opens only when not already sharing (a click on a saved time is refused while sharing).
-- `AddShareSlot`, `UpdateShareSlot`, `RemoveShareSlot` unchanged for new picks. With a group open, each change also writes the group (changes save at once). Removing a group's last time deletes it and stops sharing.
-- `CopyAvailabilityAsync`: on success, with no group open it inserts a new group from the free times; with one open it updates that group to the free times. Either way sharing stops as today. A database failure is logged and shown ("Copied, but couldn't save these times."); the copy still counts.
-- `DeleteOpenGroup()`: deletes the group and stops sharing.
+- `AddShareSlot`, `UpdateShareSlot`, `RemoveShareSlot` change only the picks, for new picks and an open group alike; nothing is written until Save or Copy. Removing a group's last time leaves no times (Save is off); the group stays saved. `ShareTitle` and `ShareText` are plain values too.
+- `SaveShare()`: needs a time. With no group open it inserts a new group from the picks; with one open it updates that group's times, title, message and zone. Then sharing stops. A database failure says "Couldn't save that. Try again." and sharing goes on, so nothing typed is lost.
+- `CopyAvailabilityAsync`: on success, with no group open it inserts a new group from the free times; with one open it updates that group to the free times. Either way sharing stops as today. A database failure is logged and shown ("Copied, but couldn't save these times."); the copy still counts. Nothing is copied or saved if sharing stopped, the open group changed, or the picks changed while Google answered.
+- `StopSharing()` (Close, Esc, S): throws away anything unsaved.
+- `DeleteOpenGroup()`: deletes the group and stops sharing (the title bar's Delete saved times).
+- If the open group vanishes on a reload (its times all passed), the panel goes on as new picks with the boxes as typed; Save and Copy then insert a new group.
 - `ApproveSlot(int index, string email)`: needs a valid address (`IsAddress`). Remembers `_approvingGroupId`, stops sharing (the editor needs the right pane the share panel was using), then calls `BeginCreate(slot.Start, slot.End)`, sets the title to the group's title (or the generic one) and adds the guest. The group's times stay drawn, and stay resizable while the editor is open (`UpdateSavedSlot`).
 - `SaveEditorAsync`: after a successful create while `_approving` is set, deletes that group and clears `_approving`. If the editor closes any other way, `_approving` clears and the group stays.
 
@@ -85,11 +91,12 @@ Saved groups' times are drawn even when not sharing. The faded, lined look of ev
 
 ## 5. Share Panel (`ShareSlotsPanel.cs`)
 
-- **Title** box at the top (above the zone). It saves on lost focus and on Copy.
-- The Message box starts from the default (or the open group's message). Its "Use the default message" link now puts back your Settings default, not the built-in text. With a group open, a message change saves to the group.
+- **Title** box at the top (above the zone). What's typed is used by Save, Copy and Approve….
+- The Message box starts from the default (or the open group's message). Its "Use the default message" link now puts back your Settings default, not the built-in text. With a group open, a message change is saved to the group on Save or Copy.
 - Heading: "Times to share" for new picks, "Saved times" for an open group.
-- **Guest email** box, shown only for an open group. Each time row gets an **Approve…** button, enabled while the box holds one valid address.
-- Footer: Copy and Cancel as today for new picks. For an open group: Copy, Close, and a **Delete** button.
+- **Guest email** box, shown only for an open group: an `AutoSuggestBox` (AutomationId `ShareGuestBox`) that suggests Google contacts as you type, with the people picker's search, pause and rows (shared helper `Views/ContactSuggestions.cs`). Picking a suggestion fills in its address; a typed valid address works without picking. Each time row gets a full-width **Approve…** button (a check mark, then the text, centered), enabled while the box holds one valid address.
+- Footer: **Save** (accent), **Copy** and **Close**, three equal buttons, the same for new picks and an open group (AutomationIds `ShareSaveButton`, `ShareCopyButton`, `ShareCancelButton`). Save and Copy are off with no times; Copy is also off while it runs.
+- **Delete saved times**: a trash icon (`&#xE74D;`, like the event Delete) in the title bar row above the right panel, in Delete's place, shown only while a saved group is open in the panel and never with the event's Edit and Delete. AutomationId `DeleteSavedTimesButton`. A click deletes the group at once and closes the panel.
 
 ## 6. Time Grid (`TimeGridView.cs`, `DayColumn.cs`)
 
@@ -109,7 +116,7 @@ Resizing a saved group's time while no group is open is not offered (click it to
 
 ## 7. Esc
 
-`CalendarPage.OnEscapeInvoked` already stops sharing, but in the owner's use Esc doesn't leave scheduling. The plan's first task reproduces this with a UI test (Esc with focus on the grid, the Title, Message and time pickers) and finds what eats the key, then fixes it at that layer. Expected: Esc closes an open dropdown, picker or suggestion list first; otherwise it ends scheduling, the same as Cancel or Close. With the approve editor open, Esc closes the editor (as today) and the group stays saved.
+`CalendarPage.OnEscapeInvoked` already stops sharing, but in the owner's use Esc doesn't leave scheduling. The plan's first task reproduces this with a UI test (Esc with focus on the grid, the Title, Message and time pickers) and finds what eats the key, then fixes it at that layer. Expected: Esc closes an open dropdown, picker or suggestion list first; otherwise it ends scheduling, the same as Close (anything unsaved is thrown away; owner, 2026-10-07). With the approve editor open, Esc closes the editor (as today) and the group stays saved.
 
 ## 8. Settings › Calendars: Default Message
 
@@ -131,9 +138,10 @@ A new card on the Calendars page, following the Windows 11 Settings pattern (one
 | Guest box placeholder | name@example.com |
 | Row button | Approve… |
 | Row button tooltip | Save this time as an event with the guest |
-| Delete button | Delete |
+| Footer buttons | Save, Copy, Close (Save approved 2026-10-07) |
+| Title bar delete icon tooltip and name | Delete saved times (approved 2026-10-07) |
 | Open-group heading | Saved times |
-| Open-group close button | Close |
+| Save failed | Couldn't save that. Try again. |
 
 New wording not yet approved; it must be approved before shipping:
 

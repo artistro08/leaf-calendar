@@ -160,12 +160,11 @@ public sealed partial class CalendarPage
         ViewModel.Fire(() => ViewModel.ShowOverlayAsync(guests, meetWith: false), "people.overlay.failed");
     }
 
-    // S, the sidebar's share button, and the command menu: S again (or Cancel) stops
+    // S, the sidebar's share button, and the command menu: S again (like Close) stops, throwing away anything not saved
     private void StartShareAvailability()
     {
         if (ViewModel.IsSharing)
         {
-            _slotsPanel?.Commit();
             ViewModel.StopSharing();
             return;
         }

@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Globalization;
 using System.Text.Json.Nodes;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
@@ -52,13 +53,31 @@ public sealed class SavedShareGroupTests : IDisposable
     // The message box's text with its line breaks dropped (the box reports them as \r)
     private static string Flat(string text) => text.Replace("\r", "", StringComparison.Ordinal).Replace("\n", "", StringComparison.Ordinal);
 
+    // The text box inside the guest AutoSuggestBox
+    private static TextBox GuestEdit(LeafApp leaf) =>
+        Retry.WhileNull(() => leaf.WaitFor("ShareGuestBox").FindFirstDescendant(cf => cf.ByControlType(ControlType.Edit)), TimeSpan.FromSeconds(10)).Result?.AsTextBox()
+        ?? throw new InvalidOperationException("The guest box has no text box inside.");
+
+    // Types a new title into the open panel's Title box, like a person does
+    private static void TypeTitle(LeafApp leaf, string title)
+    {
+        leaf.WaitFor("ShareTitleBox").Focus();
+        Thread.Sleep(300);
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
+        Keyboard.Type(title);
+    }
+
+    // The saved time's name starts with the title (it reads "{title}, {time range}")
+    private static bool SavedTitleIs(LeafApp leaf, string title) =>
+        Retry.WhileFalse(() => leaf.Exists(FirstSaved) && leaf.WaitFor(FirstSaved).Name.StartsWith($"{title}, ", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success;
+
     // Saves the group, opens it with a click, types the guest and approves its time
     internal static void SaveAndApprove(LeafApp leaf)
     {
         Save(leaf);
 
         OpenFirst(leaf);
-        leaf.WaitFor("ShareGuestBox").AsTextBox().Text = Guest;
+        GuestEdit(leaf).Text = Guest;
         var approve = leaf.WaitFor("SharePanelApprove_0").AsButton();
         Assert.True(Retry.WhileFalse(() => approve.IsEnabled, TimeSpan.FromSeconds(5)).Success, "Approve… stayed disabled with a valid address.");
         approve.Invoke();
@@ -153,17 +172,108 @@ public sealed class SavedShareGroupTests : IDisposable
         Assert.False(leaf.Exists("ShareSlotsPanel"), "A click outside the saved time opened its group.");
     }
 
-    // Delete in an open group deletes it and stops sharing
+    // Delete saved times shows in the title bar row only while a saved group is open (not for new picks, never with the
+    // event's Edit and Delete); it deletes the group and stops sharing, and goes with the panel
     [Fact]
-    public void Delete_RemovesTheGroup()
+    public void Delete_InTheTitleBar_RemovesTheGroup()
+    {
+        using var leaf = Launch();
+        ShareAvailabilityTests.StartSharing(leaf);
+        Assert.False(leaf.Exists("DeleteSavedTimesButton"), "Delete saved times showed for new picks.");
+        leaf.WaitFor("ShareCancelButton").AsButton().Invoke();
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Close left the panel up.");
+
+        Save(leaf);
+        OpenFirst(leaf);
+
+        var delete = leaf.WaitFor("DeleteSavedTimesButton");
+        Assert.Equal("Delete saved times", delete.Name);
+        Assert.False(leaf.Exists("DetailsEditButton"), "The event's Edit showed with Delete saved times.");
+        Assert.False(leaf.Exists("DeleteEventButton"), "The event's Delete showed with Delete saved times.");
+        delete.AsButton().Invoke();
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists(FirstSaved) || leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Delete left the group.");
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("DeleteSavedTimesButton"), TimeSpan.FromSeconds(5)).Success, "Delete saved times stayed after the panel closed.");
+    }
+
+    // Save on new picks saves them as a group and closes the panel, with nothing copied
+    [Fact]
+    public void Save_OnNewPicks_SavesAGroupAndCloses()
+    {
+        using var leaf = Launch();
+        ShareAvailabilityTests.StartSharing(leaf);
+        var save = leaf.WaitFor("ShareSaveButton").AsButton();
+        Assert.False(save.IsEnabled, "Save was on with no times.");
+        ShareAvailabilityTests.DragHours(leaf, 10, 12);
+        leaf.WaitFor("ShareSlot_0");
+        leaf.WaitFor("ShareTitleBox").AsTextBox().Text = Title;
+        Clipboard.Clear();
+
+        save.Invoke();
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Save left the panel up.");
+        Assert.True(SavedTitleIs(leaf, Title), "Save didn't save the group with its title.");
+        Assert.Null(Clipboard.Text());
+    }
+
+    // Edits to an open group wait for Save: a new title and a removed time, then Close, leave the group as it was
+    [Fact]
+    public void EditOpenGroup_ThenClose_LeavesItUnchanged()
     {
         using var leaf = Launch();
         Save(leaf);
         OpenFirst(leaf);
+        TypeTitle(leaf, "Lunch");
+        leaf.WaitFor("SharePanelRemove_0").AsButton().Invoke();
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("SharePanelSlot_0"), TimeSpan.FromSeconds(5)).Success, "The time didn't go from the panel.");
+        Assert.False(leaf.WaitFor("ShareSaveButton").AsButton().IsEnabled, "Save was on with no times.");
 
-        leaf.WaitFor("ShareDeleteButton").AsButton().Invoke();
+        leaf.WaitFor("ShareCancelButton").AsButton().Invoke();
 
-        Assert.True(Retry.WhileTrue(() => leaf.Exists(FirstSaved) || leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Delete left the group.");
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Close left the panel up.");
+        Assert.True(SavedTitleIs(leaf, Title), "Close changed the saved group.");
+        OpenFirst(leaf);
+        Assert.Equal(Title, leaf.WaitFor("ShareTitleBox").AsTextBox().Text);
+    }
+
+    // Edits to an open group, then Save: the group takes the new title
+    [Fact]
+    public void EditOpenGroup_ThenSave_ChangesIt()
+    {
+        using var leaf = Launch();
+        Save(leaf);
+        OpenFirst(leaf);
+        TypeTitle(leaf, "Lunch");
+
+        leaf.WaitFor("ShareSaveButton").AsButton().Invoke();
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Save left the panel up.");
+        Assert.True(SavedTitleIs(leaf, "Lunch"), "The saved time doesn't show the new title.");
+        OpenFirst(leaf);
+        Assert.Equal("Lunch", leaf.WaitFor("ShareTitleBox").AsTextBox().Text);
+    }
+
+    // The guest box suggests Google contacts as you type; picking one fills in its address, and Approve… turns on
+    [Fact]
+    public void GuestBox_SuggestsAContact_AndPickingFillsTheEmail()
+    {
+        using var leaf = Launch();
+        Save(leaf);
+        OpenFirst(leaf);
+        var edit = GuestEdit(leaf);
+        edit.Focus();
+        Keyboard.Type("ali");
+
+        var alice = Retry.WhileNull(
+            () => leaf.FindAllAnywhere("SuggestionsList").SelectMany(list => list.FindAllDescendants(cf => cf.ByControlType(ControlType.ListItem)))
+                .FirstOrDefault(item => item.Properties.Name.ValueOrDefault == "Alice Example <alice@example.com>"),
+            TimeSpan.FromSeconds(10)).Result;
+        Assert.NotNull(alice);
+        alice.Click();
+
+        Assert.True(Retry.WhileFalse(() => GuestEdit(leaf).Text == "alice@example.com", TimeSpan.FromSeconds(5)).Success, $"The guest box reads \"{GuestEdit(leaf).Text}\".");
+        var approve = leaf.WaitFor("SharePanelApprove_0").AsButton();
+        Assert.True(Retry.WhileFalse(() => approve.IsEnabled, TimeSpan.FromSeconds(5)).Success, "Approve… stayed off after picking a contact.");
     }
 
     // A message typed in the panel goes with that share and its saved group; the next new share starts from the default
@@ -192,24 +302,22 @@ public sealed class SavedShareGroupTests : IDisposable
         Assert.Equal(Flat(AvailabilityText.DefaultMessage), Flat(leaf.WaitFor("ShareMessageBox").AsTextBox().Text));
     }
 
-    // Esc with focus in an open group's Title box, after typing a new title, keeps that title
+    // Esc with focus in an open group's Title box, after typing a new title, closes like Close: the title isn't saved
     [Fact]
-    public void Escape_InAnOpenGroupsTitle_KeepsTheNewTitle()
+    public void Escape_InAnOpenGroupsTitle_ThrowsAwayTheUnsavedTitle()
     {
         using var leaf = Launch();
         Save(leaf);
         OpenFirst(leaf);
-        leaf.WaitFor("ShareTitleBox").Focus();
-        Thread.Sleep(300);
-        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
-        Keyboard.Type("Lunch");
+        TypeTitle(leaf, "Lunch");
 
         Keyboard.Press(VirtualKeyShort.ESCAPE);
 
         Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5)).Success, "Esc left the share panel up.");
-        Assert.True(Retry.WhileFalse(() => leaf.WaitFor(FirstSaved).Name.StartsWith("Lunch, ", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success, "The saved time doesn't show the new title.");
+        Thread.Sleep(1000);
+        Assert.True(SavedTitleIs(leaf, Title), "Esc saved the new title.");
         OpenFirst(leaf);
-        Assert.Equal("Lunch", leaf.WaitFor("ShareTitleBox").AsTextBox().Text);
+        Assert.Equal(Title, leaf.WaitFor("ShareTitleBox").AsTextBox().Text);
     }
 
     // While the approve editor is open, the group's time still resizes by its bottom edge

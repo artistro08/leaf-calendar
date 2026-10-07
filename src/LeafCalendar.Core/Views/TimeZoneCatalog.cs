@@ -11,11 +11,13 @@ public sealed record TimeZoneChoice(string Id, string City, string Detail)
 }
 
 /// <summary>
-/// Finds time zones by city, IANA ID, Windows name, or common abbreviation (NYC, SF, LON...).
+/// Finds time zones by city, IANA ID, Windows name, or common abbreviation (NYC, SF, LON...), forgiving small typos.
 /// </summary>
 /// <remarks>
 /// A curated list of major cities comes first. Every other zone Windows knows is added from its
-/// primary IANA ID. Only zones this PC can resolve are offered.
+/// primary IANA ID. Only zones this PC can resolve are offered. A query of 4 to 6 letters also matches a word of a city,
+/// alias or Windows name one letter off ("Tokoy"), and 7 or more letters two off ("Pheonix"); those rank below every
+/// exact and part-of-a-name match.
 /// </remarks>
 public static class TimeZoneCatalog
 {
@@ -91,13 +93,16 @@ public static class TimeZoneCatalog
     /// <summary>True when this PC can resolve <paramref name="id"/>.</summary>
     public static bool IsKnown(string id) => TimeZoneInfo.TryFindSystemTimeZoneById(id, out _);
 
-    /// <summary>Best matches for <paramref name="query"/> (curated cities when empty).</summary>
-    public static IReadOnlyList<TimeZoneChoice> Search(string query, DateTimeOffset now, int max = 20)
+    /// <summary>
+    /// Best matches for <paramref name="query"/> (curated cities when empty). With <paramref name="typos"/> off, only exact
+    /// and part-of-a-name matches, so a caller can list its own matches between those and the typo matches.
+    /// </summary>
+    public static IReadOnlyList<TimeZoneChoice> Search(string query, DateTimeOffset now, int max = 20, bool typos = true)
     {
         var q = query.Trim();
 
         return AllEntries.Value
-            .Select((entry, order) => (entry, order, rank: Rank(entry, q)))
+            .Select((entry, order) => (entry, order, rank: Rank(entry, q, typos)))
             .Where(x => x.rank < int.MaxValue)
             .OrderBy(x => x.rank)
             .ThenBy(x => x.order)
@@ -192,7 +197,7 @@ public static class TimeZoneCatalog
         return $"{ZoneAbbreviation.For(zone, now)} · {zone.StandardName}";
     }
 
-    private static int Rank(Entry entry, string query)
+    private static int Rank(Entry entry, string query, bool typos)
     {
         if (query.Length == 0)
         {
@@ -216,24 +221,78 @@ public static class TimeZoneCatalog
             return entry.Curated ? 3 : 4;
         }
 
-        return int.MaxValue;
+        // A Small Typo In A Whole Word, Closer Ones First
+        var allowed = !typos ? 0 : query.Length switch { < 4 => 0, <= 6 => 1, _ => 2 };
+        var closest = allowed == 0 ? int.MaxValue : entry.Words.Min(w => TypoDistance(query, w, allowed));
+
+        return closest <= allowed ? (closest * 2) + (entry.Curated ? 3 : 4) : int.MaxValue;
+    }
+
+    // The optimal string alignment distance (letters added, dropped, changed, or two side by side swapped), ignoring case;
+    // anything past max reads as max + 1
+    private static int TypoDistance(string a, string b, int max)
+    {
+        if (Math.Abs(a.Length - b.Length) > max)
+        {
+            return max + 1;
+        }
+
+        a = a.ToUpperInvariant();
+        b = b.ToUpperInvariant();
+        var d = new int[a.Length + 1, b.Length + 1];
+        for (var i = 0; i <= a.Length; i++)
+        {
+            d[i, 0] = i;
+        }
+
+        for (var j = 0; j <= b.Length; j++)
+        {
+            d[0, j] = j;
+        }
+
+        for (var i = 1; i <= a.Length; i++)
+        {
+            for (var j = 1; j <= b.Length; j++)
+            {
+                var cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + cost);
+                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1])
+                {
+                    d[i, j] = Math.Min(d[i, j], d[i - 2, j - 2] + 1);
+                }
+            }
+        }
+
+        return Math.Min(d[a.Length, b.Length], max + 1);
+    }
+
+    // The whole words of a zone's city, aliases and Windows names, for typo matching
+    private static string[] WordsOf(string id, string city, IEnumerable<string> aliases)
+    {
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(id);
+        return [.. new[] { city, zone.StandardName, zone.DaylightName, zone.DisplayName }
+            .Concat(aliases)
+            .SelectMany(s => s.Split((char[])[' ', '(', ')', '-', '/', '_', ',', '.', '+', ':'], StringSplitOptions.RemoveEmptyEntries))
+            .Where(w => w.Any(char.IsLetter))
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
     }
 
     private static List<Entry> BuildEntries()
     {
-        var entries = Cities.Where(c => IsKnown(c.Id)).Select(c => new Entry(c.Id, c.City, c.Aliases, Curated: true)).ToList();
+        var entries = Cities.Where(c => IsKnown(c.Id)).Select(c => new Entry(c.Id, c.City, c.Aliases, WordsOf(c.Id, c.City, c.Aliases), Curated: true)).ToList();
         var ids = entries.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
 
         foreach (var zone in TimeZoneInfo.GetSystemTimeZones())
         {
             if (TimeZoneInfo.TryConvertWindowsIdToIanaId(zone.Id, out var iana) && IsKnown(iana) && ids.Add(iana))
             {
-                entries.Add(new Entry(iana, CityFor(iana), [zone.DisplayName, zone.StandardName], Curated: false));
+                var city = CityFor(iana);
+                entries.Add(new Entry(iana, city, [zone.DisplayName, zone.StandardName], WordsOf(iana, city, []), Curated: false));
             }
         }
 
         return entries;
     }
 
-    private sealed record Entry(string Id, string City, string[] Aliases, bool Curated);
+    private sealed record Entry(string Id, string City, string[] Aliases, string[] Words, bool Curated);
 }

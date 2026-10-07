@@ -19,15 +19,14 @@ public static class PeoplePickerDialog
     public static async Task<IReadOnlyList<Contact>?> ShowAsync(FrameworkElement owner, CalendarViewModel vm, string title, string primaryText)
     {
         var picked = new List<Contact>();
-        var suggestions = new List<(ContactSuggestion View, Contact Person)>();
         var removes = new List<Button>();
-        using var search = new LatestSearch<ContactResults>();
 
         // Box
         var box = new AutoSuggestBox { PlaceholderText = "Name or email", UpdateTextOnSelect = false, MinWidth = 320 };
         AutomationProperties.SetAutomationId(box, "PeoplePickerBox");
         AutomationProperties.SetName(box, "Name or email");
         Controls.FirstSuggestion.Highlight(box);
+        using var suggest = new ContactSuggestions(box, vm);
 
         // Hint (caption, secondary color that follows the theme), Then The Picked People (collapsed while empty, so no
         // blank strip sits under the hint)
@@ -54,24 +53,14 @@ public static class PeoplePickerDialog
             IsPrimaryButtonEnabled = false,
         };
 
-        // Suggestions Wait Until Typing Pauses
-        var timer = owner.DispatcherQueue.CreateTimer();
-        timer.Interval = TimeSpan.FromMilliseconds(250);
-        timer.IsRepeating = false;
-        timer.Tick += (_, _) => vm.Fire(SuggestAsync, "people.suggest.failed");
-
         // The suggestion highlighted (the first one as they list, or where Up/Down moved to) or clicked; typing drops it
         object? chosen = null;
         box.TextChanged += (_, args) =>
         {
-            if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
+            if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
             {
-                return;
+                chosen = null;
             }
-
-            chosen = null;
-            timer.Stop();
-            timer.Start();
         };
         box.SuggestionChosen += (_, args) => chosen = args.SelectedItem;
 
@@ -102,38 +91,16 @@ public static class PeoplePickerDialog
         Controls.CtrlEnter.Submits(dialog, () => Submit(chosen));
 
         var result = await dialog.ShowAsync();
-        timer.Stop();
-        search.Cancel();
+        suggest.Cancel();
         return result == ContentDialogResult.Primary ? picked : null;
 
-        async Task SuggestAsync()
-        {
-            var text = box.Text.Trim();
-            if (text.Length == 0)
-            {
-                search.Cancel();
-                return;
-            }
-
-            // A result for text that's no longer in the box (a person was added, or the box changed) is dropped
-            if (await search.RunAsync(ct => vm.SearchPeopleAsync(text, ct)) is not { } results || box.Text.Trim() != text)
-            {
-                return;
-            }
-
-            suggestions.Clear();
-            suggestions.AddRange(results.Contacts.Select(c => (new ContactSuggestion(c.Name, c.Email), c)));
-            box.ItemsSource = suggestions.Select(s => s.View).ToList();
-            box.IsSuggestionListOpen = suggestions.Count > 0;
-        }
-
-        // A picked suggestion (found by reference in our own list), or else exactly one valid address in the box
+        // A picked suggestion, or else exactly one valid address in the box
         void Submit(object? suggestion)
         {
-            timer.Stop();
-            if (suggestion is not null && suggestions.FindIndex(s => ReferenceEquals(s.View, suggestion)) is >= 0 and var index)
+            suggest.StopWaiting();
+            if (suggest.Find(suggestion) is { } person)
             {
-                Add(suggestions[index].Person);
+                Add(person);
                 return;
             }
 
@@ -147,7 +114,7 @@ public static class PeoplePickerDialog
         void Add(Contact person)
         {
             chosen = null;
-            search.Cancel();
+            suggest.Cancel();
             if (picked.Count >= FreeBusyLookup.MaxPeople || picked.Exists(p => string.Equals(p.Email, person.Email, StringComparison.OrdinalIgnoreCase)))
             {
                 box.Text = "";

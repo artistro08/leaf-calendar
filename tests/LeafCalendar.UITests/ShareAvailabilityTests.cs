@@ -304,8 +304,8 @@ public sealed class ShareAvailabilityTests : IDisposable
         Assert.True(NoticeSays(leaf, "Availability copied"), "The notice didn't say the availability was copied.");
     }
 
-    // Everything sits in the right panel: the zone, the times, then Copy and Cancel splitting the full width at the bottom;
-    // the panel keeps its width as times are picked, and there's no calendars dropdown
+    // Everything sits in the right panel: the zone, the times, then Save, Copy and Close splitting the full width at the
+    // bottom; the panel keeps its width as times are picked, and there's no calendars dropdown
     [Fact]
     public void Panel_HoldsTheZoneTimesAndButtons_AtAFixedWidth()
     {
@@ -314,12 +314,14 @@ public sealed class ShareAvailabilityTests : IDisposable
 
         var panel = leaf.WaitFor("ShareSlotsPanel").BoundingRectangle;
         var zone = leaf.WaitFor("ShareZoneBox").BoundingRectangle;
+        var save = leaf.WaitFor("ShareSaveButton").BoundingRectangle;
         var copy = leaf.WaitFor("ShareCopyButton").BoundingRectangle;
         var stop = leaf.WaitFor("ShareCancelButton").BoundingRectangle;
         var edge = 16 * leaf.Scale + 1;
         Assert.False(leaf.Exists("ShareCalendarsButton"), "The calendars dropdown still shows.");
         Assert.True(zone.Left - panel.Left <= edge && panel.Right - zone.Right <= edge, $"The zone box ({zone}) doesn't span the panel ({panel}).");
-        Assert.True(copy.Left - panel.Left <= edge && panel.Right - stop.Right <= edge && copy.Top == stop.Top, $"Copy ({copy}) and Cancel ({stop}) don't span the panel ({panel}).");
+        Assert.True(save.Left - panel.Left <= edge && panel.Right - stop.Right <= edge && save.Top == copy.Top && copy.Top == stop.Top, $"Save ({save}), Copy ({copy}) and Close ({stop}) don't span the panel ({panel}).");
+        Assert.True(save.Right < copy.Left && copy.Right < stop.Left && Math.Abs(save.Width - stop.Width) <= 1 && Math.Abs(copy.Width - stop.Width) <= 1, $"Save ({save}), Copy ({copy}) and Close ({stop}) aren't three equal buttons in that order.");
         Assert.True(panel.Bottom - copy.Bottom <= edge, $"The buttons ({copy}) aren't at the panel's ({panel}) bottom.");
 
         DragHours(leaf, 10, 11);
