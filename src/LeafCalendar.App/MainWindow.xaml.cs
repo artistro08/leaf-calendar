@@ -561,7 +561,7 @@ public sealed partial class MainWindow : Window
     // wrapper that carries it (the action while enabled, the reason while disabled); the reason is also the help text.
     // The title bar only lets clicks through where its buttons are when it computes its regions, so they're
     // recomputed once the buttons have their new layout. While the share panel shows a saved group, Delete saved times
-    // takes Delete's place instead (never with Edit and Delete).
+    // takes Edit's place, the first spot, instead (never with Edit and Delete).
     private void UpdateEventActions()
     {
         var several = _calendar is { Selection.Count: > 1 };

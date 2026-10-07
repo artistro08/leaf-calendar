@@ -185,11 +185,51 @@ public sealed partial class CalendarViewModel
     public string? PeopleAccountId() =>
         Settings.MainAccountId is { } main && AccountEmails.ContainsKey(main) ? main : AccountEmails.Keys.FirstOrDefault();
 
-    /// <summary>Contacts matching <paramref name="text"/> for the people picker (none without an account).</summary>
-    public Task<ContactResults> SearchPeopleAsync(string text, CancellationToken ct) =>
-        _services.Google is { } google && PeopleAccountId() is { } account
-            ? google.Contacts.SearchAsync(account, text, ct)
-            : Task.FromResult(new ContactResults([], ContactAccess.Allowed));
+    /// <summary>
+    /// Google contacts matching <paramref name="text"/> for the people picker and the share panel's guest box, from
+    /// every signed-in account at once (your main account's first), each address once (none without an account). The
+    /// access state is the main account's.
+    /// </summary>
+    public async Task<ContactResults> SearchPeopleAsync(string text, CancellationToken ct)
+    {
+        if (_services.Google is not { } google)
+        {
+            return new([], ContactAccess.Allowed);
+        }
+
+        var answers = await Task.WhenAll(PeopleAccounts().Select(account => google.Contacts.SearchAsync(account, text, ct)));
+        return new(
+            [.. answers.SelectMany(a => a.Contacts).DistinctBy(c => c.Email, StringComparer.OrdinalIgnoreCase).Take(ContactSearch.MaxResults)],
+            answers.FirstOrDefault()?.Access ?? ContactAccess.Allowed);
+    }
+
+    // People from your own events, per account: read once off the UI thread, read again after the events change
+    private readonly Dictionary<string, Task<IReadOnlyList<Contact>>> _localPeople = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// People from your own calendar events in every signed-in account (the guests you meet with, as the editor's guest
+    /// box suggests them; your main account's first) who match <paramref name="text"/>, for the people picker and the
+    /// share panel's guest box, each address once. Read from the local database only; none without an account.
+    /// </summary>
+    public async Task<IReadOnlyList<Contact>> LocalPeopleAsync(string text)
+    {
+        var now = Now;
+        var loads = PeopleAccounts().Select(account =>
+        {
+            if (!_localPeople.TryGetValue(account, out var load))
+            {
+                _localPeople[account] = load = Task.Run(() => ReadLocal(conn => FrequentPeople.Load(conn, account, now)));
+            }
+
+            return load;
+        }).ToList();
+
+        var people = await Task.WhenAll(loads);
+        return [.. people.SelectMany(p => FrequentPeople.Match(p, text)).DistinctBy(c => c.Email, StringComparer.OrdinalIgnoreCase).Take(ContactSearch.MaxResults)];
+    }
+
+    // Every signed-in account, the one that asks Google about people first
+    private List<string> PeopleAccounts() => [.. AccountEmails.Keys.OrderBy(id => id == PeopleAccountId() ? 0 : 1)];
 
     // =========================================================================
     // SHARE AVAILABILITY

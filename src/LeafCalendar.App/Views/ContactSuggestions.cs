@@ -6,10 +6,11 @@ using Microsoft.UI.Xaml.Controls;
 namespace LeafCalendar.App.Views;
 
 /// <summary>
-/// Google contact suggestions for a box you type a person into (the people picker's and the share panel's guest box):
-/// they wait until typing pauses, come from the same search as the people picker
-/// (<see cref="CalendarViewModel.SearchPeopleAsync"/>), and each row shows "Name &lt;email&gt;" (or the address alone).
-/// Only the newest search lands, and a result for text no longer in the box is dropped.
+/// Person suggestions for a box you type a person into (the people picker's and the share panel's guest box): they
+/// wait until typing pauses, list the people from your own events first (<see cref="CalendarViewModel.LocalPeopleAsync"/>,
+/// shown at once), then Google's contacts (<see cref="CalendarViewModel.SearchPeopleAsync"/>, added when they come), and
+/// each row shows "Name &lt;email&gt;" (or the address alone). Only the newest search lands, and a result for text no
+/// longer in the box is dropped.
 /// </summary>
 internal sealed class ContactSuggestions : IDisposable
 {
@@ -18,6 +19,9 @@ internal sealed class ContactSuggestions : IDisposable
     private readonly DispatcherQueueTimer _timer;
     private readonly LatestSearch<ContactResults> _search = new();
     private readonly List<(ContactSuggestion View, Contact Person)> _shown = [];
+
+    // Bumped by Cancel, so people from your events still loading never show after it
+    private int _generation;
 
     /// <summary>Suggests contacts in <paramref name="box"/> as you type in it.</summary>
     public ContactSuggestions(AutoSuggestBox box, CalendarViewModel vm)
@@ -52,6 +56,7 @@ internal sealed class ContactSuggestions : IDisposable
     {
         _timer.Stop();
         _search.Cancel();
+        _generation++;
     }
 
     /// <summary>Cancels any search.</summary>
@@ -66,14 +71,29 @@ internal sealed class ContactSuggestions : IDisposable
             return;
         }
 
+        // People From Your Events Show At Once; Google's Answer Is Added Below Them When It Comes
+        var generation = _generation;
+        var local = await _vm.LocalPeopleAsync(text);
+        if (generation != _generation || _box.Text.Trim() != text)
+        {
+            return;
+        }
+
+        Show(local);
+
         // A result for text that's no longer in the box (a person was picked, or the box changed) is dropped
         if (await _search.RunAsync(ct => _vm.SearchPeopleAsync(text, ct)) is not { } results || _box.Text.Trim() != text)
         {
             return;
         }
 
+        Show([.. local.Concat(results.Contacts).DistinctBy(c => c.Email, StringComparer.OrdinalIgnoreCase).Take(ContactSearch.MaxResults)]);
+    }
+
+    private void Show(IReadOnlyList<Contact> people)
+    {
         _shown.Clear();
-        _shown.AddRange(results.Contacts.Select(c => (new ContactSuggestion(c.Name, c.Email), c)));
+        _shown.AddRange(people.Select(c => (new ContactSuggestion(c.Name, c.Email), c)));
         _box.ItemsSource = _shown.Select(s => s.View).ToList();
         _box.IsSuggestionListOpen = _shown.Count > 0;
     }

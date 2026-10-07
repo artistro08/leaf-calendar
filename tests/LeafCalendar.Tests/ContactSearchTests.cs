@@ -232,6 +232,20 @@ public sealed class ContactSearchTests : IDisposable
     }
 
     [Fact]
+    public async Task Search_SourceFails_LogsWhichSource()
+    {
+        RouteToken(AllScopes);
+        _google.On(HttpMethod.Get, ContactsUrl, HttpStatusCode.OK, "{}");
+        _google.On(HttpMethod.Get, OthersUrl, HttpStatusCode.BadRequest, """{"error":{"code":400}}""");
+
+        await CreateSearch().SearchAsync(Account, "alice", TestContext.Current.CancellationToken);
+
+        var log = File.ReadAllText(_log.FilePath);
+        Assert.Contains($"contacts.search.failed account={Account} status=400 source=others", log, StringComparison.Ordinal);
+        Assert.DoesNotContain("source=contacts", log, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Search_BlankOrHugeQuery_SendsNothing()
     {
         var ct = TestContext.Current.CancellationToken;
