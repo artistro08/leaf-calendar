@@ -103,6 +103,29 @@ public sealed class SavedShareGroupTests : IDisposable
         Assert.StartsWith($"{Title}, ", again.WaitFor(FirstSaved).Name, StringComparison.Ordinal);
     }
 
+    // Copy is off while Google answers, and Cancel during that wait throws the picks away: nothing is copied or saved
+    [Fact]
+    public void CancelWhileCopying_CopiesAndSavesNothing()
+    {
+        using var leaf = Launch();
+        ShareAvailabilityTests.StartSharing(leaf);
+        ShareAvailabilityTests.DragHours(leaf, 10, 12);
+        leaf.WaitFor("ShareSlot_0");
+        _google.FreeBusyDelay = TimeSpan.FromSeconds(4);
+        Clipboard.Clear();
+
+        var copy = leaf.WaitFor("ShareCopyButton").AsButton();
+        copy.Invoke();
+        Assert.True(Retry.WhileTrue(() => copy.IsEnabled, TimeSpan.FromSeconds(2)).Success, "Copy stayed on while copying.");
+        leaf.WaitFor("ShareCancelButton").AsButton().Invoke();
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(2)).Success, "Cancel left the panel up.");
+
+        Assert.True(Retry.WhileTrue(() => _google.FreeBusyQueries.IsEmpty, TimeSpan.FromSeconds(5)).Success, "Copy sent no free/busy query.");
+        Thread.Sleep(TimeSpan.FromSeconds(6));
+        Assert.False(leaf.Exists(FirstSaved), "The canceled share was saved.");
+        Assert.Null(Clipboard.Text());
+    }
+
     // A click on a saved time opens its group in the panel with its title
     [Fact]
     public void Click_OpensTheGroup()

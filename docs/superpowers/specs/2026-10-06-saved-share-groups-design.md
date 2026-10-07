@@ -74,7 +74,7 @@ Sharing gains a "which group" field:
 - `ShareTitle` (string): the panel's Title box.
 - `ShareText` (string): this share's message. `StartSharing` sets it from `Settings.ShareMessage` (the default); the panel's edits change only `ShareText`, never the setting. `SetShareMessage` is replaced by this property, and `CopyAvailabilityAsync` composes from `ShareText`.
 - Settings › Calendars' box saves `Settings.ShareMessage` through `SettingsContext.Save` (an empty box saves empty, meaning only the times, as today).
-- `OpenGroup(long id)`: starts sharing on that group (its times, title, message and zone, the shareable calendars as they are now). If already sharing new picks, those are dropped first, like Cancel.
+- `OpenGroup(long id)`: starts sharing on that group (its times, title, message and zone, the shareable calendars as they are now). It opens only when not already sharing (a click on a saved time is refused while sharing).
 - `AddShareSlot`, `UpdateShareSlot`, `RemoveShareSlot` unchanged for new picks. With a group open, each change also writes the group (changes save at once). Removing a group's last time deletes it and stops sharing.
 - `CopyAvailabilityAsync`: on success, with no group open it inserts a new group from the free times; with one open it updates that group to the free times. Either way sharing stops as today. A database failure is logged and shown ("Copied, but couldn't save these times."); the copy still counts.
 - `DeleteOpenGroup()`: deletes the group and stops sharing.

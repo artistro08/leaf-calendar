@@ -124,6 +124,9 @@ public sealed class FakeGoogleServer : IDisposable
     /// </summary>
     public string? HostedDomain { get; set; }
 
+    /// <summary>How long a <c>freeBusy</c> answer waits (zero answers at once), so a test can act while Leaf waits.</summary>
+    public TimeSpan FreeBusyDelay { get; set; }
+
     /// <summary>Every <c>freeBusy</c> request body, in order.</summary>
     public ConcurrentQueue<string> FreeBusyQueries { get; } = new();
 
@@ -199,6 +202,12 @@ public sealed class FakeGoogleServer : IDisposable
                 if (Offline)
                 {
                     return;
+                }
+
+                // A slow free/busy answer, when a test asks for one
+                if (FreeBusyDelay > TimeSpan.Zero && target.Contains("/calendar/v3/freeBusy", StringComparison.Ordinal))
+                {
+                    await Task.Delay(FreeBusyDelay);
                 }
 
                 // A bug in the fake answers 500 with the exception type, so a failing test says why

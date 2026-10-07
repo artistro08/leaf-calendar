@@ -203,6 +203,9 @@ public sealed partial class CalendarViewModel
     /// <summary>True while you pick times to share: a drag on the time grid adds a slot instead of a new event.</summary>
     public bool IsSharing => _sharing;
 
+    /// <summary>True while Copy waits for Google's free/busy answer (Copy is off until it's back).</summary>
+    public bool IsCopying { get; private set; }
+
     /// <summary>The picked times, merged and in order.</summary>
     public IReadOnlyList<BusyRange> ShareSlots => _slots;
 
@@ -306,7 +309,8 @@ public sealed partial class CalendarViewModel
 
     /// <summary>
     /// Opens a saved group in the share panel: its times (editable, each change saved), title, message and zone, checked
-    /// against the calendars that can be shared now. New picks not yet copied are dropped first, like Cancel.
+    /// against the calendars that can be shared now. Only opens when not already sharing (a click on a saved time is
+    /// refused while sharing).
     /// </summary>
     public void OpenGroup(long id)
     {
@@ -355,10 +359,14 @@ public sealed partial class CalendarViewModel
         }
 
         var slot = _slots[index];
-        var title = _shareTitle.Length > 0 ? _shareTitle : GenericShareTitle;
+        var cleaned = DisplayText.Clean(_shareTitle, ShareGroupStore.MaxTitleLength);
+        var title = cleaned.Length > 0 ? cleaned : GenericShareTitle;
         StopSharing();
+        var before = Editing;
         BeginCreate(slot.Start, slot.End, isAllDay: false);
-        if (Editing is not { IsNew: true } editor)
+
+        // The editor didn't open on this time (another edit it couldn't leave stayed): nothing is approved
+        if (ReferenceEquals(Editing, before) || Editing is not { IsNew: true } editor)
         {
             return;
         }
@@ -606,11 +614,38 @@ public sealed partial class CalendarViewModel
     /// <summary>
     /// Copies the free picked times as text, in this share's message (never logged), saves them as a group (or updates the
     /// open one) so they stay on the calendar, then stops sharing and says so in the notice; or says why it couldn't
-    /// (sharing goes on).
+    /// (sharing goes on). Nothing happens when the share stopped, or its group or times changed, while Google answered.
     /// </summary>
     public async Task CopyAvailabilityAsync()
     {
-        if (await BuildAvailabilityAsync(_life.Token) is not { } availability)
+        if (IsCopying)
+        {
+            return;
+        }
+
+        var group = _openGroupId;
+        var picks = _slots.ToList();
+        IsCopying = true;
+        ShareChanged?.Invoke(this, EventArgs.Empty);
+        (string Text, IReadOnlyList<BusyRange> Free)? built;
+        try
+        {
+            built = await BuildAvailabilityAsync(_life.Token);
+        }
+        finally
+        {
+            IsCopying = false;
+            ShareChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        // Canceled, deleted, another group opened, or the times changed while Google answered: the answer is stale, so
+        // nothing is copied or saved (a share still going can be copied again)
+        if (!_sharing || _openGroupId != group || !_slots.SequenceEqual(picks))
+        {
+            return;
+        }
+
+        if (built is not { } availability)
         {
             ShowMessage("Couldn't check your calendars. Check your connection.");
             return;

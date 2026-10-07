@@ -201,7 +201,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         }
 
         _sharing = vm.IsSharing;
-        _copy.IsEnabled = vm.ShareSlots.Count > 0;
+        _copy.IsEnabled = vm.ShareSlots.Count > 0 && !vm.IsCopying;
         _footer.BorderBrush = LeafBrushes.GridLine(ActualTheme == ElementTheme.Dark);
         _empty.Visibility = vm.ShareSlots.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         while (_shown.Count < vm.ShareSlots.Count)
