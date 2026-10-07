@@ -1,0 +1,70 @@
+name: Release
+
+# A version tag (v0.1.305) builds the signed Release (Native AOT) MSIX and opens a draft GitHub release with it and the
+# certificate that verifies it. The owner approves the notes, then publishes the draft. The signing certificate lives
+# only in the repository secrets (SIGNING_PFX, base64; SIGNING_PASSWORD).
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      # Version Check: the tag names the manifest's version (v0.1.305 is 0.1.305.0)
+      - name: Check the version
+        shell: pwsh
+        run: |
+          $version = ([xml](Get-Content src/LeafCalendar.App/Package.appxmanifest -Raw)).Package.Identity.Version
+          if ("v$version" -ne "$env:TAG.0") { throw "Tag $env:TAG doesn't match the manifest's version $version." }
+          "VERSION=$version" >> $env:GITHUB_ENV
+          "NAME=$($env:TAG.TrimStart('v'))" >> $env:GITHUB_ENV
+
+      # Signing Certificate: from the repository secrets into this runner's store, and its public half for the release
+      - name: Import the signing certificate
+        shell: pwsh
+        env:
+          SIGNING_PFX: ${{ secrets.SIGNING_PFX }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNING_PFX))
+          $password = ConvertTo-SecureString $env:SIGNING_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx
+          Export-Certificate -Cert $cert -FilePath LeafCalendar.cer | Out-Null
+          "THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+
+      # Signed MSIX (the AOT linker setup calls vswhere.exe by bare name)
+      - name: Publish the signed MSIX
+        shell: pwsh
+        run: |
+          $env:PATH += ";${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+          dotnet publish src/LeafCalendar.App/LeafCalendar.App.csproj -c Release -r win-x64 -p:Platform=x64 `
+              -p:GenerateAppxPackageOnBuild=true -p:AppxPackageSigningEnabled=true -p:PackageCertificateThumbprint=$env:THUMBPRINT
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $msix = Get-ChildItem src/LeafCalendar.App/AppPackages -Recurse -Filter '*.msix' | Select-Object -First 1
+          Copy-Item $msix.FullName "LeafCalendar_$($env:VERSION)_x64.msix"
+
+      # Package Size: no AI libraries, under budget
+      - run: pwsh tools/check-package.ps1
+
+      # Draft Release: the installer and its certificate; the notes are written and approved before it's published
+      - name: Create the draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:TAG --draft --title "Leaf Calendar $env:NAME" --notes "Notes to come." "LeafCalendar_$($env:VERSION)_x64.msix" LeafCalendar.cer
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
