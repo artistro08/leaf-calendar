@@ -5,6 +5,7 @@ using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Editing;
+using LeafCalendar.Core.People;
 using LeafCalendar.UITests.Support;
 using Microsoft.Data.Sqlite;
 
@@ -295,5 +296,31 @@ public sealed class SettingsTests : IDisposable
         leaf.WaitInSettings("GitHubLink").AsButton().Invoke();
 
         Assert.True(Retry.WhileFalse(() => LeafApp.LaunchedLinks(_profile).Contains("https://github.com/artistro08/leaf-calendar"), TimeSpan.FromSeconds(5)).Success);
+    }
+
+    [Fact]
+    public void ShareMessage_SetInCalendars_IsWhereTheNextShareStarts()
+    {
+        using var leaf = Launch();
+        leaf.OpenSettings("Calendars");
+        var box = leaf.WaitInSettings("DefaultShareMessageBox").AsTextBox();
+        box.Text = "Pick one: {times}";
+        leaf.WaitInSettings("DefaultShareMessageReset").Focus(); // Lost focus saves
+        leaf.CloseSettings();
+
+        leaf.Press(VirtualKeyShort.KEY_S);
+        Assert.Equal("Pick one: {times}", leaf.WaitFor("ShareMessageBox").AsTextBox().Text);
+    }
+
+    [Fact]
+    public void ShareMessage_Reset_PutsBackLeafsMessage()
+    {
+        using var leaf = Launch();
+        leaf.OpenSettings("Calendars");
+        var box = leaf.WaitInSettings("DefaultShareMessageBox").AsTextBox();
+        box.Text = "Mine {times}";
+        leaf.WaitInSettings("DefaultShareMessageReset").AsButton().Invoke();
+
+        Assert.Equal(AvailabilityText.DefaultMessage.Replace("\r\n", "\r", StringComparison.Ordinal), box.Text.Replace("\r\n", "\r", StringComparison.Ordinal));
     }
 }

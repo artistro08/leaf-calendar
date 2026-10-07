@@ -3,6 +3,7 @@ using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Editing;
+using LeafCalendar.Core.People;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -66,6 +67,7 @@ public sealed partial class CalendarsPage : Page
         _context.Calendar.AccountFoldingChanged += OnCalendarsChanged;
         _context.Host.Closed += OnHostClosed;
         Rebuild();
+        ShowDefaultMessage();
     }
 
     /// <inheritdoc />
@@ -112,6 +114,19 @@ public sealed partial class CalendarsPage : Page
         {
             _colorFlyout?.Hide();
         }
+    }
+
+    // The default share message as saved (the box shows \r line breaks, the setting keeps \r\n like the share panel's)
+    private void ShowDefaultMessage() => DefaultMessageBox.Text = _context.Calendar.Settings.ShareMessage.Replace("\r\n", "\r", StringComparison.Ordinal);
+
+    // Losing focus saves it, the way every Settings change saves at once
+    private void OnDefaultMessageLostFocus(object sender, RoutedEventArgs e) =>
+        _context.Save(s => s with { ShareMessage = DefaultMessageBox.Text.Replace("\r", "\r\n", StringComparison.Ordinal) });
+
+    private void OnDefaultMessageReset(object sender, RoutedEventArgs e)
+    {
+        _context.Save(s => s with { ShareMessage = AvailabilityText.DefaultMessage });
+        ShowDefaultMessage();
     }
 
     // Only a real change counts: the switch also raises Toggled when the list is rebuilt
