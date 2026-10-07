@@ -96,14 +96,13 @@
                             AutomationProperties.AutomationId="EditorEndTime" />
                     </Grid>
 
-                    <!-- Time Zone (the dates and times above are on this zone's clock): every zone in a stock dropdown, searchable
-                         by typing (a city, NYC, or part of a row), and only a zone from the list is taken; "In your time" under it -->
+                    <!-- Time Zone (the dates and times above are on this zone's clock): every zone in a stock dropdown, filtered
+                         by typing (a city, NYC, part of a row, or a small typo), and only a zone from the list is taken; "In your time" under it -->
                     <StackPanel Spacing="4" Visibility="{x:Bind Editor.ShowTimeZone, Mode=OneWay}">
                         <controls:TimeZoneComboBox
                             x:Name="TimeZoneBox"
                             Header="Time zone"
                             IsEditable="True"
-                            IsTextSearchEnabled="True"
                             ZoneChanged="OnZoneChanged"
                             AutomationProperties.Name="Time zone"
                             AutomationProperties.AutomationId="EditorTimeZoneBox" />

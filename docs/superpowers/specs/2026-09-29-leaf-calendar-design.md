@@ -310,7 +310,7 @@ Anyone can send an invite, so event content is treated as hostile.
 ### 6.4 Calendar Area
 
 - **Views:** Day, Week, Month, and custom 1 to 31 days.
-- **Time zones:** multiple zone columns on the left edge. Add, rename, and drag to reorder. Search zones by city or abbreviation (NYC, SF, LON). Cities show their current names (Kyiv, Kolkata, Kathmandu, Yangon, Nuuk, Ho Chi Minh City) even where Windows still uses the old IANA spelling; searching the old name still finds them, and settings keep the zone ID as it was. Time travel names the zone as "Tokyo time (JST)", leaving out a short name the label already has ("UTC time").
+- **Time zones:** multiple zone columns on the left edge. Add, rename, and drag to reorder. Search zones by city or abbreviation (NYC, SF, LON); typing in a zone box filters its list to the matching zones, forgiving a small typo (one letter off for 4 to 6 letters typed, two for 7 or more, so "Pheonix" finds Phoenix), with exact and part-of-a-name matches first. Cities show their current names (Kyiv, Kolkata, Kathmandu, Yangon, Nuuk, Ho Chi Minh City) even where Windows still uses the old IANA spelling; searching the old name still finds them, and settings keep the zone ID as it was. Time travel names the zone as "Tokyo time (JST)", leaving out a short name the label already has ("UTC time").
 - **All-day row:** collapsible. Multi-day events keep their titles visible.
 - **Toggles:** weekends, declined events, week numbers. The week can start on any day.
 - **Current-time line.** Working hours shaded (Leaf's own setting; Google's API doesn't expose them), 9 AM–5 PM Monday–Friday by default.

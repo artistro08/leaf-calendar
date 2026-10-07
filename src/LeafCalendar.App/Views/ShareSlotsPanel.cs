@@ -29,7 +29,7 @@ public sealed partial class ShareSlotsPanel : UserControl
 {
     private readonly StackPanel _rows = new() { Spacing = 8 };
     private readonly TextBlock _empty = new() { Text = "No times yet.", Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] };
-    private readonly TimeZoneComboBox _zoneBox = new() { Header = "Time zone", IsEditable = true, IsTextSearchEnabled = true };
+    private readonly TimeZoneComboBox _zoneBox = new() { Header = "Time zone", IsEditable = true };
     private readonly TextBox _message = new()
     {
         Header = "Message",

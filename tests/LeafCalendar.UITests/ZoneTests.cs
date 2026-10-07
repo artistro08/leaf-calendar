@@ -162,6 +162,32 @@ public sealed class ZoneTests : IDisposable
     }
 
     [Fact]
+    public void PrimaryZone_TypingFiltersTheList_ForgivingATypo()
+    {
+        using var leaf = Launch();
+        leaf.OpenSettings("TimeZones");
+        leaf.ExpandInSettings("PrimaryZoneExpander");
+        leaf.WaitInSettings("FollowWindowsZoneSwitch").AsToggleButton().Toggle();
+        var box = leaf.WaitInSettings("PrimaryZoneBox");
+        Assert.True(Retry.WhileFalse(() => box.IsEnabled, Wait).Success);
+
+        // A misspelled city filters the list down to it, and the typed text stays exactly as typed
+        box.Focus();
+        Thread.Sleep(200);
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
+        Keyboard.Type("Pheonix");
+        var combo = box.AsComboBox();
+        var edit = box.FindFirstDescendant(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.Edit))!.AsTextBox();
+        Assert.True(Retry.WhileFalse(() => combo.Items is { Length: > 0 and < 10 } rows && rows.Any(r => r.Name.Contains("Phoenix", StringComparison.Ordinal)), Wait).Success,
+            $"The list shows {string.Join(", ", combo.Items.Select(r => r.Name))}.");
+        Assert.Equal("Pheonix", edit.Text);
+
+        // Enter picks it
+        Keyboard.Type(VirtualKeyShort.RETURN);
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("PrimaryZoneSummary").Name == "Phoenix", Wait).Success, $"The summary reads {leaf.WaitInSettings("PrimaryZoneSummary").Name}.");
+    }
+
+    [Fact]
     public void AtMinimumWindow_NothingOverlaps()
     {
         using var leaf = Launch();

@@ -52,7 +52,6 @@
                                 x:Name="PrimaryZoneBox"
                                 Width="320"
                                 IsEditable="True"
-                                IsTextSearchEnabled="True"
                                 ZoneChanged="OnPrimaryZoneChanged"
                                 AutomationProperties.Name="Leaf's time zone"
                                 AutomationProperties.AutomationId="PrimaryZoneBox" />

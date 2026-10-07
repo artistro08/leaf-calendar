@@ -27,6 +27,49 @@ public class TimeZoneCatalogTests
         Assert.All(results, r => Assert.True(TimeZoneCatalog.IsKnown(r.Id)));
     }
 
+    [Theory]
+    [InlineData("Pheonix")]
+    [InlineData("Phonix")]
+    [InlineData("phoe")]
+    [InlineData("arizona")]
+    [InlineData("PHX")]
+    public void Search_CityPartAliasOrSmallTypo_FindsPhoenix(string query) =>
+        Assert.Contains(TimeZoneCatalog.Search(query, Now), r => r.Id == "America/Phoenix");
+
+    [Fact]
+    public void Search_PartOfACity_RanksAboveTypoMatches() =>
+        Assert.Equal("America/Phoenix", TimeZoneCatalog.Search("phoe", Now)[0].Id);
+
+    [Fact]
+    public void Search_TypoMatch_NeverOutranksASubstringMatch()
+    {
+        // "sant" is part of Santiago and one letter off "Saint" (Saint Pierre, the Windows name for Miquelon)
+        var results = TimeZoneCatalog.Search("sant", Now, 500).Select(r => r.Id).ToList();
+
+        Assert.Contains("America/Miquelon", results);
+        Assert.True(results.IndexOf("America/Santiago") < results.IndexOf("America/Miquelon"));
+    }
+
+    [Theory]
+    [InlineData("Pheonix", "America/Phoenix")]
+    [InlineData("Tokoy", "Asia/Tokyo")]
+    [InlineData("Sydnye", "Australia/Sydney")]
+    [InlineData("Johanesbrug", "Africa/Johannesburg")]
+    public void Search_Typo_FindsTheZoneFirst(string query, string id) =>
+        Assert.Equal(id, TimeZoneCatalog.Search(query, Now)[0].Id);
+
+    [Theory]
+    [InlineData("nyx")]
+    [InlineData("Tkoyo1")]
+    public void Search_ShortOrTooFarOff_NoTypoMatch(string query) => Assert.Empty(TimeZoneCatalog.Search(query, Now));
+
+    [Fact]
+    public void Search_StillReturnsAtMostMax()
+    {
+        Assert.Single(TimeZoneCatalog.Search("Pheonix", Now, 1));
+        Assert.Equal(5, TimeZoneCatalog.Search("an", Now, 5).Count);
+    }
+
     [Fact]
     public void Search_Nonsense_Empty() => Assert.Empty(TimeZoneCatalog.Search("zzqqxx", Now));
 
