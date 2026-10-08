@@ -32,28 +32,19 @@ public sealed class CalendarShellTests : IDisposable
         Assert.Contains("2026", leaf.WaitFor("PeriodTitle").Name, StringComparison.Ordinal);
     }
 
-    // Create event sits just left of Search, open sidebar or closed, and opens a new event like C
+    // Create event sits right after the Next arrow in the calendar's toolbar, and opens a new event like C
     [Fact]
-    public void CreateEvent_SitsLeftOfSearch_AndOpensANewEvent()
+    public void CreateEvent_SitsAfterTheNextArrow_AndOpensANewEvent()
     {
         using var leaf = Launch();
 
         var create = leaf.WaitFor("CreateEventButton");
-        var search = leaf.WaitFor("SearchButton");
+        var next = leaf.WaitFor("NextButton").BoundingRectangle;
+        var spot = create.BoundingRectangle;
         Assert.Equal("Create event", create.Name);
-        Assert.True(create.BoundingRectangle.Right <= search.BoundingRectangle.Left && search.BoundingRectangle.Left - create.BoundingRectangle.Right <= 8 * leaf.Scale && Math.Abs(create.BoundingRectangle.Top - search.BoundingRectangle.Top) <= 1, $"Create event ({create.BoundingRectangle}) isn't just left of Search ({search.BoundingRectangle}).");
+        Assert.True(Math.Abs(spot.Left - next.Right) <= 1 && Math.Abs(spot.Top - next.Top) <= 1, $"Create event ({spot}) isn't right after the Next arrow ({next}).");
 
-        // The Sidebar Toggled (open or closed, whichever it started as): both move, still side by side (a bounding
-        // rectangle is read live, so the spot before is kept as a value)
-        var before = create.BoundingRectangle;
-        ToggleSidebar(leaf);
-        Assert.True(Retry.WhileFalse(() => Math.Abs(leaf.WaitFor("CreateEventButton").BoundingRectangle.Left - before.Left) > 100, TimeSpan.FromSeconds(5)).Success, $"Create event didn't move with the sidebar (was {before}, now {leaf.WaitFor("CreateEventButton").BoundingRectangle}).");
-        Thread.Sleep(500);
-        var closedCreate = leaf.WaitFor("CreateEventButton").BoundingRectangle;
-        var closedSearch = leaf.WaitFor("SearchButton").BoundingRectangle;
-        Assert.True(closedCreate.Right <= closedSearch.Left && closedSearch.Left - closedCreate.Right <= 8 * leaf.Scale, $"Toggled: Create event ({closedCreate}) isn't just left of Search ({closedSearch}).");
-
-        leaf.WaitFor("CreateEventButton").AsButton().Invoke();
+        create.AsButton().Invoke();
         Assert.NotNull(leaf.WaitFor("EditorTitle"));
     }
 

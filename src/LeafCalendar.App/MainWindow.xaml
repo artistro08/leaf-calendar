@@ -50,38 +50,18 @@
             <!-- Toolbar (only its buttons take clicks; the space around them drags the window) -->
             <TitleBar.Content>
                 <Grid x:Name="ToolbarHost">
-                    <!-- Sidebar Actions: Create event, then Search (opens the command menu), at the right end of the sidebar's
-                         title bar row with Search centered over the mini month's Next month button; after the title bar's left
-                         items when the sidebar is closed. Placed in code -->
-                    <StackPanel x:Name="SidebarActions" HorizontalAlignment="Left" Orientation="Horizontal" Spacing="4">
-                        <!-- Create Event (a new event at the picked time or the next quarter hour, like C). Segoe Fluent Icons
-                             has no calendar-add glyph: a calendar on the 16 DIP grid with a plus in its corner, 1 px strokes -->
-                        <Button
-                            x:Name="CreateEventButton"
-                            Style="{StaticResource LeafBareIconButtonStyle}"
-                            Click="OnCreateEventClick"
-                            ToolTipService.ToolTip="Create event (C)"
-                            AutomationProperties.Name="Create event"
-                            AutomationProperties.AutomationId="CreateEventButton">
-                            <PathIcon
-                                Width="16"
-                                Height="16"
-                                Data="F1 M3,2 H13 A2,2 0 0 1 15,4 V8 H14 V4 A1,1 0 0 0 13,3 H3 A1,1 0 0 0 2,4 V12 A1,1 0 0 0 3,13 H8 V14 H3 A2,2 0 0 1 1,12 V4 A2,2 0 0 1 3,2 Z M2,5 H14 V6 H2 Z M10,12 H15 V13 H10 Z M12,10 H13 V15 H12 Z" />
-                        </Button>
-                        <!-- /Create Event -->
-
-                        <!-- Search -->
-                        <Button
-                            x:Name="SearchButton"
-                            Style="{StaticResource LeafBareIconButtonStyle}"
-                            Click="OnSearchClick"
-                            ToolTipService.ToolTip="Search (Ctrl+K)"
-                            AutomationProperties.Name="Search"
-                            AutomationProperties.AutomationId="SearchButton">
-                            <FontIcon Glyph="&#xE721;" FontSize="16" />
-                        </Button>
-                    </StackPanel>
-                    <!-- /Sidebar Actions -->
+                    <!-- Search (opens the command menu): at the right end of the sidebar's title bar row, centered over the
+                         mini month's Next month button; after the title bar's left items when the sidebar is closed. Placed in code -->
+                    <Button
+                        x:Name="SearchButton"
+                        HorizontalAlignment="Left"
+                        Style="{StaticResource LeafBareIconButtonStyle}"
+                        Click="OnSearchClick"
+                        ToolTipService.ToolTip="Search (Ctrl+K)"
+                        AutomationProperties.Name="Search"
+                        AutomationProperties.AutomationId="SearchButton">
+                        <FontIcon Glyph="&#xE721;" FontSize="16" />
+                    </Button>
 
                     <!-- Slide (the toolbar and the edit icon follow the island's right edge together) -->
                     <Grid x:Name="ToolbarSlide">
@@ -200,6 +180,21 @@
                                     <!-- The chevron turns a quarter to point down in Month view -->
                                     <FontIcon x:Name="NextGlyph" Glyph="&#xE76C;" FontSize="12" RenderTransformOrigin="0.5,0.5" />
                                 </Button>
+
+                                <!-- Create Event (a new event at the picked time or the next quarter hour, like C). Segoe Fluent
+                                     Icons has no calendar-add glyph: a calendar on the 16 DIP grid with a plus in its corner, 1 px strokes -->
+                                <Button
+                                    Style="{StaticResource LeafBareIconButtonStyle}"
+                                    Click="OnCreateEventClick"
+                                    ToolTipService.ToolTip="Create event (C)"
+                                    AutomationProperties.Name="Create event"
+                                    AutomationProperties.AutomationId="CreateEventButton">
+                                    <PathIcon
+                                        Width="16"
+                                        Height="16"
+                                        Data="F1 M3,2 H13 A2,2 0 0 1 15,4 V8 H14 V4 A1,1 0 0 0 13,3 H3 A1,1 0 0 0 2,4 V12 A1,1 0 0 0 3,13 H8 V14 H3 A2,2 0 0 1 1,12 V4 A2,2 0 0 1 3,2 Z M2,5 H14 V6 H2 Z M10,12 H15 V13 H10 Z M12,10 H13 V15 H12 Z" />
+                                </Button>
+                                <!-- /Create Event -->
                             </StackPanel>
                         </StackPanel>
 
