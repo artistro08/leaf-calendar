@@ -301,6 +301,7 @@ public sealed class ShareAvailabilityTests : IDisposable
         var reset = leaf.WaitFor("ShareMessageReset").BoundingRectangle;
         var message = leaf.WaitFor("ShareMessageBox").BoundingRectangle;
         Assert.True(reset.Left >= message.Left && reset.Right <= message.Right && reset.Bottom <= message.Bottom && reset.Top > message.Top + message.Height / 2, $"The message link ({reset}) isn't inside the bottom of the message box ({message}).");
+        Assert.True(message.Right - reset.Right <= 16 * leaf.Scale && reset.Left - message.Left > 16 * leaf.Scale, $"The message link ({reset}) isn't at the right of the message box ({message}).");
 
         // The Line, Then The Heading, Then The Guest Box, All Under The Message
         var line = leaf.WaitFor("ShareGuestsLine").BoundingRectangle;

@@ -124,9 +124,13 @@ public sealed partial class ShareSlotsPanel : UserControl
             Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
             TextWrapping = TextWrapping.Wrap,
         };
-        // (the link lines up with the typed text: both sit the box's text padding in from its border)
+        // (the link sits at the right, the box's text padding in from its border, like the typed text)
         var textPadding = (Thickness)Application.Current.Resources["TextControlThemePadding"];
-        var resetMessage = new HyperlinkButton { Content = "Use the default message", Padding = new Thickness(0), Margin = new Thickness(textPadding.Left, 8, textPadding.Right, 8) };
+        var resetMessage = new HyperlinkButton { Content = "Use the default message", Padding = new Thickness(0), Margin = new Thickness(textPadding.Left, 8, textPadding.Right, 8), HorizontalAlignment = HorizontalAlignment.Right };
+
+        // A plain link: no button fill behind it on hover or press (the text's own link colors still change)
+        resetMessage.Resources["HyperlinkButtonBackgroundPointerOver"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        resetMessage.Resources["HyperlinkButtonBackgroundPressed"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
         AutomationProperties.SetName(_message, "Message");
         AutomationProperties.SetAutomationId(_message, "ShareMessageBox");
         AutomationProperties.SetAutomationId(resetMessage, "ShareMessageReset");
