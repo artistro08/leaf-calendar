@@ -54,7 +54,7 @@ public sealed partial class ShareSlotsPanel : UserControl
     private readonly StackPanel _guestRows = new() { Spacing = 4 };
     private readonly Border _line = new() { Height = 1, Margin = new Thickness(0, 8, 0, 8) };
 
-    // The divider between the message's text and its "Use the default message" strip, inside the box's border
+    // The divider between the message's text and its "Reset to default" strip, inside the box's border
     private readonly Border _messageLine = new() { Height = 1 };
     private readonly Button _close = new() { Content = "Cancel", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Grid _buttons = new() { ColumnSpacing = 8 };
@@ -126,7 +126,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         };
         // (the link sits at the right, the box's text padding in from its border, like the typed text)
         var textPadding = (Thickness)Application.Current.Resources["TextControlThemePadding"];
-        var resetMessage = new HyperlinkButton { Content = "Use the default message", Padding = new Thickness(0), Margin = new Thickness(textPadding.Left, 8, textPadding.Right, 8), HorizontalAlignment = HorizontalAlignment.Right };
+        var resetMessage = new HyperlinkButton { Content = "Reset to default", Padding = new Thickness(0), Margin = new Thickness(textPadding.Left, 8, textPadding.Right, 8), HorizontalAlignment = HorizontalAlignment.Right };
 
         // A plain link: no button fill behind it on hover or press (the text's own link colors still change)
         resetMessage.Resources["HyperlinkButtonBackgroundPointerOver"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);

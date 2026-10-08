@@ -107,8 +107,8 @@ Saved groups' times are drawn even when not sharing. The faded, lined look of ev
 
 ## 5. Share Panel (`ShareSlotsPanel.cs`)
 
-- Top, in order: the heading, the hint "Drag on the calendar to pick times.", the **Title** box, Time zone, Message, its hint and "Use the default message". What's typed in Title is used by Save, Copy & Save and Approve….
-- The Message box starts from the default (or the open group's message). Its "Use the default message" link now puts back your Settings default, not the built-in text. With a group open, a message change is saved to the group on Save or Copy & Save.
+- Top, in order: the heading, the hint "Drag on the calendar to pick times.", the **Title** box, Time zone, Message, its hint and "Reset to default" (a link inside the bottom of the box). What's typed in Title is used by Save, Copy & Save and Approve….
+- The Message box starts from the default (or the open group's message). Its "Reset to default" link (owner change 2026-10-07; it was "Use the default message") puts back your Settings default, not the built-in text. With a group open, a message change is saved to the group on Save or Copy & Save.
 - Heading: "Times to share" for new picks, "Saved times" for an open group.
 - Then a 1 px line (the footer line's brush, `ShareGuestsLine`) and the section heading **"Guests & proposed times"** (BodyStrong, `ShareGuestsHeading`), then the guest box, the guest list, then the times (and "No times yet.").
 - **Guest box**, for new picks and an open group: an `AutoSuggestBox` (AutomationId `ShareGuestBox`, placeholder "name@example.com", no header) that suggests Google contacts as you type, with the people picker's search, pause and rows (shared helper `Views/ContactSuggestions.cs`). A pick, or Enter on a valid address, adds the guest to the list under the box and empties the box. Each guest row copies the event editor's guest chip (`LeafGuestChipStyle`): the name (else the address), a named person's address on its own line, and a remove button ("Remove guest"). AutomationIds `ShareGuest_{i}` (the name) and `ShareGuestRemove_{i}`. Each time row of an open group gets a full-width **Approve…** button (a check mark, then the text, centered), enabled once the group has a guest (added, or a valid address typed and not yet added).
@@ -169,7 +169,7 @@ A new card on the Calendars page, following the Windows 11 Settings pattern (one
 New wording not yet approved; it must be approved before shipping:
 
 - Grid slot automation name: "{title}, {time range}". Approve automation name: "Approve {time range}".
-- Settings card header "Share availability message"; its reset button "Reset to default" (approved 2026-10-07, replacing the link "Use Leaf's message"); the panel's link keeps "Use the default message", which means your Settings default, and sits in a strip along the inside bottom of the message box, under a divider, like the event editor's description toolbar.
+- Settings card header "Share availability message"; its reset button "Reset to default" (approved 2026-10-07, replacing the link "Use Leaf's message"); the panel's link reads "Reset to default" too (owner change 2026-10-07; it was "Use the default message"), puts back your Settings default, and sits in a strip along the inside bottom of the message box, under a divider, like the event editor's description toolbar.
 
 ## 10. Testing
 
