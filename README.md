@@ -4,7 +4,7 @@
 
 <h1 align="center">Leaf Calendar</h1>
 
-<p align="center">A fast, native Windows 11 app for your Google Calendar, with no server in between.</p>
+<p align="center">A fast, native Windows 11 app for your Google Calendar. Heavily inspired by Notion Calendar</p>
 
 <p align="center">
     <img src="docs/screenshots/01-week-light.png" alt="Leaf Calendar showing a week of events, the month and calendar list on the left, and upcoming events on the right">
@@ -12,7 +12,7 @@
 
 ## Introduction
 
-Leaf signs in with your own Google Cloud OAuth client and talks only to Google. Your calendar is cached on your PC, so Leaf opens fast and works offline, and edits made offline are sent once you're back online. There's no telemetry, analytics, or tracking. See [PRIVACY.md](PRIVACY.md) for what Leaf keeps and sends.
+In order to get things setup, you need to setup your own Google Cloud OAuth client. Your calendar is cached on your PC, so the app opens fast and works offline, and edits made offline are sent once you're back online. There's no telemetry, analytics, or tracking. See [PRIVACY.md](PRIVACY.md) for what Leaf keeps and sends.
 
 - Day, week, month, and 2 to 9 day views, with a mini month and your calendar list in the sidebar
 - An event editor with guests, rooms, Google Meet links, and reminders
