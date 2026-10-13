@@ -52,9 +52,11 @@ public sealed partial class DayColumn : Canvas
     private readonly List<Button> _slotRemoves = [];
     private readonly List<int> _slotRemoveIndexes = [];
 
-    // The pointer is over a time's edge that can be resized (the up-down cursor shows)
+    // The pointer is over a time's edge that can be resized (the up-down cursor shows) or inside a picked time that
+    // moves (the move cursor shows); null over neither
     private static InputSystemCursor? s_resizeCursor;
-    private bool _onSlotEdge;
+    private static InputSystemCursor? s_moveCursor;
+    private InputSystemCursorShape? _slotCursor;
 
     /// <summary>Creates a column owned by <paramref name="owner"/>.</summary>
     public DayColumn(TimeGridView owner)
@@ -124,9 +126,14 @@ public sealed partial class DayColumn : Canvas
             _owner.ViewModel.CursorTime = DragMath.SnapOnDay(Date, e.GetPosition(this).Y / _owner.HourHeight * 60, _owner.ViewModel.Zone);
         };
 
-        // The Up-Down Cursor Over A Time's Edge That Can Be Resized (swapped only when crossing in or out)
-        PointerMoved += (_, e) => ShowResizeCursor(_owner.ResizableEdgeAt(Date, e.GetCurrentPoint(this).Position.Y));
-        PointerExited += (_, _) => ShowResizeCursor(false);
+        // The Up-Down Cursor Over A Time's Edge That Can Be Resized, The Move Cursor Inside A Picked Time While Sharing
+        // (swapped only when crossing in or out)
+        PointerMoved += (_, e) =>
+        {
+            var y = e.GetCurrentPoint(this).Position.Y;
+            ShowSlotCursor(_owner.ResizableEdgeAt(Date, y) ? InputSystemCursorShape.SizeNorthSouth : _owner.MovableAt(Date, y) ? InputSystemCursorShape.SizeAll : null);
+        };
+        PointerExited += (_, _) => ShowSlotCursor(null);
     }
 
     /// <summary>The day shown.</summary>
@@ -570,15 +577,20 @@ public sealed partial class DayColumn : Canvas
         }
     }
 
-    private void ShowResizeCursor(bool onEdge)
+    private void ShowSlotCursor(InputSystemCursorShape? shape)
     {
-        if (onEdge == _onSlotEdge)
+        if (shape == _slotCursor)
         {
             return;
         }
 
-        _onSlotEdge = onEdge;
-        ProtectedCursor = onEdge ? s_resizeCursor ??= InputSystemCursor.Create(InputSystemCursorShape.SizeNorthSouth) : null;
+        _slotCursor = shape;
+        ProtectedCursor = shape switch
+        {
+            InputSystemCursorShape.SizeNorthSouth => s_resizeCursor ??= InputSystemCursor.Create(InputSystemCursorShape.SizeNorthSouth),
+            InputSystemCursorShape.SizeAll => s_moveCursor ??= InputSystemCursor.Create(InputSystemCursorShape.SizeAll),
+            _ => null,
+        };
     }
 
     private void EnsureBlocks(int count)
