@@ -1,4 +1,5 @@
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Tools;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.UITests.Support;
 
@@ -143,6 +144,95 @@ public sealed class ScreenshotTour : IDisposable
                         Thread.Sleep(400);
                         settings.CaptureToFile(Path.Combine(folder, $"settings-general-workinghours-{theme.ToString().ToLowerInvariant()}-{(width == 0 ? "narrow" : "wide")}.png"));
                     }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Cal.com in light and dark at the minimum and a wide window: Settings › Accounts before any OAuth client (with the
+    /// client form open) and signed in, Settings › Scheduling and the Booking notifications card, then the share panel with
+    /// the switch on, the closed times shaded and a fitted drag's messages. Set LEAF_SCREENSHOTS to run it.
+    /// </summary>
+    [Fact]
+    public void Capture_Scheduling()
+    {
+        var folder = Environment.GetEnvironmentVariable("LEAF_SCREENSHOTS");
+        if (string.IsNullOrEmpty(folder))
+        {
+            Assert.Skip("Set LEAF_SCREENSHOTS to a folder to capture the scheduling screens.");
+        }
+
+        Directory.CreateDirectory(folder);
+        var open = new List<(DateTimeOffset Start, DateTimeOffset End)>();
+        for (var h = 9.0; h < 12; h += 0.5)
+        {
+            var start = new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.FromHours(-4)).AddHours(h);
+            open.Add((start, start.AddMinutes(30)));
+        }
+
+        _google.CalComOpen = open;
+        foreach (var theme in new[] { AppTheme.Light, AppTheme.Dark })
+        {
+            var name = theme.ToString().ToLowerInvariant();
+
+            // Not Signed In: Settings › Accounts, then the client form
+            var plain = SeededProfile.Create(new LeafSettings { Theme = theme, PrimaryTimeZone = "America/New_York" });
+            _profiles.Add(plain);
+            using (var leaf = LeafApp.Launch(plain, $"--fake-google {_google.BaseUri} --start-date 2026-10-01"))
+            {
+                var settings = leaf.OpenSettings("Accounts");
+                foreach (var width in SettingsWidths)
+                {
+                    settings.Patterns.Transform.Pattern.Move(40, 40);
+                    settings.Patterns.Transform.Pattern.Resize(width, 900);
+                    leaf.WaitInSettings("ProviderCard_calcom").Patterns.ScrollItem.Pattern.ScrollIntoView();
+                    Thread.Sleep(600);
+                    settings.CaptureToFile(Path.Combine(folder, $"scheduling-accounts-noclient-{name}-{(width == 0 ? "narrow" : "wide")}.png"));
+                }
+
+                leaf.WaitInSettings("ProviderAddClient_calcom").AsButton().Invoke();
+                leaf.WaitInSettings("ProviderSaveClient_calcom").Patterns.ScrollItem.Pattern.ScrollIntoView();
+                Thread.Sleep(600);
+                settings.CaptureToFile(Path.Combine(folder, $"scheduling-accounts-clientform-{name}-wide.png"));
+            }
+
+            // Signed In: Accounts, Scheduling, Notifications, then the share panel
+            var signedIn = SchedulingProviderTests.SignedInProfile(new LeafSettings { Theme = theme, PrimaryTimeZone = "America/New_York" });
+            _profiles.Add(signedIn);
+            using (var leaf = LeafApp.Launch(signedIn, $"--fake-google {_google.BaseUri} --start-date 2026-10-01"))
+            {
+                var settings = leaf.OpenSettings("Accounts");
+                foreach (var width in SettingsWidths)
+                {
+                    var suffix = $"{name}-{(width == 0 ? "narrow" : "wide")}";
+                    settings.Patterns.Transform.Pattern.Move(40, 40);
+                    settings.Patterns.Transform.Pattern.Resize(width, 900);
+                    leaf.OpenSettings("Accounts");
+                    leaf.WaitInSettings("ProviderSignOut_calcom").Patterns.ScrollItem.Pattern.ScrollIntoView();
+                    Thread.Sleep(600);
+                    settings.CaptureToFile(Path.Combine(folder, $"scheduling-accounts-signedin-{suffix}.png"));
+                    leaf.OpenSettings("Scheduling");
+                    leaf.WaitInSettings("SchedulingDefaultLink_calcom");
+                    Thread.Sleep(600);
+                    settings.CaptureToFile(Path.Combine(folder, $"scheduling-page-{suffix}.png"));
+                    leaf.OpenSettings("Notifications");
+                    leaf.WaitInSettings("BookingNotificationsSwitch").Patterns.ScrollItem.Pattern.ScrollIntoView();
+                    Thread.Sleep(600);
+                    settings.CaptureToFile(Path.Combine(folder, $"scheduling-notifications-{suffix}.png"));
+                }
+
+                leaf.CloseSettings();
+                foreach (var (width, height) in new[] { (1366, 768), (1086, 540) })
+                {
+                    Place(leaf, width, height);
+                    ShareAvailabilityTests.StartSharing(leaf);
+                    Retry.WhileFalse(() => leaf.Exists("ClosedTime_2026-10-01_0"), TimeSpan.FromSeconds(15));
+                    ShareAvailabilityTests.DragHours(leaf, 10.75, 12.5);
+                    Thread.Sleep(800);
+                    leaf.MainWindow.CaptureToFile(Path.Combine(folder, $"scheduling-share-{name}-{width}.png"));
+                    leaf.WaitFor("ShareCancelButton").AsButton().Invoke();
+                    Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(5));
                 }
             }
         }

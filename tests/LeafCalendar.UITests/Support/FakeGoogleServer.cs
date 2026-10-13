@@ -26,7 +26,9 @@ public sealed record FakeWrite(string Method, string Path, string Query, string?
 /// </list>
 /// <see cref="Offline"/> drops every connection, and <see cref="EditOnGoogle"/> changes an event as if someone
 /// edited it elsewhere. Free/busy answers from <see cref="Busy"/> and the seeded calendars, calendar-list PATCHes show on
-/// later list GETs, and the directory answers only while <see cref="HostedDomain"/> is set. Start the app with <c>--fake-google {BaseUri}</c>.
+/// later list GETs, and the directory answers only while <see cref="HostedDomain"/> is set. Under <c>/calcom/</c> it also
+/// plays Cal.com: OAuth sign-in, links, open times (<see cref="CalComOpen"/>), bookings and booking a time. Start the app
+/// with <c>--fake-google {BaseUri}</c>.
 /// </remarks>
 public sealed class FakeGoogleServer : IDisposable
 {
@@ -207,7 +209,9 @@ public sealed class FakeGoogleServer : IDisposable
                 string? location;
                 try
                 {
-                    (status, content, location) = Route(method, target, headers.GetValueOrDefault("if-match"), body);
+                    (status, content, location) = target.StartsWith("/calcom/", StringComparison.Ordinal)
+                        ? await RouteCalComAsync(method, target, headers.GetValueOrDefault("authorization"), body)
+                        : Route(method, target, headers.GetValueOrDefault("if-match"), body);
                 }
                 catch (Exception ex)
                 {
@@ -542,6 +546,163 @@ public sealed class FakeGoogleServer : IDisposable
     }
 
     // =========================================================================
+    // CAL.COM (under /calcom/, where --fake-google moves every Cal.com address)
+    // =========================================================================
+
+    /// <summary>The access token the fake Cal.com issues; its API refuses any other bearer token with 401.</summary>
+    public const string CalComAccessToken = "cal_access_uitest";
+
+    /// <summary>The refresh token the fake Cal.com issues (tests seed it to start signed in).</summary>
+    public const string CalComRefreshToken = "cal_refresh_uitest";
+
+    /// <summary>The fake Cal.com's "30 min meeting" link (guests allowed).</summary>
+    public const string CalComThirtyMinutes = "101";
+
+    /// <summary>The fake Cal.com's "Quick chat" link (15 minutes, no extra guests).</summary>
+    public const string CalComQuickChat = "102";
+
+    // Bookings on the fake Cal.com: each with its link's ID
+    private readonly List<(string EventTypeId, JsonObject Booking)> _calBookings = [];
+
+    /// <summary>When true, the token endpoint refuses every request (<c>400 invalid_grant</c>): a refused sign-in or refresh.</summary>
+    public bool CalComRefuseToken { get; set; }
+
+    /// <summary>When true, the links (<c>event-types</c>) answer <c>500</c>, so Leaf can't read them.</summary>
+    public bool CalComLinksDown { get; set; }
+
+    /// <summary>How long the open times (<c>slots</c>) wait before answering.</summary>
+    public TimeSpan CalComSlotsDelay { get; set; }
+
+    /// <summary>How long the links (<c>event-types</c>) wait before answering.</summary>
+    public TimeSpan CalComLinksDelay { get; set; }
+
+    /// <summary>The bookable times on every link (replace the list to change them).</summary>
+    public IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> CalComOpen { get; set; } = [];
+
+    /// <summary>Every booking request body Leaf sent, in order (taken ones too).</summary>
+    public ConcurrentQueue<string> CalComBookings { get; } = new();
+
+    /// <summary>When true, the next booking request answers <c>409</c>, as when the time was just taken.</summary>
+    public bool CalComTaken { get; set; }
+
+    /// <summary>Books a time on a link as if a guest did it on Cal.com (created now); the next bookings read lists it.</summary>
+    public void AddCalComBooking(DateTimeOffset start, string name, string eventTypeId = CalComThirtyMinutes)
+    {
+        lock (_gate)
+        {
+            _calBookings.Add((eventTypeId, CalComBooking(start, name, "guest@example.com")));
+        }
+    }
+
+    // OAuth (authorize redirects straight back like a consent already given, token issues the fixed tokens), then the
+    // API behind the bearer token: links, open times, bookings, and booking a time
+    private async Task<(int, string, string?)> RouteCalComAsync(string method, string target, string? authorization, string body)
+    {
+        var uri = new Uri(BaseUri, target);
+        var path = uri.AbsolutePath["/calcom".Length..];
+        var query = QueryString.Parse(uri.Query);
+
+        if (method == "GET" && path == "/auth/oauth2/authorize")
+        {
+            return (302, "", $"{query["redirect_uri"]}?code=calcom-code&state={Uri.EscapeDataString(query["state"])}");
+        }
+
+        if (method == "POST" && path == "/v2/auth/oauth2/token")
+        {
+            return CalComRefuseToken
+                ? (400, """{"error":"invalid_grant"}""", null)
+                : (200, $$"""{"access_token":"{{CalComAccessToken}}","refresh_token":"{{CalComRefreshToken}}","expires_in":1800,"token_type":"Bearer"}""", null);
+        }
+
+        if (authorization != $"Bearer {CalComAccessToken}")
+        {
+            return (401, """{"status":"error"}""", null);
+        }
+
+        switch (method, path)
+        {
+            case ("GET", "/v2/event-types"):
+                if (CalComLinksDelay > TimeSpan.Zero)
+                {
+                    await Task.Delay(CalComLinksDelay);
+                }
+
+                return CalComLinksDown ? (500, """{"status":"error"}""", null) : (200, CalComLinks(), null);
+
+            case ("GET", "/v2/slots"):
+                if (CalComSlotsDelay > TimeSpan.Zero)
+                {
+                    await Task.Delay(CalComSlotsDelay);
+                }
+
+                return (200, CalComSlots(Instant(query["start"]), Instant(query["end"])), null);
+
+            case ("GET", "/v2/bookings"):
+                return (200, CalComBookingList(query.GetValueOrDefault("eventTypeId") ?? "", Instant(query["afterCreatedAt"])), null);
+
+            case ("POST", "/v2/bookings"):
+                CalComBookings.Enqueue(body);
+                if (CalComTaken)
+                {
+                    CalComTaken = false;
+                    return (409, """{"status":"error","error":{"message":"already has booking"}}""", null);
+                }
+
+                var request = JsonNode.Parse(body)!;
+                var booking = CalComBooking(Instant((string)request["start"]!), (string)request["attendee"]!["name"]!, (string)request["attendee"]!["email"]!);
+                lock (_gate)
+                {
+                    _calBookings.Add((((long)request["eventTypeId"]!).ToString(CultureInfo.InvariantCulture), booking));
+                }
+
+                return (201, new JsonObject { ["status"] = "success", ["data"] = booking.DeepClone() }.ToJsonString(), null);
+
+            default:
+                return NotFound();
+        }
+    }
+
+    private static DateTimeOffset Instant(string text) => DateTimeOffset.Parse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal);
+
+    private static string CalComLinks() => """
+        {"status":"success","data":[
+          {"id":101,"title":"30 min meeting","lengthInMinutes":30,"bookingUrl":"https://cal.com/leaf-tester/30min","hidden":false,"disableGuests":false},
+          {"id":102,"title":"Quick chat","lengthInMinutes":15,"bookingUrl":"https://cal.com/leaf-tester/quick","hidden":false,"disableGuests":true}
+        ]}
+        """;
+
+    // The open times inside the asked range, grouped by UTC day (Cal.com's format=range shape)
+    private string CalComSlots(DateTimeOffset from, DateTimeOffset to)
+    {
+        var data = new JsonObject();
+        foreach (var day in CalComOpen.Where(o => o.Start >= from && o.End <= to).OrderBy(o => o.Start).GroupBy(o => o.Start.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)))
+        {
+            data[day.Key] = new JsonArray([.. day.Select(o => (JsonNode)new JsonObject { ["start"] = Utc(o.Start), ["end"] = Utc(o.End) })]);
+        }
+
+        return new JsonObject { ["status"] = "success", ["data"] = data }.ToJsonString();
+    }
+
+    private string CalComBookingList(string eventTypeId, DateTimeOffset after)
+    {
+        lock (_gate)
+        {
+            var items = _calBookings
+                .Where(b => b.EventTypeId == eventTypeId && Instant((string)b.Booking["createdAt"]!) > after)
+                .Select(b => (JsonNode)b.Booking.DeepClone());
+            return new JsonObject { ["status"] = "success", ["data"] = new JsonArray([.. items]) }.ToJsonString();
+        }
+    }
+
+    private static JsonObject CalComBooking(DateTimeOffset start, string name, string email) => new()
+    {
+        ["uid"] = Guid.NewGuid().ToString("N"),
+        ["start"] = Utc(start),
+        ["createdAt"] = Utc(DateTimeOffset.UtcNow),
+        ["attendees"] = new JsonArray(new JsonObject { ["name"] = name, ["email"] = email }),
+    };
+
+    // =========================================================================
     // EVENTS (called under _gate)
     // =========================================================================
 
@@ -798,9 +959,11 @@ public sealed class FakeGoogleServer : IDisposable
     private static string Reason(int status) => status switch
     {
         200 => "OK",
+        201 => "Created",
         204 => "No Content",
         302 => "Found",
         400 => "Bad Request",
+        401 => "Unauthorized",
         403 => "Forbidden",
         409 => "Conflict",
         410 => "Gone",
@@ -836,8 +999,22 @@ public sealed class FakeGoogleServer : IDisposable
             .ToDictionary(g => g.Key, g => g.Last()[1].Trim());
         var contentLength = headers.TryGetValue("content-length", out var value) ? int.Parse(value, CultureInfo.InvariantCulture) : 0;
 
-        // Body
+        // Body (a chunked one, as JsonContent sends, is read to its last chunk and joined)
         var bodyStart = headerEnd + 4;
+        if (headers.GetValueOrDefault("transfer-encoding")?.Contains("chunked", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            while (buffer.AsSpan(bodyStart, length - bodyStart).IndexOf("0\r\n\r\n"u8) < 0)
+            {
+                var read = await stream.ReadAsync(buffer.AsMemory(length));
+                if (read == 0 || (length += read) == buffer.Length)
+                {
+                    throw new IOException("Bad chunked body.");
+                }
+            }
+
+            return (parts[0], parts[1], headers, Unchunk(buffer.AsSpan(bodyStart, length - bodyStart)));
+        }
+
         while (length - bodyStart < contentLength)
         {
             var read = await stream.ReadAsync(buffer.AsMemory(length));
@@ -850,5 +1027,23 @@ public sealed class FakeGoogleServer : IDisposable
         }
 
         return (parts[0], parts[1], headers, Encoding.UTF8.GetString(buffer, bodyStart, Math.Max(0, length - bodyStart)));
+    }
+
+    // Each chunk is "{hex size}\r\n{data}\r\n", ending with a zero-size chunk
+    private static string Unchunk(ReadOnlySpan<byte> chunked)
+    {
+        var body = new List<byte>();
+        while (true)
+        {
+            var line = chunked.IndexOf("\r\n"u8);
+            var size = int.Parse(Encoding.ASCII.GetString(chunked[..line]).Split(';')[0], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+            if (size == 0)
+            {
+                return Encoding.UTF8.GetString([.. body]);
+            }
+
+            body.AddRange(chunked.Slice(line + 2, size));
+            chunked = chunked[(line + 2 + size + 2)..];
+        }
     }
 }
