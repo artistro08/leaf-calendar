@@ -11,15 +11,13 @@ public class FitMessagesTests
     }
 
     [Fact]
-    public void For_Everything_OneMessageEach_InOrder()
+    public void For_Everything_SplitCombinesStretchedAndRemoved_OnNewLines()
     {
         var messages = FitMessages.For(new FitSummary(2, 30, 1, 1, 90), "Cal.com");
 
         Assert.Equal(
             [
-                "Split into 2 times of 30 minutes.",
-                "Stretched 1 time to its full 30 minutes, since you picked more than half of it.",
-                "Removed 1 time, since you picked half or less of it.",
+                "Split into 2 times of 30 minutes.\nLast time block stretched to match the available time slot.\nLast time block removed to match the available time slots",
                 "1 hour 30 minutes wasn't open on Cal.com.",
             ],
             messages);
@@ -38,9 +36,7 @@ public class FitMessagesTests
 
         Assert.Equal(
             [
-                "Split into 2 times of 30 minutes.",
-                "Stretched 2 times to their full 30 minutes, since you picked more than half of each.",
-                "Removed 2 times, since you picked half or less of each.",
+                "Split into 2 times of 30 minutes.\nStretched 2 times to their full 30 minutes, since you picked more than half of each.\nRemoved 2 times, since you picked half or less of each.",
             ],
             messages);
     }
@@ -48,13 +44,13 @@ public class FitMessagesTests
     [Fact]
     public void For_NothingKept_SaysNothingOpen()
     {
-        Assert.Equal(["None of that time is open on Cal.com."], FitMessages.For(new FitSummary(0, 0, 0, 0, 60), "Cal.com"));
+        Assert.Equal(["That time is not open per your availability. Pick a different time"], FitMessages.For(new FitSummary(0, 0, 0, 0, 60), "Cal.com"));
     }
 
     [Fact]
     public void For_NothingKeptButSomeRemoved_SaysRemoved()
     {
-        Assert.Equal(["Removed 1 time, since you picked half or less of it."], FitMessages.For(new FitSummary(0, 0, 0, 1, 0), "Cal.com"));
+        Assert.Equal(["Last time block removed to match the available time slots"], FitMessages.For(new FitSummary(0, 0, 0, 1, 0), "Cal.com"));
     }
 
     [Theory]

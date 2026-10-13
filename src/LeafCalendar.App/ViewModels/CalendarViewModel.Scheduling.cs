@@ -63,8 +63,11 @@ public sealed partial class CalendarViewModel
     /// <summary>The stretch <see cref="OpenTimes"/> covers (outside it the openings aren't known, so nothing is shaded there), or null.</summary>
     public (DateTimeOffset From, DateTimeOffset To)? OpenTimesRange => _openRange;
 
-    /// <summary>The share panel switch's label: "Use {provider}" with one provider connected, "Use a booking link" with more.</summary>
-    public string ShareSwitchLabel => _services.Scheduling.Connected is [var only] ? $"Use {only.Name}" : "Use a booking link";
+    /// <summary>The share panel switch's label: "Schedule with {provider}" with one provider connected, "Schedule with a booking link" with more.</summary>
+    public string ShareSwitchLabel => _services.Scheduling.Connected is [var only] ? $"Schedule with {only.Name}" : "Schedule with a booking link";
+
+    /// <summary>The page on the share link's provider for checking why times aren't open; null without a link.</summary>
+    public Uri? ShareAvailabilityPage => ShareLink is { } link ? SchedulingProviders.Find(link.ProviderId)?.AvailabilityPage : null;
 
     /// <summary>The messages over the calendar while sharing, newest first.</summary>
     public IReadOnlyList<string> ShareMessages => _shareMessages;
@@ -299,6 +302,13 @@ public sealed partial class CalendarViewModel
         }
         else if (HasScheduling && (_links.Count == 0 || (_shareLink is { } current && !_links.Contains(current))))
         {
+            // Signed in during a new share: the switch turns on, as it starts for a share begun while signed in
+            if (_links.Count == 0 && !_useProvider && _openGroupId is null)
+            {
+                _useProvider = true;
+                _refitPending = _slots.Count > 0;
+            }
+
             var group = _savedGroups.FirstOrDefault(g => g.Id == _openGroupId);
             LoadLinks(group is not null && _shareLink is { } l && l.ProviderId == group.ProviderId && l.Id == group.LinkId ? group : null);
         }
@@ -461,7 +471,7 @@ public sealed partial class CalendarViewModel
 
         var ranges = BusyMath.Merge(_slots);
         var open = _openRange is { } r && ranges.All(s => s.Start >= r.From && s.End <= r.To) ? _openTimes : null;
-        return LeafCalendar.Core.Scheduling.ShareLinks.Build(builder, link, ranges, open, _shareGuests.ToList(), _shareText, zone, Settings.Use24HourTime);
+        return LeafCalendar.Core.Scheduling.ShareLinks.Build(builder, link, ranges, open, _shareGuests.ToList(), _shareText, Settings.BookingLinkNote, zone, Settings.Use24HourTime);
     }
 
     // The first guest as the messages name them: their name, else their address
@@ -556,7 +566,7 @@ public sealed partial class CalendarViewModel
         var times = SlotFitting.Split(range, open, link.Minutes);
         if (times.Count == 0)
         {
-            SayShare($"None of that time is open on {name}.");
+            SayShare("That time is not open per your availability. Pick a different time");
             RefreshOpenTimesNow();
         }
 

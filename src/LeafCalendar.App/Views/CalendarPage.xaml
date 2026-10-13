@@ -28,8 +28,9 @@
             <Style x:Key="LeafShareMessageStyle" TargetType="InfoBar">
                 <Setter Property="CloseButtonStyle" Value="{StaticResource LeafInfoBarCloseButtonStyle}" />
                 <Setter Property="BorderBrush" Value="{ThemeResource SurfaceStrokeColorDefaultBrush}" />
-                <Setter Property="IsClosable" Value="False" />
+                <Setter Property="IsClosable" Value="True" />
                 <Setter Property="Severity" Value="Informational" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
                 <Setter Property="AutomationProperties.LiveSetting" Value="Polite" />
             </Style>
         </ResourceDictionary>
@@ -109,7 +110,8 @@
 
                 <!-- Toasts (bottom center, solid so the grid never shows through): the people overlay's bar (added in code),
                      the scheduling messages and the hint while you mark times to share, then the notice ("Event deleted." and Undo). Each is raised over the
-                     calendar like a flyout (a ThemeShadow, CalendarPage.Float) with the flyout border, so it stands out in dark too -->
+                     calendar like a flyout (a ThemeShadow, CalendarPage.Float) with the flyout border, so it stands out in dark too.
+                     Each is centered at its own width, so a long message doesn't widen the others -->
                 <StackPanel
                     x:Name="Toasts"
                     Grid.Row="2"
@@ -126,6 +128,7 @@
                     <InfoBar
                         CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                         x:Name="SharingHint"
+                        HorizontalAlignment="Center"
                         BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
                         IsClosable="False"
                         Message="Mark times that are available on your calendar."
@@ -134,6 +137,7 @@
                     <InfoBar
                         CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                         x:Name="NoticeBar"
+                        HorizontalAlignment="Center"
                         BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
                         IsClosable="True"
                         Closed="OnNoticeClosed"

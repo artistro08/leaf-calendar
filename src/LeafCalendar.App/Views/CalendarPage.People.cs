@@ -96,6 +96,84 @@ public sealed partial class CalendarPage
 
     private void OnShareChanged(object? sender, EventArgs e) => ShowSharing();
 
+    // The "Mark times…" hint slides down off the calendar while the grid is scrolled to its bottom or a drag runs behind
+    // it (it covers the last hours there); it glides back up after. The extra clears its shadow
+    private const double HintShadow = 32;
+    private readonly Microsoft.UI.Xaml.Media.TranslateTransform _hintSlide = new();
+    private bool _gridAtBottom;
+    private bool _dragBehindHint;
+    private bool _hintAway;
+
+    private void SetUpHintPeek()
+    {
+        SharingHint.RenderTransform = _hintSlide;
+        var moved = new Microsoft.UI.Xaml.Input.PointerEventHandler(OnHostPointerMoved);
+        var ended = new Microsoft.UI.Xaml.Input.PointerEventHandler(OnHostPointerEnded);
+        ViewHost.AddHandler(PointerMovedEvent, moved, handledEventsToo: true);
+        ViewHost.AddHandler(PointerReleasedEvent, ended, handledEventsToo: true);
+        ViewHost.AddHandler(PointerCaptureLostEvent, ended, handledEventsToo: true);
+        ViewHost.AddHandler(PointerCanceledEvent, ended, handledEventsToo: true);
+    }
+
+    // The day grid scrolled (TimeGridView.BodyScrolled)
+    private void OnGridScrolled(object? sender, EventArgs e)
+    {
+        _gridAtBottom = sender is Controls.TimeGridView { IsScrolledToBottom: true };
+        UpdateHintPeek();
+    }
+
+    // A drag (left button down) while sharing whose pointer is over where the hint sits slides it away until the release
+    private void OnHostPointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        var point = e.GetCurrentPoint(ViewHost);
+        if (_dragBehindHint || !SharingHint.IsOpen || !point.Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        // (its place in the toasts, not where its slide moved it)
+        var slot = Microsoft.UI.Xaml.Controls.Primitives.LayoutInformation.GetLayoutSlot(SharingHint);
+        var origin = Toasts.TransformToVisual(ViewHost).TransformPoint(new Windows.Foundation.Point(slot.X, slot.Y));
+        var at = point.Position;
+        if (at.X >= origin.X && at.X <= origin.X + slot.Width && at.Y >= origin.Y - 16)
+        {
+            _dragBehindHint = true;
+            UpdateHintPeek();
+        }
+    }
+
+    private void OnHostPointerEnded(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (_dragBehindHint)
+        {
+            _dragBehindHint = false;
+            UpdateHintPeek();
+        }
+    }
+
+    // Glides the hint away (250 ms) or back, at once where the system doesn't animate
+    private void UpdateHintPeek()
+    {
+        var away = SharingHint.IsOpen && (_gridAtBottom || _dragBehindHint);
+        if (away == _hintAway)
+        {
+            return;
+        }
+
+        _hintAway = away;
+        var to = away ? SharingHint.ActualHeight + Toasts.Margin.Bottom + HintShadow : 0;
+        if (!Animates())
+        {
+            _hintSlide.Y = to;
+            return;
+        }
+
+        var glide = new DoubleAnimation { To = to, Duration = TimeSpan.FromMilliseconds(250), EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        Storyboard.SetTarget(glide, _hintSlide);
+        Storyboard.SetTargetProperty(glide, nameof(Microsoft.UI.Xaml.Media.TranslateTransform.Y));
+        new Storyboard { Children = { glide } }.Begin();
+    }
+
     // While sharing: the share panel in the right pane in place of the details (the pane opens for it and goes back to how it
     // was when sharing stops)
     private void ShowSharing()
@@ -103,8 +181,10 @@ public sealed partial class CalendarPage
         _slotsPanel?.Update(ViewModel);
         var sharing = ViewModel.IsSharing;
 
-        // The Hint Toast Stays Up While You Mark Times (the events behind it are faded and lined)
+        // The Hint Toast Stays Up While You Mark Times (the events behind it are faded and lined), sliding out of the way
+        // near the grid's bottom
         SharingHint.IsOpen = sharing;
+        UpdateHintPeek();
         if (_slotsPanel is null || (_slotsPanel.Visibility == Visibility.Visible) == sharing)
         {
             return;
@@ -167,6 +247,7 @@ public sealed partial class CalendarPage
             {
                 card = new ShareCard(NewShareCard(text), NewShareTimer(text));
                 _shareCards[text] = card;
+                KeepWhileHovered(card);
                 ShareMessagesPanel.Children.Insert(i, card.Card);
                 card.Timer.Start();
             }
@@ -193,17 +274,67 @@ public sealed partial class CalendarPage
         }
     }
 
+    // A card stays while the pointer is over it (a fade already running is undone), and its time starts over when it leaves
+    private static void KeepWhileHovered(ShareCard card)
+    {
+        card.Card.PointerEntered += (_, _) =>
+        {
+            card.Hovered = true;
+            card.Timer.Stop();
+            card.Fading?.Stop();
+            card.Fading = null;
+            card.Card.Opacity = 1;
+        };
+        void Left(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (card.Hovered)
+            {
+                card.Hovered = false;
+                card.Timer.Start();
+            }
+        }
+
+        card.Card.PointerExited += Left;
+        card.Card.PointerCanceled += Left;
+        card.Card.PointerCaptureLost += Left;
+    }
+
     // One message's card: raised like the other toasts, fading in (167 ms) where the system animates, and read out by a
     // screen reader the first time it's on screen only (a card moved up the stack loads again)
     private InfoBar NewShareCard(string text)
     {
         var card = new InfoBar { Style = (Style)Resources["LeafShareMessageStyle"], Message = text, IsOpen = true };
         AutomationProperties.SetName(card, text);
+
+        // Its close button takes it off the stack at once
+        card.Closed += (_, args) =>
+        {
+            if (args.Reason == InfoBarCloseReason.CloseButton)
+            {
+                ViewModel.DismissShareMessage(text);
+            }
+        };
         Float(card);
         void Announce(object sender, RoutedEventArgs e)
         {
             card.Loaded -= Announce;
             FrameworkElementAutomationPeer.CreatePeerForElement(card)?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+
+            // A two-line message keeps its icon and close button centered beside the text (the stock template pins
+            // them to the top; its icon margin is 16 above and below, so dropping both keeps one line's look)
+            foreach (var name in (string[])["IconBackground", "StandardIcon"])
+            {
+                if (Controls.TemplatePart.Find<TextBlock>(card, name) is { } icon)
+                {
+                    icon.VerticalAlignment = VerticalAlignment.Center;
+                    icon.Margin = new Thickness(icon.Margin.Left, 0, icon.Margin.Right, 0);
+                }
+            }
+
+            if (Controls.TemplatePart.Find<Button>(card, "CloseButton") is { } close)
+            {
+                close.VerticalAlignment = VerticalAlignment.Center;
+            }
         }
 
         card.Loaded += Announce;
@@ -225,6 +356,11 @@ public sealed partial class CalendarPage
         timer.IsRepeating = false;
         timer.Tick += (_, _) =>
         {
+            if (_shareCards.TryGetValue(text, out var hovered) && hovered.Hovered)
+            {
+                return;
+            }
+
             if (!_shareCards.TryGetValue(text, out var card) || !Animates())
             {
                 ViewModel.DismissShareMessage(text);
@@ -264,6 +400,8 @@ public sealed partial class CalendarPage
         public DispatcherQueueTimer Timer { get; } = timer;
 
         public Storyboard? Fading { get; set; }
+
+        public bool Hovered { get; set; }
     }
 
     private void OnShareAvailabilityRequested(object? sender, EventArgs e) => StartShareAvailability();

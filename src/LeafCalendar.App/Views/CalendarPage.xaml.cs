@@ -112,6 +112,7 @@ public sealed partial class CalendarPage : Page
         // The Toasts Are Raised Over The Calendar Like Flyouts While Open (the zone and overlay bars are raised as they're added)
         FloatWhileOpen(SharingHint);
         FloatWhileOpen(NoticeBar);
+        SetUpHintPeek();
 
         // Focus Starts On The Calendar (after Windows' own first pick, which was the mini month's first chevron; not out of
         // a box or menu something already opened)
@@ -287,6 +288,7 @@ public sealed partial class CalendarPage : Page
         else
         {
             var grid = new Controls.TimeGridView(ViewModel);
+            grid.BodyScrolled += OnGridScrolled;
             _view = grid;
             ViewHost.Children.Add(grid);
         }

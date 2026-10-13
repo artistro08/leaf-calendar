@@ -8,8 +8,10 @@ namespace LeafCalendar.Core.Scheduling;
 /// <param name="Create">Builds it from the shared client, a function that hands out a fresh access token, and the API address.</param>
 /// <param name="DefaultBase">Its hosted API address.</param>
 /// <param name="ClientPageName">Where <see cref="SchedulingOAuth.ClientPage"/> is in the provider's menus, the link text of Settings › Accounts' client guide.</param>
+/// <param name="AvailabilityPage">The provider's page for checking why times aren't open, linked under the share panel's link box.</param>
 public sealed record SchedulingProviderInfo(string Id, string Name, string Description, SchedulingOAuth OAuth,
-    Func<HttpClient, Func<CancellationToken, Task<string>>, Uri, ISchedulingProvider> Create, Uri DefaultBase, string ClientPageName);
+    Func<HttpClient, Func<CancellationToken, Task<string>>, Uri, ISchedulingProvider> Create, Uri DefaultBase, string ClientPageName,
+    Uri AvailabilityPage);
 
 /// <summary>The one place that knows every scheduling provider (spec 3.3).</summary>
 public static class SchedulingProviders
@@ -24,7 +26,8 @@ public static class SchedulingProviders
             CalComProvider.OAuth,
             (http, accessToken, baseUri) => new CalComProvider(http, accessToken, baseUri),
             CalComProvider.DefaultApiBase,
-            "Cal.com › Settings › Developer › OAuth"),
+            "Cal.com › Settings › Developer › OAuth",
+            new Uri("https://app.cal.com/availability/troubleshoot")),
     ];
 
     /// <summary>The provider with this ID, or null when Leaf doesn't know it.</summary>

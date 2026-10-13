@@ -70,6 +70,9 @@ public sealed partial class ShareSlotsPanel : UserControl
     // it's on. The box's items are kept here with the links they show, so the WinRT list is never read back
     private readonly ToggleSwitch _useProvider = new() { OnContent = "", OffContent = "" };
     private readonly ComboBox _linkBox = new() { Header = "Link", HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly TextBlock _switchLabel = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly Grid _switchRow = new() { ColumnSpacing = 8 };
+    private readonly HyperlinkButton _availability = new() { Content = "troubleshoot availability", Padding = new Thickness(0) };
     private IReadOnlyList<SchedulingLink> _linksShown = [];
     private bool _showingLink;
 
@@ -91,6 +94,32 @@ public sealed partial class ShareSlotsPanel : UserControl
 
         // Booking Link Switch And Link Box (the user's own changes go to the view model, not the ones Update makes)
         AutomationProperties.SetAutomationId(_useProvider, "ShareProviderSwitch");
+        AutomationProperties.SetAutomationId(_availability, "ShareAvailabilityLink");
+        _availability.Click += (_, _) =>
+        {
+            if (_vm?.ShareAvailabilityPage is { } page)
+            {
+                _ = _vm.OpenLinkAsync(page);
+            }
+        };
+
+        // Switch Row: the label and its description at the left, the switch at the right (a settings card's layout)
+        _useProvider.MinWidth = 0;
+        _useProvider.VerticalAlignment = VerticalAlignment.Center;
+        var switchText = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        switchText.Children.Add(_switchLabel);
+        switchText.Children.Add(new TextBlock
+        {
+            Text = "Use your availability from your event types",
+            Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+            TextWrapping = TextWrapping.Wrap,
+        });
+        _switchRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        _switchRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(_useProvider, 1);
+        _switchRow.Children.Add(switchText);
+        _switchRow.Children.Add(_useProvider);
         AutomationProperties.SetAutomationId(_linkBox, "ShareLinkBox");
         AutomationProperties.SetName(_linkBox, "Link");
         _useProvider.Toggled += (_, _) =>
@@ -185,14 +214,15 @@ public sealed partial class ShareSlotsPanel : UserControl
         var stack = new StackPanel { Spacing = 8, Margin = new Thickness(16, 0, 16, 16) };
         stack.Children.Add(_title);
         stack.Children.Add(hint);
-        stack.Children.Add(_useProvider);
-        stack.Children.Add(_linkBox);
         stack.Children.Add(_titleBox);
         stack.Children.Add(_zoneBox);
         stack.Children.Add(messageBox);
         stack.Children.Add(messageHint);
         stack.Children.Add(_line);
         stack.Children.Add(guestsHeading);
+        stack.Children.Add(_switchRow);
+        stack.Children.Add(_linkBox);
+        stack.Children.Add(_availability);
         stack.Children.Add(_guest);
         stack.Children.Add(_guestRows);
         stack.Children.Add(_empty);
@@ -368,8 +398,9 @@ public sealed partial class ShareSlotsPanel : UserControl
     private void ShowLink(CalendarViewModel vm)
     {
         var shown = vm.IsSharing && vm.HasScheduling;
-        _useProvider.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        _switchRow.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
         _linkBox.Visibility = shown && vm.UseProvider ? Visibility.Visible : Visibility.Collapsed;
+        _availability.Visibility = shown && vm.ShareAvailabilityPage is not null ? Visibility.Visible : Visibility.Collapsed;
         if (!shown)
         {
             return;
@@ -377,7 +408,7 @@ public sealed partial class ShareSlotsPanel : UserControl
 
         _showingLink = true;
         var label = vm.ShareSwitchLabel;
-        _useProvider.Header = label;
+        _switchLabel.Text = label;
         AutomationProperties.SetName(_useProvider, label);
         _useProvider.IsOn = vm.UseProvider;
 

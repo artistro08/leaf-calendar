@@ -20,8 +20,10 @@ public sealed record OverlayBlock(string Email, int ColorIndex, DateTimeOffset S
 /// <summary>
 /// A time the grid draws: a saved group's (<see cref="Title"/> set) or a pick while sharing (<see cref="Title"/> null,
 /// <see cref="GroupId"/> the open group's, if any). <see cref="Index"/> is its place in its group or in the picks.
+/// <see cref="Parts"/> are the bookable times it splits into on a scheduling link (the grid draws a line and a time at
+/// each); empty without a link.
 /// </summary>
-public sealed record GridSlot(long? GroupId, int Index, BusyRange Range, string? Title, bool Resizable);
+public sealed record GridSlot(long? GroupId, int Index, BusyRange Range, string? Title, bool Resizable, IReadOnlyList<BusyRange> Parts);
 
 public sealed partial class CalendarViewModel
 {
@@ -592,16 +594,26 @@ public sealed partial class CalendarViewModel
         foreach (var g in _savedGroups.Where(g => !_sharing || g.Id != _openGroupId))
         {
             var title = GroupTitle(g);
-            list.AddRange(g.Slots.Select((s, i) => new GridSlot(g.Id, i, s, title, Resizable: g.Id == _approvingGroupId)));
+            list.AddRange(g.Slots.Select((s, i) => new GridSlot(g.Id, i, s, title, Resizable: g.Id == _approvingGroupId, SplitParts(s, null, g.LinkMinutes))));
         }
 
         if (_sharing)
         {
-            list.AddRange(_slots.Select((s, i) => new GridSlot(_openGroupId, i, s, null, Resizable: true)));
+            var minutes = ShareLink?.Minutes ?? 0;
+            list.AddRange(_slots.Select((s, i) => new GridSlot(_openGroupId, i, s, null, Resizable: true, SplitParts(s, KnownOpenTimes(s), minutes))));
         }
 
         return list;
     }
+
+    // The bookable times a range splits into on a link of this length, the same split the copied text uses (by the open
+    // times when known, else by length); none without a link
+    private static IReadOnlyList<BusyRange> SplitParts(BusyRange range, IReadOnlyList<BusyRange>? open, int minutes) =>
+        minutes > 0 ? SlotFitting.Split(range, open, minutes) : [];
+
+    // The open times, when they cover all of the range; null (split by length) otherwise
+    private IReadOnlyList<BusyRange>? KnownOpenTimes(BusyRange range) =>
+        _openRange is { } known && known.From <= range.Start && range.End <= known.To ? _openTimes : null;
 
     /// <summary>
     /// A drawn time resized on the grid: a pick changes (an open group's waits for Save), or a group being approved saves.

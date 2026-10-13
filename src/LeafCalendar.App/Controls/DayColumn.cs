@@ -1,4 +1,5 @@
 using System.Globalization;
+using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.People;
@@ -48,6 +49,10 @@ public sealed partial class DayColumn : Canvas
     private readonly List<(Border Block, TextBlock Title)> _overlayBlocks = [];
     private readonly Canvas _slots = new() { IsHitTestVisible = false };
     private readonly List<(Grid Slot, Rectangle Fill, Rectangle Edge, TextBlock Title)> _slotItems = [];
+
+    // A time split into a link's bookable times: a dashed line where each one after the first starts, and its start time
+    private readonly List<Line> _splitLines = [];
+    private readonly List<TextBlock> _splitLabels = [];
     private readonly Canvas _slotButtons = new();
     private readonly List<Button> _slotRemoves = [];
     private readonly List<int> _slotRemoveIndexes = [];
@@ -432,6 +437,8 @@ public sealed partial class DayColumn : Canvas
         var width = Math.Max(_owner.ColumnWidth - 6, 10);
         var shown = 0;
         var buttons = 0;
+        var lines = 0;
+        var labels = 0;
 
         foreach (var slot in vm.GridSlots())
         {
@@ -480,6 +487,7 @@ public sealed partial class DayColumn : Canvas
             title.Visibility = slot.Title is null ? Visibility.Collapsed : Visibility.Visible;
             AutomationProperties.SetAutomationId(box, slot.Title is null ? $"ShareSlot_{slot.Index}" : $"SavedSlot_{slot.GroupId}_{slot.Index}");
             AutomationProperties.SetName(box, slot.Title is null ? $"Time to share {range}" : $"{slot.Title}, {range}");
+            RenderSplit(slot, dayStart, dayEnd, width, accent, text, ref lines, ref labels);
 
             // Remove Button For A Pick, On The Day It Starts
             if (slot.Title is not null || s.Start < dayStart)
@@ -522,6 +530,77 @@ public sealed partial class DayColumn : Canvas
         for (var i = buttons; i < _slotRemoves.Count; i++)
         {
             _slotRemoves[i].Visibility = Visibility.Collapsed;
+        }
+
+        for (var i = lines; i < _splitLines.Count; i++)
+        {
+            _splitLines[i].Visibility = Visibility.Collapsed;
+        }
+
+        for (var i = labels; i < _splitLabels.Count; i++)
+        {
+            _splitLabels[i].Visibility = Visibility.Collapsed;
+        }
+    }
+
+    // Draws one time's split on this day: a dashed accent line at each bookable time's start after the time's own start,
+    // and the start time under it when there's room for a line of text (a saved time's first part keeps its title instead)
+    private void RenderSplit(GridSlot slot, DateTimeOffset dayStart, DateTimeOffset dayEnd, double width, Brush accent, Brush text, ref int lines, ref int labels)
+    {
+        var vm = _owner.ViewModel;
+        var parts = slot.Parts;
+        for (var k = 0; k < parts.Count; k++)
+        {
+            var start = parts[k].Start;
+            if (start < dayStart || start >= dayEnd)
+            {
+                continue;
+            }
+
+            var y = _owner.MinutesIntoDay(start) / 60 * _owner.HourHeight;
+            if (start > slot.Range.Start)
+            {
+                if (lines == _splitLines.Count)
+                {
+                    var created = new Line { StrokeThickness = 1, StrokeDashArray = [4, 2], IsHitTestVisible = false };
+                    _splitLines.Add(created);
+                    _slots.Children.Add(created);
+                }
+
+                var line = _splitLines[lines++];
+                line.Visibility = Visibility.Visible;
+                line.Stroke = accent;
+                line.X1 = 4;
+                line.X2 = width;
+                line.Y1 = line.Y2 = y + 0.5;
+            }
+
+            // Room For A Label: up to the next part's start (or the time's end), at least a caption line
+            var next = k + 1 < parts.Count && parts[k + 1].Start < slot.Range.End ? parts[k + 1].Start : slot.Range.End;
+            var room = (Math.Min(_owner.MinutesIntoDay(next < dayEnd ? next : dayEnd), 24 * 60) - _owner.MinutesIntoDay(start)) / 60 * _owner.HourHeight;
+            if ((slot.Title is not null && start == slot.Range.Start) || room < 18)
+            {
+                continue;
+            }
+
+            if (labels == _splitLabels.Count)
+            {
+                var created = new TextBlock
+                {
+                    Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+                    TextWrapping = TextWrapping.NoWrap,
+                    IsHitTestVisible = false,
+                };
+                _splitLabels.Add(created);
+                _slots.Children.Add(created);
+            }
+
+            var label = _splitLabels[labels++];
+            label.Visibility = Visibility.Visible;
+            label.Text = TimeLabels.Compact(start, vm.Zone, vm.Settings.Use24HourTime);
+            label.Foreground = text;
+            SetLeft(label, 10);
+            SetTop(label, y + 2);
         }
     }
 

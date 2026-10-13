@@ -465,9 +465,16 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _gutterScroll.ChangeView(null, e.NextView.VerticalOffset, null, true);
     }
 
+    /// <summary>Raised when the day grid scrolls (the share hint slides away at the bottom).</summary>
+    public event EventHandler? BodyScrolled;
+
+    /// <summary>True when the day grid is scrolled to its last hour.</summary>
+    public bool IsScrolledToBottom => _bodyScroll.ScrollableHeight > 0 && _bodyScroll.VerticalOffset >= _bodyScroll.ScrollableHeight - 1;
+
     private void OnBodyViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
         SyncSides();
+        BodyScrolled?.Invoke(this, EventArgs.Empty);
         if (!e.IsIntermediate)
         {
             _wheelTarget = double.NaN;

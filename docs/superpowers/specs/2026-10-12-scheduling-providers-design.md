@@ -9,7 +9,7 @@ Owner request, 2026-10-12, from GitHub issue #28 ("Add Cal.com to Scheduling int
 You share times with someone through a booking service instead of plain text. Leaf builds a standard way to plug scheduling providers in first, then adds Cal.com as the first one. After this change:
 
 1. You enter your own Cal.com OAuth client (client ID and secret) and **Sign in with Cal.com** in **Settings › Accounts**. Nothing about Cal.com shows anywhere else (not the share panel, not Settings › Scheduling) until you're signed in.
-2. While sharing (S), a **Use Cal.com** switch and a **Link** dropdown sit in the share panel. Each new share starts with the switch on and your default link picked.
+2. While sharing (S), a **Schedule with Cal.com** switch and a **Link** dropdown sit in the share panel. Each new share starts with the switch on and your default link picked.
 3. With the switch on, the grid shades the times Cal.com won't book on that link. A drag is fitted to the link's bookable times (a time picked more than half is stretched to its full length, one picked half or less is removed), and a notice says what Leaf did.
 4. Copy puts each proposed time on the clipboard **as a link**: the time is the text, and clicking it opens Cal.com on that exact time with your guests filled in.
 5. When someone books a time inside a saved group's ranges, the group goes away and a Windows notification says who booked.
@@ -20,7 +20,7 @@ You share times with someone through a booking service instead of plain text. Le
 | Topic | Decision |
 | --- | --- |
 | What the guest gets | Each proposed time is its own link that opens the provider on that exact time (Cal.com `?date=…&slot=…`). |
-| Turning it off | A **Use Cal.com** switch in the share panel, per share. Each new share starts on. Off means today's behavior exactly: any times, plain text, no links. |
+| Turning it off | A **Schedule with Cal.com** switch in the share panel, per share. Each new share starts on. Off means today's behavior exactly: any times, plain text, no links. |
 | Picking | Drag as today. On release Leaf fits the drag to the link's bookable times (3.5), and a notice says what happened. |
 | Partly covered bookable times | A bookable time the drag covers **more than half** of is expanded to the whole time. One covered half or less is removed, and the notice says why. Times the drag covers fully are kept. |
 | Splitting | Saved times keep the **range** you dragged (after trimming to open times). Splitting into bookable times of the link's length happens only when building the copied text. |
@@ -73,13 +73,13 @@ Cal.com:
 
 | Item | Value |
 | --- | --- |
-| Authorize | `https://app.cal.com/auth/oauth2/authorize` with `client_id`, `redirect_uri`, `scope` (space separated), `state`, `code_challenge` (S256), `response_type=code` |
-| Token | `POST https://api.cal.com/v2/auth/oauth2/token` (form-encoded): `grant_type=authorization_code`, `code`, `redirect_uri`, `client_id`, `client_secret`, `code_verifier`; refresh with `grant_type=refresh_token`, `refresh_token`, `client_id`, `client_secret` |
+| Authorize | `https://app.cal.com/auth/oauth2/authorize` with `client_id`, `redirect_uri`, `scope` (space separated), `state`, `response_type=code` (no PKCE: a confidential client signs in with its secret) |
+| Token | `POST https://api.cal.com/v2/auth/oauth2/token` (form-encoded): `grant_type=authorization_code`, `code`, `redirect_uri`, `client_id`, `client_secret` (Cal.com refuses a `code_verifier` here: "property code_verifier should not exist", found on the live sign-in 2026-10-13); refresh with `grant_type=refresh_token`, `refresh_token`, `client_id`, `client_secret` |
 | Redirect | `http://127.0.0.1:53817/calcom/callback` (fixed port, since Cal.com matches redirect URIs exactly; `http://localhost:53817/calcom/callback` is also registered) |
 | Scopes | `EVENT_TYPE_READ` (view booking links; name confirmed in the live test), `BOOKING_READ`, `BOOKING_WRITE`, `SCHEDULE_READ` |
 | Tokens | Access token 30 minutes (`expires_in`), kept in memory and refreshed quietly a minute before it ends. Refresh token stored encrypted (4.1). A refused refresh (`invalid_grant`, 400/401) marks the provider **needs reconnecting**. |
 
-The sign-in follows the Google sign-in's safety rules (main spec 4.2): PKCE S256 and a random `state`; the listener binds `127.0.0.1` only, on the fixed port, answers only the expected path, checks `state`, accepts one request, never echoes query values into its page, and times out after 5 minutes. A port already in use says so ("Port 53817 is busy…" — wording in 11). The browser page reuses the Google sign-in's pages ("You can close this tab" / "Sign-in didn't finish").
+The sign-in follows the Google sign-in's safety rules (main spec 4.2), except PKCE, which Cal.com's confidential clients don't take: a random `state`; the listener binds `127.0.0.1` only, on the fixed port, answers only the expected path, checks `state`, accepts one request, never echoes query values into its page, and times out after 5 minutes. A port already in use says so ("Port 53817 is busy…" — wording in 11). The browser page reuses the Google sign-in's pages ("You can close this tab" / "Sign-in didn't finish").
 
 ### 3.3 Provider List
 
@@ -161,8 +161,8 @@ ALTER TABLE share_groups ADD COLUMN link_minutes INTEGER NOT NULL DEFAULT 0;
 
 Shown only while at least one provider is connected and not signed out:
 
-- Under the hint, above Title: a **Use Cal.com** `ToggleSwitch` (no On/Off text; AutomationId `ShareProviderSwitch`; the label is "Use {provider name}" and, with two providers connected, "Use a booking link"), then a **Link** `ComboBox` (AutomationId `ShareLinkBox`) listing links from every connected provider as "{name} · {minutes} min", grouped by provider when there are two or more.
-- The Link box shows only while the switch is on. Each new share starts with the switch on and the default link picked (else the first link).
+- Under the **Guests & proposed times** heading (owner, 2026-10-13): a row with the label "Schedule with {provider name}" (two providers: "Schedule with a booking link") and under it "Use your availability from your event types" at the left, and a `ToggleSwitch` (no On/Off text; AutomationId `ShareProviderSwitch`) at the right; then a **Link** `ComboBox` (AutomationId `ShareLinkBox`) listing links from every connected provider as "{name} · {minutes} min", grouped by provider when there are two or more; then a **troubleshoot availability** link (AutomationId `ShareAvailabilityLink`) opening the provider's availability troubleshooter (`https://app.cal.com/availability/troubleshoot`, `SchedulingProviderInfo.AvailabilityPage`).
+- The Link box shows only while the switch is on. Each new share starts with the switch on and the default link picked (else the first link); signing in to a provider while a new share is open turns the switch on too.
 - Turning the switch off keeps the picks as they are. Changing the link, or turning the switch on, fits every picked time to the link's bookable times at once, with the same messages.
 - A saved group opens with its own switch and link. Its link gone from the provider: the switch shows off, and the notice says "That link isn't on Cal.com anymore. These times will copy as plain text."
 - The provider signed out or its client removed while a share is open (final review fix): the share turns plain at once (switch off, so Save and Copy & Save write no link and Copy matches what's saved). Needing reconnecting while a share is open keeps the share's switch and link, so Save keeps the group's link and booking check (8); a message shows the needs-reconnecting text (11), and Approve… shows that text instead of opening the event editor.
@@ -201,7 +201,9 @@ With the switch off (a plain group), Approve… opens the event editor as today.
   - A press inside a picked time that doesn't move (a click) changes nothing.
   - This replaces "a drag inside an open slot picks a new time" from the saved share groups design. Saved times of a group that isn't open still can't be moved (click to open first), so a stray drag can't change what you offered.
   - `DragMath` gets `MoveRange(start, end, grabbedAt, pointerAt, zone)`; `DragKind.MoveSlot` holds which group (or the open picks) and which slot. The pointer shows the move cursor over a picked time.
-- **Message stack:** a vertical stack above the "Mark times…" hint, same style as the hint (an `InfoBar`-like card with the info icon). One fit can add several messages (split, stretched, removed, not open); each is its own card. Newest on top, each fades out on its own after the notice's usual time, at most 4 shown (the oldest goes first). The stack is a polite live region, so a screen reader reads each new card. AutomationIds `ShareMessage_{i}`, top first.
+- **Message stack:** a vertical stack above the "Mark times…" hint, same style as the hint (an `InfoBar`-like card with the info icon and a close button, both centered beside the text). One fit can add several messages; a split plus stretched or removed times is one card with each on its own line (owner, 2026-10-13), and what wasn't open is its own card. Each card is only as wide as its text, centered. Newest on top, each fades out on its own after the notice's usual time unless the pointer is over it (its time starts over when the pointer leaves), at most 4 shown (the oldest goes first). The stack is a polite live region, so a screen reader reads each new card. AutomationIds `ShareMessage_{i}`, top first.
+- **Split lines** (owner, 2026-10-13): with the switch on, each picked time (and each saved Cal.com group's time) shows a dashed line where each of its bookable times starts (`SlotFitting.Split`, the copied text's split) and that time's start under it when there's room; it stays one block you move and resize as a whole.
+- **The "Mark times…" hint** slides down off the calendar (250 ms glide, at once without animations) while the grid is scrolled to its bottom or a drag runs behind it, and glides back after.
 
 ## 7. Copy
 
@@ -212,6 +214,7 @@ With the switch on, `CopyAndSaveShare` builds:
 - **HTML**: each line is `<a href="{time link}">{line}</a>`, joined with `<br>`, placed where `{times}` goes in the message (the message HTML-encoded). Set with `DataPackage.SetHtmlFormat(HtmlFormatHelper.CreateHtmlFormat(...))`.
 - **Plain text**: "{line}: {time link}" per line, through `AvailabilityText.Compose` as today. Set with `SetText` on the same package.
 - Time links carry the guests (3.4) as they are in the panel at Copy time. With two or more guests on a link that doesn't allow extra guests, only the first goes in, and the notice after Copy says so (11).
+- **Booking link note** (owner, 2026-10-13): the `BookingLinkNote` setting (default in 11, Settings › Scheduling) goes on its own line at the end of both versions; blank adds nothing.
 
 With the switch off, Copy is unchanged.
 
@@ -229,15 +232,17 @@ With the switch off, Copy is unchanged.
 
 - Shown in the Settings list only while at least one provider is signed in (or needs reconnecting); otherwise the page and its nav item are hidden.
 - One card per signed-in provider: **Default link** (`ComboBox` of your links, "{name} · {minutes} min"). Nothing about credentials here.
+- A **Booking link note** card (an open expander with a text box, at most 500 characters, and **Reset to default**), saving `BookingLinkNote` on losing focus or leaving the page. AutomationIds `BookingLinkNoteBox`, `BookingLinkNoteReset`.
 - AutomationIds: `SchedulingCard_{id}`, `SchedulingDefaultLink_{id}`.
 
 ### 9.3 Settings › Accounts: Scheduling Providers (revision 1)
 
-A section under the Google accounts, one card per provider in `SchedulingProviders.All`, following the page's existing pattern (the Google OAuth client and account rows):
+A "{provider} OAuth client" section per provider in `SchedulingProviders.All`, after the Google Cloud OAuth client section (owner, 2026-10-13), following the page's existing pattern (the Google OAuth client and account rows):
 
 - **No OAuth client saved:** the provider name and description, with **Add OAuth client…** opening a form: **Client ID** (`TextBox`) and **Client secret** (`PasswordBox`), both required, with a guide line and link to the provider's OAuth client page (`https://app.cal.com/settings/developer/oauth`) and the redirect URI to register, shown as selectable text. **Save** stores both encrypted (4.1); the secret box is cleared after.
 - **OAuth client saved, not signed in:** **Sign in with Cal.com** (accent), and **Remove OAuth client**.
-- **Signing in:** a progress ring and **Cancel** while the browser is open. Success lists your links once to prove the tokens work, then shows the signed-in state. Refused or failed: says why (11) and saves nothing.
+- **Signing in:** a progress ring and **Cancel** while the browser is open. Success lists your links once to prove the tokens work, then shows the signed-in state with a closable success bar above the card (AutomationId `ProviderSuccess_{id}`; the next action clears it). Refused or failed: says why (11), saves nothing, and logs Leaf's own reason with the provider's OAuth error code (letters, digits, `_` and `-` only).
+- The browser page after signing in (shared with Google's sign-in): Leaf's icon on a centered card in Windows 11's light or dark colors, following the browser's theme, with **Open Leaf Calendar** as a button in the icon's green. Wording unchanged.
 - **Signed in:** "Signed in" with **Sign out** (removes the refresh token; saved groups on that provider become plain groups; the OAuth client stays).
 - **Needs reconnecting:** says so, with **Sign in again** (the same sign-in, replacing the refresh token).
 - AutomationIds: `ProviderCard_{id}`, `ProviderAddClient_{id}`, `ProviderClientId_{id}`, `ProviderClientSecret_{id}`, `ProviderSaveClient_{id}`, `ProviderSignIn_{id}`, `ProviderSignOut_{id}`, `ProviderRemoveClient_{id}`, `ProviderError_{id}`.
@@ -287,7 +292,8 @@ AOT publish (`publish-aot.ps1`), package size check, memory budget run (results 
 | Settings nav item | Scheduling |
 | Cal.com card description | Share times as booking links from your Cal.com account. |
 | Default link card | Default link |
-| Accounts section header (revision 1) | Scheduling |
+| Accounts section header (owner, 2026-10-13) | {provider} OAuth client |
+| Sign-in success (owner, 2026-10-13) | Successfully signed in to Cal.com |
 | Add client button (revision 1) | Add OAuth client… |
 | Client form (revision 1) | Client ID / Client secret / Save, Cancel |
 | Client guide (revision 1) | Create an OAuth client in Cal.com › Settings › Developer › OAuth, and add this redirect URI: |
@@ -302,7 +308,10 @@ AOT publish (`publish-aot.ps1`), package size check, memory budget run (results 
 | Needs reconnecting (revision 1) | Cal.com signed Leaf out. Sign in again to keep sharing booking links. |
 | Sign in again button (revision 1) | Sign in again |
 | Notifications card | Booking notifications / Show a notification when someone books a time you shared. |
-| Panel switch | Use Cal.com (two providers: Use a booking link) |
+| Panel switch (owner, 2026-10-13) | Schedule with Cal.com (two providers: Schedule with a booking link) / Use your availability from your event types |
+| Availability link (owner, 2026-10-13) | troubleshoot availability |
+| Booking link note card | Booking link note / Added on its own line after your booking links when you copy times. / No note (empty box) / Reset to default |
+| Booking link note default (owner, 2026-10-13) | You schedule time via the links or just let me know what works for you |
 | Panel dropdown header | Link |
 | Link item | {name} · {minutes} min |
 Messages over the calendar while scheduling (each its own stacked card; the left column only names the case and is never shown):
@@ -312,12 +321,12 @@ Messages over the calendar while scheduling (each its own stacked card; the left
 | Drag split | Split into {n} times of {minutes} minutes. |
 | Drag split, one | Split into 1 time of {minutes} minutes. |
 | Times stretched | Stretched {n} times to their full {minutes} minutes, since you picked more than half of each. |
-| Times stretched, one | Stretched 1 time to its full {minutes} minutes, since you picked more than half of it. |
+| Times stretched, one (owner, 2026-10-13) | Last time block stretched to match the available time slot. |
 | Times removed | Removed {n} times, since you picked half or less of each. |
-| Times removed, one | Removed 1 time, since you picked half or less of it. |
+| Times removed, one (owner, 2026-10-13) | Last time block removed to match the available time slots |
 | Part not open | {duration} wasn't open on Cal.com. |
 | Guests not allowed | This Cal.com link doesn't allow extra guests, so only {first guest} is filled in. |
-| Nothing open | None of that time is open on Cal.com. |
+| Nothing open (owner, 2026-10-13) | That time is not open per your availability. Pick a different time |
 | Offline | Couldn't reach Cal.com, so times aren't limited to your openings. |
 | Link gone | That link isn't on Cal.com anymore. These times will copy as plain text. |
 | Booking notification | {attendee} booked {time} (Someone booked {time} with no name) |
