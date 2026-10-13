@@ -159,6 +159,28 @@ public sealed class SchedulingHubTests : IDisposable
     }
 
     [Fact]
+    public async Task SignInAsync_ClientRemovedWhileBrowserOpen_SavesNothing()
+    {
+        TokenAnswer("authorization_code", Answer("at-0", "rt-1"));
+        TokenAnswer("refresh_token", Answer("at-1"));
+        LinksAnswer();
+        SaveClient();
+        var hub = Create();
+        hub.Load();
+        var approve = Approves();
+
+        await Assert.ThrowsAsync<SchedulingAuthException>(() => hub.SignInAsync("calcom", url =>
+        {
+            hub.RemoveClient("calcom");
+            return approve(url);
+        }, TestContext.Current.CancellationToken));
+
+        Assert.Null(_tokens.GetProviderSecret("calcom", "refresh_token"));
+        Assert.Equal(ProviderState.NoClient, hub.StateOf("calcom"));
+        Assert.Null(hub.Get("calcom"));
+    }
+
+    [Fact]
     public async Task SignInAsync_RefreshTokenRotatedWhileListing_SavesOnlyTheNewOne()
     {
         TokenAnswer("authorization_code", Answer("at-0", "rt-1"));

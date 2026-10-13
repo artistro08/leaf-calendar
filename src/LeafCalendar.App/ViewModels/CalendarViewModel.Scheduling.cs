@@ -602,38 +602,48 @@ public sealed partial class CalendarViewModel
 
         var guests = BookingGuests;
         var zone = ShareZone();
+
+        // Until the group is deleted, a booking check that finds this booking leaves it to us, so no second notification shows
+        _services.Bookings.BeginBooking(id);
         try
         {
-            await Task.Run(() => creator.BookAsync(link, time.Start.ToUniversalTime(), guests, zone, ct), ct);
-        }
-        catch (SchedulingSlotTakenException ex)
-        {
-            _services.Log.Info("scheduling.book.taken", $"provider={link.ProviderId} error={ex.GetType().Name}");
-            SayShare($"That time was just taken on {name}. Pick another.");
-            RefreshOpenTimesNow();
-            return BookResult.Taken;
-        }
-        catch (SchedulingAuthException ex)
-        {
-            _services.Log.Info("scheduling.book.auth", $"provider={link.ProviderId} error={ex.GetType().Name}");
-            _services.Scheduling.MarkNeedsReconnect(link.ProviderId);
-            return BookResult.NeedsReconnect;
-        }
-        catch (SchedulingUnavailableException ex)
-        {
-            _services.Log.Info("scheduling.book.unavailable", $"provider={link.ProviderId} error={ex.InnerException?.GetType().Name ?? ex.GetType().Name}");
-            if (ex.RetryAfter is { } retryAfter)
+            try
             {
-                _services.Scheduling.WaitFor(link.ProviderId, retryAfter);
+                await Task.Run(() => creator.BookAsync(link, time.Start.ToUniversalTime(), guests, zone, ct), ct);
+            }
+            catch (SchedulingSlotTakenException ex)
+            {
+                _services.Log.Info("scheduling.book.taken", $"provider={link.ProviderId} error={ex.GetType().Name}");
+                SayShare($"That time was just taken on {name}. Pick another.");
+                RefreshOpenTimesNow();
+                return BookResult.Taken;
+            }
+            catch (SchedulingAuthException ex)
+            {
+                _services.Log.Info("scheduling.book.auth", $"provider={link.ProviderId} error={ex.GetType().Name}");
+                _services.Scheduling.MarkNeedsReconnect(link.ProviderId);
+                return BookResult.NeedsReconnect;
+            }
+            catch (SchedulingUnavailableException ex)
+            {
+                _services.Log.Info("scheduling.book.unavailable", $"provider={link.ProviderId} error={ex.InnerException?.GetType().Name ?? ex.GetType().Name}");
+                if (ex.RetryAfter is { } retryAfter)
+                {
+                    _services.Scheduling.WaitFor(link.ProviderId, retryAfter);
+                }
+
+                SayShare($"Couldn't reach {name}. Nothing was booked.");
+                return BookResult.Unavailable;
             }
 
-            SayShare($"Couldn't reach {name}. Nothing was booked.");
-            return BookResult.Unavailable;
+            _services.Log.Info("scheduling.book.booked", $"provider={link.ProviderId} guests={guests.Count}");
+            WriteGroups("share.group.delete.failed", conn => ShareGroupStore.Delete(conn, id));
+        }
+        finally
+        {
+            _services.Bookings.EndBooking(id);
         }
 
-        // Deleted at once, so the booking check finds no group for this booking and shows no second notification
-        _services.Log.Info("scheduling.book.booked", $"provider={link.ProviderId} guests={guests.Count}");
-        WriteGroups("share.group.delete.failed", conn => ShareGroupStore.Delete(conn, id));
         if (_openGroupId == id)
         {
             StopSharing();

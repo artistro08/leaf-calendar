@@ -214,6 +214,7 @@ With the switch on, `CopyAndSaveShare` builds:
 - **HTML**: each line is `<a href="{time link}">{line}</a>`, joined with `<br>`, placed where `{times}` goes in the message (the message HTML-encoded). Set with `DataPackage.SetHtmlFormat(HtmlFormatHelper.CreateHtmlFormat(...))`.
 - **Plain text**: "{line}: {time link}" per line, through `AvailabilityText.Compose` as today. Set with `SetText` on the same package.
 - Time links carry the guests (3.4) as they are in the panel at Copy time. With two or more guests on a link that doesn't allow extra guests, only the first goes in, and the notice after Copy says so (11).
+- A saved range with no open time left inside it is left out of both versions, and the notice after Copy says so (11).
 - **Booking link note** (owner, 2026-10-13): the `BookingLinkNote` setting (default in 11, Settings › Scheduling) goes on its own line at the end of both versions; blank adds nothing.
 
 With the switch off, Copy is unchanged.
@@ -332,6 +333,7 @@ Messages over the calendar while scheduling (each its own stacked card; the left
 | Times removed, one (owner, 2026-10-13) | Last time block removed to match the available time slots. |
 | Part not open | {duration} wasn't open on Cal.com. |
 | Guests not allowed | This Cal.com link doesn't allow extra guests, so only {first guest} is filled in. |
+| Saved times closed (owner, 2026-10-13) | Some saved times aren't open on Cal.com anymore, so they were left out. |
 | Nothing open (owner, 2026-10-13) | That time is not open per your availability. Pick a different time. |
 | Offline | Couldn't reach Cal.com, so times aren't limited to your openings. |
 | Link gone | That link isn't on Cal.com anymore. These times will copy as plain text. |

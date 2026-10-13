@@ -50,14 +50,36 @@ public sealed class CalComProviderTests : IDisposable
         Assert.Equal("7", link.Id);
     }
 
-    [Theory]
-    [InlineData(HttpStatusCode.Unauthorized)]
-    [InlineData(HttpStatusCode.Forbidden)]
-    public async Task GetLinksAsync_TokenRefused_ThrowsAuth(HttpStatusCode status)
+    [Fact]
+    public async Task GetLinksAsync_TokenRefused_ThrowsAuth()
     {
-        _cal.On(HttpMethod.Get, Base + "v2/event-types", status, """{"status":"error"}""");
+        _cal.On(HttpMethod.Get, Base + "v2/event-types", HttpStatusCode.Unauthorized, """{"status":"error"}""");
 
         await Assert.ThrowsAsync<SchedulingAuthException>(() => Create().GetLinksAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task GetBookingsAsync_Forbidden_ThrowsUnavailableNotAuth()
+    {
+        _cal.On(HttpMethod.Get, Base + "v2/bookings", HttpStatusCode.Forbidden, """{"status":"error"}""");
+
+        await Assert.ThrowsAsync<SchedulingUnavailableException>(() => Create().GetBookingsAsync("101", DateTimeOffset.UnixEpoch, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task GetBookingsAsync_FullPage_ReadsTheNextPage()
+    {
+        static string Page(int from, int count) =>
+            """{"status":"success","data":[""" + string.Join(",", Enumerable.Range(from, count).Select(i =>
+                $$"""{"uid":"bk{{i}}","start":"2026-10-20T15:00:00Z","createdAt":"2026-10-13T15:00:00Z","attendees":[]}""")) + "]}";
+        _cal.On(r => r.Uri.AbsolutePath == "/v2/bookings" && r.Query("skip") is null or "0", _ => FakeHttpHandler.Json(HttpStatusCode.OK, Page(0, 100)));
+        _cal.On(r => r.Uri.AbsolutePath == "/v2/bookings" && r.Query("skip") == "100", _ => FakeHttpHandler.Json(HttpStatusCode.OK, Page(100, 1)));
+
+        var bookings = await Create().GetBookingsAsync("101", DateTimeOffset.UnixEpoch, TestContext.Current.CancellationToken);
+
+        Assert.Equal(101, bookings.Count);
+        Assert.Equal("bk100", bookings[^1].Id);
+        Assert.Equal(2, _cal.Requests.Count);
     }
 
     [Fact]

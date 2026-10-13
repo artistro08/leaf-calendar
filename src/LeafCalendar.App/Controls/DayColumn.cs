@@ -577,7 +577,7 @@ public sealed partial class DayColumn : Canvas
 
             // Room For A Label: up to the next part's start (or the time's end), at least a caption line
             var next = k + 1 < parts.Count && parts[k + 1].Start < slot.Range.End ? parts[k + 1].Start : slot.Range.End;
-            var room = (Math.Min(_owner.MinutesIntoDay(next < dayEnd ? next : dayEnd), 24 * 60) - _owner.MinutesIntoDay(start)) / 60 * _owner.HourHeight;
+            var room = ((next >= dayEnd ? 24 * 60 : _owner.MinutesIntoDay(next)) - _owner.MinutesIntoDay(start)) / 60 * _owner.HourHeight;
             if ((slot.Title is not null && start == slot.Range.Start) || room < 18)
             {
                 continue;

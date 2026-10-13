@@ -42,6 +42,25 @@ public class ShareLinksTests
     }
 
     [Fact]
+    public void Build_RangeWithNoOpenTimeLeft_LeftOutAndFlagged()
+    {
+        var open = new List<BusyRange> { new(Ten, Ten.AddMinutes(30)) };
+        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddMinutes(30)), new BusyRange(Ten.AddHours(4), Ten.AddHours(5))], open, [], "", null, Chicago, false);
+
+        Assert.True(result.RangesDropped);
+        Assert.Single(result.Plain.Split("\r\n"));
+    }
+
+    [Fact]
+    public void Build_EveryRangeHasOpenTime_NotFlagged()
+    {
+        var open = new List<BusyRange> { new(Ten, Ten.AddMinutes(30)) };
+        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddHours(1))], open, [], "", null, Chicago, false);
+
+        Assert.False(result.RangesDropped);
+    }
+
+    [Fact]
     public void Build_TwoGuestsOnLinkWithoutGuests_FlagsDropped()
     {
         var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddMinutes(30))], null, [new("", "a@example.com"), new("", "b@example.com")], "", null, Chicago, false);

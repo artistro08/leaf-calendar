@@ -50,6 +50,9 @@ public sealed class SchedulingHub(HttpClient http, ITokenStore tokens, AppLog lo
     private readonly Dictionary<string, CachedLinks> _cache = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _waitUntil = new(StringComparer.Ordinal);
 
+    // Sign-outs and client removals per provider
+    private readonly Dictionary<string, int> _endings = new(StringComparer.Ordinal);
+
     /// <summary>Raised when a provider's state changes (client saved or removed, signed in or out, needs reconnecting). Raised on any thread.</summary>
     public event EventHandler? Changed;
 
@@ -221,30 +224,42 @@ public sealed class SchedulingHub(HttpClient http, ITokenStore tokens, AppLog lo
     public async Task<IReadOnlyList<SchedulingLink>> SignInAsync(string providerId, Func<Uri, Task> openBrowser, CancellationToken ct)
     {
         var info = Find(providerId);
+        int endings;
+        lock (_gate)
+        {
+            endings = _endings.GetValueOrDefault(providerId);
+        }
+
         var client = ReadClient(providerId) ?? throw new InvalidOperationException("No OAuth client is saved for this provider.");
         var refreshToken = await new ProviderSignIn(http, OAuthFor(info), client, openBrowser, time).RunAsync(ct);
 
         var session = StartSession(info, client, refreshToken, saved: false);
         IReadOnlyList<SchedulingLink> links;
+        Session? old;
         try
         {
             links = session.Provider is ILinkSource source ? await source.GetLinksAsync(ct) : [];
-            session.Saver.Commit();
+
+            // Saved and installed together, so a sign-out or client removal either comes after (and ends it) or wins
+            lock (_gate)
+            {
+                if (_endings.GetValueOrDefault(providerId) != endings)
+                {
+                    throw new SchedulingAuthException("The sign-in was canceled by a sign-out.");
+                }
+
+                session.Saver.Commit();
+                old = _sessions.GetValueOrDefault(providerId);
+                _sessions[providerId] = session;
+                _states[providerId] = ProviderState.SignedIn;
+                _cache[providerId] = new CachedLinks(time.GetUtcNow(), links);
+                _waitUntil.Remove(providerId);
+            }
         }
         catch
         {
             session.End();
             throw;
-        }
-
-        Session? old;
-        lock (_gate)
-        {
-            old = _sessions.GetValueOrDefault(providerId);
-            _sessions[providerId] = session;
-            _states[providerId] = ProviderState.SignedIn;
-            _cache[providerId] = new CachedLinks(time.GetUtcNow(), links);
-            _waitUntil.Remove(providerId);
         }
 
         old?.End();
@@ -364,6 +379,8 @@ public sealed class SchedulingHub(HttpClient http, ITokenStore tokens, AppLog lo
         Session? session;
         lock (_gate)
         {
+            // Counted before the write, so a sign-in still in the browser can't save its token after it
+            _endings[providerId] = _endings.GetValueOrDefault(providerId) + 1;
             session = _sessions.GetValueOrDefault(providerId);
         }
 

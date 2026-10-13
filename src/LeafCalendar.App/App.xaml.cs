@@ -387,13 +387,13 @@ public partial class App : Application
                 }
                 catch (Exception ex)
                 {
-                    _log?.Info("scheduling.booking.toast.failed", $"error={ex.GetType().Name}");
+                    _log?.Info("scheduling.booking.reload.failed", $"error={ex.GetType().Name}");
                 }
             });
         }
         catch (Exception ex)
         {
-            _log?.Info("scheduling.booking.toast.failed", $"error={ex.GetType().Name}");
+            _log?.Info("scheduling.booking.reload.failed", $"error={ex.GetType().Name}");
         }
     }
 

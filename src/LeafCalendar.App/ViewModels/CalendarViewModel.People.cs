@@ -725,7 +725,7 @@ public sealed partial class CalendarViewModel
             return "";
         }
 
-        var zone = TimeZoneInfo.TryFindSystemTimeZoneById(_shareZoneId, out var shareZone) ? shareZone : Zone;
+        var zone = ShareZone();
         return AvailabilityText.Compose(_shareText, AvailabilityText.Format(BusyMath.Merge(_slots), zone, Settings.Use24HourTime));
     }
 
@@ -742,7 +742,7 @@ public sealed partial class CalendarViewModel
         }
 
         // With a booking link, each time is its own link (rich text, plus plain text with the address after each time)
-        var zone = TimeZoneInfo.TryFindSystemTimeZoneById(_shareZoneId, out var shareZone) ? shareZone : Zone;
+        var zone = ShareZone();
         var linked = BuildLinkedAvailability(zone);
         try
         {
@@ -787,9 +787,10 @@ public sealed partial class CalendarViewModel
             saved = false;
         }
 
-        // Guests Left Out Of The Links: the notice says so instead of "Availability copied" (sharing ends, so the
+        // Saved Times Left Out, Or Guests Left Out Of The Links: the notice says so instead of "Availability copied" (sharing ends, so the
         // scheduling messages wouldn't show); a failed save still says that first
         var notice = !saved ? "Copied, but couldn't save these times."
+            : linked is { RangesDropped: true } && _shareLink is { } closed ? $"Some saved times aren't open on {ProviderName(closed)} anymore, so they were left out."
             : linked is { GuestsDropped: true } && _shareLink is { } link ? $"This {ProviderName(link)} link doesn't allow extra guests, so only {FirstGuestLabel()} is filled in."
             : "Availability copied";
 

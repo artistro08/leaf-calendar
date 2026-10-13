@@ -7,7 +7,8 @@ namespace LeafCalendar.Core.Scheduling;
 /// <param name="Plain">Plain text, one "time: link" line per time.</param>
 /// <param name="Html">Rich text, where each time is the link text.</param>
 /// <param name="GuestsDropped">True when the link takes no extra guests but more than one was chosen, so only the first is in the links.</param>
-public sealed record LinkedTimes(string Plain, string Html, bool GuestsDropped);
+/// <param name="RangesDropped">True when a saved range has no open time left inside it, so it was left out of the text.</param>
+public sealed record LinkedTimes(string Plain, string Html, bool GuestsDropped, bool RangesDropped = false);
 
 /// <summary>Builds the copied text where each proposed time links to its booking page.</summary>
 public static class ShareLinks
@@ -48,7 +49,8 @@ public static class ShareLinks
         ArgumentNullException.ThrowIfNull(ranges);
         ArgumentNullException.ThrowIfNull(guests);
 
-        var pieces = ranges.SelectMany(r => SlotFitting.Split(r, open, link.Minutes)).ToList();
+        var split = ranges.Select(r => SlotFitting.Split(r, open, link.Minutes)).ToList();
+        var pieces = split.SelectMany(s => s).ToList();
         var texts = AvailabilityText.FormatTimes(pieces, zone, use24Hour);
         var pairs = pieces.Select((p, i) => (Text: texts[i], Link: builder.TimeLink(link, p.Start, zone, guests))).ToList();
 
@@ -64,6 +66,6 @@ public static class ShareLinks
             html += "<br>" + System.Net.WebUtility.HtmlEncode(line).Replace("\n", "<br>", StringComparison.Ordinal);
         }
 
-        return new(plain, html, !link.AllowsGuests && guests.Count > 1);
+        return new(plain, html, !link.AllowsGuests && guests.Count > 1, split.Any(s => s.Count == 0));
     }
 }

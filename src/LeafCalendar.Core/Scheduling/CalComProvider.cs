@@ -36,6 +36,8 @@ public sealed class CalComProvider(HttpClient http, Func<CancellationToken, Task
     private const string EventTypesVersion = "2024-06-14";
     private const string SlotsVersion = "2024-09-04";
     private const string BookingsVersion = "2024-08-13";
+    private const int BookingsPage = 100;
+    private const int MaxBookingPages = 10;
 
     /// <summary>Cal.com's hosted API.</summary>
     public static Uri DefaultApiBase { get; } = new("https://api.cal.com/");
@@ -95,9 +97,21 @@ public sealed class CalComProvider(HttpClient http, Func<CancellationToken, Task
     /// <inheritdoc />
     public async Task<IReadOnlyList<SchedulingBooking>> GetBookingsAsync(string linkId, DateTimeOffset createdAfterUtc, CancellationToken ct)
     {
-        var query = $"v2/bookings?eventTypeId={Uri.EscapeDataString(linkId)}&afterCreatedAt={Iso(createdAfterUtc)}&status=upcoming&take=100";
-        var page = await SendAsync(HttpMethod.Get, query, BookingsVersion, null, CalComJsonContext.Default.CalComEnvelopeListCalComBooking, ct);
-        return [.. (page.Data ?? []).Select(ToBooking).OfType<SchedulingBooking>()];
+        // A full page means there may be more; ponytail: stops after MaxBookingPages pages, raise it if links get that busy
+        var bookings = new List<SchedulingBooking>();
+        for (var skip = 0; skip < BookingsPage * MaxBookingPages; skip += BookingsPage)
+        {
+            var query = string.Create(CultureInfo.InvariantCulture, $"v2/bookings?eventTypeId={Uri.EscapeDataString(linkId)}&afterCreatedAt={Iso(createdAfterUtc)}&status=upcoming&take={BookingsPage}&skip={skip}");
+            var page = await SendAsync(HttpMethod.Get, query, BookingsVersion, null, CalComJsonContext.Default.CalComEnvelopeListCalComBooking, ct);
+            var data = page.Data ?? [];
+            bookings.AddRange(data.Select(ToBooking).OfType<SchedulingBooking>());
+            if (data.Count < BookingsPage)
+            {
+                break;
+            }
+        }
+
+        return bookings;
     }
 
     /// <inheritdoc />
@@ -195,8 +209,12 @@ public sealed class CalComProvider(HttpClient http, Func<CancellationToken, Task
             var text = await response.Content.ReadAsStringAsync(ct);
             switch (response.StatusCode)
             {
-                case HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden:
+                case HttpStatusCode.Unauthorized:
                     throw new SchedulingAuthException("Cal.com refused the access token.");
+
+                // A 403 is about this one link or booking (a team link you can't read), not the sign-in
+                case HttpStatusCode.Forbidden:
+                    throw new SchedulingUnavailableException("Cal.com refused this request.");
                 case HttpStatusCode.Conflict when method == HttpMethod.Post:
                     throw new SchedulingSlotTakenException("That time isn't open on Cal.com anymore.");
                 case HttpStatusCode.BadRequest when method == HttpMethod.Post && IsTakenMessage(text):

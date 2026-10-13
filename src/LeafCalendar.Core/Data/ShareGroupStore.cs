@@ -138,8 +138,9 @@ public static class ShareGroupStore
             ("$p", providerId));
 
     /// <summary>Deletes a group, its times and its guests.</summary>
-    public static void Delete(SqliteConnection conn, long id) =>
-        conn.Execute(null, "DELETE FROM share_groups WHERE id = $id;", ("$id", id));
+    /// <returns>Whether the group was there to delete.</returns>
+    public static bool Delete(SqliteConnection conn, long id) =>
+        conn.Execute(null, "DELETE FROM share_groups WHERE id = $id;", ("$id", id)) > 0;
 
     /// <summary>Deletes times that ended by <paramref name="now"/>, then groups with none left.</summary>
     public static void Prune(SqliteConnection conn, DateTimeOffset now)

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Diagnostics;
 
@@ -29,11 +30,23 @@ public sealed class BookingFoundEventArgs(SchedulingBooking booking, string prov
 /// <param name="time">The clock for reading the groups.</param>
 public sealed class BookingWatcher(SchedulingHub hub, LeafDatabase database, AppLog log, TimeProvider time)
 {
+    // Saved groups Leaf is booking right now (Approve…)
+    private readonly ConcurrentDictionary<long, byte> _booking = new();
+
     /// <summary>Raised once per found booking, on the sync thread.</summary>
     public event EventHandler<BookingFoundEventArgs>? BookingFound;
 
     /// <summary>Raised once per check, after matched groups were deleted.</summary>
     public event EventHandler? GroupsChanged;
+
+    /// <summary>
+    /// Marks a saved group as being booked from Leaf until <see cref="EndBooking"/>: a booking the check finds in it
+    /// meanwhile closes nothing and raises nothing, since the caller closes the group and says it's booked.
+    /// </summary>
+    public void BeginBooking(long groupId) => _booking[groupId] = 0;
+
+    /// <summary>Ends <see cref="BeginBooking"/> for a group, after the caller closed it (or the booking failed).</summary>
+    public void EndBooking(long groupId) => _booking.TryRemove(groupId, out _);
 
     /// <summary>
     /// Checks every provider link that has saved groups and closes the groups bookings landed in. Never throws, except
@@ -86,12 +99,25 @@ public sealed class BookingWatcher(SchedulingHub hub, LeafDatabase database, App
 
                 foreach (var result in BookingMatch.Find([.. set], providerId, linkId, bookings))
                 {
+                    // Being booked from Leaf right now: Leaf closes that group itself, with no notification
+                    if (result.GroupIds.Any(_booking.ContainsKey))
+                    {
+                        continue;
+                    }
+
+                    var deleted = false;
                     using (var conn = database.Open())
                     {
                         foreach (var id in result.GroupIds)
                         {
-                            ShareGroupStore.Delete(conn, id);
+                            deleted |= ShareGroupStore.Delete(conn, id);
                         }
+                    }
+
+                    // Already closed during this check (booked from Leaf, or removed)
+                    if (!deleted)
+                    {
+                        continue;
                     }
 
                     changed = true;

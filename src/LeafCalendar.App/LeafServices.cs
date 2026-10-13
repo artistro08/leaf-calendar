@@ -27,7 +27,11 @@ public sealed class LeafServices : IAsyncDisposable
     // How often secrets that can't be read right now are tried again
     private static readonly TimeSpan SecretsRetry = TimeSpan.FromSeconds(30);
 
+    // The longest one scheduling provider call may hold up a Google sync pass
+    private static readonly TimeSpan SchedulingTimeout = TimeSpan.FromSeconds(20);
+
     private readonly HttpClient _http;
+    private readonly HttpClient _schedulingHttp;
     private ITimer? _secretsRetry;
 
     /// <summary>Creates services for a profile under the package's local folder.</summary>
@@ -56,8 +60,11 @@ public sealed class LeafServices : IAsyncDisposable
         // Google only compresses its answers when the user agent says "gzip" too
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("LeafCalendar (gzip)");
 
-        // Scheduling Providers (built from saved keys now and when unreadable secrets recover; under --fake-google they talk to the fake too)
-        Scheduling = new SchedulingHub(_http, Tokens, Log, Time, options.FakeGoogle);
+        // Scheduling Providers (built from saved keys now and when unreadable secrets recover; under --fake-google they talk to the fake too).
+        // Their own client: no Google retries and a short timeout, since the booking check runs inside every Google sync pass.
+        _schedulingHttp = new HttpClient(new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All }) { Timeout = SchedulingTimeout };
+        _schedulingHttp.DefaultRequestHeaders.UserAgent.ParseAdd("LeafCalendar");
+        Scheduling = new SchedulingHub(_schedulingHttp, Tokens, Log, Time, options.FakeGoogle);
         Bookings = new BookingWatcher(Scheduling, Database, Log, Time);
         LoadScheduling();
 
@@ -209,6 +216,7 @@ public sealed class LeafServices : IAsyncDisposable
         }
 
         _http.Dispose();
+        _schedulingHttp.Dispose();
     }
 
     /// <summary>

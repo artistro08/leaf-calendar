@@ -75,6 +75,43 @@ public sealed class BookingWatcherTests : IDisposable
     }
 
     [Fact]
+    public async Task CheckAsync_GroupBeingBookedFromLeaf_RaisesNothingAndKeepsGroup()
+    {
+        Refreshes();
+        var id = SaveGroup();
+        _cal.On(HttpMethod.Get, "https://api.cal.com/v2/bookings", HttpStatusCode.OK, Fixture.Read("calcom-bookings.json"));
+        var found = 0;
+        _watcher.BookingFound += (_, _) => found++;
+        _watcher.BeginBooking(id);
+
+        await _watcher.CheckAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, found);
+        using var conn = _db.Database.Open();
+        Assert.Single(ShareGroupStore.GetAll(conn, _time.GetUtcNow()));
+    }
+
+    [Fact]
+    public async Task CheckAsync_GroupClosedDuringTheCheck_RaisesNothing()
+    {
+        Refreshes();
+        var id = SaveGroup();
+        _cal.On(r => r.Uri.AbsolutePath == "/v2/bookings", _ =>
+        {
+            // Leaf's own Approve… closes the group while the bookings are being read
+            using var conn = _db.Database.Open();
+            ShareGroupStore.Delete(conn, id);
+            return FakeHttpHandler.Json(HttpStatusCode.OK, Fixture.Read("calcom-bookings.json"));
+        });
+        var found = 0;
+        _watcher.BookingFound += (_, _) => found++;
+
+        await _watcher.CheckAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, found);
+    }
+
+    [Fact]
     public async Task CheckAsync_TokenRevoked_MarksNeedsReconnectAndKeepsGroup()
     {
         Refreshes();
