@@ -32,11 +32,104 @@ public sealed class LoopbackListener : IDisposable
     private const string SignedInPage = "<h1>You're signed in</h1><p>You can close this tab and go back to Leaf Calendar.</p>";
     private const string NotFinishedPage = "<h1>Sign-in didn't finish</h1><p>You can close this tab and go back to Leaf Calendar to try again.</p>";
 
+    // The page around that text: Leaf's icon, centered on a card in Windows 11's light or dark colors (following the
+    // browser's theme), with the link as a button in the icon's green (darker in light mode so white text stays readable)
     private static string Page(string content) =>
-        "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"refresh\" content=\"0;url=leaf-calendar:\"><title>Leaf Calendar</title></head>" +
-        "<body style=\"font-family:'Segoe UI',sans-serif;padding:48px\">" +
-        content +
-        "<p><a href=\"leaf-calendar:\">Open Leaf Calendar</a></p></body></html>";
+        $$"""
+        <!doctype html>
+        <html lang="en">
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <meta name="color-scheme" content="light dark">
+                <meta http-equiv="refresh" content="0;url=leaf-calendar:">
+                <title>Leaf Calendar</title>
+                <link rel="icon" href="{{IconDataUri}}">
+                <style>
+                  :root {
+                    --page: #f3f3f3;
+                    --card: #ffffff;
+                    --stroke: rgba(0, 0, 0, 0.0578);
+                    --text: #1a1a1a;
+                    --text-secondary: #5d5d5d;
+                    --accent: #2c7d00;
+                    --accent-hover: #358f05;
+                    --on-accent: #ffffff;
+                  }
+                  @media (prefers-color-scheme: dark) {
+                    :root {
+                      --page: #202020;
+                      --card: #2b2b2b;
+                      --stroke: rgba(255, 255, 255, 0.0698);
+                      --text: #ffffff;
+                      --text-secondary: #c5c5c5;
+                      --accent: #3aad01;
+                      --accent-hover: #46bd0c;
+                      --on-accent: #000000;
+                    }
+                  }
+                  html, body { height: 100%; margin: 0; }
+                  body {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 16px;
+                    box-sizing: border-box;
+                    background: var(--page);
+                    color: var(--text);
+                    font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+                  }
+                  main {
+                    max-width: 400px;
+                    padding: 32px;
+                    border: 1px solid var(--stroke);
+                    border-radius: 8px;
+                    background: var(--card);
+                    text-align: center;
+                  }
+                  img { width: 64px; height: 64px; }
+                  h1 { margin: 16px 0 8px; font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif; font-size: 28px; font-weight: 600; }
+                  p { margin: 0 0 24px; color: var(--text-secondary); font-size: 14px; line-height: 20px; }
+                  a {
+                    display: inline-block;
+                    padding: 6px 16px;
+                    border-radius: 4px;
+                    background: var(--accent);
+                    color: var(--on-accent);
+                    font-size: 14px;
+                    text-decoration: none;
+                    transition: background-color 83ms ease-out;
+                  }
+                  a:hover { background: var(--accent-hover); }
+                  p.action { margin: 0; }
+                  a:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+                </style>
+            </head>
+            <body>
+                <main>
+                    <img src="{{IconDataUri}}" alt="">
+                    {{content}}
+                    <p class="action"><a href="leaf-calendar:">Open Leaf Calendar</a></p>
+                </main>
+            </body>
+        </html>
+        """;
+
+    // Leaf's 64 px icon (embedded from the App's assets), as a data URI so the page needs nothing else from the listener
+    private static readonly string IconDataUri = LoadIcon();
+
+    private static string LoadIcon()
+    {
+        using var stream = typeof(LoopbackListener).Assembly.GetManifestResourceStream("LeafCalendar.Core.Auth.SignInIcon.png");
+        if (stream is null)
+        {
+            return "";
+        }
+
+        using var bytes = new MemoryStream();
+        stream.CopyTo(bytes);
+        return "data:image/png;base64," + Convert.ToBase64String(bytes.ToArray());
+    }
 
     private readonly TcpListener _listener;
     private readonly string _path;
