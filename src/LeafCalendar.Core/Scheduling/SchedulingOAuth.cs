@@ -82,7 +82,8 @@ internal static class SchedulingTokenRequest
             switch (response.StatusCode)
             {
                 case HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized:
-                    throw new SchedulingAuthException("The provider refused the sign-in.");
+                    var why = ErrorCodes(await response.Content.ReadAsStringAsync(ct));
+                    throw new SchedulingAuthException(string.Create(CultureInfo.InvariantCulture, $"The provider refused the sign-in ({(int)response.StatusCode} {why})."));
                 case (HttpStatusCode)429:
                     throw new SchedulingUnavailableException("The provider asked Leaf to slow down.", response.Headers.RetryAfter?.Delta);
             }
@@ -104,5 +105,32 @@ internal static class SchedulingTokenRequest
 
             return token is { AccessToken.Length: > 0 } ? token : throw new SchedulingAuthException("The provider's token answer had no access token.");
         }
+    }
+
+    // The OAuth error code and description from a refusal (top level, or under an "error" object), kept to letters,
+    // digits, '_' and '-' so the log gets the reason but nothing else the provider sent
+    internal static string ErrorCodes(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return "";
+            }
+
+            var scope = root.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.Object ? e : root;
+            return $"{Code(scope, "error")}{Code(scope, "code")} {Code(scope, "error_description")}".Trim();
+        }
+        catch (JsonException)
+        {
+            return "";
+        }
+
+        static string Code(JsonElement obj, string name) =>
+            obj.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String
+                ? new string([.. (v.GetString() ?? "").Where(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-').Take(64)])
+                : "";
     }
 }

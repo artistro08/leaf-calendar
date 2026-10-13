@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Sockets;
-using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Http;
 using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Tests.Support;
@@ -75,25 +74,22 @@ public sealed class ProviderSignInTests : IDisposable
         Assert.Equal("client-123", q["client_id"]);
         Assert.Equal($"http://127.0.0.1:{_oauth.RedirectPort}/calcom/callback", q["redirect_uri"]);
         Assert.Equal("EVENT_TYPE_READ BOOKING_READ", q["scope"]);
-        Assert.Equal("S256", q["code_challenge_method"]);
         Assert.False(string.IsNullOrEmpty(q["state"]));
-        Assert.Equal(7, q.Count);
+        Assert.Equal(5, q.Count);
 
         // Exchange body, exactly
         var exchange = _provider.Requests.Single();
         Assert.Equal(TokenUrl, exchange.Uri.AbsoluteUri);
         var form = QueryString.Parse(exchange.Body!);
-        Assert.Equal(["client_id", "client_secret", "code", "code_verifier", "grant_type", "redirect_uri"], form.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["client_id", "client_secret", "code", "grant_type", "redirect_uri"], form.Keys.Order(StringComparer.Ordinal));
         Assert.Equal("authorization_code", form["grant_type"]);
         Assert.Equal("auth-code-1", form["code"]);
         Assert.Equal(q["redirect_uri"], form["redirect_uri"]);
         Assert.Equal("client-123", form["client_id"]);
         Assert.Equal(Secret, form["client_secret"]);
-        Assert.Equal(q["code_challenge"], Pkce.CreateChallenge(form["code_verifier"]));
 
         // Nothing secret in the authorize URL besides the client ID
         Assert.DoesNotContain(Secret, authorize.AbsoluteUri, StringComparison.Ordinal);
-        Assert.DoesNotContain(form["code_verifier"], authorize.AbsoluteUri, StringComparison.Ordinal);
         Assert.Null(exchange.BearerToken);
     }
 
@@ -193,5 +189,16 @@ public sealed class ProviderSignInTests : IDisposable
         Assert.Equal(53817, oauth.RedirectPort);
         Assert.Equal("/calcom/callback", oauth.RedirectPath);
         Assert.Equal("https://app.cal.com/settings/developer/oauth", oauth.ClientPage.AbsoluteUri);
+    }
+
+    [Theory]
+    [InlineData("{\"error\":\"invalid_client\",\"error_description\":\"invalid_client_credentials\"}", "invalid_client invalid_client_credentials")]
+    [InlineData("{\"status\":\"error\",\"error\":{\"code\":\"BadRequestException\",\"message\":\"secret abc\"}}", "BadRequestException")]
+    [InlineData("{\"error\":\"bad <script> value!\"}", "badscriptvalue")]
+    [InlineData("not json", "")]
+    [InlineData("[1]", "")]
+    public void ErrorCodes_KeepsOnlyTheCodes(string body, string expected)
+    {
+        Assert.Equal(expected, SchedulingTokenRequest.ErrorCodes(body));
     }
 }

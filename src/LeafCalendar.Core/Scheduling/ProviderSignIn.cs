@@ -35,7 +35,8 @@ public sealed class ProviderSignIn(HttpClient http, SchedulingOAuth oauth, Provi
 
         using (listener)
         {
-            var verifier = Pkce.CreateVerifier();
+            // No PKCE: Cal.com's confidential clients prove themselves with the secret, and its token endpoint refuses a
+            // code_verifier ("property code_verifier should not exist"); the random state still guards the redirect
             var state = Pkce.CreateState();
             var redirectUri = listener.RedirectUri.AbsoluteUri;
 
@@ -46,7 +47,7 @@ public sealed class ProviderSignIn(HttpClient http, SchedulingOAuth oauth, Provi
             IReadOnlyDictionary<string, string> reply;
             try
             {
-                await openBrowser(BuildAuthorizeUrl(redirectUri, state, Pkce.CreateChallenge(verifier))).WaitAsync(linked.Token);
+                await openBrowser(BuildAuthorizeUrl(redirectUri, state)).WaitAsync(linked.Token);
                 reply = await listener.WaitForCallbackAsync(state, linked.Token);
             }
             catch (OperationCanceledException ex) when (timeout.IsCancellationRequested && !ct.IsCancellationRequested)
@@ -70,7 +71,6 @@ public sealed class ProviderSignIn(HttpClient http, SchedulingOAuth oauth, Provi
                     new("grant_type", "authorization_code"),
                     new("code", code),
                     new("redirect_uri", redirectUri),
-                    new("code_verifier", verifier),
                 ],
                 ct);
 
@@ -81,7 +81,7 @@ public sealed class ProviderSignIn(HttpClient http, SchedulingOAuth oauth, Provi
     }
 
     // The consent page address: only the client ID, never the secret or the verifier
-    private Uri BuildAuthorizeUrl(string redirectUri, string state, string challenge)
+    private Uri BuildAuthorizeUrl(string redirectUri, string state)
     {
         List<KeyValuePair<string, string>> query =
         [
@@ -90,8 +90,6 @@ public sealed class ProviderSignIn(HttpClient http, SchedulingOAuth oauth, Provi
             new("redirect_uri", redirectUri),
             new("scope", string.Join(' ', oauth.Scopes)),
             new("state", state),
-            new("code_challenge", challenge),
-            new("code_challenge_method", "S256"),
         ];
 
         return new Uri($"{oauth.Authorize.AbsoluteUri}?{string.Join('&', query.Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value)}"))}");
