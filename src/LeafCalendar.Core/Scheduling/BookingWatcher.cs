@@ -78,6 +78,11 @@ public sealed class BookingWatcher(SchedulingHub hub, LeafDatabase database, App
 
                     continue;
                 }
+                catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+                {
+                    log.Info("scheduling.booking.failed", $"provider={providerId} error={ex.GetType().Name}");
+                    continue;
+                }
 
                 foreach (var result in BookingMatch.Find([.. set], providerId, linkId, bookings))
                 {

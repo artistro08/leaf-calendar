@@ -33,11 +33,11 @@ public sealed class BookingWatcherTests : IDisposable
         _logs.Dispose();
     }
 
-    private long SaveGroup(string provider = "calcom")
+    private long SaveGroup(string provider = "calcom", string linkId = "101")
     {
         using var conn = _db.Database.Open();
         var nine = new DateTimeOffset(2026, 10, 13, 14, 0, 0, TimeSpan.Zero);
-        var link = provider.Length > 0 ? new ShareLink(provider, "101", "https://cal.com/leaf-tester/30min", 30) : ShareLink.None;
+        var link = provider.Length > 0 ? new ShareLink(provider, linkId, "https://cal.com/leaf-tester/30min", 30) : ShareLink.None;
         return ShareGroupStore.Insert(conn, "", "", "UTC", [new BusyRange(nine, nine.AddHours(2))], _time.GetUtcNow(), [], link);
     }
 
@@ -100,5 +100,22 @@ public sealed class BookingWatcherTests : IDisposable
         await _watcher.CheckAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(_cal.Requests);
+    }
+
+    [Fact]
+    public async Task CheckAsync_OneLinkFailsUnexpectedly_StillChecksTheOthers()
+    {
+        SaveGroup(linkId: "102");
+        SaveGroup(linkId: "101");
+        _cal.On(r => r.Uri.AbsoluteUri.Contains("eventTypeId=102", StringComparison.Ordinal), _ => throw new InvalidOperationException("bad"));
+        _cal.On(HttpMethod.Get, "https://api.cal.com/v2/bookings", HttpStatusCode.OK, Fixture.Read("calcom-bookings.json"));
+        var found = new List<BookingFoundEventArgs>();
+        _watcher.BookingFound += (_, e) => found.Add(e);
+
+        await _watcher.CheckAsync(TestContext.Current.CancellationToken);
+
+        Assert.Single(found);
+        using var conn = _db.Database.Open();
+        Assert.Equal("102", Assert.Single(ShareGroupStore.GetAll(conn, _time.GetUtcNow())).LinkId);
     }
 }
