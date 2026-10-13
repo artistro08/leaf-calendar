@@ -23,7 +23,15 @@ public sealed class GoogleServices : IAsyncDisposable
     private readonly TimeProvider _time;
 
     /// <summary>Wires the Google services.</summary>
-    public GoogleServices(HttpClient http, OAuthClientCredentials credentials, ITokenStore tokenStore, LeafDatabase database, AppLog log, TimeProvider time, GoogleEndpoints? endpoints = null)
+    /// <param name="http">The client Google calls go through.</param>
+    /// <param name="credentials">The user's OAuth client.</param>
+    /// <param name="tokenStore">Where refresh tokens are kept.</param>
+    /// <param name="database">The local database.</param>
+    /// <param name="log">The app log.</param>
+    /// <param name="time">The clock.</param>
+    /// <param name="endpoints">Alternate Google addresses (UI tests), or null.</param>
+    /// <param name="afterSync">Runs after each sync pass; scheduling booking checks.</param>
+    public GoogleServices(HttpClient http, OAuthClientCredentials credentials, ITokenStore tokenStore, LeafDatabase database, AppLog log, TimeProvider time, GoogleEndpoints? endpoints = null, Func<CancellationToken, Task>? afterSync = null)
     {
         _tokenStore = tokenStore;
         _database = database;
@@ -35,7 +43,7 @@ public sealed class GoogleServices : IAsyncDisposable
         Calendar = new GoogleCalendarClient(http, AccessTokens, endpoints);
         Contacts = new ContactSearch(http, AccessTokens, log, endpoints);
         Sync = new SyncEngine(Calendar, database, log, time);
-        Loop = new SyncLoop(Sync.SyncAllAsync, time, log);
+        Loop = new SyncLoop(ct => SyncThenAsync(afterSync, ct), time, log);
     }
 
     /// <summary>An open "Join now" belonged to an account being disconnected; the argument is its tag, to withdraw from screen.</summary>
@@ -134,6 +142,16 @@ public sealed class GoogleServices : IAsyncDisposable
             {
                 _log.Info("account.domain.failed", $"account={account.Id} error={ex.GetType().Name}");
             }
+        }
+    }
+
+    // One sync pass, then the scheduling booking check (it never fails a Google pass; a failed Google pass skips it until the next)
+    private async Task SyncThenAsync(Func<CancellationToken, Task>? afterSync, CancellationToken ct)
+    {
+        await Sync.SyncAllAsync(ct);
+        if (afterSync is not null)
+        {
+            await afterSync(ct);
         }
     }
 
