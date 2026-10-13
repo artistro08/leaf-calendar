@@ -282,14 +282,14 @@ public sealed class SidebarTests : IDisposable
             Assert.Equal(home, details.BoundingRectangle);
         }
 
-        // Details Closed: the Next button touches the toggle
+        // Details Closed: the Create event button touches the toggle
         if (details.AsToggleButton().ToggleState == FlaUI.Core.Definitions.ToggleState.On)
         {
             details.AsToggleButton().Toggle();
             Thread.Sleep(800);
         }
 
-        Assert.True(Math.Abs(leaf.WaitFor("NextButton").BoundingRectangle.Right - home.Left) <= 2, "The toolbar doesn't end at the details toggle.");
+        Assert.True(Math.Abs(leaf.WaitFor("CreateEventButton").BoundingRectangle.Right - home.Left) <= 2, "The toolbar doesn't end at the details toggle.");
     }
 
     // Each pane toggle's glyph has a narrow panel (the sidebar's on the left, the details panel's on the right), filled
