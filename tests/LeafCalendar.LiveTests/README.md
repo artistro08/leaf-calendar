@@ -30,3 +30,37 @@ Your default browser opens. Sign in with the account you want to use. It only ru
 ```powershell
 dotnet test --project tests/LeafCalendar.LiveTests/LeafCalendar.LiveTests.csproj
 ```
+
+## Cal.com
+
+`CalComLiveTests` checks the Cal.com scheduling provider against a real account. They skip until the one-time setup below is done.
+
+It checks that:
+
+- Your links list (at least one).
+- The first link's open times for the next 7 days read back.
+- A time link built for the first open time starts with that link's booking URL.
+- The first link's bookings read back (a read only).
+
+It **never books**. A booking sends real emails.
+
+### One-time setup
+
+1. In Cal.com, go to Settings › Developer › OAuth and create a test OAuth client.
+2. Register this redirect URI: `http://127.0.0.1:53817/calcom/callback`
+3. Give the client these four scopes: `EVENT_TYPE_READ`, `BOOKING_READ`, `BOOKING_WRITE`, `SCHEDULE_READ`.
+4. Save the client ID and secret as user environment variables. Use a masked prompt so the secret never lands in your shell history:
+
+```powershell
+[Environment]::SetEnvironmentVariable('LEAF_LIVE_CALCOM_CLIENT_ID', (Read-Host -AsSecureString | ConvertFrom-SecureString -AsPlainText), 'User')
+[Environment]::SetEnvironmentVariable('LEAF_LIVE_CALCOM_CLIENT_SECRET', (Read-Host -AsSecureString | ConvertFrom-SecureString -AsPlainText), 'User')
+```
+
+5. From the repo root, run the sign-in once and approve it in the browser that opens:
+
+```powershell
+$env:LEAF_LIVE_CALCOM_SIGNIN = '1'
+dotnet test --project tests/LeafCalendar.LiveTests/LeafCalendar.LiveTests.csproj --filter-class "*CalComLiveTests"
+```
+
+The variables are read from the process first, then from your user-level variables, so an older shell still works. The client and refresh token are stored in the `live-tests` profile. Normal runs (without `LEAF_LIVE_CALCOM_SIGNIN`) use them.
