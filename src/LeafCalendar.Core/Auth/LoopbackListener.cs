@@ -39,18 +39,31 @@ public sealed class LoopbackListener : IDisposable
         "<p><a href=\"leaf-calendar:\">Open Leaf Calendar</a></p></body></html>";
 
     private readonly TcpListener _listener;
+    private readonly string _path;
 
-    /// <summary>Starts listening on a random free loopback port.</summary>
+    /// <summary>Starts listening on a random free loopback port, at the root path.</summary>
     public LoopbackListener()
+        : this(0, "/")
     {
-        _listener = new TcpListener(IPAddress.Loopback, 0);
-        _listener.Start(backlog: 4);
-
-        var port = ((IPEndPoint)_listener.LocalEndpoint).Port;
-        RedirectUri = new Uri($"http://127.0.0.1:{port.ToString(CultureInfo.InvariantCulture)}/");
     }
 
-    /// <summary>The redirect URI to send to Google. Always ends with <c>/</c>.</summary>
+    /// <summary>
+    /// Starts listening on a fixed loopback port and path, for providers that match the redirect URI exactly.
+    /// </summary>
+    /// <param name="port">The loopback port to bind; 0 picks a random free one.</param>
+    /// <param name="path">The redirect path, starting with <c>/</c>; no trailing slash is added.</param>
+    /// <exception cref="SocketException">With <see cref="SocketError.AddressAlreadyInUse"/> when the port is taken.</exception>
+    public LoopbackListener(int port, string path)
+    {
+        _path = path;
+        _listener = new TcpListener(IPAddress.Loopback, port);
+        _listener.Start(backlog: 4);
+
+        var bound = ((IPEndPoint)_listener.LocalEndpoint).Port;
+        RedirectUri = new Uri($"http://127.0.0.1:{bound.ToString(CultureInfo.InvariantCulture)}{path}");
+    }
+
+    /// <summary>The redirect URI to send to the provider. Ends with <c>/</c> unless a path was given.</summary>
     public Uri RedirectUri { get; }
 
     /// <summary>
@@ -106,14 +119,14 @@ public sealed class LoopbackListener : IDisposable
             }
 
             // Ignore Anything That Isn't The Redirect
-            if (target is null || !target.StartsWith("/?", StringComparison.Ordinal))
+            if (target is null || !target.StartsWith(_path + "?", StringComparison.Ordinal))
             {
                 await RespondAsync(client, stream, "404 Not Found", "", ct);
                 continue;
             }
 
             // Require Code Or Error Parameter And This Sign-In's State
-            var query = QueryString.Parse(target[2..]);
+            var query = QueryString.Parse(target[(_path.Length + 1)..]);
             if ((!query.ContainsKey("code") && !query.ContainsKey("error")) || !Pkce.StateMatches(expectedState, query.GetValueOrDefault("state")))
             {
                 await RespondAsync(client, stream, "404 Not Found", "", ct);
