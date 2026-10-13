@@ -137,7 +137,7 @@ public static class AvailabilityText
     {
         ArgumentNullException.ThrowIfNull(lines);
 
-        var times = string.Join("<br>", lines.Select(l => $"<a href=\"{WebUtility.HtmlEncode(l.Link.ToString())}\">{WebUtility.HtmlEncode(l.Text)}</a>"));
+        var times = string.Join("<br>", lines.Select(l => $"<a href=\"{WebUtility.HtmlEncode(l.Link.AbsoluteUri)}\">{WebUtility.HtmlEncode(l.Text)}</a>"));
         var text = (message ?? "").Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Trim();
         if (text.Length == 0)
         {

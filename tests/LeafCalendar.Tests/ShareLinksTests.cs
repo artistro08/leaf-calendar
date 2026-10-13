@@ -29,6 +29,19 @@ public class ShareLinksTests
         var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddMinutes(30))], null, [new("", "a@example.com"), new("", "b@example.com")], "", Chicago, false);
 
         Assert.True(result.GuestsDropped);
+        Assert.Contains("a%40example.com", result.Plain, StringComparison.Ordinal);
         Assert.DoesNotContain("b%40example.com", result.Plain, StringComparison.Ordinal);
+        Assert.DoesNotContain("b@example.com", result.Plain, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Build_GuestNameWithSpace_StaysEscapedInPlainAndHtml()
+    {
+        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddMinutes(30))], null, [new("Ann Lee", "ann@example.com")], "", Chicago, false);
+
+        Assert.Contains("name=Ann%20Lee", result.Plain, StringComparison.Ordinal);
+        Assert.Contains("name=Ann%20Lee", result.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ann Lee", result.Plain, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ann Lee", result.Html, StringComparison.Ordinal);
     }
 }

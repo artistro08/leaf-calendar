@@ -42,7 +42,7 @@ public static class ShareLinks
         var pairs = pieces.Select((p, i) => (Text: texts[i], Link: builder.TimeLink(link, p.Start, zone, guests))).ToList();
 
         // Colons Are Safe In A Query, So The Pasted Text Keeps The Time Readable
-        var plain = AvailabilityText.Compose(message, string.Join("\r\n", pairs.Select(p => $"{p.Text}: {p.Link.ToString().Replace("%3A", ":", StringComparison.Ordinal)}")));
+        var plain = AvailabilityText.Compose(message, string.Join("\r\n", pairs.Select(p => $"{p.Text}: {p.Link.AbsoluteUri.Replace("%3A", ":", StringComparison.Ordinal)}")));
         return new(plain, AvailabilityText.ComposeHtml(message, pairs), !link.AllowsGuests && guests.Count > 1);
     }
 }
