@@ -360,12 +360,13 @@ public sealed partial class CalendarViewModel
     }
 
     // With a link on and its openings known, a pick is fitted to them and the messages say what happened; otherwise it's
-    // kept as dragged (and, with the link on, fitted once the openings arrive, so Copy doesn't drop it)
+    // kept as dragged (and, with the switch on, fitted once the link and its openings arrive, so Copy doesn't drop it;
+    // a pick made before the links were even read waits for them too)
     private IReadOnlyList<BusyRange> FitPick(BusyRange pick)
     {
         if (!_useProvider || _shareLink is null || _openTimes is null)
         {
-            _refitPending |= _useProvider && _shareLink is not null;
+            _refitPending |= _useProvider;
             return [pick];
         }
 
