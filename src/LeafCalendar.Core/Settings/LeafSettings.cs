@@ -1,5 +1,6 @@
 using System.Globalization;
 using LeafCalendar.Core.People;
+using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Tray;
 using LeafCalendar.Core.Views;
 
@@ -324,11 +325,12 @@ public sealed record LeafSettings
         };
     }
 
-    // Trimmed, capped, blank and repeated provider IDs dropped (the first kept), the unused server emptied
+    // Trimmed, capped, unknown and repeated provider IDs dropped (the first kept), the unused server emptied
     private static List<ProviderSettings> CleanScheduling(IReadOnlyList<ProviderSettings>? list) =>
         [.. (list ?? [])
             .Where(p => p is not null && !string.IsNullOrWhiteSpace(p.ProviderId))
             .Select(p => new ProviderSettings(Clip(p.ProviderId.Trim(), 32), "", Clip((p.DefaultLinkId ?? "").Trim(), 64)))
+            .Where(p => SchedulingProviders.Find(p.ProviderId) is not null)
             .DistinctBy(p => p.ProviderId, StringComparer.Ordinal)];
 
     /// <summary>Returns the saved choices for a provider, or an empty set when none are saved.</summary>

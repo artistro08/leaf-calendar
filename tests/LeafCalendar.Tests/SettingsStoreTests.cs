@@ -181,6 +181,17 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Normalize_Scheduling_DropsUnknownProviders()
+    {
+        var settings = new LeafSettings
+        {
+            Scheduling = [new("someday", "", "1"), new("calcom", "", "101")],
+        }.Normalize();
+
+        Assert.Equal("calcom", Assert.Single(settings.Scheduling).ProviderId);
+    }
+
+    [Fact]
     public void BookingNotifications_DefaultsOn() => Assert.True(new LeafSettings().BookingNotifications);
 
     [Fact]
