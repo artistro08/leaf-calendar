@@ -35,10 +35,11 @@ public sealed partial class CalendarViewModel
     // Bumped by every open-times fetch and every switch, link or sharing change, so only the newest answer lands
     private int _openGeneration;
 
-    // Bumped when sharing starts, opens a group or stops, so links read for an earlier share are dropped
+    // Bumped when sharing starts, opens a group or stops, or its provider is signed out, so links read before are dropped
     private int _shareSession;
 
-    // A link change or the switch turning on is waiting for open times to fit every pick to them
+    // A link change, the switch turning on, or a pick made before the link or its openings were known is waiting for
+    // open times to fit every pick to them
     private bool _refitPending;
 
     // Newest first, at most MaxShareMessages
@@ -228,7 +229,7 @@ public sealed partial class CalendarViewModel
                 {
                     _useProvider = false;
                     _shareLink = DefaultLink();
-                    SayShare("That link isn't on Cal.com anymore. These times will copy as plain text.");
+                    SayShare($"That link isn't on {ProviderName(group.ProviderId)} anymore. These times will copy as plain text.");
                 }
             }
             else
@@ -246,8 +247,47 @@ public sealed partial class CalendarViewModel
         _links.FirstOrDefault(l => l.Id == Settings.ProviderSettingsFor(l.ProviderId).DefaultLinkId) ?? (_links.Count > 0 ? _links[0] : null);
 
     // The provider's name for the messages, even after it was disconnected
-    private string ProviderName(SchedulingLink link) =>
-        _services.Scheduling.Get(link.ProviderId)?.Name ?? SchedulingProviders.Find(link.ProviderId)?.Name ?? link.ProviderId;
+    private string ProviderName(SchedulingLink link) => ProviderName(link.ProviderId);
+
+    private string ProviderName(string providerId) =>
+        _services.Scheduling.Get(providerId)?.Name ?? SchedulingProviders.Find(providerId)?.Name ?? providerId;
+
+    // The needs-reconnecting text, as Settings › Accounts shows it
+    private string NeedsReconnectMessage(string providerId) =>
+        $"{ProviderName(providerId)} signed Leaf out. Sign in again to keep sharing booking links.";
+
+    // A provider signed in, out, was removed or needs reconnecting (raised on any thread). A share on a provider that's
+    // no longer signed in turns plain, so Save and Copy & Save write no link from it and Copy matches what's saved; a
+    // refused sign-in says so. A provider signed in while sharing with no links read reads them. The panel refreshes
+    private void OnSchedulingChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(() =>
+    {
+        if (!_sharing)
+        {
+            return;
+        }
+
+        var hub = _services.Scheduling;
+        if (_shareLink is { } link && hub.Get(link.ProviderId) is null)
+        {
+            var refused = _useProvider && hub.StateOf(link.ProviderId) == ProviderState.NeedsReconnect;
+            _shareSession++;
+            _useProvider = false;
+            _links = [.. _links.Where(l => hub.Get(l.ProviderId) is not null)];
+            _shareLink = DefaultLink();
+            _refitPending = false;
+            ClearOpenTimes();
+            if (refused)
+            {
+                SayShare(NeedsReconnectMessage(link.ProviderId));
+            }
+        }
+        else if (HasScheduling && _links.Count == 0)
+        {
+            LoadLinks(_useProvider ? _savedGroups.FirstOrDefault(g => g.Id == _openGroupId) : null);
+        }
+
+        ShareChanged?.Invoke(this, EventArgs.Empty);
+    });
 
     // Paging: the new days' open times, when sharing with the switch on
     private void OnSchedulingPeriodChanged()
@@ -289,6 +329,7 @@ public sealed partial class CalendarViewModel
         var generation = ++_openGeneration;
         _openAsked = (from, to);
         IReadOnlyList<BusyRange>? open = null;
+        var refused = false;
 
         // In A Rate-Limit Back-Off It Counts As Not Reachable
         try
@@ -303,6 +344,7 @@ public sealed partial class CalendarViewModel
             _services.Log.Info("scheduling.open.failed", $"provider={link.ProviderId} error={ex.GetType().Name}");
             if (ex is SchedulingAuthException)
             {
+                refused = true;
                 _services.Scheduling.MarkNeedsReconnect(link.ProviderId);
             }
             else if (ex is SchedulingUnavailableException { RetryAfter: { } retryAfter })
@@ -327,9 +369,10 @@ public sealed partial class CalendarViewModel
 
         _openTimes = open;
         _openRange = open is null ? null : (from, to);
-        if (open is null)
+        // A refused sign-in says so instead, once the share turns plain (OnSchedulingChanged)
+        if (open is null && !refused)
         {
-            SayShare("Couldn't reach Cal.com, so times aren't limited to your openings.");
+            SayShare($"Couldn't reach {ProviderName(link)}, so times aren't limited to your openings.");
         }
 
         Refit();

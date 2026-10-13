@@ -181,6 +181,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         services.Editor.LocalZoneId = TimeZoneCatalog.IanaId(UserZone);
         services.Editor.Changed += OnEditsChanged;
         services.Conflicts.Changed += OnEditsChanged;
+        services.Scheduling.Changed += OnSchedulingChanged;
         RefreshSyncState();
         ReloadGroups();
 
@@ -1188,6 +1189,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         _services.GoogleChanged -= OnGoogleChanged;
         _services.Editor.Changed -= OnEditsChanged;
         _services.Conflicts.Changed -= OnEditsChanged;
+        _services.Scheduling.Changed -= OnSchedulingChanged;
         if (_attachedSync is not null)
         {
             _attachedSync.DataChanged -= OnSyncDataChanged;

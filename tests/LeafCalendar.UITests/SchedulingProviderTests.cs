@@ -353,6 +353,35 @@ public sealed class SchedulingProviderTests : IDisposable
         Assert.DoesNotContain("slot=", Copy(leaf), StringComparison.Ordinal);
     }
 
+    // Signing out in Settings while a Cal.com share is open turns the share plain: the switch goes, Copy & Save copies
+    // plain text, and the group is saved without the link (after signing in again it opens with the switch off)
+    [Fact]
+    public void SignOut_WhileSharing_SharePlainAndSavedWithoutTheLink()
+    {
+        using (var leaf = Launch())
+        {
+            StartSharingWithLink(leaf);
+            ShareAvailabilityTests.DragHours(leaf, 10, 11);
+            leaf.WaitFor("ShareSlot_0");
+
+            leaf.OpenSettings("Accounts");
+            leaf.WaitInSettings($"ProviderSignOut_{Provider}").AsButton().Invoke();
+            Assert.NotNull(leaf.WaitInSettings($"ProviderSignIn_{Provider}"));
+            leaf.CloseSettings();
+
+            Assert.NotNull(leaf.WaitFor("ShareSlotsPanel"));
+            Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareProviderSwitch"), TimeSpan.FromSeconds(5)).Success, "The switch stayed after signing out.");
+            Assert.DoesNotContain("slot=", Copy(leaf), StringComparison.Ordinal);
+            Assert.NotNull(leaf.WaitFor(FirstSaved));
+        }
+
+        // Signed In Again, A Link Saved With The Group Would Turn Its Switch On
+        new ProtectedFileTokenStore(LeafApp.ProfileFolder(_profile)).SetProviderSecret(Provider, "refresh_token", FakeGoogleServer.CalComRefreshToken);
+        using var again = Launch();
+        OpenGroupPlain(again);
+        Assert.True(again.WaitFor("ShareProviderSwitch").AsToggleButton().ToggleState == ToggleState.Off, "The group was saved with the Cal.com link after signing out.");
+    }
+
     private static void OpenGroupPlain(LeafApp leaf)
     {
         SavedShareGroupTests.OpenFirst(leaf);

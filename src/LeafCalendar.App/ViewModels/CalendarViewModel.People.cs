@@ -4,6 +4,7 @@ using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.People;
+using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Tray;
 using LeafCalendar.Core.Views;
@@ -483,12 +484,21 @@ public sealed partial class CalendarViewModel
     /// Books one time of the open group: sharing stops (the editor needs the right panel), and the event editor opens on
     /// that time with the group's title and every guest added. Needs a guest. The group is deleted only once the event
     /// saves; until then its times stay on the grid, resizable. Does nothing when <see cref="ApprovesThroughProvider"/>
-    /// (the share panel books on the provider instead, through <see cref="BookAsync"/>).
+    /// (the share panel books on the provider instead, through <see cref="BookAsync"/>), and only says so when the group
+    /// was saved on a provider that needs reconnecting.
     /// </summary>
     public void ApproveSlot(int index)
     {
         if (ApprovesThroughProvider || _openGroupId is not { } id || index < 0 || index >= _slots.Count || _shareGuests.Count == 0)
         {
+            return;
+        }
+
+        // A group saved on a provider that refused its sign-in books there once you sign in again, never as a Google event
+        if (_savedGroups.FirstOrDefault(g => g.Id == id) is { ProviderId.Length: > 0 } group
+            && _services.Scheduling.StateOf(group.ProviderId) == ProviderState.NeedsReconnect)
+        {
+            SayShare(NeedsReconnectMessage(group.ProviderId));
             return;
         }
 
