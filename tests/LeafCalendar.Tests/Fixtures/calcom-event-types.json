@@ -1,0 +1,10 @@
+{
+  "status": "success",
+  "data": [
+    { "id": 101, "title": "30 min meeting", "slug": "30min", "lengthInMinutes": 30, "bookingUrl": "https://cal.com/leaf-tester/30min", "hidden": false, "disableGuests": false },
+    { "id": 102, "title": "Quick chat", "slug": "15min", "lengthInMinutes": 15, "bookingUrl": "https://cal.com/leaf-tester/15min", "hidden": false, "disableGuests": true },
+    { "id": 103, "title": "Secret", "slug": "secret", "lengthInMinutes": 60, "bookingUrl": "https://cal.com/leaf-tester/secret", "hidden": true, "disableGuests": false },
+    { "id": 104, "title": "Plain http", "slug": "http", "lengthInMinutes": 30, "bookingUrl": "http://cal.com/leaf-tester/http", "hidden": false },
+    { "id": 105, "title": null, "slug": "nulls", "lengthInMinutes": 30, "bookingUrl": null, "hidden": false }
+  ]
+}

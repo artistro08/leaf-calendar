@@ -10,6 +10,12 @@ public sealed record RecordedRequest(HttpMethod Method, Uri Uri, string? BearerT
     /// <summary>The <c>If-Match</c> header, or null.</summary>
     public string? IfMatch { get; init; }
 
+    /// <summary>Every request header, by name (case-insensitive).</summary>
+    public IReadOnlyDictionary<string, string> Headers { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>Returns a request header value, or null.</summary>
+    public string? Header(string name) => Headers.GetValueOrDefault(name);
+
     /// <summary>Returns a query string value, or null.</summary>
     public string? Query(string key) => QueryString.Parse(Uri.Query).GetValueOrDefault(key);
 
@@ -72,6 +78,7 @@ public sealed class FakeHttpHandler : HttpMessageHandler
         var recorded = new RecordedRequest(request.Method, request.RequestUri!, request.Headers.Authorization?.Parameter, body)
         {
             IfMatch = request.Headers.TryGetValues("If-Match", out var ifMatch) ? string.Join(",", ifMatch) : null,
+            Headers = request.Headers.ToDictionary(h => h.Key, h => string.Join(",", h.Value), StringComparer.OrdinalIgnoreCase),
         };
         Requests.Add(recorded);
 
