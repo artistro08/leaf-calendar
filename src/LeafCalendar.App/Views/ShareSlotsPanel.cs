@@ -4,6 +4,7 @@ using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.People;
+using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -65,6 +66,13 @@ public sealed partial class ShareSlotsPanel : UserControl
     private long? _group;
     private bool? _savedLayout;
 
+    // Sharing with a booking link (shown while a scheduling provider is connected): the switch, then the link box while
+    // it's on. The box's items are kept here with the links they show, so the WinRT list is never read back
+    private readonly ToggleSwitch _useProvider = new() { OnContent = "", OffContent = "" };
+    private readonly ComboBox _linkBox = new() { Header = "Link", HorizontalAlignment = HorizontalAlignment.Stretch };
+    private IReadOnlyList<SchedulingLink> _linksShown = [];
+    private bool _showingLink;
+
     /// <summary>Builds the panel (filled by <see cref="Update"/>).</summary>
     public ShareSlotsPanel()
     {
@@ -80,6 +88,25 @@ public sealed partial class ShareSlotsPanel : UserControl
         AutomationProperties.SetName(_zoneBox, "Time zone");
         AutomationProperties.SetAutomationId(_zoneBox, "ShareZoneBox");
         _zoneBox.ZoneChanged += (_, id) => _vm?.ShareZoneId = id;
+
+        // Booking Link Switch And Link Box (the user's own changes go to the view model, not the ones Update makes)
+        AutomationProperties.SetAutomationId(_useProvider, "ShareProviderSwitch");
+        AutomationProperties.SetAutomationId(_linkBox, "ShareLinkBox");
+        AutomationProperties.SetName(_linkBox, "Link");
+        _useProvider.Toggled += (_, _) =>
+        {
+            if (!_showingLink)
+            {
+                _vm?.SetUseProvider(_useProvider.IsOn);
+            }
+        };
+        _linkBox.SelectionChanged += (_, _) =>
+        {
+            if (!_showingLink && _linkBox.SelectedIndex is var i && i >= 0 && i < _linksShown.Count)
+            {
+                _vm?.SetShareLink(_linksShown[i]);
+            }
+        };
 
         // Title (shown on the saved times; pre-fills the event title on approve)
         AutomationProperties.SetName(_titleBox, "Title");
@@ -158,6 +185,8 @@ public sealed partial class ShareSlotsPanel : UserControl
         var stack = new StackPanel { Spacing = 8, Margin = new Thickness(16, 0, 16, 16) };
         stack.Children.Add(_title);
         stack.Children.Add(hint);
+        stack.Children.Add(_useProvider);
+        stack.Children.Add(_linkBox);
         stack.Children.Add(_titleBox);
         stack.Children.Add(_zoneBox);
         stack.Children.Add(messageBox);
@@ -242,6 +271,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         _title.Text = saved ? "Saved times" : "Times to share";
         ShowButtons(saved);
         ShowGuests(vm);
+        ShowLink(vm);
 
         _sharing = vm.IsSharing;
         _save.IsEnabled = vm.ShareSlots.Count > 0;
@@ -331,6 +361,40 @@ public sealed partial class ShareSlotsPanel : UserControl
             Grid.SetColumn(buttons[i], i);
             _buttons.Children.Add(buttons[i]);
         }
+    }
+
+    // The booking link switch and the link box while a provider is connected (the box only while the switch is on). The
+    // box's items are rebuilt only when the links change, so it keeps focus and its open list otherwise
+    private void ShowLink(CalendarViewModel vm)
+    {
+        var shown = vm.IsSharing && vm.HasScheduling;
+        _useProvider.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        _linkBox.Visibility = shown && vm.UseProvider ? Visibility.Visible : Visibility.Collapsed;
+        if (!shown)
+        {
+            return;
+        }
+
+        _showingLink = true;
+        var label = vm.ShareSwitchLabel;
+        _useProvider.Header = label;
+        AutomationProperties.SetName(_useProvider, label);
+        _useProvider.IsOn = vm.UseProvider;
+
+        // ponytail: one list, not grouped by provider; group it once a second provider exists (spec 5)
+        if (!ReferenceEquals(_linksShown, vm.ShareLinks))
+        {
+            _linksShown = vm.ShareLinks;
+            _linkBox.ItemsSource = _linksShown.Select(l => string.Create(CultureInfo.CurrentCulture, $"{l.Name} · {l.Minutes} min")).ToList();
+        }
+
+        var selected = vm.ShareLink is { } link ? _linksShown.ToList().IndexOf(link) : -1;
+        if (_linkBox.SelectedIndex != selected)
+        {
+            _linkBox.SelectedIndex = selected;
+        }
+
+        _showingLink = false;
     }
 
     // The guests added, one row each (rebuilt only when the list changed, so a remove button keeps focus otherwise)

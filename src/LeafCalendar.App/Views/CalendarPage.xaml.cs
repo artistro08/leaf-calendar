@@ -65,6 +65,9 @@ public sealed partial class CalendarPage : Page
     // Room for the title bar's pane toggle, which sits over the island's corner while the sidebar is closed
     private const double PaneToggleClearance = 44;
 
+    // How long a notice (and each scheduling message) stays before it hides itself
+    private static readonly TimeSpan NoticeTime = TimeSpan.FromSeconds(5);
+
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _noticeTimer;
 
     // "E then ..." sequences; E opens the editor at once on an event you can change, while the second key may still
@@ -83,7 +86,7 @@ public sealed partial class CalendarPage : Page
 
         // Notices Hide Themselves (before the delete's 6 s undo window ends)
         _noticeTimer = DispatcherQueue.CreateTimer();
-        _noticeTimer.Interval = TimeSpan.FromSeconds(5);
+        _noticeTimer.Interval = NoticeTime;
         _noticeTimer.IsRepeating = false;
         _noticeTimer.Tick += (_, _) => ViewModel.DismissNotice();
 

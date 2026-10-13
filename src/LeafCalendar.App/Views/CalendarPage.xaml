@@ -23,6 +23,15 @@
                     <SolidColorBrush x:Key="InfoBarInformationalSeverityBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
+
+            <!-- Scheduling Message Card (built in code, one per message in ShareMessagesPanel): the other toasts' look -->
+            <Style x:Key="LeafShareMessageStyle" TargetType="InfoBar">
+                <Setter Property="CloseButtonStyle" Value="{StaticResource LeafInfoBarCloseButtonStyle}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource SurfaceStrokeColorDefaultBrush}" />
+                <Setter Property="IsClosable" Value="False" />
+                <Setter Property="Severity" Value="Informational" />
+                <Setter Property="AutomationProperties.LiveSetting" Value="Polite" />
+            </Style>
         </ResourceDictionary>
     </Page.Resources>
 
@@ -99,7 +108,7 @@
                     VerticalAlignment="Bottom" />
 
                 <!-- Toasts (bottom center, solid so the grid never shows through): the people overlay's bar (added in code),
-                     the hint while you mark times to share, then the notice ("Event deleted." and Undo). Each is raised over the
+                     the scheduling messages and the hint while you mark times to share, then the notice ("Event deleted." and Undo). Each is raised over the
                      calendar like a flyout (a ThemeShadow, CalendarPage.Float) with the flyout border, so it stands out in dark too -->
                 <StackPanel
                     x:Name="Toasts"
@@ -108,6 +117,12 @@
                     HorizontalAlignment="Center"
                     VerticalAlignment="Bottom"
                     Spacing="8">
+                    <!-- Scheduling Messages (newest on top, each fading on its own; above the hint while sharing) -->
+                    <StackPanel
+                        x:Name="ShareMessagesPanel"
+                        Spacing="8"
+                        AutomationProperties.LiveSetting="Polite"
+                        AutomationProperties.AutomationId="ShareMessages" />
                     <InfoBar
                         CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                         x:Name="SharingHint"

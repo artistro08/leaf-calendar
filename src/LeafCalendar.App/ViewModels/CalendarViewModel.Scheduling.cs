@@ -59,6 +59,12 @@ public sealed partial class CalendarViewModel
     /// <summary>The link's open times for the days around the screen, or null when unknown (the grid shades the rest).</summary>
     public IReadOnlyList<BusyRange>? OpenTimes => _openTimes;
 
+    /// <summary>The stretch <see cref="OpenTimes"/> covers (outside it the openings aren't known, so nothing is shaded there), or null.</summary>
+    public (DateTimeOffset From, DateTimeOffset To)? OpenTimesRange => _openRange;
+
+    /// <summary>The share panel switch's label: "Use {provider}" with one provider connected, "Use a booking link" with more.</summary>
+    public string ShareSwitchLabel => _services.Scheduling.Connected is [var only] ? $"Use {only.Name}" : "Use a booking link";
+
     /// <summary>The messages over the calendar while sharing, newest first.</summary>
     public IReadOnlyList<string> ShareMessages => _shareMessages;
 

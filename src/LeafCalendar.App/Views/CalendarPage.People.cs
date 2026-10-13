@@ -1,8 +1,14 @@
 // Track B (Milestone 5 Tasks 7-8) owns this file: the people overlay, meet with, the participant overlay, and share availability.
 using System.ComponentModel;
+using System.Globalization;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.People;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media.Animation;
 
 namespace LeafCalendar.App.Views;
 
@@ -13,6 +19,9 @@ public sealed partial class CalendarPage
 
     // Whether the details panel was open when sharing started (it opens for the picked times and goes back after)
     private bool? _detailsBeforeSharing;
+
+    // The scheduling messages on screen, by text, each with the timer that fades it out on its own
+    private readonly Dictionary<string, (InfoBar Card, DispatcherQueueTimer Timer)> _shareCards = new(StringComparer.Ordinal);
 
     // Called once when the page opens: the overlay bar, the share panel (in the details pane), and the view model events
     // they follow
@@ -29,6 +38,8 @@ public sealed partial class CalendarPage
         ShowSharing();
 
         ViewModel.ShareChanged += OnShareChanged;
+        ViewModel.ShareMessagesChanged += OnShareMessagesChanged;
+        ShowShareMessages();
         ViewModel.OverlayChanged += OnOverlayChanged;
         ViewModel.LayoutChanged += OnOverlayChanged;
         ViewModel.PropertyChanged += OnPeoplePropertyChanged;
@@ -39,6 +50,14 @@ public sealed partial class CalendarPage
     private void DetachPeople()
     {
         ViewModel.ShareChanged -= OnShareChanged;
+        ViewModel.ShareMessagesChanged -= OnShareMessagesChanged;
+        foreach (var (_, timer) in _shareCards.Values)
+        {
+            timer.Stop();
+        }
+
+        _shareCards.Clear();
+        ShareMessagesPanel.Children.Clear();
         ViewModel.OverlayChanged -= OnOverlayChanged;
         ViewModel.LayoutChanged -= OnOverlayChanged;
         ViewModel.PropertyChanged -= OnPeoplePropertyChanged;
@@ -100,6 +119,97 @@ public sealed partial class CalendarPage
             SetDetailsOpen(before, animate: true);
         }
     }
+
+    // A message came or went (it can be raised off the UI thread)
+    private void OnShareMessagesChanged(object? sender, EventArgs e)
+    {
+        if (DispatcherQueue.HasThreadAccess)
+        {
+            ShowShareMessages();
+        }
+        else
+        {
+            DispatcherQueue.TryEnqueue(ShowShareMessages);
+        }
+    }
+
+    // The scheduling messages over the calendar, newest on top: one raised card each (the other toasts' look). A new card
+    // fades in, then fades out on its own after the notice's time and leaves the view model's list; cards already shown
+    // keep their timers, so each goes on its own
+    private void ShowShareMessages()
+    {
+        var messages = ViewModel.ShareMessages;
+        foreach (var text in _shareCards.Keys.Where(t => !messages.Contains(t)).ToList())
+        {
+            _shareCards[text].Timer.Stop();
+            _shareCards.Remove(text);
+        }
+
+        // (collapsed while empty, so it adds no gap between the other toasts)
+        ShareMessagesPanel.Visibility = messages.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ShareMessagesPanel.Children.Clear();
+        for (var i = 0; i < messages.Count; i++)
+        {
+            var text = messages[i];
+            if (!_shareCards.TryGetValue(text, out var shown))
+            {
+                shown = (NewShareCard(text), NewShareTimer(text));
+                _shareCards[text] = shown;
+                shown.Timer.Start();
+            }
+
+            AutomationProperties.SetAutomationId(shown.Card, string.Create(CultureInfo.InvariantCulture, $"ShareMessage_{i}"));
+            ShareMessagesPanel.Children.Add(shown.Card);
+        }
+    }
+
+    // One message's card: raised like the other toasts, fading in (167 ms) where the system animates, and read out by a
+    // screen reader once it's on screen
+    private InfoBar NewShareCard(string text)
+    {
+        var card = new InfoBar { Style = (Style)Resources["LeafShareMessageStyle"], Message = text, IsOpen = true };
+        AutomationProperties.SetName(card, text);
+        Float(card);
+        card.Loaded += (_, _) => FrameworkElementAutomationPeer.CreatePeerForElement(card)?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+        if (Animates())
+        {
+            card.Opacity = 0;
+            Fade(card, to: 1, new CubicEase { EasingMode = EasingMode.EaseOut });
+        }
+
+        return card;
+    }
+
+    // After the notice's time the card fades out (167 ms, linear), then leaves the view model's list
+    private DispatcherQueueTimer NewShareTimer(string text)
+    {
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = NoticeTime;
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) =>
+        {
+            if (!_shareCards.TryGetValue(text, out var shown) || !Animates())
+            {
+                ViewModel.DismissShareMessage(text);
+                return;
+            }
+
+            Fade(shown.Card, to: 0, easing: null).Completed += (_, _) => ViewModel.DismissShareMessage(text);
+        };
+        return timer;
+    }
+
+    private static Storyboard Fade(UIElement card, double to, EasingFunctionBase? easing)
+    {
+        var fade = new DoubleAnimation { To = to, Duration = TimeSpan.FromMilliseconds(167), EasingFunction = easing };
+        Storyboard.SetTarget(fade, card);
+        Storyboard.SetTargetProperty(fade, nameof(UIElement.Opacity));
+        var story = new Storyboard { Children = { fade } };
+        story.Begin();
+        return story;
+    }
+
+    private static bool Animates() => new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
 
     private void OnShareAvailabilityRequested(object? sender, EventArgs e) => StartShareAvailability();
 

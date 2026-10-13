@@ -79,6 +79,9 @@ public static class LeafBrushes
     /// <summary>The tint outside your working hours; none in a contrast theme, where a tint would cut contrast.</summary>
     public static SolidColorBrush OffHours(bool dark) => HighContrast ? Transparent : FromHex(ChromeColors.OffHours(dark));
 
+    /// <summary>The darker tint over times the share's booking link has no openings for; none in a contrast theme, like <see cref="OffHours"/>.</summary>
+    public static SolidColorBrush ClosedTime(bool dark) => HighContrast ? Transparent : FromHex(ChromeColors.ClosedTime(dark));
+
     // =========================================================================
     // CONTRAST THEMES
     // =========================================================================

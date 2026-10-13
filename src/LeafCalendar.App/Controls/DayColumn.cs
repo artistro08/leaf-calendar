@@ -1,5 +1,7 @@
 using System.Globalization;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.Google;
+using LeafCalendar.Core.People;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
@@ -35,6 +37,10 @@ public sealed partial class DayColumn : Canvas
     private readonly TextBlock _ghostLabel = new() { FontSize = 11, LineHeight = 13, LineStackingStrategy = LineStackingStrategy.BlockLineHeight, Margin = new Thickness(6, 2, 4, 0), TextWrapping = TextWrapping.WrapWholeWords, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly Canvas _offHours = new() { IsHitTestVisible = false };
 
+    // Sharing with a booking link: a darker shade over the times the link has no openings for
+    private readonly Canvas _closed = new() { IsHitTestVisible = false };
+    private readonly List<Border> _closedBlocks = [];
+
     // Marking times to share: diagonal lines over the day's empty time (under the events and the picked times)
     private readonly Microsoft.UI.Xaml.Shapes.Path _hatch = Hatch.Create();
     private readonly List<Border> _offHourBlocks = [];
@@ -58,6 +64,7 @@ public sealed partial class DayColumn : Canvas
 
         // Off-Hours Shading (behind everything, even the hour lines)
         Children.Add(_offHours);
+        Children.Add(_closed);
 
         for (var h = 0; h < 24; h++)
         {
@@ -408,6 +415,7 @@ public sealed partial class DayColumn : Canvas
     /// </summary>
     public void RenderSlots()
     {
+        RenderClosed();
         var vm = _owner.ViewModel;
         var dark = _owner.IsDark;
         var accent = LeafBrushes.Accent(dark);
@@ -507,6 +515,54 @@ public sealed partial class DayColumn : Canvas
         for (var i = buttons; i < _slotRemoves.Count; i++)
         {
             _slotRemoves[i].Visibility = Visibility.Collapsed;
+        }
+    }
+
+    // While sharing with the booking link switch on, shades each stretch of this day (inside the days whose openings are
+    // known) that has no open time. Nothing while the openings are unknown
+    private void RenderClosed()
+    {
+        var vm = _owner.ViewModel;
+        var dayStart = OccurrenceQuery.LocalMidnight(Date, vm.Zone);
+        var dayEnd = OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
+        IReadOnlyList<BusyRange> spans = [];
+        if (vm is { IsSharing: true, UseProvider: true, OpenTimes: { } open, OpenTimesRange: { } known })
+        {
+            var from = dayStart > known.From ? dayStart : known.From;
+            var to = dayEnd < known.To ? dayEnd : known.To;
+            if (from < to)
+            {
+                spans = BusyMath.Subtract([new BusyRange(from, to)], open);
+            }
+        }
+
+        var fill = LeafBrushes.ClosedTime(_owner.IsDark);
+        for (var i = 0; i < spans.Count; i++)
+        {
+            if (i == _closedBlocks.Count)
+            {
+                var block = new Border();
+                _closedBlocks.Add(block);
+                _closed.Children.Add(block);
+            }
+
+            var top = _owner.MinutesIntoDay(spans[i].Start);
+            var bottom = spans[i].End >= dayEnd ? 24 * 60 : _owner.MinutesIntoDay(spans[i].End);
+            var shade = _closedBlocks[i];
+            shade.Visibility = Visibility.Visible;
+            shade.Background = fill;
+            shade.Width = _owner.ColumnWidth;
+            shade.Height = Math.Max((bottom - top) / 60 * _owner.HourHeight, 0);
+            SetTop(shade, top / 60 * _owner.HourHeight);
+            AutomationProperties.SetAutomationId(shade, string.Create(CultureInfo.InvariantCulture, $"ClosedTime_{Date:yyyy-MM-dd}_{i}"));
+
+            // A Border is in the automation tree only with a name
+            AutomationProperties.SetName(shade, "No openings");
+        }
+
+        for (var i = spans.Count; i < _closedBlocks.Count; i++)
+        {
+            _closedBlocks[i].Visibility = Visibility.Collapsed;
         }
     }
 
