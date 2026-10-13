@@ -31,11 +31,24 @@ public sealed partial class NotificationsPage : Page
     {
         _context = (SettingsContext)e.Parameter;
         _context.Host.SettingsChanged += OnSettingsChanged;
+        _context.Host.Closed += OnHostClosed;
         Load();
     }
 
     /// <inheritdoc />
-    protected override void OnNavigatedFrom(NavigationEventArgs e) => _context.Host.SettingsChanged -= OnSettingsChanged;
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        _context.Host.SettingsChanged -= OnSettingsChanged;
+        _context.Host.Closed -= OnHostClosed;
+    }
+
+    // Settings Closed On This Page (back to the calendar, or the window closed with Leaf staying in the tray): the page
+    // may not get Unloaded, so the app-lifetime hub is let go here, or it would keep the Settings view alive
+    private void OnHostClosed(object? sender, EventArgs e)
+    {
+        _context.Host.Closed -= OnHostClosed;
+        _context.Services.Scheduling.Changed -= OnSchedulingChanged;
+    }
 
     private void OnSettingsChanged(object? sender, EventArgs e) => Load();
 

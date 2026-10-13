@@ -44,12 +44,25 @@ public sealed partial class SchedulingPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         _context = (SettingsContext)e.Parameter;
+        _context.Host.Closed += OnHostClosed;
         foreach (var info in SchedulingProviders.All)
         {
             var card = new ProviderCard(this, info);
             _cards.Add(card);
             ProviderList.Children.Add(card.Expander);
         }
+    }
+
+    /// <inheritdoc />
+    protected override void OnNavigatedFrom(NavigationEventArgs e) => _context.Host.Closed -= OnHostClosed;
+
+    // Settings Closed On This Page (back to the calendar, or the window closed with Leaf staying in the tray): the page
+    // may not get Unloaded, so the app-lifetime hub is let go here and the boxes are emptied, or the hub would keep the
+    // Settings view alive with a typed key in it
+    private void OnHostClosed(object? sender, EventArgs e)
+    {
+        _context.Host.Closed -= OnHostClosed;
+        Release();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -59,7 +72,10 @@ public sealed partial class SchedulingPage : Page
         Refresh();
     }
 
-    private void OnUnloaded(object sender, RoutedEventArgs e)
+    private void OnUnloaded(object sender, RoutedEventArgs e) => Release();
+
+    // Stops following the hub and empties every card's form
+    private void Release()
     {
         _context.Services.Scheduling.Changed -= OnSchedulingChanged;
         _loaded = false;
@@ -113,6 +129,7 @@ public sealed partial class SchedulingPage : Page
         private readonly InfoBar _error;
         private readonly StackPanel _connectedRows;
         private readonly ComboBox _links;
+        private readonly Button _disconnect;
         private readonly StackPanel _form;
         private readonly List<FieldBox> _boxes = [];
         private readonly Button _submit;
@@ -152,15 +169,15 @@ public sealed partial class SchedulingPage : Page
             AutomationProperties.SetName(_links, "Default link");
             AutomationProperties.SetAutomationId(_links, $"SchedulingDefaultLink_{id}");
             _links.SelectionChanged += (_, _) => OnLinkChanged();
-            var disconnect = new Button { Content = "Disconnect" };
-            AutomationProperties.SetAutomationId(disconnect, $"SchedulingDisconnect_{id}");
-            disconnect.Click += OnDisconnectClick;
+            _disconnect = new Button { Content = "Disconnect" };
+            AutomationProperties.SetAutomationId(_disconnect, $"SchedulingDisconnect_{id}");
+            _disconnect.Click += OnDisconnectClick;
             _connectedRows = new StackPanel
             {
                 Children =
                 {
                     new SettingRow { Style = itemRow, BorderThickness = new Thickness(0), Header = "Default link", Content = _links },
-                    new SettingRow { Style = itemRow, Header = "Disconnect", Content = disconnect },
+                    new SettingRow { Style = itemRow, Header = "Disconnect", Content = _disconnect },
                 },
             };
 
@@ -373,11 +390,13 @@ public sealed partial class SchedulingPage : Page
         }
 
         // Disconnect: the secrets go first (a failure there keeps the card connected), then the settings, then the
-        // provider's saved groups become plain groups (off the UI thread) and the calendar reloads them
+        // provider's saved groups become plain groups (off the UI thread) and the calendar reloads them. The button is
+        // off meanwhile, so a double click can't run it twice.
         private async void OnDisconnectClick(object sender, RoutedEventArgs e)
         {
             var services = _page._context.Services;
             var id = _info.Id;
+            _disconnect.IsEnabled = false;
             try
             {
                 services.Scheduling.Disconnect(id);
@@ -387,6 +406,7 @@ public sealed partial class SchedulingPage : Page
                 // TODO: the spec has no text for a key that couldn't be removed from this PC; the closest error shows until the owner picks one
                 services.Log.Info("scheduling.settings.disconnect.failed", $"provider={id} error={ex.GetType().Name}");
                 ShowError(Unreachable);
+                _disconnect.IsEnabled = true;
                 return;
             }
 
@@ -403,6 +423,10 @@ public sealed partial class SchedulingPage : Page
             catch (Exception ex)
             {
                 services.Log.Info("scheduling.settings.groups.clear.failed", $"provider={id} error={ex.GetType().Name}");
+            }
+            finally
+            {
+                _disconnect.IsEnabled = true;
             }
         }
     }
