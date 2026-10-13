@@ -456,14 +456,106 @@ public sealed partial class ShareSlotsPanel : UserControl
         _shown.ForEach(r => r.CanApprove = can);
     }
 
-    // Approve…: the boxes as typed so far count, then the event editor opens on this time with every guest
+    // Approve…: the boxes as typed so far count, then the event editor opens on this time with every guest, or, on a link
+    // whose provider can book, the time is booked there once you confirm (spec 5.1)
     private void Approve(SlotRow row)
     {
         if (_vm is { } vm)
         {
             Commit();
-            vm.ApproveSlot(row.Index);
+            if (vm.ApprovesThroughProvider)
+            {
+                Book(vm, row);
+            }
+            else
+            {
+                vm.ApproveSlot(row.Index);
+            }
         }
+    }
+
+    // Booking on the provider: the bookable times inside this time (several: you pick one in a flyout under the button),
+    // then a confirmation, since booking sends the provider's emails. The panel is off with a ring in the row while the
+    // provider is asked (once booked, sharing has stopped and the panel is hidden). Anything unexpected is logged and says
+    // nothing was booked
+    private async void Book(CalendarViewModel vm, SlotRow row)
+    {
+        var name = vm.ShareProviderName;
+        try
+        {
+            SetBusy(row, true);
+            var times = await vm.BookableTimesAsync(row.Index, CancellationToken.None);
+            SetBusy(row, false);
+            var time = times.Count == 1 ? times[0] : times.Count > 1 ? await PickTimeAsync(vm, row.Approve, times) : null;
+            if (time is null || !await ConfirmAsync(vm, time) || !vm.ApprovesThroughProvider)
+            {
+                return;
+            }
+
+            SetBusy(row, true);
+            await vm.BookAsync(time, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            vm.LogError("scheduling.book.failed", ex);
+            vm.SayShare($"Couldn't reach {name}. Nothing was booked.");
+        }
+        finally
+        {
+            SetBusy(row, false);
+        }
+    }
+
+    // While the provider is asked, every control in the panel is off and the row's Approve… shows a ring
+    private void SetBusy(SlotRow row, bool busy)
+    {
+        IsEnabled = !busy;
+        row.Busy = busy;
+    }
+
+    // A flyout under Approve… listing the bookable times (in the share's zone); null when it closes without a pick
+    private static Task<BusyRange?> PickTimeAsync(CalendarViewModel vm, Button under, IReadOnlyList<BusyRange> times)
+    {
+        var picked = new TaskCompletionSource<BusyRange?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var flyout = new MenuFlyout { Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Bottom };
+        var labels = vm.BookableTimeLabels(times);
+        for (var i = 0; i < times.Count; i++)
+        {
+            var time = times[i];
+            var item = new MenuFlyoutItem { Text = labels[i] };
+            AutomationProperties.SetAutomationId(item, string.Create(CultureInfo.InvariantCulture, $"ApproveTime_{i}"));
+            item.Click += (_, _) => picked.TrySetResult(time);
+            flyout.Items.Add(item);
+        }
+
+        // Handled a turn later, so a pick's click always lands first
+        flyout.Closed += (_, _) => under.DispatcherQueue.TryEnqueue(() => picked.TrySetResult(null));
+        flyout.ShowAt(under);
+        return picked.Task;
+    }
+
+    // "Book {time} on {provider}?" with the guests listed (names, else addresses); Book is the accent
+    private async Task<bool> ConfirmAsync(CalendarViewModel vm, BusyRange time)
+    {
+        var guests = new StackPanel { Spacing = 4 };
+        foreach (var guest in vm.ShareGuests)
+        {
+            guests.Children.Add(new TextBlock { Text = guest.Name.Length > 0 ? guest.Name : guest.Email, TextWrapping = TextWrapping.Wrap });
+        }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            RequestedTheme = ActualTheme,
+            Title = $"Book {vm.BookableTimeLabels([time])[0]} on {vm.ShareProviderName}?",
+            Content = guests,
+            PrimaryButtonText = "Book",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        AutomationProperties.SetAutomationId(dialog, "BookDialog");
+        CtrlEnter.Submits(dialog);
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
     // A picker changed: the new time, or the pickers put back when it makes no sense
@@ -491,6 +583,8 @@ public sealed partial class ShareSlotsPanel : UserControl
     private sealed class SlotRow
     {
         private readonly TextBlock _date = new() { Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"], TextTrimming = TextTrimming.CharacterEllipsis };
+        private readonly FontIcon _check = new() { Glyph = "\uE73E", FontSize = 16 };
+        private readonly ProgressRing _ring = new() { IsActive = false, Width = 16, Height = 16, Visibility = Visibility.Collapsed };
         private bool _showing;
 
         public SlotRow(ShareSlotsPanel owner, int index)
@@ -516,7 +610,10 @@ public sealed partial class ShareSlotsPanel : UserControl
             // Approve… (a saved group only): this time as an event with the guests; a check mark, then the text, centered in
             // a button as wide as the row
             var approveContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-            approveContent.Children.Add(new FontIcon { Glyph = "", FontSize = 16 });
+            // (while booking on a provider, a ring stands in for the check mark)
+            AutomationProperties.SetAutomationId(_ring, string.Create(CultureInfo.InvariantCulture, $"SharePanelApproveRing_{index}"));
+            approveContent.Children.Add(_check);
+            approveContent.Children.Add(_ring);
             approveContent.Children.Add(new TextBlock { Text = "Approve…" });
             Approve = new Button { Content = approveContent, IsEnabled = false, Visibility = Visibility.Collapsed, HorizontalAlignment = HorizontalAlignment.Stretch };
             ToolTipService.SetToolTip(Approve, "Save this time as an event with the guests");
@@ -559,6 +656,17 @@ public sealed partial class ShareSlotsPanel : UserControl
         public Button Approve { get; }
 
         public bool CanApprove { set => Approve.IsEnabled = value; }
+
+        // Booking on a provider: the ring spins in place of the check mark
+        public bool Busy
+        {
+            set
+            {
+                _ring.IsActive = value;
+                _ring.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+                _check.Visibility = value ? Visibility.Collapsed : Visibility.Visible;
+            }
+        }
 
         // Shows a slot's day and times (in the zone on screen) without counting as a pick; Approve… only for a saved group
         public void Show(CalendarViewModel vm, BusyRange slot, bool dark, bool saved)

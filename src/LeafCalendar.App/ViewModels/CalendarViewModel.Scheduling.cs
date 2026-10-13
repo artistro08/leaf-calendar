@@ -406,4 +406,168 @@ public sealed partial class CalendarViewModel
     // The first guest as the messages name them: their name, else their address
     private string FirstGuestLabel() =>
         _shareGuests.FirstOrDefault() is { } g ? (g.Name.Length > 0 ? g.Name : g.Email) : "";
+
+    // The zone the share is written in, else the zone on screen
+    private TimeZoneInfo ShareZone() => TimeZoneInfo.TryFindSystemTimeZoneById(_shareZoneId, out var zone) ? zone : Zone;
+
+    // =========================================================================
+    // APPROVE ON A BOOKING LINK (spec 5.1)
+    // =========================================================================
+
+    /// <summary>
+    /// True when Approve... books on the provider instead of opening the event editor: a saved group is open with the
+    /// switch on, and its link's provider can book.
+    /// </summary>
+    public bool ApprovesThroughProvider =>
+        _openGroupId is not null && ShareLink is { } link && _services.Scheduling.Get(link.ProviderId) is IBookingCreator;
+
+    /// <summary>The name of the provider the share's link is on (such as "Cal.com"), or empty with the switch off.</summary>
+    public string ShareProviderName => ShareLink is { } link ? ProviderName(link) : "";
+
+    /// <summary>Each time as one line in the share's zone, such as "Tue Oct 13, 10-10:30 AM CT".</summary>
+    public IReadOnlyList<string> BookableTimeLabels(IReadOnlyList<BusyRange> times) =>
+        AvailabilityText.FormatTimes(times, ShareZone(), Settings.Use24HourTime);
+
+    /// <summary>
+    /// The bookable times inside picked time <paramref name="index"/>, from the link's open times asked fresh. Empty when
+    /// none can be booked, after a message says why: the provider couldn't be reached (nothing is booked offline), none
+    /// of the time is open anymore (the shade refreshes too), or the sign-in was refused (the provider needs reconnecting).
+    /// </summary>
+    public async Task<IReadOnlyList<BusyRange>> BookableTimesAsync(int index, CancellationToken ct)
+    {
+        if (index < 0 || index >= _slots.Count || ShareLink is not { } link)
+        {
+            return [];
+        }
+
+        var range = _slots[index];
+        var name = ProviderName(link);
+        IReadOnlyList<BusyRange>? open = null;
+
+        // In A Rate-Limit Back-Off It Counts As Not Reachable
+        try
+        {
+            if (!_services.Scheduling.IsWaiting(link.ProviderId) && _services.Scheduling.Get(link.ProviderId) is IOpenTimesSource source)
+            {
+                open = await Task.Run(() => source.GetOpenTimesAsync(link.Id, range.Start.ToUniversalTime(), range.End.ToUniversalTime(), ct), ct);
+            }
+        }
+        catch (SchedulingAuthException ex)
+        {
+            _services.Log.Info("scheduling.book.times.failed", $"provider={link.ProviderId} error={ex.GetType().Name}");
+            _services.Scheduling.MarkNeedsReconnect(link.ProviderId);
+            return [];
+        }
+        catch (SchedulingUnavailableException ex)
+        {
+            _services.Log.Info("scheduling.book.times.failed", $"provider={link.ProviderId} error={ex.GetType().Name}");
+            if (ex.RetryAfter is { } retryAfter)
+            {
+                _services.Scheduling.WaitFor(link.ProviderId, retryAfter);
+            }
+        }
+
+        if (open is null)
+        {
+            SayShare($"Couldn't reach {name}. Nothing was booked.");
+            return [];
+        }
+
+        var times = SlotFitting.Split(range, open, link.Minutes);
+        if (times.Count == 0)
+        {
+            SayShare($"None of that time is open on {name}.");
+            RefreshOpenTimesNow();
+        }
+
+        return times;
+    }
+
+    /// <summary>
+    /// Books <paramref name="time"/> on the open group's link for its guests (the provider sends its confirmation emails).
+    /// Booked: the group is deleted, sharing stops and a message says so (the event reaches Google through the provider's
+    /// own calendar connection, so Leaf creates none). Taken: a message asks for another time and the open times refresh.
+    /// Not reachable: a message says nothing was booked; it's never tried again on its own, since a server error may
+    /// still have booked it (the booking check finds that). Sign-in refused: the provider needs reconnecting.
+    /// </summary>
+    public async Task<BookResult> BookAsync(BusyRange time, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(time);
+        if (ShareLink is not { } link)
+        {
+            return BookResult.Unavailable;
+        }
+
+        var name = ProviderName(link);
+        if (_openGroupId is not { } id || _shareGuests.Count == 0 || _services.Scheduling.Get(link.ProviderId) is not IBookingCreator creator)
+        {
+            SayShare($"Couldn't reach {name}. Nothing was booked.");
+            return BookResult.Unavailable;
+        }
+
+        var guests = _shareGuests.ToList();
+        var zone = ShareZone();
+        try
+        {
+            await Task.Run(() => creator.BookAsync(link, time.Start.ToUniversalTime(), guests, zone, ct), ct);
+        }
+        catch (SchedulingSlotTakenException ex)
+        {
+            _services.Log.Info("scheduling.book.taken", $"provider={link.ProviderId} error={ex.GetType().Name}");
+            SayShare($"That time was just taken on {name}. Pick another.");
+            RefreshOpenTimesNow();
+            return BookResult.Taken;
+        }
+        catch (SchedulingAuthException ex)
+        {
+            _services.Log.Info("scheduling.book.auth", $"provider={link.ProviderId} error={ex.GetType().Name}");
+            _services.Scheduling.MarkNeedsReconnect(link.ProviderId);
+            return BookResult.NeedsReconnect;
+        }
+        catch (SchedulingUnavailableException ex)
+        {
+            _services.Log.Info("scheduling.book.unavailable", $"provider={link.ProviderId} error={ex.InnerException?.GetType().Name ?? ex.GetType().Name}");
+            if (ex.RetryAfter is { } retryAfter)
+            {
+                _services.Scheduling.WaitFor(link.ProviderId, retryAfter);
+            }
+
+            SayShare($"Couldn't reach {name}. Nothing was booked.");
+            return BookResult.Unavailable;
+        }
+
+        // Deleted at once, so the booking check finds no group for this booking and shows no second notification
+        _services.Log.Info("scheduling.book.booked", $"provider={link.ProviderId} guests={guests.Count}");
+        WriteGroups("share.group.delete.failed", conn => ShareGroupStore.Delete(conn, id));
+        if (_openGroupId == id)
+        {
+            StopSharing();
+        }
+
+        ShowMessage($"Booked on {name}.");
+        return BookResult.Booked;
+    }
+
+    // The open times asked again even when they cover the days on screen (a time was just taken)
+    private void RefreshOpenTimesNow()
+    {
+        ClearOpenTimes();
+        Fire(RefreshOpenTimesAsync, "scheduling.open.refresh.failed");
+    }
+}
+
+/// <summary>How booking a time through Approve... ended.</summary>
+public enum BookResult
+{
+    /// <summary>The provider booked it; the group is deleted and sharing stopped.</summary>
+    Booked,
+
+    /// <summary>The time isn't open anymore; the group stays.</summary>
+    Taken,
+
+    /// <summary>The provider couldn't be reached or failed; nothing was booked as far as Leaf knows, and the group stays.</summary>
+    Unavailable,
+
+    /// <summary>The provider refused the sign-in and needs reconnecting; the group stays.</summary>
+    NeedsReconnect,
 }

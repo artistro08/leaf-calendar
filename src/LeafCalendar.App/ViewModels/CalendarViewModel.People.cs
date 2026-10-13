@@ -482,11 +482,12 @@ public sealed partial class CalendarViewModel
     /// <summary>
     /// Books one time of the open group: sharing stops (the editor needs the right panel), and the event editor opens on
     /// that time with the group's title and every guest added. Needs a guest. The group is deleted only once the event
-    /// saves; until then its times stay on the grid, resizable.
+    /// saves; until then its times stay on the grid, resizable. Does nothing when <see cref="ApprovesThroughProvider"/>
+    /// (the share panel books on the provider instead, through <see cref="BookAsync"/>).
     /// </summary>
     public void ApproveSlot(int index)
     {
-        if (_openGroupId is not { } id || index < 0 || index >= _slots.Count || _shareGuests.Count == 0)
+        if (ApprovesThroughProvider || _openGroupId is not { } id || index < 0 || index >= _slots.Count || _shareGuests.Count == 0)
         {
             return;
         }
