@@ -63,4 +63,4 @@ $env:LEAF_LIVE_CALCOM_SIGNIN = '1'
 dotnet test --project tests/LeafCalendar.LiveTests/LeafCalendar.LiveTests.csproj --filter-class "*CalComLiveTests"
 ```
 
-The variables are read from the process first, then from your user-level variables, so an older shell still works. The client and refresh token are stored in the `live-tests` profile. Normal runs (without `LEAF_LIVE_CALCOM_SIGNIN`) use them.
+The variables are read from the process first, then from your user-level variables, so an older shell still works. The client and refresh token are saved, encrypted for your Windows user, in `%LOCALAPPDATA%\LeafCalendar.LiveTests\profiles\live-tests\secrets.bin` (not the Credential Locker, and never your `default` profile). Delete that file to sign out. Normal runs (without `LEAF_LIVE_CALCOM_SIGNIN`) use them.

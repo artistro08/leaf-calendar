@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Scheduling;
 using LeafCalendar.LiveTests.Support;
@@ -24,11 +25,16 @@ public class CalComLiveTests
             Assert.Skip("Set LEAF_LIVE_CALCOM_SIGNIN=1 (and the client ID and secret variables) to sign in to Cal.com once.");
         }
 
+        // Name any missing variable (never its value)
+        foreach (var name in new[] { "LEAF_LIVE_CALCOM_CLIENT_ID", "LEAF_LIVE_CALCOM_CLIENT_SECRET" })
+        {
+            Assert.True(ReadVariable(name).Length > 0, $"{name} is not set (process or user environment variable).");
+        }
+
         var client = new ProviderClient(ReadVariable("LEAF_LIVE_CALCOM_CLIENT_ID"), ReadVariable("LEAF_LIVE_CALCOM_CLIENT_SECRET"));
         var ct = TestContext.Current.CancellationToken;
 
-        var folder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "leaf-live", Guid.NewGuid().ToString("N"))).FullName;
-        var hub = new SchedulingHub(LiveAccount.Http, LiveAccount.Tokens, new AppLog(Path.Combine(folder, "Logs"), TimeProvider.System), TimeProvider.System);
+        var hub = NewHub();
 
         hub.SaveClient(CalComProvider.ProviderId, client);
         var links = await hub.SignInAsync(CalComProvider.ProviderId, uri =>
@@ -89,11 +95,18 @@ public class CalComLiveTests
             ? fromProcess
             : Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.User) ?? "";
 
+    // The hub over the stable live-tests secrets file; the folder must be named "live-tests" because its name seeds the DPAPI entropy. Only the log goes to temp.
+    private static SchedulingHub NewHub()
+    {
+        var profile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LeafCalendar.LiveTests", "profiles", LiveAccount.Profile);
+        var logs = Path.Combine(Path.GetTempPath(), "leaf-live", Guid.NewGuid().ToString("N"), "Logs");
+        return new SchedulingHub(LiveAccount.Http, new ProtectedFileTokenStore(profile), new AppLog(logs, TimeProvider.System), TimeProvider.System);
+    }
+
     // Loads the signed-in provider from the live-tests profile, or skips
     private static (SchedulingHub Hub, CalComProvider Provider) Load()
     {
-        var folder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "leaf-live", Guid.NewGuid().ToString("N"))).FullName;
-        var hub = new SchedulingHub(LiveAccount.Http, LiveAccount.Tokens, new AppLog(Path.Combine(folder, "Logs"), TimeProvider.System), TimeProvider.System);
+        var hub = NewHub();
         hub.Load();
 
         if (hub.Get(CalComProvider.ProviderId) is not CalComProvider provider)
