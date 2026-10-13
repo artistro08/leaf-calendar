@@ -31,10 +31,15 @@ This only applies if you sign in to Cal.com in Settings › Accounts. Until you 
 - Your Cal.com client secret and sign-in token are stored encrypted on this PC. Signing out removes the sign-in token. Removing the OAuth client (Settings › Accounts) removes the client ID and secret too.
 - Leaf's log never includes Cal.com link names, booking addresses, attendee names or emails, or any secret.
 
+## Connected Apps
+
+Connected apps is off until you turn it on in Settings › Connected apps. When it's on, apps on this PC that you allow can see your events (titles, times, locations, descriptions and guests), create and move events, join meetings, and use your Cal.com links. They connect through a channel only your Windows account can open, and Leaf never gives them your Google or Cal.com sign-in. Remove an app in Settings › Connected apps to stop it; turn the switch off to stop them all.
+
 ## Where Leaf Sends Data
 
 - **Google.** Sign-in goes to Google's sign-in pages in your browser. Calendar and contact requests go to Google's Calendar and People APIs. All of it is over HTTPS.
 - **Your Google Cloud project.** Leaf signs in with the OAuth client ID and secret you created in Google Cloud Console, so Google counts Leaf's requests against your own project. No one else's app or key is involved.
+- **Connected apps.** To apps on this PC you allowed in Settings › Connected apps (off by default).
 - **Links you open.** When you join a meeting or open a link, a location, or "View on GitHub", Leaf hands the address to your browser or the meeting app. A location opens in Google Maps or Bing Maps (Settings › General › Open locations in), so that site gets the location's text.
 
 Leaf sends nothing else (Cal.com only if you sign in to it, see Scheduling above) and runs no servers of its own.

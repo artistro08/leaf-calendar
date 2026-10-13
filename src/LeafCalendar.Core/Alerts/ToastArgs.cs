@@ -30,11 +30,18 @@ public enum ToastAction
 
     /// <summary>Open the main window on the day of <c>Start</c>.</summary>
     OpenDay,
+
+    /// <summary>Allow an app to use the local API (the approval notification's Allow).</summary>
+    AllowApp,
+
+    /// <summary>Refuse an app (the approval notification's Don't allow).</summary>
+    DenyApp,
 }
 
 /// <summary>
 /// A notification's activation arguments: the action, the Leaf profile it belongs to, and the event instance (account,
-/// calendar, event ID, and start) or account it's about.
+/// calendar, event ID, and start) or account it's about, or, for <c>AllowApp</c> and <c>DenyApp</c>, the approval's random
+/// token (<see cref="Api.PendingApproval.Token"/>), never the app's path.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -47,7 +54,7 @@ public enum ToastAction
 /// by its IDs and launches the link through the usual safety check at that moment.
 /// </para>
 /// </remarks>
-public sealed record ToastArgs(ToastAction Action, string Profile, string? AccountId = null, string? CalendarId = null, string? EventId = null, DateTimeOffset? Start = null)
+public sealed record ToastArgs(ToastAction Action, string Profile, string? AccountId = null, string? CalendarId = null, string? EventId = null, DateTimeOffset? Start = null, string? Request = null)
 {
     private const int MaxLength = 2048;
 
@@ -66,6 +73,7 @@ public sealed record ToastArgs(ToastAction Action, string Profile, string? Accou
         Add(parts, "calendar", CalendarId);
         Add(parts, "event", EventId);
         Add(parts, "start", Start?.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture));
+        Add(parts, "request", Request);
         return string.Join(";", parts);
     }
 
@@ -105,7 +113,8 @@ public sealed record ToastArgs(ToastAction Action, string Profile, string? Accou
         var account = values.GetValueOrDefault("account");
         var calendar = values.GetValueOrDefault("calendar");
         var eventId = values.GetValueOrDefault("event");
-        if (account is "" || calendar is "" || eventId is "")
+        var request = values.GetValueOrDefault("request");
+        if (account is "" || calendar is "" || eventId is "" || request is "")
         {
             return null;
         }
@@ -123,12 +132,13 @@ public sealed record ToastArgs(ToastAction Action, string Profile, string? Accou
 
         // What Each Action Needs
         var aboutEvent = action is ToastAction.Open or ToastAction.Join or ToastAction.Accept or ToastAction.Decline or ToastAction.Maybe;
-        if ((aboutEvent && (account is null || calendar is null || eventId is null || start is null)) || (action == ToastAction.SignIn && account is null) || (action == ToastAction.OpenDay && start is null))
+        if ((aboutEvent && (account is null || calendar is null || eventId is null || start is null)) || (action == ToastAction.SignIn && account is null) || (action == ToastAction.OpenDay && start is null)
+            || (action is ToastAction.AllowApp or ToastAction.DenyApp && (request is not { Length: 32 } || !request.All(char.IsAsciiHexDigitLower))))
         {
             return null;
         }
 
-        return new ToastArgs(action, profile, account, calendar, eventId, start);
+        return new ToastArgs(action, profile, account, calendar, eventId, start, request);
     }
 
     private static void Add(List<string> parts, string key, string? value)

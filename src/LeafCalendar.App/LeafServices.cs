@@ -116,6 +116,23 @@ public sealed class LeafServices : IAsyncDisposable
     public GoogleServices? Google { get; private set; }
 
     /// <summary>
+    /// True while Settings › Connected apps is on but another program holds the local API's pipe name, so no app can
+    /// connect (local API spec 3.3). Set by the App, read by Settings.
+    /// </summary>
+    public bool ApiNameTaken
+    {
+        get;
+        set
+        {
+            field = value;
+            ApiStateChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>Raised when <see cref="ApiNameTaken"/> is set, on the thread that set it.</summary>
+    public event EventHandler? ApiStateChanged;
+
+    /// <summary>
     /// True while the saved secrets couldn't be read at startup (or a reload) and a timer is trying again, so
     /// <see cref="Google"/> is null for that reason, not because Leaf is offline or not set up.
     /// </summary>

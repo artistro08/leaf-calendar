@@ -92,6 +92,9 @@ public enum SettingsSection
     /// <summary>Reminder, Join now, invitation, and sound switches.</summary>
     Notifications,
 
+    /// <summary>Other apps that may use Leaf's local API.</summary>
+    ConnectedApps,
+
     /// <summary>The tray flyout's agenda and lookahead.</summary>
     Tray,
 

@@ -41,7 +41,7 @@ public sealed record SettingsPageArgs(LeafServices Services, CalendarViewModel C
 /// (<see cref="MainWindow.ShowSettings"/>; the title bar's back button returns to the calendar): a stock left
 /// <see cref="NavigationView"/> (240 wide, collapsing when the window is narrow; the main window's title bar hamburger
 /// opens and closes it) over a frame of setting pages (each fills the view, its column capped and centered): General,
-/// Calendars, Scheduling (only while a scheduling provider is signed in), Time zones, Notifications, Tray, Shortcuts,
+/// Calendars, Scheduling (only while a scheduling provider is signed in), Time zones, Notifications, Connected apps, Tray, Shortcuts,
 /// Accounts, and About at the bottom of the pane. Every change saves immediately through the shared view model. <see cref="Close"/> ends it: the pages' events are let go, and a
 /// sign-in waiting on the browser is cancelled.
 /// </summary>
@@ -68,6 +68,7 @@ public sealed partial class SettingsPage : Page
             (SettingsSection.Scheduling, NavItem("Scheduling", 0xEC92, "SettingsNav_Scheduling"), typeof(SchedulingPage)),
             (SettingsSection.TimeZones, NavItem("Time zones", 0xE774, "SettingsNav_TimeZones"), typeof(TimeZonesPage)),
             (SettingsSection.Notifications, NavItem("Notifications", 0xEA8F, "SettingsNav_Notifications"), typeof(NotificationsPage)),
+            (SettingsSection.ConnectedApps, NavItem("Connected apps", 0xE71B, "SettingsNav_ConnectedApps"), typeof(ConnectedAppsPage)),
             (SettingsSection.Tray, NavItem("Tray", 0xE7C4, "SettingsNav_Tray"), typeof(TrayPage)),
             (SettingsSection.Shortcuts, NavItem("Shortcuts", 0xE765, "SettingsNav_Shortcuts"), typeof(ShortcutsPage)),
             (SettingsSection.Accounts, NavItem("Accounts", 0xE77B, "SettingsNav_Accounts"), typeof(AccountsPage)),

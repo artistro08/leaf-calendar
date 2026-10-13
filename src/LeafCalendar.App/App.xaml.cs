@@ -294,6 +294,9 @@ public partial class App : Application
         _alerts = new AlertCenter(services, _notifier, () => _zone.Zone);
         _alerts.Start();
 
+        // Local API (off unless Settings › Connected apps is on)
+        UpdateApi();
+
         // Bookings On Saved Times (raised on the sync thread): a notification, and the closed groups leave the calendar
         services.Bookings.BookingFound += OnBookingFound;
         services.Bookings.GroupsChanged += OnBookingGroupsChanged;
@@ -621,6 +624,9 @@ public partial class App : Application
             // Only when a tray setting changed or the day rolled over (other layout changes don't touch the tray)
             _calendar.LayoutChanged += (_, _) =>
             {
+                // Settings › Connected apps Turns The Local API On Or Off
+                UpdateApi();
+
                 var s = CurrentSettings();
                 _tray?.SetVisible(!s.HideTrayIcon);
                 var zone = DisplayZone.Resolve(null, s.PrimaryTimeZone, _zone.Zone);
@@ -916,6 +922,11 @@ public partial class App : Application
         {
             switch (toast.Action)
             {
+                // The Local API's Approval Question: the token finds the waiting app (an old or unknown token does nothing)
+                case ToastAction.AllowApp or ToastAction.DenyApp:
+                    AnswerApproval(toast.Request!, toast.Action == ToastAction.AllowApp);
+                    return;
+
                 case ToastAction.ReviewConflicts:
                     ShowMainWindow();
                     _dispatcher?.TryEnqueue(DispatcherQueuePriority.Low, () => _ = _window?.ReviewConflictsAsync());
@@ -1107,6 +1118,7 @@ public partial class App : Application
             QuitStep("timer", () => _minuteTimer?.Stop());
             QuitStep("alerts", () => _alerts?.Dispose());
             QuitStep("notifier", () => _notifier?.Dispose());
+            QuitStep("api", () => _ = _api?.DisposeAsync().AsTask());
             QuitStep("shortcuts", () => _services?.Shortcuts.Suspend());
             QuitStep("tray", () =>
             {

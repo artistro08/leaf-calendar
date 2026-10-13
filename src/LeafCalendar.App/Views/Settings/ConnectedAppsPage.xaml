@@ -1,0 +1,53 @@
+<Page
+    x:Class="LeafCalendar.App.Views.Settings.ConnectedAppsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:LeafCalendar.App.Controls">
+
+    <ScrollViewer x:Name="PageScroll">
+        <!-- The column sits in a plain Grid, not straight in the scroller: a scroller's content is placed by its scroll
+             engine from its desired width (its natural content width, since MaxWidth counts as a set width), so a
+             capped, stretched column straight in the scroller lands right of center once the window is wider than it -->
+        <Grid>
+            <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
+                <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Connected apps" />
+
+                <!-- Allow (off by default; the pipe exists only while it's on) -->
+                <controls:SettingRow Glyph="&#xE71B;" Header="Allow other apps to connect" Description="Apps on this PC, such as Raycast, can see your events, create and move them, and join meetings. Each app asks you once before it connects.">
+                    <ToggleSwitch
+                        x:Name="AllowSwitch"
+                        Style="{StaticResource LeafCardToggleSwitchStyle}"
+                        Toggled="OnAllowToggled"
+                        AutomationProperties.Name="Allow other apps to connect"
+                        AutomationProperties.AutomationId="ApiAllowSwitch" />
+                </controls:SettingRow>
+
+                <!-- Name Taken (another program holds the pipe name, so no app can connect) -->
+                <controls:SettingRow
+                    x:Name="NameTakenRow"
+                    Visibility="Collapsed"
+                    Glyph="&#xE7BA;"
+                    Header="Another program is using Leaf's connection"
+                    Description="Other apps can't connect to Leaf right now. Close that program or restart your PC, then turn this off and on again."
+                    AutomationProperties.AutomationId="ApiNameTakenRow" />
+
+                <!-- Approved Apps (one card each, built in code) -->
+                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Approved apps" />
+                <TextBlock
+                    x:Name="NoAppsText"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="No apps yet. When an app asks to connect, Leaf shows a notification."
+                    TextWrapping="Wrap"
+                    AutomationProperties.AutomationId="ApiNoAppsText" />
+                <StackPanel x:Name="AppsList" Spacing="4" AutomationProperties.AutomationId="ApiAppsList" />
+
+                <!-- Developer Reference (a fixed address) -->
+                <HyperlinkButton
+                    Margin="0,16,0,0"
+                    Content="API reference for developers"
+                    Click="OnDocsClick"
+                    AutomationProperties.AutomationId="ApiDocsLink" />
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</Page>

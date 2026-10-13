@@ -1,5 +1,6 @@
 using System.Xml.Linq;
 using LeafCalendar.Core.Alerts;
+using LeafCalendar.Core.Api;
 using LeafCalendar.Core.Events;
 
 namespace LeafCalendar.Tests;
@@ -377,5 +378,37 @@ public class ToastContentTests
         var toast = ToastContent.Booking("bk1", "", "Tue Oct 13, 9 AM", DateTimeOffset.UnixEpoch, "default", sound: false);
 
         Assert.Contains("Someone booked Tue Oct 13, 9 AM", toast.Xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_AllowApp_NeedsAHexRequest()
+    {
+        var token = "0123456789abcdef0123456789abcdef";
+
+        Assert.Equal(token, ToastArgs.Parse(new ToastArgs(ToastAction.AllowApp, "default", Request: token).Encode())!.Request);
+        Assert.Null(ToastArgs.Parse("action=AllowApp;profile=default"));
+        Assert.Null(ToastArgs.Parse("action=DenyApp;profile=default;request=xyz"));
+        Assert.Null(ToastArgs.Parse("action=DenyApp;profile=default;request=0123456789ABCDEF0123456789ABCDEF"));
+    }
+
+    [Fact]
+    public void ApproveApp_NamesTheAppAndPath_WithAllowAndDontAllow()
+    {
+        var message = ToastContent.ApproveApp(new PendingApproval("0123456789abcdef0123456789abcdef", @"C:\Apps\Raycast.exe", "Raycast <script>"), generalRuntime: false, "default", sound: true);
+
+        var toast = Parse(message);
+        Assert.Equal(ToastContent.ApiGroup, message.Group);
+        Assert.Equal(["Raycast <script> wants to connect to Leaf", "It will be able to see your events, create and move them, and join meetings.", @"C:\Apps\Raycast.exe"], Texts(toast));
+        Assert.Equal(["Allow", "Don't allow"], Actions(toast).Select(a => (string?)a.Attribute("content")));
+        Assert.Equal([ToastAction.AllowApp, ToastAction.DenyApp], Actions(toast).Select(a => ToastArgs.Parse((string?)a.Attribute("arguments"))!.Action));
+        Assert.DoesNotContain(@"Raycast.exe", string.Concat(Actions(toast).Select(a => (string?)a.Attribute("arguments"))), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ApproveApp_GeneralRuntime_Warns()
+    {
+        var message = ToastContent.ApproveApp(new PendingApproval("0123456789abcdef0123456789abcdef", @"C:\nodejs\node.exe", "Node.js"), generalRuntime: true, "default", sound: true);
+
+        Assert.Contains("Allowing node.exe lets every script that uses it connect.", Texts(Parse(message)));
     }
 }
