@@ -24,9 +24,9 @@ Leaf also asks Google for people's free and busy times when you look at them (ov
 
 This only applies if you sign in to Cal.com in Settings › Accounts. Until you do, Leaf never contacts Cal.com.
 
-- Leaf talks to Cal.com with your own Cal.com OAuth client (the client ID and secret you create in your Cal.com settings). Leaf asks Cal.com to let it read your booking links (`EVENT_TYPE_READ`), read and create bookings (`BOOKING_READ`, `BOOKING_WRITE`), and read your schedules (`SCHEDULE_READ`).
-- Leaf sends date ranges to Cal.com while you share times, check for bookings, or use Settings, to ask which of your booking link's times are open and whether anyone booked. Leaf also asks for your list of booking links.
-- Leaf sends your guests' names and email addresses to Cal.com only when you press Book on a saved time. Cal.com then sends its own confirmation emails.
+- Leaf talks to Cal.com with your own Cal.com OAuth client (the client ID and secret you create in your Cal.com settings). Signing in opens Cal.com's sign-in page in your browser. Leaf asks Cal.com to let it read your booking links (`EVENT_TYPE_READ`), read and create bookings (`BOOKING_READ`, `BOOKING_WRITE`), and read your schedules (`SCHEDULE_READ`).
+- Leaf sends date ranges to Cal.com while you share times, to ask which of your booking link's times are open. To check for bookings, it sends the link and the time you saved your times, to ask whether anyone booked. Leaf also asks for your list of booking links.
+- Leaf sends your guests' names and email addresses, and the time zone you are sharing in, to Cal.com only when you press Book on a saved time. Cal.com then sends its own confirmation emails.
 - Guest email addresses are also inside the links you copy, so anyone who gets a link can see them.
 - Your Cal.com client secret and sign-in token are stored encrypted on this PC. Signing out removes the sign-in token. Removing the OAuth client (Settings › Accounts) removes the client ID and secret too.
 - Leaf's log never includes Cal.com link names, booking addresses, attendee names or emails, or any secret.
@@ -65,7 +65,7 @@ Leaf also shows Windows notifications for reminders, meetings, and invitations. 
 ## Removing Your Data
 
 - **Disconnect an account** (Settings › Accounts, open the account, then Disconnect): Leaf asks Google to revoke its access, deletes that account's sign-in token, and deletes its calendars and events from your PC. Your Google Calendar itself isn't changed.
-- **Sign out of Cal.com** (Settings › Accounts): removes its sign-in token from your PC and turns your saved Cal.com share times into plain saved times; your Cal.com OAuth client stays. **Remove OAuth client** also removes the client ID and secret. To revoke Leaf's access at Cal.com too, remove it in your Cal.com settings.
+- **Sign out of Cal.com** (Settings › Accounts): removes its sign-in token from your PC and turns your saved Cal.com share times into plain saved times; your Cal.com OAuth client stays. **Remove OAuth client** also removes the client ID and secret, and forgets your default Cal.com link. To revoke Leaf's access at Cal.com too, remove it in your Cal.com settings.
 - **Delete saved share times**: open the saved times on your calendar and use Delete saved times at the top of the panel. They aren't tied to an account, so disconnecting an account doesn't remove them; they also go once a time is approved or they pass.
 - **Uninstall Leaf**: Windows deletes Leaf's app data folder, with the database, settings, log, crash files, and your sign-in secrets (OAuth client ID and secret, and sign-in tokens) once Leaf has moved them there. Uninstalling doesn't tell Google, so to revoke Leaf's access too, disconnect your accounts first or remove it at Google (below).
 - **At Google**: you can remove Leaf's access at any time at [myaccount.google.com/permissions](https://myaccount.google.com/permissions), and delete the OAuth client in your Google Cloud project.

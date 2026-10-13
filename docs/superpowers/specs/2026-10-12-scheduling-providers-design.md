@@ -128,7 +128,7 @@ All calls go to `https://api.cal.com/` with `Authorization: Bearer <access token
 - Never logged: the client secret, codes, access or refresh tokens, link names, booking addresses, attendee names or emails. Logged: provider id, counts, HTTP status codes and exception type names.
 - Toast text from a provider is escaped like every other toast.
 - Tokens and the client secret go only to `api.cal.com` (token endpoint and API) over HTTPS, never in a URL.
-- `PRIVACY.md` gets a Scheduling section: Leaf talks to Cal.com with your own OAuth client; it sends date ranges to Cal.com while you share, check bookings or use Settings; it sends your guests' names and emails to Cal.com only when you press Book; guest emails are also in the links you copy; the client secret and refresh token are stored encrypted on this PC and removed when you sign out.
+- `PRIVACY.md` gets a Scheduling section: Leaf talks to Cal.com with your own OAuth client; it sends date ranges to Cal.com while you share, and the link and the time you saved your times when it checks bookings; it sends your guests' names and emails, and the share's time zone, to Cal.com only when you press Book; guest emails are also in the links you copy; the client ID, client secret and refresh token are stored encrypted on this PC; signing out removes the refresh token, and Remove OAuth client removes all three.
 
 ## 4. Storage
 
