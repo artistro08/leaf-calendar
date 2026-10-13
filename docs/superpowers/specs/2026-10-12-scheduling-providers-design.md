@@ -83,7 +83,9 @@ The sign-in follows the Google sign-in's safety rules (main spec 4.2): PKCE S256
 
 ### 3.3 Provider List
 
-`SchedulingProviders.All` (`SchedulingProviderInfo`: id, name, description, OAuth data, and a `Create` function) is the one place that knows every provider. `SchedulingHub` (Core) holds the signed-in providers' instances, built after sign-in or at startup when a refresh token is saved, and dropped on sign-out.
+`SchedulingProviders.All` is the one place that knows every provider. Each entry is a `SchedulingProviderInfo`: id, name, a one-sentence description, its OAuth data (`SchedulingOAuth`, 3.2), a `Create` function (shared `HttpClient`, a function that hands out a fresh access token, and the API address) that builds the provider, its hosted API address, and the name of the menu path where its OAuth client page lives (the link text of the Accounts client guide).
+
+`SchedulingHub` (Core) owns everything that changes while Leaf runs: each provider's OAuth client, sign-in, sign-out and Remove OAuth client, the quiet token refresh, its cache of links, and the back-off after a rate limit. A provider is in one of four states: **no OAuth client**, **client saved** (not signed in), **signed in**, or **needs reconnecting** (the provider refused the sign-in or a refresh). Only signed-in providers are handed out; one that needs reconnecting is left out until you sign in again. At startup (and whenever the secrets become readable again) `Load()` builds a provider for each saved refresh token without calling the network; a secrets file that can't be read right now leaves each provider as it was and retries later. Sign-out and Remove OAuth client drop the provider's instance.
 
 ### 3.4 Cal.com (`CalComProvider`)
 
@@ -181,7 +183,7 @@ With the group's switch on and its provider able to book (`IBookingCreator`), **
 3. On Book, Leaf calls `BookAsync`. While it runs, the buttons are off and a progress ring shows.
 4. Success: the whole group is deleted, a message says "Booked on Cal.com.", and the event reaches your Google calendar the way every Cal.com booking does (through Cal.com's own calendar connection), so Leaf doesn't create a Google event itself (no duplicate).
 5. Time taken (`SchedulingSlotTakenException`): the group stays, a message says "That time was just taken on Cal.com. Pick another.", and the open times refresh.
-6. Offline, server error, or the key refused: the group stays and nothing is booked; a message says what's wrong (offline: "Couldn't reach Cal.com. Nothing was booked."; key refused: the needs-reconnecting state, 8).
+6. Offline, server error, or sign-in refused: the group stays and nothing is booked; a message says what's wrong (offline: "Couldn't reach Cal.com. Nothing was booked."; sign-in refused: the needs-reconnecting state, 8).
 7. The booking check (8) then sees this booking with no group left, so it shows no second notification.
 
 With the switch off (a plain group), Approve… opens the event editor as today. Approve… still needs at least one guest.
