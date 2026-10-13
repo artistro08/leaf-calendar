@@ -215,6 +215,9 @@ public sealed partial class MainWindow : Window
         Interop.Foreground.Take(new HWND(Win32Interop.GetWindowFromWindowId(AppWindow.Id)));
     }
 
+    /// <summary>Shows the calendar on a day (a booking notification's click).</summary>
+    public void ShowDay(DateOnly day) => _calendar.NavigateTo(day);
+
     /// <summary>Applies the app theme to the content and caption buttons.</summary>
     public void ApplyTheme(AppTheme theme) => ApplyTheme(AppWindow, RootGrid, theme);
 

@@ -76,6 +76,14 @@ public static class ToastContent
         return o.IsAllDay ? date + Dot + "All day" : date + Dot + TimeLabels.Range(o.Start, o.End, zone, use24Hour);
     }
 
+    /// <summary>"Today &#x00B7; 2 PM" or "Saturday, October 3 &#x00B7; 9 AM": an instant's day and time in the zone, for a booking (no end).</summary>
+    public static string WhenAt(DateTimeOffset start, TimeZoneInfo zone, bool use24Hour, DateTimeOffset now)
+    {
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
+        var day = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(start, zone).DateTime);
+        return TrayAgenda.DayHeader(day, today) + Dot + TimeLabels.TimeOfDay(start, zone, use24Hour);
+    }
+
     /// <summary>
     /// True when an event's reminder or "Join now" stays on screen: the persistent notification setting is on, and the
     /// event has a meeting link (<paramref name="meetingLink"/>) with <see cref="LeafSettings.PersistForMeetings"/>, or

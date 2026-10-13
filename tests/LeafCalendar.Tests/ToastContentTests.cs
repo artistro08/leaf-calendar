@@ -245,6 +245,19 @@ public class ToastContentTests
     }
 
     [Fact]
+    public void WhenAt_DayAndStartTimeInTheZone()
+    {
+        var now = Start.AddHours(-6);
+        var tokyo = TimeZoneInfo.CreateCustomTimeZone("Plus9", TimeSpan.FromHours(9), "Plus9", "Plus9");
+
+        Assert.Equal("Today \u00B7 6 PM", ToastContent.WhenAt(Start, TimeZoneInfo.Utc, false, now));
+        Assert.Equal("Tomorrow \u00B7 18:00", ToastContent.WhenAt(Start, TimeZoneInfo.Utc, true, now.AddDays(-1)));
+
+        // 6 PM UTC is 3 AM the next day nine hours ahead
+        Assert.Equal("Tomorrow \u00B7 3 AM", ToastContent.WhenAt(Start, tokyo, false, now));
+    }
+
+    [Fact]
     public void Args_RoundTripAwkwardCalendarIds()
     {
         var args = new ToastArgs(ToastAction.Accept, "uitest-1", "1", "a;b=c%d@group.calendar.google.com", "evt_1", Start);
