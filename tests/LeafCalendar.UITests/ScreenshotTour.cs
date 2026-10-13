@@ -225,10 +225,14 @@ public sealed class ScreenshotTour : IDisposable
                 leaf.CloseSettings();
                 foreach (var (width, height) in new[] { (1366, 768), (1086, 540) })
                 {
+                    // (the window settles before the drag measures the grid)
                     Place(leaf, width, height);
+                    Thread.Sleep(1000);
                     ShareAvailabilityTests.StartSharing(leaf);
                     Retry.WhileFalse(() => leaf.Exists("ClosedTime_2026-10-01_0"), TimeSpan.FromSeconds(15));
+                    Thread.Sleep(1000);
                     ShareAvailabilityTests.DragHours(leaf, 10.75, 12.5);
+                    Retry.WhileFalse(() => leaf.Exists("ShareSlot_0"), TimeSpan.FromSeconds(5));
                     Thread.Sleep(800);
                     leaf.MainWindow.CaptureToFile(Path.Combine(folder, $"scheduling-share-{name}-{width}.png"));
                     leaf.WaitFor("ShareCancelButton").AsButton().Invoke();
