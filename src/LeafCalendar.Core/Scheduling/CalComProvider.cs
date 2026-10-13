@@ -38,6 +38,15 @@ public sealed class CalComProvider(HttpClient http, string apiKey, Uri apiBase)
     /// <summary>Cal.com's hosted API.</summary>
     public static Uri DefaultApiBase { get; } = new("https://api.cal.com/");
 
+    /// <summary>Cal.com's OAuth endpoints, scopes and fixed loopback redirect (registered on your OAuth client).</summary>
+    public static SchedulingOAuth OAuth { get; } = new(
+        new Uri("https://app.cal.com/auth/oauth2/authorize"),
+        new Uri("https://api.cal.com/v2/auth/oauth2/token"),
+        ["EVENT_TYPE_READ", "BOOKING_READ", "BOOKING_WRITE", "SCHEDULE_READ"],
+        53817,
+        "/calcom/callback",
+        new Uri("https://app.cal.com/settings/developer/oauth"));
+
     /// <inheritdoc />
     public string Id => ProviderId;
 
