@@ -161,7 +161,7 @@ Shown only while at least one provider is connected and not signed out:
 
 - Under the hint, above Title: a **Use Cal.com** `ToggleSwitch` (no On/Off text; AutomationId `ShareProviderSwitch`; the label is "Use {provider name}" and, with two providers connected, "Use a booking link"), then a **Link** `ComboBox` (AutomationId `ShareLinkBox`) listing links from every connected provider as "{name} · {minutes} min", grouped by provider when there are two or more.
 - The Link box shows only while the switch is on. Each new share starts with the switch on and the default link picked (else the first link).
-- Turning the switch off, or changing the link, keeps the picks as they are; a later drag follows the new rule.
+- Turning the switch off keeps the picks as they are. Changing the link, or turning the switch on, fits every picked time to the link's bookable times at once, with the same messages.
 - A saved group opens with its own switch and link. Its link gone from the provider: the switch shows off, and the notice says "That link isn't on Cal.com anymore. These times will copy as plain text."
 - **Editing a saved Cal.com group** works like any saved group (click it on the grid to open it), with the provider rules kept:
   - The grid shades the group's link's openings, and its times stay resizable by their edges.

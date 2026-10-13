@@ -765,15 +765,16 @@ public sealed partial class CalendarViewModel
             saved = false;
         }
 
-        if (linked is { GuestsDropped: true } && _shareLink is { } link)
-        {
-            SayShare($"This {ProviderName(link)} link doesn't allow extra guests, so only {FirstGuestLabel()} is filled in.");
-        }
+        // Guests Left Out Of The Links: the notice says so instead of "Availability copied" (sharing ends, so the
+        // scheduling messages wouldn't show); a failed save still says that first
+        var notice = !saved ? "Copied, but couldn't save these times."
+            : linked is { GuestsDropped: true } && _shareLink is { } link ? $"This {ProviderName(link)} link doesn't allow extra guests, so only {FirstGuestLabel()} is filled in."
+            : "Availability copied";
 
         _services.Log.Info("share.copy", $"slots={_slots.Count} guests={_shareGuests.Count} linked={linked is not null}");
         StopSharing();
         ReloadGroups();
-        ShowMessage(saved ? "Availability copied" : "Copied, but couldn't save these times.");
+        ShowMessage(notice);
     }
 
     /// <summary>True when <paramref name="text"/> is exactly one valid email address.</summary>

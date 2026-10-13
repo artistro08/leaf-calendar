@@ -278,23 +278,31 @@ public sealed partial class CalendarViewModel
         IReadOnlyList<BusyRange>? open = null;
 
         // In A Rate-Limit Back-Off It Counts As Not Reachable
-        if (!_services.Scheduling.IsWaiting(link.ProviderId))
+        try
         {
-            try
+            if (!_services.Scheduling.IsWaiting(link.ProviderId))
             {
                 open = await Task.Run(() => source.GetOpenTimesAsync(link.Id, from.ToUniversalTime(), to.ToUniversalTime(), _life.Token));
             }
-            catch (Exception ex) when (ex is SchedulingUnavailableException or SchedulingAuthException)
+        }
+        catch (Exception ex) when (ex is SchedulingUnavailableException or SchedulingAuthException)
+        {
+            _services.Log.Info("scheduling.open.failed", $"provider={link.ProviderId} error={ex.GetType().Name}");
+            if (ex is SchedulingAuthException)
             {
-                _services.Log.Info("scheduling.open.failed", $"provider={link.ProviderId} error={ex.GetType().Name}");
-                if (ex is SchedulingAuthException)
-                {
-                    _services.Scheduling.MarkNeedsReconnect(link.ProviderId);
-                }
-                else if (ex is SchedulingUnavailableException { RetryAfter: { } retryAfter })
-                {
-                    _services.Scheduling.WaitFor(link.ProviderId, retryAfter);
-                }
+                _services.Scheduling.MarkNeedsReconnect(link.ProviderId);
+            }
+            else if (ex is SchedulingUnavailableException { RetryAfter: { } retryAfter })
+            {
+                _services.Scheduling.WaitFor(link.ProviderId, retryAfter);
+            }
+        }
+        finally
+        {
+            // Any other failure too: the next paging asks again
+            if (generation == _openGeneration)
+            {
+                _openAsked = null;
             }
         }
 
@@ -304,7 +312,6 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        _openAsked = null;
         _openTimes = open;
         _openRange = open is null ? null : (from, to);
         if (open is null)
@@ -316,31 +323,36 @@ public sealed partial class CalendarViewModel
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    // A link change or the switch turning on fits every pick to the openings at once, with the same messages
+    // A link change, the switch turning on, or picks made before the openings were known: every pick inside the
+    // fetched days is fitted at once, with the same messages. Picks on other days are kept as they are (their openings
+    // aren't known, so fitting would drop them)
     private void Refit()
     {
-        if (!_refitPending || _openTimes is null || _shareLink is null)
+        if (!_refitPending || _openTimes is null || _shareLink is null || _openRange is not { } range)
         {
             return;
         }
 
         _refitPending = false;
-        if (_slots.Count == 0)
+        var inside = _slots.Where(s => s.Start >= range.From && s.End <= range.To).ToList();
+        if (inside.Count == 0)
         {
             return;
         }
 
-        var fit = SlotFitting.FitAll(_slots, _openTimes);
+        var fit = SlotFitting.FitAll(inside, _openTimes);
         Say(fit.Summary, _shareLink);
-        _slots = [.. fit.Ranges];
+        _slots = [.. BusyMath.Merge([.. _slots.Except(inside), .. fit.Ranges])];
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    // With a link on and its openings known, a pick is fitted to them and the messages say what happened; otherwise it's kept as dragged
+    // With a link on and its openings known, a pick is fitted to them and the messages say what happened; otherwise it's
+    // kept as dragged (and, with the link on, fitted once the openings arrive, so Copy doesn't drop it)
     private IReadOnlyList<BusyRange> FitPick(BusyRange pick)
     {
         if (!_useProvider || _shareLink is null || _openTimes is null)
         {
+            _refitPending |= _useProvider && _shareLink is not null;
             return [pick];
         }
 
