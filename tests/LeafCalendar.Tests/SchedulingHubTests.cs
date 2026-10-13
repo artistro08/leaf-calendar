@@ -86,6 +86,14 @@ public sealed class SchedulingHubTests : IDisposable
         Assert.Equal(ProviderState.NoClient, Create().StateOf("calcom"));
 
     [Fact]
+    public void ProviderClient_ToString_LeavesOutTheSecret()
+    {
+        var text = new ProviderClient("client-123", "secret-1").ToString();
+
+        Assert.DoesNotContain("secret-1", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SaveClient_TrimsSavesAndIsReadyToSignIn()
     {
         var hub = Create();

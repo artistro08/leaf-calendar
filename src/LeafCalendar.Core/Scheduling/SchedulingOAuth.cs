@@ -17,7 +17,11 @@ public sealed record SchedulingOAuth(Uri Authorize, Uri Token, IReadOnlyList<str
 /// <summary>Your own OAuth client for a provider (a confidential client: ID and secret).</summary>
 /// <param name="ClientId">The client ID.</param>
 /// <param name="ClientSecret">The client secret; sent only in the token request body, never in a URL or a log.</param>
-public sealed record ProviderClient(string ClientId, string ClientSecret);
+public sealed record ProviderClient(string ClientId, string ClientSecret)
+{
+    /// <summary>Names the type only, so printing a client (in a log or an exception) never shows its ID or secret, which are never logged.</summary>
+    public override string ToString() => nameof(ProviderClient);
+}
 
 /// <summary>The fixed redirect port is in use by another app, so the sign-in can't receive the provider's reply.</summary>
 public sealed class SchedulingPortBusyException : Exception
