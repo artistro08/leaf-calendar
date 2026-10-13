@@ -40,6 +40,16 @@ public sealed class CalComProviderTests : IDisposable
         Assert.Empty(await Create().GetLinksAsync(TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task GetLinksAsync_HiddenMissing_KeepsTheLink()
+    {
+        _cal.On(HttpMethod.Get, Base + "v2/event-types", HttpStatusCode.OK, """{"status":"success","data":[{"id":7,"title":"Intro","lengthInMinutes":30,"bookingUrl":"https://cal.com/leaf-tester/intro"}]}""");
+
+        var link = Assert.Single(await Create().GetLinksAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("7", link.Id);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.Unauthorized)]
     [InlineData(HttpStatusCode.Forbidden)]

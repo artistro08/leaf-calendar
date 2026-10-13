@@ -62,7 +62,7 @@ public sealed class CalComProvider(HttpClient http, Func<CancellationToken, Task
         var links = new List<SchedulingLink>();
         foreach (var t in page.Data ?? [])
         {
-            if (t.Id is not { } id || t.Hidden != false || t.LengthInMinutes is not ({ } minutes and > 0)
+            if (t.Id is not { } id || t.Hidden == true || t.LengthInMinutes is not ({ } minutes and > 0)
                 || !Uri.TryCreate(t.BookingUrl, UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps || !LinkSafety.CanLaunch(url))
             {
                 continue;
