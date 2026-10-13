@@ -6,6 +6,7 @@ namespace LeafCalendar.Tests.Support;
 public sealed class InMemoryTokenStore : ITokenStore
 {
     private readonly Dictionary<string, string> _refreshTokens = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string, string), string> _providerSecrets = [];
     private OAuthClientCredentials? _client;
 
     /// <inheritdoc />
@@ -28,4 +29,19 @@ public sealed class InMemoryTokenStore : ITokenStore
 
     /// <inheritdoc />
     public IReadOnlyList<string> GetAccountIds() => [.. _refreshTokens.Keys];
+
+    /// <inheritdoc />
+    public string? GetProviderSecret(string providerId, string key) => _providerSecrets.GetValueOrDefault((providerId, key));
+
+    /// <inheritdoc />
+    public void SetProviderSecret(string providerId, string key, string value) => _providerSecrets[(providerId, key)] = value;
+
+    /// <inheritdoc />
+    public void RemoveProviderSecrets(string providerId)
+    {
+        foreach (var pair in _providerSecrets.Keys.Where(k => k.Item1 == providerId).ToList())
+        {
+            _providerSecrets.Remove(pair);
+        }
+    }
 }

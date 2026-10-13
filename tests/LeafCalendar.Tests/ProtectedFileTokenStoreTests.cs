@@ -226,6 +226,49 @@ public sealed class ProtectedFileTokenStoreTests : IDisposable
     }
 
     [Fact]
+    public void ProviderSecrets_RoundTrip_AndSurviveOtherWrites()
+    {
+        _store.SetProviderSecret("calcom", "api_key", "cal_live_abc");
+        _store.SetClientCredentials(new("id", "secret"));
+        _store.SetRefreshToken("acct", "1//r");
+
+        var reopened = new ProtectedFileTokenStore(_folder.Path);
+        Assert.Equal("cal_live_abc", reopened.GetProviderSecret("calcom", "api_key"));
+        Assert.Null(reopened.GetProviderSecret("calcom", "other"));
+        Assert.Null(reopened.GetProviderSecret("other", "api_key"));
+        Assert.Equal("1//r", reopened.GetRefreshToken("acct"));
+    }
+
+    [Fact]
+    public void RemoveProviderSecrets_RemovesOnlyThatProvider()
+    {
+        _store.SetProviderSecret("calcom", "api_key", "a");
+        _store.SetProviderSecret("other", "api_key", "b");
+
+        _store.RemoveProviderSecrets("calcom");
+
+        Assert.Null(_store.GetProviderSecret("calcom", "api_key"));
+        Assert.Equal("b", _store.GetProviderSecret("other", "api_key"));
+    }
+
+    [Fact]
+    public void ProviderSecrets_OldFileWithoutThem_ReadsAsNone()
+    {
+        // A file written before scheduling providers: JSON with no Providers property, encrypted for this profile
+        var entropy = System.Text.Encoding.UTF8.GetBytes("LeafCalendar/" + Path.GetFileName(_folder.Path).ToLowerInvariant());
+        var json = """{"clientId":"id","clientSecret":"secret","refresh":{"acct":"1//r"}}""";
+        File.WriteAllBytes(Path.Combine(_folder.Path, "secrets.bin"), Dpapi.Protect(System.Text.Encoding.UTF8.GetBytes(json), entropy));
+
+        Assert.Null(_store.GetProviderSecret("calcom", "api_key"));
+        Assert.Equal("1//r", _store.GetRefreshToken("acct"));
+
+        _store.SetProviderSecret("calcom", "api_key", "k");
+
+        Assert.Equal("k", _store.GetProviderSecret("calcom", "api_key"));
+        Assert.Equal("1//r", _store.GetRefreshToken("acct"));
+    }
+
+    [Fact]
     public void DeleteAll_RemovesTheFile()
     {
         _store.SetRefreshToken("acct-1", "1//a");
