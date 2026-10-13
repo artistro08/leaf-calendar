@@ -18,6 +18,7 @@ public sealed class ProviderTokens(
     Action<string> saveRotatedRefreshToken) : IDisposable
 {
     private static readonly TimeSpan RefreshMargin = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan DefaultLifetime = TimeSpan.FromMinutes(30);
 
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private string _refreshToken = refreshToken;
@@ -29,7 +30,16 @@ public sealed class ProviderTokens(
     /// <exception cref="SchedulingUnavailableException">The provider couldn't be reached or answered with an error that may pass.</exception>
     public async Task<string> GetAccessTokenAsync(CancellationToken ct)
     {
-        await _refreshGate.WaitAsync(ct);
+        // The hub disposes a dropped provider's tokens while a call may still be on its way here
+        try
+        {
+            await _refreshGate.WaitAsync(ct);
+        }
+        catch (ObjectDisposedException ex)
+        {
+            throw new SchedulingUnavailableException("This sign-in has ended.", ex);
+        }
+
         try
         {
             // Another caller may have refreshed while this one waited
@@ -52,17 +62,29 @@ public sealed class ProviderTokens(
                 saveRotatedRefreshToken(rotated);
             }
 
-            // An answer without expires_in counts as already ending, so the next call refreshes again
+            // An answer without expires_in gets the documented 30 minutes rather than a refresh on every call
             _accessToken = token.AccessToken!;
-            _expiresAt = time.GetUtcNow().AddSeconds(token.ExpiresIn ?? 0);
+            _expiresAt = time.GetUtcNow() + (token.ExpiresIn is { } seconds ? TimeSpan.FromSeconds(seconds) : DefaultLifetime);
             return _accessToken;
         }
         finally
         {
-            _refreshGate.Release();
+            ReleaseGate();
         }
     }
 
-    /// <summary>Disposes the refresh semaphore.</summary>
+    /// <summary>Disposes the refresh semaphore. A call already on its way ends with <see cref="SchedulingUnavailableException"/> or its own result.</summary>
     public void Dispose() => _refreshGate.Dispose();
+
+    // Releases the gate unless it was disposed during the refresh (nothing waits on a disposed gate)
+    private void ReleaseGate()
+    {
+        try
+        {
+            _refreshGate.Release();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
 }

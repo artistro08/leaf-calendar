@@ -39,7 +39,7 @@ public sealed record ExtraTimeZone(string Id, string? Label);
 
 /// <summary>One scheduling provider's saved choices.</summary>
 /// <param name="ProviderId">The provider's ID.</param>
-/// <param name="Server">The address typed in Settings, empty for the provider's own.</param>
+/// <param name="Server">No longer used (self-hosted servers were dropped); always empty, kept so saved settings still read.</param>
 /// <param name="DefaultLinkId">The link each new share starts with, empty for the first.</param>
 public sealed record ProviderSettings(string ProviderId, string Server, string DefaultLinkId);
 
@@ -182,7 +182,7 @@ public sealed record LeafSettings
     /// <summary>Show new and updated invitations.</summary>
     public bool InviteNotifications { get; set; } = true;
 
-    /// <summary>Each connected scheduling provider's server and default link. Edit with <see cref="WithProvider"/> and <see cref="WithoutProvider"/>.</summary>
+    /// <summary>Each signed-in scheduling provider's default link. Edit with <see cref="WithProvider"/> and <see cref="WithoutProvider"/>.</summary>
     public IReadOnlyList<ProviderSettings> Scheduling { get; init; } = [];
 
     /// <summary>Show a notification when someone books a time through a scheduling link.</summary>
@@ -324,11 +324,11 @@ public sealed record LeafSettings
         };
     }
 
-    // Trimmed, capped, blank and repeated provider IDs dropped (the first kept)
+    // Trimmed, capped, blank and repeated provider IDs dropped (the first kept), the unused server emptied
     private static List<ProviderSettings> CleanScheduling(IReadOnlyList<ProviderSettings>? list) =>
         [.. (list ?? [])
             .Where(p => p is not null && !string.IsNullOrWhiteSpace(p.ProviderId))
-            .Select(p => new ProviderSettings(Clip(p.ProviderId.Trim(), 32), Clip((p.Server ?? "").Trim(), 2048), Clip((p.DefaultLinkId ?? "").Trim(), 64)))
+            .Select(p => new ProviderSettings(Clip(p.ProviderId.Trim(), 32), "", Clip((p.DefaultLinkId ?? "").Trim(), 64)))
             .DistinctBy(p => p.ProviderId, StringComparer.Ordinal)];
 
     /// <summary>Returns the saved choices for a provider, or an empty set when none are saved.</summary>

@@ -5,7 +5,7 @@ namespace LeafCalendar.Tests;
 
 public class CalComLinkTests
 {
-    private static readonly CalComProvider Provider = new(new HttpClient(), "cal_live_x", CalComProvider.DefaultApiBase);
+    private static readonly CalComProvider Provider = new(new HttpClient(), _ => Task.FromResult("at-x"), CalComProvider.DefaultApiBase);
     private static readonly SchedulingLink WithGuests = new("calcom", "101", "30 min", 30, new Uri("https://cal.com/leaf-tester/30min"), true);
     private static readonly SchedulingLink NoGuests = WithGuests with { AllowsGuests = false };
     private static readonly TimeZoneInfo Chicago = TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");

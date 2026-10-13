@@ -83,6 +83,23 @@ public sealed class ProviderTokensTests : IDisposable
     }
 
     [Fact]
+    public async Task GetAccessTokenAsync_NoExpiresIn_AssumesThirtyMinutes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _provider.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, """{"access_token":"at-1"}""", once: true);
+        _provider.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Answer("at-2"));
+        var tokens = Create();
+
+        Assert.Equal("at-1", await tokens.GetAccessTokenAsync(ct));
+        _time.Advance(TimeSpan.FromSeconds(1739));
+        Assert.Equal("at-1", await tokens.GetAccessTokenAsync(ct));
+        Assert.Single(_provider.Requests);
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal("at-2", await tokens.GetAccessTokenAsync(ct));
+    }
+
+    [Fact]
     public async Task GetAccessTokenAsync_TwoCallersAtOnce_ShareOneRefresh()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -178,6 +195,17 @@ public sealed class ProviderTokensTests : IDisposable
         _provider.Throw(new HttpRequestException("offline"));
 
         await Assert.ThrowsAsync<SchedulingUnavailableException>(() => Create().GetAccessTokenAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task GetAccessTokenAsync_AfterDispose_ThrowsUnavailable()
+    {
+        var tokens = Create();
+        tokens.Dispose();
+
+        await Assert.ThrowsAsync<SchedulingUnavailableException>(() => tokens.GetAccessTokenAsync(TestContext.Current.CancellationToken));
+
+        Assert.Empty(_provider.Requests);
     }
 
     [Fact]

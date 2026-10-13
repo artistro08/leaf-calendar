@@ -17,12 +17,14 @@ namespace LeafCalendar.Core.Scheduling;
 /// time, and the booking page links Leaf copies.
 /// </summary>
 /// <remarks>
-/// Every call sends the API key as <c>Authorization: Bearer</c> to <paramref name="apiBase"/> only (https; Cal.com's
-/// own server unless you self-host), never in a URL. Each endpoint pins its <c>cal-api-version</c>. Names are cleaned and
-/// capped, and a link whose booking page isn't https or fails <see cref="LinkSafety.CanLaunch"/> is left out.
+/// Every call asks <paramref name="accessToken"/> for a fresh OAuth access token (it refreshes quietly when needed; a
+/// refused refresh throws <see cref="SchedulingAuthException"/> before anything is sent) and sends it as
+/// <c>Authorization: Bearer</c> to <paramref name="apiBase"/> only (<c>https://api.cal.com/</c>, or the UI tests' fake),
+/// never in a URL. Each endpoint pins its <c>cal-api-version</c>. Names are cleaned and capped, and a link whose booking
+/// page isn't https or fails <see cref="LinkSafety.CanLaunch"/> is left out.
 /// </remarks>
 /// <seealso href="https://cal.com/docs/api-reference/v2/introduction"/>
-public sealed class CalComProvider(HttpClient http, string apiKey, Uri apiBase)
+public sealed class CalComProvider(HttpClient http, Func<CancellationToken, Task<string>> accessToken, Uri apiBase)
     : ISchedulingProvider, ILinkSource, IOpenTimesSource, ITimeLinkBuilder, IBlockLinkBuilder, IBookingSource, IBookingCreator
 {
     /// <summary>The provider's ID.</summary>
@@ -165,12 +167,13 @@ public sealed class CalComProvider(HttpClient http, string apiKey, Uri apiBase)
             ? new SchedulingBooking(uid, start.ToUniversalTime(), created.ToUniversalTime(), DisplayText.Clean(b.Attendees?.FirstOrDefault()?.Name, MaxName))
             : null;
 
-    // One request: key and version headers, status mapped to Leaf's three failures, body read through the source-generated context
+    // One request: token and version headers, status mapped to Leaf's three failures, body read through the source-generated context
     private async Task<T> SendAsync<T>(HttpMethod method, string relative, string version, HttpContent? content, JsonTypeInfo<T> type, CancellationToken ct)
         where T : class
     {
+        var token = await accessToken(ct);
         using var request = new HttpRequestMessage(method, new Uri(apiBase, relative)) { Content = content };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Add("cal-api-version", version);
 
         HttpResponseMessage response;
@@ -193,7 +196,7 @@ public sealed class CalComProvider(HttpClient http, string apiKey, Uri apiBase)
             switch (response.StatusCode)
             {
                 case HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden:
-                    throw new SchedulingAuthException("Cal.com refused the API key.");
+                    throw new SchedulingAuthException("Cal.com refused the access token.");
                 case HttpStatusCode.Conflict when method == HttpMethod.Post:
                     throw new SchedulingSlotTakenException("That time isn't open on Cal.com anymore.");
                 case HttpStatusCode.BadRequest when method == HttpMethod.Post && IsTakenMessage(text):

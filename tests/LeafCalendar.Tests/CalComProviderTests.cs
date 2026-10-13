@@ -7,16 +7,16 @@ namespace LeafCalendar.Tests;
 public sealed class CalComProviderTests : IDisposable
 {
     private const string Base = "https://api.cal.com/";
-    private const string Key = "cal_live_test123";
+    private const string Token = "at-test123";
     private readonly FakeHttpHandler _cal = new();
 
-    private CalComProvider Create() => new(new HttpClient(_cal), Key, new Uri(Base));
+    private CalComProvider Create() => new(new HttpClient(_cal), _ => Task.FromResult(Token), new Uri(Base));
 
     /// <inheritdoc />
     public void Dispose() => _cal.Dispose();
 
     [Fact]
-    public async Task GetLinksAsync_SendsKeyAndVersion_DropsHiddenUnsafeAndNull()
+    public async Task GetLinksAsync_SendsTokenAndVersion_DropsHiddenUnsafeAndNull()
     {
         _cal.On(HttpMethod.Get, Base + "v2/event-types", HttpStatusCode.OK, Fixture.Read("calcom-event-types.json"));
 
@@ -27,9 +27,9 @@ public sealed class CalComProviderTests : IDisposable
         Assert.Equal(30, links[0].Minutes);
         Assert.True(links[0].AllowsGuests);
         Assert.False(links[1].AllowsGuests);
-        Assert.Equal(Key, _cal.Last.BearerToken);
+        Assert.Equal(Token, _cal.Last.BearerToken);
         Assert.Equal("2024-06-14", _cal.Last.Header("cal-api-version"));
-        Assert.DoesNotContain(Key, _cal.Last.Uri.AbsoluteUri, StringComparison.Ordinal);
+        Assert.DoesNotContain(Token, _cal.Last.Uri.AbsoluteUri, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -43,11 +43,21 @@ public sealed class CalComProviderTests : IDisposable
     [Theory]
     [InlineData(HttpStatusCode.Unauthorized)]
     [InlineData(HttpStatusCode.Forbidden)]
-    public async Task GetLinksAsync_KeyRefused_ThrowsAuth(HttpStatusCode status)
+    public async Task GetLinksAsync_TokenRefused_ThrowsAuth(HttpStatusCode status)
     {
         _cal.On(HttpMethod.Get, Base + "v2/event-types", status, """{"status":"error"}""");
 
         await Assert.ThrowsAsync<SchedulingAuthException>(() => Create().GetLinksAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task GetLinksAsync_TokenRefreshRefused_ThrowsAuthAndSendsNothing()
+    {
+        var provider = new CalComProvider(new HttpClient(_cal), _ => throw new SchedulingAuthException("refused"), new Uri(Base));
+
+        await Assert.ThrowsAsync<SchedulingAuthException>(() => provider.GetLinksAsync(TestContext.Current.CancellationToken));
+
+        Assert.Empty(_cal.Requests);
     }
 
     [Fact]

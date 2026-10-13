@@ -9,7 +9,6 @@ using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.Hosting;
 using LeafCalendar.Core.Scheduling;
-using LeafCalendar.Core.Settings;
 using Microsoft.Windows.System.Power;
 using Windows.Networking.Connectivity;
 using Windows.System;
@@ -385,13 +384,12 @@ public sealed class LeafServices : IAsyncDisposable
         }
     }
 
-    // Builds the scheduling providers from their saved keys and settings; at startup and from a timer, so nothing may escape
+    // Builds the signed-in scheduling providers from their saved secrets; at startup and from a timer, so nothing may escape
     private void LoadScheduling()
     {
         try
         {
-            using var conn = Database.Open();
-            Scheduling.Load(SettingsStore.Load(conn).Scheduling);
+            Scheduling.Load();
         }
         catch (Exception ex)
         {

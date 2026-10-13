@@ -20,10 +20,10 @@ public sealed class BookingFoundEventArgs(SchedulingBooking booking, string prov
 /// the bookings landed in.
 /// </summary>
 /// <remarks>
-/// With no saved group that has a provider it makes no network call at all. A refused key marks the provider as needing
-/// reconnecting; a rate limit starts a back-off; any other failure is logged (type name only) and tried again next pass.
+/// With no saved group that has a provider it makes no network call at all. A refused sign-in (token or refresh) marks the
+/// provider as needing reconnecting; a rate limit starts a back-off; any other failure is logged (type name only) and tried again next pass.
 /// </remarks>
-/// <param name="hub">The connected providers.</param>
+/// <param name="hub">The signed-in providers.</param>
 /// <param name="database">The database holding the saved groups.</param>
 /// <param name="log">The app log.</param>
 /// <param name="time">The clock for reading the groups.</param>

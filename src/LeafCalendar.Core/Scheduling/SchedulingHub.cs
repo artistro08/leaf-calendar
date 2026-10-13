@@ -1,121 +1,173 @@
 using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Diagnostics;
-using LeafCalendar.Core.Settings;
 
 namespace LeafCalendar.Core.Scheduling;
 
 /// <summary>Whether a provider can be used.</summary>
 public enum ProviderState
 {
-    /// <summary>No key is saved (or it couldn't be loaded yet).</summary>
-    NotConnected,
+    /// <summary>No OAuth client is saved (or the secrets couldn't be read yet).</summary>
+    NoClient,
 
-    /// <summary>A key is saved and the provider is ready.</summary>
-    Connected,
+    /// <summary>Your OAuth client is saved, but you aren't signed in.</summary>
+    NotSignedIn,
 
-    /// <summary>The provider refused the saved key; no more calls until you connect again.</summary>
+    /// <summary>Signed in; the provider is ready.</summary>
+    SignedIn,
+
+    /// <summary>The provider refused the sign-in; no more calls until you sign in again.</summary>
     NeedsReconnect,
 }
 
 /// <summary>
-/// Holds the connected scheduling providers (spec 3.3): built from saved keys at startup, on connect, and dropped on
-/// disconnect, with each one's links cached and its rate-limit back-off.
+/// Holds the signed-in scheduling providers (spec 3.3): your OAuth client per provider, the sign-in, sign-out and quiet
+/// token refresh, each provider's cached links and its rate-limit back-off.
 /// </summary>
 /// <remarks>
-/// Used from the UI thread and the sync thread: one lock guards the providers, states, caches and back-offs, and it is
-/// never held across an <c>await</c>. Keys go only through <see cref="ITokenStore"/> and are never logged; the log gets
-/// provider IDs, counts and exception type names. A server address must be https (checked here, since
-/// <see cref="CalComProvider"/> doesn't); only the UI tests' fake root, when given, may be http.
+/// Used from the UI thread and the sync thread: one lock guards the sessions, states, caches and back-offs, and it is
+/// never held across an <c>await</c>. The client ID, client secret and refresh token go only through
+/// <see cref="ITokenStore"/> (keys <c>client_id</c>, <c>client_secret</c>, <c>refresh_token</c>) and are never logged;
+/// the log gets provider IDs, counts and exception type names. A provider whose token refresh or API call is refused is
+/// marked <see cref="ProviderState.NeedsReconnect"/>.
 /// </remarks>
 /// <param name="http">The client providers send through.</param>
-/// <param name="tokens">Where provider keys are saved.</param>
+/// <param name="tokens">Where the OAuth client and refresh token are saved.</param>
 /// <param name="log">The app log.</param>
-/// <param name="time">The clock for the link cache and back-offs.</param>
-/// <param name="fakeRoot">The UI tests' fake server; each provider uses its <c>{id}/</c> folder when no server is set.</param>
+/// <param name="time">The clock for tokens, the link cache and back-offs.</param>
+/// <param name="fakeRoot">The UI tests' fake server: each provider's API, authorize and token addresses move under its <c>{id}/</c> folder.</param>
 public sealed class SchedulingHub(HttpClient http, ITokenStore tokens, AppLog log, TimeProvider time, Uri? fakeRoot = null)
 {
+    private const string ClientIdKey = "client_id";
+    private const string ClientSecretKey = "client_secret";
+    private const string RefreshTokenKey = "refresh_token";
+
     private static readonly TimeSpan CacheFor = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan DefaultWait = TimeSpan.FromSeconds(60);
 
     private readonly Lock _gate = new();
-    private readonly Dictionary<string, ISchedulingProvider> _providers = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Session> _sessions = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ProviderState> _states = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CachedLinks> _cache = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _waitUntil = new(StringComparer.Ordinal);
 
-    /// <summary>Raised when a provider connects, disconnects or needs reconnecting. Raised on any thread.</summary>
+    /// <summary>Raised when a provider's state changes (client saved or removed, signed in or out, needs reconnecting). Raised on any thread.</summary>
     public event EventHandler? Changed;
 
-    /// <summary>The connected providers (ones that need reconnecting are left out).</summary>
+    /// <summary>The signed-in providers (ones that need reconnecting are left out).</summary>
     public IReadOnlyList<ISchedulingProvider> Connected
     {
         get
         {
             lock (_gate)
             {
-                return [.. _providers.Values];
+                return [.. _sessions.Values.Select(s => s.Provider)];
             }
         }
     }
 
-    /// <summary>The first invalid field's message, or null when every value is acceptable.</summary>
-    /// <remarks>A required field must be non-empty and valid; an optional one is checked only when it isn't empty.</remarks>
-    public static string? Check(SchedulingProviderInfo info, IReadOnlyDictionary<string, string> values)
-    {
-        foreach (var field in info.Fields)
-        {
-            var value = values.GetValueOrDefault(field.Key) ?? "";
-            if (value.Trim().Length == 0 ? field.Required : !field.IsValid(value))
-            {
-                return field.InvalidMessage;
-            }
-        }
+    // The providers this hub knows; logic tests swap in one with a free redirect port
+    internal IReadOnlyList<SchedulingProviderInfo> Providers { get; init; } = SchedulingProviders.All;
 
-        return null;
-    }
-
-    /// <summary>Whether a provider is connected, needs reconnecting, or isn't connected.</summary>
+    /// <summary>Whether a provider has no client, isn't signed in, is signed in, or needs reconnecting.</summary>
     public ProviderState StateOf(string providerId)
     {
         lock (_gate)
         {
-            return _states.GetValueOrDefault(providerId, ProviderState.NotConnected);
+            return _states.GetValueOrDefault(providerId, ProviderState.NoClient);
         }
     }
 
-    /// <summary>The connected provider with this ID, or null (also when it needs reconnecting).</summary>
+    /// <summary>The signed-in provider with this ID, or null (also when it needs reconnecting).</summary>
     public ISchedulingProvider? Get(string providerId)
     {
         lock (_gate)
         {
-            return _providers.GetValueOrDefault(providerId);
+            return _sessions.GetValueOrDefault(providerId)?.Provider;
+        }
+    }
+
+    /// <summary>Saves your OAuth client for a provider (trimmed). Without a client it becomes ready to sign in.</summary>
+    /// <exception cref="ArgumentException">The client ID or secret is empty, or Leaf doesn't know the provider.</exception>
+    public void SaveClient(string providerId, ProviderClient client)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        Find(providerId);
+        var clientId = client.ClientId.Trim();
+        var clientSecret = client.ClientSecret.Trim();
+        if (clientId.Length == 0 || clientSecret.Length == 0)
+        {
+            throw new ArgumentException("An OAuth client needs a client ID and a client secret.", nameof(client));
+        }
+
+        tokens.SetProviderSecret(providerId, ClientIdKey, clientId);
+        tokens.SetProviderSecret(providerId, ClientSecretKey, clientSecret);
+
+        bool changed;
+        lock (_gate)
+        {
+            changed = _states.GetValueOrDefault(providerId, ProviderState.NoClient) == ProviderState.NoClient;
+            if (changed)
+            {
+                _states[providerId] = ProviderState.NotSignedIn;
+            }
+        }
+
+        log.Info("scheduling.client.saved", $"provider={providerId}");
+        if (changed)
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
         }
     }
 
     /// <summary>
-    /// Builds every provider with a saved key, at startup and when the secrets become readable again.
+    /// Removes your OAuth client and sign-in for a provider (all three secrets) and drops it. The caller removes its
+    /// settings and its saved groups (<see cref="Data.ShareGroupStore.ClearProvider"/>). A failure to remove the secrets
+    /// throws and changes nothing.
+    /// </summary>
+    public void RemoveClient(string providerId)
+    {
+        EndSession(providerId, () => tokens.RemoveProviderSecrets(providerId), ProviderState.NoClient);
+        log.Info("scheduling.client.removed", $"provider={providerId}");
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Signs out of a provider: removes the saved refresh token only (your OAuth client stays) and drops it. A failure to
+    /// remove the token throws and changes nothing.
+    /// </summary>
+    public void SignOut(string providerId)
+    {
+        // ITokenStore has no single-key remove; an empty value reads as no refresh token
+        EndSession(providerId, () => tokens.SetProviderSecret(providerId, RefreshTokenKey, ""), ProviderState.NotSignedIn);
+        log.Info("scheduling.signed-out", $"provider={providerId}");
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Reads every provider's saved secrets, at startup and when the secrets become readable again, and builds the ones
+    /// with a saved refresh token. No network call is made until a provider is used.
     /// </summary>
     /// <remarks>
-    /// A provider needs a saved secret for every required secret field; its server comes from <paramref name="settings"/>
-    /// (empty means its hosted API, or the fake root's <c>{id}/</c> folder in UI tests). A saved server that isn't a valid
-    /// https address leaves it out. When the secrets can't be read right now, that provider is left as it was (logged as
-    /// <c>scheduling.load.secrets-unavailable</c>) and nothing is written, so a later call retries. A provider that needs
-    /// reconnecting stays that way until you connect again.
+    /// A provider already signed in, or needing reconnecting, is left as it is (only this hub writes its secrets). When the
+    /// secrets can't be read right now, that provider is left as it was (logged as <c>scheduling.load.secrets-unavailable</c>)
+    /// and nothing is written, so a later call retries.
     /// </remarks>
-    public void Load(IReadOnlyList<ProviderSettings> settings)
+    public void Load()
     {
         var changed = false;
-        foreach (var info in SchedulingProviders.All)
+        foreach (var info in Providers)
         {
-            if (StateOf(info.Id) == ProviderState.NeedsReconnect)
+            if (StateOf(info.Id) is ProviderState.SignedIn or ProviderState.NeedsReconnect)
             {
                 continue;
             }
 
-            Dictionary<string, string> values;
+            ProviderClient? client;
+            string? refreshToken;
             try
             {
-                values = ReadSecrets(info);
+                client = ReadClient(info.Id);
+                refreshToken = client is null ? null : NonEmpty(tokens.GetProviderSecret(info.Id, RefreshTokenKey));
             }
             catch (Exception ex) when (SecretsUnavailable.Is(ex))
             {
@@ -123,23 +175,27 @@ public sealed class SchedulingHub(HttpClient http, ITokenStore tokens, AppLog lo
                 continue;
             }
 
-            var provider = Build(info, values, settings.FirstOrDefault(s => s.ProviderId == info.Id));
+            var session = client is not null && refreshToken is not null ? StartSession(info, client, refreshToken, saved: true) : null;
+            var state = session is not null ? ProviderState.SignedIn : client is not null ? ProviderState.NotSignedIn : ProviderState.NoClient;
             lock (_gate)
             {
-                var before = _states.GetValueOrDefault(info.Id, ProviderState.NotConnected);
-                _cache.Remove(info.Id);
-                if (provider is null)
+                var before = _states.GetValueOrDefault(info.Id, ProviderState.NoClient);
+
+                // A sign-in that finished meanwhile wins
+                if (before is ProviderState.SignedIn or ProviderState.NeedsReconnect)
                 {
-                    _providers.Remove(info.Id);
-                    _states.Remove(info.Id);
-                }
-                else
-                {
-                    _providers[info.Id] = provider;
-                    _states[info.Id] = ProviderState.Connected;
+                    session?.End();
+                    continue;
                 }
 
-                changed |= before != _states.GetValueOrDefault(info.Id, ProviderState.NotConnected);
+                if (session is not null)
+                {
+                    _sessions[info.Id] = session;
+                    _cache.Remove(info.Id);
+                }
+
+                _states[info.Id] = state;
+                changed |= before != state;
             }
         }
 
@@ -150,76 +206,65 @@ public sealed class SchedulingHub(HttpClient http, ITokenStore tokens, AppLog lo
     }
 
     /// <summary>
-    /// Connects a provider: checks the values, proves the key works by reading your links, then saves the secrets and
-    /// returns the links. The caller saves the provider's settings (server, default link).
+    /// Signs in to a provider with your saved OAuth client through the browser, proves the tokens work by reading your
+    /// links, and only then saves the refresh token. Returns the links; the caller saves the default link.
     /// </summary>
-    /// <exception cref="ArgumentException">A value is invalid (the message is the field's; the UI calls <see cref="Check"/> first).</exception>
-    /// <exception cref="SchedulingAuthException">The provider refused the key; nothing was saved.</exception>
+    /// <param name="providerId">The provider to sign in to.</param>
+    /// <param name="openBrowser">Opens the provider's consent page.</param>
+    /// <param name="ct">Cancels the sign-in.</param>
+    /// <exception cref="InvalidOperationException">No OAuth client is saved for the provider.</exception>
+    /// <exception cref="SchedulingPortBusyException">Another app holds the redirect port.</exception>
+    /// <exception cref="SchedulingAuthException">The sign-in was canceled or refused; nothing was saved.</exception>
     /// <exception cref="SchedulingUnavailableException">The provider couldn't be reached; nothing was saved.</exception>
-    public async Task<IReadOnlyList<SchedulingLink>> ConnectAsync(SchedulingProviderInfo info, IReadOnlyDictionary<string, string> values, CancellationToken ct)
+    /// <exception cref="TimeoutException">The browser didn't come back within <see cref="ProviderSignIn.Timeout"/>.</exception>
+    public async Task<IReadOnlyList<SchedulingLink>> SignInAsync(string providerId, Func<Uri, Task> openBrowser, CancellationToken ct)
     {
-        if (Check(info, values) is { } message)
+        var info = Find(providerId);
+        var client = ReadClient(providerId) ?? throw new InvalidOperationException("No OAuth client is saved for this provider.");
+        var refreshToken = await new ProviderSignIn(http, OAuthFor(info), client, openBrowser, time).RunAsync(ct);
+
+        var session = StartSession(info, client, refreshToken, saved: false);
+        IReadOnlyList<SchedulingLink> links;
+        try
         {
-            throw new ArgumentException(message, nameof(values));
+            links = session.Provider is ILinkSource source ? await source.GetLinksAsync(ct) : [];
+            session.Saver.Commit();
+        }
+        catch
+        {
+            session.End();
+            throw;
         }
 
-        var provider = info.Create(http, values, BaseFor(info, values.GetValueOrDefault("server") ?? ""));
-        IReadOnlyList<SchedulingLink> links = provider is ILinkSource source ? await source.GetLinksAsync(ct) : [];
-
-        foreach (var field in info.Fields.Where(f => f.Secret))
-        {
-            var value = (values.GetValueOrDefault(field.Key) ?? "").Trim();
-            if (value.Length > 0)
-            {
-                tokens.SetProviderSecret(info.Id, field.Key, value);
-            }
-        }
-
+        Session? old;
         lock (_gate)
         {
-            _providers[info.Id] = provider;
-            _states[info.Id] = ProviderState.Connected;
-            _cache[info.Id] = new CachedLinks(time.GetUtcNow(), links);
-            _waitUntil.Remove(info.Id);
+            old = _sessions.GetValueOrDefault(providerId);
+            _sessions[providerId] = session;
+            _states[providerId] = ProviderState.SignedIn;
+            _cache[providerId] = new CachedLinks(time.GetUtcNow(), links);
+            _waitUntil.Remove(providerId);
         }
 
-        log.Info("scheduling.connected", $"provider={info.Id} links={links.Count}");
+        old?.End();
+        log.Info("scheduling.signed-in", $"provider={providerId} links={links.Count}");
         Changed?.Invoke(this, EventArgs.Empty);
         return links;
     }
 
     /// <summary>
-    /// Disconnects a provider: removes its saved secrets and drops it and its cached links. The caller removes its
-    /// settings and its saved groups (<see cref="Data.ShareGroupStore.ClearProvider"/>).
-    /// </summary>
-    public void Disconnect(string providerId)
-    {
-        tokens.RemoveProviderSecrets(providerId);
-        lock (_gate)
-        {
-            _providers.Remove(providerId);
-            _states.Remove(providerId);
-            _cache.Remove(providerId);
-            _waitUntil.Remove(providerId);
-        }
-
-        log.Info("scheduling.disconnected", $"provider={providerId}");
-        Changed?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>
-    /// Every connected provider's links, each provider's cached for 5 minutes.
+    /// Every signed-in provider's links, each provider's cached for 5 minutes.
     /// </summary>
     /// <remarks>
-    /// A provider that refuses its key is marked as needing reconnecting and adds nothing. One that can't be reached, or is
-    /// in a rate-limit back-off, adds its cached links (or nothing); a <c>Retry-After</c> starts a back-off.
+    /// A provider that refuses its sign-in is marked as needing reconnecting and adds nothing. One that can't be reached,
+    /// or is in a rate-limit back-off, adds its cached links (or nothing); a <c>Retry-After</c> starts a back-off.
     /// </remarks>
     public async Task<IReadOnlyList<SchedulingLink>> GetLinksAsync(CancellationToken ct)
     {
         List<(ISchedulingProvider Provider, ILinkSource Source, CachedLinks? Cached)> work;
         lock (_gate)
         {
-            work = [.. _providers.Values.OfType<ILinkSource>().Select(s => ((ISchedulingProvider)s, s, _cache.GetValueOrDefault(((ISchedulingProvider)s).Id)))];
+            work = [.. _sessions.Values.Where(s => s.Provider is ILinkSource).Select(s => (s.Provider, (ILinkSource)s.Provider, _cache.GetValueOrDefault(s.Provider.Id)))];
         }
 
         var all = new List<SchedulingLink>();
@@ -236,7 +281,7 @@ public sealed class SchedulingHub(HttpClient http, ITokenStore tokens, AppLog lo
                 var links = await source.GetLinksAsync(ct);
                 lock (_gate)
                 {
-                    if (_providers.GetValueOrDefault(provider.Id) == provider)
+                    if (_sessions.GetValueOrDefault(provider.Id)?.Provider == provider)
                     {
                         _cache[provider.Id] = new CachedLinks(time.GetUtcNow(), links);
                     }
@@ -265,8 +310,8 @@ public sealed class SchedulingHub(HttpClient http, ITokenStore tokens, AppLog lo
     }
 
     /// <summary>
-    /// Marks a connected provider as needing reconnecting (it refused its key): it's dropped from <see cref="Connected"/>
-    /// and gets no more calls until you connect again. Its saved key and groups stay.
+    /// Marks a signed-in provider as needing reconnecting (it refused its token or its refresh): it's dropped from
+    /// <see cref="Connected"/> and gets no more calls until you sign in again. Its saved secrets and groups stay.
     /// </summary>
     public void MarkNeedsReconnect(string providerId) => MarkNeedsReconnect(providerId, null);
 
@@ -289,67 +334,164 @@ public sealed class SchedulingHub(HttpClient http, ITokenStore tokens, AppLog lo
         }
     }
 
-    // Marks it only while it's still connected (and, when given, still this instance, so a disconnect or reconnect
-    // that happened during a call isn't undone)
+    // Marks it only while it's still signed in (and, when given, still this instance, so a sign-out or new sign-in that
+    // happened during a call isn't undone)
     private void MarkNeedsReconnect(string providerId, ISchedulingProvider? expected)
     {
+        Session? session;
         lock (_gate)
         {
-            if (!_providers.TryGetValue(providerId, out var current) || (expected is not null && current != expected))
+            if (!_sessions.TryGetValue(providerId, out session) || (expected is not null && session.Provider != expected))
             {
                 return;
             }
 
-            _providers.Remove(providerId);
+            _sessions.Remove(providerId);
             _cache.Remove(providerId);
             _states[providerId] = ProviderState.NeedsReconnect;
         }
 
+        session.End();
         log.Info("scheduling.needs-reconnect", $"provider={providerId}");
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    // The saved secret fields (empty when there's no complete set); throws a SecretsUnavailable exception when they can't be read
-    private Dictionary<string, string> ReadSecrets(SchedulingProviderInfo info)
+    // Writes the secret change (with the session's rotated-token saving stopped first, so a refresh can't write its token
+    // back afterwards), then drops the session, cache and back-off and sets the state; a failed write throws and changes nothing
+    private void EndSession(string providerId, Action write, ProviderState state)
     {
-        var values = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var field in info.Fields.Where(f => f.Secret))
+        Session? session;
+        lock (_gate)
         {
-            var value = tokens.GetProviderSecret(info.Id, field.Key);
-            if (string.IsNullOrEmpty(value) && field.Required)
+            session = _sessions.GetValueOrDefault(providerId);
+        }
+
+        if (session is null)
+        {
+            write();
+        }
+        else
+        {
+            session.Saver.Retire(write);
+        }
+
+        lock (_gate)
+        {
+            if (_sessions.GetValueOrDefault(providerId) == session)
             {
-                return [];
+                // Signing out with no client saved leaves it without a client
+                var before = _states.GetValueOrDefault(providerId, ProviderState.NoClient);
+                _sessions.Remove(providerId);
+                _states[providerId] = before == ProviderState.NoClient ? ProviderState.NoClient : state;
             }
 
-            values[field.Key] = value ?? "";
+            _cache.Remove(providerId);
+            _waitUntil.Remove(providerId);
         }
 
-        return values;
+        session?.End();
     }
 
-    // The provider from its saved secrets and settings, or null when a secret is missing or a value is invalid
-    private ISchedulingProvider? Build(SchedulingProviderInfo info, Dictionary<string, string> values, ProviderSettings? saved)
+    // A provider with its own token source; a sign-in's refresh token isn't saved until it's committed
+    private Session StartSession(SchedulingProviderInfo info, ProviderClient client, string refreshToken, bool saved)
     {
-        if (values.Count == 0)
-        {
-            return null;
-        }
-
-        values["server"] = saved?.Server ?? "";
-        if (Check(info, values) is not null)
-        {
-            log.Info("scheduling.load.invalid", $"provider={info.Id}");
-            return null;
-        }
-
-        return info.Create(http, values, BaseFor(info, values["server"]));
+        var saver = new RefreshTokenSaver(tokens, log, info.Id, refreshToken, saved);
+        var source = new ProviderTokens(http, OAuthFor(info), client, refreshToken, time, saver.Save);
+        return new Session(info.Create(http, source.GetAccessTokenAsync, BaseFor(info)), source, saver);
     }
 
-    // The typed server (already checked as https), else the fake root's folder for the provider, else its hosted API
-    private Uri BaseFor(SchedulingProviderInfo info, string server) =>
-        server.Trim().Length > 0 ? SchedulingProviders.ServerBase(server)
-        : fakeRoot is null ? info.DefaultBase
-        : new Uri(fakeRoot, info.Id + "/");
+    // The saved client, or null when either value is missing; throws a SecretsUnavailable exception when they can't be read
+    private ProviderClient? ReadClient(string providerId) =>
+        NonEmpty(tokens.GetProviderSecret(providerId, ClientIdKey)) is { } clientId
+        && NonEmpty(tokens.GetProviderSecret(providerId, ClientSecretKey)) is { } clientSecret
+            ? new ProviderClient(clientId, clientSecret)
+            : null;
+
+    private SchedulingProviderInfo Find(string providerId) =>
+        Providers.FirstOrDefault(p => p.Id == providerId) ?? throw new ArgumentException("Leaf doesn't know this scheduling provider.", nameof(providerId));
+
+    // The provider's hosted API, or the fake root's folder for it
+    private Uri BaseFor(SchedulingProviderInfo info) => fakeRoot is null ? info.DefaultBase : new Uri(fakeRoot, info.Id + "/");
+
+    // The provider's OAuth data; under the fake root the authorize and token paths move into its folder (the redirect stays)
+    private SchedulingOAuth OAuthFor(SchedulingProviderInfo info)
+    {
+        if (fakeRoot is null)
+        {
+            return info.OAuth;
+        }
+
+        var folder = BaseFor(info);
+        return info.OAuth with
+        {
+            Authorize = new Uri(folder, info.OAuth.Authorize.AbsolutePath.TrimStart('/')),
+            Token = new Uri(folder, info.OAuth.Token.AbsolutePath.TrimStart('/')),
+        };
+    }
+
+    private static string? NonEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
 
     private sealed record CachedLinks(DateTimeOffset At, IReadOnlyList<SchedulingLink> Links);
+
+    // One signed-in provider and the token source and saver behind it
+    private sealed record Session(ISchedulingProvider Provider, ProviderTokens Tokens, RefreshTokenSaver Saver)
+    {
+        // Stops saving rotated tokens and frees the token source
+        public void End()
+        {
+            Saver.Retire(null);
+            Tokens.Dispose();
+        }
+    }
+
+    // Saves a provider's rotated refresh tokens. During a sign-in it only remembers the newest until Commit; after Retire
+    // it saves nothing. A failed rotated save is logged by type and never thrown into the API call.
+    private sealed class RefreshTokenSaver(ITokenStore tokens, AppLog log, string providerId, string refreshToken, bool saved)
+    {
+        private readonly Lock _gate = new();
+        private string _latest = refreshToken;
+        private bool _saving = saved;
+        private bool _retired;
+
+        public void Save(string rotated)
+        {
+            lock (_gate)
+            {
+                _latest = rotated;
+                if (!_saving || _retired)
+                {
+                    return;
+                }
+
+                try
+                {
+                    tokens.SetProviderSecret(providerId, RefreshTokenKey, rotated);
+                }
+                catch (Exception ex)
+                {
+                    log.Info("scheduling.token.save-failed", $"provider={providerId} error={ex.GetType().Name}");
+                }
+            }
+        }
+
+        // Saves the newest refresh token (throws when it can't) and saves later rotations as they come
+        public void Commit()
+        {
+            lock (_gate)
+            {
+                tokens.SetProviderSecret(providerId, RefreshTokenKey, _latest);
+                _saving = true;
+            }
+        }
+
+        // Runs the secret change, when given, then stops saving; a failed change throws and leaves saving on
+        public void Retire(Action? write)
+        {
+            lock (_gate)
+            {
+                write?.Invoke();
+                _retired = true;
+            }
+        }
+    }
 }

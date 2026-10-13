@@ -169,7 +169,7 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
-    public void Normalize_Scheduling_DropsBlankAndRepeatedProviders_AndClips()
+    public void Normalize_Scheduling_DropsBlankAndRepeatedProviders_AndEmptiesServer()
     {
         var settings = new LeafSettings
         {
@@ -177,7 +177,7 @@ public sealed class SettingsStoreTests : IDisposable
         }.Normalize();
 
         var only = Assert.Single(settings.Scheduling);
-        Assert.Equal(("calcom", "https://cal.example.com", "101"), (only.ProviderId, only.Server, only.DefaultLinkId));
+        Assert.Equal(("calcom", "", "101"), (only.ProviderId, only.Server, only.DefaultLinkId));
     }
 
     [Fact]
@@ -200,6 +200,7 @@ public sealed class SettingsStoreTests : IDisposable
         var json = System.Text.Json.JsonSerializer.Serialize(saved, LeafJsonContext.Default.LeafSettings);
         var loaded = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
 
-        Assert.Equal(new ProviderSettings("calcom", "https://cal.example.com", "101"), Assert.Single(loaded.Scheduling));
+        // A server saved before revision 1 still reads; it is emptied
+        Assert.Equal(new ProviderSettings("calcom", "", "101"), Assert.Single(loaded.Scheduling));
     }
 }
