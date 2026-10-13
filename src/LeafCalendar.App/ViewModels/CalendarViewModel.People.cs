@@ -374,6 +374,7 @@ public sealed partial class CalendarViewModel
         _shareText = Settings.ShareMessage;
         _shareGuests = [];
         _sharing = true;
+        StartScheduling();
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -401,6 +402,7 @@ public sealed partial class CalendarViewModel
         _shareGuests = [.. group.Guests.Where(g => IsAddress(g.Email))];
         _shareZoneId = group.ZoneId;
         _sharing = true;
+        OpenScheduling(group);
         ShareChanged?.Invoke(this, EventArgs.Empty);
         foreach (var guest in _shareGuests.Where(g => g.Name.Length == 0).ToList())
         {
@@ -458,16 +460,16 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        var (group, title, text, zone, slots, now, guests) = (_openGroupId, _shareTitle, _shareText, _shareZoneId, _slots.ToList(), Now, _shareGuests.ToList());
+        var (group, title, text, zone, slots, now, guests, link) = (_openGroupId, _shareTitle, _shareText, _shareZoneId, _slots.ToList(), Now, _shareGuests.ToList(), CurrentLink());
         var saved = WriteGroups("share.group.save.failed", conn =>
         {
             if (group is { } id)
             {
-                ShareGroupStore.Update(conn, id, title, text, zone, slots, guests, ShareLink.None);
+                ShareGroupStore.Update(conn, id, title, text, zone, slots, guests, link);
             }
             else
             {
-                ShareGroupStore.Insert(conn, title, text, zone, slots, now, guests, ShareLink.None);
+                ShareGroupStore.Insert(conn, title, text, zone, slots, now, guests, link);
             }
         });
 
@@ -522,10 +524,11 @@ public sealed partial class CalendarViewModel
         _openGroupId = null;
         _slots = [];
         _shareGuests = [];
+        ResetScheduling();
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Adds a picked time (merged with any it overlaps or touches).</summary>
+    /// <summary>Adds a picked time (merged with any it overlaps or touches; fitted to the link's openings with the switch on).</summary>
     public void AddShareSlot(DateTimeOffset start, DateTimeOffset end)
     {
         if (!_sharing || end <= start)
@@ -533,7 +536,7 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        _slots = [.. BusyMath.Merge([.. _slots, new BusyRange(start, end)])];
+        _slots = [.. BusyMath.Merge([.. _slots, .. FitPick(new BusyRange(start, end))])];
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -552,7 +555,10 @@ public sealed partial class CalendarViewModel
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Changes the picked time at <paramref name="index"/> (the right panel's times; merged again with any it now overlaps or touches).</summary>
+    /// <summary>
+    /// Changes the picked time at <paramref name="index"/> (the right panel's times; merged again with any it now overlaps
+    /// or touches). With the switch on it's fitted to the link's openings, and nothing left drops it.
+    /// </summary>
     public void UpdateShareSlot(int index, DateTimeOffset start, DateTimeOffset end)
     {
         if (index < 0 || index >= _slots.Count || end <= start)
@@ -560,8 +566,8 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        _slots[index] = new BusyRange(start, end);
-        _slots = [.. BusyMath.Merge(_slots)];
+        _slots.RemoveAt(index);
+        _slots = [.. BusyMath.Merge([.. _slots, .. FitPick(new BusyRange(start, end))])];
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -622,7 +628,8 @@ public sealed partial class CalendarViewModel
         var slots = group.Slots.ToList();
         slots[index] = new BusyRange(start, end);
         var merged = BusyMath.Merge(slots);
-        WriteGroups("share.group.save.failed", conn => ShareGroupStore.Update(conn, group.Id, group.Title, group.Message, group.ZoneId, merged, group.Guests, ShareLink.None));
+        WriteGroups("share.group.save.failed", conn => ShareGroupStore.Update(conn, group.Id, group.Title, group.Message, group.ZoneId, merged, group.Guests,
+            new LeafCalendar.Core.Data.ShareLink(group.ProviderId, group.LinkId, group.LinkUrl, group.LinkMinutes)));
     }
 
     // A write to the saved groups, then a fresh read of them; a failure is logged (never its content), says so, and
@@ -712,10 +719,22 @@ public sealed partial class CalendarViewModel
             return;
         }
 
+        // With a booking link, each time is its own link (rich text, plus plain text with the address after each time)
+        var zone = TimeZoneInfo.TryFindSystemTimeZoneById(_shareZoneId, out var shareZone) ? shareZone : Zone;
+        var linked = BuildLinkedAvailability(zone);
         try
         {
             var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            package.SetText(BuildAvailability());
+            if (linked is not null)
+            {
+                package.SetText(linked.Plain);
+                package.SetHtmlFormat(Windows.ApplicationModel.DataTransfer.HtmlFormatHelper.CreateHtmlFormat(linked.Html));
+            }
+            else
+            {
+                package.SetText(BuildAvailability());
+            }
+
             Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
             Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
         }
@@ -733,11 +752,11 @@ public sealed partial class CalendarViewModel
             using var conn = _services.Database.Open();
             if (_openGroupId is { } id)
             {
-                ShareGroupStore.Update(conn, id, _shareTitle, _shareText, _shareZoneId, _slots, _shareGuests.ToList(), ShareLink.None);
+                ShareGroupStore.Update(conn, id, _shareTitle, _shareText, _shareZoneId, _slots, _shareGuests.ToList(), CurrentLink());
             }
             else
             {
-                ShareGroupStore.Insert(conn, _shareTitle, _shareText, _shareZoneId, _slots, Now, _shareGuests.ToList(), ShareLink.None);
+                ShareGroupStore.Insert(conn, _shareTitle, _shareText, _shareZoneId, _slots, Now, _shareGuests.ToList(), CurrentLink());
             }
         }
         catch (Microsoft.Data.Sqlite.SqliteException ex)
@@ -746,7 +765,12 @@ public sealed partial class CalendarViewModel
             saved = false;
         }
 
-        _services.Log.Info("share.copy", $"slots={_slots.Count} guests={_shareGuests.Count}");
+        if (linked is { GuestsDropped: true } && _shareLink is { } link)
+        {
+            SayShare($"This {ProviderName(link)} link doesn't allow extra guests, so only {FirstGuestLabel()} is filled in.");
+        }
+
+        _services.Log.Info("share.copy", $"slots={_slots.Count} guests={_shareGuests.Count} linked={linked is not null}");
         StopSharing();
         ReloadGroups();
         ShowMessage(saved ? "Availability copied" : "Copied, but couldn't save these times.");

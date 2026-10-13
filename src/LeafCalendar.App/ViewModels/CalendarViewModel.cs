@@ -2078,6 +2078,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             _services?.Log.Trace("vm.changed", e.PropertyName);
         }
 
+        // Paging while sharing with a booking link asks for the new days' open times
+        if (e.PropertyName == nameof(PeriodStart))
+        {
+            OnSchedulingPeriodChanged();
+        }
+
         base.OnPropertyChanged(e);
     }
 
