@@ -584,7 +584,7 @@ public sealed class SchedulingProviderTests : IDisposable
             var hour = slot.Height + 2;
             var x = slot.Left + slot.Width / 2;
             LeafApp.Drag(new Point(x, slot.Bottom - 1), new Point(x, slot.Bottom - 1 + (int)Math.Round(hour * 0.75)));
-            AssertMessages(leaf, "Split into 3 times of 30 minutes.\nLast time block removed to match the available time slots");
+            AssertMessages(leaf, "Split into 3 times of 30 minutes.\nLast time block removed to match the available time slots.");
 
             // Quick Chat Opens Only 10-10:30
             _google.CalComOpen = [.. Open(1, 10, 10.5)];

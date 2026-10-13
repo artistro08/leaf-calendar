@@ -17,7 +17,7 @@ public class FitMessagesTests
 
         Assert.Equal(
             [
-                "Split into 2 times of 30 minutes.\nLast time block stretched to match the available time slot.\nLast time block removed to match the available time slots",
+                "Split into 2 times of 30 minutes.\nLast time block stretched to match the available time slot.\nLast time block removed to match the available time slots.",
                 "1 hour 30 minutes wasn't open on Cal.com.",
             ],
             messages);
@@ -44,13 +44,13 @@ public class FitMessagesTests
     [Fact]
     public void For_NothingKept_SaysNothingOpen()
     {
-        Assert.Equal(["That time is not open per your availability. Pick a different time"], FitMessages.For(new FitSummary(0, 0, 0, 0, 60), "Cal.com"));
+        Assert.Equal(["That time is not open per your availability. Pick a different time."], FitMessages.For(new FitSummary(0, 0, 0, 0, 60), "Cal.com"));
     }
 
     [Fact]
     public void For_NothingKeptButSomeRemoved_SaysRemoved()
     {
-        Assert.Equal(["Last time block removed to match the available time slots"], FitMessages.For(new FitSummary(0, 0, 0, 1, 0), "Cal.com"));
+        Assert.Equal(["Last time block removed to match the available time slots."], FitMessages.For(new FitSummary(0, 0, 0, 1, 0), "Cal.com"));
     }
 
     [Theory]

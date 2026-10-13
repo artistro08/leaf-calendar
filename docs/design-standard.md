@@ -68,7 +68,7 @@ Each rule names where it comes from. **Conflict** marks a rule where the referen
 | Window | Size (DIP) | Resizable | Source |
 | --- | --- | --- | --- |
 | Main window | Minimum 1086 × 540 (computed from the panes and the title bar toolbar, including its 32 DIP sync status slot, see `MainWindow.MinimumWidth`). Default when nothing is remembered: 1277 × 814 (`Core/Views/WindowSize.MainDefault`). | Yes | Leaf `MainWindow.xaml.cs`, `WindowSize.cs`; default from MA `MainWindow.RestorePlacement` |
-| Onboarding | About 520 × 640 client, centered | No, Close only | Leaf brief item 5 |
+| Onboarding | About 640 × 640 client, centered | No, Close only | Leaf brief item 5 |
 | Tray flyout | Fixed 360 wide, height fixed to the tallest page, capped to the work area; 12 DIP from the taskbar and screen edge | No | Sony spec "Frame" and "Placement" |
 | Dialog content | Stock `ContentDialog` sizes | — | All |
 
@@ -292,8 +292,8 @@ The Windows 11 Settings row, the one pattern for every setting:
 
 From the brief (item 5), with the reference apps filling in how it looks:
 
-- Its own small window, about 520 × 640 client DIPs, centered on the monitor under the cursor, not resizable, Close only, Mica, stock `TitleBar` (icon + "Leaf Calendar"). Shown instead of the main window until an account exists. (Brief; Layers placement.)
-- Steps in a `Frame`: Welcome → Google Cloud OAuth client → Sign in → Syncing → Done. Forward navigates with `SlideNavigationTransitionInfo { Effect = FromRight }`, Back with `FromLeft`. (Brief.)
+- Its own small window, about 640 × 640 client DIPs, centered on the monitor under the cursor, not resizable, Close only, Mica, stock `TitleBar` (icon + "Leaf Calendar"). Shown instead of the main window until an account exists. (Brief; Layers placement.)
+- Steps in a `Frame`: Welcome → Google Cloud OAuth client → Sign in → Syncing → Cal.com (optional, with Skip left of the primary button) → Done. Forward navigates with `SlideNavigationTransitionInfo { Effect = FromRight }`, Back with `FromLeft`. (Brief.)
 - Step layout, top to bottom, `Padding="32"`, `Spacing="16"`: hero glyph (32 to 48), step title (`SubtitleTextBlockStyle`), one-line description (Caption, secondary), then the step's controls. (MA `LoginPage.xaml`.)
 - Instructions are a short numbered list with the link inline ("1. Open Google Cloud Console and create a project."), each number hanging to the left of its wrapped lines; a side note under the steps is Caption + secondary, so it doesn't read as another step. Menu paths follow Google Cloud console's current names ("Google Auth Platform › Clients"). (Leaf `OnboardingStepPage.xaml`.)
 - Primary actions stay off until the step has what they need (Next on the client step waits for both boxes, or a saved client). (Leaf `OnboardingFlow.HasClientInput`.)

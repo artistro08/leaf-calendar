@@ -19,6 +19,9 @@ public enum OnboardingStep
     /// <summary>The first sync runs.</summary>
     Syncing,
 
+    /// <summary>Optional: sign in to Cal.com with your own OAuth client, or skip.</summary>
+    Scheduling,
+
     /// <summary>All set: "Open Leaf Calendar".</summary>
     Done,
 }
@@ -29,12 +32,13 @@ public enum OnboardingStep
 /// only shows what this says. Back is offered on the client and sign-in steps only: once an account is signed in,
 /// going back would sign in a second one; while sign-in waits for the browser, Cancel takes Back's place. The first
 /// sync moves straight to Done when it succeeds; when it fails the primary action becomes "Try again", and when Google
-/// signed the account out it goes back to the sign-in step.
+/// signed the account out it goes back to the sign-in step. After the first sync comes the optional Cal.com step, which
+/// Skip (beside the primary action) or a finished Cal.com sign-in leaves for Done.
 /// </summary>
 public sealed class OnboardingFlow
 {
     /// <summary>How many steps there are (the step indicator's page count).</summary>
-    public const int StepCount = 5;
+    public const int StepCount = 6;
 
     /// <summary>Shown when Google couldn't be reached at all.</summary>
     public const string NoConnection = "Couldn't reach Google. Check your connection and try again.";
@@ -54,6 +58,9 @@ public sealed class OnboardingFlow
     /// <summary>True when the client step's boxes are ready for Next (<see cref="HasClientInput"/>); Next is off until then.</summary>
     public bool IsClientReady { get; set; }
 
+    /// <summary>True when the Cal.com step's boxes are both filled; its sign-in is off until then.</summary>
+    public bool IsSchedulingReady { get; set; }
+
     /// <summary>The step indicator's selected page.</summary>
     public int PageIndex => (int)Step;
 
@@ -64,13 +71,16 @@ public sealed class OnboardingFlow
     public bool CanGoBack => !IsBusy && Step is OnboardingStep.Client or OnboardingStep.SignIn;
 
     /// <summary>True when Cancel shows in Back's place: while sign-in waits for the browser, so a stalled sign-in can be stopped.</summary>
-    public bool CanCancel => IsBusy && Step == OnboardingStep.SignIn;
+    public bool CanCancel => IsBusy && Step is OnboardingStep.SignIn or OnboardingStep.Scheduling;
+
+    /// <summary>True when Skip shows: on the Cal.com step, while nothing runs.</summary>
+    public bool CanSkip => !IsBusy && Step == OnboardingStep.Scheduling;
 
     /// <summary>True when "Open Leaf Calendar" can close onboarding (the first sync finished).</summary>
     public bool CanFinish => Step == OnboardingStep.Done && HasSyncFinished;
 
-    /// <summary>True when closing the window should ask "Leave setup?" first.</summary>
-    public bool AsksBeforeClosing => !CanFinish;
+    /// <summary>True when closing the window should ask "Leave setup?" first: until the first sync has finished.</summary>
+    public bool AsksBeforeClosing => !HasSyncFinished;
 
     /// <summary>The primary button's text for this step.</summary>
     public string PrimaryText => Step switch
@@ -78,6 +88,7 @@ public sealed class OnboardingFlow
         OnboardingStep.Welcome => "Get started",
         OnboardingStep.SignIn => "Sign in with Google",
         OnboardingStep.Syncing => HasSyncFailed ? "Try again" : "Next",
+        OnboardingStep.Scheduling => "Sign in with Cal.com",
         OnboardingStep.Done => "Open Leaf Calendar",
         _ => "Next",
     };
@@ -87,6 +98,7 @@ public sealed class OnboardingFlow
     {
         OnboardingStep.Client => IsClientReady,
         OnboardingStep.Syncing => HasSyncFailed,
+        OnboardingStep.Scheduling => IsSchedulingReady,
         OnboardingStep.Done => HasSyncFinished,
         _ => true,
     };
@@ -181,11 +193,23 @@ public sealed class OnboardingFlow
         Step = OnboardingStep.SignIn;
     }
 
-    /// <summary>The first sync finished: move to Done, where "Open Leaf Calendar" is enabled.</summary>
+    /// <summary>The first sync finished: move to the optional Cal.com step.</summary>
     public void SyncSucceeded()
     {
         HasSyncFailed = false;
         HasSyncFinished = true;
+        Step = OnboardingStep.Scheduling;
+    }
+
+    /// <summary>Leaves the Cal.com step for Done (Skip, or a finished Cal.com sign-in). False anywhere else or while busy.</summary>
+    public bool Skip()
+    {
+        if (!CanSkip)
+        {
+            return false;
+        }
+
         Step = OnboardingStep.Done;
+        return true;
     }
 }

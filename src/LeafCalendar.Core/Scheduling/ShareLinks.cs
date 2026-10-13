@@ -13,7 +13,10 @@ public sealed record LinkedTimes(string Plain, string Html, bool GuestsDropped);
 public static class ShareLinks
 {
     /// <summary>The line Copy adds after booking links until you change it in Settings › Scheduling.</summary>
-    public const string DefaultNote = "You schedule time via the links or just let me know what works for you";
+    public const string DefaultNote = "You can schedule time via the links or just let me know what works for you.";
+
+    // The first default (owner, 2026-10-13, before the wording fix), replaced where it was saved unchanged
+    internal const string FirstDefaultNote = "You schedule time via the links or just let me know what works for you";
 
     /// <summary>Longest note kept.</summary>
     public const int MaxNoteLength = 500;

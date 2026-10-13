@@ -77,6 +77,15 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Theory]
+    [InlineData("You schedule time via the links or just let me know what works for you", "You can schedule time via the links or just let me know what works for you.")]
+    [InlineData("My own note", "My own note")]
+    [InlineData("", "")]
+    public void Normalize_BookingLinkNote_FirstDefaultBecomesTheFixedOne_OthersKept(string saved, string expected)
+    {
+        Assert.Equal(expected, new LeafSettings { BookingLinkNote = saved }.Normalize().BookingLinkNote);
+    }
+
+    [Theory]
     [InlineData("", "cal")]
     [InlineData("acct", " ")]
     public void Normalize_BlankDefaultCalendar_BecomesNull(string account, string calendar)

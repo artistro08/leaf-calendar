@@ -72,7 +72,7 @@ public sealed partial class ShareSlotsPanel : UserControl
     private readonly ComboBox _linkBox = new() { Header = "Link", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly TextBlock _switchLabel = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Grid _switchRow = new() { ColumnSpacing = 8 };
-    private readonly HyperlinkButton _availability = new() { Content = "troubleshoot availability", Padding = new Thickness(0) };
+    private readonly HyperlinkButton _availability = new() { Content = "Troubleshoot availability", Padding = new Thickness(0) };
     private IReadOnlyList<SchedulingLink> _linksShown = [];
     private bool _showingLink;
 
@@ -718,6 +718,7 @@ public sealed partial class ShareSlotsPanel : UserControl
             AutomationProperties.SetName(Grid, $"{TimeLabels.LongDate(day)}, {range}");
             AutomationProperties.SetName(Approve, $"Approve {range}");
             Approve.Visibility = saved ? Visibility.Visible : Visibility.Collapsed;
+            ToolTipService.SetToolTip(Approve, vm.ShareLink is not null ? $"Book this time on {vm.ShareProviderName} with the guests" : "Save this time as an event with the guests");
         }
 
         public void Paint(bool dark) => _date.Foreground = LeafBrushes.SecondaryText(dark);

@@ -566,7 +566,7 @@ public sealed partial class CalendarViewModel
         var times = SlotFitting.Split(range, open, link.Minutes);
         if (times.Count == 0)
         {
-            SayShare("That time is not open per your availability. Pick a different time");
+            SayShare("That time is not open per your availability. Pick a different time.");
             RefreshOpenTimesNow();
         }
 

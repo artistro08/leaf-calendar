@@ -331,8 +331,8 @@ internal sealed class ProviderAccountCard
         }
         catch (TimeoutException)
         {
-            // TODO: spec 11 has no text for a sign-in the browser never finished; it just goes back to the sign-in button
             services.Log.Info("scheduling.accounts.signin.timeout", $"provider={_info.Id}");
+            ShowError("Sign-in timed out. Try again.");
         }
         catch (SignInException ex)
         {

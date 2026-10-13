@@ -39,7 +39,8 @@
         <!-- Steps (each slides in: from the right going forward, from the left going back) -->
         <Frame x:Name="StepFrame" Grid.Row="1" />
 
-        <!-- Footer (pinned: Back, or Cancel while sign-in waits, on the left; the step indicator centered; the step's primary action on the right) -->
+        <!-- Footer (pinned: Back, or Cancel while sign-in waits, on the left; the step indicator centered; the step's primary
+             action on the right, with Skip just left of it on the Cal.com step) -->
         <Border
             Grid.Row="2"
             Padding="24,16"
@@ -76,14 +77,19 @@
                         AutomationProperties.AccessibilityView="Raw" />
                 </Grid>
 
-                <Button
-                    Grid.Column="2"
-                    HorizontalAlignment="Right"
-                    Style="{StaticResource AccentButtonStyle}"
-                    Content="{x:Bind ViewModel.PrimaryText, Mode=OneWay}"
-                    IsEnabled="{x:Bind ViewModel.CanRunPrimary, Mode=OneWay}"
-                    Click="OnPrimaryClick"
-                    AutomationProperties.AutomationId="OnboardingPrimaryButton" />
+                <StackPanel Grid.Column="2" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
+                    <Button
+                        Content="Skip"
+                        Click="OnSkipClick"
+                        Visibility="{x:Bind ViewModel.CanSkip, Mode=OneWay}"
+                        AutomationProperties.AutomationId="OnboardingSkipButton" />
+                    <Button
+                        Style="{StaticResource AccentButtonStyle}"
+                        Content="{x:Bind ViewModel.PrimaryText, Mode=OneWay}"
+                        IsEnabled="{x:Bind ViewModel.CanRunPrimary, Mode=OneWay}"
+                        Click="OnPrimaryClick"
+                        AutomationProperties.AutomationId="OnboardingPrimaryButton" />
+                </StackPanel>
             </Grid>
         </Border>
         <!-- /Footer -->

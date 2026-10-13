@@ -325,7 +325,7 @@ public sealed record LeafSettings
             CollapsedAccounts = Keep(CollapsedAccounts, CleanAccounts(CollapsedAccounts)),
             Scheduling = Keep(Scheduling, CleanScheduling(Scheduling)),
             ShareMessage = ShareMessage is null ? AvailabilityText.DefaultMessage : Clip(ShareMessage, AvailabilityText.MaxMessageLength),
-            BookingLinkNote = BookingLinkNote is null ? ShareLinks.DefaultNote : Clip(BookingLinkNote, ShareLinks.MaxNoteLength),
+            BookingLinkNote = BookingLinkNote is null or ShareLinks.FirstDefaultNote ? ShareLinks.DefaultNote : Clip(BookingLinkNote, ShareLinks.MaxNoteLength),
         };
     }
 

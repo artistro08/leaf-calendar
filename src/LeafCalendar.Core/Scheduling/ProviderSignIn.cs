@@ -7,7 +7,8 @@ namespace LeafCalendar.Core.Scheduling;
 /// Signs in to a scheduling provider through the system browser with your own OAuth client, and returns the refresh token.
 /// </summary>
 /// <remarks>
-/// Follows the Google sign-in's safety rules: PKCE S256 and a random <c>state</c>; the listener binds 127.0.0.1 only, on
+/// Follows the Google sign-in's safety rules except PKCE, which Cal.com's confidential clients refuse (the secret proves
+/// the client): a random <c>state</c>; the listener binds 127.0.0.1 only, on
 /// the provider's fixed port and path, and answers only a redirect carrying this state. The client secret goes only in
 /// the token request body. Saving the refresh token is the caller's job.
 /// </remarks>

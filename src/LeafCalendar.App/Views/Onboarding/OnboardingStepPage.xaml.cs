@@ -27,7 +27,7 @@ public sealed partial class OnboardingStepPage : Page
 
         // Errors Scroll Into View (each sits under the step's controls, below the fold of the fixed-size window; its
         // size changes as it opens and its message wraps, so it's brought into view at its final size)
-        foreach (var error in new[] { ClientError, SignInError, SyncError })
+        foreach (var error in new[] { ClientError, SignInError, SyncError, CalComError })
         {
             error.SizeChanged += (_, _) => BringIntoViewWhenOpen(error);
         }
@@ -47,6 +47,8 @@ public sealed partial class OnboardingStepPage : Page
         ClientStep.Visibility = Shown(args.Step == OnboardingStep.Client);
         SignInStep.Visibility = Shown(args.Step == OnboardingStep.SignIn);
         SyncingStep.Visibility = Shown(args.Step == OnboardingStep.Syncing);
+        SchedulingStep.Visibility = Shown(args.Step == OnboardingStep.Scheduling);
+        CalRedirectText.Text = OnboardingViewModel.CalRedirectUri;
         DoneStep.Visibility = Shown(args.Step == OnboardingStep.Done);
 
         Bindings.Update();
@@ -76,6 +78,19 @@ public sealed partial class OnboardingStepPage : Page
     // Safe as async void: LaunchAsync logs a failed launch and returns false, it never throws
     private async void OnConsoleLinkClick(Hyperlink sender, HyperlinkClickEventArgs args) => await ViewModel.OpenConsoleAsync();
 
+    // Safe as async void: LaunchAsync logs a failed launch and returns false, it never throws
+    private async void OnCalClientPageClick(Hyperlink sender, HyperlinkClickEventArgs args) => await ViewModel.OpenCalClientPageAsync();
+
+    // Enter in the Cal.com client ID moves on to its secret
+    private void OnCalClientIdKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Enter)
+        {
+            e.Handled = true;
+            CalClientSecretBox.Focus(FocusState.Keyboard);
+        }
+    }
+
     // Enter in the client ID moves on to the secret
     private void OnClientIdKeyDown(object sender, KeyRoutedEventArgs e)
     {
@@ -86,7 +101,7 @@ public sealed partial class OnboardingStepPage : Page
         }
     }
 
-    // Enter in the secret runs the step's primary action (Next)
+    // Enter in either secret runs the step's primary action (Next, or Sign in with Cal.com; off until both boxes have text)
     private void OnClientSecretKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == VirtualKey.Enter)

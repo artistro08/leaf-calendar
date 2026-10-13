@@ -22,13 +22,42 @@ public sealed class OnboardingTests : IDisposable
         leaf.WaitInOnboarding("OnboardingSignIn");
         leaf.OnboardingPrimary();
 
-        // Sign-in and the first sync run on their own; Done shows when the sync finished
+        // Sign-in and the first sync run on their own; the optional Cal.com step shows when the sync finished
+        leaf.SkipCalComStep();
         leaf.WaitInOnboarding("OnboardingDone");
         leaf.OnboardingPrimary();
         leaf.WaitFor("CalendarRoot");
     }
 
     private LeafApp Launch(string profile) => LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+
+    // The optional Cal.com step signs in with your own client (the fake Cal.com's authorize page redirects straight back)
+    // and moves on to Done
+    [Fact]
+    public void CalComStep_SignsInWithTheClient_ThenDone()
+    {
+        var profile = LeafApp.NewProfile();
+        try
+        {
+            using var leaf = Launch(profile);
+            SetupTests.EnterCredentials(leaf, "123-uitest.apps.googleusercontent.com", "GOCSPX-uitest");
+            leaf.WaitInOnboarding("OnboardingSignIn");
+            leaf.OnboardingPrimary();
+
+            leaf.WaitInOnboarding("OnboardingScheduling");
+            Assert.Equal("http://127.0.0.1:53817/calcom/callback", leaf.WaitInOnboarding("CalComRedirectUri").Name);
+            leaf.WaitInOnboarding("CalComClientIdBox").AsTextBox().Text = "cal-client";
+            leaf.WaitInOnboarding("CalComClientSecretBox").AsTextBox().Text = "cal-secret";
+            leaf.OnboardingPrimary();
+
+            leaf.WaitInOnboarding("OnboardingDone");
+            Assert.False(leaf.InOnboarding("OnboardingSkipButton"), "Skip stayed on the last step.");
+        }
+        finally
+        {
+            LeafApp.DeleteProfile(profile);
+        }
+    }
 
     [Fact]
     public void Steps_MoveInOrder_AndTheIndicatorFollows()
@@ -39,17 +68,22 @@ public sealed class OnboardingTests : IDisposable
             using var leaf = Launch(profile);
 
             leaf.WaitInOnboarding("OnboardingWelcome");
-            Assert.Equal("Step 1 of 5", leaf.OnboardingStepName);
+            Assert.Equal("Step 1 of 6", leaf.OnboardingStepName);
             Assert.Equal("Get started", leaf.WaitInOnboarding("OnboardingPrimaryButton").Name);
 
             SetupTests.EnterCredentials(leaf, "123-uitest.apps.googleusercontent.com", "GOCSPX-uitest");
             leaf.WaitInOnboarding("OnboardingSignIn");
-            Assert.Equal("Step 3 of 5", leaf.OnboardingStepName);
+            Assert.Equal("Step 3 of 6", leaf.OnboardingStepName);
             Assert.Equal("Sign in with Google", leaf.WaitInOnboarding("OnboardingPrimaryButton").Name);
 
             leaf.OnboardingPrimary();
+            leaf.WaitInOnboarding("OnboardingScheduling");
+            Assert.Equal("Step 5 of 6", leaf.OnboardingStepName);
+            Assert.Equal("Sign in with Cal.com", leaf.WaitInOnboarding("OnboardingPrimaryButton").Name);
+            Assert.False(leaf.WaitInOnboarding("OnboardingPrimaryButton").IsEnabled, "Sign in with Cal.com was on with empty boxes.");
+            leaf.SkipCalComStep();
             leaf.WaitInOnboarding("OnboardingDone");
-            Assert.Equal("Step 5 of 5", leaf.OnboardingStepName);
+            Assert.Equal("Step 6 of 6", leaf.OnboardingStepName);
             Assert.Equal("Open Leaf Calendar", leaf.WaitInOnboarding("OnboardingPrimaryButton").Name);
         }
         finally
@@ -70,13 +104,13 @@ public sealed class OnboardingTests : IDisposable
 
             leaf.OnboardingPrimary();
             leaf.WaitInOnboarding("OnboardingClient");
-            Assert.Equal("Step 2 of 5", leaf.OnboardingStepName);
+            Assert.Equal("Step 2 of 6", leaf.OnboardingStepName);
 
             leaf.WaitInOnboarding("OnboardingBackButton").AsButton().Invoke();
 
             leaf.WaitInOnboarding("OnboardingWelcome");
             Assert.True(Retry.WhileTrue(() => leaf.InOnboarding("OnboardingClient"), TimeSpan.FromSeconds(5)).Success);
-            Assert.Equal("Step 1 of 5", leaf.OnboardingStepName);
+            Assert.Equal("Step 1 of 6", leaf.OnboardingStepName);
             Assert.False(leaf.InOnboarding("OnboardingBackButton"));
         }
         finally
@@ -124,7 +158,7 @@ public sealed class OnboardingTests : IDisposable
             Assert.True(Retry.WhileTrue(() => leaf.ExistsAnywhere("CloseButton"), TimeSpan.FromSeconds(5)).Success);
             Assert.False(leaf.App.HasExited);
             Assert.NotNull(leaf.WaitInOnboarding("OnboardingClient"));
-            Assert.Equal("Step 2 of 5", leaf.OnboardingStepName);
+            Assert.Equal("Step 2 of 6", leaf.OnboardingStepName);
         }
         finally
         {
@@ -202,7 +236,7 @@ public sealed class OnboardingTests : IDisposable
             leaf.WaitInOnboarding("OnboardingBackButton").AsButton().Invoke();
 
             Assert.NotNull(leaf.WaitInOnboarding("OnboardingClient"));
-            Assert.Equal("Step 2 of 5", leaf.OnboardingStepName);
+            Assert.Equal("Step 2 of 6", leaf.OnboardingStepName);
             Assert.Equal("123-uitest.apps.googleusercontent.com", leaf.WaitInOnboarding("ClientIdBox").AsTextBox().Text);
         }
         finally
@@ -227,12 +261,13 @@ public sealed class OnboardingTests : IDisposable
 
             Assert.True(Retry.WhileTrue(() => leaf.InOnboarding("OnboardingCancelButton"), TimeSpan.FromSeconds(10)).Success);
             Assert.True(Retry.WhileFalse(() => leaf.WaitInOnboarding("OnboardingPrimaryButton").IsEnabled, TimeSpan.FromSeconds(10)).Success);
-            Assert.Equal("Step 3 of 5", leaf.OnboardingStepName);
+            Assert.Equal("Step 3 of 6", leaf.OnboardingStepName);
             Assert.False(leaf.InOnboarding("OnboardingSignInError"));
 
             // Google is back: signing in again works
             _google.Offline = false;
             leaf.OnboardingPrimary();
+            leaf.SkipCalComStep();
             Assert.NotNull(leaf.WaitInOnboarding("OnboardingDone"));
         }
         finally
@@ -271,6 +306,7 @@ public sealed class OnboardingTests : IDisposable
             SetupTests.EnterCredentials(leaf, "123-uitest.apps.googleusercontent.com", "GOCSPX-uitest");
             leaf.WaitInOnboarding("OnboardingSignIn");
             leaf.OnboardingPrimary();
+            leaf.SkipCalComStep();
             leaf.WaitInOnboarding("OnboardingDone");
 
             leaf.OnboardingWindow.Close();
@@ -325,6 +361,7 @@ public sealed class OnboardingTests : IDisposable
             leaf.OnboardingPrimary();
 
             // Done: what the first sync found, and Open Leaf Calendar enabled
+            leaf.SkipCalComStep();
             leaf.WaitInOnboarding("OnboardingDone");
             Assert.Equal("leaf.tester@gmail.com", leaf.WaitInOnboarding("OnboardingEmail").Name);
             Assert.Equal("2 calendars · 8 events", leaf.WaitInOnboarding("OnboardingSyncSummary").Name);

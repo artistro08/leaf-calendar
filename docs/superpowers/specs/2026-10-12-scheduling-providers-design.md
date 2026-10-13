@@ -161,7 +161,7 @@ ALTER TABLE share_groups ADD COLUMN link_minutes INTEGER NOT NULL DEFAULT 0;
 
 Shown only while at least one provider is connected and not signed out:
 
-- Under the **Guests & proposed times** heading (owner, 2026-10-13): a row with the label "Schedule with {provider name}" (two providers: "Schedule with a booking link") and under it "Use your availability from your event types" at the left, and a `ToggleSwitch` (no On/Off text; AutomationId `ShareProviderSwitch`) at the right; then a **Link** `ComboBox` (AutomationId `ShareLinkBox`) listing links from every connected provider as "{name} · {minutes} min", grouped by provider when there are two or more; then a **troubleshoot availability** link (AutomationId `ShareAvailabilityLink`) opening the provider's availability troubleshooter (`https://app.cal.com/availability/troubleshoot`, `SchedulingProviderInfo.AvailabilityPage`).
+- Under the **Guests & proposed times** heading (owner, 2026-10-13): a row with the label "Schedule with {provider name}" (two providers: "Schedule with a booking link") and under it "Use your availability from your event types" at the left, and a `ToggleSwitch` (no On/Off text; AutomationId `ShareProviderSwitch`) at the right; then a **Link** `ComboBox` (AutomationId `ShareLinkBox`) listing links from every connected provider as "{name} · {minutes} min", grouped by provider when there are two or more; then a **Troubleshoot availability** link (AutomationId `ShareAvailabilityLink`) opening the provider's availability troubleshooter (`https://app.cal.com/availability/troubleshoot`, `SchedulingProviderInfo.AvailabilityPage`).
 - The Link box shows only while the switch is on. Each new share starts with the switch on and the default link picked (else the first link); signing in to a provider while a new share is open turns the switch on too.
 - Turning the switch off keeps the picks as they are. Changing the link, or turning the switch on, fits every picked time to the link's bookable times at once, with the same messages.
 - A saved group opens with its own switch and link. Its link gone from the provider: the switch shows off, and the notice says "That link isn't on Cal.com anymore. These times will copy as plain text."
@@ -247,6 +247,10 @@ A "{provider} OAuth client" section per provider in `SchedulingProviders.All`, a
 - **Needs reconnecting:** says so, with **Sign in again** (the same sign-in, replacing the refresh token).
 - AutomationIds: `ProviderCard_{id}`, `ProviderAddClient_{id}`, `ProviderClientId_{id}`, `ProviderClientSecret_{id}`, `ProviderSaveClient_{id}`, `ProviderSignIn_{id}`, `ProviderSignOut_{id}`, `ProviderRemoveClient_{id}`, `ProviderError_{id}`.
 
+### 9.4 Onboarding: Cal.com Step (owner, 2026-10-13)
+
+After the first sync, before Done, an optional step: "Schedule with Cal.com", "Optional. Share times as booking links from your Cal.com account. You can set this up later in Settings › Accounts.", the client guide and redirect URI (as 9.3), **Client ID** and **Client secret**, and **Sign in with Cal.com** as the primary button (off until both boxes have text) with **Skip** just left of it. Signing in saves the client (4.1) and signs in as 9.3, with Cancel in Back's place while the browser is open; success or Skip goes to Done. Already signed in (setup run again): the step is passed. AutomationIds `OnboardingScheduling`, `CalComClientIdBox`, `CalComClientSecretBox`, `CalComRedirectUri`, `OnboardingSkipButton`.
+
 ### 9.2 Settings › Notifications
 
 - A **Booking notifications** card with a `ToggleSwitch`, saving `BookingNotifications`, shown only while a provider is connected. AutomationId `BookingNotificationsSwitch`.
@@ -309,9 +313,11 @@ AOT publish (`publish-aot.ps1`), package size check, memory budget run (results 
 | Sign in again button (revision 1) | Sign in again |
 | Notifications card | Booking notifications / Show a notification when someone books a time you shared. |
 | Panel switch (owner, 2026-10-13) | Schedule with Cal.com (two providers: Schedule with a booking link) / Use your availability from your event types |
-| Availability link (owner, 2026-10-13) | troubleshoot availability |
+| Availability link (owner, 2026-10-13) | Troubleshoot availability |
 | Booking link note card | Booking link note / Added on its own line after your booking links when you copy times. / No note (empty box) / Reset to default |
-| Booking link note default (owner, 2026-10-13) | You schedule time via the links or just let me know what works for you |
+| Booking link note default (owner, 2026-10-13) | You can schedule time via the links or just let me know what works for you. |
+| Approve… tooltip on a provider group | Book this time on Cal.com with the guests |
+| Sign-in timed out | Sign-in timed out. Try again. |
 | Panel dropdown header | Link |
 | Link item | {name} · {minutes} min |
 Messages over the calendar while scheduling (each its own stacked card; the left column only names the case and is never shown):
@@ -323,10 +329,10 @@ Messages over the calendar while scheduling (each its own stacked card; the left
 | Times stretched | Stretched {n} times to their full {minutes} minutes, since you picked more than half of each. |
 | Times stretched, one (owner, 2026-10-13) | Last time block stretched to match the available time slot. |
 | Times removed | Removed {n} times, since you picked half or less of each. |
-| Times removed, one (owner, 2026-10-13) | Last time block removed to match the available time slots |
+| Times removed, one (owner, 2026-10-13) | Last time block removed to match the available time slots. |
 | Part not open | {duration} wasn't open on Cal.com. |
 | Guests not allowed | This Cal.com link doesn't allow extra guests, so only {first guest} is filled in. |
-| Nothing open (owner, 2026-10-13) | That time is not open per your availability. Pick a different time |
+| Nothing open (owner, 2026-10-13) | That time is not open per your availability. Pick a different time. |
 | Offline | Couldn't reach Cal.com, so times aren't limited to your openings. |
 | Link gone | That link isn't on Cal.com anymore. These times will copy as plain text. |
 | Booking notification | {attendee} booked {time} (Someone booked {time} with no name) |

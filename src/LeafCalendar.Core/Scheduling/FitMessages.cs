@@ -20,7 +20,7 @@ public static class FitMessages
         // Nothing Kept And Nothing Removed: none of it was bookable
         if (summary.Kept == 0 && summary.Removed == 0)
         {
-            messages.Add("That time is not open per your availability. Pick a different time");
+            messages.Add("That time is not open per your availability. Pick a different time.");
             return messages;
         }
 
@@ -42,7 +42,7 @@ public static class FitMessages
         {
             var one = summary.Removed == 1;
             messages.Add(one
-                ? "Last time block removed to match the available time slots"
+                ? "Last time block removed to match the available time slots."
                 : string.Create(c, $"Removed {summary.Removed} times, since you picked half or less of each."));
         }
 

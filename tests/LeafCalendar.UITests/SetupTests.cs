@@ -121,7 +121,7 @@ public class SetupTests
             EnterCredentials(leaf, "not-a-client-id", "GOCSPX-uitest");
 
             Assert.NotNull(leaf.WaitInOnboarding("SetupError"));
-            Assert.Equal("Step 2 of 5", leaf.OnboardingStepName);
+            Assert.Equal("Step 2 of 6", leaf.OnboardingStepName);
         }
         finally
         {
@@ -163,7 +163,7 @@ public class SetupTests
                 EnterCredentials(leaf, "123-uitest.apps.googleusercontent.com", "GOCSPX-uitest");
 
                 Assert.NotNull(leaf.WaitInOnboarding("OnboardingSignIn"));
-                Assert.Equal("Step 3 of 5", leaf.OnboardingStepName);
+                Assert.Equal("Step 3 of 6", leaf.OnboardingStepName);
             }
 
             // Still no account, so onboarding shows again, with the saved client ID filled in

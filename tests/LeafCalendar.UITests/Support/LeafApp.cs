@@ -79,6 +79,13 @@ public sealed class LeafApp : IDisposable
     public bool InOnboarding(string automationId) =>
         App.GetAllTopLevelWindows(_automation).FirstOrDefault(w => NameOf(w) == "Set up Leaf Calendar")?.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) is not null;
 
+    /// <summary>Waits for onboarding's optional Cal.com step (after the first sync), then presses Skip.</summary>
+    public void SkipCalComStep()
+    {
+        WaitInOnboarding("OnboardingScheduling");
+        WaitInOnboarding("OnboardingSkipButton").AsButton().Invoke();
+    }
+
     /// <summary>Waits (up to 15 s) for onboarding's primary button to be enabled, then presses it.</summary>
     public void OnboardingPrimary()
     {
@@ -91,7 +98,7 @@ public sealed class LeafApp : IDisposable
         button.Invoke();
     }
 
-    /// <summary>The step indicator's accessible name ("Step 2 of 5").</summary>
+    /// <summary>The step indicator's accessible name ("Step 2 of 6").</summary>
     public string OnboardingStepName => WaitInOnboarding("StepIndicator").Name;
 
     /// <summary>True when <paramref name="window"/> is the foreground window.</summary>

@@ -24,8 +24,9 @@ namespace LeafCalendar.App.Views.Onboarding;
 public sealed partial class OnboardingWindow : Window
 {
     // Client Size In DIPs (the design standard's onboarding window; every step's controls show without scrolling at 100%,
-    // the client step's two boxes side by side under its guide for that)
-    private const double ClientWidth = 520;
+    // the client step's two boxes side by side under its guide for that; 640 wide so the footer fits Skip beside the
+    // Cal.com step's sign-in button, and the guides wrap less)
+    private const double ClientWidth = 640;
     private const double ClientHeight = 640;
 
     private readonly LeafServices _services;
@@ -105,6 +106,8 @@ public sealed partial class OnboardingWindow : Window
 
     // RunPrimaryAsync never throws (failures show on the step)
     private void OnPrimaryClick(object sender, RoutedEventArgs e) => _ = ViewModel.RunPrimaryAsync();
+
+    private void OnSkipClick(object sender, RoutedEventArgs e) => ViewModel.Skip();
 
     // "Open Leaf Calendar": the main window opens first, so the app doesn't exit when this one closes
     private void Finish()

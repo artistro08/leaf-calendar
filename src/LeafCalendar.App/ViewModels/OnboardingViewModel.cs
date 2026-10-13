@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Hosting;
+using LeafCalendar.Core.Scheduling;
 using Microsoft.UI.Dispatching;
 
 namespace LeafCalendar.App.ViewModels;
@@ -82,6 +83,37 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     /// <summary>The step showing now.</summary>
     public OnboardingStep Step => _flow.Step;
 
+    /// <summary>True when Skip shows (the Cal.com step, while nothing runs).</summary>
+    public bool CanSkip => _flow.CanSkip;
+
+    /// <summary>The Cal.com step's client ID box.</summary>
+    public string CalClientId
+    {
+        get;
+        set
+        {
+            field = value;
+            UpdateSchedulingReady();
+        }
+    } = "";
+
+    /// <summary>The Cal.com step's client secret box (cleared once it's saved).</summary>
+    public string CalClientSecret
+    {
+        get;
+        set
+        {
+            field = value;
+            UpdateSchedulingReady();
+        }
+    } = "";
+
+    /// <summary>The redirect URI to register on the Cal.com OAuth client.</summary>
+    public static string CalRedirectUri => $"http://127.0.0.1:{CalCom.OAuth.RedirectPort}{CalCom.OAuth.RedirectPath}";
+
+    // Cal.com, the one provider the onboarding offers
+    private static SchedulingProviderInfo CalCom => SchedulingProviders.Find(CalComProvider.ProviderId)!;
+
     /// <summary>The step indicator's selected pip.</summary>
     public int PageIndex => _flow.PageIndex;
 
@@ -151,6 +183,9 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
                 case OnboardingStep.Syncing:
                     await SyncAsync();
                     break;
+                case OnboardingStep.Scheduling:
+                    await SignInCalComAsync();
+                    break;
                 case OnboardingStep.Done:
                     Finished?.Invoke(this, EventArgs.Empty);
                     break;
@@ -173,6 +208,17 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         Status = null;
         Move(_flow.GoBack(), forward: false);
     }
+
+    /// <summary>Leaves the Cal.com step without signing in (Settings › Accounts can do it later).</summary>
+    public void Skip()
+    {
+        Error = null;
+        Status = null;
+        Move(_flow.Skip(), forward: true);
+    }
+
+    /// <summary>Opens Cal.com's OAuth client page (a fixed address).</summary>
+    public Task OpenCalClientPageAsync() => _services.LaunchAsync(CalCom.OAuth.ClientPage);
 
     /// <summary>Stops a sign-in that's waiting for the browser; the sign-in step is ready to try again.</summary>
     public void CancelSignIn()
@@ -298,6 +344,77 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         await SyncAsync();
     }
 
+    // Cal.com: saves the client (encrypted, as Settings › Accounts does), then signs in through the browser; done, it
+    // moves on to Done. A refusal or failure says why and stays, ready to try again or skip
+    private async Task SignInCalComAsync()
+    {
+        if (_closed)
+        {
+            return;
+        }
+
+        using var signIn = CancellationTokenSource.CreateLinkedTokenSource(_cancel.Token);
+        _signIn = signIn;
+        Error = null;
+        Status = "Finish signing in in your browser.";
+        SetBusy(true);
+        try
+        {
+            _services.Scheduling.SaveClient(CalCom.Id, new ProviderClient(CalClientId.Trim(), CalClientSecret.Trim()));
+            await _services.Scheduling.SignInAsync(CalCom.Id, _services.OpenSignInPageAsync, signIn.Token);
+        }
+        catch (Exception) when (signIn.IsCancellationRequested)
+        {
+            Status = null;
+            return;
+        }
+        catch (SchedulingAuthException ex)
+        {
+            LogCalFailure(ex);
+            Fail($"{CalCom.Name} didn't accept this OAuth client. Check the client ID and secret, and that the redirect URI is registered.");
+            return;
+        }
+        catch (SchedulingPortBusyException)
+        {
+            Fail($"Port {CalCom.OAuth.RedirectPort} is busy, so Leaf can't finish signing in. Close the app using it and try again.");
+            return;
+        }
+        catch (TimeoutException)
+        {
+            Fail("Sign-in timed out. Try again.");
+            return;
+        }
+        catch (SignInException ex)
+        {
+            Fail(ex.Message);
+            return;
+        }
+        catch (Exception ex) when (ex is SchedulingUnavailableException or InvalidDataException or HttpRequestException)
+        {
+            LogCalFailure(ex);
+            Fail($"Couldn't reach {CalCom.Name}. Check your connection and try again.");
+            return;
+        }
+        finally
+        {
+            _signIn = null;
+            SetBusy(false);
+        }
+
+        if (_closed)
+        {
+            return;
+        }
+
+        CalClientSecret = "";
+        Status = null;
+        Move(_flow.Skip(), forward: true);
+    }
+
+    // Leaf's own fixed reason only (it carries the provider's OAuth error code), never a secret
+    private void LogCalFailure(Exception ex) =>
+        _services.Log.Info("onboarding.calcom.signin.failed", $"error={ex.GetType().Name} reason=\"{(ex is SchedulingAuthException or SchedulingUnavailableException ? ex.Message : "")}\"");
+
     // First Sync: off the UI thread, with what it has saved so far read back every 500 ms; judged by what it saved,
     // since the engine logs and swallows Google failures. Google signing the account out sends you back to sign in.
     private async Task SyncAsync()
@@ -341,6 +458,13 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
 
             Status = null;
             _flow.SyncSucceeded();
+
+            // Already Signed In To Cal.com (setup run again): straight on to Done
+            if (_services.Scheduling.StateOf(CalCom.Id) == ProviderState.SignedIn)
+            {
+                _flow.Skip();
+            }
+
             StepChanged?.Invoke(this, true);
         }
         catch (Exception) when (_closed)
@@ -452,6 +576,16 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         }
 
         _flow.IsClientReady = OnboardingFlow.HasClientInput(Client.ClientId, Client.ClientSecret, saved);
+        if (!_closed)
+        {
+            OnPropertyChanged(nameof(CanRunPrimary));
+        }
+    }
+
+    // Only the primary button's state is told, as for the Google client boxes
+    private void UpdateSchedulingReady()
+    {
+        _flow.IsSchedulingReady = CalClientId.Trim().Length > 0 && CalClientSecret.Trim().Length > 0;
         if (!_closed)
         {
             OnPropertyChanged(nameof(CanRunPrimary));
