@@ -1,7 +1,8 @@
 <Page
     x:Class="LeafCalendar.App.Views.Settings.SchedulingPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:LeafCalendar.App.Controls">
 
     <ScrollViewer x:Name="PageScroll">
         <!-- The column sits in a plain Grid, not straight in the scroller: a scroller's content is placed by its scroll
@@ -14,6 +15,42 @@
                 <!-- One Default Link Card Per Signed-In Provider (built in code from SchedulingProviders.All, so a new provider
                      needs no new page code) -->
                 <StackPanel x:Name="ProviderList" Spacing="4" />
+
+                <!-- Booking Link Note (added on its own line after the links Copy writes). An open expander card holds the
+                     full-width box under the header; MaxLength is ShareLinks.MaxNoteLength -->
+                <Expander
+                    Style="{StaticResource LeafSettingExpanderStyle}"
+                    IsExpanded="True"
+                    Margin="0,24,0,0"
+                    AutomationProperties.Name="Booking link note"
+                    AutomationProperties.AutomationId="BookingLinkNoteExpander">
+                    <Expander.Header>
+                        <controls:SettingRow
+                            Style="{StaticResource LeafExpanderHeaderRowStyle}"
+                            Glyph="&#xE8BD;"
+                            Header="Booking link note"
+                            Description="Added on its own line after your booking links when you copy times." />
+                    </Expander.Header>
+                    <StackPanel Margin="16" Spacing="8">
+                        <TextBox
+                            x:Name="NoteBox"
+                            AcceptsReturn="True"
+                            TextWrapping="Wrap"
+                            MinHeight="64"
+                            MaxLength="500"
+                            PlaceholderText="No note"
+                            LostFocus="OnNoteLostFocus"
+                            AutomationProperties.Name="Booking link note"
+                            AutomationProperties.AutomationId="BookingLinkNoteBox" />
+                        <!-- Reset (Leaf's own note back), at the right like the Windows Settings reset buttons -->
+                        <Button
+                            HorizontalAlignment="Right"
+                            Content="Reset to default"
+                            Click="OnNoteReset"
+                            AutomationProperties.AutomationId="BookingLinkNoteReset" />
+                    </StackPanel>
+                </Expander>
+                <!-- /Booking Link Note -->
             </StackPanel>
         </Grid>
     </ScrollViewer>

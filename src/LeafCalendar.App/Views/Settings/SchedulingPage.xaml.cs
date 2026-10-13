@@ -46,6 +46,30 @@ public sealed partial class SchedulingPage : Page
             _cards.Add(card);
             ProviderList.Children.Add(card.Row);
         }
+
+        ShowNote();
+    }
+
+    // The note as saved (the box shows \r line breaks, the setting keeps \r\n like the share message's)
+    private void ShowNote() => NoteBox.Text = _context.Calendar.Settings.BookingLinkNote.Replace("\r\n", "\r", StringComparison.Ordinal);
+
+    // Losing focus saves it, the way every Settings change saves at once
+    private void OnNoteLostFocus(object sender, RoutedEventArgs e) => SaveNote();
+
+    // Leaving the page or Settings saves it too, so typing that never lost focus isn't lost; only a change is saved
+    private void SaveNote()
+    {
+        var note = NoteBox.Text.Replace("\r", "\r\n", StringComparison.Ordinal);
+        if (note != _context.Calendar.Settings.BookingLinkNote)
+        {
+            _context.Save(s => s with { BookingLinkNote = note });
+        }
+    }
+
+    private void OnNoteReset(object sender, RoutedEventArgs e)
+    {
+        _context.Save(s => s with { BookingLinkNote = ShareLinks.DefaultNote });
+        ShowNote();
     }
 
     /// <inheritdoc />
@@ -56,6 +80,7 @@ public sealed partial class SchedulingPage : Page
     private void OnHostClosed(object? sender, EventArgs e)
     {
         _context.Host.Closed -= OnHostClosed;
+        SaveNote();
         Release();
     }
 
@@ -66,7 +91,11 @@ public sealed partial class SchedulingPage : Page
         Refresh();
     }
 
-    private void OnUnloaded(object sender, RoutedEventArgs e) => Release();
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        SaveNote();
+        Release();
+    }
 
     private void Release()
     {

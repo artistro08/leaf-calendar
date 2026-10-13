@@ -13,7 +13,7 @@ public class ShareLinksTests
     [Fact]
     public void Build_SplitsAndLinksEachTime()
     {
-        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddHours(1))], null, [], "Pick one:\r\n{times}", Chicago, use24Hour: false);
+        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddHours(1))], null, [], "Pick one:\r\n{times}", null, Chicago, use24Hour: false);
 
         Assert.Equal(
             "Pick one:\r\nTue Oct 13, 10–10:30 AM CT: https://cal.com/leaf-tester/30min?date=2026-10-13&slot=2026-10-13T15:00:00.000Z\r\n"
@@ -24,9 +24,27 @@ public class ShareLinksTests
     }
 
     [Fact]
+    public void Build_Note_AddedOnItsOwnLineAtTheEnd_HtmlEncoded()
+    {
+        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddMinutes(30))], null, [], "Pick one:", "Book one <or> reply", Chicago, false);
+
+        Assert.EndsWith("15:00:00.000Z\r\nBook one <or> reply", result.Plain, StringComparison.Ordinal);
+        Assert.EndsWith("</a><br>Book one &lt;or&gt; reply", result.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Build_BlankNote_AddsNothing()
+    {
+        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddMinutes(30))], null, [], "", "  ", Chicago, false);
+
+        Assert.EndsWith("15:00:00.000Z", result.Plain, StringComparison.Ordinal);
+        Assert.EndsWith("</a>", result.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Build_TwoGuestsOnLinkWithoutGuests_FlagsDropped()
     {
-        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddMinutes(30))], null, [new("", "a@example.com"), new("", "b@example.com")], "", Chicago, false);
+        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddMinutes(30))], null, [new("", "a@example.com"), new("", "b@example.com")], "", null, Chicago, false);
 
         Assert.True(result.GuestsDropped);
         Assert.Contains("a%40example.com", result.Plain, StringComparison.Ordinal);
@@ -37,7 +55,7 @@ public class ShareLinksTests
     [Fact]
     public void Build_GuestNameWithSpace_StaysEscapedInPlainAndHtml()
     {
-        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddMinutes(30))], null, [new("Ann Lee", "ann@example.com")], "", Chicago, false);
+        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddMinutes(30))], null, [new("Ann Lee", "ann@example.com")], "", null, Chicago, false);
 
         Assert.Contains("name=Ann%20Lee", result.Plain, StringComparison.Ordinal);
         Assert.Contains("name=Ann%20Lee", result.Html, StringComparison.Ordinal);

@@ -247,6 +247,9 @@ public sealed record LeafSettings
     /// </summary>
     public string ShareMessage { get; init; } = AvailabilityText.DefaultMessage;
 
+    /// <summary>The line Copy adds after booking links (Settings › Scheduling). Empty adds nothing.</summary>
+    public string BookingLinkNote { get; init; } = ShareLinks.DefaultNote;
+
     /// <summary>Accounts whose calendars are folded away under their header (the sidebar and Settings › Calendars).</summary>
     public IReadOnlyList<string> CollapsedAccounts { get; init; } = [];
 
@@ -322,6 +325,7 @@ public sealed record LeafSettings
             CollapsedAccounts = Keep(CollapsedAccounts, CleanAccounts(CollapsedAccounts)),
             Scheduling = Keep(Scheduling, CleanScheduling(Scheduling)),
             ShareMessage = ShareMessage is null ? AvailabilityText.DefaultMessage : Clip(ShareMessage, AvailabilityText.MaxMessageLength),
+            BookingLinkNote = BookingLinkNote is null ? ShareLinks.DefaultNote : Clip(BookingLinkNote, ShareLinks.MaxNoteLength),
         };
     }
 

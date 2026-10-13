@@ -12,6 +12,12 @@ public sealed record LinkedTimes(string Plain, string Html, bool GuestsDropped);
 /// <summary>Builds the copied text where each proposed time links to its booking page.</summary>
 public static class ShareLinks
 {
+    /// <summary>The line Copy adds after booking links until you change it in Settings › Scheduling.</summary>
+    public const string DefaultNote = "You schedule time via the links or just let me know what works for you";
+
+    /// <summary>Longest note kept.</summary>
+    public const int MaxNoteLength = 500;
+
     /// <summary>Splits the saved ranges into bookable times and writes them out with a link each.</summary>
     /// <param name="builder">Makes the booking link for a time.</param>
     /// <param name="link">The scheduling link the times are booked on.</param>
@@ -19,6 +25,7 @@ public static class ShareLinks
     /// <param name="open">The link's bookable times, or null when they couldn't be fetched.</param>
     /// <param name="guests">The people to fill into each booking link.</param>
     /// <param name="message">The share message, or null.</param>
+    /// <param name="note">The line added on its own line at the end (Settings › Scheduling); blank adds nothing.</param>
     /// <param name="zone">The zone whose clock the reader uses.</param>
     /// <param name="use24Hour">"14:00–16:00" instead of "2–4 PM".</param>
     /// <returns>The plain and rich versions and whether extra guests were left out.</returns>
@@ -29,6 +36,7 @@ public static class ShareLinks
         IReadOnlyList<BusyRange>? open,
         IReadOnlyList<Contact> guests,
         string? message,
+        string? note,
         TimeZoneInfo zone,
         bool use24Hour)
     {
@@ -43,6 +51,16 @@ public static class ShareLinks
 
         // Colons Are Safe In A Query, So The Pasted Text Keeps The Time Readable
         var plain = AvailabilityText.Compose(message, string.Join("\r\n", pairs.Select(p => $"{p.Text}: {p.Link.AbsoluteUri.Replace("%3A", ":", StringComparison.Ordinal)}")));
-        return new(plain, AvailabilityText.ComposeHtml(message, pairs), !link.AllowsGuests && guests.Count > 1);
+        var html = AvailabilityText.ComposeHtml(message, pairs);
+
+        // The Note, On Its Own Line At The End
+        var line = (note ?? "").Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Trim();
+        if (line.Length > 0)
+        {
+            plain += "\r\n" + line.Replace("\n", "\r\n", StringComparison.Ordinal);
+            html += "<br>" + System.Net.WebUtility.HtmlEncode(line).Replace("\n", "<br>", StringComparison.Ordinal);
+        }
+
+        return new(plain, html, !link.AllowsGuests && guests.Count > 1);
     }
 }
