@@ -497,7 +497,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         }
         catch (Exception ex)
         {
-            vm.LogError("scheduling.book.failed", ex);
+            vm.LogBookFailure(ex);
             vm.SayShare($"Couldn't reach {name}. Nothing was booked.");
         }
         finally
@@ -534,11 +534,11 @@ public sealed partial class ShareSlotsPanel : UserControl
         return picked.Task;
     }
 
-    // "Book {time} on {provider}?" with the guests listed (names, else addresses); Book is the accent
+    // "Book {time} on {provider}?" with the guests the booking invites listed (names, else addresses); Book is the accent
     private async Task<bool> ConfirmAsync(CalendarViewModel vm, BusyRange time)
     {
         var guests = new StackPanel { Spacing = 4 };
-        foreach (var guest in vm.ShareGuests)
+        foreach (var guest in vm.BookingGuests)
         {
             guests.Children.Add(new TextBlock { Text = guest.Name.Length > 0 ? guest.Name : guest.Email, TextWrapping = TextWrapping.Wrap });
         }

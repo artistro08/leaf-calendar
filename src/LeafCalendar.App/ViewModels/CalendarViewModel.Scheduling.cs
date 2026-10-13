@@ -424,6 +424,20 @@ public sealed partial class CalendarViewModel
     /// <summary>The name of the provider the share's link is on (such as "Cal.com"), or empty with the switch off.</summary>
     public string ShareProviderName => ShareLink is { } link ? ProviderName(link) : "";
 
+    /// <summary>
+    /// The guests a booking on the share's link invites: every guest when the link allows extra guests, else only the
+    /// first (the booker), as the provider sends them. The confirmation lists these, and <see cref="BookAsync"/> books them.
+    /// </summary>
+    public IReadOnlyList<Contact> BookingGuests =>
+        ShareLink is { AllowsGuests: false } ? [.. _shareGuests.Take(1)] : [.. _shareGuests];
+
+    /// <summary>Logs a failure a view caught while booking, by its exception type name only.</summary>
+    public void LogBookFailure(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        _services.Log.Info("scheduling.book.failed", exception.GetType().Name);
+    }
+
     /// <summary>Each time as one line in the share's zone, such as "Tue Oct 13, 10-10:30 AM CT".</summary>
     public IReadOnlyList<string> BookableTimeLabels(IReadOnlyList<BusyRange> times) =>
         AvailabilityText.FormatTimes(times, ShareZone(), Settings.Use24HourTime);
@@ -442,6 +456,11 @@ public sealed partial class CalendarViewModel
 
         var range = _slots[index];
         var name = ProviderName(link);
+        if (!IsListedLink(link, name))
+        {
+            return [];
+        }
+
         IReadOnlyList<BusyRange>? open = null;
 
         // In A Rate-Limit Back-Off It Counts As Not Reachable
@@ -499,13 +518,18 @@ public sealed partial class CalendarViewModel
         }
 
         var name = ProviderName(link);
+        if (!IsListedLink(link, name))
+        {
+            return BookResult.Unavailable;
+        }
+
         if (_openGroupId is not { } id || _shareGuests.Count == 0 || _services.Scheduling.Get(link.ProviderId) is not IBookingCreator creator)
         {
             SayShare($"Couldn't reach {name}. Nothing was booked.");
             return BookResult.Unavailable;
         }
 
-        var guests = _shareGuests.ToList();
+        var guests = BookingGuests;
         var zone = ShareZone();
         try
         {
@@ -546,6 +570,20 @@ public sealed partial class CalendarViewModel
 
         ShowMessage($"Booked on {name}.");
         return BookResult.Booked;
+    }
+
+    // A link the provider listed. The group's saved stand-in (links not read yet, or reading them failed) doesn't know
+    // whether the link takes extra guests, so nothing is booked on it: it counts as not reachable and the links are read again
+    private bool IsListedLink(SchedulingLink link, string name)
+    {
+        if (_links.Contains(link))
+        {
+            return true;
+        }
+
+        SayShare($"Couldn't reach {name}. Nothing was booked.");
+        LoadLinks(_savedGroups.FirstOrDefault(g => g.Id == _openGroupId));
+        return false;
     }
 
     // The open times asked again even when they cover the days on screen (a time was just taken)
