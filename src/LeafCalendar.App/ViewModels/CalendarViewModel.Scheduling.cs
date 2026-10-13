@@ -178,6 +178,12 @@ public sealed partial class CalendarViewModel
             _shareLink = new SchedulingLink(group.ProviderId, group.LinkId, "", group.LinkMinutes, url, AllowsGuests: false);
         }
 
+        // Its provider already refused the sign-in (OnSchedulingChanged says so when that happens while it's open)
+        if (_useProvider && _services.Scheduling.StateOf(group.ProviderId) == ProviderState.NeedsReconnect)
+        {
+            SayShare(NeedsReconnectMessage(group.ProviderId));
+        }
+
         if (HasScheduling || _useProvider)
         {
             LoadLinks(group);
@@ -234,7 +240,10 @@ public sealed partial class CalendarViewModel
             }
             else
             {
-                _shareLink ??= DefaultLink();
+                // A link already picked swaps to the provider's listed copy of it (it may be a stand-in)
+                _shareLink = _shareLink is { } picked
+                    ? links.FirstOrDefault(l => l.ProviderId == picked.ProviderId && l.Id == picked.Id) ?? picked
+                    : DefaultLink();
             }
 
             ShareChanged?.Invoke(this, EventArgs.Empty);
@@ -256,9 +265,11 @@ public sealed partial class CalendarViewModel
     private string NeedsReconnectMessage(string providerId) =>
         $"{ProviderName(providerId)} signed Leaf out. Sign in again to keep sharing booking links.";
 
-    // A provider signed in, out, was removed or needs reconnecting (raised on any thread). A share on a provider that's
-    // no longer signed in turns plain, so Save and Copy & Save write no link from it and Copy matches what's saved; a
-    // refused sign-in says so. A provider signed in while sharing with no links read reads them. The panel refreshes
+    // A provider signed in, out, was removed or needs reconnecting (raised on any thread). Signed out or removed: a share
+    // on it turns plain, so Save and Copy & Save write no link from it. Needs reconnecting: the share keeps its switch and
+    // link as a stand-in (like a group opened offline), so Save keeps the group's link and booking check (spec 8), and a
+    // message says to sign in again. Signed in while the share's link isn't among the links read: they're read again
+    // (with the group when its link is unchanged), so fitting resumes. The panel refreshes
     private void OnSchedulingChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(() =>
     {
         if (!_sharing)
@@ -269,21 +280,27 @@ public sealed partial class CalendarViewModel
         var hub = _services.Scheduling;
         if (_shareLink is { } link && hub.Get(link.ProviderId) is null)
         {
-            var refused = _useProvider && hub.StateOf(link.ProviderId) == ProviderState.NeedsReconnect;
             _shareSession++;
-            _useProvider = false;
             _links = [.. _links.Where(l => hub.Get(l.ProviderId) is not null)];
-            _shareLink = DefaultLink();
             _refitPending = false;
             ClearOpenTimes();
-            if (refused)
+            if (hub.StateOf(link.ProviderId) == ProviderState.NeedsReconnect)
             {
-                SayShare(NeedsReconnectMessage(link.ProviderId));
+                if (_useProvider)
+                {
+                    SayShare(NeedsReconnectMessage(link.ProviderId));
+                }
+            }
+            else
+            {
+                _useProvider = false;
+                _shareLink = DefaultLink();
             }
         }
-        else if (HasScheduling && _links.Count == 0)
+        else if (HasScheduling && (_links.Count == 0 || (_shareLink is { } current && !_links.Contains(current))))
         {
-            LoadLinks(_useProvider ? _savedGroups.FirstOrDefault(g => g.Id == _openGroupId) : null);
+            var group = _savedGroups.FirstOrDefault(g => g.Id == _openGroupId);
+            LoadLinks(group is not null && _shareLink is { } l && l.ProviderId == group.ProviderId && l.Id == group.LinkId ? group : null);
         }
 
         ShareChanged?.Invoke(this, EventArgs.Empty);

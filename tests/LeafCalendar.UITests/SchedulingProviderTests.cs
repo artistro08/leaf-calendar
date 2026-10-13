@@ -382,6 +382,41 @@ public sealed class SchedulingProviderTests : IDisposable
         Assert.True(again.WaitFor("ShareProviderSwitch").AsToggleButton().ToggleState == ToggleState.Off, "The group was saved with the Cal.com link after signing out.");
     }
 
+    // Cal.com refusing the sign-in while a saved group is open says to sign in again, Approve… says the same instead of
+    // opening the event editor, and Save keeps the group's link (next run, signed in, it opens with the switch on)
+    [Fact]
+    public void NeedsReconnect_WhileSharing_SaysSoAndSaveKeepsTheLink()
+    {
+        using (var leaf = Launch())
+        {
+            SaveGroup(leaf, 10, 10.5, ThirtyMinutes, Jane);
+        }
+
+        // The First Cal.com Call Of This Run (reading the links) Is Refused
+        _google.CalComRefuseToken = true;
+        using (var leaf = Launch())
+        {
+            SavedShareGroupTests.OpenFirst(leaf);
+            const string Reconnect = "Cal.com signed Leaf out. Sign in again to keep sharing booking links.";
+            AssertMessages(leaf, Reconnect);
+
+            // Approving In The Editor Would Close The Panel
+            Approve(leaf);
+            Thread.Sleep(1000);
+            Assert.False(leaf.Exists("EditorTitle"), "Approve… opened the event editor.");
+            Assert.True(leaf.Exists("ShareSlotsPanel"), "Approve… closed the panel.");
+            AssertMessages(leaf, Reconnect);
+
+            leaf.WaitFor("ShareSaveButton").AsButton().Invoke();
+            Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(10)).Success, "Save didn't close the panel.");
+        }
+
+        _google.CalComRefuseToken = false;
+        using var again = Launch();
+        OpenGroup(again);
+        Assert.True(again.WaitFor("ShareProviderSwitch").AsToggleButton().ToggleState == ToggleState.On, "Save dropped the Cal.com link while Cal.com needed signing in again.");
+    }
+
     private static void OpenGroupPlain(LeafApp leaf)
     {
         SavedShareGroupTests.OpenFirst(leaf);

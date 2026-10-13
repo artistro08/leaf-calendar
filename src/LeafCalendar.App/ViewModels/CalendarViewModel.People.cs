@@ -484,8 +484,8 @@ public sealed partial class CalendarViewModel
     /// Books one time of the open group: sharing stops (the editor needs the right panel), and the event editor opens on
     /// that time with the group's title and every guest added. Needs a guest. The group is deleted only once the event
     /// saves; until then its times stay on the grid, resizable. Does nothing when <see cref="ApprovesThroughProvider"/>
-    /// (the share panel books on the provider instead, through <see cref="BookAsync"/>), and only says so when the group
-    /// was saved on a provider that needs reconnecting.
+    /// (the share panel books on the provider instead, through <see cref="BookAsync"/>), and only says so when the share
+    /// is on a provider that needs reconnecting.
     /// </summary>
     public void ApproveSlot(int index)
     {
@@ -494,11 +494,10 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        // A group saved on a provider that refused its sign-in books there once you sign in again, never as a Google event
-        if (_savedGroups.FirstOrDefault(g => g.Id == id) is { ProviderId.Length: > 0 } group
-            && _services.Scheduling.StateOf(group.ProviderId) == ProviderState.NeedsReconnect)
+        // A share on a provider that refused its sign-in books there once you sign in again, never as a Google event
+        if (ShareLink is { } link && _services.Scheduling.StateOf(link.ProviderId) == ProviderState.NeedsReconnect)
         {
-            SayShare(NeedsReconnectMessage(group.ProviderId));
+            SayShare(NeedsReconnectMessage(link.ProviderId));
             return;
         }
 
