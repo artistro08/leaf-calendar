@@ -2864,3 +2864,92 @@ git commit -m "docs(scheduling): main spec and privacy notes cover scheduling pr
 - [ ] **Step 6:** Commit any audit fixes (`fix(scheduling): …`).
 - [ ] **Step 7:** `git push -u origin feat/scheduling-providers`, then open the PR with `gh pr create --base main --title "feat(scheduling): scheduling providers, with Cal.com first (#28)"` and a body that lists: what it does (in plain words), the tests run with real results, the memory numbers, the wording awaiting approval (spec section 11 and any flagged strings), and "Closes #28". Do not comment on the PR or change its status afterward.
 - [ ] **Step 8:** Report to the owner: PR link, test results, what wasn't verified (anything the live test couldn't check), every decision made on their behalf (e.g. the Scheduling nav glyph, the "1 times" wording question).
+
+---
+
+## Revision 1: OAuth (owner, 2026-10-12)
+
+Spec revision 1 replaces the API key with OAuth using the user's own Cal.com OAuth client, moves credentials to Settings › Accounts, hides Settings › Scheduling until signed in, and drops self-hosted. Tasks 0–14 are built; these tasks rework 3, 7 and 13 and add the sign-in. Run them in order R1 → R4, then review Task 14, then Tasks 15–21 with the notes at the end.
+
+### Task R1: Fixed-Port Loopback Listener
+
+**Files:** Modify `src/LeafCalendar.Core/Auth/LoopbackListener.cs`; Test: `tests/LeafCalendar.Tests/LoopbackListenerTests.cs` (existing; add cases).
+
+**Interfaces:**
+- Produces: `public LoopbackListener(int port, string path)` — binds `127.0.0.1:port` only; `RedirectUri` = `http://127.0.0.1:{port}{path}` (path starts with `/`, no trailing slash added); accepts only targets starting with `path + "?"`. Throws `SocketException` (`SocketError.AddressAlreadyInUse`) when the port is taken. The existing parameterless constructor (random port, path `/`) is unchanged and Google keeps using it.
+- Same safety: state check, one accepted redirect, never echoes query values, fixed pages.
+
+- [ ] Tests first: redirect on the configured path with the right state returns the query; wrong path → 404 and keeps waiting; wrong state → 404; port already bound → `SocketException` with `AddressAlreadyInUse`; existing tests still pass.
+- [ ] Implement by moving the path check into a field (`_path`), default `/`.
+- [ ] Full suite, 0-warning build, commit `feat(auth): the sign-in listener can wait on a fixed port and path`.
+
+### Task R2: OAuth Sign-In And Tokens For Providers
+
+**Files:** Create `src/LeafCalendar.Core/Scheduling/SchedulingOAuth.cs` (records + JSON model), `ProviderTokens.cs` (access-token source), `ProviderSignIn.cs` (the browser flow); extend `CalComJsonContext` (or a new context) with the token response; Test: `tests/LeafCalendar.Tests/ProviderSignInTests.cs`, `ProviderTokensTests.cs`.
+
+**Interfaces:**
+```csharp
+public sealed record SchedulingOAuth(Uri Authorize, Uri Token, IReadOnlyList<string> Scopes, int RedirectPort, string RedirectPath, Uri ClientPage);
+// Cal.com: Authorize https://app.cal.com/auth/oauth2/authorize, Token https://api.cal.com/v2/auth/oauth2/token,
+//          Scopes ["EVENT_TYPE_READ","BOOKING_READ","BOOKING_WRITE","SCHEDULE_READ"], port 53817, path "/calcom/callback",
+//          ClientPage https://app.cal.com/settings/developer/oauth
+public sealed record ProviderClient(string ClientId, string ClientSecret);
+public sealed class ProviderTokens(HttpClient http, SchedulingOAuth oauth, ProviderClient client, string refreshToken, TimeProvider time, Action<string> saveRotatedRefreshToken)
+{
+    public Task<string> GetAccessTokenAsync(CancellationToken ct); // cached in memory; refreshes when < 60 s left; one refresh at a time (SemaphoreSlim)
+}
+public sealed class ProviderSignIn(HttpClient http, SchedulingOAuth oauth, ProviderClient client, Func<Uri, Task> openBrowser, TimeProvider time)
+{
+    public Task<string> RunAsync(CancellationToken ct); // returns the refresh token; 5-minute timeout like SignInFlow.Timeout
+}
+public sealed class SchedulingPortBusyException : Exception; // the fixed port is taken
+```
+
+Behavior:
+- `RunAsync`: verifier, challenge and state from `Pkce`; `new LoopbackListener(oauth.RedirectPort, oauth.RedirectPath)` (a `SocketException` with `AddressAlreadyInUse` → `SchedulingPortBusyException`); open `Authorize?response_type=code&client_id&redirect_uri&scope={space joined}&state&code_challenge&code_challenge_method=S256`; wait for the callback; an `error` parameter or a missing code → `SchedulingAuthException`; exchange at `Token`, form-encoded: `grant_type=authorization_code, code, redirect_uri, client_id, client_secret, code_verifier`; 400/401 → `SchedulingAuthException`; offline or 5xx → `SchedulingUnavailableException`; an answer without `refresh_token` → `SchedulingAuthException`.
+- `ProviderTokens`: refresh with `grant_type=refresh_token, refresh_token, client_id, client_secret`; 400/401 (`invalid_grant`) → `SchedulingAuthException`; a rotated `refresh_token` in the answer goes to `saveRotatedRefreshToken`; offline or 5xx → `SchedulingUnavailableException`; cancellation propagates.
+- Never log codes, tokens, the secret or the client ID.
+- JSON: `OAuthTokenResponse(string? AccessToken, string? RefreshToken, int? ExpiresIn, string? Scope)` with snake_case names through a source-generated context.
+
+- [ ] Tests first (FakeHttpHandler for the token endpoint; a test `openBrowser` that sends the redirect to the listener with the right `state` and a code — read `SignInFlowTests` and copy its pattern): the authorize URL has every parameter and S256; the exchange body is exact and carries the secret; `error=access_denied` → auth exception; 400 on the exchange → auth; missing refresh token → auth; port busy → `SchedulingPortBusyException`; tokens cached until 60 s before expiry, then refreshed once even with two callers; a rotated refresh token is saved; a refused refresh → auth; nothing secret in the authorize URL besides the client ID.
+- [ ] Implement, full suite, 0-warning build, commit `feat(scheduling): sign in to a provider with your own OAuth client, and keep its access token fresh`.
+
+### Task R3: Provider And Hub On OAuth
+
+**Files:** Modify `CalComProvider.cs` (takes `Func<CancellationToken, Task<string>> accessToken` instead of the key; base is always `https://api.cal.com/` or the fake root), `SchedulingProviders.cs` (replace `SetupField`s with `SchedulingOAuth`; drop the server and key checks; `Create(HttpClient, Func<CancellationToken, Task<string>>, Uri baseUri)`), `SchedulingHub.cs`, `src/LeafCalendar.App/LeafServices.cs`; update their tests (`CalComProviderTests`, `CalComLinkTests`, `SchedulingHubTests`, `BookingWatcherTests`) and any App caller of the removed members (the Task 13 Settings page compiles against the new hub until R4 replaces it).
+
+**Interfaces (hub):**
+```csharp
+public enum ProviderState { NoClient, NotSignedIn, SignedIn, NeedsReconnect }   // replaces NotConnected/Connected
+public ProviderState StateOf(string providerId);
+public void SaveClient(string providerId, ProviderClient client);               // secrets client_id, client_secret (trimmed, non-empty)
+public void RemoveClient(string providerId);                                     // all three secrets; state NoClient
+public Task<IReadOnlyList<SchedulingLink>> SignInAsync(string providerId, Func<Uri, Task> openBrowser, CancellationToken ct); // ProviderSignIn, then lists links to prove it, then saves refresh_token
+public void SignOut(string providerId);                                          // removes refresh_token only; state NotSignedIn
+public void Load();                                                              // builds signed-in providers from saved secrets
+// Connected, Get, GetLinksAsync, MarkNeedsReconnect, IsWaiting, WaitFor, Changed: same meaning ("Connected" = SignedIn)
+```
+- Under `fakeRoot`, the provider's API base, authorize and token URLs all move under `{fakeRoot}{id}/` (authorize `…/calcom/auth/oauth2/authorize`, token `…/calcom/v2/auth/oauth2/token`); the redirect stays the fixed loopback.
+- `SecretsUnavailable` rules unchanged (Task 7). A `SchedulingAuthException` from a token refresh during any call marks NeedsReconnect.
+- Remove `Check`, `SetupField`, `ServerBase`, the server re-check and every API-key path. `ProviderSettings.Server` stays in the record (always written empty) so saved settings still read.
+- LeafServices: `Scheduling.Load()` at startup and on secrets recovery, as before.
+
+- [ ] Update the tests first to the new API (connect-with-key tests become sign-in tests with a fake `openBrowser`; self-hosted and key-format tests go with their code), then implement. Full suite, 0-warning build, commit `feat(scheduling): Cal.com connects by OAuth sign-in instead of an API key`.
+
+### Task R4: Settings › Accounts Section And A Slimmer Scheduling Page
+
+**Files:** Modify `src/LeafCalendar.App/Views/Settings/AccountsPage.xaml(.cs)` (or a new section control placed on it), `SchedulingPage.xaml(.cs)`, `SettingsPage.xaml.cs` (nav visibility), `NotificationsPage.xaml.cs` (still "shown while a provider is signed in").
+
+- Accounts: spec 9.3 exactly — states NoClient / NotSignedIn / signing in / SignedIn / NeedsReconnect, wording from spec 11 (revision 1 rows), the redirect URI shown as selectable text, AutomationIds from spec 9.3. The secret box is cleared after Save. Sign-in opens the browser through the same helper the Google sign-in uses, with Cancel; `SchedulingPortBusyException` → the port-busy text; auth → the sign-in refused text; unavailable → the can't reach text. Sign out also runs `ShareGroupStore.ClearProvider` off the UI thread, then `ReloadGroups()`.
+- Scheduling page: only the Default link card per signed-in provider; remove the connect form, fields, disconnect and reconnect UI.
+- Settings nav: the Scheduling item is present only while a provider is SignedIn or NeedsReconnect; it updates on `Scheduling.Changed` (marshaled). If the page is open when it disappears, go to General.
+- Keep Task 13's lifetime fix (Host.Closed + Unloaded) on every page that listens to the hub.
+- [ ] Implement, 0-warning build, full logic suite (XamlLintTests), commit `feat(scheduling): Cal.com sign-in lives in Settings › Accounts, and Settings › Scheduling only appears once signed in`.
+
+### Notes For Tasks 15–21 After Revision 1
+
+- Task 14 is built (commit 9473077) and still needs its review; review it before Task 15. Its open concerns go to that review: the guests-not-allowed message after Copy may never show (spec 7 says "the notice after Copy" — use the existing notice, `ShowMessage`); offline picks aren't refit when open times later arrive.
+- Task 17: never retry `BookAsync` on its own after an unavailable answer (a 5xx may have booked); the booking check picks it up.
+- Task 18: the fake Cal.com also serves `GET /calcom/auth/oauth2/authorize` (redirects straight to the given `redirect_uri` with `code` and the same `state`) and `POST /calcom/v2/auth/oauth2/token` (issues tokens; can be told to refuse). UI tests sign in through Settings › Accounts with a fake client ID and secret; the test "browser" follows the redirect like the Google sign-in UI tests. Replace the key-based connect tests with: add client, sign in, refused sign-in, port busy (bind 53817 in the test first), sign out, remove client, Scheduling nav appears only when signed in.
+- Task 19: the live setup test runs only with `LEAF_LIVE_CALCOM_SIGNIN=1` and reads `LEAF_LIVE_CALCOM_CLIENT_ID` and `LEAF_LIVE_CALCOM_CLIENT_SECRET` (process environment, or the user-level variables in the registry, since the shell may be older than the variables); it signs in through the browser once and stores the client and refresh token in the `live-tests` profile. Normal runs use them, skip until then, and never book. Confirm the "view booking links" scope name there, and fix `SchedulingOAuth.Scopes` and spec 3.2 if it differs.
+- Task 20: PRIVACY.md text per spec 3.7 (revision 1); main spec section 4 gets a short Cal.com sign-in note beside the Google one.

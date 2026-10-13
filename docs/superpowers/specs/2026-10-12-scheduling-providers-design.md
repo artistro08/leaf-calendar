@@ -2,11 +2,13 @@
 
 Owner request, 2026-10-12, from GitHub issue #28 ("Add Cal.com to Scheduling interface"). Extends spec section 7.6 (Share Availability) and the saved share groups design (`2026-10-06-saved-share-groups-design.md`). When built, sections 2, 7.6, 8 and 9 of `2026-09-29-leaf-calendar-design.md` and `PRIVACY.md` are updated to match.
 
+> **Revision 1 (owner, 2026-10-12, mid-build):** Cal.com connects by **OAuth** with your own OAuth client (client ID and client secret), not an API key. Every credential lives in **Settings › Accounts**; **Settings › Scheduling** holds only settings and is hidden until you're signed in to a provider. Self-hosted Cal.com and the server address are dropped. Sections 1, 2, 3.1–3.4, 3.7, 4, 9, 10 and 11 below describe the revised design.
+
 ## 1. Goal
 
 You share times with someone through a booking service instead of plain text. Leaf builds a standard way to plug scheduling providers in first, then adds Cal.com as the first one. After this change:
 
-1. You connect Cal.com with an API key in **Settings › Scheduling**. Nothing about Cal.com shows anywhere until you do.
+1. You enter your own Cal.com OAuth client (client ID and secret) and **Sign in with Cal.com** in **Settings › Accounts**. Nothing about Cal.com shows anywhere else (not the share panel, not Settings › Scheduling) until you're signed in.
 2. While sharing (S), a **Use Cal.com** switch and a **Link** dropdown sit in the share panel. Each new share starts with the switch on and your default link picked.
 3. With the switch on, the grid shades the times Cal.com won't book on that link. A drag is fitted to the link's bookable times (a time picked more than half is stretched to its full length, one picked half or less is removed), and a notice says what Leaf did.
 4. Copy puts each proposed time on the clipboard **as a link**: the time is the text, and clicking it opens Cal.com on that exact time with your guests filled in.
@@ -27,7 +29,10 @@ You share times with someone through a booking service instead of plain text. Le
 | Provider layer | One small interface per action (approach A). A provider implements only the actions it supports; Leaf shows only the matching UI. |
 | Actions | Provider basics, list links, open times, schedule time, schedule block, bookings. |
 | Schedule block | Built and tested in the layer; the share panel always uses schedule time for now. |
-| Hosting | cal.com and self-hosted Cal.com (an optional server address, `https://` only). |
+| Hosting | cal.com only (revision 1; self-hosted Cal.com and the server address were dropped). |
+| Connecting (revision 1) | OAuth authorization code flow with **your own** Cal.com OAuth client, like the Google OAuth client: you enter its client ID and client secret (required) in Settings › Accounts, then Sign in with Cal.com in the browser. Leaf ships no Cal.com client. |
+| Where things live (revision 1) | Credentials (client ID, secret, sign in, sign out, reconnect) in **Settings › Accounts**. Settings (default link) in **Settings › Scheduling**, which is hidden from the Settings list until a provider is signed in. |
+| Scopes (revision 1) | Only what Leaf uses: view booking links, view bookings, create bookings (Approve…), view availability. |
 | Copied text | Rich text (HTML) where each time is a link, plus plain text with the address after each time for apps that can't take links. |
 | Guests in the link | The first guest prefills the booker (`name`, `email`). When the link allows extra guests, every other guest is added with a repeated `guests` parameter. When it doesn't, only the first guest goes in the link and the notice says so. |
 | Booking detected | The **whole** group goes, and a Windows notification says who booked. |
@@ -46,7 +51,7 @@ Each action is its own interface. A provider class implements `ISchedulingProvid
 
 | Interface | Members | Cal.com |
 | --- | --- | --- |
-| `ISchedulingProvider` | `Id` (`"calcom"`), `Name` ("Cal.com"). Setup fields and creation live in `SchedulingProviderInfo` (3.3); connecting checks the values by listing links (`SchedulingAuthException` on a bad key) | Yes |
+| `ISchedulingProvider` | `Id` (`"calcom"`), `Name` ("Cal.com"). How a provider signs in, and its creation, live in `SchedulingProviderInfo` (3.3); signing in ends by listing links to prove the tokens work (`SchedulingAuthException` when refused) | Yes |
 | `ILinkSource` | `GetLinksAsync(ct)` → `IReadOnlyList<SchedulingLink>` | Yes |
 | `IOpenTimesSource` | `GetOpenTimesAsync(linkId, startUtc, endUtc, ct)` → `IReadOnlyList<BusyRange>` (each a bookable start and end) | Yes |
 | `ITimeLinkBuilder` | `TimeLink(link, startUtc, zone, guests)` → `Uri` that opens that exact time | Yes |
@@ -58,28 +63,31 @@ Records, in `Core/Scheduling/SchedulingModels.cs`:
 
 - `SchedulingLink(string ProviderId, string Id, string Name, int Minutes, Uri BookingUrl, bool AllowsGuests)`. `AllowsGuests` says whether the link takes people besides the booker (Cal.com: `disableGuests` is false).
 - `SchedulingBooking(string Id, DateTimeOffset Start, DateTimeOffset Created, string AttendeeName)`.
-- `SetupField(string Key, string Label, bool Secret, bool Required, string Placeholder)`.
-
 `BusyRange` is reused for open times (it is already Leaf's start-and-end record).
 
-### 3.2 Setup Fields
+### 3.2 Signing In (OAuth, revision 1)
 
-A provider lists what it needs as `SetupField` data. Settings draws one box per field (`PasswordBox` for a secret, `TextBox` otherwise), so a new provider needs no new Settings code. Secret fields are saved through `ITokenStore`; the others in `LeafSettings`.
+A provider describes its OAuth endpoints and scopes as data (`SchedulingOAuth`: authorize URL, token URL, scopes, redirect URI). Settings › Accounts draws the same section for every provider from that data: client ID box, client secret box, **Sign in with {provider}**. A new OAuth provider needs no new Accounts code.
 
 Cal.com:
 
-| Key | Label | Secret | Required | Rule |
-| --- | --- | --- | --- | --- |
-| `api_key` | API key | Yes | Yes | Trimmed; must start with `cal_`. |
-| `server` | Server address | No | No | Empty means `https://api.cal.com`. Otherwise an absolute `https://` address with no user info, query or fragment. |
+| Item | Value |
+| --- | --- |
+| Authorize | `https://app.cal.com/auth/oauth2/authorize` with `client_id`, `redirect_uri`, `scope` (space separated), `state`, `code_challenge` (S256), `response_type=code` |
+| Token | `POST https://api.cal.com/v2/auth/oauth2/token` (form-encoded): `grant_type=authorization_code`, `code`, `redirect_uri`, `client_id`, `client_secret`, `code_verifier`; refresh with `grant_type=refresh_token`, `refresh_token`, `client_id`, `client_secret` |
+| Redirect | `http://127.0.0.1:53817/calcom/callback` (fixed port, since Cal.com matches redirect URIs exactly; `http://localhost:53817/calcom/callback` is also registered) |
+| Scopes | `EVENT_TYPE_READ` (view booking links; name confirmed in the live test), `BOOKING_READ`, `BOOKING_WRITE`, `SCHEDULE_READ` |
+| Tokens | Access token 30 minutes (`expires_in`), kept in memory and refreshed quietly a minute before it ends. Refresh token stored encrypted (4.1). A refused refresh (`invalid_grant`, 400/401) marks the provider **needs reconnecting**. |
+
+The sign-in follows the Google sign-in's safety rules (main spec 4.2): PKCE S256 and a random `state`; the listener binds `127.0.0.1` only, on the fixed port, answers only the expected path, checks `state`, accepts one request, never echoes query values into its page, and times out after 5 minutes. A port already in use says so ("Port 53817 is busy…" — wording in 11). The browser page reuses the Google sign-in's pages ("You can close this tab" / "Sign-in didn't finish").
 
 ### 3.3 Provider List
 
-`SchedulingProviders.Create(string id, …)` and `SchedulingProviders.All` (id and name only, no instances) are the one place that knows every provider. `SchedulingHub` (Core) holds the connected providers' instances, built on connect or at startup when a key is saved, and dropped on disconnect.
+`SchedulingProviders.All` (`SchedulingProviderInfo`: id, name, description, OAuth data, and a `Create` function) is the one place that knows every provider. `SchedulingHub` (Core) holds the signed-in providers' instances, built after sign-in or at startup when a refresh token is saved, and dropped on sign-out.
 
 ### 3.4 Cal.com (`CalComProvider`)
 
-All calls go to the server address with `Authorization: Bearer <key>` over HTTPS, through the app's shared `HttpClient`.
+All calls go to `https://api.cal.com/` with `Authorization: Bearer <access token>` over HTTPS, through the app's shared `HttpClient`. The access token comes from a per-provider token source that refreshes it when needed (revision 1).
 
 | Action | Request | `cal-api-version` |
 | --- | --- | --- |
@@ -115,10 +123,10 @@ All calls go to the server address with `Authorization: Bearer <key>` over HTTPS
 ### 3.7 Safety
 
 - Everything a provider returns is untrusted. Link names and attendee names go through `DisplayText.Clean` and are capped (100 characters). A booking address must be absolute `https://` and pass `LinkSafety`, or that link is dropped.
-- Never logged: the key, link names, booking addresses, attendee names or emails. Logged: provider id, counts, HTTP status codes and exception type names.
+- Never logged: the client secret, codes, access or refresh tokens, link names, booking addresses, attendee names or emails. Logged: provider id, counts, HTTP status codes and exception type names.
 - Toast text from a provider is escaped like every other toast.
-- A self-hosted server address must be `https://`; the key is never sent anywhere else.
-- `PRIVACY.md` gets a Scheduling section: Leaf sends your API key and date ranges to Cal.com (or your server) while you share, check bookings or use Settings; it sends your guests' names and emails to Cal.com only when you press Book; guest emails are also in the links you copy; the key is stored encrypted on this PC and removed on Disconnect.
+- Tokens and the client secret go only to `api.cal.com` (token endpoint and API) over HTTPS, never in a URL.
+- `PRIVACY.md` gets a Scheduling section: Leaf talks to Cal.com with your own OAuth client; it sends date ranges to Cal.com while you share, check bookings or use Settings; it sends your guests' names and emails to Cal.com only when you press Book; guest emails are also in the links you copy; the client secret and refresh token are stored encrypted on this PC and removed when you sign out.
 
 ## 4. Storage
 
@@ -126,9 +134,11 @@ All calls go to the server address with `Authorization: Bearer <key>` over HTTPS
 
 `ITokenStore` gains `GetProviderSecret(providerId, key)`, `SetProviderSecret(providerId, key, value)` and `RemoveProviderSecrets(providerId)`. `ProtectedFileTokenStore` keeps them in a new `Providers` map in `secrets.bin`, with the same lock, DPAPI entropy, atomic write and unreadable-file rules. `CredentialLockerTokenStore` (the old store, read only by the one-time move) doesn't support them.
 
+Revision 1: the keys per provider are `client_id`, `client_secret` and `refresh_token`. Signing out removes `refresh_token` only (the OAuth client stays, like the Google OAuth client staying when an account is disconnected); **Remove OAuth client** removes all three.
+
 ### 4.2 Settings (`LeafSettings`)
 
-- `Scheduling`: a map of provider id → `ProviderSettings(string Server, string DefaultLinkId)`.
+- `Scheduling`: a list of `ProviderSettings(string ProviderId, string Server, string DefaultLinkId)`. Revision 1: `Server` is no longer used (always empty; kept so saved settings still read).
 - `BookingNotifications` (bool, default true).
 - `Normalize` clips both and drops unknown provider ids.
 
@@ -212,13 +222,22 @@ With the switch off, Copy is unchanged.
 
 ## 9. Settings
 
-### 9.1 Settings › Scheduling (new page, between Calendars and Time zones)
+### 9.1 Settings › Scheduling (new page, between Calendars and Time zones; revision 1)
 
-- One card per provider in `SchedulingProviders.All`, following the Windows 11 Settings pattern.
-- Not connected: the provider name, a one-line description, and **Connect…** (opens an inline form drawn from `SetupFields`, with **Connect** and **Cancel**). Connect calls `ConnectAsync`; a bad key or address says what's wrong and saves nothing.
-- Connected: **Default link** (`ComboBox` of your links), and **Disconnect** (removes the secrets and settings for that provider; saved groups on that provider become plain groups).
-- Needs reconnecting: the card says so, with **Reconnect…**.
-- AutomationIds: `SchedulingCard_{id}`, `SchedulingConnect_{id}`, `SchedulingField_{id}_{key}`, `SchedulingDefaultLink_{id}`, `SchedulingDisconnect_{id}`.
+- Shown in the Settings list only while at least one provider is signed in (or needs reconnecting); otherwise the page and its nav item are hidden.
+- One card per signed-in provider: **Default link** (`ComboBox` of your links, "{name} · {minutes} min"). Nothing about credentials here.
+- AutomationIds: `SchedulingCard_{id}`, `SchedulingDefaultLink_{id}`.
+
+### 9.3 Settings › Accounts: Scheduling Providers (revision 1)
+
+A section under the Google accounts, one card per provider in `SchedulingProviders.All`, following the page's existing pattern (the Google OAuth client and account rows):
+
+- **No OAuth client saved:** the provider name and description, with **Add OAuth client…** opening a form: **Client ID** (`TextBox`) and **Client secret** (`PasswordBox`), both required, with a guide line and link to the provider's OAuth client page (`https://app.cal.com/settings/developer/oauth`) and the redirect URI to register, shown as selectable text. **Save** stores both encrypted (4.1); the secret box is cleared after.
+- **OAuth client saved, not signed in:** **Sign in with Cal.com** (accent), and **Remove OAuth client**.
+- **Signing in:** a progress ring and **Cancel** while the browser is open. Success lists your links once to prove the tokens work, then shows the signed-in state. Refused or failed: says why (11) and saves nothing.
+- **Signed in:** "Signed in" with **Sign out** (removes the refresh token; saved groups on that provider become plain groups; the OAuth client stays).
+- **Needs reconnecting:** says so, with **Sign in again** (the same sign-in, replacing the refresh token).
+- AutomationIds: `ProviderCard_{id}`, `ProviderAddClient_{id}`, `ProviderClientId_{id}`, `ProviderClientSecret_{id}`, `ProviderSaveClient_{id}`, `ProviderSignIn_{id}`, `ProviderSignOut_{id}`, `ProviderRemoveClient_{id}`, `ProviderError_{id}`.
 
 ### 9.2 Settings › Notifications
 
@@ -241,9 +260,9 @@ With the switch off, Copy is unchanged.
 
 ### 10.2 UI Tests
 
-The fake Google server gains fake Cal.com routes (`/v2/event-types`, `/v2/slots`, `/v2/bookings`). Under the existing `--fake-google <root>` flag, every provider's default server becomes `<root><provider id>/` (Cal.com: `<root>calcom/`), the way `GoogleEndpoints.ForFake` points Google at the fake, so no test reaches the real Cal.com. A typed server address still must be `https://`. No new launch flag is added, and nothing changes in a normal run.
+The fake Google server gains fake Cal.com routes (`/v2/event-types`, `/v2/slots`, `/v2/bookings`, plus an authorize page that redirects straight back with a code, and the token endpoint). Under the existing `--fake-google <root>` flag, every provider's API, authorize and token addresses move under `<root><provider id>/` (Cal.com: `<root>calcom/`), the way `GoogleEndpoints.ForFake` points Google at the fake, so no test reaches the real Cal.com. The sign-in "browser" in tests follows the redirect the way the Google sign-in tests do. No new launch flag is added, and nothing changes in a normal run.
 
-- New `SchedulingProviderTests`: connect with a bad and a good key; default link saves; disconnect hides the panel switch; the panel shows nothing before connecting; a drag over a closed stretch is trimmed and the notice shows; Copy puts HTML links and plain text on the clipboard with the guest prefilled; switch off copies plain text; a fake booking removes the group and shows the notification.
+- New `SchedulingProviderTests`: add an OAuth client, sign in, a refused sign-in saves nothing; Settings › Scheduling appears only once signed in; default link saves; sign out hides the panel switch and the Scheduling page; the panel shows nothing before connecting; a drag over a closed stretch is trimmed and the notice shows; Copy puts HTML links and plain text on the clipboard with the guest prefilled; switch off copies plain text; a fake booking removes the group and shows the notification.
 - `SchedulingProviderTests` also: Approve… on a one-time range asks to confirm, Book sends the booking to the fake Cal.com with the booker and guests, deletes the group and shows no second notification; on a longer range the flyout lists the times; Cancel books nothing; a taken time keeps the group and shows the message.
 - `SavedShareGroupTests` (existing class): drag a new pick to a later time and to another day; open a saved group, move a time, Save, reopen and see it moved; a click inside a picked time changes nothing; a saved time of a closed group doesn't move.
 - `SchedulingProviderTests` also: move a time onto a partly closed stretch and see it fitted; open a saved Cal.com group, resize a time over a closed stretch and see it fitted, change the link and see every time refitted, Save, reopen after a restart with the switch and link kept, Copy & Save copies links for the edited times.
@@ -252,7 +271,7 @@ The fake Google server gains fake Cal.com routes (`/v2/event-types`, `/v2/slots`
 
 ### 10.3 Live Test
 
-`LeafCalendar.LiveTests` gets a Cal.com test that lists links, reads open times and builds a link against a throwaway Cal.com account; it skips until a test key is set (README updated).
+`LeafCalendar.LiveTests` gets a Cal.com test that lists links, reads open times and builds a link. Revision 1: a one-time setup test (run only with `LEAF_LIVE_CALCOM_SIGNIN=1`, client ID and secret read from environment variables) signs in through the browser and stores the refresh token in the `live-tests` profile, like the Google live setup; normal runs reuse it and skip until it's done (README updated). It never books.
 
 ### 10.4 Finish
 
@@ -264,17 +283,21 @@ AOT publish (`publish-aot.ps1`), package size check, memory budget run (results 
 | --- | --- |
 | Settings nav item | Scheduling |
 | Cal.com card description | Share times as booking links from your Cal.com account. |
-| Connect button | Connect… |
-| Form buttons | Connect, Cancel |
-| API key label / placeholder | API key / cal_live_… |
-| Server address label / placeholder | Server address / Leave empty for cal.com |
-| Bad key | Cal.com didn't accept that API key. Check it in Cal.com › Settings › Developer › API keys. |
-| Bad address | Enter an https:// address, or leave it empty for cal.com. |
-| Can't reach | Couldn't reach Cal.com. Check your connection and try again. |
 | Default link card | Default link |
-| Disconnect button | Disconnect |
-| Needs reconnecting | Cal.com stopped accepting your API key. Reconnect to keep sharing booking links. |
-| Reconnect button | Reconnect… |
+| Accounts section header (revision 1) | Scheduling |
+| Add client button (revision 1) | Add OAuth client… |
+| Client form (revision 1) | Client ID / Client secret / Save, Cancel |
+| Client guide (revision 1) | Create an OAuth client in Cal.com › Settings › Developer › OAuth, and add this redirect URI: |
+| Sign in button (revision 1) | Sign in with Cal.com |
+| Signing in (revision 1) | Finish signing in in your browser. / Cancel |
+| Signed in (revision 1) | Signed in |
+| Sign out button (revision 1) | Sign out |
+| Remove client button (revision 1) | Remove OAuth client |
+| Sign-in refused (revision 1) | Cal.com didn't accept this OAuth client. Check the client ID and secret, and that the redirect URI is registered. |
+| Port busy (revision 1) | Port 53817 is busy, so Leaf can't finish signing in. Close the app using it and try again. |
+| Can't reach | Couldn't reach Cal.com. Check your connection and try again. |
+| Needs reconnecting (revision 1) | Cal.com signed Leaf out. Sign in again to keep sharing booking links. |
+| Sign in again button (revision 1) | Sign in again |
 | Notifications card | Booking notifications / Show a notification when someone books a time you shared. |
 | Panel switch | Use Cal.com (two providers: Use a booking link) |
 | Panel dropdown header | Link |
@@ -310,3 +333,5 @@ The "one" rows are the singular forms for a count of one (owner, 2026-10-12: "1 
 - A panel choice between exact times and blocks (the layer supports blocks; the panel doesn't offer them yet).
 - Cal.com team links and organizations (only your own links).
 - More than one account per provider.
+- Self-hosted Cal.com and API keys (revision 1).
+- A Cal.com OAuth client shipped with Leaf (revision 1: each user brings their own).
