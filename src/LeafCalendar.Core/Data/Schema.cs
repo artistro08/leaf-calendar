@@ -212,4 +212,16 @@ internal static class Schema
     public const string V12 = """
         ALTER TABLE share_guests ADD COLUMN name TEXT NOT NULL DEFAULT '';
         """;
+
+    /// <summary>
+    /// Version 13: a saved group's scheduling link (spec 2026-10-12, scheduling providers): the provider and link IDs, the
+    /// link's booking page and its length, so Copy &amp; Save can build booking links again offline. Empty and 0 for a plain
+    /// group (every group saved before). Local only.
+    /// </summary>
+    public const string V13 = """
+        ALTER TABLE share_groups ADD COLUMN provider_id  TEXT    NOT NULL DEFAULT '';
+        ALTER TABLE share_groups ADD COLUMN link_id      TEXT    NOT NULL DEFAULT '';
+        ALTER TABLE share_groups ADD COLUMN link_url     TEXT    NOT NULL DEFAULT '';
+        ALTER TABLE share_groups ADD COLUMN link_minutes INTEGER NOT NULL DEFAULT 0;
+        """;
 }

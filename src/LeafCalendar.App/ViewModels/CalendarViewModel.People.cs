@@ -463,11 +463,11 @@ public sealed partial class CalendarViewModel
         {
             if (group is { } id)
             {
-                ShareGroupStore.Update(conn, id, title, text, zone, slots, guests);
+                ShareGroupStore.Update(conn, id, title, text, zone, slots, guests, ShareLink.None);
             }
             else
             {
-                ShareGroupStore.Insert(conn, title, text, zone, slots, now, guests);
+                ShareGroupStore.Insert(conn, title, text, zone, slots, now, guests, ShareLink.None);
             }
         });
 
@@ -622,7 +622,7 @@ public sealed partial class CalendarViewModel
         var slots = group.Slots.ToList();
         slots[index] = new BusyRange(start, end);
         var merged = BusyMath.Merge(slots);
-        WriteGroups("share.group.save.failed", conn => ShareGroupStore.Update(conn, group.Id, group.Title, group.Message, group.ZoneId, merged, group.Guests));
+        WriteGroups("share.group.save.failed", conn => ShareGroupStore.Update(conn, group.Id, group.Title, group.Message, group.ZoneId, merged, group.Guests, ShareLink.None));
     }
 
     // A write to the saved groups, then a fresh read of them; a failure is logged (never its content), says so, and
@@ -733,11 +733,11 @@ public sealed partial class CalendarViewModel
             using var conn = _services.Database.Open();
             if (_openGroupId is { } id)
             {
-                ShareGroupStore.Update(conn, id, _shareTitle, _shareText, _shareZoneId, _slots, _shareGuests.ToList());
+                ShareGroupStore.Update(conn, id, _shareTitle, _shareText, _shareZoneId, _slots, _shareGuests.ToList(), ShareLink.None);
             }
             else
             {
-                ShareGroupStore.Insert(conn, _shareTitle, _shareText, _shareZoneId, _slots, Now, _shareGuests.ToList());
+                ShareGroupStore.Insert(conn, _shareTitle, _shareText, _shareZoneId, _slots, Now, _shareGuests.ToList(), ShareLink.None);
             }
         }
         catch (Microsoft.Data.Sqlite.SqliteException ex)

@@ -167,4 +167,39 @@ public sealed class SettingsStoreTests : IDisposable
 
         Assert.Equal("Tokyo office - sales HQ", settings.TimeZones[0].Label);
     }
+
+    [Fact]
+    public void Normalize_Scheduling_DropsBlankAndRepeatedProviders_AndClips()
+    {
+        var settings = new LeafSettings
+        {
+            Scheduling = [new("calcom", " https://cal.example.com ", "101"), new("calcom", "", "102"), new(" ", "", "")],
+        }.Normalize();
+
+        var only = Assert.Single(settings.Scheduling);
+        Assert.Equal(("calcom", "https://cal.example.com", "101"), (only.ProviderId, only.Server, only.DefaultLinkId));
+    }
+
+    [Fact]
+    public void BookingNotifications_DefaultsOn() => Assert.True(new LeafSettings().BookingNotifications);
+
+    [Fact]
+    public void WithProvider_ThenWithoutProvider_RoundTrips()
+    {
+        var settings = new LeafSettings().WithProvider(new("calcom", "", "101"));
+        Assert.Equal("101", settings.ProviderSettingsFor("calcom").DefaultLinkId);
+        Assert.Empty(settings.WithoutProvider("calcom").Scheduling);
+        Assert.Equal("", new LeafSettings().ProviderSettingsFor("calcom").DefaultLinkId);
+    }
+
+    [Fact]
+    public void Scheduling_SurvivesTheJsonRoundTrip()
+    {
+        var saved = new LeafSettings().WithProvider(new("calcom", "https://cal.example.com", "101"));
+
+        var json = System.Text.Json.JsonSerializer.Serialize(saved, LeafJsonContext.Default.LeafSettings);
+        var loaded = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
+
+        Assert.Equal(new ProviderSettings("calcom", "https://cal.example.com", "101"), Assert.Single(loaded.Scheduling));
+    }
 }
