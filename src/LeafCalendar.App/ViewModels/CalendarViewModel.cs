@@ -83,6 +83,9 @@ public enum SettingsSection
     /// <summary>Calendar colors and visibility.</summary>
     Calendars,
 
+    /// <summary>Scheduling providers (Cal.com): connect, default link, disconnect.</summary>
+    Scheduling,
+
     /// <summary>Extra time-zone columns.</summary>
     TimeZones,
 

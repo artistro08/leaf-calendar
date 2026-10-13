@@ -1,0 +1,20 @@
+<Page
+    x:Class="LeafCalendar.App.Views.Settings.SchedulingPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer x:Name="PageScroll">
+        <!-- The column sits in a plain Grid, not straight in the scroller: a scroller's content is placed by its scroll
+             engine from its desired width (its natural content width, since MaxWidth counts as a set width), so a
+             capped, stretched column straight in the scroller lands right of center once the window is wider than it -->
+        <Grid>
+            <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
+                <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Scheduling" />
+
+                <!-- One Card Per Provider (built in code from SchedulingProviders.All and each one's setup fields, so a new
+                     provider needs no new page code) -->
+                <StackPanel x:Name="ProviderList" Spacing="4" />
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</Page>

@@ -40,7 +40,7 @@ public sealed record SettingsPageArgs(LeafServices Services, CalendarViewModel C
 /// (<see cref="MainWindow.ShowSettings"/>; the title bar's back button returns to the calendar): a stock left
 /// <see cref="NavigationView"/> (240 wide, collapsing when the window is narrow; the main window's title bar hamburger
 /// opens and closes it) over a frame of setting pages (each fills the view, its column capped and centered): General,
-/// Calendars, Time zones, Notifications, Tray, Shortcuts, Accounts, and About at the bottom of the pane. Every change
+/// Calendars, Scheduling, Time zones, Notifications, Tray, Shortcuts, Accounts, and About at the bottom of the pane. Every change
 /// saves immediately through the shared view model. <see cref="Close"/> ends it: the pages' events are let go, and a
 /// sign-in waiting on the browser is cancelled.
 /// </summary>
@@ -63,6 +63,7 @@ public sealed partial class SettingsPage : Page
         [
             (SettingsSection.General, NavItem("General", 0xE713, "SettingsNav_General"), typeof(GeneralPage)),
             (SettingsSection.Calendars, NavItem("Calendars", 0xE787, "SettingsNav_Calendars"), typeof(CalendarsPage)),
+            (SettingsSection.Scheduling, NavItem("Scheduling", 0xEC92, "SettingsNav_Scheduling"), typeof(SchedulingPage)),
             (SettingsSection.TimeZones, NavItem("Time zones", 0xE774, "SettingsNav_TimeZones"), typeof(TimeZonesPage)),
             (SettingsSection.Notifications, NavItem("Notifications", 0xEA8F, "SettingsNav_Notifications"), typeof(NotificationsPage)),
             (SettingsSection.Tray, NavItem("Tray", 0xE7C4, "SettingsNav_Tray"), typeof(TrayPage)),
