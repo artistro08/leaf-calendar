@@ -23,17 +23,20 @@ public static class FitMessages
 
         if (summary.Kept > 0)
         {
-            messages.Add(string.Create(c, $"Split into {summary.Kept} times of {summary.Minutes} minutes."));
+            messages.Add(string.Create(c, $"Split into {summary.Kept} {(summary.Kept == 1 ? "time" : "times")} of {summary.Minutes} minutes."));
         }
 
+        // Singular wording at one: "1 time", "its full", "half of it"
         if (summary.Stretched > 0)
         {
-            messages.Add(string.Create(c, $"Stretched {summary.Stretched} times to their full {summary.Minutes} minutes, since you picked more than half of each."));
+            var one = summary.Stretched == 1;
+            messages.Add(string.Create(c, $"Stretched {summary.Stretched} {(one ? "time" : "times")} to {(one ? "its" : "their")} full {summary.Minutes} minutes, since you picked more than half of {(one ? "it" : "each")}."));
         }
 
         if (summary.Removed > 0)
         {
-            messages.Add(string.Create(c, $"Removed {summary.Removed} times, since you picked half or less of each."));
+            var one = summary.Removed == 1;
+            messages.Add(string.Create(c, $"Removed {summary.Removed} {(one ? "time" : "times")}, since you picked half or less of {(one ? "it" : "each")}."));
         }
 
         if (summary.NotOpenMinutes > 0 && summary.Kept > 0)

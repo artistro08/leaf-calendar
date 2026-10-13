@@ -284,8 +284,11 @@ Messages over the calendar while scheduling (each its own stacked card; the left
 | Case | Message |
 | --- | --- |
 | Drag split | Split into {n} times of {minutes} minutes. |
+| Drag split, one | Split into 1 time of {minutes} minutes. |
 | Times stretched | Stretched {n} times to their full {minutes} minutes, since you picked more than half of each. |
+| Times stretched, one | Stretched 1 time to its full {minutes} minutes, since you picked more than half of it. |
 | Times removed | Removed {n} times, since you picked half or less of each. |
+| Times removed, one | Removed 1 time, since you picked half or less of it. |
 | Part not open | {duration} wasn't open on Cal.com. |
 | Guests not allowed | This Cal.com link doesn't allow extra guests, so only {first guest} is filled in. |
 | Nothing open | None of that time is open on Cal.com. |
@@ -296,6 +299,8 @@ Messages over the calendar while scheduling (each its own stacked card; the left
 | Approve success | Booked on Cal.com. |
 | Approve, time taken | That time was just taken on Cal.com. Pick another. |
 | Approve, offline | Couldn't reach Cal.com. Nothing was booked. |
+
+The "one" rows are the singular forms for a count of one (owner, 2026-10-12: "1 time" at one).
 
 ## 12. Out of Scope
 
