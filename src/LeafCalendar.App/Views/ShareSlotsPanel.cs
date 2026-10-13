@@ -385,7 +385,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         if (!ReferenceEquals(_linksShown, vm.ShareLinks))
         {
             _linksShown = vm.ShareLinks;
-            _linkBox.ItemsSource = _linksShown.Select(l => string.Create(CultureInfo.CurrentCulture, $"{l.Name} · {l.Minutes} min")).ToList();
+            _linkBox.ItemsSource = _linksShown.Select(l => string.Create(CultureInfo.CurrentCulture, $"{l.Name} Â· {l.Minutes} min")).ToList();
         }
 
         var selected = vm.ShareLink is { } link ? _linksShown.ToList().IndexOf(link) : -1;

@@ -21,7 +21,10 @@ public sealed partial class CalendarPage
     private bool? _detailsBeforeSharing;
 
     // The scheduling messages on screen, by text, each with the timer that fades it out on its own
-    private readonly Dictionary<string, (InfoBar Card, DispatcherQueueTimer Timer)> _shareCards = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ShareCard> _shareCards = new(StringComparer.Ordinal);
+
+    // The view model's ShareMessagesSaid when the cards were last shown (what's newer was just said)
+    private int _shareSaidShown;
 
     // Called once when the page opens: the overlay bar, the share panel (in the details pane), and the view model events
     // they follow
@@ -39,6 +42,7 @@ public sealed partial class CalendarPage
 
         ViewModel.ShareChanged += OnShareChanged;
         ViewModel.ShareMessagesChanged += OnShareMessagesChanged;
+        _shareSaidShown = ViewModel.ShareMessagesSaid;
         ShowShareMessages();
         ViewModel.OverlayChanged += OnOverlayChanged;
         ViewModel.LayoutChanged += OnOverlayChanged;
@@ -51,9 +55,10 @@ public sealed partial class CalendarPage
     {
         ViewModel.ShareChanged -= OnShareChanged;
         ViewModel.ShareMessagesChanged -= OnShareMessagesChanged;
-        foreach (var (_, timer) in _shareCards.Values)
+        foreach (var card in _shareCards.Values)
         {
-            timer.Stop();
+            card.Timer.Stop();
+            card.Fading?.Stop();
         }
 
         _shareCards.Clear();
@@ -133,44 +138,75 @@ public sealed partial class CalendarPage
         }
     }
 
-    // The scheduling messages over the calendar, newest on top: one raised card each (the other toasts' look). A new card
-    // fades in, then fades out on its own after the notice's time and leaves the view model's list; cards already shown
-    // keep their timers, so each goes on its own
+    // The scheduling messages over the calendar, newest on top: one raised card each (the other toasts' look). Cards are
+    // added, moved and removed one by one, so a screen reader reads each new card once and never the ones already there.
+    // A new card fades in, then fades out on its own after the notice's time and leaves the view model's list; a message
+    // said again while shown starts its time over
     private void ShowShareMessages()
     {
         var messages = ViewModel.ShareMessages;
         foreach (var text in _shareCards.Keys.Where(t => !messages.Contains(t)).ToList())
         {
-            _shareCards[text].Timer.Stop();
+            var gone = _shareCards[text];
+            gone.Timer.Stop();
+            gone.Fading?.Stop();
+            ShareMessagesPanel.Children.Remove(gone.Card);
             _shareCards.Remove(text);
         }
 
+        // (the newest that many were just said; cards already shown for them start over)
+        var said = Math.Min(ViewModel.ShareMessagesSaid - _shareSaidShown, messages.Count);
+        _shareSaidShown = ViewModel.ShareMessagesSaid;
+
         // (collapsed while empty, so it adds no gap between the other toasts)
         ShareMessagesPanel.Visibility = messages.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ShareMessagesPanel.Children.Clear();
         for (var i = 0; i < messages.Count; i++)
         {
             var text = messages[i];
-            if (!_shareCards.TryGetValue(text, out var shown))
+            if (!_shareCards.TryGetValue(text, out var card))
             {
-                shown = (NewShareCard(text), NewShareTimer(text));
-                _shareCards[text] = shown;
-                shown.Timer.Start();
+                card = new ShareCard(NewShareCard(text), NewShareTimer(text));
+                _shareCards[text] = card;
+                ShareMessagesPanel.Children.Insert(i, card.Card);
+                card.Timer.Start();
+            }
+            else
+            {
+                if (i < said)
+                {
+                    card.Fading?.Stop();
+                    card.Fading = null;
+                    card.Card.Opacity = 1;
+                    card.Timer.Stop();
+                    card.Timer.Start();
+                }
+
+                var at = ShareMessagesPanel.Children.IndexOf(card.Card);
+                if (at != i)
+                {
+                    ShareMessagesPanel.Children.RemoveAt(at);
+                    ShareMessagesPanel.Children.Insert(i, card.Card);
+                }
             }
 
-            AutomationProperties.SetAutomationId(shown.Card, string.Create(CultureInfo.InvariantCulture, $"ShareMessage_{i}"));
-            ShareMessagesPanel.Children.Add(shown.Card);
+            AutomationProperties.SetAutomationId(card.Card, string.Create(CultureInfo.InvariantCulture, $"ShareMessage_{i}"));
         }
     }
 
     // One message's card: raised like the other toasts, fading in (167 ms) where the system animates, and read out by a
-    // screen reader once it's on screen
+    // screen reader the first time it's on screen only (a card moved up the stack loads again)
     private InfoBar NewShareCard(string text)
     {
         var card = new InfoBar { Style = (Style)Resources["LeafShareMessageStyle"], Message = text, IsOpen = true };
         AutomationProperties.SetName(card, text);
         Float(card);
-        card.Loaded += (_, _) => FrameworkElementAutomationPeer.CreatePeerForElement(card)?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+        void Announce(object sender, RoutedEventArgs e)
+        {
+            card.Loaded -= Announce;
+            FrameworkElementAutomationPeer.CreatePeerForElement(card)?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+        }
+
+        card.Loaded += Announce;
         if (Animates())
         {
             card.Opacity = 0;
@@ -180,7 +216,8 @@ public sealed partial class CalendarPage
         return card;
     }
 
-    // After the notice's time the card fades out (167 ms, linear), then leaves the view model's list
+    // After the notice's time the card fades out (167 ms, linear), then leaves the view model's list (unless it was said
+    // again meanwhile, which cancels the fade)
     private DispatcherQueueTimer NewShareTimer(string text)
     {
         var timer = DispatcherQueue.CreateTimer();
@@ -188,13 +225,21 @@ public sealed partial class CalendarPage
         timer.IsRepeating = false;
         timer.Tick += (_, _) =>
         {
-            if (!_shareCards.TryGetValue(text, out var shown) || !Animates())
+            if (!_shareCards.TryGetValue(text, out var card) || !Animates())
             {
                 ViewModel.DismissShareMessage(text);
                 return;
             }
 
-            Fade(shown.Card, to: 0, easing: null).Completed += (_, _) => ViewModel.DismissShareMessage(text);
+            var fading = Fade(card.Card, to: 0, easing: null);
+            card.Fading = fading;
+            fading.Completed += (_, _) =>
+            {
+                if (ReferenceEquals(card.Fading, fading))
+                {
+                    ViewModel.DismissShareMessage(text);
+                }
+            };
         };
         return timer;
     }
@@ -210,6 +255,16 @@ public sealed partial class CalendarPage
     }
 
     private static bool Animates() => new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
+
+    // A scheduling message's card, its timer, and its fade-out while one runs
+    private sealed class ShareCard(InfoBar card, DispatcherQueueTimer timer)
+    {
+        public InfoBar Card { get; } = card;
+
+        public DispatcherQueueTimer Timer { get; } = timer;
+
+        public Storyboard? Fading { get; set; }
+    }
 
     private void OnShareAvailabilityRequested(object? sender, EventArgs e) => StartShareAvailability();
 

@@ -82,6 +82,12 @@ public static class LeafBrushes
     /// <summary>The darker tint over times the share's booking link has no openings for; none in a contrast theme, like <see cref="OffHours"/>.</summary>
     public static SolidColorBrush ClosedTime(bool dark) => HighContrast ? Transparent : FromHex(ChromeColors.ClosedTime(dark));
 
+    /// <summary>
+    /// The top and bottom edge of a closed-time block: none normally (the tint carries it), the gray-text color in a
+    /// contrast theme, where there's no tint but closed time still decides what a drag does.
+    /// </summary>
+    public static SolidColorBrush ClosedTimeEdge => HighContrast ? SystemBrush(UIElementType.GrayText) : Transparent;
+
     // =========================================================================
     // CONTRAST THEMES
     // =========================================================================

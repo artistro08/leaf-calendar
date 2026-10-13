@@ -537,6 +537,8 @@ public sealed partial class DayColumn : Canvas
         }
 
         var fill = LeafBrushes.ClosedTime(_owner.IsDark);
+        var edge = LeafBrushes.ClosedTimeEdge;
+        var edgeThickness = LeafBrushes.HighContrast ? new Thickness(0, 1, 0, 1) : new Thickness(0);
         for (var i = 0; i < spans.Count; i++)
         {
             if (i == _closedBlocks.Count)
@@ -551,6 +553,8 @@ public sealed partial class DayColumn : Canvas
             var shade = _closedBlocks[i];
             shade.Visibility = Visibility.Visible;
             shade.Background = fill;
+            shade.BorderBrush = edge;
+            shade.BorderThickness = edgeThickness;
             shade.Width = _owner.ColumnWidth;
             shade.Height = Math.Max((bottom - top) / 60 * _owner.HourHeight, 0);
             SetTop(shade, top / 60 * _owner.HourHeight);

@@ -68,6 +68,12 @@ public sealed partial class CalendarViewModel
     /// <summary>The messages over the calendar while sharing, newest first.</summary>
     public IReadOnlyList<string> ShareMessages => _shareMessages;
 
+    /// <summary>
+    /// How many times <see cref="SayShare"/> has run. The newest that many messages (at most all of them) were just said,
+    /// so a card already on screen for one starts its time over.
+    /// </summary>
+    public int ShareMessagesSaid { get; private set; }
+
     /// <summary>A message was added to or removed from <see cref="ShareMessages"/>.</summary>
     public event EventHandler? ShareMessagesChanged;
 
@@ -80,6 +86,7 @@ public sealed partial class CalendarViewModel
         ArgumentNullException.ThrowIfNull(text);
         _shareMessages.Remove(text);
         _shareMessages.Insert(0, text);
+        ShareMessagesSaid++;
         if (_shareMessages.Count > MaxShareMessages)
         {
             _shareMessages.RemoveRange(MaxShareMessages, _shareMessages.Count - MaxShareMessages);
