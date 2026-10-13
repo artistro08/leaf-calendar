@@ -98,6 +98,7 @@ public sealed partial class AccountsPage : Page
         {
             var card = new ProviderAccountCard(_context, info);
             _providerCards.Add(card);
+            ProviderList.Children.Add(new TextBlock { Style = (Style)Application.Current.Resources["LeafSettingsGroupHeaderStyle"], Text = $"{info.Name} OAuth client" });
             ProviderList.Children.Add(card.View);
         }
     }

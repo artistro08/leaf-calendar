@@ -38,6 +38,7 @@ internal sealed class ProviderAccountCard
     private readonly Button _signOut;
     private readonly Button _signIn;
     private readonly InfoBar _error;
+    private readonly InfoBar _success;
     private readonly StackPanel _form;
     private readonly TextBox _clientId;
     private readonly PasswordBox _clientSecret;
@@ -86,6 +87,18 @@ internal sealed class ProviderAccountCard
         _error = new InfoBar { Severity = InfoBarSeverity.Error, IsClosable = false, Visibility = Visibility.Collapsed };
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
         AutomationProperties.SetAutomationId(_error, $"ProviderError_{id}");
+
+        // Success (above the card, after a sign-in; closable, and cleared by the next action)
+        _success = new InfoBar
+        {
+            Severity = InfoBarSeverity.Success,
+            IsClosable = true,
+            Message = $"Successfully signed in to {info.Name}",
+            Visibility = Visibility.Collapsed,
+        };
+        _success.Closed += (_, _) => SetVisible(_success, false);
+        AutomationProperties.SetLiveSetting(_success, AutomationLiveSetting.Polite);
+        AutomationProperties.SetAutomationId(_success, $"ProviderSuccess_{id}");
 
         // Client Form: the guide with a link to the provider's client page, the redirect URI to register (selectable),
         // then the client ID and secret, and Save and Cancel right-aligned like the Google OAuth client form
@@ -142,11 +155,11 @@ internal sealed class ProviderAccountCard
             },
         };
 
-        View = new StackPanel { Spacing = 4, Children = { _row, _error, _form } };
+        View = new StackPanel { Spacing = 4, Children = { _success, _row, _error, _form } };
         Refresh();
     }
 
-    /// <summary>The card, its error and its client form, for the page to place.</summary>
+    /// <summary>The success message, the card, its error and its client form, for the page to place.</summary>
     public StackPanel View { get; }
 
     private SchedulingHub Hub => _context.Services.Scheduling;
@@ -210,9 +223,16 @@ internal sealed class ProviderAccountCard
 
     private void ShowError(string? message)
     {
+        ShowSuccess(false);
         _error.Message = message ?? "";
         _error.IsOpen = message is not null;
         SetVisible(_error, message is not null);
+    }
+
+    private void ShowSuccess(bool show)
+    {
+        _success.IsOpen = show;
+        SetVisible(_success, show);
     }
 
     // Opens or closes the client form; closing clears both boxes, so the secret never lingers
@@ -260,6 +280,16 @@ internal sealed class ProviderAccountCard
         Refresh();
     }
 
+    // Logs why a sign-in failed: Leaf's own fixed exception text and the inner exception's type (plus a JSON path), never
+    // anything Cal.com sent or any secret
+    private void LogSignInFailure(Exception ex)
+    {
+        var reason = ex is SchedulingAuthException or SchedulingUnavailableException ? ex.Message : "";
+        var inner = ex.InnerException is { } i ? i.GetType().Name : "";
+        var path = ex.InnerException is System.Text.Json.JsonException { Path: { } p } ? p : "";
+        _context.Services.Log.Info("scheduling.accounts.signin.failed", $"provider={_info.Id} error={ex.GetType().Name} reason=\"{reason}\" inner={inner} path={path}");
+    }
+
     // Sign in (or sign in again) through the browser, with Cancel; a refusal or failure says why and saves nothing
     private async void OnSignInClick(object sender, RoutedEventArgs e)
     {
@@ -279,13 +309,15 @@ internal sealed class ProviderAccountCard
         try
         {
             await Hub.SignInAsync(_info.Id, services.OpenSignInPageAsync, cts.Token);
+            ShowSuccess(true);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
             // Canceled (Cancel, or the page let go): nothing was saved, so there's nothing to say
         }
-        catch (SchedulingAuthException)
+        catch (SchedulingAuthException ex)
         {
+            LogSignInFailure(ex);
             ShowError($"{_info.Name} didn't accept this OAuth client. Check the client ID and secret, and that the redirect URI is registered.");
         }
         catch (SchedulingPortBusyException)
@@ -294,6 +326,7 @@ internal sealed class ProviderAccountCard
         }
         catch (Exception ex) when (ex is SchedulingUnavailableException or InvalidDataException)
         {
+            LogSignInFailure(ex);
             ShowError($"Couldn't reach {_info.Name}. Check your connection and try again.");
         }
         catch (TimeoutException)
@@ -308,7 +341,7 @@ internal sealed class ProviderAccountCard
         }
         catch (Exception ex)
         {
-            services.Log.Info("scheduling.accounts.signin.failed", $"provider={_info.Id} error={ex.GetType().Name}");
+            LogSignInFailure(ex);
             ShowError(GenericFailure);
         }
         finally
