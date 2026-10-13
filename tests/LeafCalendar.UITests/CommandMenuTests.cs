@@ -369,7 +369,7 @@ public sealed class CommandMenuTests : IDisposable
         WaitForFirstRow(leaf, "CommandResult_settings");
 
         Assert.Equal("Settings › About", leaf.WaitForAnywhere("CommandResult_settings-about").Name);
-        Assert.Equal(9, RowIds(leaf).Count(id => id.StartsWith("CommandResult_settings", StringComparison.Ordinal)));
+        Assert.Equal(10, RowIds(leaf).Count(id => id.StartsWith("CommandResult_settings", StringComparison.Ordinal)));
     }
 
     // Jump to date keeps its footer before a date is typed, and says when what's typed isn't a date
