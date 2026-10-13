@@ -1,30 +1,28 @@
 using System.Globalization;
 using LeafCalendar.App.Controls;
-using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Scheduling;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
-using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
-/// Settings › Scheduling (scheduling providers spec 9.1): one card per provider in <see cref="SchedulingProviders.All"/>.
-/// Signed in, it picks the default link and signs out; when the provider refused its sign-in, it says so.
+/// Settings › Scheduling (scheduling providers spec 9.1): one Default link card per signed-in provider. Signing in and out
+/// lives in Settings › Accounts; the Settings list only shows this page while a provider is signed in (or needs
+/// reconnecting).
 /// </summary>
 /// <remarks>
-/// TODO: stopgap until Task R4 moves signing in to Settings › Accounts; the old API key form is gone, so there's no way
-/// to connect from here. The hub's <see cref="SchedulingHub.Changed"/> is raised on any thread, so it's marshaled to the
-/// UI thread, and it's only listened to while the page is loaded.
+/// The hub's <see cref="SchedulingHub.Changed"/> is raised on any thread, so it's marshaled to the UI thread, and it's
+/// only listened to while the page is loaded (and let go when Settings closes on this page).
 /// </remarks>
 public sealed partial class SchedulingPage : Page
 {
-    // Segoe Fluent "DateTime", not used by another Settings nav item
+    // Segoe Fluent "DateTime", the Scheduling nav item's icon
     private const string Glyph = "";
 
-    private readonly List<ProviderCard> _cards = [];
+    private readonly List<LinkCard> _cards = [];
     private SettingsContext _context = null!;
     private bool _loaded;
 
@@ -44,9 +42,9 @@ public sealed partial class SchedulingPage : Page
         _context.Host.Closed += OnHostClosed;
         foreach (var info in SchedulingProviders.All)
         {
-            var card = new ProviderCard(this, info);
+            var card = new LinkCard(this, info);
             _cards.Add(card);
-            ProviderList.Children.Add(card.Expander);
+            ProviderList.Children.Add(card.Row);
         }
     }
 
@@ -70,18 +68,13 @@ public sealed partial class SchedulingPage : Page
 
     private void OnUnloaded(object sender, RoutedEventArgs e) => Release();
 
-    // Stops following the hub and hides every card's error
     private void Release()
     {
         _context.Services.Scheduling.Changed -= OnSchedulingChanged;
         _loaded = false;
-        foreach (var card in _cards)
-        {
-            card.ShowError(null);
-        }
     }
 
-    // Raised on any thread (a sign-in, a sign-out, or the sync finding the sign-in refused)
+    // Raised on any thread (a sign-in, a sign-out, or a provider signing Leaf out)
     private void OnSchedulingChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(Refresh);
 
     private void Refresh()
@@ -97,117 +90,52 @@ public sealed partial class SchedulingPage : Page
         }
     }
 
-    private static Style StyleOf(string key) => (Style)Application.Current.Resources[key];
-
     // "30 min meeting · 30 min"
     private static string LinkLabel(SchedulingLink link) => string.Create(CultureInfo.CurrentCulture, $"{link.Name} · {link.Minutes} min");
 
     // =========================================================================
-    // PROVIDER CARD
+    // LINK CARD
     // =========================================================================
 
-    // One provider's expander: the header names it, and the body holds the error bar, then the signed-in rows (default
-    // link, Disconnect)
-    private sealed class ProviderCard
+    // One provider's Default link card, shown while it's signed in (or needs reconnecting, when its links can't load)
+    private sealed class LinkCard
     {
         private readonly SchedulingPage _page;
         private readonly SchedulingProviderInfo _info;
-        private readonly SettingRow _header;
-        private readonly InfoBar _error;
-        private readonly StackPanel _connectedRows;
         private readonly ComboBox _links;
-        private readonly Button _disconnect;
         private List<SchedulingLink> _shownLinks = [];
-        private ProviderState? _state;
         private int _linksGeneration;
         private bool _loading;
 
-        public ProviderCard(SchedulingPage page, SchedulingProviderInfo info)
+        public LinkCard(SchedulingPage page, SchedulingProviderInfo info)
         {
             _page = page;
             _info = info;
-            var id = info.Id;
-            var itemRow = StyleOf("LeafExpanderItemRowStyle");
-
-            // Header
-            _header = new SettingRow
-            {
-                Style = StyleOf("LeafExpanderHeaderRowStyle"),
-                Glyph = Glyph,
-                Header = info.Name,
-                Description = info.Description,
-            };
-
-            // Error (collapsed while closed: a closed InfoBar still takes its margin)
-            _error = new InfoBar { Severity = InfoBarSeverity.Error, IsClosable = false, Margin = new Thickness(48, 12, 16, 0), Visibility = Visibility.Collapsed };
-            AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
-            AutomationProperties.SetAutomationId(_error, $"SchedulingError_{id}");
-
-            // Connected Rows (default link, then Disconnect)
             _links = new ComboBox { Width = 240 };
             AutomationProperties.SetName(_links, "Default link");
-            AutomationProperties.SetAutomationId(_links, $"SchedulingDefaultLink_{id}");
+            AutomationProperties.SetAutomationId(_links, $"SchedulingDefaultLink_{info.Id}");
             _links.SelectionChanged += (_, _) => OnLinkChanged();
-            _disconnect = new Button { Content = "Disconnect" };
-            AutomationProperties.SetAutomationId(_disconnect, $"SchedulingDisconnect_{id}");
-            _disconnect.Click += OnDisconnectClick;
-            _connectedRows = new StackPanel
-            {
-                Children =
-                {
-                    new SettingRow { Style = itemRow, BorderThickness = new Thickness(0), Header = "Default link", Content = _links },
-                    new SettingRow { Style = itemRow, Header = "Disconnect", Content = _disconnect },
-                },
-            };
 
-            // Card
-            Expander = new Expander
-            {
-                Style = StyleOf("LeafSettingExpanderStyle"),
-                Header = _header,
-                Content = new StackPanel { Children = { _error, _connectedRows } },
-            };
-            AutomationProperties.SetName(Expander, info.Name);
-            AutomationProperties.SetAutomationId(Expander, $"SchedulingCard_{id}");
-            Expander.Collapsed += (_, _) => ShowError(null);
+            Row = new SettingRow { Glyph = Glyph, Header = "Default link", Description = info.Name, Content = _links, Visibility = Visibility.Collapsed };
+            AutomationProperties.SetName(Row, info.Name);
+            AutomationProperties.SetAutomationId(Row, $"SchedulingCard_{info.Id}");
         }
 
-        public Expander Expander { get; }
+        public SettingRow Row { get; }
 
-        private string Unreachable => $"Couldn't reach {_info.Name}. Check your connection and try again.";
-
-        // Shows the provider's state; a change of state (signed in, signed out, or the sign-in refused) opens the card on
-        // its links or closes it
         public void Refresh()
         {
             var state = _page._context.Services.Scheduling.StateOf(_info.Id);
-            var connected = state == ProviderState.SignedIn;
-            var refused = state == ProviderState.NeedsReconnect;
-
-            _header.Description = refused ? $"{_info.Name} stopped accepting your API key. Reconnect to keep sharing booking links." : _info.Description;
-            _connectedRows.Visibility = connected ? Visibility.Visible : Visibility.Collapsed;
-
-            if (_state is not null && _state != state)
-            {
-                ShowError(null);
-                Expander.IsExpanded = connected;
-            }
-
-            _state = state;
-            if (connected)
+            var shown = state is ProviderState.SignedIn or ProviderState.NeedsReconnect;
+            Row.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+            if (shown)
             {
                 LoadLinks();
             }
         }
 
-        public void ShowError(string? message)
-        {
-            _error.Message = message ?? "";
-            _error.IsOpen = message is not null;
-            _error.Visibility = message is null ? Visibility.Collapsed : Visibility.Visible;
-        }
-
-        // This provider's links in the dropdown, the saved default picked; only the newest read lands
+        // This provider's links in the dropdown, the saved default picked (the first when none is saved, as the share
+        // panel does); only the newest read lands
         private async void LoadLinks()
         {
             var generation = ++_linksGeneration;
@@ -223,7 +151,7 @@ public sealed partial class SchedulingPage : Page
                 _shownLinks = [.. links.Where(l => l.ProviderId == _info.Id)];
                 _loading = true;
                 _links.ItemsSource = _shownLinks.Select(LinkLabel).ToList();
-                _links.SelectedIndex = _shownLinks.FindIndex(l => l.Id == saved);
+                _links.SelectedIndex = _shownLinks.Count == 0 ? -1 : Math.Max(_shownLinks.FindIndex(l => l.Id == saved), 0);
             }
             catch (Exception ex)
             {
@@ -246,47 +174,6 @@ public sealed partial class SchedulingPage : Page
             var id = _info.Id;
             var linkId = _shownLinks[index].Id;
             _page._context.Save(s => s.WithProvider(s.ProviderSettingsFor(id) with { DefaultLinkId = linkId }));
-        }
-
-        // Disconnect: signs out first (a failure there keeps the card signed in), then the settings, then the
-        // provider's saved groups become plain groups (off the UI thread) and the calendar reloads them. The button is
-        // off meanwhile, so a double click can't run it twice.
-        private async void OnDisconnectClick(object sender, RoutedEventArgs e)
-        {
-            var services = _page._context.Services;
-            var id = _info.Id;
-            _disconnect.IsEnabled = false;
-            try
-            {
-                services.Scheduling.SignOut(id);
-            }
-            catch (Exception ex)
-            {
-                // TODO: the spec has no text for a key that couldn't be removed from this PC; the closest error shows until the owner picks one
-                services.Log.Info("scheduling.settings.disconnect.failed", $"provider={id} error={ex.GetType().Name}");
-                ShowError(Unreachable);
-                _disconnect.IsEnabled = true;
-                return;
-            }
-
-            _page._context.Save(s => s.WithoutProvider(id));
-            try
-            {
-                await Task.Run(() =>
-                {
-                    using var conn = services.Database.Open();
-                    ShareGroupStore.ClearProvider(conn, id);
-                });
-                _page._context.Calendar.ReloadGroups();
-            }
-            catch (Exception ex)
-            {
-                services.Log.Info("scheduling.settings.groups.clear.failed", $"provider={id} error={ex.GetType().Name}");
-            }
-            finally
-            {
-                _disconnect.IsEnabled = true;
-            }
         }
     }
 }

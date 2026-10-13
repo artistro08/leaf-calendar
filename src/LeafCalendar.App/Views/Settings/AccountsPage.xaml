@@ -128,6 +128,11 @@
                     </StackPanel>
                 </controls:SettingRow>
 
+                <!-- Scheduling Providers (one card per provider, built in code from SchedulingProviders.All, so a new OAuth
+                     provider needs no new page code) -->
+                <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Scheduling" />
+                <StackPanel x:Name="ProviderList" Spacing="4" />
+
                 <!-- New Events -->
                 <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="New events" />
                 <controls:SettingRow Glyph="&#xED0E;" Header="Default calendar" Description="Where new events go. Leaf uses this instead of Google's default.">

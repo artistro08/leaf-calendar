@@ -31,7 +31,7 @@ public interface ITokenStore
     /// <summary>IDs of accounts that have a refresh token.</summary>
     IReadOnlyList<string> GetAccountIds();
 
-    /// <summary>Returns a scheduling provider's secret value (such as its API key), or null.</summary>
+    /// <summary>Returns a scheduling provider's secret value (such as its OAuth client secret or refresh token), or null.</summary>
     string? GetProviderSecret(string providerId, string key);
 
     /// <summary>Saves (replaces) a scheduling provider's secret value.</summary>

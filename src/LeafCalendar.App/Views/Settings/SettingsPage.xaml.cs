@@ -1,4 +1,5 @@
 using LeafCalendar.App.ViewModels;
+using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Settings;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -40,8 +41,8 @@ public sealed record SettingsPageArgs(LeafServices Services, CalendarViewModel C
 /// (<see cref="MainWindow.ShowSettings"/>; the title bar's back button returns to the calendar): a stock left
 /// <see cref="NavigationView"/> (240 wide, collapsing when the window is narrow; the main window's title bar hamburger
 /// opens and closes it) over a frame of setting pages (each fills the view, its column capped and centered): General,
-/// Calendars, Scheduling, Time zones, Notifications, Tray, Shortcuts, Accounts, and About at the bottom of the pane. Every change
-/// saves immediately through the shared view model. <see cref="Close"/> ends it: the pages' events are let go, and a
+/// Calendars, Scheduling (only while a scheduling provider is signed in), Time zones, Notifications, Tray, Shortcuts,
+/// Accounts, and About at the bottom of the pane. Every change saves immediately through the shared view model. <see cref="Close"/> ends it: the pages' events are let go, and a
 /// sign-in waiting on the browser is cancelled.
 /// </summary>
 public sealed partial class SettingsPage : Page
@@ -52,6 +53,7 @@ public sealed partial class SettingsPage : Page
     private AccountsViewModel? _accounts;
     private SettingsSection? _shown;
     private bool _inClientForm;
+    private bool _closed;
 
     /// <summary>Creates the view (the main window's Settings frame navigates to it with <see cref="SettingsPageArgs"/>).</summary>
     public SettingsPage()
@@ -88,6 +90,10 @@ public sealed partial class SettingsPage : Page
         // Follow The Calendar's Settings (pages show them)
         _calendar.LayoutChanged += OnLayoutChanged;
         _calendar.CalendarsChanged += OnCalendarsChanged;
+
+        // Follow The Scheduling Providers (the Scheduling item shows only while one is signed in)
+        args.Services.Scheduling.Changed += OnSchedulingChanged;
+        UpdateSchedulingItem();
 
         // The First Page Once The View Has Its Size: shown now, while the frame is still being laid out (it was collapsed, and
         // the drill-in is starting), the navigation picks its pane mode from a stale width and the page's centered column
@@ -126,6 +132,12 @@ public sealed partial class SettingsPage : Page
     /// <summary>Shows a page (without a transition the first time, then with the stock drill-in; back from the OAuth client form it slides back).</summary>
     public void Show(SettingsSection section)
     {
+        // Scheduling Hidden (no provider signed in): General instead
+        if (section == SettingsSection.Scheduling && !SchedulingShown)
+        {
+            section = SettingsSection.General;
+        }
+
         if (_shown == section)
         {
             return;
@@ -162,6 +174,8 @@ public sealed partial class SettingsPage : Page
     {
         _calendar.LayoutChanged -= OnLayoutChanged;
         _calendar.CalendarsChanged -= OnCalendarsChanged;
+        _context.Services.Scheduling.Changed -= OnSchedulingChanged;
+        _closed = true;
         Closed?.Invoke(this, EventArgs.Empty);
         _accounts?.CancelSignIn();
     }
@@ -199,6 +213,29 @@ public sealed partial class SettingsPage : Page
                 Show(page.Section);
                 return;
             }
+        }
+    }
+
+    // True while a scheduling provider is signed in or needs reconnecting (spec 9.1)
+    private bool SchedulingShown =>
+        SchedulingProviders.All.Any(p => _context.Services.Scheduling.StateOf(p.Id) is ProviderState.SignedIn or ProviderState.NeedsReconnect);
+
+    // Raised on any thread (a sign-in, a sign-out, or a provider signing Leaf out)
+    private void OnSchedulingChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(UpdateSchedulingItem);
+
+    // Shows or hides the Scheduling item; when it hides with its page open, General shows instead
+    private void UpdateSchedulingItem()
+    {
+        if (_closed)
+        {
+            return;
+        }
+
+        var shown = SchedulingShown;
+        _pages.Find(p => p.Section == SettingsSection.Scheduling).Item.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        if (!shown && _shown == SettingsSection.Scheduling)
+        {
+            Show(SettingsSection.General);
         }
     }
 

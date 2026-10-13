@@ -83,7 +83,7 @@ public enum SettingsSection
     /// <summary>Calendar colors and visibility.</summary>
     Calendars,
 
-    /// <summary>Scheduling providers (Cal.com): connect, default link, disconnect.</summary>
+    /// <summary>Scheduling providers (Cal.com): the default link, shown only while one is signed in.</summary>
     Scheduling,
 
     /// <summary>Extra time-zone columns.</summary>

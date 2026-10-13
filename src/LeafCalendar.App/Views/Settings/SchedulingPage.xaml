@@ -11,8 +11,8 @@
             <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
                 <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Scheduling" />
 
-                <!-- One Card Per Provider (built in code from SchedulingProviders.All and each one's setup fields, so a new
-                     provider needs no new page code) -->
+                <!-- One Default Link Card Per Signed-In Provider (built in code from SchedulingProviders.All, so a new provider
+                     needs no new page code) -->
                 <StackPanel x:Name="ProviderList" Spacing="4" />
             </StackPanel>
         </Grid>
