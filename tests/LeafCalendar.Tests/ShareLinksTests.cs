@@ -1,0 +1,84 @@
+using LeafCalendar.Core.Google;
+using LeafCalendar.Core.Scheduling;
+
+namespace LeafCalendar.Tests;
+
+public class ShareLinksTests
+{
+    private static readonly CalComProvider Cal = new(new HttpClient(), _ => Task.FromResult("at-x"), CalComProvider.DefaultApiBase);
+    private static readonly SchedulingLink Link = new("calcom", "101", "30 min", 30, new Uri("https://cal.com/leaf-tester/30min"), AllowsGuests: false);
+    private static readonly TimeZoneInfo Chicago = TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");
+    private static readonly DateTimeOffset Ten = new(2026, 10, 13, 15, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void Build_SplitsAndLinksEachTime()
+    {
+        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddHours(1))], null, [], "Pick one:\r\n{times}", null, Chicago, use24Hour: false);
+
+        Assert.Equal(
+            "Pick one:\r\nTue Oct 13, 10–10:30 AM CT: https://cal.com/leaf-tester/30min?date=2026-10-13&slot=2026-10-13T15:00:00.000Z\r\n"
+            + "Tue Oct 13, 10:30–11 AM CT: https://cal.com/leaf-tester/30min?date=2026-10-13&slot=2026-10-13T15:30:00.000Z",
+            result.Plain);
+        Assert.Equal(2, result.Html.Split("<a href=", StringSplitOptions.None).Length - 1);
+        Assert.False(result.GuestsDropped);
+    }
+
+    [Fact]
+    public void Build_Note_AddedOnItsOwnLineAtTheEnd_HtmlEncoded()
+    {
+        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddMinutes(30))], null, [], "Pick one:", "Book one <or> reply", Chicago, false);
+
+        Assert.EndsWith("15:00:00.000Z\r\nBook one <or> reply", result.Plain, StringComparison.Ordinal);
+        Assert.EndsWith("</a><br>Book one &lt;or&gt; reply", result.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Build_BlankNote_AddsNothing()
+    {
+        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddMinutes(30))], null, [], "", "  ", Chicago, false);
+
+        Assert.EndsWith("15:00:00.000Z", result.Plain, StringComparison.Ordinal);
+        Assert.EndsWith("</a>", result.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Build_RangeWithNoOpenTimeLeft_LeftOutAndFlagged()
+    {
+        var open = new List<BusyRange> { new(Ten, Ten.AddMinutes(30)) };
+        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddMinutes(30)), new BusyRange(Ten.AddHours(4), Ten.AddHours(5))], open, [], "", null, Chicago, false);
+
+        Assert.True(result.RangesDropped);
+        Assert.Single(result.Plain.Split("\r\n"));
+    }
+
+    [Fact]
+    public void Build_EveryRangeHasOpenTime_NotFlagged()
+    {
+        var open = new List<BusyRange> { new(Ten, Ten.AddMinutes(30)) };
+        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddHours(1))], open, [], "", null, Chicago, false);
+
+        Assert.False(result.RangesDropped);
+    }
+
+    [Fact]
+    public void Build_TwoGuestsOnLinkWithoutGuests_FlagsDropped()
+    {
+        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddMinutes(30))], null, [new("", "a@example.com"), new("", "b@example.com")], "", null, Chicago, false);
+
+        Assert.True(result.GuestsDropped);
+        Assert.Contains("a%40example.com", result.Plain, StringComparison.Ordinal);
+        Assert.DoesNotContain("b%40example.com", result.Plain, StringComparison.Ordinal);
+        Assert.DoesNotContain("b@example.com", result.Plain, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Build_GuestNameWithSpace_StaysEscapedInPlainAndHtml()
+    {
+        var result = ShareLinks.Build(Cal, Link, [new BusyRange(Ten, Ten.AddMinutes(30))], null, [new("Ann Lee", "ann@example.com")], "", null, Chicago, false);
+
+        Assert.Contains("name=Ann%20Lee", result.Plain, StringComparison.Ordinal);
+        Assert.Contains("name=Ann%20Lee", result.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ann Lee", result.Plain, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ann Lee", result.Html, StringComparison.Ordinal);
+    }
+}

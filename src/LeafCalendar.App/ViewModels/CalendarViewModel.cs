@@ -83,6 +83,9 @@ public enum SettingsSection
     /// <summary>Calendar colors and visibility.</summary>
     Calendars,
 
+    /// <summary>Scheduling providers (Cal.com): the default link, shown only while one is signed in.</summary>
+    Scheduling,
+
     /// <summary>Extra time-zone columns.</summary>
     TimeZones,
 
@@ -178,6 +181,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         services.Editor.LocalZoneId = TimeZoneCatalog.IanaId(UserZone);
         services.Editor.Changed += OnEditsChanged;
         services.Conflicts.Changed += OnEditsChanged;
+        services.Scheduling.Changed += OnSchedulingChanged;
         RefreshSyncState();
         ReloadGroups();
 
@@ -1185,6 +1189,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         _services.GoogleChanged -= OnGoogleChanged;
         _services.Editor.Changed -= OnEditsChanged;
         _services.Conflicts.Changed -= OnEditsChanged;
+        _services.Scheduling.Changed -= OnSchedulingChanged;
         if (_attachedSync is not null)
         {
             _attachedSync.DataChanged -= OnSyncDataChanged;
@@ -2073,6 +2078,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         if (e.PropertyName is nameof(PeriodStart) or nameof(SelectedInfo) or nameof(Selection) or nameof(Editing))
         {
             _services?.Log.Trace("vm.changed", e.PropertyName);
+        }
+
+        // Paging while sharing with a booking link asks for the new days' open times
+        if (e.PropertyName == nameof(PeriodStart))
+        {
+            OnSchedulingPeriodChanged();
         }
 
         base.OnPropertyChanged(e);

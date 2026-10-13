@@ -50,6 +50,9 @@ public static class ToastContent
     /// <summary>Group of "Sign in again" notifications.</summary>
     public const string SignInGroup = "signin";
 
+    /// <summary>Group of "Someone booked" notifications.</summary>
+    public const string BookingGroup = "bookings";
+
     /// <summary>Group of short notices ("No meeting to join").</summary>
     public const string NoticeGroup = "notices";
 
@@ -71,6 +74,14 @@ public static class ToastContent
         var day = o.IsAllDay ? o.AllDayStart : DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(o.Start, zone).DateTime);
         var date = TrayAgenda.DayHeader(day, today);
         return o.IsAllDay ? date + Dot + "All day" : date + Dot + TimeLabels.Range(o.Start, o.End, zone, use24Hour);
+    }
+
+    /// <summary>"Today &#x00B7; 2 PM" or "Saturday, October 3 &#x00B7; 9 AM": an instant's day and time in the zone, for a booking (no end).</summary>
+    public static string WhenAt(DateTimeOffset start, TimeZoneInfo zone, bool use24Hour, DateTimeOffset now)
+    {
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
+        var day = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(start, zone).DateTime);
+        return TrayAgenda.DayHeader(day, today) + Dot + TimeLabels.TimeOfDay(start, zone, use24Hour);
     }
 
     /// <summary>
@@ -160,6 +171,17 @@ public static class ToastContent
             new ToastArgs(ToastAction.SignIn, profile, accountId),
             null,
             ["Sign in again", $"Leaf can't sync {email} anymore. Sign in again in Settings to keep it up to date."],
+            [],
+            sound);
+
+    /// <summary>"Name booked time" (or "Someone booked time" with no name); clicking opens the main window on that day.</summary>
+    public static ToastMessage Booking(string bookingId, string attendeeName, string when, DateTimeOffset start, string profile, bool sound) =>
+        Build(
+            "booking-" + Alert.TagFor(bookingId),
+            BookingGroup,
+            new ToastArgs(ToastAction.OpenDay, profile, Start: start),
+            null,
+            [$"{(string.IsNullOrWhiteSpace(attendeeName) ? "Someone" : attendeeName)} booked {when}"],
             [],
             sound);
 

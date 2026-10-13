@@ -8,6 +8,7 @@ using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.Hosting;
+using LeafCalendar.Core.Scheduling;
 using Microsoft.Windows.System.Power;
 using Windows.Networking.Connectivity;
 using Windows.System;
@@ -26,7 +27,11 @@ public sealed class LeafServices : IAsyncDisposable
     // How often secrets that can't be read right now are tried again
     private static readonly TimeSpan SecretsRetry = TimeSpan.FromSeconds(30);
 
+    // The longest one scheduling provider call may hold up a Google sync pass
+    private static readonly TimeSpan SchedulingTimeout = TimeSpan.FromSeconds(20);
+
     private readonly HttpClient _http;
+    private readonly HttpClient _schedulingHttp;
     private ITimer? _secretsRetry;
 
     /// <summary>Creates services for a profile under the package's local folder.</summary>
@@ -54,6 +59,14 @@ public sealed class LeafServices : IAsyncDisposable
 
         // Google only compresses its answers when the user agent says "gzip" too
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("LeafCalendar (gzip)");
+
+        // Scheduling Providers (built from saved keys now and when unreadable secrets recover; under --fake-google they talk to the fake too).
+        // Their own client: no Google retries and a short timeout, since the booking check runs inside every Google sync pass.
+        _schedulingHttp = new HttpClient(new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All }) { Timeout = SchedulingTimeout };
+        _schedulingHttp.DefaultRequestHeaders.UserAgent.ParseAdd("LeafCalendar");
+        Scheduling = new SchedulingHub(_schedulingHttp, Tokens, Log, Time, options.FakeGoogle);
+        Bookings = new BookingWatcher(Scheduling, Database, Log, Time);
+        LoadScheduling();
 
         // Sync Triggers
         NetworkInformation.NetworkStatusChanged += OnNetworkStatusChanged;
@@ -92,6 +105,12 @@ public sealed class LeafServices : IAsyncDisposable
 
     /// <summary>Global shortcuts (registered once the tray icon exists).</summary>
     public GlobalShortcuts Shortcuts { get; }
+
+    /// <summary>The connected scheduling providers (Cal.com and others) and their cached links.</summary>
+    public SchedulingHub Scheduling { get; }
+
+    /// <summary>Checks saved times for bookings after each sync pass.</summary>
+    public BookingWatcher Bookings { get; }
 
     /// <summary>Google services, or null before the OAuth client is set up.</summary>
     public GoogleServices? Google { get; private set; }
@@ -197,6 +216,7 @@ public sealed class LeafServices : IAsyncDisposable
         }
 
         _http.Dispose();
+        _schedulingHttp.Dispose();
     }
 
     /// <summary>
@@ -333,7 +353,7 @@ public sealed class LeafServices : IAsyncDisposable
             return null;
         }
 
-        var google = new GoogleServices(_http, credentials, Tokens, Database, Log, Time, Endpoints);
+        var google = new GoogleServices(_http, credentials, Tokens, Database, Log, Time, Endpoints, afterSync: Bookings.CheckAsync);
         google.Loop.Start();
         return google;
     }
@@ -357,6 +377,7 @@ public sealed class LeafServices : IAsyncDisposable
         }
 
         timer.Dispose();
+        LoadScheduling();
         try
         {
             if (Google is null)
@@ -368,6 +389,19 @@ public sealed class LeafServices : IAsyncDisposable
         {
             // A timer callback, so nothing may escape
             Log.Error("google.retry.failed", ex);
+        }
+    }
+
+    // Builds the signed-in scheduling providers from their saved secrets; at startup and from a timer, so nothing may escape
+    private void LoadScheduling()
+    {
+        try
+        {
+            Scheduling.Load();
+        }
+        catch (Exception ex)
+        {
+            Log.Info("scheduling.load.failed", $"error={ex.GetType().Name}");
         }
     }
 

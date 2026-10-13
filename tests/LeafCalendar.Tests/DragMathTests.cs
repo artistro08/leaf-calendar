@@ -245,4 +245,38 @@ public class DragMathTests
     [Fact]
     public void AllDayRange_DraggedLeft_CoversEveryDay() =>
         Assert.Equal((Utc(9, 29, 0), Utc(10, 2, 0)), DragMath.AllDayRange(Oct1, Oct1.AddDays(-2)));
+
+    [Fact]
+    public void MoveRange_KeepsLengthAndSnaps()
+    {
+        var zone = TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");
+        var start = new DateTimeOffset(2026, 10, 13, 15, 0, 0, TimeSpan.Zero);
+
+        var (s, e) = DragMath.MoveRange(start, start.AddMinutes(45), start.AddMinutes(10), start.AddMinutes(10 + 37), zone);
+
+        Assert.Equal(start.AddMinutes(30), s);   // +37 minutes snaps to +30
+        Assert.Equal(TimeSpan.FromMinutes(45), e - s);
+    }
+
+    [Fact]
+    public void MoveRange_ToAnotherDay()
+    {
+        var zone = TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");
+        var start = new DateTimeOffset(2026, 10, 13, 15, 0, 0, TimeSpan.Zero);
+
+        var (s, _) = DragMath.MoveRange(start, start.AddHours(1), start, start.AddDays(1), zone);
+
+        Assert.Equal(start.AddDays(1), s);
+    }
+
+    [Fact]
+    public void MoveRange_AcrossFallBack_KeepsInstantLength()
+    {
+        var zone = TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");
+        var start = new DateTimeOffset(2026, 10, 31, 15, 0, 0, TimeSpan.Zero);
+
+        var (s, e) = DragMath.MoveRange(start, start.AddHours(1), start, start.AddDays(1), zone);
+
+        Assert.Equal(TimeSpan.FromHours(1), e - s);
+    }
 }

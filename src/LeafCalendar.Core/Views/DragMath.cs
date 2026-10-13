@@ -96,6 +96,16 @@ public static class DragMath
             : (start, moved < start + step ? start + step : moved);
     }
 
+    /// <summary>
+    /// A picked time grabbed at <paramref name="grabbedAt"/> and dropped at <paramref name="pointerAt"/>: its start moves by
+    /// the same amount and snaps, and it keeps its length (an instant length, so a DST day doesn't stretch it).
+    /// </summary>
+    public static (DateTimeOffset Start, DateTimeOffset End) MoveRange(DateTimeOffset start, DateTimeOffset end, DateTimeOffset grabbedAt, DateTimeOffset pointerAt, TimeZoneInfo zone)
+    {
+        var moved = Snap(start + (pointerAt - grabbedAt), zone);
+        return (moved, moved + (end - start));
+    }
+
     /// <summary>The range a create drag covers, in either direction (a single step when both ends snap together).</summary>
     public static (DateTimeOffset Start, DateTimeOffset End) CreateRange(DateTimeOffset anchor, DateTimeOffset pointerAt, TimeZoneInfo zone)
     {

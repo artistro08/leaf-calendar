@@ -123,7 +123,7 @@ Saved groups' times are drawn even when not sharing. The faded, lined look of ev
 
 - Within 6 DIP of a slot's top or bottom edge (the event resize grip's size): a new `DragKind.ResizeSlot` drag, holding which edge, which group (or the open picks) and which slot.
 - A click within a saved time (`OpenSlotAt`), while not sharing or editing, opens that group; a click in the edge strip just outside the time is on empty time. A drag inside a saved time, away from its edges, starts a normal new-event drag, as on empty time.
-- Inside an open slot (not an edge) while sharing: a drag picks a new time, as today.
+- Inside an open slot (not an edge) while sharing: a drag moves that time (spec 2026-10-12 scheduling providers, section 6).
 
 The pointer shows the up-down resize cursor over slot edges.
 
@@ -191,6 +191,5 @@ AOT check (`publish-aot.ps1`) after the store and view model land, since new rec
 ## 11. Out of Scope
 
 - Sending invitations or email from the group (the editor's Save already emails the guest when you choose to).
-- Moving a slot by dragging its middle (only edges resize).
 - Groups syncing between PCs.
 - A sidebar list of groups.

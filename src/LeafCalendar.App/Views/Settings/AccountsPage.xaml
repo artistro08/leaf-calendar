@@ -163,6 +163,10 @@
                         IsEnabled="{x:Bind ViewModel.IsNotBusy, Mode=OneWay}"
                         AutomationProperties.AutomationId="ChangeClientButton" />
                 </controls:SettingRow>
+
+                <!-- Scheduling Providers' OAuth Clients (a "<provider> OAuth client" header and card per provider, built in
+                     code from SchedulingProviders.All, so a new OAuth provider needs no new page code) -->
+                <StackPanel x:Name="ProviderList" />
             </StackPanel>
         </Grid>
     </ScrollViewer>

@@ -24,7 +24,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        var id = ShareGroupStore.Insert(conn, "Coffee", "Here:\r\n{times}", "America/New_York", [At(3, 4), At(1, 2)], Now, []);
+        var id = ShareGroupStore.Insert(conn, "Coffee", "Here:\r\n{times}", "America/New_York", [At(3, 4), At(1, 2)], Now, [], ShareLink.None);
 
         var group = Assert.Single(ShareGroupStore.GetAll(conn, Now));
         Assert.Equal(id, group.Id);
@@ -39,7 +39,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        ShareGroupStore.Insert(conn, "  Lunch\r\n" + new string('x', 200), "", "UTC", [At(1, 2)], Now, []);
+        ShareGroupStore.Insert(conn, "  Lunch\r\n" + new string('x', 200), "", "UTC", [At(1, 2)], Now, [], ShareLink.None);
 
         var title = Assert.Single(ShareGroupStore.GetAll(conn, Now)).Title;
         Assert.True(title.Length <= ShareGroupStore.MaxTitleLength);
@@ -52,7 +52,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        ShareGroupStore.Insert(conn, "", new string('m', 5000), "UTC", [At(1, 2)], Now, []);
+        ShareGroupStore.Insert(conn, "", new string('m', 5000), "UTC", [At(1, 2)], Now, [], ShareLink.None);
 
         Assert.Equal(LeafCalendar.Core.People.AvailabilityText.MaxMessageLength, Assert.Single(ShareGroupStore.GetAll(conn, Now)).Message.Length);
     }
@@ -62,7 +62,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 3), At(2, 4)], Now, []);
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 3), At(2, 4)], Now, [], ShareLink.None);
 
         Assert.Equal([At(1, 4)], Assert.Single(ShareGroupStore.GetAll(conn, Now)).Slots);
     }
@@ -71,9 +71,9 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void Update_ReplacesTitleMessageZoneAndTimes()
     {
         using var conn = _db.Database.Open();
-        var id = ShareGroupStore.Insert(conn, "Old", "old", "UTC", [At(1, 2)], Now, []);
+        var id = ShareGroupStore.Insert(conn, "Old", "old", "UTC", [At(1, 2)], Now, [], ShareLink.None);
 
-        ShareGroupStore.Update(conn, id, "New", "new", "Europe/Paris", [At(5, 6)], []);
+        ShareGroupStore.Update(conn, id, "New", "new", "Europe/Paris", [At(5, 6)], [], ShareLink.None);
 
         var group = Assert.Single(ShareGroupStore.GetAll(conn, Now));
         Assert.Equal(("New", "new", "Europe/Paris"), (group.Title, group.Message, group.ZoneId));
@@ -84,9 +84,9 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void Update_NoTimesLeft_DeletesTheGroup()
     {
         using var conn = _db.Database.Open();
-        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, []);
+        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [], ShareLink.None);
 
-        ShareGroupStore.Update(conn, id, "", "", "UTC", [], []);
+        ShareGroupStore.Update(conn, id, "", "", "UTC", [], [], ShareLink.None);
 
         Assert.Empty(ShareGroupStore.GetAll(conn, Now));
         Assert.Equal(0L, conn.Query(null, "SELECT COUNT(*) FROM share_groups;", r => r.GetInt64(0)).Single());
@@ -96,7 +96,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void Delete_RemovesItsTimesToo()
     {
         using var conn = _db.Database.Open();
-        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2), At(3, 4)], Now, []);
+        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2), At(3, 4)], Now, [], ShareLink.None);
 
         ShareGroupStore.Delete(conn, id);
 
@@ -108,7 +108,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void GetAll_HidesEndedTimes()
     {
         using var conn = _db.Database.Open();
-        ShareGroupStore.Insert(conn, "", "", "UTC", [At(-3, -2), At(-1, 1), At(2, 3)], Now, []);
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(-3, -2), At(-1, 1), At(2, 3)], Now, [], ShareLink.None);
 
         // A time still running stays (only an end at or before now is past)
         Assert.Equal([At(-1, 1), At(2, 3)], Assert.Single(ShareGroupStore.GetAll(conn, Now)).Slots);
@@ -118,7 +118,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void GetAll_GroupWithOnlyEndedTimes_IsLeftOut()
     {
         using var conn = _db.Database.Open();
-        ShareGroupStore.Insert(conn, "", "", "UTC", [At(-3, -2)], Now, []);
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(-3, -2)], Now, [], ShareLink.None);
 
         Assert.Empty(ShareGroupStore.GetAll(conn, Now));
     }
@@ -127,8 +127,8 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void GetAll_OldestGroupFirst()
     {
         using var conn = _db.Database.Open();
-        var first = ShareGroupStore.Insert(conn, "A", "", "UTC", [At(5, 6)], Now, []);
-        var second = ShareGroupStore.Insert(conn, "B", "", "UTC", [At(1, 2)], Now.AddMinutes(1), []);
+        var first = ShareGroupStore.Insert(conn, "A", "", "UTC", [At(5, 6)], Now, [], ShareLink.None);
+        var second = ShareGroupStore.Insert(conn, "B", "", "UTC", [At(1, 2)], Now.AddMinutes(1), [], ShareLink.None);
 
         Assert.Equal([first, second], ShareGroupStore.GetAll(conn, Now).Select(g => g.Id));
     }
@@ -137,8 +137,8 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void Prune_DropsEndedTimesAndEmptyGroups()
     {
         using var conn = _db.Database.Open();
-        ShareGroupStore.Insert(conn, "Gone", "", "UTC", [At(-3, -2)], Now, []);
-        ShareGroupStore.Insert(conn, "Kept", "", "UTC", [At(-3, -2), At(1, 2)], Now, []);
+        ShareGroupStore.Insert(conn, "Gone", "", "UTC", [At(-3, -2)], Now, [], ShareLink.None);
+        ShareGroupStore.Insert(conn, "Kept", "", "UTC", [At(-3, -2), At(1, 2)], Now, [], ShareLink.None);
 
         ShareGroupStore.Prune(conn, Now);
 
@@ -151,7 +151,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("sam@example.com"), G(" pat@example.com ")]);
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("sam@example.com"), G(" pat@example.com ")], ShareLink.None);
 
         Assert.Equal(["sam@example.com", "pat@example.com"], Emails(Assert.Single(ShareGroupStore.GetAll(conn, Now))));
     }
@@ -160,9 +160,9 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void Update_ReplacesTheGuests()
     {
         using var conn = _db.Database.Open();
-        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("pat@example.com"), G("lee@example.com")]);
+        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("pat@example.com"), G("lee@example.com")], ShareLink.None);
 
-        ShareGroupStore.Update(conn, id, "", "", "UTC", [At(1, 2)], [G("sam@example.com")]);
+        ShareGroupStore.Update(conn, id, "", "", "UTC", [At(1, 2)], [G("sam@example.com")], ShareLink.None);
 
         Assert.Equal(["sam@example.com"], Emails(Assert.Single(ShareGroupStore.GetAll(conn, Now))));
     }
@@ -172,7 +172,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("sam@example.com", "Sam Lee"), G("pat@example.com"), G("lee@example.com", "Lee Park")]);
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("sam@example.com", "Sam Lee"), G("pat@example.com"), G("lee@example.com", "Lee Park")], ShareLink.None);
 
         Assert.Equal(
             [G("sam@example.com", "Sam Lee"), G("pat@example.com"), G("lee@example.com", "Lee Park")],
@@ -183,9 +183,9 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void Update_ReplacesTheGuestsNames()
     {
         using var conn = _db.Database.Open();
-        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("pat@example.com", "Pat Old")]);
+        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("pat@example.com", "Pat Old")], ShareLink.None);
 
-        ShareGroupStore.Update(conn, id, "", "", "UTC", [At(1, 2)], [G("pat@example.com", "Pat New")]);
+        ShareGroupStore.Update(conn, id, "", "", "UTC", [At(1, 2)], [G("pat@example.com", "Pat New")], ShareLink.None);
 
         Assert.Equal([G("pat@example.com", "Pat New")], Assert.Single(ShareGroupStore.GetAll(conn, Now)).Guests);
     }
@@ -195,7 +195,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("pat@example.com", "  Pat\r\nKim" + new string('n', 300))]);
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("pat@example.com", "  Pat\r\nKim" + new string('n', 300))], ShareLink.None);
 
         var name = Assert.Single(Assert.Single(ShareGroupStore.GetAll(conn, Now)).Guests).Name;
         Assert.StartsWith("Pat Kim", name, StringComparison.Ordinal);
@@ -208,7 +208,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("pat@example.com"), G(" "), G("PAT@example.com"), G(""), G("sam@example.com")]);
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("pat@example.com"), G(" "), G("PAT@example.com"), G(""), G("sam@example.com")], ShareLink.None);
 
         Assert.Equal(["pat@example.com", "sam@example.com"], Emails(Assert.Single(ShareGroupStore.GetAll(conn, Now))));
     }
@@ -218,7 +218,7 @@ public sealed class ShareGroupStoreTests : IDisposable
     {
         using var conn = _db.Database.Open();
 
-        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G(new string('g', 400)), .. Enumerable.Range(0, 60).Select(i => G($"p{i}@example.com"))]);
+        ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G(new string('g', 400)), .. Enumerable.Range(0, 60).Select(i => G($"p{i}@example.com"))], ShareLink.None);
 
         var guests = Assert.Single(ShareGroupStore.GetAll(conn, Now)).Guests;
         Assert.Equal(ShareGroupStore.MaxGuests, guests.Count);
@@ -229,10 +229,58 @@ public sealed class ShareGroupStoreTests : IDisposable
     public void Delete_RemovesItsGuestsToo()
     {
         using var conn = _db.Database.Open();
-        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("pat@example.com")]);
+        var id = ShareGroupStore.Insert(conn, "", "", "UTC", [At(1, 2)], Now, [G("pat@example.com")], ShareLink.None);
 
         ShareGroupStore.Delete(conn, id);
 
         Assert.Equal(0L, conn.Query(null, "SELECT COUNT(*) FROM share_guests;", r => r.GetInt64(0)).Single());
+    }
+
+    [Fact]
+    public void Insert_WithLink_RoundTrips()
+    {
+        using var conn = _db.Database.Open();
+
+        ShareGroupStore.Insert(conn, "T", "M", "UTC", [At(1, 2)], Now, [], new ShareLink("calcom", "101", "https://cal.com/x/30min", 30));
+
+        var group = Assert.Single(ShareGroupStore.GetAll(conn, Now));
+        Assert.Equal(("calcom", "101", "https://cal.com/x/30min", 30), (group.ProviderId, group.LinkId, group.LinkUrl, group.LinkMinutes));
+        Assert.Equal(Now, group.CreatedUtc);
+    }
+
+    [Fact]
+    public void Update_ReplacesLink_AndKeepsCreated()
+    {
+        using var conn = _db.Database.Open();
+        var id = ShareGroupStore.Insert(conn, "T", "M", "UTC", [At(1, 2)], Now, [], ShareLink.None);
+
+        ShareGroupStore.Update(conn, id, "T", "M", "UTC", [At(1, 2)], [], new ShareLink("calcom", "102", "https://cal.com/x/15", 15));
+
+        var group = Assert.Single(ShareGroupStore.GetAll(conn, Now));
+        Assert.Equal("102", group.LinkId);
+        Assert.Equal(Now, group.CreatedUtc);
+    }
+
+    [Fact]
+    public void ClearProvider_MakesThoseGroupsPlain()
+    {
+        using var conn = _db.Database.Open();
+        ShareGroupStore.Insert(conn, "T", "M", "UTC", [At(1, 2)], Now, [], new ShareLink("calcom", "101", "https://cal.com/x", 30));
+
+        ShareGroupStore.ClearProvider(conn, "calcom");
+
+        var group = Assert.Single(ShareGroupStore.GetAll(conn, Now));
+        Assert.Equal(("", "", "", 0), (group.ProviderId, group.LinkId, group.LinkUrl, group.LinkMinutes));
+    }
+
+    [Fact]
+    public void Insert_LongOrUnsafeLinkUrl_IsNotKept()
+    {
+        using var conn = _db.Database.Open();
+
+        ShareGroupStore.Insert(conn, "T", "M", "UTC", [At(1, 2)], Now, [], new ShareLink("calcom", "101", "http://cal.com/x", 30));
+
+        var group = Assert.Single(ShareGroupStore.GetAll(conn, Now));
+        Assert.Equal(("", ""), (group.ProviderId, group.LinkUrl));
     }
 }

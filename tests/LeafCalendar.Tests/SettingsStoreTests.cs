@@ -77,6 +77,15 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Theory]
+    [InlineData("You schedule time via the links or just let me know what works for you", "You can schedule time via the links or just let me know what works for you.")]
+    [InlineData("My own note", "My own note")]
+    [InlineData("", "")]
+    public void Normalize_BookingLinkNote_FirstDefaultBecomesTheFixedOne_OthersKept(string saved, string expected)
+    {
+        Assert.Equal(expected, new LeafSettings { BookingLinkNote = saved }.Normalize().BookingLinkNote);
+    }
+
+    [Theory]
     [InlineData("", "cal")]
     [InlineData("acct", " ")]
     public void Normalize_BlankDefaultCalendar_BecomesNull(string account, string calendar)
@@ -166,5 +175,52 @@ public sealed class SettingsStoreTests : IDisposable
         }.Normalize();
 
         Assert.Equal("Tokyo office - sales HQ", settings.TimeZones[0].Label);
+    }
+
+    [Fact]
+    public void Normalize_Scheduling_DropsBlankAndRepeatedProviders_AndEmptiesServer()
+    {
+        var settings = new LeafSettings
+        {
+            Scheduling = [new("calcom", " https://cal.example.com ", "101"), new("calcom", "", "102"), new(" ", "", "")],
+        }.Normalize();
+
+        var only = Assert.Single(settings.Scheduling);
+        Assert.Equal(("calcom", "", "101"), (only.ProviderId, only.Server, only.DefaultLinkId));
+    }
+
+    [Fact]
+    public void Normalize_Scheduling_DropsUnknownProviders()
+    {
+        var settings = new LeafSettings
+        {
+            Scheduling = [new("someday", "", "1"), new("calcom", "", "101")],
+        }.Normalize();
+
+        Assert.Equal("calcom", Assert.Single(settings.Scheduling).ProviderId);
+    }
+
+    [Fact]
+    public void BookingNotifications_DefaultsOn() => Assert.True(new LeafSettings().BookingNotifications);
+
+    [Fact]
+    public void WithProvider_ThenWithoutProvider_RoundTrips()
+    {
+        var settings = new LeafSettings().WithProvider(new("calcom", "", "101"));
+        Assert.Equal("101", settings.ProviderSettingsFor("calcom").DefaultLinkId);
+        Assert.Empty(settings.WithoutProvider("calcom").Scheduling);
+        Assert.Equal("", new LeafSettings().ProviderSettingsFor("calcom").DefaultLinkId);
+    }
+
+    [Fact]
+    public void Scheduling_SurvivesTheJsonRoundTrip()
+    {
+        var saved = new LeafSettings().WithProvider(new("calcom", "https://cal.example.com", "101"));
+
+        var json = System.Text.Json.JsonSerializer.Serialize(saved, LeafJsonContext.Default.LeafSettings);
+        var loaded = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
+
+        // A server saved before revision 1 still reads; it is emptied
+        Assert.Equal(new ProviderSettings("calcom", "", "101"), Assert.Single(loaded.Scheduling));
     }
 }

@@ -245,6 +245,19 @@ public class ToastContentTests
     }
 
     [Fact]
+    public void WhenAt_DayAndStartTimeInTheZone()
+    {
+        var now = Start.AddHours(-6);
+        var tokyo = TimeZoneInfo.CreateCustomTimeZone("Plus9", TimeSpan.FromHours(9), "Plus9", "Plus9");
+
+        Assert.Equal("Today \u00B7 6 PM", ToastContent.WhenAt(Start, TimeZoneInfo.Utc, false, now));
+        Assert.Equal("Tomorrow \u00B7 18:00", ToastContent.WhenAt(Start, TimeZoneInfo.Utc, true, now.AddDays(-1)));
+
+        // 6 PM UTC is 3 AM the next day nine hours ahead
+        Assert.Equal("Tomorrow \u00B7 3 AM", ToastContent.WhenAt(Start, tokyo, false, now));
+    }
+
+    [Fact]
     public void Args_RoundTripAwkwardCalendarIds()
     {
         var args = new ToastArgs(ToastAction.Accept, "uitest-1", "1", "a;b=c%d@group.calendar.google.com", "evt_1", Start);
@@ -334,5 +347,35 @@ public class ToastContentTests
         Assert.Equal(EventDetailsParser.NoTitle, texts[0]);
         Assert.Equal("Today", texts[1]);
         Assert.Equal("Room 4", texts[2]);
+    }
+
+    [Fact]
+    public void Parse_OpenDay_NeedsStart()
+    {
+        var start = new DateTimeOffset(2026, 10, 13, 14, 0, 0, TimeSpan.Zero);
+        var text = new ToastArgs(ToastAction.OpenDay, "default", Start: start).Encode();
+
+        Assert.Equal(start, ToastArgs.Parse(text)!.Start);
+        Assert.Null(ToastArgs.Parse("action=OpenDay;profile=default"));
+    }
+
+    [Fact]
+    public void Booking_EscapesNameAndOpensTheDay()
+    {
+        var start = new DateTimeOffset(2026, 10, 13, 14, 0, 0, TimeSpan.Zero);
+
+        var toast = ToastContent.Booking("bk1", "Jane <script>", "Tue Oct 13, 9 AM", start, "default", sound: true);
+
+        Assert.Contains("Jane &lt;script&gt; booked Tue Oct 13, 9 AM", toast.Xml, StringComparison.Ordinal);
+        Assert.Contains("action=OpenDay", toast.Xml, StringComparison.Ordinal);
+        Assert.Equal(ToastContent.BookingGroup, toast.Group);
+    }
+
+    [Fact]
+    public void Booking_NoName_SaysSomeone()
+    {
+        var toast = ToastContent.Booking("bk1", "", "Tue Oct 13, 9 AM", DateTimeOffset.UnixEpoch, "default", sound: false);
+
+        Assert.Contains("Someone booked Tue Oct 13, 9 AM", toast.Xml, StringComparison.Ordinal);
     }
 }

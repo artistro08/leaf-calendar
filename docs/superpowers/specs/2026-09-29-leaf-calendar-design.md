@@ -68,7 +68,8 @@ Leaf Calendar is a fast, low-memory, native Windows 11 desktop calendar with fea
 | Google access | Plain `HttpClient` against the REST API. No Google client libraries. |
 | Sync | Smart polling. No push (Google push needs a public HTTPS server). |
 | Local DB encryption | None beyond Windows user profile protection. Tokens are encrypted separately. |
-| Share availability | Google free/busy based, copied as text. Plus a button that opens Google's appointment schedule page. |
+| Share availability | Google free/busy based, copied as text, or as booking links when a scheduling provider (Cal.com) is signed in. Plus a button that opens Google's appointment schedule page. |
+| Scheduling providers | One small interface per provider action; Cal.com first (2026-10-12, issue #28). No webhooks (no Leaf server); bookings are checked after each sync while saved provider times exist. |
 | Search | No search box. Search goes through the command menu. |
 | Tray menu | XAML menu, placement follows taskbar position. |
 | Tray flyout construction | An invisible host window opens a stock `Flyout` holding the acrylic panel (Layers' HUD pattern), so light dismiss, Esc, and focus are stock and Win32 stays on CsWin32 without marshaling (Milestone 4). |
@@ -138,7 +139,7 @@ Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manag
 4. Event data kept in a bounded sliding window (Section 6.4). Event visuals recycled.
 5. No WebView2. Event descriptions render with native text controls.
 6. Avatars and images decoded at display size (`DecodePixelWidth`).
-7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64. Measured 2026-09-29 at 78-79 MB private bytes and 11 MB working set (three runs), measured with sync running against the fake Google. Raised 2026-09-29 at the close of Milestone 2 to private bytes ≤ 120 MB (working set unchanged at ≤ 25 MB). Measured at 105-106 MB private bytes and 18 MB working set (three runs). The growth is expected: it's native WinUI memory for the new sidebar (mini month) and the time grid, committed while the window is open and kept after it closes. The managed heap stays at about 2 MB, and clearing the whole window tree on close freed nothing measurable. Measured 2026-09-30 at the close of Milestone 3 (Settings and onboarding windows, event editor, drag, conflict dialog) at 100 MB private bytes and 17 MB working set (three runs), inside the unchanged budget. Measured 2026-09-30 at the close of the second Milestone 3 polish round (contact autocomplete, Meet, undo stack, navigation history) at 98-99 MB private bytes and 17 MB working set (three runs, final build; 100-101 MB and 15-17 MB earlier the same day), inside the unchanged budget. Measured 2026-10-01 at the close of Milestone 4 (tray icon, tray host window, notifications, alert scheduler resident) at 100-101 MB private bytes and 17-20 MB working set (three runs), inside the unchanged budget. Measured 2026-10-01 at the close of Milestone 5 (command menu, people overlay, share availability, settings pages) at 100-101 MB private bytes and 21-22 MB working set (three runs), inside the unchanged budget. Measured 2026-10-01 at the close of Milestone 6 (rich description editor, box select, contrast-theme brushes, AI libraries removed) at 99-100 MB private bytes and 20-22 MB working set (three runs), inside the unchanged budget.
+7. An automated memory budget test on the Release package. Budget set 2026-09-29: private bytes ≤ 95 MB, working set ≤ 25 MB (volatile after trim), tray-only, AOT, x64. Measured 2026-09-29 at 78-79 MB private bytes and 11 MB working set (three runs), measured with sync running against the fake Google. Raised 2026-09-29 at the close of Milestone 2 to private bytes ≤ 120 MB (working set unchanged at ≤ 25 MB). Measured at 105-106 MB private bytes and 18 MB working set (three runs). The growth is expected: it's native WinUI memory for the new sidebar (mini month) and the time grid, committed while the window is open and kept after it closes. The managed heap stays at about 2 MB, and clearing the whole window tree on close freed nothing measurable. Measured 2026-09-30 at the close of Milestone 3 (Settings and onboarding windows, event editor, drag, conflict dialog) at 100 MB private bytes and 17 MB working set (three runs), inside the unchanged budget. Measured 2026-09-30 at the close of the second Milestone 3 polish round (contact autocomplete, Meet, undo stack, navigation history) at 98-99 MB private bytes and 17 MB working set (three runs, final build; 100-101 MB and 15-17 MB earlier the same day), inside the unchanged budget. Measured 2026-10-01 at the close of Milestone 4 (tray icon, tray host window, notifications, alert scheduler resident) at 100-101 MB private bytes and 17-20 MB working set (three runs), inside the unchanged budget. Measured 2026-10-01 at the close of Milestone 5 (command menu, people overlay, share availability, settings pages) at 100-101 MB private bytes and 21-22 MB working set (three runs), inside the unchanged budget. Measured 2026-10-01 at the close of Milestone 6 (rich description editor, box select, contrast-theme brushes, AI libraries removed) at 99-100 MB private bytes and 20-22 MB working set (three runs), inside the unchanged budget. Measured 2026-10-13 at the close of scheduling providers (Cal.com sign-in, links, open times, bookings) at 106-108 MB private bytes and 23 MB working set (three runs), inside the unchanged budget.
 
 ---
 
@@ -152,8 +153,8 @@ Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manag
 4. More accounts are added the same way. No account limit.
 
 Built in Milestone 3 (owner redesign) as its own onboarding window, shown instead of the main window until there's an OAuth client and an account:
-- A small fixed-size window (520 × 640 DIP), centered on the monitor under the cursor, Mica, custom title bar, only the Close button.
-- Steps: Welcome, OAuth client (guide with the fixed Google Cloud Console link, client ID and secret saved encrypted in the profile folder, spec 4.3), Sign in with Google, Syncing (calendars and events found so far), Done ("Open Leaf Calendar" closes onboarding and opens the main window).
+- A small fixed-size window (640 × 640 DIP; 640 wide since 2026-10-13, owner), centered on the monitor under the cursor, Mica, custom title bar, only the Close button.
+- Steps: Welcome, OAuth client (guide with the fixed Google Cloud Console link, client ID and secret saved encrypted in the profile folder, spec 4.3), Sign in with Google, Syncing (calendars and events found so far), an optional Cal.com step (owner, 2026-10-13: client ID and secret, the redirect URI to register, Sign in with Cal.com, and Skip just left of it; `2026-10-12-scheduling-providers-design.md` 9.4), Done ("Open Leaf Calendar" closes onboarding and opens the main window).
 - Steps slide in from the right going forward and from the left going back. A stock `PipsPager`, restyled so each pip is a short line, shows the step at the bottom.
 - Closing before the end asks "Leave setup?" first. Leaving without an account exits Leaf.
 - Changing the OAuth client later happens in Settings › Accounts.
@@ -171,6 +172,7 @@ Built in Milestone 3 (owner redesign) as its own onboarding window, shown instea
   - `https://www.googleapis.com/auth/contacts.other.readonly`
   - `https://www.googleapis.com/auth/directory.readonly`
 - Access tokens are refreshed silently. A failed refresh (revoked or expired grant) marks the account "needs sign-in" and shows a banner plus a notification. The outbox is kept.
+- Scheduling providers (Cal.com) sign in the same way with the user's own OAuth client (client secret instead of PKCE, which Cal.com's token endpoint refuses; random `state`, loopback listener on `127.0.0.1`, 5 minute timeout) but on a fixed port (53817), because Cal.com matches redirect URIs exactly. Scopes: `EVENT_TYPE_READ`, `BOOKING_READ`, `BOOKING_WRITE`, `SCHEDULE_READ`. Access tokens (30 minutes) stay in memory. See `2026-10-12-scheduling-providers-design.md` section 3.2.
 
 ### 4.3 Secret Storage
 
@@ -178,6 +180,7 @@ Built in Milestone 3 (owner redesign) as its own onboarding window, shown instea
 - Writes go to a temp file that replaces `secrets.bin` in one move, so a crash never leaves half a file. A file DPAPI reports as bad data (damaged, or made for another user or profile) reads as empty (the user signs in again), and the next write moves it aside to `secrets.bin.unreadable` before replacing it. Any other failure to read it (DPAPI failing for a passing reason, such as a key not yet available after a password change, or a locked file) is reported as "try later", never as signed out, and nothing overwrites the file. Sync retries on its own schedule; at startup Leaf opens as usual without Google services (as before setup, but never showing setup to a signed-in user) and tries the secrets again every 30 seconds; sign-in and calendar changes show their usual "try again" messages.
 - Earlier builds kept secrets in the user-wide **Windows Credential Locker** (`PasswordVault`), which uninstalling doesn't clear. While `secrets.bin` doesn't exist, each start copies the Locker's secrets into it in one write, then deletes them from the Locker. If that write fails, the Locker stays untouched, that run uses it (nobody looks signed out), and the next start tries again. If the Locker can't be read, there's nothing to lose, so the file store is used. Once `secrets.bin` exists it's the store; deleting Locker leftovers is best effort and retried each start. If `secrets.bin` is bad data and leftovers exist, they rebuild it in one write first; if it can't be read right now, the leftovers are kept. The move itself never stops Leaf from starting.
 - Access tokens live in memory only.
+- Scheduling provider secrets (Cal.com OAuth client ID, client secret and refresh token) live in the same file, in a separate `Providers` map, with the same encryption and atomic writes. Signing out of a provider removes its refresh token only; Remove OAuth client removes all three.
 - Disconnecting an account calls Google's revoke endpoint, removes its refresh token, and deletes its local data. If it has pending outbox changes, Leaf warns first.
 
 ### 4.4 Local Data
@@ -409,6 +412,7 @@ A view inside the main window, modeled on the Windows 11 Settings app. See Secti
 - New picks: **Copy & Save** (the accent) and **Cancel** are pinned at the bottom. Copy & Save copies the text, saves the times and guests as a group, stops sharing, and shows "Availability copied" in the notice. Cancel, Esc and S stop sharing and throw away anything unsaved. A valid address typed but not yet added counts as a guest for Save, Copy & Save and Approve….
 - Saved groups (title, message, zone, times, guests; see `2026-10-06-saved-share-groups-design.md`) stay on the calendar as dashed outlines with their title ("Held times" with none) until a time is approved, the group is deleted, or its times pass. Clicking one opens it in the panel ("Saved times") with **Save** (the accent), **Copy & Save** and **Close**: its changes wait for Save or Copy & Save; Close throws them away. A trash icon in the title bar row above the panel ("Delete saved times") deletes the group. With at least one guest, Approve… opens the event editor on that time with the title and every guest; the group is deleted once the event saves.
 - Works offline (nothing is sent to Google). Zone choices: the zone on screen, Windows' zone, and the extra zone columns.
+- Scheduling providers (Cal.com first; see `2026-10-12-scheduling-providers-design.md`): with the **Schedule with Cal.com** switch on (the default for a new share, shown only while signed in to the provider in Settings › Accounts) and a **Link** picked, the grid shades times the link won't book and a drag is fitted to the link's bookable times, with a small message card saying what Leaf did. Copy puts each proposed time on the clipboard as a link that opens Cal.com on that exact time with your guests filled in. A saved time can be moved by dragging, keeping its length. Leaf checks for bookings after each sync while saved provider times exist, and a booking inside a saved group removes it and shows a notification (8.4). **Approve…** on a Cal.com group books the time on Cal.com after a confirmation, with the group's guests, instead of opening the event editor; the booking reaches your Google calendar through Cal.com's own calendar connection. Off means plain text exactly as before.
 
 ---
 
@@ -447,6 +451,7 @@ All notifications are Windows App SDK app notifications.
 Which reminders and "Join now" notifications stay on screen (`scenario="reminder"`, until you click Join, Snooze, or Dismiss): with the persistent notification setting on, an event with a meeting link when "Stay persistent for meetings" is checked (the default), and an event with nobody but you on it (rooms don't count) when "Stay persistent for reminders" is checked. Every other reminder is a plain notification that goes to Notification Center after a few seconds.
 3. **New or updated invite:** Yes / No / Maybe buttons in the notification.
 4. **Conflict needs review** and **Sign in again**.
+5. **Booking found:** when someone books a time inside a saved share group's times on a scheduling provider ("{attendee} booked {time}", "Someone" when the provider gives no name), if Settings › Notifications › Booking notifications is on. Clicking it opens Leaf on that day; the toast argument is a date only. The matched saved group is removed. Leaf checks after each Google sync pass, only while saved provider times exist (no webhooks; Leaf has no server). See `2026-10-12-scheduling-providers-design.md`.
 
 Rules:
 - Windows Do Not Disturb and Focus settings apply. Leaf has no pause feature of its own.
@@ -576,16 +581,22 @@ Ctrl+wheel over the time grid zooms like Ctrl+= / Ctrl+-.
 - Primary account
 - Default calendar for new events (built in the Milestone 3 polish)
 - Default conferencing per account (Google Meet or none)
+- Scheduling providers (Cal.com first): your own OAuth client ID and secret, Sign in with Cal.com, Sign out (keeps the client), Remove OAuth client; see `2026-10-12-scheduling-providers-design.md`
 
 **Calendars**
 - Color, visibility, order, and display name (Google summary override)
 - Default reminders per calendar (written back to Google)
+
+**Scheduling** (between Calendars and Time zones; shown only while a scheduling provider is signed in, or needs reconnecting)
+- Default link per signed-in provider (Cal.com first), picked from that provider's links
+- Credentials are not here; they live in Settings › Accounts. See `2026-10-12-scheduling-providers-design.md`.
 
 **Notifications**
 - Reminder notifications on or off
 - Persistent "Join now" notification on or off, with two checkboxes under it: "Stay persistent for meetings" and "Stay persistent for reminders" (see 8.4)
 - Invite notifications on or off
 - Sound on or off
+- Booking notifications on or off (shown only while a scheduling provider is signed in; see 8.4 and `2026-10-12-scheduling-providers-design.md`)
 
 **Tray**
 - Days shown in the flyout agenda

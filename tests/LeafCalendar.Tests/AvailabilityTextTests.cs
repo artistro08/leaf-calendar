@@ -114,4 +114,35 @@ public sealed class AvailabilityTextTests
     [Fact]
     public void Compose_TrimsTheMessagesEnds() =>
         Assert.Equal("Hi\r\nX", AvailabilityText.Compose("  Hi\n{times}  \n", "X"));
+
+    [Fact]
+    public void FormatTimes_OneLinePerTime()
+    {
+        var zone = TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");
+        var start = new DateTimeOffset(2026, 10, 13, 15, 0, 0, TimeSpan.Zero); // 10 AM CDT
+
+        var lines = AvailabilityText.FormatTimes([new(start, start.AddMinutes(30)), new(start.AddMinutes(30), start.AddMinutes(60))], zone, use24Hour: false);
+
+        Assert.Equal(["Tue Oct 13, 10–10:30 AM CT", "Tue Oct 13, 10:30–11 AM CT"], lines);
+    }
+
+    [Fact]
+    public void Html_EscapesMessageAndLines()
+    {
+        var html = AvailabilityText.ComposeHtml("Hi <b>&</b>\r\n{times}", [("Tue <x>", new Uri("https://cal.com/a?date=1&slot=2"))]);
+
+        Assert.Equal("Hi &lt;b&gt;&amp;&lt;/b&gt;<br><a href=\"https://cal.com/a?date=1&amp;slot=2\">Tue &lt;x&gt;</a>", html);
+    }
+
+    [Fact]
+    public void Html_NoPlaceholder_LinesAfterMessage()
+    {
+        var html = AvailabilityText.ComposeHtml("Hi", [("A", new Uri("https://cal.com/a")), ("B", new Uri("https://cal.com/b"))]);
+
+        Assert.Equal("Hi<br><a href=\"https://cal.com/a\">A</a><br><a href=\"https://cal.com/b\">B</a>", html);
+    }
+
+    [Fact]
+    public void Html_BlankMessage_OnlyLines() =>
+        Assert.Equal("<a href=\"https://cal.com/a\">A</a>", AvailabilityText.ComposeHtml(" ", [("A", new Uri("https://cal.com/a"))]));
 }

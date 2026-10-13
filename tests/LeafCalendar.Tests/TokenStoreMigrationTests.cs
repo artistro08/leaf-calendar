@@ -250,6 +250,12 @@ public sealed class TokenStoreMigrationTests : IDisposable
 
         public IReadOnlyList<string> GetAccountIds() => Read(inner.GetAccountIds);
 
+        public string? GetProviderSecret(string providerId, string key) => Read(() => inner.GetProviderSecret(providerId, key));
+
+        public void SetProviderSecret(string providerId, string key, string value) => inner.SetProviderSecret(providerId, key, value);
+
+        public void RemoveProviderSecrets(string providerId) => inner.RemoveProviderSecrets(providerId);
+
         private T Read<T>(Func<T> read) => ReadsFail ? throw new UnauthorizedAccessException("vault locked") : read();
 
         private void Removing()

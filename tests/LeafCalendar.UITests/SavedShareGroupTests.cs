@@ -70,7 +70,7 @@ public sealed class SavedShareGroupTests : IDisposable
         Retry.WhileFalse(() => leaf.Exists(FirstSaved) && leaf.WaitFor(FirstSaved).Name.StartsWith($"{title}, ", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success;
 
     // Types an address in the guest box and presses Enter, which adds it to the list under the box as guest index
-    private static void AddGuest(LeafApp leaf, string email, int index)
+    internal static void AddGuest(LeafApp leaf, string email, int index)
     {
         var edit = GuestEdit(leaf);
         edit.Focus();
@@ -486,5 +486,113 @@ public sealed class SavedShareGroupTests : IDisposable
         Thread.Sleep(1000);
         Assert.True(leaf.Exists(FirstSaved), "Cancel deleted the group.");
         Assert.DoesNotContain(_google.Writes, w => w.Method == "POST" && w.Body.Contains(Guest, StringComparison.Ordinal));
+    }
+
+    // =========================================================================
+    // MOVING A TIME
+    // =========================================================================
+
+    // Drags inside a time (from its middle) by whole hours down and whole day columns right
+    private static void MoveBy(LeafApp leaf, string automationId, double hours, int days = 0)
+    {
+        var box = leaf.WaitFor(automationId).BoundingRectangle;
+        var hour = ShareAvailabilityTests.HourPixels(leaf);
+        var dayWidth = leaf.WaitFor("DayHeader_2026-10-02").BoundingRectangle.Left - leaf.WaitFor("DayHeader_2026-10-01").BoundingRectangle.Left;
+        var grab = new Point(box.Left + box.Width / 2, box.Top + box.Height / 2);
+        LeafApp.Drag(grab, new Point(grab.X + days * dayWidth, grab.Y + (int)Math.Round(hours * hour)));
+    }
+
+    // The first saved time's name ends with this range
+    private static bool SavedRangeIs(LeafApp leaf, string range) =>
+        Retry.WhileFalse(() => leaf.Exists(FirstSaved) && leaf.WaitFor(FirstSaved).Name.EndsWith(range, StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success;
+
+    // A new pick dragged from inside moves, keeping its length: two hours later, then to the next day
+    [Fact]
+    public void NewPick_MovesLater_AndToAnotherDay()
+    {
+        using var leaf = Launch();
+        ShareAvailabilityTests.StartSharing(leaf);
+        ShareAvailabilityTests.DragHours(leaf, 10, 11);
+        leaf.WaitFor("ShareSlot_0");
+
+        MoveBy(leaf, "ShareSlot_0", 2);
+        MoveBy(leaf, "ShareSlot_0", 0, days: 1);
+
+        Assert.False(leaf.Exists("ShareSlot_1"), "Moving made a second time.");
+        Clipboard.Clear();
+        leaf.WaitFor("ShareCopyButton").AsButton().Invoke();
+        var text = Retry.WhileNull(Clipboard.Text, TimeSpan.FromSeconds(10)).Result;
+        Assert.NotNull(text);
+        Assert.EndsWith("Fri Oct 2: 12–1 PM ET", text, StringComparison.Ordinal);
+    }
+
+    // A time of an open group moved an hour later, then Save: it's moved on the grid and when the group opens again
+    [Fact]
+    public void OpenGroup_MoveATime_SaveAndReopen_StaysMoved()
+    {
+        using var leaf = Launch();
+        Save(leaf);
+        OpenFirst(leaf);
+
+        // (an open group's times show as picks)
+        MoveBy(leaf, "ShareSlot_0", 1);
+        leaf.WaitFor("ShareSaveButton").AsButton().Invoke();
+
+        Assert.True(Retry.WhileTrue(() => leaf.Exists("ShareSlotsPanel"), TimeSpan.FromSeconds(10)).Success, "Save didn't close the panel.");
+        Assert.True(SavedRangeIs(leaf, "11 AM – 1 PM"), $"The saved time reads \"{leaf.WaitFor(FirstSaved).Name}\".");
+        OpenFirst(leaf);
+        Assert.True(
+            Retry.WhileFalse(() => leaf.WaitFor("SharePanelSlot_0").Name.EndsWith("11 AM – 1 PM", StringComparison.Ordinal), TimeSpan.FromSeconds(5)).Success,
+            $"The reopened group's time reads \"{leaf.WaitFor("SharePanelSlot_0").Name}\".");
+    }
+
+    // A click inside a picked time (a press that doesn't move) changes nothing
+    [Fact]
+    public void ClickInsideAPick_ChangesNothing()
+    {
+        using var leaf = Launch();
+        ShareAvailabilityTests.StartSharing(leaf);
+        ShareAvailabilityTests.DragHours(leaf, 10, 11);
+        var before = leaf.WaitFor("ShareSlot_0").BoundingRectangle;
+
+        Mouse.Click(new Point(before.Left + before.Width / 2, before.Top + before.Height / 2));
+        Thread.Sleep(1000);
+
+        Assert.Equal(before, leaf.WaitFor("ShareSlot_0").BoundingRectangle);
+        Assert.False(leaf.Exists("ShareSlot_1"), "The click made a second time.");
+    }
+
+    // A saved time of a group that isn't open can't be moved
+    [Fact]
+    public void ClosedGroupsTime_DoesNotMove()
+    {
+        using var leaf = Launch();
+        Save(leaf);
+
+        MoveBy(leaf, FirstSaved, 1);
+        Thread.Sleep(1000);
+
+        Assert.True(SavedRangeIs(leaf, "10 AM – 12 PM"), $"The closed group's time moved: \"{leaf.WaitFor(FirstSaved).Name}\".");
+    }
+
+    // A new pick over another group's saved time is what a drag inside it grabs: the pick moves and the group stays
+    [Fact]
+    public void PickOverASavedTime_MovesThePick()
+    {
+        using var leaf = Launch();
+        Save(leaf);
+        ShareAvailabilityTests.StartSharing(leaf);
+        ShareAvailabilityTests.DragHours(leaf, 10, 11);
+        leaf.WaitFor("ShareSlot_0");
+
+        MoveBy(leaf, "ShareSlot_0", 2);
+
+        Assert.Equal("Times to share", leaf.WaitFor("SharePanelTitle").Name);
+        Assert.True(SavedRangeIs(leaf, "10 AM – 12 PM"), "The saved group's time changed.");
+        Clipboard.Clear();
+        leaf.WaitFor("ShareCopyButton").AsButton().Invoke();
+        var text = Retry.WhileNull(Clipboard.Text, TimeSpan.FromSeconds(10)).Result;
+        Assert.NotNull(text);
+        Assert.EndsWith("Thu Oct 1: 12–1 PM ET", text, StringComparison.Ordinal);
     }
 }

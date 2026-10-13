@@ -8,6 +8,7 @@ using LeafCalendar.Core.Alerts;
 using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Hosting;
+using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Sync;
 using LeafCalendar.Core.Tray;
@@ -293,6 +294,10 @@ public partial class App : Application
         _alerts = new AlertCenter(services, _notifier, () => _zone.Zone);
         _alerts.Start();
 
+        // Bookings On Saved Times (raised on the sync thread): a notification, and the closed groups leave the calendar
+        services.Bookings.BookingFound += OnBookingFound;
+        services.Bookings.GroupsChanged += OnBookingGroupsChanged;
+
         // Minute Clock (tooltip countdown, time zone)
         _minuteTimer = _dispatcher!.CreateTimer();
         _minuteTimer.Interval = TimeSpan.FromMinutes(1);
@@ -335,6 +340,60 @@ public partial class App : Application
         if (_attachedSync is not null)
         {
             _attachedSync.DataChanged += OnSyncDataChanged;
+        }
+    }
+
+    // Someone booked a saved time (raised on the sync thread): "Name booked Today · 2 PM" when booking notifications are on
+    private void OnBookingFound(object? sender, BookingFoundEventArgs e)
+    {
+        try
+        {
+            _dispatcher?.TryEnqueue(() =>
+            {
+                try
+                {
+                    var settings = CurrentSettings();
+                    if (!settings.BookingNotifications || _services is not { } services)
+                    {
+                        return;
+                    }
+
+                    var when = ToastContent.WhenAt(e.Booking.Start, _zone.Zone, settings.Use24HourTime, services.Time.GetUtcNow());
+                    _notifier?.Show(ToastContent.Booking(e.Booking.Id, e.Booking.AttendeeName, when, e.Booking.Start, services.Options.Profile, settings.NotificationSound));
+                }
+                catch (Exception ex)
+                {
+                    _log?.Info("scheduling.booking.toast.failed", $"error={ex.GetType().Name}");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            // Raised inside the booking check, so nothing may escape; the type only, never the name
+            _log?.Info("scheduling.booking.toast.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // Bookings closed saved groups (raised on the sync thread): the calendar's shared-times overlay reloads
+    private void OnBookingGroupsChanged(object? sender, EventArgs e)
+    {
+        try
+        {
+            _dispatcher?.TryEnqueue(() =>
+            {
+                try
+                {
+                    _calendar?.ReloadGroups();
+                }
+                catch (Exception ex)
+                {
+                    _log?.Info("scheduling.booking.reload.failed", $"error={ex.GetType().Name}");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _log?.Info("scheduling.booking.reload.failed", $"error={ex.GetType().Name}");
         }
     }
 
@@ -864,6 +923,12 @@ public partial class App : Application
 
                 case ToastAction.SignIn:
                     OpenSettings(SettingsSection.Accounts);
+                    return;
+
+                // A Booking: the calendar on the booked day (the PC zone's, like the notification's text)
+                case ToastAction.OpenDay:
+                    ShowMainWindow();
+                    _dispatcher?.TryEnqueue(DispatcherQueuePriority.Low, () => _window?.ShowDay(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(toast.Start!.Value, _zone.Zone).DateTime)));
                     return;
             }
 

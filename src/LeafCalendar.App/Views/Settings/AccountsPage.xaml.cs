@@ -2,6 +2,7 @@ using System.Collections.Specialized;
 using System.Globalization;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
+using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Settings;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
@@ -22,7 +23,8 @@ public sealed record DefaultCalendarChoice(string Name, string? Email)
 
 /// <summary>
 /// Settings › Accounts: adding a Google account, an expander per account (Meet by default and Disconnect inside), the
-/// main account, and Sync now; then the default calendar and the OAuth client.
+/// main account, and Sync now; the scheduling providers (<see cref="ProviderAccountCard"/>); then the default calendar
+/// and the OAuth client.
 /// </summary>
 public sealed partial class AccountsPage : Page
 {
@@ -46,11 +48,16 @@ public sealed partial class AccountsPage : Page
     // True while a combo box is being filled (its change event is ignored)
     private bool _loading;
 
+    // The Scheduling Provider Cards (spec 9.3)
+    private readonly List<ProviderAccountCard> _providerCards = [];
+
     /// <summary>Creates the page.</summary>
     public AccountsPage()
     {
         InitializeComponent();
         ScrollIndicator.ShowOnHover(PageScroll);
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
     /// <summary>x:Bind helper: failures show as errors, a finished sign-in as success, progress as information.</summary>
@@ -82,16 +89,68 @@ public sealed partial class AccountsPage : Page
 
         Bindings.Update();
         _context.Host.CalendarsChanged += OnCalendarsChanged;
+        _context.Host.Closed += OnHostClosed;
         ViewModel.Accounts.CollectionChanged += OnAccountsChanged;
         LoadDefaultCalendar();
         LoadAccountChoices();
+
+        foreach (var info in SchedulingProviders.All)
+        {
+            var card = new ProviderAccountCard(_context, info);
+            _providerCards.Add(card);
+            ProviderList.Children.Add(new TextBlock { Style = (Style)Application.Current.Resources["LeafSettingsGroupHeaderStyle"], Text = $"{info.Name} OAuth client" });
+            ProviderList.Children.Add(card.View);
+        }
     }
 
     /// <inheritdoc />
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         _context.Host.CalendarsChanged -= OnCalendarsChanged;
+        _context.Host.Closed -= OnHostClosed;
         ViewModel.Accounts.CollectionChanged -= OnAccountsChanged;
+    }
+
+    // =========================================================================
+    // SCHEDULING PROVIDERS
+    // =========================================================================
+
+    // The hub is app-lifetime, so it's only followed while the page is loaded
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        _context.Services.Scheduling.Changed += OnSchedulingChanged;
+        RefreshProviders();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e) => ReleaseProviders();
+
+    // Settings Closed On This Page (back to the calendar, or the window closed with Leaf staying in the tray): the page
+    // may not get Unloaded, so the hub is let go here, or it would keep the Settings view alive
+    private void OnHostClosed(object? sender, EventArgs e)
+    {
+        _context.Host.Closed -= OnHostClosed;
+        ReleaseProviders();
+    }
+
+    // Stops following the hub, cancels a provider sign-in waiting on the browser, and clears the client forms
+    private void ReleaseProviders()
+    {
+        _context.Services.Scheduling.Changed -= OnSchedulingChanged;
+        foreach (var card in _providerCards)
+        {
+            card.Release();
+        }
+    }
+
+    // Raised on any thread (a client saved or removed, a sign-in or sign-out, or a provider signing Leaf out)
+    private void OnSchedulingChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(RefreshProviders);
+
+    private void RefreshProviders()
+    {
+        foreach (var card in _providerCards)
+        {
+            card.Refresh();
+        }
     }
 
     // An add, sync, or disconnect refreshed the accounts: rebuild once, after the refresh is done

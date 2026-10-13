@@ -84,6 +84,10 @@ public class LoopbackListenerTests
         Assert.Contains("<a href=\"leaf-calendar:\"", page, StringComparison.Ordinal);
         Assert.Contains("Open Leaf Calendar", page, StringComparison.Ordinal);
         Assert.Contains("<meta http-equiv=\"refresh\" content=\"0;url=leaf-calendar:\">", page, StringComparison.Ordinal);
+
+        // Leaf's Icon Is Embedded, And The Page Follows The Browser's Dark Mode
+        Assert.Contains("<img src=\"data:image/png;base64,iVBOR", page, StringComparison.Ordinal);
+        Assert.Contains("prefers-color-scheme: dark", page, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -220,5 +224,69 @@ public class LoopbackListenerTests
         await cts.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wait);
+    }
+
+    private static int FreePort()
+    {
+        var probe = new TcpListener(IPAddress.Loopback, 0);
+        probe.Start();
+        var port = ((IPEndPoint)probe.LocalEndpoint).Port;
+        probe.Stop();
+        return port;
+    }
+
+    [Fact]
+    public async Task WaitForCallbackAsync_FixedPortAndPath_ReturnsQuery()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var port = FreePort();
+        using var listener = new LoopbackListener(port, "/oauth/callback");
+        var wait = listener.WaitForCallbackAsync("xyz", ct);
+
+        using var response = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=abc&state=xyz"), ct);
+        var query = await wait;
+
+        Assert.Equal($"http://127.0.0.1:{port}/oauth/callback", listener.RedirectUri.ToString());
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("abc", query["code"]);
+    }
+
+    [Fact]
+    public async Task WaitForCallbackAsync_FixedPathWrongPath_Gets404ThenAcceptsRightPath()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var listener = new LoopbackListener(FreePort(), "/oauth/callback");
+        var wait = listener.WaitForCallbackAsync("xyz", ct);
+
+        using var wrong = await Http.GetAsync(new Uri(listener.RedirectUri, "/?code=abc&state=xyz"), ct);
+        Assert.Equal(HttpStatusCode.NotFound, wrong.StatusCode);
+        Assert.False(wait.IsCompleted);
+
+        using var right = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=abc&state=xyz"), ct);
+        Assert.Equal("abc", (await wait)["code"]);
+    }
+
+    [Fact]
+    public async Task WaitForCallbackAsync_FixedPathWrongState_Gets404()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var listener = new LoopbackListener(FreePort(), "/oauth/callback");
+        var wait = listener.WaitForCallbackAsync("xyz", ct);
+
+        using var response = await Http.GetAsync(new Uri(listener.RedirectUri, "?code=abc&state=other"), ct);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.False(wait.IsCompleted);
+    }
+
+    [Fact]
+    public void Constructor_PortAlreadyBound_ThrowsAddressInUse()
+    {
+        var port = FreePort();
+        using var holder = new LoopbackListener(port, "/oauth/callback");
+
+        var ex = Assert.Throws<SocketException>(() => new LoopbackListener(port, "/oauth/callback"));
+
+        Assert.Equal(SocketError.AddressAlreadyInUse, ex.SocketErrorCode);
     }
 }

@@ -465,9 +465,16 @@ public sealed partial class TimeGridView : Grid, IDisposable
         _gutterScroll.ChangeView(null, e.NextView.VerticalOffset, null, true);
     }
 
+    /// <summary>Raised when the day grid scrolls (the share hint slides away at the bottom).</summary>
+    public event EventHandler? BodyScrolled;
+
+    /// <summary>True when the day grid is scrolled to its last hour.</summary>
+    public bool IsScrolledToBottom => _bodyScroll.ScrollableHeight > 0 && _bodyScroll.VerticalOffset >= _bodyScroll.ScrollableHeight - 1;
+
     private void OnBodyViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
         SyncSides();
+        BodyScrolled?.Invoke(this, EventArgs.Empty);
         if (!e.IsIntermediate)
         {
             _wheelTarget = double.NaN;
@@ -955,7 +962,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
     // How far the pointer must move before a press becomes a drag (less stays a click)
     private const double DragThreshold = 4;
 
-    private enum DragKind { Move, Resize, Create, CreateAllDay, AllDay, Box, Nudge, ResizeSlot }
+    private enum DragKind { Move, Resize, Create, CreateAllDay, AllDay, Box, Nudge, ResizeSlot, MoveSlot }
 
     private sealed class DragSession(DragKind kind, Point origin)
     {
@@ -978,7 +985,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         // An Alt+Drag Of An Event You Can't Change: it only ever copies, even once Alt is let go
         public bool CopyOnly { get; init; }
 
-        // A Drawn Time's Top Or Bottom Edge Being Dragged
+        // A Drawn Time's Top Or Bottom Edge Being Dragged, Or A Picked Time Being Moved (GrabbedAt holds the press)
         public GridSlot? Slot { get; init; }
         public bool TopEdge { get; init; }
         public (DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool InHeader)? Target { get; set; }
@@ -1036,6 +1043,13 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
+        // Inside A Picked Time While Sharing (new picks or an open group): dragging moves it, keeping its length
+        if (_vm.IsSharing && SlotAt(day, minutes) is { Slot: { Title: null } slot, Edge: SlotEdge.Inside })
+        {
+            _drag = new DragSession(DragKind.MoveSlot, e.GetCurrentPoint(this).Position) { Slot = slot, GrabbedAt = DragMath.Instant(day, minutes, _vm.Zone) };
+            return;
+        }
+
         // Shift: Box Select Instead Of Create (spec 7.3). While editing it does nothing (no box, no new event);
         // while picking times to share it picks a time like any drag
         if (KeyState.IsDown(Windows.System.VirtualKey.Shift) && !_vm.IsSharing)
@@ -1076,6 +1090,9 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
     /// <summary>True when <paramref name="y"/> on <paramref name="day"/> is on the edge of a time that can be resized.</summary>
     public bool ResizableEdgeAt(DateOnly day, double y) => SlotAt(day, y / HourHeight * 60) is { Slot.Resizable: true, Edge: not SlotEdge.Inside };
+
+    /// <summary>True when <paramref name="y"/> on <paramref name="day"/> is inside a picked time that a drag would move (only while sharing).</summary>
+    public bool MovableAt(DateOnly day, double y) => _vm.IsSharing && SlotAt(day, y / HourHeight * 60) is { Slot.Title: null, Edge: SlotEdge.Inside };
 
     // The drawn time under a point and which part of it (null over none); the edge is the event resize strip's 6 DIP
     private (GridSlot Slot, SlotEdge Edge)? SlotAt(DateOnly day, double minutes)
@@ -1302,6 +1319,17 @@ public sealed partial class TimeGridView : Grid, IDisposable
 
         e.Handled = true;
 
+        // A Picked Time Moved: it lands there (merged, or fitted to the link's openings); a press that didn't move changes nothing
+        if (drag.Kind == DragKind.MoveSlot)
+        {
+            if (target.Start != drag.Slot!.Range.Start)
+            {
+                _vm.MoveShareSlot(drag.Slot, target.Start, target.End);
+            }
+
+            return;
+        }
+
         // A Time's Edge Dragged: it takes the new start or end (merged with any it now touches)
         if (drag.Kind == DragKind.ResizeSlot)
         {
@@ -1363,6 +1391,10 @@ public sealed partial class TimeGridView : Grid, IDisposable
             case DragKind.ResizeSlot:
                 var (slotStart, slotEnd) = DragMath.ResizeRange(drag.Slot!.Range.Start, drag.Slot.Range.End, drag.TopEdge, pointerAt, zone);
                 return (slotStart, slotEnd, false, false);
+
+            case DragKind.MoveSlot:
+                var (movedStart, movedEnd) = DragMath.MoveRange(drag.Slot!.Range.Start, drag.Slot.Range.End, drag.GrabbedAt, pointerAt, zone);
+                return (movedStart, movedEnd, false, false);
 
             case DragKind.CreateAllDay:
                 var (allDayStart, allDayEnd) = DragMath.AllDayRange(drag.GrabbedDay, DayAt(e.GetCurrentPoint(_allDay).Position.X));

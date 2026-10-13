@@ -4,6 +4,7 @@ using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.People;
+using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Tray;
 using LeafCalendar.Core.Views;
@@ -19,8 +20,10 @@ public sealed record OverlayBlock(string Email, int ColorIndex, DateTimeOffset S
 /// <summary>
 /// A time the grid draws: a saved group's (<see cref="Title"/> set) or a pick while sharing (<see cref="Title"/> null,
 /// <see cref="GroupId"/> the open group's, if any). <see cref="Index"/> is its place in its group or in the picks.
+/// <see cref="Parts"/> are the bookable times it splits into on a scheduling link (the grid draws a line and a time at
+/// each); empty without a link.
 /// </summary>
-public sealed record GridSlot(long? GroupId, int Index, BusyRange Range, string? Title, bool Resizable);
+public sealed record GridSlot(long? GroupId, int Index, BusyRange Range, string? Title, bool Resizable, IReadOnlyList<BusyRange> Parts);
 
 public sealed partial class CalendarViewModel
 {
@@ -374,6 +377,7 @@ public sealed partial class CalendarViewModel
         _shareText = Settings.ShareMessage;
         _shareGuests = [];
         _sharing = true;
+        StartScheduling();
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -401,6 +405,7 @@ public sealed partial class CalendarViewModel
         _shareGuests = [.. group.Guests.Where(g => IsAddress(g.Email))];
         _shareZoneId = group.ZoneId;
         _sharing = true;
+        OpenScheduling(group);
         ShareChanged?.Invoke(this, EventArgs.Empty);
         foreach (var guest in _shareGuests.Where(g => g.Name.Length == 0).ToList())
         {
@@ -458,16 +463,16 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        var (group, title, text, zone, slots, now, guests) = (_openGroupId, _shareTitle, _shareText, _shareZoneId, _slots.ToList(), Now, _shareGuests.ToList());
+        var (group, title, text, zone, slots, now, guests, link) = (_openGroupId, _shareTitle, _shareText, _shareZoneId, _slots.ToList(), Now, _shareGuests.ToList(), CurrentLink());
         var saved = WriteGroups("share.group.save.failed", conn =>
         {
             if (group is { } id)
             {
-                ShareGroupStore.Update(conn, id, title, text, zone, slots, guests);
+                ShareGroupStore.Update(conn, id, title, text, zone, slots, guests, link);
             }
             else
             {
-                ShareGroupStore.Insert(conn, title, text, zone, slots, now, guests);
+                ShareGroupStore.Insert(conn, title, text, zone, slots, now, guests, link);
             }
         });
 
@@ -480,12 +485,21 @@ public sealed partial class CalendarViewModel
     /// <summary>
     /// Books one time of the open group: sharing stops (the editor needs the right panel), and the event editor opens on
     /// that time with the group's title and every guest added. Needs a guest. The group is deleted only once the event
-    /// saves; until then its times stay on the grid, resizable.
+    /// saves; until then its times stay on the grid, resizable. Does nothing when <see cref="ApprovesThroughProvider"/>
+    /// (the share panel books on the provider instead, through <see cref="BookAsync"/>), and only says so when the share
+    /// is on a provider that needs reconnecting.
     /// </summary>
     public void ApproveSlot(int index)
     {
-        if (_openGroupId is not { } id || index < 0 || index >= _slots.Count || _shareGuests.Count == 0)
+        if (ApprovesThroughProvider || _openGroupId is not { } id || index < 0 || index >= _slots.Count || _shareGuests.Count == 0)
         {
+            return;
+        }
+
+        // A share on a provider that refused its sign-in books there once you sign in again, never as a Google event
+        if (ShareLink is { } link && _services.Scheduling.StateOf(link.ProviderId) == ProviderState.NeedsReconnect)
+        {
+            SayShare(NeedsReconnectMessage(link.ProviderId));
             return;
         }
 
@@ -522,10 +536,11 @@ public sealed partial class CalendarViewModel
         _openGroupId = null;
         _slots = [];
         _shareGuests = [];
+        ResetScheduling();
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Adds a picked time (merged with any it overlaps or touches).</summary>
+    /// <summary>Adds a picked time (merged with any it overlaps or touches; fitted to the link's openings with the switch on).</summary>
     public void AddShareSlot(DateTimeOffset start, DateTimeOffset end)
     {
         if (!_sharing || end <= start)
@@ -533,7 +548,7 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        _slots = [.. BusyMath.Merge([.. _slots, new BusyRange(start, end)])];
+        _slots = [.. BusyMath.Merge([.. _slots, .. FitPick(new BusyRange(start, end))])];
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -552,7 +567,10 @@ public sealed partial class CalendarViewModel
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Changes the picked time at <paramref name="index"/> (the right panel's times; merged again with any it now overlaps or touches).</summary>
+    /// <summary>
+    /// Changes the picked time at <paramref name="index"/> (the right panel's times; merged again with any it now overlaps
+    /// or touches). With the switch on it's fitted to the link's openings, and nothing left drops it.
+    /// </summary>
     public void UpdateShareSlot(int index, DateTimeOffset start, DateTimeOffset end)
     {
         if (index < 0 || index >= _slots.Count || end <= start)
@@ -560,8 +578,8 @@ public sealed partial class CalendarViewModel
             return;
         }
 
-        _slots[index] = new BusyRange(start, end);
-        _slots = [.. BusyMath.Merge(_slots)];
+        _slots.RemoveAt(index);
+        _slots = [.. BusyMath.Merge([.. _slots, .. FitPick(new BusyRange(start, end))])];
         ShareChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -576,16 +594,26 @@ public sealed partial class CalendarViewModel
         foreach (var g in _savedGroups.Where(g => !_sharing || g.Id != _openGroupId))
         {
             var title = GroupTitle(g);
-            list.AddRange(g.Slots.Select((s, i) => new GridSlot(g.Id, i, s, title, Resizable: g.Id == _approvingGroupId)));
+            list.AddRange(g.Slots.Select((s, i) => new GridSlot(g.Id, i, s, title, Resizable: g.Id == _approvingGroupId, SplitParts(s, null, g.LinkMinutes))));
         }
 
         if (_sharing)
         {
-            list.AddRange(_slots.Select((s, i) => new GridSlot(_openGroupId, i, s, null, Resizable: true)));
+            var minutes = ShareLink?.Minutes ?? 0;
+            list.AddRange(_slots.Select((s, i) => new GridSlot(_openGroupId, i, s, null, Resizable: true, SplitParts(s, KnownOpenTimes(s), minutes))));
         }
 
         return list;
     }
+
+    // The bookable times a range splits into on a link of this length, the same split the copied text uses (by the open
+    // times when known, else by length); none without a link
+    private static IReadOnlyList<BusyRange> SplitParts(BusyRange range, IReadOnlyList<BusyRange>? open, int minutes) =>
+        minutes > 0 ? SlotFitting.Split(range, open, minutes) : [];
+
+    // The open times, when they cover all of the range; null (split by length) otherwise
+    private IReadOnlyList<BusyRange>? KnownOpenTimes(BusyRange range) =>
+        _openRange is { } known && known.From <= range.Start && range.End <= known.To ? _openTimes : null;
 
     /// <summary>
     /// A drawn time resized on the grid: a pick changes (an open group's waits for Save), or a group being approved saves.
@@ -622,7 +650,8 @@ public sealed partial class CalendarViewModel
         var slots = group.Slots.ToList();
         slots[index] = new BusyRange(start, end);
         var merged = BusyMath.Merge(slots);
-        WriteGroups("share.group.save.failed", conn => ShareGroupStore.Update(conn, group.Id, group.Title, group.Message, group.ZoneId, merged, group.Guests));
+        WriteGroups("share.group.save.failed", conn => ShareGroupStore.Update(conn, group.Id, group.Title, group.Message, group.ZoneId, merged, group.Guests,
+            new LeafCalendar.Core.Data.ShareLink(group.ProviderId, group.LinkId, group.LinkUrl, group.LinkMinutes)));
     }
 
     // A write to the saved groups, then a fresh read of them; a failure is logged (never its content), says so, and
@@ -696,7 +725,7 @@ public sealed partial class CalendarViewModel
             return "";
         }
 
-        var zone = TimeZoneInfo.TryFindSystemTimeZoneById(_shareZoneId, out var shareZone) ? shareZone : Zone;
+        var zone = ShareZone();
         return AvailabilityText.Compose(_shareText, AvailabilityText.Format(BusyMath.Merge(_slots), zone, Settings.Use24HourTime));
     }
 
@@ -712,10 +741,22 @@ public sealed partial class CalendarViewModel
             return;
         }
 
+        // With a booking link, each time is its own link (rich text, plus plain text with the address after each time)
+        var zone = ShareZone();
+        var linked = BuildLinkedAvailability(zone);
         try
         {
             var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            package.SetText(BuildAvailability());
+            if (linked is not null)
+            {
+                package.SetText(linked.Plain);
+                package.SetHtmlFormat(Windows.ApplicationModel.DataTransfer.HtmlFormatHelper.CreateHtmlFormat(linked.Html));
+            }
+            else
+            {
+                package.SetText(BuildAvailability());
+            }
+
             Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
             Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
         }
@@ -733,11 +774,11 @@ public sealed partial class CalendarViewModel
             using var conn = _services.Database.Open();
             if (_openGroupId is { } id)
             {
-                ShareGroupStore.Update(conn, id, _shareTitle, _shareText, _shareZoneId, _slots, _shareGuests.ToList());
+                ShareGroupStore.Update(conn, id, _shareTitle, _shareText, _shareZoneId, _slots, _shareGuests.ToList(), CurrentLink());
             }
             else
             {
-                ShareGroupStore.Insert(conn, _shareTitle, _shareText, _shareZoneId, _slots, Now, _shareGuests.ToList());
+                ShareGroupStore.Insert(conn, _shareTitle, _shareText, _shareZoneId, _slots, Now, _shareGuests.ToList(), CurrentLink());
             }
         }
         catch (Microsoft.Data.Sqlite.SqliteException ex)
@@ -746,10 +787,17 @@ public sealed partial class CalendarViewModel
             saved = false;
         }
 
-        _services.Log.Info("share.copy", $"slots={_slots.Count} guests={_shareGuests.Count}");
+        // Saved Times Left Out, Or Guests Left Out Of The Links: the notice says so instead of "Availability copied" (sharing ends, so the
+        // scheduling messages wouldn't show); a failed save still says that first
+        var notice = !saved ? "Copied, but couldn't save these times."
+            : linked is { RangesDropped: true } && _shareLink is { } closed ? $"Some saved times aren't open on {ProviderName(closed)} anymore, so they were left out."
+            : linked is { GuestsDropped: true } && _shareLink is { } link ? $"This {ProviderName(link)} link doesn't allow extra guests, so only {FirstGuestLabel()} is filled in."
+            : "Availability copied";
+
+        _services.Log.Info("share.copy", $"slots={_slots.Count} guests={_shareGuests.Count} linked={linked is not null}");
         StopSharing();
         ReloadGroups();
-        ShowMessage(saved ? "Availability copied" : "Copied, but couldn't save these times.");
+        ShowMessage(notice);
     }
 
     /// <summary>True when <paramref name="text"/> is exactly one valid email address.</summary>

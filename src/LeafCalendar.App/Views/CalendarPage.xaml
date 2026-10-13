@@ -23,6 +23,16 @@
                     <SolidColorBrush x:Key="InfoBarInformationalSeverityBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
+
+            <!-- Scheduling Message Card (built in code, one per message in ShareMessagesPanel): the other toasts' look -->
+            <Style x:Key="LeafShareMessageStyle" TargetType="InfoBar">
+                <Setter Property="CloseButtonStyle" Value="{StaticResource LeafInfoBarCloseButtonStyle}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource SurfaceStrokeColorDefaultBrush}" />
+                <Setter Property="IsClosable" Value="True" />
+                <Setter Property="Severity" Value="Informational" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="AutomationProperties.LiveSetting" Value="Polite" />
+            </Style>
         </ResourceDictionary>
     </Page.Resources>
 
@@ -99,8 +109,9 @@
                     VerticalAlignment="Bottom" />
 
                 <!-- Toasts (bottom center, solid so the grid never shows through): the people overlay's bar (added in code),
-                     the hint while you mark times to share, then the notice ("Event deleted." and Undo). Each is raised over the
-                     calendar like a flyout (a ThemeShadow, CalendarPage.Float) with the flyout border, so it stands out in dark too -->
+                     the scheduling messages and the hint while you mark times to share, then the notice ("Event deleted." and Undo). Each is raised over the
+                     calendar like a flyout (a ThemeShadow, CalendarPage.Float) with the flyout border, so it stands out in dark too.
+                     Each is centered at its own width, so a long message doesn't widen the others -->
                 <StackPanel
                     x:Name="Toasts"
                     Grid.Row="2"
@@ -108,9 +119,16 @@
                     HorizontalAlignment="Center"
                     VerticalAlignment="Bottom"
                     Spacing="8">
+                    <!-- Scheduling Messages (newest on top, each fading on its own; above the hint while sharing) -->
+                    <StackPanel
+                        x:Name="ShareMessagesPanel"
+                        Spacing="8"
+                        AutomationProperties.LiveSetting="Polite"
+                        AutomationProperties.AutomationId="ShareMessages" />
                     <InfoBar
                         CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                         x:Name="SharingHint"
+                        HorizontalAlignment="Center"
                         BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
                         IsClosable="False"
                         Message="Mark times that are available on your calendar."
@@ -119,6 +137,7 @@
                     <InfoBar
                         CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
                         x:Name="NoticeBar"
+                        HorizontalAlignment="Center"
                         BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
                         IsClosable="True"
                         Closed="OnNoticeClosed"

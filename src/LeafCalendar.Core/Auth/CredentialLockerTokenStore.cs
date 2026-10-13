@@ -59,6 +59,18 @@ public sealed class CredentialLockerTokenStore(string profile) : ITokenStore
     /// <inheritdoc />
     public IReadOnlyList<string> GetAccountIds() => [.. FindAll(RefreshResource).Select(c => c.UserName)];
 
+    /// <inheritdoc />
+    public string? GetProviderSecret(string providerId, string key) => null;
+
+    /// <inheritdoc />
+    public void SetProviderSecret(string providerId, string key, string value) =>
+        throw SecretsUnavailable.Create("Scheduling secrets can't be saved until the secrets file can be written.", new NotSupportedException());
+
+    /// <inheritdoc />
+    public void RemoveProviderSecrets(string providerId)
+    {
+    }
+
     /// <summary>Deletes every secret for this profile (tests and profile resets).</summary>
     public void DeleteAll()
     {

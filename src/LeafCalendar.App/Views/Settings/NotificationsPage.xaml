@@ -68,6 +68,20 @@
                         AutomationProperties.Name="Invite notifications"
                         AutomationProperties.AutomationId="InvitesSwitch" />
                 </controls:SettingRow>
+                <!-- Booking Notifications (shown only while a scheduling provider is connected) -->
+                <controls:SettingRow
+                    x:Name="BookingsRow"
+                    Glyph="&#xE8BF;"
+                    Header="Booking notifications"
+                    Description="Show a notification when someone books a time you shared."
+                    Visibility="Collapsed">
+                    <ToggleSwitch
+                        x:Name="BookingsSwitch"
+                        Style="{StaticResource LeafCardToggleSwitchStyle}"
+                        Toggled="OnBookingsToggled"
+                        AutomationProperties.Name="Booking notifications"
+                        AutomationProperties.AutomationId="BookingNotificationsSwitch" />
+                </controls:SettingRow>
                 <!-- Sound (with the notifications it plays for: a "Sound" header over one "Sound" row only repeated it) -->
                 <controls:SettingRow Glyph="&#xE767;" Header="Sound" Description="Play the Windows notification sound. Do not disturb and Focus in Windows still apply.">
                     <ToggleSwitch

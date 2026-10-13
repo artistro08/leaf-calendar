@@ -48,6 +48,12 @@ public static class ChromeColors
     /// <summary>The tint outside your working hours (contrast themes draw none; the hour lines carry the structure there).</summary>
     public static string OffHours(bool dark) => dark ? "#29000000" : "#0A000000";
 
+    /// <summary>
+    /// The darker tint over times a booking link has no openings for, while sharing with it (contrast themes draw none,
+    /// like <see cref="OffHours"/>).
+    /// </summary>
+    public static string ClosedTime(bool dark) => dark ? "#47000000" : "#17000000";
+
     // People On The Overlay: Purple, Magenta, Teal, Orange
     private static readonly string[] PersonLight = ["#8764B8", "#C239B3", "#038387", "#CA5010"];
     private static readonly string[] PersonDark = ["#B4A0FF", "#F48FE8", "#5FD3D6", "#FF9C62"];

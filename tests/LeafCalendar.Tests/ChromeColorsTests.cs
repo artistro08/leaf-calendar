@@ -49,6 +49,20 @@ public class ChromeColorsTests
         Assert.True(ratio >= 4.5, $"primary text on off-hours {fill}: {ratio:0.00}:1");
     }
 
+    // Closed Time (No Openings On The Booking Link) Reads Darker Than Off Hours, And Text Over It Stays Readable
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ClosedTime_IsDarkerThanOffHours_AndTextMeetsAA(bool dark)
+    {
+        var surface = ChromeColors.Surface(dark);
+        var offHours = Flatten(ChromeColors.OffHours(dark), surface);
+        var closed = Flatten(ChromeColors.ClosedTime(dark), surface);
+        Assert.True(EventColors.ContrastRatio(closed, "#000000") < EventColors.ContrastRatio(offHours, "#000000"), $"closed {closed} not darker than off-hours {offHours}");
+        var ratio = EventColors.ContrastRatio(Flatten(ChromeColors.PrimaryText(dark), closed), closed);
+        Assert.True(ratio >= 4.5, $"primary text on closed time {closed}: {ratio:0.00}:1");
+    }
+
     // Weekends Read As Shaded In Both Themes: Darker Than A Weekday, On The Bare Surface And Over Off-Hours Shading
     [Theory]
     [InlineData(true)]

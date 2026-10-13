@@ -30,16 +30,19 @@ public sealed class ShareAvailabilityTests : IDisposable
     // The dentist runs 9-10 AM Eastern: its card (an hour less 2 px, 1 px below the 9:00 line) measures the grid
     private static int HourPixels(AutomationElement dentist) => dentist.BoundingRectangle.Height + 2;
 
+    // One hour of the grid in screen pixels
+    internal static int HourPixels(LeafApp leaf) => HourPixels(leaf.WaitFor(Dentist));
+
     // Drags from one Eastern hour to another on Oct 1, near the column's right edge (beside the event cards), a tenth
-    // of an hour in so snapping is clear
-    internal static void DragHours(LeafApp leaf, int fromHour, int toHour)
+    // of an hour in so snapping is clear (quarter hours work too)
+    internal static void DragHours(LeafApp leaf, double fromHour, double toHour)
     {
         var dentist = leaf.WaitFor(Dentist);
         var hour = HourPixels(dentist);
         var column = leaf.WaitFor("DayHeader_2026-10-01").BoundingRectangle;
         var x = column.Right - 4;
         var top = dentist.BoundingRectangle.Top - 1 + hour / 10;
-        LeafApp.Drag(new Point(x, top + (fromHour - 9) * hour), new Point(x, top + (toHour - 9) * hour));
+        LeafApp.Drag(new Point(x, top + (int)Math.Round((fromHour - 9) * hour)), new Point(x, top + (int)Math.Round((toHour - 9) * hour)));
     }
 
     // S, then wait for the share panel
@@ -64,7 +67,7 @@ public sealed class ShareAvailabilityTests : IDisposable
         return text[intro.Length..];
     }
 
-    private static bool NoticeSays(LeafApp leaf, string text) =>
+    internal static bool NoticeSays(LeafApp leaf, string text) =>
         Retry.WhileFalse(() => leaf.Exists("NoticeBar") && leaf.WaitFor("NoticeBar") is var notice
             && notice.FindAllDescendants().Prepend(notice).Any(e => (e.Properties.Name.ValueOrDefault ?? "").Contains(text, StringComparison.Ordinal)), TimeSpan.FromSeconds(10)).Success;
 

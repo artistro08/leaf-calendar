@@ -46,6 +46,38 @@ internal static class Clipboard
         }
     }
 
+    /// <summary>The clipboard's HTML Format (CF_HTML: its header, then the page, as UTF-8), or null when it has none or is busy.</summary>
+    public static string? Html()
+    {
+        if (!NativeMethods.OpenClipboard(0))
+        {
+            return null;
+        }
+
+        try
+        {
+            var handle = NativeMethods.GetClipboardData(NativeMethods.RegisterClipboardFormatW("HTML Format"));
+            var data = handle == 0 ? 0 : NativeMethods.GlobalLock(handle);
+            if (data == 0)
+            {
+                return null;
+            }
+
+            try
+            {
+                return Marshal.PtrToStringUTF8(data);
+            }
+            finally
+            {
+                NativeMethods.GlobalUnlock(handle);
+            }
+        }
+        finally
+        {
+            NativeMethods.CloseClipboard();
+        }
+    }
+
     /// <summary>Empties the clipboard, so a later read can't pass on old text.</summary>
     public static void Clear()
     {

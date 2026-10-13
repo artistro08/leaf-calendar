@@ -40,7 +40,7 @@ public class OnboardingFlowTests
             steps.Add(flow.Step);
         }
 
-        Assert.Equal([OnboardingStep.Welcome, OnboardingStep.Client, OnboardingStep.SignIn, OnboardingStep.Syncing, OnboardingStep.Done], steps);
+        Assert.Equal([OnboardingStep.Welcome, OnboardingStep.Client, OnboardingStep.SignIn, OnboardingStep.Syncing, OnboardingStep.Scheduling, OnboardingStep.Done], steps);
         Assert.Equal(OnboardingFlow.StepCount, steps.Count);
         Assert.Equal(OnboardingStep.Done, flow.Step);
     }
@@ -50,7 +50,7 @@ public class OnboardingFlowTests
     {
         Assert.Equal(0, At(OnboardingStep.Welcome).PageIndex);
         Assert.Equal(2, At(OnboardingStep.SignIn).PageIndex);
-        Assert.Equal(4, At(OnboardingStep.Done).PageIndex);
+        Assert.Equal(5, At(OnboardingStep.Done).PageIndex);
     }
 
     [Theory]
@@ -58,6 +58,7 @@ public class OnboardingFlowTests
     [InlineData(OnboardingStep.Client, true)]
     [InlineData(OnboardingStep.SignIn, true)]
     [InlineData(OnboardingStep.Syncing, false)]
+    [InlineData(OnboardingStep.Scheduling, false)]
     [InlineData(OnboardingStep.Done, false)]
     public void CanGoBack_OnlyBeforeSigningIn(OnboardingStep step, bool canGoBack)
     {
@@ -98,6 +99,7 @@ public class OnboardingFlowTests
     [InlineData(OnboardingStep.Client, "Next")]
     [InlineData(OnboardingStep.SignIn, "Sign in with Google")]
     [InlineData(OnboardingStep.Syncing, "Next")]
+    [InlineData(OnboardingStep.Scheduling, "Sign in with Cal.com")]
     [InlineData(OnboardingStep.Done, "Open Leaf Calendar")]
     public void PrimaryText_PerStep(OnboardingStep step, string text)
     {
@@ -120,7 +122,7 @@ public class OnboardingFlowTests
     }
 
     [Fact]
-    public void SyncSucceeded_MovesToDone_AndAllowsFinishing()
+    public void SyncSucceeded_MovesToScheduling_ThenSkipAllowsFinishing()
     {
         var flow = At(OnboardingStep.Syncing);
         flow.SyncStarted();
@@ -129,10 +131,50 @@ public class OnboardingFlowTests
 
         flow.SyncSucceeded();
 
+        Assert.Equal(OnboardingStep.Scheduling, flow.Step);
+        Assert.True(flow.CanSkip);
+        Assert.False(flow.AsksBeforeClosing);
+
+        Assert.True(flow.Skip());
+
         Assert.Equal(OnboardingStep.Done, flow.Step);
         Assert.True(flow.CanFinish);
         Assert.True(flow.CanRunPrimary);
         Assert.False(flow.AsksBeforeClosing);
+    }
+
+    [Fact]
+    public void Scheduling_SignInWaitsForTheBoxes_AndCancelReplacesSkipWhileBusy()
+    {
+        var flow = At(OnboardingStep.Syncing);
+        flow.SyncSucceeded();
+
+        Assert.False(flow.CanRunPrimary);
+        flow.IsSchedulingReady = true;
+        Assert.True(flow.CanRunPrimary);
+
+        flow.IsBusy = true;
+
+        Assert.False(flow.CanRunPrimary);
+        Assert.False(flow.CanSkip);
+        Assert.True(flow.CanCancel);
+        Assert.False(flow.Skip());
+        Assert.Equal(OnboardingStep.Scheduling, flow.Step);
+    }
+
+    [Theory]
+    [InlineData(OnboardingStep.Welcome)]
+    [InlineData(OnboardingStep.Client)]
+    [InlineData(OnboardingStep.SignIn)]
+    [InlineData(OnboardingStep.Syncing)]
+    [InlineData(OnboardingStep.Done)]
+    public void Skip_OnlyOnTheSchedulingStep(OnboardingStep step)
+    {
+        var flow = At(step);
+
+        Assert.False(flow.CanSkip);
+        Assert.False(flow.Skip());
+        Assert.Equal(step, flow.Step);
     }
 
     [Fact]
@@ -218,8 +260,8 @@ public class OnboardingFlowTests
     }
 
     [Theory]
-    [InlineData(OnboardingStep.Welcome, "Step 1 of 5")]
-    [InlineData(OnboardingStep.Done, "Step 5 of 5")]
+    [InlineData(OnboardingStep.Welcome, "Step 1 of 6")]
+    [InlineData(OnboardingStep.Done, "Step 6 of 6")]
     public void StepName_ForScreenReaders(OnboardingStep step, string name)
     {
         Assert.Equal(name, At(step).StepName);

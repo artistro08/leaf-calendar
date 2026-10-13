@@ -151,6 +151,67 @@
             </StackPanel>
             <!-- /Syncing -->
 
+            <!-- Cal.com (optional: Skip sits beside the sign-in button; Settings › Accounts can do it later) -->
+            <StackPanel x:Name="SchedulingStep" Spacing="12" Visibility="Collapsed" AutomationProperties.Name="Schedule with Cal.com" AutomationProperties.AutomationId="OnboardingScheduling">
+                <FontIcon HorizontalAlignment="Left" FontSize="48" Glyph="&#xE787;" AutomationProperties.AccessibilityView="Raw" />
+                <StackPanel Spacing="4">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Schedule with Cal.com" />
+                    <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" TextWrapping="Wrap" Text="Optional. Share times as booking links from your Cal.com account. You can set this up later in Settings › Accounts." />
+                </StackPanel>
+
+                <!-- Guide (the link opens Cal.com's OAuth client page; the redirect URI is selectable to copy) -->
+                <StackPanel Spacing="4" AutomationProperties.AutomationId="CalComGuideText">
+                    <TextBlock TextWrapping="Wrap">
+                        Create an OAuth client in
+                        <Hyperlink Click="OnCalClientPageClick" AutomationProperties.AutomationId="CalComClientPageLink">
+                            Cal.com › Settings › Developer › OAuth
+                        </Hyperlink>, and add this redirect URI:
+                    </TextBlock>
+                    <TextBlock
+                        IsTextSelectionEnabled="True"
+                        FontFamily="Consolas"
+                        x:Name="CalRedirectText"
+                        AutomationProperties.AutomationId="CalComRedirectUri" />
+                </StackPanel>
+
+                <!-- Credentials (Enter in the ID moves to the secret; Enter in the secret signs in once both have text) -->
+                <StackPanel Spacing="8">
+                    <TextBox
+                        x:Name="CalClientIdBox"
+                        Header="Client ID"
+                        Text="{x:Bind ViewModel.CalClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        IsEnabled="{x:Bind ViewModel.CanSkip, Mode=OneWay}"
+                        KeyDown="OnCalClientIdKeyDown"
+                        AutomationProperties.AutomationId="CalComClientIdBox" />
+                    <PasswordBox
+                        x:Name="CalClientSecretBox"
+                        Header="Client secret"
+                        Password="{x:Bind ViewModel.CalClientSecret, Mode=TwoWay}"
+                        IsEnabled="{x:Bind ViewModel.CanSkip, Mode=OneWay}"
+                        KeyDown="OnClientSecretKeyDown"
+                        AutomationProperties.AutomationId="CalComClientSecretBox" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind ViewModel.HasStatus, Mode=OneWay}">
+                    <ProgressRing Width="20" Height="20" IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        Style="{StaticResource LeafSecondaryTextStyle}"
+                        TextWrapping="Wrap"
+                        Text="{x:Bind ViewModel.Status, Mode=OneWay}"
+                        AutomationProperties.AutomationId="OnboardingCalComStatus" />
+                </StackPanel>
+                <InfoBar
+                    CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
+                    Severity="Error"
+                    IsClosable="False"
+                    IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
+                    Message="{x:Bind ViewModel.Error, Mode=OneWay}"
+                    x:Name="CalComError"
+                    AutomationProperties.LiveSetting="Assertive"
+                    AutomationProperties.AutomationId="OnboardingCalComError" />
+            </StackPanel>
+            <!-- /Cal.com -->
+
             <!-- Done -->
             <StackPanel x:Name="DoneStep" Spacing="16" Visibility="Collapsed" AutomationProperties.Name="You're all set" AutomationProperties.AutomationId="OnboardingDone">
                 <FontIcon HorizontalAlignment="Left" FontSize="48" Glyph="&#xE73E;" AutomationProperties.AccessibilityView="Raw" />

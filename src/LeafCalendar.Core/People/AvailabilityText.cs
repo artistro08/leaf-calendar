@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Text;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.Views;
@@ -106,6 +107,48 @@ public static class AvailabilityText
             : $"{text}\n{times.Replace("\r\n", "\n", StringComparison.Ordinal)}";
 
         return composed.Replace("\n", "\r\n", StringComparison.Ordinal);
+    }
+
+    /// <summary>One line per proposed time, such as "Tue Oct 13, 10–10:30 AM CT". A time crossing midnight reads as one line with its start day.</summary>
+    /// <param name="times">The proposed times.</param>
+    /// <param name="zone">The zone whose clock the reader uses.</param>
+    /// <param name="use24Hour">"14:00–16:00" instead of "2–4 PM".</param>
+    /// <returns>The lines, in the order given.</returns>
+    public static IReadOnlyList<string> FormatTimes(IReadOnlyList<BusyRange> times, TimeZoneInfo zone, bool use24Hour)
+    {
+        ArgumentNullException.ThrowIfNull(times);
+        var label = ZoneLabel(zone);
+        return [.. times.Select(t =>
+        {
+            var start = TimeZoneInfo.ConvertTime(t.Start, zone).DateTime;
+            var end = TimeZoneInfo.ConvertTime(t.End, zone).DateTime;
+            return $"{start.ToString("ddd MMM d", English)}, {Range(start, end, use24Hour)} {label}";
+        })];
+    }
+
+    /// <summary>
+    /// The rich-text version of <see cref="Compose"/>: the message is HTML-encoded with line breaks as <c>&lt;br&gt;</c>, and
+    /// each line becomes a link whose text is the line. Placeholder rules match <see cref="Compose"/>.
+    /// </summary>
+    /// <param name="message">The share message, or null.</param>
+    /// <param name="lines">Each time's text and booking link.</param>
+    /// <returns>An HTML fragment.</returns>
+    public static string ComposeHtml(string? message, IReadOnlyList<(string Text, Uri Link)> lines)
+    {
+        ArgumentNullException.ThrowIfNull(lines);
+
+        var times = string.Join("<br>", lines.Select(l => $"<a href=\"{WebUtility.HtmlEncode(l.Link.AbsoluteUri)}\">{WebUtility.HtmlEncode(l.Text)}</a>"));
+        var text = (message ?? "").Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Trim();
+        if (text.Length == 0)
+        {
+            return times;
+        }
+
+        // Encode First, So The Placeholder's Braces Survive And The Lines Are Never Encoded Twice
+        var encoded = WebUtility.HtmlEncode(text).Replace("\n", "<br>", StringComparison.Ordinal);
+        return encoded.Contains(TimesPlaceholder, StringComparison.Ordinal)
+            ? encoded.Replace(TimesPlaceholder, times, StringComparison.Ordinal)
+            : $"{encoded}<br>{times}";
     }
 
     /// <summary><c>ET</c>, <c>CT</c>, <c>MT</c>, <c>PT</c>, <c>AKT</c>, <c>HT</c>, or <c>UTC</c>; otherwise "{City} time".</summary>

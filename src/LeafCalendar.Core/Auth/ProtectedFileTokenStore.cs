@@ -124,6 +124,46 @@ public sealed class ProtectedFileTokenStore : ITokenStore
         }
     }
 
+    /// <inheritdoc />
+    public string? GetProviderSecret(string providerId, string key)
+    {
+        lock (_gate)
+        {
+            return Load(out _).Providers?.GetValueOrDefault(providerId)?.GetValueOrDefault(key);
+        }
+    }
+
+    /// <inheritdoc />
+    public void SetProviderSecret(string providerId, string key, string value)
+    {
+        lock (_gate)
+        {
+            var file = Load(out var unreadable);
+            var providers = file.Providers ?? new(StringComparer.Ordinal);
+            if (!providers.TryGetValue(providerId, out var values))
+            {
+                values = new(StringComparer.Ordinal);
+                providers[providerId] = values;
+            }
+
+            values[key] = value;
+            Save(file with { Providers = providers }, unreadable);
+        }
+    }
+
+    /// <inheritdoc />
+    public void RemoveProviderSecrets(string providerId)
+    {
+        lock (_gate)
+        {
+            var file = Load(out var unreadable);
+            if (file.Providers?.Remove(providerId) == true)
+            {
+                Save(file, unreadable);
+            }
+        }
+    }
+
     /// <summary>
     /// Saves an OAuth client (when not null) and refresh tokens in one write, so a move from the Credential Locker lands
     /// whole or not at all.
@@ -234,4 +274,5 @@ public sealed class ProtectedFileTokenStore : ITokenStore
 /// <param name="ClientId">The OAuth client ID, or null before setup.</param>
 /// <param name="ClientSecret">The OAuth client secret, or null before setup.</param>
 /// <param name="Refresh">Refresh tokens by account ID (an empty dictionary when there are none).</param>
-internal sealed record SecretsFile(string? ClientId, string? ClientSecret, Dictionary<string, string> Refresh);
+/// <param name="Providers">Scheduling provider secrets by provider ID, then key; null in files written before scheduling providers.</param>
+internal sealed record SecretsFile(string? ClientId, string? ClientSecret, Dictionary<string, string> Refresh, Dictionary<string, Dictionary<string, string>>? Providers = null);

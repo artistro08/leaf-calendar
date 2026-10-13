@@ -1,5 +1,6 @@
 using System.Globalization;
 using LeafCalendar.Core.People;
+using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Tray;
 using LeafCalendar.Core.Views;
 
@@ -36,6 +37,12 @@ public enum AppTheme
 
 /// <summary>An extra time-zone column. <see cref="Id"/> is an IANA ID such as <c>Asia/Tokyo</c>.</summary>
 public sealed record ExtraTimeZone(string Id, string? Label);
+
+/// <summary>One scheduling provider's saved choices.</summary>
+/// <param name="ProviderId">The provider's ID.</param>
+/// <param name="Server">No longer used (self-hosted servers were dropped); always empty, kept so saved settings still read.</param>
+/// <param name="DefaultLinkId">The link each new share starts with, empty for the first.</param>
+public sealed record ProviderSettings(string ProviderId, string Server, string DefaultLinkId);
 
 /// <summary>A calendar by account and calendar ID.</summary>
 public sealed record CalendarRef(string AccountId, string CalendarId);
@@ -176,6 +183,12 @@ public sealed record LeafSettings
     /// <summary>Show new and updated invitations.</summary>
     public bool InviteNotifications { get; set; } = true;
 
+    /// <summary>Each signed-in scheduling provider's default link. Edit with <see cref="WithProvider"/> and <see cref="WithoutProvider"/>.</summary>
+    public IReadOnlyList<ProviderSettings> Scheduling { get; init; } = [];
+
+    /// <summary>Show a notification when someone books a time through a scheduling link.</summary>
+    public bool BookingNotifications { get; set; } = true;
+
     /// <summary>Notifications play the Windows sound.</summary>
     public bool NotificationSound { get; set; } = true;
 
@@ -233,6 +246,9 @@ public sealed record LeafSettings
     /// go. Empty copies the times alone.
     /// </summary>
     public string ShareMessage { get; init; } = AvailabilityText.DefaultMessage;
+
+    /// <summary>The line Copy adds after booking links (Settings › Scheduling). Empty adds nothing.</summary>
+    public string BookingLinkNote { get; init; } = ShareLinks.DefaultNote;
 
     /// <summary>Accounts whose calendars are folded away under their header (the sidebar and Settings › Calendars).</summary>
     public IReadOnlyList<string> CollapsedAccounts { get; init; } = [];
@@ -307,9 +323,31 @@ public sealed record LeafSettings
             SettingsWindowSize = SettingsWindowSize?.Clean(),
             MeetByDefaultAccounts = Keep(MeetByDefaultAccounts, CleanAccounts(MeetByDefaultAccounts)),
             CollapsedAccounts = Keep(CollapsedAccounts, CleanAccounts(CollapsedAccounts)),
+            Scheduling = Keep(Scheduling, CleanScheduling(Scheduling)),
             ShareMessage = ShareMessage is null ? AvailabilityText.DefaultMessage : Clip(ShareMessage, AvailabilityText.MaxMessageLength),
+            BookingLinkNote = BookingLinkNote is null or ShareLinks.FirstDefaultNote ? ShareLinks.DefaultNote : Clip(BookingLinkNote, ShareLinks.MaxNoteLength),
         };
     }
+
+    // Trimmed, capped, unknown and repeated provider IDs dropped (the first kept), the unused server emptied
+    private static List<ProviderSettings> CleanScheduling(IReadOnlyList<ProviderSettings>? list) =>
+        [.. (list ?? [])
+            .Where(p => p is not null && !string.IsNullOrWhiteSpace(p.ProviderId))
+            .Select(p => new ProviderSettings(Clip(p.ProviderId.Trim(), 32), "", Clip((p.DefaultLinkId ?? "").Trim(), 64)))
+            .Where(p => SchedulingProviders.Find(p.ProviderId) is not null)
+            .DistinctBy(p => p.ProviderId, StringComparer.Ordinal)];
+
+    /// <summary>Returns the saved choices for a provider, or an empty set when none are saved.</summary>
+    public ProviderSettings ProviderSettingsFor(string providerId) =>
+        Scheduling.FirstOrDefault(p => p.ProviderId == providerId) ?? new ProviderSettings(providerId, "", "");
+
+    /// <summary>Returns a copy with this provider's choices replacing the saved ones, or added when none were saved.</summary>
+    public LeafSettings WithProvider(ProviderSettings settings) =>
+        this with { Scheduling = [.. Scheduling.Where(p => p.ProviderId != settings.ProviderId), settings] };
+
+    /// <summary>Returns a copy without a provider's saved choices.</summary>
+    public LeafSettings WithoutProvider(string providerId) =>
+        this with { Scheduling = [.. Scheduling.Where(p => p.ProviderId != providerId)] };
 
     // Cuts text to a length without splitting a surrogate pair (an emoji at the limit is dropped whole)
     private static string Clip(string text, int max) =>

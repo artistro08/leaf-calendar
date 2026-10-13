@@ -200,4 +200,109 @@ public sealed class FakeGoogleServerTests : IDisposable
 
         Assert.Equal("Standup", (string?)Assert.Single(json["items"]!.AsArray())!["summary"]);
     }
+
+    // =========================================================================
+    // CAL.COM ROUTES
+    // =========================================================================
+
+    private async Task<HttpResponseMessage> CalCom(HttpMethod method, string path, string? body = null, string token = FakeGoogleServer.CalComAccessToken)
+    {
+        using var request = new HttpRequestMessage(method, new Uri(_google.BaseUri, "calcom/" + path));
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        if (body is not null)
+        {
+            request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+        }
+
+        return await _http.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
+    private static async Task<JsonNode> Json(HttpResponseMessage response) =>
+        JsonNode.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))!;
+
+    [Fact]
+    public async Task CalComAuthorize_RedirectsBackWithACodeAndTheState()
+    {
+        using var noRedirect = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
+        using var response = await noRedirect.GetAsync(new Uri(_google.BaseUri, "calcom/auth/oauth2/authorize?client_id=c&redirect_uri=http%3A%2F%2F127.0.0.1%3A53817%2Fcalcom%2Fcallback&state=s%201"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(System.Net.HttpStatusCode.Found, response.StatusCode);
+        Assert.Equal("http://127.0.0.1:53817/calcom/callback?code=calcom-code&state=s%201", response.Headers.Location!.OriginalString);
+    }
+
+    [Fact]
+    public async Task CalComToken_IssuesTokens_OrRefuses()
+    {
+        using var form = new FormUrlEncodedContent([new("grant_type", "authorization_code"), new("code", "calcom-code")]);
+        using var issued = await _http.PostAsync(new Uri(_google.BaseUri, "calcom/v2/auth/oauth2/token"), form, TestContext.Current.CancellationToken);
+        _google.CalComRefuseToken = true;
+        using var form2 = new FormUrlEncodedContent([new("grant_type", "refresh_token"), new("refresh_token", "x")]);
+        using var refused = await _http.PostAsync(new Uri(_google.BaseUri, "calcom/v2/auth/oauth2/token"), form2, TestContext.Current.CancellationToken);
+
+        var token = await Json(issued);
+        Assert.Equal(FakeGoogleServer.CalComAccessToken, (string?)token["access_token"]);
+        Assert.Equal(FakeGoogleServer.CalComRefreshToken, (string?)token["refresh_token"]);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, refused.StatusCode);
+    }
+
+    [Fact]
+    public async Task CalComEventTypes_ListsTwoLinks_401WithAnotherToken_500WhenDown()
+    {
+        using var ok = await CalCom(HttpMethod.Get, "v2/event-types");
+        using var wrong = await CalCom(HttpMethod.Get, "v2/event-types", token: "cal_live_wrong");
+        _google.CalComLinksDown = true;
+        using var down = await CalCom(HttpMethod.Get, "v2/event-types");
+
+        var links = (await Json(ok))["data"]!.AsArray();
+        Assert.Equal(["30 min meeting", "Quick chat"], links.Select(l => (string)l!["title"]!));
+        Assert.False((bool)links[0]!["disableGuests"]!);
+        Assert.True((bool)links[1]!["disableGuests"]!);
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, wrong.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.InternalServerError, down.StatusCode);
+    }
+
+    [Fact]
+    public async Task CalComSlots_OnlyInsideTheRange_GroupedByDay()
+    {
+        var nine = new DateTimeOffset(2026, 10, 1, 13, 0, 0, TimeSpan.Zero);
+        _google.CalComOpen = [(nine, nine.AddMinutes(30)), (nine.AddMinutes(30), nine.AddHours(1)), (nine.AddDays(1), nine.AddDays(1).AddMinutes(30))];
+
+        using var response = await CalCom(HttpMethod.Get, "v2/slots?eventTypeId=101&start=2026-10-01T00:00:00.000Z&end=2026-10-02T00:00:00.000Z&format=range");
+
+        var day = (await Json(response))["data"]!["2026-10-01"]!.AsArray();
+        Assert.Equal(["2026-10-01T13:00:00Z", "2026-10-01T13:30:00Z"], day.Select(s => (string)s!["start"]!));
+        Assert.Equal("2026-10-01T14:00:00Z", (string?)day[1]!["end"]);
+    }
+
+    [Fact]
+    public async Task CalComBookings_AddedOnesAfterTheTime_ForTheirLinkOnly()
+    {
+        _google.AddCalComBooking(new DateTimeOffset(2026, 10, 1, 13, 0, 0, TimeSpan.Zero), "Jane Doe");
+        _google.AddCalComBooking(new DateTimeOffset(2026, 10, 1, 14, 0, 0, TimeSpan.Zero), "Other Link", FakeGoogleServer.CalComQuickChat);
+
+        using var after = await CalCom(HttpMethod.Get, "v2/bookings?eventTypeId=101&afterCreatedAt=2026-10-01T00:00:00.000Z&status=upcoming");
+        using var later = await CalCom(HttpMethod.Get, $"v2/bookings?eventTypeId=101&afterCreatedAt={DateTimeOffset.UtcNow.AddHours(1):yyyy-MM-dd'T'HH:mm:ss'Z'}&status=upcoming");
+
+        var booking = Assert.Single((await Json(after))["data"]!.AsArray())!;
+        Assert.Equal("Jane Doe", (string?)booking["attendees"]![0]!["name"]);
+        Assert.Equal("2026-10-01T13:00:00Z", (string?)booking["start"]);
+        Assert.Empty((await Json(later))["data"]!.AsArray());
+    }
+
+    [Fact]
+    public async Task CalComBook_RecordsTheBody_409WhenTaken_ThenListsTheBooking()
+    {
+        const string Body = """{"start":"2026-10-01T13:00:00.000Z","eventTypeId":101,"attendee":{"name":"Jane","email":"jane@example.com","timeZone":"America/New_York"}}""";
+        _google.CalComTaken = true;
+
+        using var taken = await CalCom(HttpMethod.Post, "v2/bookings", Body);
+        using var booked = await CalCom(HttpMethod.Post, "v2/bookings", Body);
+        using var list = await CalCom(HttpMethod.Get, "v2/bookings?eventTypeId=101&afterCreatedAt=2026-10-01T00:00:00.000Z&status=upcoming");
+
+        Assert.Equal(System.Net.HttpStatusCode.Conflict, taken.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.Created, booked.StatusCode);
+        Assert.Equal("2026-10-01T13:00:00Z", (string?)(await Json(booked))["data"]!["start"]);
+        Assert.Equal([Body, Body], _google.CalComBookings);
+        Assert.Equal("Jane", (string?)Assert.Single((await Json(list))["data"]!.AsArray())!["attendees"]![0]!["name"]);
+    }
 }
