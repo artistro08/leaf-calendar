@@ -209,6 +209,36 @@ public sealed class ProviderTokensTests : IDisposable
     }
 
     [Fact]
+    public async Task GetAccessTokenAsync_DisposedWhileWaiting_EndsTheWaiter()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var release = new ManualResetEventSlim();
+        _provider.On(
+            r => r.Uri.AbsoluteUri == TokenUrl,
+            _ =>
+            {
+                release.Wait(TimeSpan.FromSeconds(10), CancellationToken.None);
+                return FakeHttpHandler.Json(HttpStatusCode.OK, Answer("at-1"));
+            });
+        var tokens = Create();
+
+        var first = Task.Run(() => tokens.GetAccessTokenAsync(CancellationToken.None), ct);
+        while (_provider.Requests.Count == 0)
+        {
+            await Task.Delay(10, ct);
+        }
+
+        var second = Task.Run(() => tokens.GetAccessTokenAsync(CancellationToken.None), ct);
+        await Task.Delay(100, ct);
+        tokens.Dispose();
+        release.Set();
+
+        await first.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        await Assert.ThrowsAsync<SchedulingUnavailableException>(() => second.WaitAsync(TimeSpan.FromSeconds(5), ct));
+        Assert.Single(_provider.Requests);
+    }
+
+    [Fact]
     public async Task GetAccessTokenAsync_Canceled_Propagates()
     {
         using var cts = new CancellationTokenSource();

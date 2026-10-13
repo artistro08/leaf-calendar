@@ -21,7 +21,7 @@ public interface ISchedulingProvider
 public interface ILinkSource
 {
     /// <summary>Your links, in the provider's order, unsafe or incomplete ones left out.</summary>
-    /// <exception cref="SchedulingAuthException">The key was refused.</exception>
+    /// <exception cref="SchedulingAuthException">The provider refused the sign-in (its access token or the token refresh).</exception>
     /// <exception cref="SchedulingUnavailableException">The provider couldn't be reached or failed.</exception>
     Task<IReadOnlyList<SchedulingLink>> GetLinksAsync(CancellationToken ct);
 }
@@ -30,7 +30,7 @@ public interface ILinkSource
 public interface IOpenTimesSource
 {
     /// <summary>Each bookable start and end for the link between two instants, in order.</summary>
-    /// <exception cref="SchedulingAuthException">The key was refused.</exception>
+    /// <exception cref="SchedulingAuthException">The provider refused the sign-in (its access token or the token refresh).</exception>
     /// <exception cref="SchedulingUnavailableException">The provider couldn't be reached or failed.</exception>
     Task<IReadOnlyList<BusyRange>> GetOpenTimesAsync(string linkId, DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken ct);
 }
@@ -56,7 +56,7 @@ public interface IBlockLinkBuilder
 public interface IBookingSource
 {
     /// <summary>Upcoming bookings on the link made after <paramref name="createdAfterUtc"/>.</summary>
-    /// <exception cref="SchedulingAuthException">The key was refused.</exception>
+    /// <exception cref="SchedulingAuthException">The provider refused the sign-in (its access token or the token refresh).</exception>
     /// <exception cref="SchedulingUnavailableException">The provider couldn't be reached or failed.</exception>
     Task<IReadOnlyList<SchedulingBooking>> GetBookingsAsync(string linkId, DateTimeOffset createdAfterUtc, CancellationToken ct);
 }
@@ -69,7 +69,7 @@ public interface IBookingCreator
     /// guests. The provider sends its usual confirmation emails.
     /// </summary>
     /// <exception cref="SchedulingSlotTakenException">The time isn't open anymore.</exception>
-    /// <exception cref="SchedulingAuthException">The key was refused.</exception>
+    /// <exception cref="SchedulingAuthException">The provider refused the sign-in (its access token or the token refresh).</exception>
     /// <exception cref="SchedulingUnavailableException">The provider couldn't be reached or failed; nothing was booked as far as Leaf knows.</exception>
     Task<SchedulingBooking> BookAsync(SchedulingLink link, DateTimeOffset startUtc, IReadOnlyList<Contact> guests, TimeZoneInfo zone, CancellationToken ct);
 }

@@ -213,6 +213,7 @@ public sealed class SchedulingHub(HttpClient http, ITokenStore tokens, AppLog lo
     /// <param name="openBrowser">Opens the provider's consent page.</param>
     /// <param name="ct">Cancels the sign-in.</param>
     /// <exception cref="InvalidOperationException">No OAuth client is saved for the provider.</exception>
+    /// <exception cref="InvalidDataException">The secrets can't be read right now (<see cref="SecretsUnavailable.Is"/>); nothing was changed.</exception>
     /// <exception cref="SchedulingPortBusyException">Another app holds the redirect port.</exception>
     /// <exception cref="SchedulingAuthException">The sign-in was canceled or refused; nothing was saved.</exception>
     /// <exception cref="SchedulingUnavailableException">The provider couldn't be reached; nothing was saved.</exception>

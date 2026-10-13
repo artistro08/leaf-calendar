@@ -24,24 +24,20 @@ public sealed class ProviderTokens(
     private string _refreshToken = refreshToken;
     private string? _accessToken;
     private DateTimeOffset _expiresAt;
+    private volatile bool _ended;
 
     /// <summary>Returns a valid access token, refreshing it first when less than a minute is left.</summary>
     /// <exception cref="SchedulingAuthException">The provider refused the refresh token or the OAuth client.</exception>
     /// <exception cref="SchedulingUnavailableException">The provider couldn't be reached or answered with an error that may pass.</exception>
     public async Task<string> GetAccessTokenAsync(CancellationToken ct)
     {
-        // The hub disposes a dropped provider's tokens while a call may still be on its way here
+        // The hub disposes a dropped provider's tokens while calls may still be on their way or waiting here
+        ThrowIfEnded();
+        await _refreshGate.WaitAsync(ct);
         try
         {
-            await _refreshGate.WaitAsync(ct);
-        }
-        catch (ObjectDisposedException ex)
-        {
-            throw new SchedulingUnavailableException("This sign-in has ended.", ex);
-        }
+            ThrowIfEnded();
 
-        try
-        {
             // Another caller may have refreshed while this one waited
             if (_accessToken is not null && _expiresAt - time.GetUtcNow() > RefreshMargin)
             {
@@ -69,22 +65,25 @@ public sealed class ProviderTokens(
         }
         finally
         {
-            ReleaseGate();
+            _refreshGate.Release();
         }
     }
 
-    /// <summary>Disposes the refresh semaphore. A call already on its way ends with <see cref="SchedulingUnavailableException"/> or its own result.</summary>
-    public void Dispose() => _refreshGate.Dispose();
+    /// <summary>
+    /// Ends this sign-in's token source: a refresh already running finishes, and every call waiting or arriving after it
+    /// throws <see cref="SchedulingUnavailableException"/>.
+    /// </summary>
+    /// <remarks>
+    /// The semaphore is deliberately not disposed: disposing it would strand callers already waiting on it, and it holds no
+    /// wait handle (<c>AvailableWaitHandle</c> is never read), so there's nothing to free.
+    /// </remarks>
+    public void Dispose() => _ended = true;
 
-    // Releases the gate unless it was disposed during the refresh (nothing waits on a disposed gate)
-    private void ReleaseGate()
+    private void ThrowIfEnded()
     {
-        try
+        if (_ended)
         {
-            _refreshGate.Release();
-        }
-        catch (ObjectDisposedException)
-        {
+            throw new SchedulingUnavailableException("This sign-in has ended.");
         }
     }
 }
