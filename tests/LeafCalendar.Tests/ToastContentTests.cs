@@ -335,4 +335,34 @@ public class ToastContentTests
         Assert.Equal("Today", texts[1]);
         Assert.Equal("Room 4", texts[2]);
     }
+
+    [Fact]
+    public void Parse_OpenDay_NeedsStart()
+    {
+        var start = new DateTimeOffset(2026, 10, 13, 14, 0, 0, TimeSpan.Zero);
+        var text = new ToastArgs(ToastAction.OpenDay, "default", Start: start).Encode();
+
+        Assert.Equal(start, ToastArgs.Parse(text)!.Start);
+        Assert.Null(ToastArgs.Parse("action=OpenDay;profile=default"));
+    }
+
+    [Fact]
+    public void Booking_EscapesNameAndOpensTheDay()
+    {
+        var start = new DateTimeOffset(2026, 10, 13, 14, 0, 0, TimeSpan.Zero);
+
+        var toast = ToastContent.Booking("bk1", "Jane <script>", "Tue Oct 13, 9 AM", start, "default", sound: true);
+
+        Assert.Contains("Jane &lt;script&gt; booked Tue Oct 13, 9 AM", toast.Xml, StringComparison.Ordinal);
+        Assert.Contains("action=OpenDay", toast.Xml, StringComparison.Ordinal);
+        Assert.Equal(ToastContent.BookingGroup, toast.Group);
+    }
+
+    [Fact]
+    public void Booking_NoName_SaysSomeone()
+    {
+        var toast = ToastContent.Booking("bk1", "", "Tue Oct 13, 9 AM", DateTimeOffset.UnixEpoch, "default", sound: false);
+
+        Assert.Contains("Someone booked Tue Oct 13, 9 AM", toast.Xml, StringComparison.Ordinal);
+    }
 }

@@ -27,6 +27,9 @@ public enum ToastAction
 
     /// <summary>Open Settings &#x203A; Accounts.</summary>
     SignIn,
+
+    /// <summary>Open the main window on the day of <c>Start</c>.</summary>
+    OpenDay,
 }
 
 /// <summary>
@@ -120,7 +123,7 @@ public sealed record ToastArgs(ToastAction Action, string Profile, string? Accou
 
         // What Each Action Needs
         var aboutEvent = action is ToastAction.Open or ToastAction.Join or ToastAction.Accept or ToastAction.Decline or ToastAction.Maybe;
-        if ((aboutEvent && (account is null || calendar is null || eventId is null || start is null)) || (action == ToastAction.SignIn && account is null))
+        if ((aboutEvent && (account is null || calendar is null || eventId is null || start is null)) || (action == ToastAction.SignIn && account is null) || (action == ToastAction.OpenDay && start is null))
         {
             return null;
         }

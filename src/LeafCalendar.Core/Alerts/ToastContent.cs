@@ -50,6 +50,9 @@ public static class ToastContent
     /// <summary>Group of "Sign in again" notifications.</summary>
     public const string SignInGroup = "signin";
 
+    /// <summary>Group of "Someone booked" notifications.</summary>
+    public const string BookingGroup = "bookings";
+
     /// <summary>Group of short notices ("No meeting to join").</summary>
     public const string NoticeGroup = "notices";
 
@@ -160,6 +163,17 @@ public static class ToastContent
             new ToastArgs(ToastAction.SignIn, profile, accountId),
             null,
             ["Sign in again", $"Leaf can't sync {email} anymore. Sign in again in Settings to keep it up to date."],
+            [],
+            sound);
+
+    /// <summary>"Name booked time" (or "Someone booked time" with no name); clicking opens the main window on that day.</summary>
+    public static ToastMessage Booking(string bookingId, string attendeeName, string when, DateTimeOffset start, string profile, bool sound) =>
+        Build(
+            "booking-" + Alert.TagFor(bookingId),
+            BookingGroup,
+            new ToastArgs(ToastAction.OpenDay, profile, Start: start),
+            null,
+            [$"{(string.IsNullOrWhiteSpace(attendeeName) ? "Someone" : attendeeName)} booked {when}"],
             [],
             sound);
 
