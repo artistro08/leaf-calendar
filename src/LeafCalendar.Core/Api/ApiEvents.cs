@@ -145,13 +145,7 @@ internal static class ApiEvents
     // A drag: one scope for a repeating event, guests told; the new ID finds the moved instance (a split series has none yet)
     public static JsonElement Move(ApiContext context, MoveParams p)
     {
-        var scope = p.Scope switch
-        {
-            null or "this" => EditScope.This,
-            "following" => EditScope.Following,
-            "all" => EditScope.All,
-            _ => throw ApiTime.Invalid("scope must be this, following, or all."),
-        };
+        var scope = Scope(p.Scope);
         var (start, end, allDay) = ApiTime.ReadSpan(p.Start, p.End);
 
         CalendarOccurrence o;
@@ -178,6 +172,34 @@ internal static class ApiEvents
             return ApiParams.Write(new IdResult(Relocate(conn, context, o, start) is { } moved ? ApiIds.Event(moved) : null), ApiJsonContext.Default.IdResult);
         }
     }
+
+    // A delete, as in Leaf: one scope for a repeating event, held for the undo window, guests told unless notifyGuests is false
+    public static JsonElement Delete(ApiContext context, DeleteParams p)
+    {
+        var scope = Scope(p.Scope);
+        CalendarOccurrence o;
+        using (var conn = context.Database.Open())
+        {
+            o = Find(conn, context, p.Id);
+        }
+
+        if (!context.Editor.Permissions(o).CanEdit)
+        {
+            throw new ApiException(ApiErrors.ReadOnly, "You can't change that.");
+        }
+
+        context.Editor.Delete([o], scope, sendUpdates: p.NotifyGuests ?? true);
+        return ApiParams.Write(new EmptyResult(), ApiJsonContext.Default.EmptyResult);
+    }
+
+    // this (the default), following, or all
+    private static EditScope Scope(string? scope) => scope switch
+    {
+        null or "this" => EditScope.This,
+        "following" => EditScope.Following,
+        "all" => EditScope.All,
+        _ => throw ApiTime.Invalid("scope must be this, following, or all."),
+    };
 
     // Where a moved instance landed: same calendar, same event or series, starting at the new time (a moved instance of a
     // series gets Google's {series}_{start} ID, so the old ID can't find it)

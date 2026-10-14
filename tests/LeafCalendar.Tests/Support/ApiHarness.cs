@@ -79,6 +79,12 @@ public sealed class FakeApiHost : IApiHost
 
     /// <inheritdoc />
     public void ShowEvent(CalendarOccurrence occurrence) => Events.Add(occurrence);
+
+    /// <summary>How many times saved times changed.</summary>
+    public int SharesChangedCount { get; private set; }
+
+    /// <inheritdoc />
+    public void SharesChanged() => SharesChangedCount++;
 }
 
 /// <summary>A dispatcher over a seeded test database (the calendar-list.json calendars, New York time, Oct 1 2026 8 AM).</summary>

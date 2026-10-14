@@ -180,4 +180,57 @@ public sealed class ApiEditsTests : IDisposable
         Assert.Equal(ApiErrors.ReadOnly, (await _api.FailAsync("events.move", $$"""{"id":"{{id}}","start":"2026-10-01T16:00:00-04:00","end":"2026-10-01T17:00:00-04:00"}""")).DataCode);
         Assert.Empty(_api.Outbox());
     }
+
+    [Fact]
+    public async Task Delete_Single_QueuesADeleteThatTellsGuests()
+    {
+        var id = await IdOf("One");
+
+        Assert.Equal("{}", (await _api.CallAsync("events.delete", $$"""{"id":"{{id}}"}""")).GetRawText());
+
+        var entry = Assert.Single(_api.Outbox());
+        Assert.Equal(OutboxOperation.Delete, entry.Operation);
+        Assert.True(entry.SendUpdates);
+        Assert.Equal(ApiErrors.NotFound, (await _api.FailAsync("events.get", $$"""{"id":"{{id}}"}""")).DataCode);
+    }
+
+    [Fact]
+    public async Task Delete_NotifyGuestsFalse_TellsNoOne()
+    {
+        var id = await IdOf("One");
+
+        await _api.CallAsync("events.delete", $$"""{"id":"{{id}}","notifyGuests":false}""");
+
+        Assert.False(Assert.Single(_api.Outbox()).SendUpdates);
+    }
+
+    [Fact]
+    public async Task Delete_SeriesInstance_LeavesTheRest()
+    {
+        var id = await IdOf("Weekly", "2026-10-08");
+
+        await _api.CallAsync("events.delete", $$"""{"id":"{{id}}","scope":"this"}""");
+
+        Assert.Equal(ApiErrors.NotFound, (await _api.FailAsync("events.get", $$"""{"id":"{{id}}"}""")).DataCode);
+        Assert.Equal("Weekly", (await _api.CallAsync("events.get", $$"""{"id":"{{await IdOf("Weekly", "2026-10-15")}}"}""")).GetProperty("title").GetString());
+    }
+
+    [Fact]
+    public async Task Delete_BadScope_IsInvalid()
+    {
+        var id = await IdOf("One");
+
+        Assert.Equal(ApiErrors.InvalidParams, (await _api.FailAsync("events.delete", $$"""{"id":"{{id}}","scope":"everything"}""")).Code);
+        Assert.Empty(_api.Outbox());
+    }
+
+    [Fact]
+    public async Task Delete_ReadOnlyEvent_IsReadOnly()
+    {
+        _api.Store(ApiHarness.Primary, """{"id":"evt-theirs","status":"confirmed","summary":"Theirs","organizer":{"email":"boss@example.com"},"attendees":[{"email":"leaf.tester@gmail.com","self":true,"responseStatus":"accepted"},{"email":"boss@example.com","organizer":true,"responseStatus":"accepted"}],"start":{"dateTime":"2026-10-01T11:00:00-04:00"},"end":{"dateTime":"2026-10-01T12:00:00-04:00"}}""");
+        var id = await IdOf("Theirs");
+
+        Assert.Equal(ApiErrors.ReadOnly, (await _api.FailAsync("events.delete", $$"""{"id":"{{id}}"}""")).DataCode);
+        Assert.Empty(_api.Outbox());
+    }
 }

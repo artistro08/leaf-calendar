@@ -44,6 +44,9 @@ public static class ApiErrors
 
     /// <summary>The scheduling provider couldn't be reached.</summary>
     public const string Unavailable = "unavailable";
+
+    /// <summary>That time isn't open on the scheduling provider anymore.</summary>
+    public const string Taken = "taken";
 }
 
 /// <summary>A protocol problem, answered with a JSON-RPC error code (<see cref="ApiErrors"/>); its message is sent to the client.</summary>

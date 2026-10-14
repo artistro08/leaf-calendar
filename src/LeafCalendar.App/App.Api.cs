@@ -76,7 +76,7 @@ public partial class App
             }
 
             _approvals ??= new ApiApprovals(services.Time);
-            var context = new ApiContext(services.Database, services.Editor, services.Scheduling, new ApiHost(this), services.Time, LeafVersion(), services.Options.Profile);
+            var context = new ApiContext(services.Database, services.Editor, services.Scheduling, new ApiHost(this), services.Time, LeafVersion(), services.Options.Profile, services.Bookings);
             var server = new ApiPipeServer(
                 ApiClients.PipeName(Environment.UserName, services.Options.Profile),
                 new ApiDispatcher(context, services.Log),
@@ -293,5 +293,8 @@ public partial class App
         });
 
         public void ShowEvent(CalendarOccurrence occurrence) => app._dispatcher.TryEnqueue(() => app.RevealEvent(occurrence));
+
+        // ReloadGroups reads off the UI thread and lands on it, so it starts there
+        public void SharesChanged() => app._dispatcher.TryEnqueue(() => app._calendar?.ReloadGroups());
     }
 }

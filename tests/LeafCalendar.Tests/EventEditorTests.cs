@@ -219,6 +219,23 @@ public sealed class EventEditorTests : IDisposable
     }
 
     [Fact]
+    public void Delete_RaisesChangedAgainOnceTheUndoWindowPasses()
+    {
+        var changed = 0;
+        _editor.Changed += (_, _) => changed++;
+
+        _editor.Delete([Occurrence("evt-weekly", Oct9)], EditScope.This, sendUpdates: true);
+        var atOnce = changed;
+        _time.Advance(EventEditor.UndoWindow);
+        var atTheEnd = changed;
+        _time.Advance(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(1, atOnce);
+        Assert.Equal(1, atTheEnd);
+        Assert.Equal(2, changed);
+    }
+
+    [Fact]
     public void Delete_ThisInstance_MadeAllDay_StillHidesTheSeriesTimedInstance()
     {
         var o = Occurrence("evt-weekly", Oct9);

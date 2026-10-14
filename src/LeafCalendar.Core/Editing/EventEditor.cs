@@ -90,7 +90,13 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
     /// <summary>How long a delete waits before it's sent (the Undo button shows for less).</summary>
     public static readonly TimeSpan UndoWindow = TimeSpan.FromSeconds(6);
 
-    /// <summary>Raised on the calling thread after each committed edit (the views reload; the app nudges the sync loop).</summary>
+    // How long after the undo window a delete's second Changed comes, so the deletes are surely due when the loop looks
+    private static readonly TimeSpan DueMargin = TimeSpan.FromSeconds(0.5);
+
+    /// <summary>
+    /// Raised on the calling thread after each committed edit (the views reload; the app nudges the sync loop), and again
+    /// on a timer thread once a delete's undo window has passed.
+    /// </summary>
     public event EventHandler? Changed;
 
     /// <summary>Your own IANA zone (primary, else the PC's; never time travel's), given to events that become timed and have no zone of their own.</summary>
@@ -208,6 +214,13 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
                 }
             }
         });
+
+        // The held deletes are due once the undo window passes: changed again then, so the sync loop sends them at once
+        // (whoever deleted, Leaf or the local API). Raised on a timer thread
+        if (seqs.Count > 0)
+        {
+            _ = Task.Delay(UndoWindow + DueMargin, time).ContinueWith(_ => Changed?.Invoke(this, EventArgs.Empty), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        }
 
         return new DeleteReceipt(seqs) { Items = deleted };
     }

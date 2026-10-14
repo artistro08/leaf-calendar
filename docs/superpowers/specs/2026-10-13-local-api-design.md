@@ -78,6 +78,7 @@ Standard JSON-RPC codes for protocol problems: `-32700` parse error, `-32600` in
 | `no_meeting` | `meetings.join` found nothing to join. |
 | `not_signed_in` | No Google account is signed in. |
 | `unavailable` | The scheduling provider couldn't be reached. Try again later. |
+| `taken` | `shares.book` on a link: the time isn't open on the provider anymore. |
 
 `message` is a short English sentence for logs, never exception text, never event content.
 
@@ -107,12 +108,20 @@ IDs are opaque strings (`ApiIds`, 3.1). Calendar IDs carry the account too, sinc
 | `events.get` | `{ id }` | The `events.list` fields plus `description` (plain text through `DescriptionFormatter`) and `guests: [ { name, email, response, organizer } ]`. |
 | `events.create` | `{ calendarId?, title, start, end, location?, description?, guests?: [ email ], notifyGuests? }` | `{ id }`. No `calendarId`: the default calendar (`DefaultCalendar.Pick`); nothing writable is `read_only`. Description is plain text. Guests are email addresses (checked with `ContactSearch.ValidEmail`, the same rule the editor uses; duplicates dropped; at most 100; a bad address is `invalid_params`). `notifyGuests` (default true) sends Google's invitations, like the editor's Save; false is like its quiet save. Goes through `EventEditor.Create`. |
 | `events.move` | `{ id, start, end, scope? }` | `{ id }`, the moved instance's new ID; null after `following` (the series is split, so list again). `scope`: `this` (default), `following`, `all`; ignored for single events. Through `EventEditor.Move` with `sendUpdates: true`, as a drag. Passing dates makes it all-day; passing times makes it timed. |
+| `events.delete` | `{ id, scope?, notifyGuests? }` | `{}`. Through `EventEditor.Delete` (held for `UndoWindow`, as in the app), `sendUpdates` from `notifyGuests` (default true). `scope` as `events.move`. Only events `Permissions` lets you edit, as the app's Delete; others are `read_only`. |
 | `meetings.join` | `{ id? }` | `{ id, opened }` (`opened` is false when Windows couldn't open the link). No `id`: the meeting the join shortcut would pick (`JoinPicker`). Leaf opens the link itself with account routing, only when `LinkSafety` approves it. |
 | `app.showDay` | `{ date }` | `{}`. Leaf comes forward on that day in the current view. |
 | `app.showEvent` | `{ id }` | `{}`. Leaf comes forward on the event's day with its details open. |
 | `scheduling.links` | none | `[ { id, provider, name, minutes, allowsGuests } ]`. `id` is opaque (it carries the provider); `provider` is the provider's name, such as "Cal.com". |
 | `scheduling.openTimes` | `{ linkId, start, end }` | `[ { start, end } ]`. Range at most 31 days. |
 | `scheduling.timeLink` | `{ linkId, start, guests?: [ { name, email } ] }` | `{ url }` through the provider's `ITimeLinkBuilder`, the same link Copy makes. |
+| `availability.free` | `{ start, end, minutes?, linkId? }` | `[ { start, end } ]`: `WorkingHours` on its days (in the display zone, from now on), minus occurrences that aren't `IsFree` or declined (`BusyMath.Subtract`); stretches under `minutes` (5 to 1,440, default 30) dropped. `linkId` keeps only the link's open times. Range at most 31 days. For apps without a grid to drag on. |
+| `shares.create` | `{ times: [ { start, end } ], title?, message?, guests?: [ { name?, email } ], linkId? }` | `{ id, text, html }`: the share panel's Copy &amp; Save. Times (1 to 50) merged and saved as a share group (`ShareGroupStore.Insert`) in the display zone; `message` defaults to `ShareMessage`. Text is `AvailabilityText.Compose`, or with a link `ShareLinks.Build` (open times when the provider answers, else split by length) and its `html`; `html` is null otherwise. |
+| `shares.list` | none | `[ { id, title, message, times, guests: [ { name, email } ], link: { id, minutes } \| null } ]`, as `ShareGroupStore.GetAll` (passed times left out). |
+| `shares.book` | `{ id, start, end? }` | `{ id }`: Approve… Plain group: `[start, end)` inside one time becomes an event through `events.create` (default calendar, the group's title or `GenericTitle`, its guests invited). Group on a link: `start` booked through the provider's `IBookingCreator` for its guests (one needed; extra guests only when the link takes them) inside `BookingWatcher.BeginBooking`/`EndBooking`, `id` null, `taken` when it's gone. The group is deleted once booked. |
+| `shares.delete` | `{ id }` | `{}`. |
+
+Share writes call `IApiHost.SharesChanged`, so the grid reads the groups again.
 
 `meetingLink` is set only when `LinkSafety` approves the link; otherwise null. `response` is `accepted`, `declined`, `tentative`, `needsAction` or null. Writes return as soon as the change is in the outbox, like the app.
 

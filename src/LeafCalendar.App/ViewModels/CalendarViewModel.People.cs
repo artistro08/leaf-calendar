@@ -261,7 +261,7 @@ public sealed partial class CalendarViewModel
     public event EventHandler? ShareChanged;
 
     /// <summary>What a group with no title is called.</summary>
-    public const string GenericShareTitle = "Held times";
+    public const string GenericShareTitle = ShareGroupStore.GenericTitle;
 
     private long? _openGroupId;
     private string _shareTitle = "";

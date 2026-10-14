@@ -137,6 +137,15 @@ Moves an event, like dragging it in Leaf: guests get an update. `scope` is `this
 {"jsonrpc":"2.0","id":6,"result":{"id":"ZQpx…"}}
 ```
 
+### events.delete
+
+Deletes an event, like Delete in Leaf: guests get a cancellation unless `notifyGuests` is `false`. `scope` is `this` (the default), `following`, or `all`, and matters only for repeating events. Leaf holds the delete for a few seconds before sending it, as it does for its own Undo. Events you can't change are `read_only`.
+
+```json
+{"jsonrpc":"2.0","id":7,"method":"events.delete","params":{"id":"ZQpx…"}}
+{"jsonrpc":"2.0","id":7,"result":{}}
+```
+
 ### meetings.join
 
 Leaf opens the meeting link itself. Without `id`, it joins the meeting Leaf's join shortcut would pick. `opened` is false when Windows couldn't open the link.
@@ -190,6 +199,62 @@ A booking link that opens one exact time. The first guest fills in the booker; o
 {"jsonrpc":"2.0","id":12,"result":{"url":"https://cal.com/you/30min?date=2026-10-13&slot=…"}}
 ```
 
+### availability.free
+
+Your free times between `start` and `end` (at most 31 days): your working hours (**Settings › General**) on your work days, minus events that show you as busy (not declined, not marked free), from now on. Stretches shorter than `minutes` (optional, 5 to 1,440, 30 by default) are left out. With `linkId`, only times that link has open are kept.
+
+```json
+{"jsonrpc":"2.0","id":13,"method":"availability.free","params":{"start":"2026-10-13T00:00:00-04:00","end":"2026-10-20T00:00:00-04:00"}}
+{"jsonrpc":"2.0","id":13,"result":[{"start":"2026-10-13T09:00:00-04:00","end":"2026-10-13T11:30:00-04:00"}]}
+```
+
+### shares.create
+
+Saves times to offer someone, like **Copy & Save** in Leaf's share panel: they stay on your calendar until you book one, delete them, or they pass. Returns the saved times' `id` and the text to paste, in your share message (**Settings › Scheduling**) and Leaf's time format. With `linkId`, each time is split by the link's length and carries its own booking link, and `html` is the same text with each time as a link; otherwise `html` is null.
+
+| Param | |
+| --- | --- |
+| `times` | Required, 1 to 50 `{start, end}` times. Overlapping and touching times are joined. |
+| `title` | Optional, at most 100 characters. |
+| `message` | Optional, at most 2,000 characters; `{times}` marks where the times go. Your share message by default. |
+| `guests` | Optional, at most 50 `{name, email}`; `name` is optional. A link fills in the first as the booker. |
+| `linkId` | Optional, from `scheduling.links`. |
+
+```json
+{"jsonrpc":"2.0","id":14,"method":"shares.create","params":{"title":"Coffee with Sam","times":[{"start":"2026-10-13T10:00:00-04:00","end":"2026-10-13T11:00:00-04:00"}],"guests":[{"name":"Sam","email":"sam@example.com"}]}}
+{"jsonrpc":"2.0","id":14,"result":{"id":"cwox…","text":"Here are some times that work for me:\r\nTue Oct 13: 10–11 AM ET","html":null}}
+```
+
+### shares.list
+
+Your saved times that haven't all passed, oldest first, with passed times left out. `link` is null for plain times, else `{id, minutes}`.
+
+```json
+{"jsonrpc":"2.0","id":15,"method":"shares.list"}
+{"jsonrpc":"2.0","id":15,"result":[{"id":"cwox…","title":"Coffee with Sam","times":[{"start":"2026-10-13T10:00:00-04:00","end":"2026-10-13T11:00:00-04:00"}],"guests":[{"name":"Sam","email":"sam@example.com"}],"link":null}]}
+```
+
+### shares.book
+
+Books one of the saved times, like **Approve…**, and deletes the saved times. `start` must fall inside one of them.
+
+- **Plain times:** creates an event from `start` to `end` (required, inside the same time) on your default calendar, titled with the saved title (or "Held times"), with the guests invited. The result is the new event's `id`.
+- **Times on a link:** books `start` on the provider for the guests (the first is the booker, so at least one is needed); the provider sends its confirmations and puts the event on your calendar, so the result's `id` is null. `end` is ignored. A time no longer open fails with `taken`.
+
+```json
+{"jsonrpc":"2.0","id":16,"method":"shares.book","params":{"id":"cwox…","start":"2026-10-13T10:00:00-04:00","end":"2026-10-13T10:30:00-04:00"}}
+{"jsonrpc":"2.0","id":16,"result":{"id":"ZQpx…"}}
+```
+
+### shares.delete
+
+Deletes saved times.
+
+```json
+{"jsonrpc":"2.0","id":17,"method":"shares.delete","params":{"id":"cwox…"}}
+{"jsonrpc":"2.0","id":17,"result":{}}
+```
+
 ## Errors
 
 Protocol problems use JSON-RPC's codes: `-32700` (not JSON), `-32600` (not a JSON-RPC request), `-32601` (unknown method), `-32602` (invalid params), `-32603` (Leaf failed).
@@ -203,7 +268,8 @@ Leaf's own errors use `-32000` with a short code in `data.code`:
 | `data.code` | When |
 | --- | --- |
 | `not_approved` | You chose Don't allow, the approval timed out, or the app was removed. The connection closes. |
-| `not_found` | No event, calendar or link with that ID. |
+| `not_found` | No event, calendar, link or saved times with that ID. |
+| `taken` | That time isn't open on the scheduling provider anymore. |
 | `read_only` | You can't change that event or calendar. |
 | `not_connected` | Scheduling asked for, but no provider is signed in. |
 | `no_meeting` | Nothing to join. |

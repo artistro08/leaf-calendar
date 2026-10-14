@@ -1845,7 +1845,6 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             var deleted = deletable.Count == 1 ? "Event deleted" : string.Create(CultureInfo.InvariantCulture, $"{deletable.Count} events deleted");
             var skipped = permissions.Count - deletable.Count;
             Say(skipped > 0 ? string.Create(CultureInfo.InvariantCulture, $"{deleted} · {skipped} couldn't be changed") : deleted, canUndo: true);
-            _ = NudgeAfterUndoWindowAsync();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -2160,15 +2159,6 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     private static bool IsEditFailure(Exception ex) =>
         ex is Microsoft.Data.Sqlite.SqliteException or System.Text.Json.JsonException or InvalidOperationException;
-
-    // Deletes wait out the undo window; nudge the sync loop once it has passed so they go out right away, and count
-    // them as waiting from then on (offline, no sync event would say so)
-    private async Task NudgeAfterUndoWindowAsync()
-    {
-        await Task.Delay(EventEditor.UndoWindow + TimeSpan.FromSeconds(0.5));
-        _dispatcher.TryEnqueue(RefreshSyncState);
-        _services.Google?.Loop.TriggerNow();
-    }
 
     private EventDetails? LoadDetails(CalendarOccurrence o)
     {

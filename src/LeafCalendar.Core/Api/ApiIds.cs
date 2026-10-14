@@ -37,6 +37,13 @@ public static class ApiIds
     /// <summary>A scheduling link's ID.</summary>
     public static string Link(string providerId, string linkId) => Pack("l", providerId, linkId);
 
+    /// <summary>Saved times' ID (a share group).</summary>
+    public static string Share(long groupId) => Pack("s", groupId.ToString(CultureInfo.InvariantCulture));
+
+    /// <summary>The share group a <see cref="Share"/> ID names, or null.</summary>
+    public static long? ReadShare(string? id) =>
+        Unpack(id, "s", 1) is { } p && long.TryParse(p[0], NumberStyles.None, CultureInfo.InvariantCulture, out var groupId) ? groupId : null;
+
     /// <summary>The calendar a <see cref="Calendar"/> ID names, or null.</summary>
     public static (string AccountId, string CalendarId)? ReadCalendar(string? id) =>
         Unpack(id, "c", 2) is { } p ? (p[0], p[1]) : null;
