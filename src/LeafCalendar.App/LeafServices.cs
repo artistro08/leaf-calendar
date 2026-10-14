@@ -44,10 +44,11 @@ public sealed class LeafServices : IAsyncDisposable
         Database = new LeafDatabase(Paths.DatabasePath);
         Database.Migrate();
 
-        // Local Edits (work offline; every edit and conflict answer nudges the sync loop to send it)
+        // Local Edits (work offline; every edit and conflict answer nudges the sync loop to send it, and so do deletes once their undo window passes)
         Editor = new EventEditor(Database, Time);
         Conflicts = new ConflictResolver(Database, Time);
         Editor.Changed += (_, _) => Google?.Loop.TriggerNow();
+        Editor.DeletesDue += (_, _) => Google?.Loop.TriggerNow();
         Conflicts.Changed += (_, _) => Google?.Loop.TriggerNow();
 
         // Global Shortcuts (registered by the tray once its window exists)

@@ -80,7 +80,7 @@ public partial class App
             var server = new ApiPipeServer(
                 ApiClients.PipeName(Environment.UserName, services.Options.Profile),
                 new ApiDispatcher(context, services.Log),
-                path => CurrentSettings().IsApproved(path),
+                (path, packaged) => CurrentSettings().IsApproved(path, packaged),
                 ApproveAsync,
                 services.Log);
             var started = server.Start();

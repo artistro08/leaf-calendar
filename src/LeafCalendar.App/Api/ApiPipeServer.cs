@@ -20,7 +20,7 @@ namespace LeafCalendar.App.Api;
 /// (<see cref="ApiHello"/>), and one removed in
 /// Settings is refused at its next request. Nothing escapes: a failing connection is logged by its error type and closed.
 /// </remarks>
-internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<string, bool> isApproved, Func<ApiCaller, CancellationToken, Task<bool>> approve, AppLog log) : IAsyncDisposable
+internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<string, bool, bool> isApproved, Func<ApiCaller, CancellationToken, Task<bool>> approve, AppLog log) : IAsyncDisposable
 {
     /// <summary>The most apps connected at once.</summary>
     public const int MaxConnections = 8;
@@ -161,7 +161,7 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
                     first = false;
 
                     // Approved Now, Or Asked Once On This Connection (an app removed in Settings is refused here)
-                    if (!isApproved(path))
+                    if (!isApproved(path, app is not null))
                     {
                         if (asked || !await approve(new ApiCaller(path, app?.Name ?? ClientName(path), processId, hello, app?.Program), ct))
                         {

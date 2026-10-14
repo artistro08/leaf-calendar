@@ -174,7 +174,7 @@ internal static class ApiEvents
         }
     }
 
-    // The editor's Save: only the fields given change (guests are the whole list: those kept keep their answers, rooms stay),
+    // The editor's Save: only the fields given change (guests are the whole list: those kept keep their answers, rooms and you stay),
     // one scope for a repeating event, guests told unless notifyGuests is false; the new ID finds the saved instance
     public static JsonElement Update(ApiContext context, UpdateParams p)
     {
@@ -233,8 +233,10 @@ internal static class ApiEvents
             Description = p.Description is null ? before.Description : Html(p.Description),
             HasConference = p.Meet ?? before.HasConference,
             Guests = guests is null ? before.Guests : [
-                .. before.Guests.Where(g => g.IsResource),
-                .. guests.Select(email => before.Guests.FirstOrDefault(g => !g.IsResource && string.Equals(g.Email, email, StringComparison.OrdinalIgnoreCase)) ?? new Guest(email))],
+                .. before.Guests.Where(Stays),
+                .. guests
+                    .Where(email => !before.Guests.Any(g => Stays(g) && string.Equals(g.Email, email, StringComparison.OrdinalIgnoreCase)))
+                    .Select(email => before.Guests.FirstOrDefault(g => string.Equals(g.Email, email, StringComparison.OrdinalIgnoreCase)) ?? new Guest(email))],
         };
 
         if (span is var (start, end, allDay))
@@ -258,7 +260,7 @@ internal static class ApiEvents
         {
             context.Editor.Save(o, before, after, scope, sendUpdates: p.NotifyGuests ?? true);
         }
-        catch (ArgumentException)
+        catch (ArgumentException ex) when (ex.ParamName == "after")
         {
             throw ApiTime.Invalid("Only scope all can move a repeating event to another calendar.");
         }
@@ -274,6 +276,9 @@ internal static class ApiEvents
             return ApiParams.Write(new IdResult(saved is null ? null : ApiIds.Event(saved)), ApiJsonContext.Default.IdResult);
         }
     }
+
+    // Rooms and your own entry stay whatever guest list an app sends
+    private static bool Stays(Guest guest) => guest.IsResource || guest.IsSelf;
 
     // Same fields the API changes (guest lists by address, in order)
     private static bool Same(EventDraft a, EventDraft b) =>
