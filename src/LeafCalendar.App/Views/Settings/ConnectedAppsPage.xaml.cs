@@ -14,7 +14,7 @@ namespace LeafCalendar.App.Views.Settings;
 /// </summary>
 public sealed partial class ConnectedAppsPage : Page
 {
-    private static readonly Uri DocsUri = new("https://github.com/artistro08/leaf-calendar/blob/main/docs/api.md");
+    private static readonly Uri DocsUri = new("https://artistro08.github.io/leaf-calendar/api/");
 
     private SettingsContext _context = null!;
 

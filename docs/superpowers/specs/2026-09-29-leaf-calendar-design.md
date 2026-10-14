@@ -605,7 +605,7 @@ Ctrl+wheel over the time grid zooms like Ctrl+= / Ctrl+-.
 
 **Connected apps**
 - Allow other apps to connect (the local API), off by default
-- Approved apps, each with Remove; a card when another program holds Leaf's pipe name; a link to the developer reference (`docs/api.md`). See `2026-10-13-local-api-design.md`.
+- Approved apps, each with Remove; a card when another program holds Leaf's pipe name; a link to the developer reference (the user guide site's API page, built from `docs/api.md`). See `2026-10-13-local-api-design.md`.
 
 **Tray**
 - Days shown in the flyout agenda

@@ -154,7 +154,7 @@ A new **Connected apps** page in Settings (proposed placement: after Notificatio
 1. **Allow other apps to connect** switch, off by default.
 2. While on: the approved apps, one card each with its program's icon, name and path and a **Remove** button. Empty: a short line saying none yet.
 3. If the pipe name is taken: a card saying so.
-4. A link to `docs/api.md` on GitHub for developers.
+4. A link to the developer reference on the user guide site (https://artistro08.github.io/leaf-calendar/api/, built from `docs/api.md`).
 
 All wording on this page and in the approval window is **pending owner approval**; the plan quotes each string for review before it ships.
 
