@@ -218,7 +218,7 @@ public partial class App
     }
 
     // After Allow: the app's return link when it sent a valid one, else its own window comes forward, restored when it was
-    // minimized (Leaf may hand focus over, since you just clicked in its window; no visible window, nothing happens);
+    // minimized (Leaf Calendar may hand focus over, since you just clicked in its window; no visible window, nothing happens);
     // nothing may escape
     private async Task ReturnToAppAsync(ApiCaller caller)
     {
@@ -270,7 +270,7 @@ public partial class App
         return $"{v.Major}.{v.Minor}.{v.Build}";
     }
 
-    /// <summary>The app as the local API sees it: the shown zone and settings, Leaf's link launcher, and the main window.</summary>
+    /// <summary>The app as the local API sees it: the shown zone and settings, Leaf Calendar's link launcher, and the main window.</summary>
     private sealed class ApiHost(App app) : IApiHost
     {
         public TimeZoneInfo Zone => DisplayZone.Resolve(null, app.CurrentSettings().PrimaryTimeZone, app._zone.Zone);

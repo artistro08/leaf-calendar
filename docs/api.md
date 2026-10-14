@@ -1,10 +1,10 @@
 # Leaf Calendar Local API
 
-A JSON-RPC 2.0 API that lets apps on your PC, such as a Raycast extension, read your calendar and act on it through Leaf.
+A JSON-RPC 2.0 API that lets apps on your PC, such as a Raycast extension, read your calendar and act on it through Leaf Calendar.
 
 ## Introduction
 
-Leaf keeps your calendar and every change you make. Other apps never open Leaf's database: they ask Leaf, and Leaf answers with what it would show you. Edits go through the same outbox the app uses, so nothing an app does can skip Leaf's safety for your changes.
+Leaf Calendar keeps your calendar and every change you make. Other apps never open Leaf Calendar's database: they ask Leaf Calendar, and Leaf Calendar answers with what it would show you. Edits go through the same outbox the app uses, so nothing an app does can skip Leaf Calendar's safety for your changes.
 
 ### Prerequisites
 
@@ -13,9 +13,9 @@ Leaf keeps your calendar and every change you make. Other apps never open Leaf's
 
 ## Turning It On
 
-1. Open Leaf, then **Settings › Connected apps**.
+1. Open Leaf Calendar, then **Settings › Connected apps**.
 2. Turn on **Allow other apps to connect**.
-3. Send your first request from your app. Leaf opens a small "{app} wants to connect to Leaf" window on top of the screen, with **Allow** and **Don't allow**. Your request waits up to 60 seconds for the answer. Make that first request a `leaf.hello` with your `icon` and `returnUrl` (below) so the window shows your icon and Leaf can send the person back to you.
+3. Send your first request from your app. Leaf Calendar opens a small "{app} wants to connect to Leaf Calendar" window on top of the screen, with **Allow** and **Don't allow**. Your request waits up to 60 seconds for the answer. Make that first request a `leaf.hello` with your `icon` and `returnUrl` (below) so the window shows your icon and Leaf Calendar can send the person back to you.
 
 Allowed apps are listed in **Settings › Connected apps**. Remove one there and its next request is refused.
 
@@ -50,7 +50,7 @@ pipe.write(JSON.stringify({
 
 ## Times and IDs
 
-- **Times** are ISO 8601 with an offset, such as `2026-10-14T09:00:00-04:00` or `2026-10-14T13:00:00Z`. A time without an offset is refused. Leaf answers in the time zone it shows (your primary zone in Leaf, else Windows').
+- **Times** are ISO 8601 with an offset, such as `2026-10-14T09:00:00-04:00` or `2026-10-14T13:00:00Z`. A time without an offset is refused. Leaf Calendar answers in the time zone it shows (your primary zone in Leaf Calendar, else Windows').
 - **All-day events** use dates, such as `2026-10-14`. The end date isn't included, as in Google Calendar: a one-day event on Oct 14 ends `2026-10-15`.
 - Where a method takes a `start` and `end`, two dates mean all-day and two times mean timed. Mixing them is refused.
 - **IDs** are opaque strings. Keep them as they are. An event's ID can change when it moves, so use the one `events.move` returns.
@@ -59,14 +59,14 @@ pipe.write(JSON.stringify({
 
 ### leaf.hello
 
-Says which Leaf you're talking to. `client` is your app's name; Leaf only logs it.
+Says which Leaf Calendar you're talking to. `client` is your app's name; Leaf Calendar only logs it.
 
 ```json
 {"jsonrpc":"2.0","id":1,"method":"leaf.hello","params":{"client":"Raycast"}}
 {"jsonrpc":"2.0","id":1,"result":{"leafVersion":"0.1.308","apiVersion":1,"profile":"default"}}
 ```
 
-Two optional params count only when `leaf.hello` is the **first** message on the connection, since that's when Leaf asks the person. Later, or once your app is approved, they're accepted and ignored. Leaf keeps neither.
+Two optional params count only when `leaf.hello` is the **first** message on the connection, since that's when Leaf Calendar asks the person. Later, or once your app is approved, they're accepted and ignored. Leaf Calendar keeps neither.
 
 | Param | Rules | When it breaks a rule |
 | --- | --- | --- |
@@ -77,13 +77,13 @@ Two optional params count only when `leaf.hello` is the **first** message on the
 {"jsonrpc":"2.0","id":1,"method":"leaf.hello","params":{"client":"My extension","icon":"iVBORw0KGgo…","returnUrl":"raycast://extensions/me/leaf"}}
 ```
 
-After **Allow**, Leaf opens `returnUrl`; without one it brings your program's main window to the front.
+After **Allow**, Leaf Calendar opens `returnUrl`; without one it brings your program's main window to the front.
 
 `apiVersion` changes only when a method or field is removed or changes meaning. New methods and fields don't change it.
 
 ### calendars.list
 
-The calendars shown in Leaf. `account` is the Google account's email address. `isDefault` marks where new events go.
+The calendars shown in Leaf Calendar. `account` is the Google account's email address. `isDefault` marks where new events go.
 
 ```json
 {"jsonrpc":"2.0","id":2,"method":"calendars.list"}
@@ -92,7 +92,7 @@ The calendars shown in Leaf. `account` is the Google account's email address. `i
 
 ### events.list
 
-Events overlapping `start` to `end` (at most 366 days), sorted by start, from the calendars shown in Leaf. Declined events come back only when Leaf shows them. `calendarIds` (optional) narrows the list.
+Events overlapping `start` to `end` (at most 366 days), sorted by start, from the calendars shown in Leaf Calendar. Declined events come back only when Leaf Calendar shows them. `calendarIds` (optional) narrows the list.
 
 ```json
 {"jsonrpc":"2.0","id":3,"method":"events.list","params":{"start":"2026-10-01T00:00:00-04:00","end":"2026-10-02T00:00:00-04:00"}}
@@ -131,7 +131,7 @@ Creates an event and returns its `id`. Without `calendarId`, it goes to your def
 
 ### events.move
 
-Moves an event, like dragging it in Leaf: guests get an update. `scope` is `this` (the default), `following`, or `all`, and matters only for repeating events. The result is the moved event's new `id`; after `following` it's null, because Leaf splits the series, so list again.
+Moves an event, like dragging it in Leaf Calendar: guests get an update. `scope` is `this` (the default), `following`, or `all`, and matters only for repeating events. The result is the moved event's new `id`; after `following` it's null, because Leaf Calendar splits the series, so list again.
 
 ```json
 {"jsonrpc":"2.0","id":6,"method":"events.move","params":{"id":"ZQpx…","start":"2026-10-01T16:00:00-04:00","end":"2026-10-01T17:00:00-04:00"}}
@@ -170,7 +170,7 @@ Deletes an event, like Delete in Leaf Calendar: guests get a cancellation unless
 
 ### meetings.join
 
-Leaf opens the meeting link itself. Without `id`, it joins the meeting Leaf's join shortcut would pick. `opened` is false when Windows couldn't open the link.
+Leaf Calendar opens the meeting link itself. Without `id`, it joins the meeting Leaf Calendar's join shortcut would pick. `opened` is false when Windows couldn't open the link.
 
 ```json
 {"jsonrpc":"2.0","id":7,"method":"meetings.join"}
@@ -179,7 +179,7 @@ Leaf opens the meeting link itself. Without `id`, it joins the meeting Leaf's jo
 
 ### app.showDay
 
-Brings Leaf forward on a day.
+Brings Leaf Calendar forward on a day.
 
 ```json
 {"jsonrpc":"2.0","id":8,"method":"app.showDay","params":{"date":"2026-10-08"}}
@@ -188,7 +188,7 @@ Brings Leaf forward on a day.
 
 ### app.showEvent
 
-Brings Leaf forward with an event open.
+Brings Leaf Calendar forward with an event open.
 
 ```json
 {"jsonrpc":"2.0","id":9,"method":"app.showEvent","params":{"id":"ZQpx…"}}
@@ -288,9 +288,9 @@ Deletes saved times.
 
 ## Errors
 
-Protocol problems use JSON-RPC's codes: `-32700` (not JSON), `-32600` (not a JSON-RPC request), `-32601` (unknown method), `-32602` (invalid params), `-32603` (Leaf failed).
+Protocol problems use JSON-RPC's codes: `-32700` (not JSON), `-32600` (not a JSON-RPC request), `-32601` (unknown method), `-32602` (invalid params), `-32603` (Leaf Calendar failed).
 
-Leaf's own errors use `-32000` with a short code in `data.code`:
+Leaf Calendar's own errors use `-32000` with a short code in `data.code`:
 
 ```json
 {"jsonrpc":"2.0","id":4,"error":{"code":-32000,"message":"No event with that ID.","data":{"code":"not_found"}}}
@@ -310,7 +310,7 @@ Leaf's own errors use `-32000` with a short code in `data.code`:
 ## Security
 
 - Only your Windows account can open the pipe, and web pages can't reach it.
-- Leaf never sends tokens, OAuth clients, Cal.com credentials or settings.
+- Leaf Calendar never sends tokens, OAuth clients, Cal.com credentials or settings.
 - Titles, locations, descriptions and guest names come from whoever sent the invite. Show them as plain text, never as HTML.
 
 ### Files Used

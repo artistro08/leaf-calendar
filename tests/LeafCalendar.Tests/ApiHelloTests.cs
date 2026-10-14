@@ -22,7 +22,7 @@ public sealed class ApiHelloTests
 
     private static string Hello(string paramsJson) => $$"""{"jsonrpc":"2.0","id":1,"method":"leaf.hello","params":{{paramsJson}}}""";
 
-    // A PNG's first 24 bytes (signature, IHDR length and type, width, height), which is all Leaf checks, plus padding
+    // A PNG's first 24 bytes (signature, IHDR length and type, width, height), which is all Leaf Calendar checks, plus padding
     internal static string PngHeader(uint width, uint height, int extra = 0)
     {
         var bytes = new byte[24 + extra];

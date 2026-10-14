@@ -6,11 +6,11 @@ These rules override any global or personal instruction that conflicts with them
 
 ## What the App Is
 
-- The user signs in with their **own** Google Cloud OAuth client (Desktop app type). There is no Leaf server, no telemetry, and no analytics.
+- The user signs in with their **own** Google Cloud OAuth client (Desktop app type). There is no Leaf Calendar server, no telemetry, and no analytics.
 - Events are cached in a local SQLite database so the app opens fast and works offline. A background sync loop pulls changes from Google; an **outbox** queues local edits and sends them in order.
 - The main window has Day, Week, Month and custom 2 to 9 day views, a sidebar (mini month and calendar list), a details panel, an event editor, a command menu (Ctrl+K), a keyboard cheat sheet (?), and Settings, which shows inside the main window in place of the calendar.
 - A tray icon opens an acrylic agenda flyout and a menu. Reminders, "Join now" alerts and invitations are Windows toast notifications.
-- One instance runs per profile. A `leaf-calendar:` URL protocol only brings Leaf to the front.
+- One instance runs per profile. A `leaf-calendar:` URL protocol only brings Leaf Calendar to the front.
 
 ## Repository Layout
 
@@ -25,7 +25,7 @@ These rules override any global or personal instruction that conflicts with them
 | `docs/superpowers/specs/2026-09-29-leaf-calendar-design.md` | The product spec. The binding authority for behavior. |
 | `docs/design-standard.md` | The visual and interaction design standard. Binding for all UI. |
 | `docs/superpowers/plans/` | Implementation plans, one per milestone or batch of work. |
-| `PRIVACY.md` | What Leaf keeps, sends and how to remove it. Shipped in the package and opened from Settings › About. Keep it accurate when data handling changes. |
+| `PRIVACY.md` | What Leaf Calendar keeps, sends and how to remove it. Shipped in the package and opened from Settings › About. Keep it accurate when data handling changes. |
 
 Core folders: `Alerts`, `Auth`, `Data`, `Diagnostics`, `Editing`, `Events`, `Google`, `Hosting`, `Http`, `People`, `Recurrence`, `Search`, `Settings`, `Sync`, `Tray`, `Views`.
 
@@ -56,10 +56,10 @@ One class: add `--filter-class "*ClassName"`. One test: `--filter-method "*Class
 - Per change, run only the UI classes the change can affect. Run the full UI suite once per milestone, on the optimized build, as the merge gate. Never run the full suite twice on both builds.
 - Each test uses a throwaway profile (`--profile uitest-…`) and the fake Google server (`--fake-google <uri>`), so the owner's data is never touched. Other launch flags: `--start-date`, `--now`, `--toast-action`, `--tray-probe`, `--gc-stress`, `--restarted`.
 - The tests find the main window by its title bar (`AppTitleBar`), not its title, because the window title is the date range on screen.
-- The owner's own Leaf can be running and holding the global shortcuts (Ctrl+Alt+J, Ctrl+Alt+K). If a whole block of tests fails at once, re-run before diagnosing: the installer restarting the owner's app has caused mass false failures.
+- The owner's own Leaf Calendar can be running and holding the global shortcuts (Ctrl+Alt+J, Ctrl+Alt+K). If a whole block of tests fails at once, re-run before diagnosing: the installer restarting the owner's app has caused mass false failures.
 - If the owner moves the mouse (real, not injected input) during a UI run, the run pauses: the test in progress fails with `Interrupted:`, the pause file `%LOCALAPPDATA%\LeafCalendar.UITests\paused` is written, and every later test fails at once with `Paused:` until it is deleted. Only the owner resumes; never delete the pause file without the owner's say-so.
 - Screenshots: set `LEAF_SCREENSHOTS` to a folder and run the `ScreenshotTour` class to capture every screen in light and dark, at the minimum and wide window, every Settings page, the tray flyout and menu, onboarding, and the command menu with queries typed and run. Review the shots after UI changes.
-- Showcase: set `LEAF_SHOWCASE` to a folder and run the `ShowcaseTour` class for ten desktop shots of Leaf at up to 1366 × 768. It presses Win+M to minimize every other window and doesn't restore them.
+- Showcase: set `LEAF_SHOWCASE` to a folder and run the `ShowcaseTour` class for ten desktop shots of Leaf Calendar at up to 1366 × 768. It presses Win+M to minimize every other window and doesn't restore them.
 
 ### CI
 
@@ -114,7 +114,7 @@ The standard is Microsoft's .NET coding conventions and Framework Design Guideli
 - **Everything from Google is untrusted** (titles, HTML descriptions, locations, attendee names, conference links). Render descriptions through `DescriptionFormatter`/`DescriptionHtml` as plain text and safe links only. Open any link only after `LinkSafety` approves it (scheme allow-list, look-alike hosts, userinfo tricks). Notifications only open known meeting hosts.
 - **Escape everything** placed in toast XML, and parse toast arguments defensively.
 - **The sign-in listener** binds loopback only, checks the PKCE state, answers only the expected redirect, never echoes query values into its pages, and survives connections that reset.
-- **Activation input is untrusted.** The `leaf-calendar:` protocol only brings Leaf forward; never parse its path or query into actions. Test hooks (`--fake-google` and friends) exist for UI tests; don't add new ones that can redirect Google traffic or tokens in a normal run.
+- **Activation input is untrusted.** The `leaf-calendar:` protocol only brings Leaf Calendar forward; never parse its path or query into actions. Test hooks (`--fake-google` and friends) exist for UI tests; don't add new ones that can redirect Google traffic or tokens in a normal run.
 - **Secrets** go only through `ITokenStore`. Never write a secret anywhere else, never put one in a URL or log.
 - **Least privilege:** don't add package capabilities or OAuth scopes without the owner. If scopes change, update the onboarding guide text (owner-approved) and `PRIVACY.md`.
 
@@ -122,7 +122,7 @@ The standard is Microsoft's .NET coding conventions and Framework Design Guideli
 
 Read `docs/design-standard.md` before any UI work. It is binding. The essentials:
 
-- Leaf should look like Windows 11 made it: stock WinUI controls, stock theme brushes, stock type ramp. Copy a real Windows surface when there is one (Settings, Quick Settings, Task Manager).
+- Leaf Calendar should look like Windows 11 made it: stock WinUI controls, stock theme brushes, stock type ramp. Copy a real Windows surface when there is one (Settings, Quick Settings, Task Manager).
 - Colors only from `{ThemeResource}` brushes in XAML; code-built visuals use `LeafBrushes` per theme and re-apply on `ActualThemeChanged`. Every overridden brush gets a HighContrast entry.
 - Spacing scale 2, 4, 8, 12, 16, 24, 32 (36 for the Settings inset). Odd values only with a comment explaining the optical reason.
 - Corner radius `ControlCornerRadius` (4) for controls, `OverlayCornerRadius` (8) for cards and flyouts.
@@ -136,6 +136,7 @@ Read `docs/design-standard.md` before any UI work. It is binding. The essentials
 ## Copy and Content Rules
 
 - **US English** everywhere: UI, comments, docs, commits.
+- **The app is always "Leaf Calendar"**, in full, everywhere: UI, comments, docs, commits, PRs. Never shorten it to "Leaf". Code names (`LeafCalendar.Core`, `LeafDatabase`, `leaf.db`) stay as they are.
 - **Sentence case** for all visible labels. Proper nouns keep their capitals (Google, Leaf Calendar, Windows).
 - Buttons start with a verb. Items that open more UI end with "…" (the single character). Paths use "›" ("Settings › General"). Inline facts are separated with " · ". Messages end with a period.
 - Error and empty text says what's wrong and what to do, never blames the user, and never shows raw exception text.

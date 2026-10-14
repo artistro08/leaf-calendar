@@ -90,7 +90,7 @@ public sealed class SchedulingHub(HttpClient http, ITokenStore tokens, AppLog lo
     }
 
     /// <summary>Saves your OAuth client for a provider (trimmed). Without a client it becomes ready to sign in.</summary>
-    /// <exception cref="ArgumentException">The client ID or secret is empty, or Leaf doesn't know the provider.</exception>
+    /// <exception cref="ArgumentException">The client ID or secret is empty, or Leaf Calendar doesn't know the provider.</exception>
     public void SaveClient(string providerId, ProviderClient client)
     {
         ArgumentNullException.ThrowIfNull(client);
@@ -426,7 +426,7 @@ public sealed class SchedulingHub(HttpClient http, ITokenStore tokens, AppLog lo
             : null;
 
     private SchedulingProviderInfo Find(string providerId) =>
-        Providers.FirstOrDefault(p => p.Id == providerId) ?? throw new ArgumentException("Leaf doesn't know this scheduling provider.", nameof(providerId));
+        Providers.FirstOrDefault(p => p.Id == providerId) ?? throw new ArgumentException("Leaf Calendar doesn't know this scheduling provider.", nameof(providerId));
 
     // The provider's hosted API, or the fake root's folder for it
     private Uri BaseFor(SchedulingProviderInfo info) => fakeRoot is null ? info.DefaultBase : new Uri(fakeRoot, info.Id + "/");

@@ -309,7 +309,7 @@ public sealed partial class CalendarViewModel
 
     /// <summary>
     /// Adds a guest to this share (<paramref name="name"/> is a picked contact's, shown on its row; without one, the name
-    /// Leaf knows for that address fills in once found). False when
+    /// Leaf Calendar knows for that address fills in once found). False when
     /// <paramref name="email"/> isn't one valid address; an address already added (any case) isn't added again.
     /// </summary>
     public bool AddShareGuest(string email, string name = "")
@@ -413,7 +413,7 @@ public sealed partial class CalendarViewModel
         }
     }
 
-    // A guest added by address alone gets the name Leaf knows for that exact address: from the people in your own
+    // A guest added by address alone gets the name Leaf Calendar knows for that exact address: from the people in your own
     // events, else (only for a guest just typed or added, never on reopening a saved group) Google's contacts.
     // Applied only while that guest is still listed without a name, so a late answer is dropped
     private async void FillShareGuestName(string email, bool askGoogle)

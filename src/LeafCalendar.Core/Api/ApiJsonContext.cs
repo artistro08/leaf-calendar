@@ -78,7 +78,7 @@ public sealed record GuestResult(string? Name, string Email, string Response, bo
 /// <summary>One event instance with its description and guests (<c>events.get</c>).</summary>
 public sealed record EventDetailResult(string Id, string CalendarId, string Title, string Start, string End, bool AllDay, string? Location, string Response, string Color, string? MeetingLink, string Description, List<GuestResult> Guests);
 
-/// <summary>An event's ID after a write; null when Leaf can't name it (a series split by "following").</summary>
+/// <summary>An event's ID after a write; null when Leaf Calendar can't name it (a series split by "following").</summary>
 public sealed record IdResult(string? Id);
 
 /// <summary><c>meetings.join</c>'s result.</summary>

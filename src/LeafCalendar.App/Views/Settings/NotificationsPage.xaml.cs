@@ -42,7 +42,7 @@ public sealed partial class NotificationsPage : Page
         _context.Host.Closed -= OnHostClosed;
     }
 
-    // Settings Closed On This Page (back to the calendar, or the window closed with Leaf staying in the tray): the page
+    // Settings Closed On This Page (back to the calendar, or the window closed with Leaf Calendar staying in the tray): the page
     // may not get Unloaded, so the app-lifetime hub is let go here, or it would keep the Settings view alive
     private void OnHostClosed(object? sender, EventArgs e)
     {

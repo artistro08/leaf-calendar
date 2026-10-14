@@ -15,7 +15,7 @@ using Windows.Foundation;
 namespace LeafCalendar.App.Views.Api;
 
 /// <summary>
-/// The local API's "{app} wants to connect to Leaf" window (approval window spec 2): small, always on top, Close only,
+/// The local API's "{app} wants to connect to Leaf Calendar" window (approval window spec 2): small, always on top, Close only,
 /// centered on the monitor under the cursor and as tall as its content. It shows one icon (the app's own when it sent
 /// one Windows can decode, else the program's, else the generic app glyph), who asks, what it can do, the runtime
 /// warning when it applies, and the full path, then Allow (the accent button, on 3 seconds after the window opens) and

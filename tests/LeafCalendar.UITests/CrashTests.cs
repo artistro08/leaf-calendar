@@ -94,7 +94,7 @@ public sealed class CrashTests : IDisposable
         Assert.DoesNotContain("Dentist", ReadShared(log), StringComparison.Ordinal);
     }
 
-    // The log while Leaf may be writing it
+    // The log while Leaf Calendar may be writing it
     private static string ReadShared(string path)
     {
         if (!File.Exists(path))
@@ -135,7 +135,7 @@ public sealed class CrashTests : IDisposable
         }
 
         leaf.Press(VirtualKeyShort.ESCAPE);
-        Assert.False(leaf.App.HasExited, "Leaf ended while switching between events.");
+        Assert.False(leaf.App.HasExited, "Leaf Calendar ended while switching between events.");
         Assert.NotNull(leaf.WaitFor(Events[0]));
     }
 
@@ -171,7 +171,7 @@ public sealed class CrashTests : IDisposable
         }
 
         Thread.Sleep(2000);
-        Assert.False(leaf.App.HasExited, "Leaf ended after time pickers were released.");
+        Assert.False(leaf.App.HasExited, "Leaf Calendar ended after time pickers were released.");
         Assert.NotNull(leaf.WaitFor(Events[0]));
     }
 
@@ -224,7 +224,7 @@ public sealed class CrashTests : IDisposable
         window?.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Normal);
         Wait.UntilInputIsProcessed();
 
-        Assert.False(leaf.App.HasExited, "Leaf ended while Settings was resized.");
+        Assert.False(leaf.App.HasExited, "Leaf Calendar ended while Settings was resized.");
         Assert.NotNull(leaf.WaitInSettings("ThemeComboBox"));
     }
 }

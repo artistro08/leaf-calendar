@@ -1,7 +1,7 @@
 namespace LeafCalendar.Core.Api;
 
 /// <summary>
-/// The local API's error codes: JSON-RPC 2.0's numbers for protocol problems, and Leaf's own short codes (sent as
+/// The local API's error codes: JSON-RPC 2.0's numbers for protocol problems, and Leaf Calendar's own short codes (sent as
 /// <c>data.code</c> under <see cref="ServerError"/>) for everything else (local API spec 3.4).
 /// </summary>
 public static class ApiErrors
@@ -18,10 +18,10 @@ public static class ApiErrors
     /// <summary>The params are missing, of the wrong type, or out of range.</summary>
     public const int InvalidParams = -32602;
 
-    /// <summary>Leaf failed unexpectedly.</summary>
+    /// <summary>Leaf Calendar failed unexpectedly.</summary>
     public const int InternalError = -32603;
 
-    /// <summary>A Leaf error; <c>data.code</c> says which.</summary>
+    /// <summary>A Leaf Calendar error; <c>data.code</c> says which.</summary>
     public const int ServerError = -32000;
 
     /// <summary>You chose Don't allow, the approval timed out, or the app was removed.</summary>
@@ -80,7 +80,7 @@ public sealed class ApiProtocolException : Exception
     public int Code { get; } = ApiErrors.InvalidRequest;
 }
 
-/// <summary>A Leaf error, answered as <see cref="ApiErrors.ServerError"/> with <see cref="Code"/> as <c>data.code</c>; its message is sent to the client.</summary>
+/// <summary>A Leaf Calendar error, answered as <see cref="ApiErrors.ServerError"/> with <see cref="Code"/> as <c>data.code</c>; its message is sent to the client.</summary>
 public sealed class ApiException : Exception
 {
     /// <summary>Creates the exception.</summary>

@@ -1,6 +1,6 @@
 # Builds Leaf Calendar (Debug, JIT, x64) and registers its loose package layout for this user.
 # Used for local runs and UI tests. Requires Windows Developer Mode.
-# Replacing a registration from a different folder keeps Leaf's app data (accounts, settings, cache)
+# Replacing a registration from a different folder keeps Leaf Calendar's app data (accounts, settings, cache)
 # through Remove-AppxPackage -PreserveApplicationData.
 $ErrorActionPreference = 'Stop'
 $root    = Split-Path $PSScriptRoot -Parent
@@ -18,7 +18,7 @@ if (-not $manifest) { throw 'AppxManifest.xml not found under bin/x64/Debug. Che
 # Register
 $existing = Get-AppxPackage LeafCalendar
 if ($existing -and -not $existing.IsDevelopmentMode) {
-    throw 'Leaf is installed from a package; uninstall it from Settings > Apps first.'
+    throw 'Leaf Calendar is installed from a package; uninstall it from Settings > Apps first.'
 }
 if ($existing -and $existing.InstallLocation -ne $manifest.DirectoryName) {
     Write-Warning "Replacing Leaf Calendar registered from $($existing.InstallLocation). Your accounts and settings are kept."

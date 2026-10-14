@@ -7,7 +7,7 @@ namespace LeafCalendar.Core.Data;
 
 /// <summary>
 /// A saved share: its title and message as typed, the zone its text is written in, its times (merged, in order), and
-/// the guests added to it with their names (in the order added; empty for none, a name empty when Leaf doesn't know it).
+/// the guests added to it with their names (in the order added; empty for none, a name empty when Leaf Calendar doesn't know it).
 /// </summary>
 /// <param name="Id">The group's ID.</param>
 /// <param name="Title">The title, cleaned and capped.</param>
@@ -189,7 +189,7 @@ public static class ShareGroupStore
         }
     }
 
-    // A link is kept only whole and safe: an https booking page Leaf may open, a provider and link ID, a length; otherwise the group is plain
+    // A link is kept only whole and safe: an https booking page Leaf Calendar may open, a provider and link ID, a length; otherwise the group is plain
     private static ShareLink Clean(ShareLink link) =>
         link.ProviderId.Length is > 0 and <= 32 && link.LinkId.Length is > 0 and <= 64 && link.LinkMinutes is > 0 and <= 1440 && link.LinkUrl.Length <= 2048
             && Uri.TryCreate(link.LinkUrl, UriKind.Absolute, out var url) && url.Scheme == Uri.UriSchemeHttps && Events.LinkSafety.CanLaunch(url)

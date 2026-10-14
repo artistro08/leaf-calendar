@@ -148,7 +148,7 @@ public sealed class CalendarPreferencesTests : IDisposable
     [Fact]
     public void LegacyRow_HiddenInLeaf_StaysHidden_WhileGoogleShowsIt()
     {
-        // A row from before Leaf recorded Google's choice (google_shown null), hidden in Leaf: Google ticking it doesn't
+        // A row from before Leaf Calendar recorded Google's choice (google_shown null), hidden in Leaf Calendar: Google ticking it doesn't
         // bring it back
         Refresh(Todoist(selected: true));
         using (var conn = _db.Database.Open())
@@ -201,7 +201,7 @@ public sealed class CalendarPreferencesTests : IDisposable
     [Fact]
     public void ReplaceForAccount_GoogleUnchanged_KeepsLeafsChoiceToShowIt()
     {
-        // Off in Google, but shown in Leaf on purpose: a refresh that doesn't change Google's choice leaves it shown
+        // Off in Google, but shown in Leaf Calendar on purpose: a refresh that doesn't change Google's choice leaves it shown
         Refresh(Todoist(selected: false));
         using (var conn = _db.Database.Open())
         {

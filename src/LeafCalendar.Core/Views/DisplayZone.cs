@@ -1,7 +1,7 @@
 namespace LeafCalendar.Core.Views;
 
 /// <summary>
-/// Which time zone the calendar is drawn in: time travel (this session only) first, then Leaf's primary time zone
+/// Which time zone the calendar is drawn in: time travel (this session only) first, then Leaf Calendar's primary time zone
 /// (Settings › Time zones), then Windows' own zone.
 /// </summary>
 public static class DisplayZone
@@ -18,7 +18,7 @@ public static class DisplayZone
     }
 
     /// <summary>
-    /// True when Leaf should offer to switch to Windows' new zone: a primary zone is pinned, the prompt setting is on,
+    /// True when Leaf Calendar should offer to switch to Windows' new zone: a primary zone is pinned, the prompt setting is on,
     /// and Windows' zone is a different zone (a Windows ID and an IANA ID for the same zone count as the same).
     /// </summary>
     public static bool ShouldOfferSwitch(string? primaryZoneId, bool prompt, TimeZoneInfo newWindows) =>

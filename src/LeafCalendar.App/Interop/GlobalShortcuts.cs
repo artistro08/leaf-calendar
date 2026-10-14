@@ -19,7 +19,7 @@ public enum ShortcutAction
 }
 
 /// <summary>
-/// Leaf's global shortcuts (spec 8.6), registered with <c>RegisterHotKey</c> on the tray icon's hidden window, whose
+/// Leaf Calendar's global shortcuts (spec 8.6), registered with <c>RegisterHotKey</c> on the tray icon's hidden window, whose
 /// <c>WM_HOTKEY</c> comes back through <see cref="OnHotkey"/>.
 /// </summary>
 /// <remarks>
@@ -62,7 +62,7 @@ public sealed class GlobalShortcuts(AppLog log)
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Lets go of Leaf's shortcuts (while the shortcut dialog listens for keys, and on Quit).</summary>
+    /// <summary>Lets go of Leaf Calendar's shortcuts (while the shortcut dialog listens for keys, and on Quit).</summary>
     public void Suspend()
     {
         foreach (var action in _registered)
@@ -73,7 +73,7 @@ public sealed class GlobalShortcuts(AppLog log)
         _registered.Clear();
     }
 
-    /// <summary>True when Windows would let Leaf register <paramref name="hotkey"/> now (never without the tray icon's window, which can't register anything).</summary>
+    /// <summary>True when Windows would let Leaf Calendar register <paramref name="hotkey"/> now (never without the tray icon's window, which can't register anything).</summary>
     public bool IsFree(Hotkey hotkey)
     {
         if (_hwnd.IsNull)

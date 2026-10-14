@@ -50,7 +50,7 @@ public sealed class TrayCalendarsTests : IDisposable
         leaf.WaitInSettings("LookaheadComboBox");
         Assert.Null(settings.FindFirstDescendant(cf => cf.ByAutomationId("TrayCalendarList")));
 
-        // Hide The Family Calendar In Leaf (Settings › Calendars), Then Back To The Calendar
+        // Hide The Family Calendar In Leaf Calendar (Settings › Calendars), Then Back To The Calendar
         leaf.OpenSettings("Calendars");
         leaf.WaitInSettings($"CalendarVisible_{FamilyId}").AsToggleButton().Toggle();
         leaf.CloseSettings();

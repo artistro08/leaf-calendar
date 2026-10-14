@@ -1,6 +1,6 @@
 namespace LeafCalendar.Core.Scheduling;
 
-/// <summary>A provider Leaf knows how to sign in to: its name, its OAuth endpoints, and how to build it.</summary>
+/// <summary>A provider Leaf Calendar knows how to sign in to: its name, its OAuth endpoints, and how to build it.</summary>
 /// <param name="Id">The provider's ID (<see cref="ISchedulingProvider.Id"/>).</param>
 /// <param name="Name">The name shown in the UI.</param>
 /// <param name="Description">One sentence for its Settings card.</param>
@@ -30,6 +30,6 @@ public static class SchedulingProviders
             new Uri("https://app.cal.com/availability/troubleshoot")),
     ];
 
-    /// <summary>The provider with this ID, or null when Leaf doesn't know it.</summary>
+    /// <summary>The provider with this ID, or null when Leaf Calendar doesn't know it.</summary>
     public static SchedulingProviderInfo? Find(string id) => All.FirstOrDefault(p => p.Id == id);
 }

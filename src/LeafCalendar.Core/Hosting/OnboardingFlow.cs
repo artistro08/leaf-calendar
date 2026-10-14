@@ -7,7 +7,7 @@ namespace LeafCalendar.Core.Hosting;
 /// <summary>The first-run steps, in order.</summary>
 public enum OnboardingStep
 {
-    /// <summary>What Leaf is, and "Get started".</summary>
+    /// <summary>What Leaf Calendar is, and "Get started".</summary>
     Welcome,
 
     /// <summary>The user's Google Cloud OAuth client (ID and secret).</summary>

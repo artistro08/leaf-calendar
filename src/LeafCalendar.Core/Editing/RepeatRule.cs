@@ -19,7 +19,7 @@ public enum RepeatFrequency
 }
 
 /// <summary>
-/// The repeat rules Leaf's editor can show and write: FREQ, INTERVAL, plain weekdays for weekly rules,
+/// The repeat rules Leaf Calendar's editor can show and write: FREQ, INTERVAL, plain weekdays for weekly rules,
 /// and an end (UNTIL or COUNT). Anything richer (ordinal weekdays, BYSETPOS, BYMONTH, and so on) parses
 /// as null, and the editor keeps such a rule untouched.
 /// </summary>

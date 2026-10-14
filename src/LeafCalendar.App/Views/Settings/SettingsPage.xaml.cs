@@ -221,7 +221,7 @@ public sealed partial class SettingsPage : Page
     private bool SchedulingShown =>
         SchedulingProviders.All.Any(p => _context.Services.Scheduling.StateOf(p.Id) is ProviderState.SignedIn or ProviderState.NeedsReconnect);
 
-    // Raised on any thread (a sign-in, a sign-out, or a provider signing Leaf out)
+    // Raised on any thread (a sign-in, a sign-out, or a provider signing Leaf Calendar out)
     private void OnSchedulingChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(UpdateSchedulingItem);
 
     // Shows or hides the Scheduling item; when it hides with its page open, General shows instead

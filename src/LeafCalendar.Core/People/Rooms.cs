@@ -10,7 +10,7 @@ public sealed record Room(string Name, string Email);
 /// The rooms offered in a Workspace account's editor: the ones you've booked before, read from your synced events.
 /// </summary>
 /// <remarks>
-/// Listing every room in a Workspace needs an admin-only scope, so Leaf only knows rooms from events. A room is an
+/// Listing every room in a Workspace needs an admin-only scope, so Leaf Calendar only knows rooms from events. A room is an
 /// attendee with Google's resource address (<c>@resource.calendar.google.com</c>). Room names are untrusted text,
 /// cleaned and capped like contact names. Computed each time and never stored.
 /// </remarks>

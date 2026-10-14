@@ -63,7 +63,7 @@ public static class LeafBrushes
     /// <summary>
     /// The accent fill for a theme (what AccentFillColorDefaultBrush resolves to: the system accent's
     /// Light 2 shade in dark, Dark 1 in light). Looked up from the system rather than the app's resources,
-    /// which follow the Windows theme even when Leaf is set to the other one.
+    /// which follow the Windows theme even when Leaf Calendar is set to the other one.
     /// </summary>
     public static SolidColorBrush Accent(bool dark) => HighContrast ? SystemBrush(UIElementType.Highlight) : dark ? AccentDark.Value : AccentLight.Value;
 
@@ -106,7 +106,7 @@ public static class LeafBrushes
 
     // The System Brushes Are Read Again (on the UI thread, at the next use) When The Contrast Theme Or Its Colors Change.
     // UISettings.ColorValuesChanged, not AccessibilitySettings.HighContrastChanged: that one needs a CoreWindow, and
-    // subscribing to it from a desktop app throws (it crashed Leaf at startup).
+    // subscribing to it from a desktop app throws (it crashed Leaf Calendar at startup).
     static LeafBrushes() => UiColors.ColorValuesChanged += (_, _) =>
     {
         var now = Accessibility.HighContrast;
@@ -183,7 +183,7 @@ public static class LeafBrushes
 
     private static string Hex(Color c) => string.Create(CultureInfo.InvariantCulture, $"#{c.R:X2}{c.G:X2}{c.B:X2}");
 
-    // ponytail: read once; an accent color change while Leaf runs shows after a restart
+    // ponytail: read once; an accent color change while Leaf Calendar runs shows after a restart
     private static readonly Lazy<SolidColorBrush> AccentDark = new(() => new SolidColorBrush(new UISettings().GetColorValue(UIColorType.AccentLight2)));
     private static readonly Lazy<SolidColorBrush> AccentLight = new(() => new SolidColorBrush(new UISettings().GetColorValue(UIColorType.AccentDark1)));
 

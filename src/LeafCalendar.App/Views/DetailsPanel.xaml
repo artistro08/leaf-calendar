@@ -11,7 +11,7 @@
     <!-- Top padding clears the title bar row this panel runs under; the details scroll as one, the editor has its own
          scroll and a pinned footer -->
     <Grid Padding="0,48,0,0">
-        <!-- Reply Badge Tones (the theme's status brushes, resolved for Leaf's own theme, not Windows'; set from code by the reply) -->
+        <!-- Reply Badge Tones (the theme's status brushes, resolved for Leaf Calendar's own theme, not Windows'; set from code by the reply) -->
         <VisualStateManager.VisualStateGroups>
             <VisualStateGroup x:Name="ResponseTones">
                 <VisualState x:Name="NeutralTone">

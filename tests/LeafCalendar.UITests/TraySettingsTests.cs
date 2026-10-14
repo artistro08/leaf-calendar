@@ -170,7 +170,7 @@ public sealed class TraySettingsTests : IDisposable
         using var leaf = Launch(profile, "2026-10-01T13:55:00-04:00");
         leaf.OpenSettings("Shortcuts");
 
-        // Close Settings With The Dialog Open (Leaf's shortcuts are let go while it listens)
+        // Close Settings With The Dialog Open (Leaf Calendar's shortcuts are let go while it listens)
         leaf.WaitInSettings("JoinShortcutButton").AsButton().Invoke();
         leaf.WaitForAnywhere("ShortcutPreview");
         leaf.CloseSettings();
@@ -197,7 +197,7 @@ public sealed class TraySettingsTests : IDisposable
         // Reset Picks The Default
         leaf.WaitInSettings("JoinShortcutButton").AsButton().Invoke();
         leaf.WaitForAnywhere("ShortcutReset").AsButton().Invoke();
-        // (or, where another app holds the default on this PC, such as the owner's own Leaf, the dialog says so and
+        // (or, where another app holds the default on this PC, such as the owner's own Leaf Calendar, the dialog says so and
         // saves nothing, and Cancel closes it; or the old one comes back with a note)
         var taken = $"Windows or another app is using {LeafSettings.DefaultJoinShortcut}.";
         Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("JoinShortcutButton").Properties.HelpText.ValueOrDefault == LeafSettings.DefaultJoinShortcut || leaf.AnyTextContains($"{LeafSettings.DefaultJoinShortcut} was taken by another app") || leaf.AnyTextContains(taken), TimeSpan.FromSeconds(5)).Success);

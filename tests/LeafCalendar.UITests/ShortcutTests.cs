@@ -10,7 +10,7 @@ public sealed class ShortcutTests : IDisposable
 {
     private const string MeetLink = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
 
-    // Combinations nothing else uses, so a Leaf you have running doesn't hold them first (F12 is Windows' debugger key)
+    // Combinations nothing else uses, so a Leaf Calendar you have running doesn't hold them first (F12 is Windows' debugger key)
     private static readonly LeafSettings Shortcuts = new() { JoinShortcut = "Ctrl+Alt+Shift+F9", FlyoutShortcut = "Ctrl+Alt+Shift+F10" };
 
     private readonly FakeGoogleServer _google = new();

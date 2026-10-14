@@ -15,13 +15,13 @@ namespace LeafCalendar.Core.Hosting;
 /// <c>http</c> loopback address is accepted, and only with a throwaway <c>uitest-</c> profile, so a real profile's
 /// secrets are never sent to the fake server.</item>
 /// <item><c>--start-date yyyy-MM-dd</c> opens on that date and treats it as "today". It's honored only with <c>--fake-google</c>.</item>
-/// <item><c>--now &lt;instant&gt;</c> starts Leaf's clock at an ISO 8601 instant with an offset (<c>2026-10-01T13:55:00-04:00</c>). It's honored only with <c>--fake-google</c>.
+/// <item><c>--now &lt;instant&gt;</c> starts Leaf Calendar's clock at an ISO 8601 instant with an offset (<c>2026-10-01T13:55:00-04:00</c>). It's honored only with <c>--fake-google</c>.
 /// The accepted forms are <c>yyyy-MM-ddTHH:mm:ss±hh:mm</c> and <c>yyyy-MM-ddTHH:mm±hh:mm</c>; a value without an
 /// offset is ignored, so the test clock never depends on the PC's time zone. It moves the services clock (alerts, tray, join shortcut) only; the calendar view's "now"
 /// (<c>CalendarViewModel.Now</c>) still follows <c>--start-date</c> or the real clock.</item>
 /// <item><c>--toast-action &lt;arguments&gt;</c> acts as if a notification with those arguments was clicked (UI tests, through the single-instance redirect). It's honored only with <c>--fake-google</c>.</item>
 /// <item><c>--gc-stress</c> runs a full garbage collection every few milliseconds, so an object Windows still uses after .NET let go of it fails right away (crash tests). It's honored only with <c>--fake-google</c>.</item>
-/// <item><c>--restarted</c> marks Windows' restart of a running Leaf after an update or a crash: it starts in the tray, without the window.</item>
+/// <item><c>--restarted</c> marks Windows' restart of a running Leaf Calendar after an update or a crash: it starts in the tray, without the window.</item>
 /// </list>
 /// </remarks>
 public sealed record LaunchOptions(string Profile, bool TrayProbe, Uri? FakeGoogle = null, DateOnly? StartDate = null, DateTimeOffset? Now = null, string? ToastAction = null, bool GcStress = false, bool Restarted = false)

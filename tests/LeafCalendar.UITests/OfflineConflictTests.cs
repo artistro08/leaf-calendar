@@ -29,7 +29,7 @@ public sealed class OfflineConflictTests : IDisposable
         leaf.WaitFor("EditorSaveButton").AsButton().Invoke();
     }
 
-    // Offline with Google changed behind Leaf's back, then a local rename, then back online: Leaf's patch gets 412
+    // Offline with Google changed behind Leaf Calendar's back, then a local rename, then back online: Leaf Calendar's patch gets 412
     private string MakeConflict(LeafApp leaf)
     {
         leaf.WaitFor(Dentist);

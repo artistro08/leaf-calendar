@@ -1,6 +1,6 @@
 namespace LeafCalendar.Core.Alerts;
 
-/// <summary>The notifications Leaf schedules and remembers (spec 8.4).</summary>
+/// <summary>The notifications Leaf Calendar schedules and remembers (spec 8.4).</summary>
 public enum AlertKind
 {
     /// <summary>A reminder at one of the event's reminder times.</summary>

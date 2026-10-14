@@ -21,7 +21,7 @@ public sealed class ProviderSignInTests : IDisposable
 
     public ProviderSignInTests()
     {
-        // Never Cal.com's real port 53817: the owner's Leaf may be signing in on it
+        // Never Cal.com's real port 53817: the owner's Leaf Calendar may be signing in on it
         _oauth = new SchedulingOAuth(
             new Uri("https://app.example.test/auth/oauth2/authorize"),
             new Uri(TokenUrl),

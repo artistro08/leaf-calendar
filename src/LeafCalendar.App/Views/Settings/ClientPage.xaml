@@ -18,7 +18,7 @@
                     Style="{StaticResource LeafSecondaryTextStyle}"
                     Margin="0,0,0,8"
                     TextWrapping="Wrap"
-                    Text="Leaf asks for your calendars, your contacts and other contacts (read-only), and your Google Workspace directory (directory.readonly, read-only, for coworker suggestions). If your consent screen lists its scopes, add these."
+                    Text="Leaf Calendar asks for your calendars, your contacts and other contacts (read-only), and your Google Workspace directory (directory.readonly, read-only, for coworker suggestions). If your consent screen lists its scopes, add these."
                     AutomationProperties.AutomationId="ClientScopesText" />
                 <controls:SettingRow Glyph="&#xE8EC;" Header="Client ID" Description="From your Desktop app OAuth client in Google Cloud Console.">
                     <TextBox
@@ -29,7 +29,7 @@
                         AutomationProperties.Name="Client ID"
                         AutomationProperties.AutomationId="SettingsClientIdBox" />
                 </controls:SettingRow>
-                <controls:SettingRow Glyph="&#xE72E;" Header="Client secret" Description="Leaf keeps it in Windows Credential Locker.">
+                <controls:SettingRow Glyph="&#xE72E;" Header="Client secret" Description="Leaf Calendar keeps it in Windows Credential Locker.">
                     <PasswordBox
                         x:Name="SecretBox"
                         Width="320"

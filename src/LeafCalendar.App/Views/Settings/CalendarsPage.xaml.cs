@@ -15,7 +15,7 @@ namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
 /// Settings › Calendars: every calendar, grouped by account, with its color (Google's 24-color palette, or back to
-/// Google's own color) and whether Leaf shows it. Leaf-only: Google Calendar isn't changed.
+/// Google's own color) and whether Leaf Calendar shows it. Only in Leaf Calendar: Google Calendar isn't changed.
 /// </summary>
 public sealed partial class CalendarsPage : Page
 {

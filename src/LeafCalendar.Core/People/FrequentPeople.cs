@@ -73,7 +73,7 @@ public static class FrequentPeople
             }
             catch (JsonException)
             {
-                // A series Leaf can't read has no guests to offer
+                // A series Leaf Calendar can't read has no guests to offer
                 continue;
             }
 
@@ -143,7 +143,7 @@ public static class FrequentPeople
         }
     }
 
-    // One event's attendees with a valid address, each address once; none for a row Leaf can't read
+    // One event's attendees with a valid address, each address once; none for a row Leaf Calendar can't read
     private static List<(string Email, string Name, bool IsRoom, bool IsSelf)> Guests(string json)
     {
         List<(string Email, string Name, bool IsRoom, bool IsSelf)> found = [];
@@ -167,7 +167,7 @@ public static class FrequentPeople
         }
         catch (JsonException)
         {
-            // A row Leaf can't read has no guests to offer
+            // A row Leaf Calendar can't read has no guests to offer
             return [];
         }
 

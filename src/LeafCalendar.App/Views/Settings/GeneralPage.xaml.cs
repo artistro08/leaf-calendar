@@ -33,8 +33,8 @@ public sealed partial class GeneralPage : Page
     // The startup task declared in Package.appxmanifest
     private const string StartupTaskId = "LeafCalendarStartup";
 
-    // The startup row's description when Windows leaves the switch to Leaf
-    private const string StartupDescription = "Leaf starts when you sign in to Windows, so reminders arrive on time.";
+    // The startup row's description when Windows leaves the switch to Leaf Calendar
+    private const string StartupDescription = "Leaf Calendar starts when you sign in to Windows, so reminders arrive on time.";
 
     private SettingsContext _context = null!;
 

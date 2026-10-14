@@ -117,7 +117,7 @@ public partial class DescriptionHtmlTests
     [Fact]
     public void Lines_BlankLineRightAfterAList_IsDropped()
     {
-        // A list's closing tags read as a line break; Leaf writes lists that way, so the extra blank line isn't kept
+        // A list's closing tags read as a line break; Leaf Calendar writes lists that way, so the extra blank line isn't kept
         Assert.Equal("Bullet:x|None:y", Shape(DescriptionHtml.Lines("<ul><li>x</li></ul>y")));
     }
 

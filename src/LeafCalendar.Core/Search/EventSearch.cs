@@ -29,7 +29,7 @@ public enum SearchField
 public sealed record SearchHit(string AccountId, string CalendarId, string EventId, string Title, DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, string Color, SearchField Field);
 
 /// <summary>
-/// Searches every event Leaf has stored, past and future (spec 6.6), by title, location, guests, and description.
+/// Searches every event Leaf Calendar has stored, past and future (spec 6.6), by title, location, guests, and description.
 /// </summary>
 /// <remarks>
 /// <para>

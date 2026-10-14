@@ -184,7 +184,7 @@ public sealed class PowerSettingsTests
     [Fact]
     public void SavedWithTrayExcludedCalendars_LoadsWithoutThem()
     {
-        // Settings › Tray's calendar choice is gone (the tray follows what's shown in Leaf): an older row that has it still loads
+        // Settings › Tray's calendar choice is gone (the tray follows what's shown in Leaf Calendar): an older row that has it still loads
         var json = """{"flyoutDays":5,"trayExcludedCalendars":[{"accountId":"a","calendarId":"x"}],"meetByDefaultAccounts":["a"]}""";
         var s = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
 

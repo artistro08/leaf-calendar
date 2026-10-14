@@ -117,7 +117,7 @@ public sealed partial class CalendarViewModel
 
         if (occurrence is null)
         {
-            ShowMessage("That event isn't in Leaf anymore");
+            ShowMessage("That event isn't in Leaf Calendar anymore");
             return false;
         }
 
@@ -158,7 +158,7 @@ public sealed partial class CalendarViewModel
         return true;
     }
 
-    /// <summary>Writes an Info line to Leaf's log (IDs, counts, and types only; never content).</summary>
+    /// <summary>Writes an Info line to Leaf Calendar's log (IDs, counts, and types only; never content).</summary>
     public void LogInfo(string eventName, string details) => _services.Log.Info(eventName, details);
 
     /// <summary>The title bar's Back after a jump.</summary>

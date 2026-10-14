@@ -92,7 +92,7 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
     public Task<ContactResults> SearchAsync(string accountId, string query, CancellationToken ct) => SearchAsync(accountId, query, workspace: false, ct);
 
     /// <summary>
-    /// <see cref="SearchAsync(string, string, CancellationToken)"/>, for an account Leaf knows is a Workspace one: when
+    /// <see cref="SearchAsync(string, string, CancellationToken)"/>, for an account Leaf Calendar knows is a Workspace one: when
     /// its grant lacks the directory permission, the results still come back, marked
     /// <see cref="ContactAccess.NeedsConsent"/>, so the editor offers the one re-sign-in that adds it.
     /// </summary>

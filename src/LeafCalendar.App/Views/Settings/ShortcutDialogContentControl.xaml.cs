@@ -3,7 +3,7 @@
 // See the LICENSE file in the project root for more information.
 //
 // Ported from PowerToys: src/settings-ui/Settings.UI/SettingsXAML/Controls/ShortcutControl/ShortcutDialogContentControl.xaml.cs
-// (https://github.com/microsoft/PowerToys). Leaf changes: Keys is a plain property whose setter draws the key caps (a
+// (https://github.com/microsoft/PowerToys). Leaf Calendar changes: Keys is a plain property whose setter draws the key caps (a
 // list of boxed values can't go to a WinRT ItemsSource under Native AOT), with KeysName for screen readers and tests;
 // no ignore-conflict or "Learn more" parts.
 

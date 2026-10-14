@@ -282,7 +282,7 @@ public sealed partial class EventEditorView : UserControl
             return;
         }
 
-        // Description Keys (only what Leaf saves gets through)
+        // Description Keys (only what Leaf Calendar saves gets through)
         if (DescriptionBox.FocusState != FocusState.Unfocused && DescriptionKey(e.Key))
         {
             e.Handled = true;
@@ -438,7 +438,7 @@ public sealed partial class EventEditorView : UserControl
     private bool _descriptionTouched;
     private bool _loadingDescription;
 
-    // Loads the editor's description into the box; a description Leaf had to cut short is read-only with no toolbar
+    // Loads the editor's description into the box; a description Leaf Calendar had to cut short is read-only with no toolbar
     private void LoadDescription()
     {
         var tooLong = Editor?.DescriptionTooLong == true;
@@ -469,7 +469,7 @@ public sealed partial class EventEditorView : UserControl
     private void OnDescriptionTextChanged(object sender, RoutedEventArgs e) => _descriptionTouched |= !_loadingDescription;
 
     // A key in the description, seen before the box: true when it's handled here. RichEdit's own Ctrl shortcuts (align,
-    // all caps, sub/superscript, line spacing, other list styles) make formatting Leaf can't save, so only bold, italic,
+    // all caps, sub/superscript, line spacing, other list styles) make formatting Leaf Calendar can't save, so only bold, italic,
     // underline, undo, redo, select all, copy, cut, and paste get through; Ctrl+Shift+L is the bulleted list. Tab moves
     // focus (in a list it would nest it). AltGr (Ctrl+Alt) still types.
     private bool DescriptionKey(VirtualKey key)

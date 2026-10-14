@@ -374,7 +374,7 @@ public class EventJsonTests
         Assert.Equal("<b>Agenda</b><ul><li>Budget</li></ul>x", (string?)patch["description"]);
     }
 
-    // Ruling: A Description Leaf Had To Cut Short Is Never Written Back (that would delete the rest on Google)
+    // Ruling: A Description Leaf Calendar Had To Cut Short Is Never Written Back (that would delete the rest on Google)
     [Theory]
     [InlineData(10_001)]
     [InlineData(50_000)]

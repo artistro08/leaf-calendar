@@ -143,7 +143,7 @@ public sealed class LeafDatabaseTests : IDisposable
         using var folder = new TempFolder();
         var database = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
 
-        // A Version 6 Database Showing A Calendar That's Off In Google (Leaf decided before it followed Google's changes)
+        // A Version 6 Database Showing A Calendar That's Off In Google (Leaf Calendar decided before it followed Google's changes)
         using (var conn = database.Open())
         using (var setup = conn.CreateCommand())
         {

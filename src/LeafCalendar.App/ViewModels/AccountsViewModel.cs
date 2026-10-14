@@ -298,7 +298,7 @@ public sealed partial class AccountsViewModel : ObservableObject
                     return;
                 }
 
-                Show(AccountsMessageKind.Success, $"Signed in as {account.Email}. Its calendars are in Leaf now.");
+                Show(AccountsMessageKind.Success, $"Signed in as {account.Email}. Its calendars are in Leaf Calendar now.");
             }
             finally
             {

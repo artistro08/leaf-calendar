@@ -98,7 +98,7 @@ public sealed class BookingWatcherTests : IDisposable
         var id = SaveGroup();
         _cal.On(r => r.Uri.AbsolutePath == "/v2/bookings", _ =>
         {
-            // Leaf's own Approve… closes the group while the bookings are being read
+            // Leaf Calendar's own Approve… closes the group while the bookings are being read
             using var conn = _db.Database.Open();
             ShareGroupStore.Delete(conn, id);
             return FakeHttpHandler.Json(HttpStatusCode.OK, Fixture.Read("calcom-bookings.json"));

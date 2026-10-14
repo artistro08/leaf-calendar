@@ -4,7 +4,7 @@
     See the LICENSE file in the project root for more information.
 
     Ported from PowerToys: src/common/Common.UI.Controls/Controls/KeyVisual/KeyCharPresenter.xaml (https://github.com/microsoft/PowerToys).
-    Leaf changes: the unused Office and Copilot key styles are left out.
+    Leaf Calendar changes: the unused Office and Copilot key styles are left out.
 -->
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -62,7 +62,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="local:KeyCharPresenter">
-                    <!-- Leaf change: the same FontSize-tall box as the text and Windows keys (the icon's own line height made glyph caps like Shift taller) -->
+                    <!-- Leaf Calendar change: the same FontSize-tall box as the text and Windows keys (the icon's own line height made glyph caps like Shift taller) -->
                     <Grid Height="{TemplateBinding FontSize}">
                         <Viewbox>
                             <FontIcon

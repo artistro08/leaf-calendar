@@ -43,7 +43,7 @@ public sealed class ApiCallException : Exception
     /// <summary>The JSON-RPC code.</summary>
     public int Code { get; }
 
-    /// <summary>Leaf's short code, or null.</summary>
+    /// <summary>Leaf Calendar's short code, or null.</summary>
     public string? DataCode { get; }
 }
 

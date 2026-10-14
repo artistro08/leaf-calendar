@@ -247,7 +247,7 @@ public class XamlLintTests
         AssertNone(Failures(file, "live-region", hits));
     }
 
-    // XAML Roots Leaf Can Load (a ComboBox-rooted x:Class failed to parse when built, so the calendar page never opened)
+    // XAML Roots Leaf Calendar Can Load (a ComboBox-rooted x:Class failed to parse when built, so the calendar page never opened)
     [Theory, MemberData(nameof(Files))]
     public void Roots_AreLoadableTypes(string file)
     {

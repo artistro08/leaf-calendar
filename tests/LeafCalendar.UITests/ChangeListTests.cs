@@ -68,7 +68,7 @@ public sealed class ChangeListTests : IDisposable
 
         leaf.WaitInSettings("AddAccountButton").AsButton().Invoke();
 
-        var success = $"Signed in as {FakeGoogleServer.OtherUserEmail}. Its calendars are in Leaf now.";
+        var success = $"Signed in as {FakeGoogleServer.OtherUserEmail}. Its calendars are in Leaf Calendar now.";
         Assert.True(Retry.WhileFalse(() => HasName(leaf.SettingsView, success), TimeSpan.FromSeconds(30)).Success, "No success alert after signing in.");
     }
 
@@ -105,7 +105,7 @@ public sealed class ChangeListTests : IDisposable
             header.AsButton().Invoke();
             Assert.True(Retry.WhileFalse(() => Shows(leaf, $"CalendarToggle_{FamilyId}"), Wait).Success, "The calendars didn't come back.");
 
-            // The fold is remembered once its slide ends (the rows leave the list), so it's let finish before Leaf is ended
+            // The fold is remembered once its slide ends (the rows leave the list), so it's let finish before Leaf Calendar is ended
             header.AsButton().Invoke();
             Assert.True(Retry.WhileTrue(() => leaf.Exists($"CalendarToggle_{FamilyId}"), Wait).Success, "The calendars didn't fold away again.");
             Thread.Sleep(500);

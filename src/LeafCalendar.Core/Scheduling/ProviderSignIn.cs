@@ -14,7 +14,7 @@ namespace LeafCalendar.Core.Scheduling;
 /// </remarks>
 public sealed class ProviderSignIn(HttpClient http, SchedulingOAuth oauth, ProviderClient client, Func<Uri, Task> openBrowser, TimeProvider time)
 {
-    /// <summary>How long Leaf waits for the browser to come back (the same as the Google sign-in).</summary>
+    /// <summary>How long Leaf Calendar waits for the browser to come back (the same as the Google sign-in).</summary>
     public static readonly TimeSpan Timeout = SignInFlow.Timeout;
 
     /// <summary>Runs the sign-in and returns the provider's refresh token.</summary>

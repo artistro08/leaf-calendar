@@ -29,7 +29,7 @@ public sealed class ToastActionTests : IDisposable
         return leaf;
     }
 
-    // A notification click as UI tests make one: a second launch hands the click's arguments to the running Leaf
+    // A notification click as UI tests make one: a second launch hands the click's arguments to the running Leaf Calendar
     private void Click(ToastArgs args)
     {
         using var second = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --toast-action {args.Encode()}");
@@ -39,7 +39,7 @@ public sealed class ToastActionTests : IDisposable
     private ToastArgs Meeting(ToastAction action, string? profile = null) =>
         new(action, profile ?? _profile, SeededProfile.AccountId, Primary, "evt-meeting", MeetingStart);
 
-    // Offline with Google changed behind Leaf's back, then a local rename, then back online: Leaf's patch gets 412
+    // Offline with Google changed behind Leaf Calendar's back, then a local rename, then back online: Leaf Calendar's patch gets 412
     private void MakeConflict(LeafApp leaf)
     {
         leaf.WaitFor(Dentist);

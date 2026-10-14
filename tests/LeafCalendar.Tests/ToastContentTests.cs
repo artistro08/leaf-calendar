@@ -172,7 +172,7 @@ public class ToastContentTests
         Assert.All(actions, a => Assert.Equal("background", (string?)a.Attribute("activationType")));
     }
 
-    // Narrator Reads Every Toast Button: Leaf's Have Text, And Windows Labels Its Own Snooze And Dismiss
+    // Narrator Reads Every Toast Button: Leaf Calendar's Have Text, And Windows Labels Its Own Snooze And Dismiss
     [Fact]
     public void EveryToastButton_HasText()
     {

@@ -8,9 +8,9 @@ namespace LeafCalendar.Core.Api;
 /// Answers one line of the local API (local API spec 3.1, 4): reads the request, runs its method, and writes the reply.
 /// </summary>
 /// <remarks>
-/// Nothing escapes: protocol problems get JSON-RPC codes, Leaf's own problems <see cref="ApiErrors.ServerError"/> with a
+/// Nothing escapes: protocol problems get JSON-RPC codes, Leaf Calendar's own problems <see cref="ApiErrors.ServerError"/> with a
 /// short code, and anything unexpected <see cref="ApiErrors.InternalError"/> with a fixed message (the exception's type
-/// is logged, never its text). Requests are logged by method name only, as a breadcrumb; a name Leaf doesn't know is
+/// is logged, never its text). Requests are logged by method name only, as a breadcrumb; a name Leaf Calendar doesn't know is
 /// logged as "unknown", so nothing the client wrote reaches the log.
 /// </remarks>
 public sealed class ApiDispatcher(ApiContext context, AppLog log)
@@ -62,7 +62,7 @@ public sealed class ApiDispatcher(ApiContext context, AppLog log)
         {
             // The type only, never the text (it can carry event content)
             log.Info("api.failed", $"method={method} error={ex.GetType().Name}");
-            return Reply(request, ApiErrors.InternalError, "Leaf couldn't do that.", null);
+            return Reply(request, ApiErrors.InternalError, "Leaf Calendar couldn't do that.", null);
         }
     }
 

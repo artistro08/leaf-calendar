@@ -15,7 +15,7 @@ public static class EditorTimes
 
         var local = date.ToDateTime(TimeOnly.MinValue) + time;
 
-        // ponytail: every zone Leaf users meet skips one hour; per-rule deltas only if a half-hour zone (Lord Howe) matters
+        // ponytail: every zone Leaf Calendar users meet skips one hour; per-rule deltas only if a half-hour zone (Lord Howe) matters
         if (zone.IsInvalidTime(local))
         {
             local = local.AddHours(1);

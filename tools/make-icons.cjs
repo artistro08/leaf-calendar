@@ -1,4 +1,4 @@
-// Renders Leaf's icons from the SVGs in tools/icons into src/LeafCalendar.App/Assets (run by tools/make-icons.ps1):
+// Renders Leaf Calendar's icons from the SVGs in tools/icons into src/LeafCalendar.App/Assets (run by tools/make-icons.ps1):
 //   - every MSIX visual asset (Square44x44Logo with its target sizes, Square150x150Logo, Wide310x150Logo, StoreLogo,
 //     SplashScreen, each at scale 100/125/150/200/400) and the window/exe icon (LeafCalendar.ico) from
 //     leaf-calendar-main.svg;

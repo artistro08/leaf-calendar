@@ -31,7 +31,7 @@ namespace LeafCalendar.App;
 /// title bar stays transparent and only its buttons take clicks. Settings and accounts show in place of
 /// the calendar (<see cref="SettingsPage"/>, <see cref="ShowSettings"/>), under the title bar, whose back
 /// button returns to the calendar; they share the calendar view model, so a change shows in the calendar right away, and
-/// they close with this window (Leaf lives in the tray).
+/// they close with this window (Leaf Calendar lives in the tray).
 /// </summary>
 [SuppressMessage("Design", "CA1001", Justification = "Windows aren't disposable; the App owns the view model.")]
 public sealed partial class MainWindow : Window
@@ -181,7 +181,7 @@ public sealed partial class MainWindow : Window
         Activated += OnActivated;
         Closed += (_, _) =>
         {
-            // Closing doesn't navigate, so release the page's views here; the view model is the App's (Leaf stays in
+            // Closing doesn't navigate, so release the page's views here; the view model is the App's (Leaf Calendar stays in
             // the tray). Settings goes with the window.
             CloseSettings();
             (ContentFrame.Content as CalendarPage)?.Detach();

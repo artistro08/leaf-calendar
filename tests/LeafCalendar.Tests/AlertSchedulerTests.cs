@@ -287,7 +287,7 @@ public sealed class AlertSchedulerTests : IDisposable
         var join = Assert.Single(_due, a => a.Kind == AlertKind.JoinNow);
         first.Dispose();
 
-        // Leaf Off For Three Days: the ledger row is past its keep, and it's the only handle to the toast
+        // Leaf Calendar Off For Three Days: the ledger row is past its keep, and it's the only handle to the toast
         _time.SetUtcNow(new DateTimeOffset(2026, 10, 4, 18, 0, 0, TimeSpan.Zero));
         Scheduler().Check();
 

@@ -4,7 +4,7 @@
     See the LICENSE file in the project root for more information.
 
     Ported from PowerToys: src/common/Common.UI.Controls/Controls/KeyVisual/KeyVisual.xaml (https://github.com/microsoft/PowerToys).
-    Leaf change: the presenter's content and style come from KeyVisual's PresenterContent and PresenterStyle (AOT).
+    Leaf Calendar change: the presenter's content and style come from KeyVisual's PresenterContent and PresenterStyle (AOT).
 -->
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -152,7 +152,7 @@
         </Setter>
     </Style>
 
-    <!-- Leaf Key Chip (the shortcut caps on the Shortcuts page and in its dialog, like the command menu's: a quiet control
+    <!-- Leaf Calendar Key Chip (the shortcut caps on the Shortcuts page and in its dialog, like the command menu's: a quiet control
          fill, a 1 px divider stroke, radius 4; Save stays the one accent. The Invalid and Warning states are the default's) -->
     <Style
         x:Key="LeafKeyChipStyle"

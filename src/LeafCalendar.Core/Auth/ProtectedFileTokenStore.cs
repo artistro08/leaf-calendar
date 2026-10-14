@@ -6,10 +6,10 @@ using LeafCalendar.Core.Settings;
 namespace LeafCalendar.Core.Auth;
 
 /// <summary>
-/// Stores Leaf's secrets in <c>secrets.bin</c> in the profile folder, encrypted with Windows DPAPI for the current user.
+/// Stores Leaf Calendar's secrets in <c>secrets.bin</c> in the profile folder, encrypted with Windows DPAPI for the current user.
 /// </summary>
 /// <remarks>
-/// The profile folder is under the package's <c>LocalState</c>, so Windows deletes the secrets when Leaf is uninstalled.
+/// The profile folder is under the package's <c>LocalState</c>, so Windows deletes the secrets when Leaf Calendar is uninstalled.
 /// The file is one JSON document (client ID, client secret, and a refresh token per account ID), encrypted with the
 /// profile name (lowercase, as profiles are case-insensitive) as extra entropy, so a copy in another profile folder
 /// doesn't open. Writes go to <c>secrets.bin.tmp</c> and replace the file in one move, so a crash never leaves half a file.

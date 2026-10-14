@@ -85,7 +85,7 @@ internal static class SchedulingTokenRequest
                     var why = ErrorCodes(await response.Content.ReadAsStringAsync(ct));
                     throw new SchedulingAuthException(string.Create(CultureInfo.InvariantCulture, $"The provider refused the sign-in ({(int)response.StatusCode} {why})."));
                 case (HttpStatusCode)429:
-                    throw new SchedulingUnavailableException("The provider asked Leaf to slow down.", response.Headers.RetryAfter?.Delta);
+                    throw new SchedulingUnavailableException("The provider asked Leaf Calendar to slow down.", response.Headers.RetryAfter?.Delta);
             }
 
             if (!response.IsSuccessStatusCode)

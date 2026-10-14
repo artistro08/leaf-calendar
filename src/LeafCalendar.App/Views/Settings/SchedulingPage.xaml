@@ -42,7 +42,7 @@
                             LostFocus="OnNoteLostFocus"
                             AutomationProperties.Name="Booking link note"
                             AutomationProperties.AutomationId="BookingLinkNoteBox" />
-                        <!-- Reset (Leaf's own note back), at the right like the Windows Settings reset buttons -->
+                        <!-- Reset (Leaf Calendar's own note back), at the right like the Windows Settings reset buttons -->
                         <Button
                             HorizontalAlignment="Right"
                             Content="Reset to default"

@@ -3,16 +3,16 @@
 // See the LICENSE file in the project root for more information.
 //
 // Ported from PowerToys: src/settings-ui/Settings.UI/SettingsXAML/Controls/ShortcutControl/ShortcutControl.xaml.cs
-// (https://github.com/microsoft/PowerToys). Leaf changes:
-// - Conflicts come from Leaf's own check (CheckConflict: the other shortcut, or Windows or another app holding it, by a
+// (https://github.com/microsoft/PowerToys). Leaf Calendar changes:
+// - Conflicts come from Leaf Calendar's own check (CheckConflict: the other shortcut, or Windows or another app holding it, by a
 //   RegisterHotKey probe), synchronously, and a taken combination keeps Save off (PowerToys saves it with a warning).
 // - The hook is installed when the dialog opens and removed when it closes (and in a finally), not for the control's
 //   lifetime, and it acts only while this window is in front (PowerToys unhooks on window deactivation).
-// - Reset sets Leaf's default shortcut and Clear turns the shortcut off (PowerToys clears both ways).
-// - Raises HotkeySettingsChanged, DialogOpening, and DialogClosed, so the page saves the shortcut and lets go of Leaf's
+// - Reset sets Leaf Calendar's default shortcut and Clear turns the shortcut off (PowerToys clears both ways).
+// - Raises HotkeySettingsChanged, DialogOpening, and DialogClosed, so the page saves the shortcut and lets go of Leaf Calendar's
 //   own shortcuts while the dialog listens (and registers them again after, restoring the old one if the new one fails).
 // - The dialog is titled after the setting, says why a combination is invalid, opens with focus on the keys, and its
-//   caps are Leaf's quiet key chips (PowerToys' are accent-filled).
+//   caps are Leaf Calendar's quiet key chips (PowerToys' are accent-filled).
 // - Native AOT: the focused-button check reads the automation peer's class name instead of comparing CLR types; key
 //   caps are added in code instead of through an ItemsControl; no telemetry, conflict window, or right-click disable.
 
@@ -107,7 +107,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
     /// <summary>What Reset sets.</summary>
     public HotkeySettings DefaultHotkeySettings { get; set; } = new();
 
-    /// <summary>Says who already has a combination, or null when it's free (Leaf's GlobalShortcuts check).</summary>
+    /// <summary>Says who already has a combination, or null when it's free (Leaf Calendar's GlobalShortcuts check).</summary>
     public Func<Hotkey, string?>? CheckConflict { get; set; }
 
     /// <summary>The saved shortcut is taken: its key caps show the warning state and the tooltip says why.</summary>
@@ -282,7 +282,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
 
         if (_internalSettings.GetKeysList().Count == 0)
         {
-            // Empty, disable save button (Leaf: and no invalid bar left over from before Esc)
+            // Empty, disable save button (Leaf Calendar: and no invalid bar left over from before Esc)
             _shortcutDialog.IsPrimaryButtonEnabled = false;
             _c.IsError = false;
         }
@@ -334,7 +334,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
         _c.IsWarningAltGr = _internalSettings.Ctrl && _internalSettings.Alt && !_internalSettings.Win && (_internalSettings.Code > 0);
     }
 
-    // Leaf: the other shortcut, or Windows or another app, may hold it; a taken combination can't be saved
+    // Leaf Calendar: the other shortcut, or Windows or another app, may hold it; a taken combination can't be saved
     private void CheckForConflicts(HotkeySettings settings)
     {
         var message = settings.ToHotkey() is { } hotkey ? CheckConflict?.Invoke(hotkey) : null;
@@ -358,7 +358,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
         ShowInvalid(settings);
     }
 
-    // Leaf: the bar says why the keys can't be a shortcut, not just that they can't
+    // Leaf Calendar: the bar says why the keys can't be a shortcut, not just that they can't
     private void ShowInvalid(HotkeySettings? settings)
     {
         _c.ErrorMessage = settings?.InvalidReason() ?? "Invalid shortcut";
@@ -370,7 +370,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
         KeyEventHandler(key, false, 0);
     }
 
-    // Leaf: only while the dialog listens and this window is in front (the keyboard goes back to an app you switch to)
+    // Leaf Calendar: only while the dialog listens and this window is in front (the keyboard goes back to an app you switch to)
     private bool Hotkey_IsActive()
     {
         return _isActive && PInvoke.GetForegroundWindow() == new HWND(_window);
@@ -387,7 +387,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
             EnableKeys();
         }
 
-        // Leaf: focus on the keys, not Reset (the dialog's first control), whose tooltip would cover them
+        // Leaf Calendar: focus on the keys, not Reset (the dialog's first control), whose tooltip would cover them
         _c.FocusKeys();
 
         // Reset the status on entering the hotkey each time.
@@ -419,12 +419,12 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
             _modifierKeysOnEntering.Add(VirtualKey.RightWindows);
         }
 
-        // Leaf: the hook lives only while the dialog is open
+        // Leaf Calendar: the hook lives only while the dialog is open
         _hook?.Dispose();
         _hook = new HotkeySettingsControlHook(Hotkey_KeyDown, Hotkey_KeyUp, Hotkey_IsActive, FilterAccessibleKeyboardEvents);
         _isActive = true;
 
-        // Leaf: Windows refused the hook, so nothing can be pressed: close, and say so once the dialog is gone
+        // Leaf Calendar: Windows refused the hook, so nothing can be pressed: close, and say so once the dialog is gone
         if (!_hook.IsHooked)
         {
             _hookFailed = true;
@@ -479,7 +479,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
             EndDialog();
         }
 
-        // Leaf: the hook failed (PowerToys shows its keyboard-hook error the same way, once the picker is closed)
+        // Leaf Calendar: the hook failed (PowerToys shows its keyboard-hook error the same way, once the picker is closed)
         if (_hookFailed && XamlRoot is { } root)
         {
             try
@@ -489,7 +489,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
                     XamlRoot = root,
                     RequestedTheme = ActualTheme,
                     Title = DialogTitle,
-                    Content = "Leaf couldn't listen to the keyboard, so the shortcut can't be changed right now. Try again.",
+                    Content = "Leaf Calendar couldn't listen to the keyboard, so the shortcut can't be changed right now. Try again.",
                     CloseButtonText = "OK",
                 }.ShowAsync();
             }
@@ -501,7 +501,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
     }
 
     /// <summary>
-    /// Closes the dialog without saving and lets go of the keyboard (Leaf: the Settings window closed, or the page
+    /// Closes the dialog without saving and lets go of the keyboard (Leaf Calendar: the Settings window closed, or the page
     /// unloaded, while it was open).
     /// </summary>
     public void CloseDialog()
@@ -523,8 +523,8 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
         EndDialog();
     }
 
-    // Leaf: everything a closed dialog must undo, once, whichever way it closed (the hook goes, and DialogClosed lets the
-    // page register Leaf's shortcuts again); ShowAsync may never return when the window closes under it
+    // Leaf Calendar: everything a closed dialog must undo, once, whichever way it closed (the hook goes, and DialogClosed lets the
+    // page register Leaf Calendar's shortcuts again); ShowAsync may never return when the window closes under it
     private void EndDialog()
     {
         if (!_dialogOpen)
@@ -548,7 +548,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
 
     private void C_ResetClick(object sender, RoutedEventArgs e)
     {
-        // Leaf: a default the other shortcut, Windows or another app holds is said, the same as typed keys, not saved
+        // Leaf Calendar: a default the other shortcut, Windows or another app holds is said, the same as typed keys, not saved
         if (DefaultHotkeySettings.ToHotkey() is { } fallback && CheckConflict?.Invoke(fallback) is { } message)
         {
             _c.ConflictMessage = message;
@@ -556,7 +556,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
             return;
         }
 
-        // Leaf: Reset is the default shortcut
+        // Leaf Calendar: Reset is the default shortcut
         _hotkeySettings = DefaultHotkeySettings with { };
         SetKeys();
 
@@ -648,7 +648,7 @@ public sealed partial class ShortcutControl : UserControl, IDisposable
         _hook = null;
     }
 
-    // The keys as text for screen readers and tests: Leaf's text for a shortcut, else the caps joined ("Shift+J")
+    // The keys as text for screen readers and tests: Leaf Calendar's text for a shortcut, else the caps joined ("Shift+J")
     private static string KeysName(HotkeySettings? settings) =>
         settings is null || settings.IsEmpty() ? "No keys" : settings.ToHotkey()?.ToString() ?? settings.ToString();
 }

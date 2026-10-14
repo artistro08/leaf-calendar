@@ -9,7 +9,7 @@ namespace LeafCalendar.Core.Data;
 /// <summary>
 /// A stored calendar. <see cref="SyncToken"/> is null until the first full sync finishes.
 /// <see cref="Hidden"/> is Google's flag; <see cref="LeafHidden"/> and <see cref="LeafColor"/> are
-/// Leaf's own display choices, kept locally and never sent to Google. <see cref="Summary"/> is the name shown (your
+/// Leaf Calendar's own display choices, kept locally and never sent to Google. <see cref="Summary"/> is the name shown (your
 /// rename, else the owner's name) and <see cref="GoogleName"/> the owner's name; both are cleaned.
 /// </summary>
 public sealed record CalendarInfo(
@@ -29,10 +29,10 @@ public sealed record CalendarInfo(
     /// <summary>Fallback when Google gives no color.</summary>
     public const string DefaultColor = "#4285F4";
 
-    /// <summary>Color to draw with: Leaf's override, then Google's, then the default.</summary>
+    /// <summary>Color to draw with: Leaf Calendar's override, then Google's, then the default.</summary>
     public string DisplayColor => LeafColor ?? BackgroundColor ?? DefaultColor;
 
-    /// <summary>True when the calendar's events are shown (shown in Leaf, and not hidden from Google Calendar's list).</summary>
+    /// <summary>True when the calendar's events are shown (shown in Leaf Calendar, and not hidden from Google Calendar's list).</summary>
     public bool IsVisible => !LeafHidden && !Hidden;
 }
 
@@ -54,12 +54,12 @@ public static partial class CalendarStore
     /// <remarks>
     /// Calendars missing from the list (or marked deleted) are removed along with their events.
     /// Existing calendars keep their sync token, local order, and color. A calendar hidden from Google Calendar's list
-    /// ("Hide from list") is kept, but appears nowhere in Leaf (<see cref="GetAll"/>, the calendar, search, sync), so its
+    /// ("Hide from list") is kept, but appears nowhere in Leaf Calendar (<see cref="GetAll"/>, the calendar, search, sync), so its
     /// color, order, and any edit still waiting for Google survive until it's shown in Google again.
     /// A calendar is shown only when it is enabled in Google Calendar (ticked, or "selected", and not hidden from the
     /// list): a newly seen calendar starts that way, and so does one whose Google choice changed since the last refresh.
-    /// Otherwise Leaf's own choice (<see cref="SetHidden"/>) stays. A calendar whose Google choice was never recorded
-    /// (saved before schema version 7) takes Google's choice only when that hides it, so a calendar you hid in Leaf
+    /// Otherwise Leaf Calendar's own choice (<see cref="SetHidden"/>) stays. A calendar whose Google choice was never recorded
+    /// (saved before schema version 7) takes Google's choice only when that hides it, so a calendar you hid in Leaf Calendar
     /// never comes back on its own.
     /// </remarks>
     public static void ReplaceForAccount(SqliteConnection conn, string accountId, IReadOnlyList<CalendarListEntry> entries)
@@ -130,13 +130,13 @@ public static partial class CalendarStore
     }
 
     /// <summary>
-    /// An account's calendars in Leaf's order (inside <paramref name="tx"/> when one is open), hidden ones included (the
+    /// An account's calendars in Leaf Calendar's order (inside <paramref name="tx"/> when one is open), hidden ones included (the
     /// outbox and the editor still need them); callers that list calendars skip <see cref="CalendarInfo.Hidden"/> ones.
     /// </summary>
     public static IReadOnlyList<CalendarInfo> GetForAccount(SqliteConnection conn, string accountId, SqliteTransaction? tx = null) =>
         conn.Query(tx, SelectColumns + " WHERE c.account_id = $account ORDER BY c.sort_order;", Map, ("$account", accountId));
 
-    /// <summary>Every calendar Leaf lists (not those hidden from Google Calendar's list), grouped by account email, in Leaf's order.</summary>
+    /// <summary>Every calendar Leaf Calendar lists (not those hidden from Google Calendar's list), grouped by account email, in Leaf Calendar's order.</summary>
     public static IReadOnlyList<CalendarInfo> GetAll(SqliteConnection conn) =>
         conn.Query(null, SelectColumns + " JOIN accounts a ON a.id = c.account_id WHERE c.hidden = 0 ORDER BY a.email, c.sort_order;", Map);
 
@@ -162,7 +162,7 @@ public static partial class CalendarStore
             ("$id", calendarId),
             ("$expected", expected));
 
-    /// <summary>Shows or hides a calendar in Leaf (Google is not changed).</summary>
+    /// <summary>Shows or hides a calendar in Leaf Calendar (Google is not changed).</summary>
     public static void SetHidden(SqliteConnection conn, string accountId, string calendarId, bool hidden) =>
         conn.Execute(
             null,
@@ -171,7 +171,7 @@ public static partial class CalendarStore
             ("$account", accountId),
             ("$id", calendarId));
 
-    /// <summary>Sets Leaf's color for a calendar (<c>#RRGGBB</c>), or null to use Google's color.</summary>
+    /// <summary>Sets Leaf Calendar's color for a calendar (<c>#RRGGBB</c>), or null to use Google's color.</summary>
     /// <exception cref="ArgumentException">The color is not <c>#RRGGBB</c>.</exception>
     public static void SetColor(SqliteConnection conn, string accountId, string calendarId, string? color)
     {
@@ -238,8 +238,8 @@ public static partial class CalendarStore
     /// </summary>
     /// <remarks>
     /// A calendar shared with several of your accounts is one Google calendar with a reminder setting per account, and
-    /// Leaf usually shows it under just one of them. So every account's copy gets the reminders set under any of them:
-    /// a 30-minute reminder set from the account whose copy is hidden in Leaf still reminds from the copy that's shown.
+    /// Leaf Calendar usually shows it under just one of them. So every account's copy gets the reminders set under any of them:
+    /// a 30-minute reminder set from the account whose copy is hidden in Leaf Calendar still reminds from the copy that's shown.
     /// </remarks>
     public static IReadOnlyDictionary<(string AccountId, string CalendarId), IReadOnlyList<int>> PopupDefaults(SqliteConnection conn)
     {

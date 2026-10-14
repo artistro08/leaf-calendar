@@ -1,32 +1,32 @@
 # Leaf Calendar Design Standard
 
-How every screen in Leaf should look and behave, so new UI matches what's already built and the owner's other Windows apps.
+How every screen in Leaf Calendar should look and behave, so new UI matches what's already built and the owner's other Windows apps.
 
 ## Introduction
 
-This standard is drawn from three shipped apps by the same owner, plus what's already in Leaf and what the owner has asked for directly:
+This standard is drawn from three shipped apps by the same owner, plus what's already in Leaf Calendar and what the owner has asked for directly:
 
 | Short name | Project | Where |
 | --- | --- | --- |
 | **MA** | Music Assistant Native | `D:\music-assistant\MusicAssistant\` |
 | **Layers** | Layers | `D:\layers\src\Layers.UI\`, spec `D:\layers\docs\superpowers\specs\2026-09-25-winui3-rewrite-design.md` |
 | **Sony** | Sony Connect (Sony Control) | `D:\sony-control\src\SonyControl.App\`, spec `D:\sony-control\docs\superpowers\specs\2026-09-23-sony-control-design.md` |
-| **Leaf** | This app | `src\LeafCalendar.App\`, spec `docs\superpowers\specs\2026-09-29-leaf-calendar-design.md`, brief `.superpowers\sdd\2026-09-30-m3-events\redesign-brief.md` |
+| **Leaf Calendar** | This app | `src\LeafCalendar.App\`, spec `docs\superpowers\specs\2026-09-29-leaf-calendar-design.md`, brief `.superpowers\sdd\2026-09-30-m3-events\redesign-brief.md` |
 
-Each rule names where it comes from. **Conflict** marks a rule where the reference apps disagree, and says which one wins and why. Owner instructions (the brief, the Leaf spec) beat every reference app.
+Each rule names where it comes from. **Conflict** marks a rule where the reference apps disagree, and says which one wins and why. Owner instructions (the brief, the Leaf Calendar spec) beat every reference app.
 
-> This standard describes. It doesn't ask for changes to existing Leaf screens. The last section lists where Leaf already follows it and the gaps, for new work only.
+> This standard describes. It doesn't ask for changes to existing Leaf Calendar screens. The last section lists where Leaf Calendar already follows it and the gaps, for new work only.
 
 ---
 
 ## 1. Principles
 
-1. **Looks like Windows 11 made it.** Stock WinUI controls, stock theme brushes, stock type ramp. Build a custom control only when no stock one exists, and then style it from theme resources. (MA `CODING-STANDARDS.md` "Use WinUI common controls before building custom ones"; Layers spec "Stock everything"; Sony spec "Feel like a first-party Windows 11 flyout"; Leaf brief "use windows default elements".)
-2. **Copy a real Windows surface when there's one to copy.** Settings copies the Windows 11 Settings app, the tray flyout copies Quick Settings and the battery flyout, the HUD copied the virtual-desktop switcher, the search box copied Task Manager. Measure the real thing and match it. (Leaf brief; Sony spec "Frame"; Layers spec "Section 3: HUD"; MA `MainWindow.xaml` "Task Manager style".)
-3. **Quiet chrome, content first.** Icon-only buttons with no fill in title bars, no scrollbars until you scroll, one accent-filled button per surface at most. (Leaf `Styles/LeafTheme.xaml` `LeafBareIconButtonStyle`; Leaf `Controls/ScrollIndicator.cs`.)
-4. **Pixel-exact alignment.** Things share left edges, glyphs line up with the text under them, and the reason for each odd number is written in a comment. (Leaf `Views/SidebarView.xaml` header comment; MA `Templates.xaml` `RowContentPadding`; Layers spec HUD sizes.)
+1. **Looks like Windows 11 made it.** Stock WinUI controls, stock theme brushes, stock type ramp. Build a custom control only when no stock one exists, and then style it from theme resources. (MA `CODING-STANDARDS.md` "Use WinUI common controls before building custom ones"; Layers spec "Stock everything"; Sony spec "Feel like a first-party Windows 11 flyout"; Leaf Calendar brief "use windows default elements".)
+2. **Copy a real Windows surface when there's one to copy.** Settings copies the Windows 11 Settings app, the tray flyout copies Quick Settings and the battery flyout, the HUD copied the virtual-desktop switcher, the search box copied Task Manager. Measure the real thing and match it. (Leaf Calendar brief; Sony spec "Frame"; Layers spec "Section 3: HUD"; MA `MainWindow.xaml` "Task Manager style".)
+3. **Quiet chrome, content first.** Icon-only buttons with no fill in title bars, no scrollbars until you scroll, one accent-filled button per surface at most. (Leaf Calendar `Styles/LeafTheme.xaml` `LeafBareIconButtonStyle`; Leaf Calendar `Controls/ScrollIndicator.cs`.)
+4. **Pixel-exact alignment.** Things share left edges, glyphs line up with the text under them, and the reason for each odd number is written in a comment. (Leaf Calendar `Views/SidebarView.xaml` header comment; MA `Templates.xaml` `RowContentPadding`; Layers spec HUD sizes.)
 5. **Light, dark, and contrast themes all work.** (MA `CODING-STANDARDS.md` "Support Light, Dark and contrast themes"; Layers `SettingsWindow.xaml` HighContrast dictionaries.)
-6. **Native AOT safe.** `x:Bind` only, concrete `List<T>` for `ItemsSource` set in code, no typed read-backs of WinRT properties. (Leaf brief item 6; Layers `SettingsWindow.xaml.cs` "CsWinRT's AOT Mode Can't Cast The Native MenuItems Vector".)
+6. **Native AOT safe.** `x:Bind` only, concrete `List<T>` for `ItemsSource` set in code, no typed read-backs of WinRT properties. (Leaf Calendar brief item 6; Layers `SettingsWindow.xaml.cs` "CsWinRT's AOT Mode Can't Cast The Native MenuItems Vector".)
 
 ---
 
@@ -36,43 +36,43 @@ Each rule names where it comes from. **Conflict** marks a rule where the referen
 
 | Rule | Value | Source |
 | --- | --- | --- |
-| Backdrop, normal windows | `MicaBackdrop` | Leaf `MainWindow.xaml`; MA `MainWindow.xaml`; Layers `SettingsWindow.xaml.cs`; Sony `SettingsWindow.xaml` |
-| Backdrop, light-dismiss surfaces (tray flyout) | Desktop acrylic that stays "active" (`DesktopAcrylicController` with `IsInputActive = true`), inside a `SystemBackdropElement` with `CornerRadius="8"`, in a stock `Flyout` opened from an invisible host window | Sony `ActiveAcrylicBackdrop.cs`; Layers `ActiveAcrylicBackdrop.cs`, `HudHost.xaml`; Leaf `Tray/TrayHost.xaml` |
-| Title bar | Stock `TitleBar` control, `ExtendsContentIntoTitleBar = true`, `SetTitleBar(AppTitleBar)` | Leaf, Layers, Sony |
-| Title bar height | `AppWindow.TitleBar.PreferredHeightOption = Tall` and `<x:Double x:Key="TitleBarCompactHeight">48</x:Double>`, so caption buttons match the 48 DIP bar | Leaf `MainWindow.xaml(.cs)`; Layers `SettingsWindow.xaml` |
-| Title bar icon | App icon via `TitleBar.IconSource` (`ImageIconSource`) and `AppWindow.SetIcon` (an `.ico`) | Leaf; Layers; Sony `SettingsWindow.xaml.cs` |
-| Title text | App name for the main window, "`<App>` Settings" style for secondary windows (Leaf's Settings view sets the main title bar's title to "Settings" per the brief) | Layers "Layers Settings"; Sony "Sony Control Settings"; Leaf brief item 4 |
-| Theme on the caption buttons | `AppWindow.TitleBar.PreferredTheme` follows the app theme | Leaf `MainWindow.xaml.cs` |
-| Instances | One window of each kind. Opening it again activates the existing one. Closing a secondary window destroys it to free memory. | Layers `SettingsWindow.Open`; Leaf brief item 4 |
+| Backdrop, normal windows | `MicaBackdrop` | Leaf Calendar `MainWindow.xaml`; MA `MainWindow.xaml`; Layers `SettingsWindow.xaml.cs`; Sony `SettingsWindow.xaml` |
+| Backdrop, light-dismiss surfaces (tray flyout) | Desktop acrylic that stays "active" (`DesktopAcrylicController` with `IsInputActive = true`), inside a `SystemBackdropElement` with `CornerRadius="8"`, in a stock `Flyout` opened from an invisible host window | Sony `ActiveAcrylicBackdrop.cs`; Layers `ActiveAcrylicBackdrop.cs`, `HudHost.xaml`; Leaf Calendar `Tray/TrayHost.xaml` |
+| Title bar | Stock `TitleBar` control, `ExtendsContentIntoTitleBar = true`, `SetTitleBar(AppTitleBar)` | Leaf Calendar, Layers, Sony |
+| Title bar height | `AppWindow.TitleBar.PreferredHeightOption = Tall` and `<x:Double x:Key="TitleBarCompactHeight">48</x:Double>`, so caption buttons match the 48 DIP bar | Leaf Calendar `MainWindow.xaml(.cs)`; Layers `SettingsWindow.xaml` |
+| Title bar icon | App icon via `TitleBar.IconSource` (`ImageIconSource`) and `AppWindow.SetIcon` (an `.ico`) | Leaf Calendar; Layers; Sony `SettingsWindow.xaml.cs` |
+| Title text | App name for the main window, "`<App>` Settings" style for secondary windows (Leaf Calendar's Settings view sets the main title bar's title to "Settings" per the brief) | Layers "Layers Settings"; Sony "Sony Control Settings"; Leaf Calendar brief item 4 |
+| Theme on the caption buttons | `AppWindow.TitleBar.PreferredTheme` follows the app theme | Leaf Calendar `MainWindow.xaml.cs` |
+| Instances | One window of each kind. Opening it again activates the existing one. Closing a secondary window destroys it to free memory. | Layers `SettingsWindow.Open`; Leaf Calendar brief item 4 |
 | Placement of a new secondary window | Centered on the work area of the monitor under the cursor. Move it there first, then size it from that monitor's DPI (sizing first gets scaled twice). | Layers `SettingsWindow.xaml.cs` `Open` and spec "Opening on a monitor with another scale" |
-| Sizes | Always written in DIPs and multiplied by the window's scale, plus the frame (`AppWindow.Size - ClientSize`) | Leaf `MainWindow.ApplyMinimumSize`; Layers `SettingsWindow.Open` |
+| Sizes | Always written in DIPs and multiplied by the window's scale, plus the frame (`AppWindow.Size - ClientSize`) | Leaf Calendar `MainWindow.ApplyMinimumSize`; Layers `SettingsWindow.Open` |
 
-> **Conflict (title bar height):** MA sizes its hand-built title bar row at runtime from the caption area; Sony uses the stock `TitleBar` at its default height. Leaf and Layers pin 48 DIP. **Use 48**, it's what the owner asked for ("caption buttons matching title-bar height").
+> **Conflict (title bar height):** MA sizes its hand-built title bar row at runtime from the caption area; Sony uses the stock `TitleBar` at its default height. Leaf Calendar and Layers pin 48 DIP. **Use 48**, it's what the owner asked for ("caption buttons matching title-bar height").
 
 ### Title Bar Content
 
-- Left to right: pane toggle (only where there's a pane), back button (only when there's somewhere to go), app icon, title, then content. (Leaf spec 6.2; Layers `SettingsWindow.xaml`.)
-- Title bar buttons are icon-only with **no hover or press fill** (`LeafBareIconButtonStyle`, 32×32). Keyboard focus still shows. (Leaf `LeafTheme.xaml`, owner preference.)
-- Glyph sizes in the title bar: 12 for chevrons (Previous/Next), 16 for everything else. (Leaf `MainWindow.xaml`.)
-- Text buttons in the title bar (Today, the view picker) are stock `Button`/`DropDownButton` at `Height="32"` (`LeafToolbarButtonStyle`, padding `10,0`). (Leaf `LeafTheme.xaml`.)
-- Space around buttons stays draggable. Call `AppTitleBar.RecomputeDragRegions()` after showing or hiding title bar content. (Leaf `MainWindow.xaml.cs`.)
-- `TitleBarMinDragRegionWidth` 8 on the main window; 0 on fixed windows so Close sits on the edge. (Leaf; Layers.)
+- Left to right: pane toggle (only where there's a pane), back button (only when there's somewhere to go), app icon, title, then content. (Leaf Calendar spec 6.2; Layers `SettingsWindow.xaml`.)
+- Title bar buttons are icon-only with **no hover or press fill** (`LeafBareIconButtonStyle`, 32×32). Keyboard focus still shows. (Leaf Calendar `LeafTheme.xaml`, owner preference.)
+- Glyph sizes in the title bar: 12 for chevrons (Previous/Next), 16 for everything else. (Leaf Calendar `MainWindow.xaml`.)
+- Text buttons in the title bar (Today, the view picker) are stock `Button`/`DropDownButton` at `Height="32"` (`LeafToolbarButtonStyle`, padding `10,0`). (Leaf Calendar `LeafTheme.xaml`.)
+- Space around buttons stays draggable. Call `AppTitleBar.RecomputeDragRegions()` after showing or hiding title bar content. (Leaf Calendar `MainWindow.xaml.cs`.)
+- `TitleBarMinDragRegionWidth` 8 on the main window; 0 on fixed windows so Close sits on the edge. (Leaf Calendar; Layers.)
 
 ### Caption Buttons on Fixed-Size Windows
 
-- A fixed window with **only Close** (onboarding): `OverlappedPresenter` with `IsResizable = false`, `IsMaximizable = false`, `IsMinimizable = false`. Windows then draws only the stock Close. Double-clicking the title bar must not maximize. (Leaf brief item 5; Windows behavior.)
+- A fixed window with **only Close** (onboarding): `OverlappedPresenter` with `IsResizable = false`, `IsMaximizable = false`, `IsMinimizable = false`. Windows then draws only the stock Close. Double-clicking the title bar must not maximize. (Leaf Calendar brief item 5; Windows behavior.)
 - A fixed window that needs **Minimize and Close but no Maximize**: follow Layers exactly: `SetBorderAndTitleBar(true, false)`, two stock `Button`s 48×48 in `TitleBar.RightHeader`, restyled through lightweight resources (`SubtleFillColorSecondaryBrush` hover, `SubtleFillColorTertiaryBrush` press, Close hover `#C42B1C` with a white glyph), registered with `InputNonClientPointerSource.SetRegionRects`, glyphs dim while inactive, `TitleBarDeactivatedOpacity` 1. (Layers `SettingsWindow.xaml`, `SettingsWindow.xaml.cs`.)
 
 ### Window Sizes
 
 | Window | Size (DIP) | Resizable | Source |
 | --- | --- | --- | --- |
-| Main window | Minimum 1086 × 540 (computed from the panes and the title bar toolbar, including its 32 DIP sync status slot, see `MainWindow.MinimumWidth`). Default when nothing is remembered: 1277 × 814 (`Core/Views/WindowSize.MainDefault`). | Yes | Leaf `MainWindow.xaml.cs`, `WindowSize.cs`; default from MA `MainWindow.RestorePlacement` |
-| Onboarding | About 640 × 640 client, centered | No, Close only | Leaf brief item 5 |
+| Main window | Minimum 1086 × 540 (computed from the panes and the title bar toolbar, including its 32 DIP sync status slot, see `MainWindow.MinimumWidth`). Default when nothing is remembered: 1277 × 814 (`Core/Views/WindowSize.MainDefault`). | Yes | Leaf Calendar `MainWindow.xaml.cs`, `WindowSize.cs`; default from MA `MainWindow.RestorePlacement` |
+| Onboarding | About 640 × 640 client, centered | No, Close only | Leaf Calendar brief item 5 |
 | Tray flyout | Fixed 360 wide, height fixed to the tallest page, capped to the work area; 12 DIP from the taskbar and screen edge | No | Sony spec "Frame" and "Placement" |
 | Dialog content | Stock `ContentDialog` sizes | — | All |
 
-Settings is not a window: it's a view in the main window, shown in place of the calendar, so it uses the main window's size and its minimum of 1086 × 540, and it sets the main title bar's title to "Settings" (see Settings View pattern). Every page must still work at the minimum (MA rule: "Make every page work down to the minimum window size ... with scrolling wherever content can overflow"). (Leaf `MainWindow.ShowSettings`.)
+Settings is not a window: it's a view in the main window, shown in place of the calendar, so it uses the main window's size and its minimum of 1086 × 540, and it sets the main title bar's title to "Settings" (see Settings View pattern). Every page must still work at the minimum (MA rule: "Make every page work down to the minimum window size ... with scrolling wherever content can overflow"). (Leaf Calendar `MainWindow.ShowSettings`.)
 
 ---
 
@@ -84,35 +84,35 @@ Use these values only: **2, 4, 8, 12, 16, 24, 32** (plus 36 for the settings con
 
 | Where | Value | Source |
 | --- | --- | --- |
-| Gap between items in a row of buttons | 4 (title bar toolbar), 8 (page actions) | Leaf `MainWindow.xaml`, `AccountsPage.xaml` |
+| Gap between items in a row of buttons | 4 (title bar toolbar), 8 (page actions) | Leaf Calendar `MainWindow.xaml`, `AccountsPage.xaml` |
 | Icon to text inside a button | 8 | Layers Play Animation; MA Home Assistant button; Sony footer |
 | Label stack (header, description) | 0 to 4 | Sony `AppPage.xaml`; MA `LoginPage.xaml` |
 | Stack spacing inside a section | 8 | Layers `GeneralPage.xaml`; MA `SettingsPage.xaml`; Sony |
-| Between sections, or form fields on a page | 16 | Layers; MA; Leaf `OnboardingStepPage.xaml` |
-| Page padding, main window pages | 32 (current Leaf pages), 24 on dense pages | Leaf `OnboardingStepPage.xaml`; MA pages `24,16,24,24` |
-| Settings content inset | `Padding="36,24"` on the page panel (`LeafSettingsPagePanelStyle`) | Leaf `Styles/LeafTheme.xaml`; Sony `SettingsWindow.xaml` |
+| Between sections, or form fields on a page | 16 | Layers; MA; Leaf Calendar `OnboardingStepPage.xaml` |
+| Page padding, main window pages | 32 (current Leaf Calendar pages), 24 on dense pages | Leaf Calendar `OnboardingStepPage.xaml`; MA pages `24,16,24,24` |
+| Settings content inset | `Padding="36,24"` on the page panel (`LeafSettingsPagePanelStyle`) | Leaf Calendar `Styles/LeafTheme.xaml`; Sony `SettingsWindow.xaml` |
 | Card padding | 16 | Sony `SettingsCardStyle`; MA settings cards |
-| Side panel inner inset | 16 | Leaf `DetailsPanel.xaml` |
-| Flyout page padding | 20 (device page), 24 (empty state); Leaf's tray flyout uses 16 for every part (header, list, footer) | Sony `FlyoutView.xaml`; Leaf `Tray/TrayHost.xaml` |
-| Readable column cap | `MaxWidth="560"` for forms and prose, 1072 for settings pages (`LeafSettingsPagePanelStyle`) | Leaf `Styles/LeafTheme.xaml`; Sony settings pages |
+| Side panel inner inset | 16 | Leaf Calendar `DetailsPanel.xaml` |
+| Flyout page padding | 20 (device page), 24 (empty state); Leaf Calendar's tray flyout uses 16 for every part (header, list, footer) | Sony `FlyoutView.xaml`; Leaf Calendar `Tray/TrayHost.xaml` |
+| Readable column cap | `MaxWidth="560"` for forms and prose, 1072 for settings pages (`LeafSettingsPagePanelStyle`) | Leaf Calendar `Styles/LeafTheme.xaml`; Sony settings pages |
 
 ### Structure
 
-- Panes: sidebar 264, details 320 (growing with the window to 480 at 1920 wide, `CalendarPage.DetailsWidthFor`), as inline `SplitView`s on the window's Mica; the calendar island is `LayerFillColorDefaultBrush` with no border (its fill is the edge). (Leaf `CalendarPage.xaml`.)
-- Content under a 48 DIP title bar either starts in row 1, or runs under the title bar with `Padding="..,48,.."` to clear it. (Leaf `SidebarView.xaml`, `DetailsPanel.xaml`.)
-- A side panel's first heading is centered in the 28 DIP row right under the title bar, the row the sidebar's month title sits in, whatever its style: a section header is centered in it ("Upcoming", "Times to share"), a 20 DIP title (28 line height) fills it (an event's title, "2 events selected"). List rows under a heading line their text up with it; a row's hover fill reaches 8 DIP past the content edges (`Margin="-8,0"`). (Leaf `DetailsPanel.xaml`, `ShareSlotsPanel.cs`.)
-- Only the part that can overflow scrolls; headers and footers stay pinned. (Leaf sidebar "Only the calendar list scrolls"; Sony spec "Footer stays pinned".)
+- Panes: sidebar 264, details 320 (growing with the window to 480 at 1920 wide, `CalendarPage.DetailsWidthFor`), as inline `SplitView`s on the window's Mica; the calendar island is `LayerFillColorDefaultBrush` with no border (its fill is the edge). (Leaf Calendar `CalendarPage.xaml`.)
+- Content under a 48 DIP title bar either starts in row 1, or runs under the title bar with `Padding="..,48,.."` to clear it. (Leaf Calendar `SidebarView.xaml`, `DetailsPanel.xaml`.)
+- A side panel's first heading is centered in the 28 DIP row right under the title bar, the row the sidebar's month title sits in, whatever its style: a section header is centered in it ("Upcoming", "Times to share"), a 20 DIP title (28 line height) fills it (an event's title, "2 events selected"). List rows under a heading line their text up with it; a row's hover fill reaches 8 DIP past the content edges (`Margin="-8,0"`). (Leaf Calendar `DetailsPanel.xaml`, `ShareSlotsPanel.cs`.)
+- Only the part that can overflow scrolls; headers and footers stay pinned. (Leaf Calendar sidebar "Only the calendar list scrolls"; Sony spec "Footer stays pinned".)
 - Size fixed windows so their main page doesn't scroll at 100%, but keep the `ScrollViewer` for small screens. (Layers spec SettingsWindow.)
 
 ### Corner Radii
 
 | Element | Radius | Source |
 | --- | --- | --- |
-| Buttons, inputs, list rows, tiles | `{ThemeResource ControlCornerRadius}` (4) | Leaf `LeafIconButtonStyle`, sidebar rows `CornerRadius="4"`; Sony tiles; MA |
+| Buttons, inputs, list rows, tiles | `{ThemeResource ControlCornerRadius}` (4) | Leaf Calendar `LeafIconButtonStyle`, sidebar rows `CornerRadius="4"`; Sony tiles; MA |
 | Cards, flyout panels, dialogs, HUD-like surfaces | `{StaticResource OverlayCornerRadius}` (8) | MA settings cards; Sony `SettingsCardStyle`, flyout `CornerRadius="8"` |
-| Event blocks, month chips | 4 | Leaf `EventBlock.cs`, `WeekRow.cs` |
-| Circles (today, mini-month days) | Half the size (34 → 17, 28 → 14) | Leaf `DayHeaderCell.cs`, `LeafMiniDayButtonStyle` |
-| Title bar icon buttons | `ControlCornerRadius` (only shows as a focus shape) | Leaf |
+| Event blocks, month chips | 4 | Leaf Calendar `EventBlock.cs`, `WeekRow.cs` |
+| Circles (today, mini-month days) | Half the size (34 → 17, 28 → 14) | Leaf Calendar `DayHeaderCell.cs`, `LeafMiniDayButtonStyle` |
+| Title bar icon buttons | `ControlCornerRadius` (only shows as a focus shape) | Leaf Calendar |
 
 > **Conflict:** Layers' HUD used 6 to match the virtual-desktop switcher. That was copying a specific Windows surface; don't use 6 elsewhere.
 
@@ -124,28 +124,28 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 
 | Use | Style | Size / weight | Source |
 | --- | --- | --- | --- |
-| Settings page title, main page heading | `TitleTextBlockStyle` | 28 SemiBold, `Margin="0,0,0,16"` in settings | Sony `SettingsPageTitleStyle`; MA `SettingsPage.xaml`; Leaf `AccountsPage.xaml` |
-| Dialog/card title, onboarding step title, details event title | `SubtitleTextBlockStyle` | 20 SemiBold | MA `LoginPage.xaml`; Leaf `DetailsPanel.xaml`; Layers About |
-| Section header | `BodyStrongTextBlockStyle` | 14 SemiBold | Layers, MA, Sony (all three agree); Leaf "Upcoming" |
+| Settings page title, main page heading | `TitleTextBlockStyle` | 28 SemiBold, `Margin="0,0,0,16"` in settings | Sony `SettingsPageTitleStyle`; MA `SettingsPage.xaml`; Leaf Calendar `AccountsPage.xaml` |
+| Dialog/card title, onboarding step title, details event title | `SubtitleTextBlockStyle` | 20 SemiBold | MA `LoginPage.xaml`; Leaf Calendar `DetailsPanel.xaml`; Layers About |
+| Section header | `BodyStrongTextBlockStyle` | 14 SemiBold | Layers, MA, Sony (all three agree); Leaf Calendar "Upcoming" |
 | Setting label, body text | `BodyTextBlockStyle` / default | 14 Regular | Sony `AppPage.xaml` |
-| Description, status, metadata | `CaptionTextBlockStyle` + `TextFillColorSecondaryBrush` | 12 Regular | Sony `SecondaryTextStyle`; MA; Leaf |
-| Sidebar group header (account email) | `LeafSectionHeaderStyle` (Caption, secondary) | 12 | Leaf `LeafTheme.xaml` |
+| Description, status, metadata | `CaptionTextBlockStyle` + `TextFillColorSecondaryBrush` | 12 Regular | Sony `SecondaryTextStyle`; MA; Leaf Calendar |
+| Sidebar group header (account email) | `LeafSectionHeaderStyle` (Caption, secondary) | 12 | Leaf Calendar `LeafTheme.xaml` |
 | Error line in place of a status line | Caption + `SystemFillColorCautionBrush` | 12 | Sony `CautionTextStyle` |
-| Period title (calendar) | Custom | 22 Bold | Leaf `CalendarPage.xaml` |
-| Day number / weekday (day header) | Custom | 20 SemiBold / 12 | Leaf `DayHeaderCell.cs` |
-| Event title / time | Custom | 12 SemiBold / 11 | Leaf `EventBlock.cs` |
-| Title bar app name | `TitleBar.Title` (Caption-sized) | 12 | Leaf; MA `CaptionTextBlockStyle` |
+| Period title (calendar) | Custom | 22 Bold | Leaf Calendar `CalendarPage.xaml` |
+| Day number / weekday (day header) | Custom | 20 SemiBold / 12 | Leaf Calendar `DayHeaderCell.cs` |
+| Event title / time | Custom | 12 SemiBold / 11 | Leaf Calendar `EventBlock.cs` |
+| Title bar app name | `TitleBar.Title` (Caption-sized) | 12 | Leaf Calendar; MA `CaptionTextBlockStyle` |
 
-- Two weights only in UI chrome: Regular and SemiBold. Bold is reserved for the calendar period title. (Leaf.)
-- Long text trims with `CharacterEllipsis`; descriptions wrap. (Leaf, MA, Sony.)
+- Two weights only in UI chrome: Regular and SemiBold. Bold is reserved for the calendar period title. (Leaf Calendar.)
+- Long text trims with `CharacterEllipsis`; descriptions wrap. (Leaf Calendar, MA, Sony.)
 - Don't use ALL CAPS labels. (MA's "REMOTE" badge and card tags are the only exceptions in the reference apps, and they're media-app flourishes.)
 
 ---
 
 ## 5. Color and Materials
 
-- Only `{ThemeResource}` brushes in XAML. Code-built visuals pick per-theme values from `LeafBrushes` and re-apply on `ActualThemeChanged`. (Leaf `Controls/LeafBrushes.cs`; MA rule "re-apply any color set in code when ActualThemeChanged fires".)
-- Accent comes from the system. Use `AccentFillColorDefaultBrush` / `TextOnAccentFillColorPrimaryBrush`, never a brand color. (Sony spec "system accent color"; Leaf today circle.)
+- Only `{ThemeResource}` brushes in XAML. Code-built visuals pick per-theme values from `LeafBrushes` and re-apply on `ActualThemeChanged`. (Leaf Calendar `Controls/LeafBrushes.cs`; MA rule "re-apply any color set in code when ActualThemeChanged fires".)
+- Accent comes from the system. Use `AccentFillColorDefaultBrush` / `TextOnAccentFillColorPrimaryBrush`, never a brand color. (Sony spec "system accent color"; Leaf Calendar today circle.)
 - Accent-filled things per surface: the one primary action (`AccentButtonStyle`), the "on" state of toggles, today, and the selected step pip. (MA `LoginPage.xaml` Sign in; Layers Play Animation; Sony `SceneButtonActiveStyle`.)
 - Surface brushes:
 
@@ -163,9 +163,9 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 | Off-hours tint (working-hours shading) | `LeafBrushes.OffHours(dark)`: Light `#0A000000`, Dark `#29000000`; transparent in HighContrast |
 | Weekend tint | `LeafBrushes.WeekendFill(dark)`: Light `#06000000`, Dark `#20000000`; it darkens in both themes, so weekends read as shaded on their own and over the off-hours tint |
 
-  Sources: MA `SettingsPage.xaml`; Leaf `CalendarPage.xaml`, `LeafTheme.xaml`; Layers `GeneralPage.xaml`, `TrayMenuHost.xaml` spec; Sony `AppStyles.xaml`, `FlyoutWindow.xaml`.
-- Calendar colors are Google's. Leaf's current-time line is `#E5484D`. (Leaf `LeafBrushes.cs`.)
-- Theme setting: System / Light / Dark, labeled "Use Windows setting", "Light", "Dark". Apply with `RequestedTheme` on each window's root, to every open window. (Leaf `MainWindow.xaml` theme menu; Sony `ApplyTheme`.)
+  Sources: MA `SettingsPage.xaml`; Leaf Calendar `CalendarPage.xaml`, `LeafTheme.xaml`; Layers `GeneralPage.xaml`, `TrayMenuHost.xaml` spec; Sony `AppStyles.xaml`, `FlyoutWindow.xaml`.
+- Calendar colors are Google's. Leaf Calendar's current-time line is `#E5484D`. (Leaf Calendar `LeafBrushes.cs`.)
+- Theme setting: System / Light / Dark, labeled "Use Windows setting", "Light", "Dark". Apply with `RequestedTheme` on each window's root, to every open window. (Leaf Calendar `MainWindow.xaml` theme menu; Sony `ApplyTheme`.)
 - Contrast themes: any brush you override for Light/Dark gets a `HighContrast` entry using `SystemColor*` resources, so borders and hovers stay visible. (MA `MainWindow.xaml` search box; Layers caption buttons.)
 
 ---
@@ -185,8 +185,8 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 | About / empty-state / onboarding hero icon | 32 (onboarding may go to 48) |
 | Menu item icon box | exactly 16×16 (set `Width`/`Height` on `PathIcon`) |
 
-  Sources: Leaf `MainWindow.xaml`, `SidebarView.xaml`; Layers `GeneralPage.xaml` and spec TrayMenu; MA `LoginPage.xaml`; Sony `AboutPage.xaml`, `FlyoutView.xaml`.
-- Standard glyphs so the apps agree: Settings `E713`, About/Info `E946`, Back `E72B`, Quit/Power `E7E8`, Search `E721`, Edit `E70F`, Delete `E74D`, Previous/Next `E76B`/`E76C`, Pane `E90D`, Minimize `E921`, Close `E8BB`, Refresh/Sync `E72C`. (Layers `SettingsWindow.xaml.cs`, `TrayMenuHost.xaml`; MA; Leaf; Sony.)
+  Sources: Leaf Calendar `MainWindow.xaml`, `SidebarView.xaml`; Layers `GeneralPage.xaml` and spec TrayMenu; MA `LoginPage.xaml`; Sony `AboutPage.xaml`, `FlyoutView.xaml`.
+- Standard glyphs so the apps agree: Settings `E713`, About/Info `E946`, Back `E72B`, Quit/Power `E7E8`, Search `E721`, Edit `E70F`, Delete `E74D`, Previous/Next `E76B`/`E76C`, Pane `E90D`, Minimize `E921`, Close `E8BB`, Refresh/Sync `E72C`. (Layers `SettingsWindow.xaml.cs`, `TrayMenuHost.xaml`; MA; Leaf Calendar; Sony.)
 - Icons carry meaning together with text or a tooltip, never on their own. Decorative icons get `AutomationProperties.AccessibilityView="Raw"`. (Layers `GeneralPage.xaml`.)
 
 ---
@@ -197,50 +197,50 @@ The font is always the system font (Segoe UI Variable). Use the stock text style
 
 | Kind | Control / style | When | Source |
 | --- | --- | --- | --- |
-| Primary action | `Button` + `AccentButtonStyle` | One per surface: Save, Sign in, Next, Open Leaf Calendar | Leaf `OnboardingWindow.xaml`, `ClientPage.xaml`; MA `LoginPage.xaml` |
-| Secondary action | `Button` (default style) | Cancel, Sync now, Disconnect | Leaf `AccountsPage.xaml`; Sony |
-| Title bar icon | `LeafBareIconButtonStyle` 32×32 | Title bar only, no fill ever | Leaf |
-| Icon button elsewhere | `LeafIconButtonStyle` (32, or 28 in the mini month): 83 ms fade to `SubtleFillColorSecondary` | Sidebar, panels | Leaf |
+| Primary action | `Button` + `AccentButtonStyle` | One per surface: Save, Sign in, Next, Open Leaf Calendar | Leaf Calendar `OnboardingWindow.xaml`, `ClientPage.xaml`; MA `LoginPage.xaml` |
+| Secondary action | `Button` (default style) | Cancel, Sync now, Disconnect | Leaf Calendar `AccountsPage.xaml`; Sony |
+| Title bar icon | `LeafBareIconButtonStyle` 32×32 | Title bar only, no fill ever | Leaf Calendar |
+| Icon button elsewhere | `LeafIconButtonStyle` (32, or 28 in the mini month): 83 ms fade to `SubtleFillColorSecondary` | Sidebar, panels | Leaf Calendar |
 | Footer / flyout icon button | `SubtleButtonStyle`, 36×36 (a footer's text action, like the tray flyout's "New event", is a standard `Button` with a 14 DIP glyph and label on 16,12 footer padding) | Flyout footers | Sony `FooterIconButtonStyle`; MA back button |
-| Link | `HyperlinkButton`, or `Hyperlink` inside a `TextBlock` to sit flush with text | Fixed URLs only | Layers About; Leaf `DetailsPanel.xaml` |
-| Split action | `SplitButton` (main action + menu) | "Join meeting" + copy link | Leaf `DetailsPanel.xaml` |
+| Link | `HyperlinkButton`, or `Hyperlink` inside a `TextBlock` to sit flush with text | Fixed URLs only | Layers About; Leaf Calendar `DetailsPanel.xaml` |
+| Split action | `SplitButton` (main action + menu) | "Join meeting" + copy link | Leaf Calendar `DetailsPanel.xaml` |
 | Tiles | `ToggleButton` 48 tall, stretch, `ControlCornerRadius`; label underneath | Quick Settings–style choices in the flyout | Sony `TileButtonStyle` |
 
-- Every icon-only button has `ToolTipService.ToolTip` and `AutomationProperties.Name`. Tooltips add the shortcut in parentheses: "Today (T)", "Edit event (E)". (Leaf `MainWindow.xaml`.)
+- Every icon-only button has `ToolTipService.ToolTip` and `AutomationProperties.Name`. Tooltips add the shortcut in parentheses: "Today (T)", "Edit event (E)". (Leaf Calendar `MainWindow.xaml`.)
 
 ### Toggles and Choices
 
 - On/off setting: `ToggleSwitch` at the right edge of a setting row, with **no On/Off text** (`OnContent=""`, `OffContent=""`, `MinWidth="0"`, `HorizontalAlignment="Right"`). The label is the row's header. (Sony `CardToggleSwitchStyle`.)
-- Visibility of a thing in a list: `CheckBox` (the sidebar calendars, tinted with the calendar color). (Leaf `SidebarView.xaml`, brief ruling 1.)
-- One of a few (≤ 5): `ComboBox`, `Width="240"`, right edge of the row. Every compact row control (`ComboBox`, `NumberBox`, `Slider`, `DropDownButton`, a short label `TextBox`) is 240 wide, never growing with its text; long text inputs (a client ID or secret, a time zone picker or search) are 320. One of 2–3 inline: `RadioButton`s (dialogs) or `RadioMenuFlyoutItem` (menus). (Sony `AppPage.xaml`; Leaf `ScopeDialog.cs`, theme menu.)
-- Numbers: `NumberBox` with `SpinButtonPlacementMode="Compact"`; ranges: `Slider` with ticks. (Leaf `EventEditorView.xaml`; Layers duration slider.)
+- Visibility of a thing in a list: `CheckBox` (the sidebar calendars, tinted with the calendar color). (Leaf Calendar `SidebarView.xaml`, brief ruling 1.)
+- One of a few (≤ 5): `ComboBox`, `Width="240"`, right edge of the row. Every compact row control (`ComboBox`, `NumberBox`, `Slider`, `DropDownButton`, a short label `TextBox`) is 240 wide, never growing with its text; long text inputs (a client ID or secret, a time zone picker or search) are 320. One of 2–3 inline: `RadioButton`s (dialogs) or `RadioMenuFlyoutItem` (menus). (Sony `AppPage.xaml`; Leaf Calendar `ScopeDialog.cs`, theme menu.)
+- Numbers: `NumberBox` with `SpinButtonPlacementMode="Compact"`; ranges: `Slider` with ticks. (Leaf Calendar `EventEditorView.xaml`; Layers duration slider.)
 
 > **Conflict (toggle labels):** MA uses `ToggleSwitch Header="..."` with "On/Off" beside the knob; Layers sets `OnContent`/`OffContent` to the label ("Run on Startup"). **Use Sony's card switch with no text**, because it's how Windows 11 Settings does it and the brief says to copy Windows Settings.
 
 ### Inputs
 
-- `TextBox`/`PasswordBox` with `Header` (sentence case) and an example `PlaceholderText` ("name@example.com", "Add a city or zone (Tokyo, NYC, UTC)"). Secrets always in `PasswordBox`. (Leaf `ClientPage.xaml`, `TimeZonesPage.xaml`; MA `LoginPage.xaml`.)
+- `TextBox`/`PasswordBox` with `Header` (sentence case) and an example `PlaceholderText` ("name@example.com", "Add a city or zone (Tokyo, NYC, UTC)"). Secrets always in `PasswordBox`. (Leaf Calendar `ClientPage.xaml`, `TimeZonesPage.xaml`; MA `LoginPage.xaml`.)
 - Enter submits the form's primary action. (MA `OnPasswordKeyDown`.)
 
 ### Lists
 
-- Stock `ListView`/`ItemsControl`. Rows at least 32 tall with `ControlCornerRadius`; hover fills the whole row, fading in 83 ms (`BrushTransition` on the row, and the item's own hover brushes set to `Transparent`). (Leaf `SidebarView.xaml`; Sony `PickerRowStyle`.)
-- Long lists virtualize. Right-click on any item opens the same menu as its "..." button. (MA `CODING-STANDARDS.md`; Leaf `EventContextMenu.cs`.)
+- Stock `ListView`/`ItemsControl`. Rows at least 32 tall with `ControlCornerRadius`; hover fills the whole row, fading in 83 ms (`BrushTransition` on the row, and the item's own hover brushes set to `Transparent`). (Leaf Calendar `SidebarView.xaml`; Sony `PickerRowStyle`.)
+- Long lists virtualize. Right-click on any item opens the same menu as its "..." button. (MA `CODING-STANDARDS.md`; Leaf Calendar `EventContextMenu.cs`.)
 
 ### Menus
 
-- Stock `MenuFlyout` with Segoe Fluent icons. Items that open a window or dialog end with "…" (the single character): "Settings…", "Custom…". (Layers `TrayMenuHost.xaml`; Leaf `MainWindow.xaml`.)
-- Tray menu items set `Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}"`, or the first open is touch-sized. Placement follows the taskbar edge. (Layers spec TrayMenu; Leaf spec 8.3.)
-- Separators group actions; Quit is last, alone. (Layers; Leaf spec 8.3.)
+- Stock `MenuFlyout` with Segoe Fluent icons. Items that open a window or dialog end with "…" (the single character): "Settings…", "Custom…". (Layers `TrayMenuHost.xaml`; Leaf Calendar `MainWindow.xaml`.)
+- Tray menu items set `Padding="{ThemeResource MenuFlyoutItemThemePaddingNarrow}"`, or the first open is touch-sized. Placement follows the taskbar edge. (Layers spec TrayMenu; Leaf Calendar spec 8.3.)
+- Separators group actions; Quit is last, alone. (Layers; Leaf Calendar spec 8.3.)
 
 ### Command Menu
 
-- A stock `Flyout` at the window's top center, 640 wide, styled after PowerToys Command Palette: a search row (16 search glyph, then a borderless, fill-less `TextBox` at 16 with no focus underline), a divider, a `ListView` of results, and a footer strip. (Leaf `Views/CommandMenu.xaml`.)
+- A stock `Flyout` at the window's top center, 640 wide, styled after PowerToys Command Palette: a search row (16 search glyph, then a borderless, fill-less `TextBox` at 16 with no focus underline), a divider, a `ListView` of results, and a footer strip. (Leaf Calendar `Views/CommandMenu.xaml`.)
 - Rows are 44 tall in an 8 inset list: a 20 glyph (actions, secondary text color) or a 16 color square with radius 4 (events) in a 28 column, then the title and its secondary detail side by side on one line, then the shortcut as a key chip (`ControlFillColorSecondaryBrush`, 1 px divider stroke, radius 4, Caption). The selection is the stock rounded fill without the accent pill.
 - The search glyph sits centered in the rows' 28 glyph column and the typed text starts where row titles do; the footer's label starts under the section headers and its Enter cap ends under the rows' key caps.
 - Results group under Caption section headers ("Go to", "Events", "Actions"), 28 tall (40 below another section, so groups don't run together); the arrow keys skip them and they can't be clicked. Every action is listed (no cap). The theme action switches to the theme that isn't showing ("Use dark theme" / "Use light theme"); the one showing is listed after it as "(in use)" and runs nothing. A list taller than its cap ends on a whole row, and with no rows it's gone. Settings pages read as paths ("Settings › General"). Actions that open more UI end with "…". A typed date for today, tomorrow, or yesterday reads "Go to today", and a date row that repeats "Go to today" isn't shown.
 - The footer (`LeafFlyoutFooterBrush`, 1 px top divider) says what the selected row is and what Enter does to it: "Open Enter" (events), "Run Enter" (actions), "Go Enter" (dates), plus "Go to event Alt Enter" on events. Nothing found shows a 24 search glyph over "No events, actions, or dates match." and offers "Create event “<typed words>”", which opens the editor with that title.
-- Jump to date: the mode chip replaces the search glyph, the box shows examples ("Try nov 5th, 10 weeks, next fri, or 3 days ago"), the one date row has no header, the footer stays while the box is empty, and text that isn't a date says "Leaf can't read that as a date."
+- Jump to date: the mode chip replaces the search glyph, the box shows examples ("Try nov 5th, 10 weeks, next fri, or 3 days ago"), the one date row has no header, the footer stays while the box is empty, and text that isn't a date says "Leaf Calendar can't read that as a date."
 - Key caps show every key as a word (Shift, Ctrl, Alt, Left, Right) except Enter, Backspace, and Win, which draw their glyphs; small punctuation marks (". , ; : ' ` -") are drawn larger so they read, each moved to the cap's optical middle.
 - While the menu is open the window dims behind it (`SmokeFillColorDefaultBrush`, title bar row included); the dim appears and disappears at once with the menu, no fade; a click outside, Esc, or a pick closes both.
 - Up/Down move the selection while focus stays in the box. Enter runs the selected row; Alt+Enter jumps the calendar to an event.
@@ -256,7 +256,7 @@ The Windows 11 Settings row, the one pattern for every setting:
         <FontIcon Glyph="&#xE790;" FontSize="16" />
         <StackPanel Grid.Column="1" VerticalAlignment="Center">
             <TextBlock Text="App theme" />
-            <TextBlock Style="{StaticResource SecondaryTextStyle}" Text="Choose how Leaf looks." />
+            <TextBlock Style="{StaticResource SecondaryTextStyle}" Text="Choose how Leaf Calendar looks." />
         </StackPanel>
         <ComboBox Grid.Column="2" Width="240" VerticalAlignment="Center" />
     </Grid>
@@ -264,9 +264,9 @@ The Windows 11 Settings row, the one pattern for every setting:
 ```
 
 - `SettingsCardStyle`: `CardBackgroundFillColorDefaultBrush`, `CardStrokeColorDefaultBrush`, 1 px, `OverlayCornerRadius`, `Padding="16"`, `MinHeight="68"`. (Sony `AppStyles.xaml`.)
-- Icon is optional (16, left). Header is body text, description is Caption + secondary. The control sits right, vertically centered. (Sony `AppPage.xaml`; Leaf brief item 4.)
+- Icon is optional (16, left). Header is body text, description is Caption + secondary. The control sits right, vertically centered. (Sony `AppPage.xaml`; Leaf Calendar brief item 4.)
 - A row with a sub-part (a path plus "Open log folder") stacks inside the same card with `Spacing="12"`. (Sony Logging card.)
-- Use the CommunityToolkit `SettingsCard` only if it's AOT-safe with 0 IL warnings; otherwise this `Border` pattern or a small `SettingRow` control. (Leaf brief item 4.)
+- Use the CommunityToolkit `SettingsCard` only if it's AOT-safe with 0 IL warnings; otherwise this `Border` pattern or a small `SettingRow` control. (Leaf Calendar brief item 4.)
 
 > **Conflict (settings layout):** MA puts a whole section in one card with stacked toggles and long descriptions under each; Layers uses no cards, just headers and dividers. **Use Sony's one-setting-per-card rows**: it's the Windows Settings look the brief asks for.
 
@@ -274,14 +274,14 @@ The Windows 11 Settings row, the one pattern for every setting:
 
 ## 8. Settings View Pattern
 
-- A view in the main window, not a window of its own: `MainWindow.ShowSettings` shows `SettingsPage` in `SettingsFrame` in place of the calendar and sets the main title bar's title to "Settings". The main title bar is its chrome: its pane toggle (hamburger) toggles `NavigationView.IsPaneOpen`, and its Back returns to the calendar. (Leaf `MainWindow.xaml.cs`; brief item 4.)
+- A view in the main window, not a window of its own: `MainWindow.ShowSettings` shows `SettingsPage` in `SettingsFrame` in place of the calendar and sets the main title bar's title to "Settings". The main title bar is its chrome: its pane toggle (hamburger) toggles `NavigationView.IsPaneOpen`, and its Back returns to the calendar. (Leaf Calendar `MainWindow.xaml.cs`; brief item 4.)
 - Stock `NavigationView`: `IsSettingsVisible="False"`, `IsBackButtonVisible="Collapsed"`, its own pane toggle hidden, `OpenPaneLength="240"`. `PaneDisplayMode="Auto"` so it stays expanded at normal widths and collapses when narrow (`ExpandedModeThresholdWidth` 800). (Sony; brief item 4.)
-- Menu items have a `FontIcon` (16) and a sentence-case name. **About** goes in `FooterMenuItems`. The requested page (`SettingsPageArgs.Section`, General by default) is selected on open, shown without a transition (`SuppressNavigationTransitionInfo`), later pages with the stock drill-in. (Leaf `SettingsPage.xaml.cs`; Layers; Sony.)
+- Menu items have a `FontIcon` (16) and a sentence-case name. **About** goes in `FooterMenuItems`. The requested page (`SettingsPageArgs.Section`, General by default) is selected on open, shown without a transition (`SuppressNavigationTransitionInfo`), later pages with the stock drill-in. (Leaf Calendar `SettingsPage.xaml.cs`; Layers; Sony.)
 - Items and pages set from concrete lists in code (AOT). (Layers.)
-- Content: a `Frame` with no padding; each page insets its own content, so its scroll bar sits at the window's right edge. Each page: `ScrollViewer` → `Grid` (so the capped column centers) → `StackPanel` with `LeafSettingsPagePanelStyle` (`MaxWidth` 1072, `Padding="36,24"`, `Spacing` 4) → page title (`LeafSettingsPageTitleStyle`: `TitleTextBlockStyle`, bottom margin 16) → groups. (Leaf `SettingsPage.xaml`, `LeafTheme.xaml`; Sony `AppPage.xaml`.)
+- Content: a `Frame` with no padding; each page insets its own content, so its scroll bar sits at the window's right edge. Each page: `ScrollViewer` → `Grid` (so the capped column centers) → `StackPanel` with `LeafSettingsPagePanelStyle` (`MaxWidth` 1072, `Padding="36,24"`, `Spacing` 4) → page title (`LeafSettingsPageTitleStyle`: `TitleTextBlockStyle`, bottom margin 16) → groups. (Leaf Calendar `SettingsPage.xaml`, `LeafTheme.xaml`; Sony `AppPage.xaml`.)
 - Groups: a `BodyStrongTextBlockStyle` header with `Margin="0,24,0,8"` (0 top on the first) over a stack of setting rows 4 apart. (Section headers: all three apps; 4 DIP row gap: Windows 11 Settings.)
 - Every change saves immediately. No Save/Apply buttons. (Layers spec "Every change saves immediately"; Sony view model two-way bindings.)
-- Pages for Leaf: General, Calendars, Time zones, Notifications, Tray, Shortcuts, Accounts, About (footer). (Brief item 4.)
+- Pages for Leaf Calendar: General, Calendars, Time zones, Notifications, Tray, Shortcuts, Accounts, About (footer). (Brief item 4.)
 - About page: app icon (or 32 glyph) + name + version in the first card, then cards for "View on GitHub", privacy, licenses and third-party notices, as fixed URLs. (Sony `AboutPage.xaml`; Layers `AboutPage.xaml` link set.)
 
 > **Conflicts:** pane width is 160 in Layers, 220 in MA, 240 in Sony. **Use 240** (the one with five-plus pages). Layers has no page titles; Sony and MA do. **Show page titles** (Windows Settings does). Sony's card gap is 8; **use 4** to match Windows Settings, with group headers doing the separating.
@@ -295,9 +295,9 @@ From the brief (item 5), with the reference apps filling in how it looks:
 - Its own small window, about 640 × 640 client DIPs, centered on the monitor under the cursor, not resizable, Close only, Mica, stock `TitleBar` (icon + "Leaf Calendar"). Shown instead of the main window until an account exists. (Brief; Layers placement.)
 - Steps in a `Frame`: Welcome → Google Cloud OAuth client → Sign in → Syncing → Cal.com (optional, with Skip left of the primary button) → Done. Forward navigates with `SlideNavigationTransitionInfo { Effect = FromRight }`, Back with `FromLeft`. (Brief.)
 - Step layout, top to bottom, `Padding="32"`, `Spacing="16"`: hero glyph (32 to 48), step title (`SubtitleTextBlockStyle`), one-line description (Caption, secondary), then the step's controls. (MA `LoginPage.xaml`.)
-- Instructions are a short numbered list with the link inline ("1. Open Google Cloud Console and create a project."), each number hanging to the left of its wrapped lines; a side note under the steps is Caption + secondary, so it doesn't read as another step. Menu paths follow Google Cloud console's current names ("Google Auth Platform › Clients"). (Leaf `OnboardingStepPage.xaml`.)
-- Primary actions stay off until the step has what they need (Next on the client step waits for both boxes, or a saved client). (Leaf `OnboardingFlow.HasClientInput`.)
-- Errors show in an `InfoBar` (`Severity="Error"`, `IsClosable="False"`) above the primary button; work in progress shows an indeterminate `ProgressBar` or a 20 DIP `ProgressRing` with a Caption status line. (MA `LoginPage.xaml`; Leaf `OnboardingStepPage.xaml`, `AccountsPage.xaml`.)
+- Instructions are a short numbered list with the link inline ("1. Open Google Cloud Console and create a project."), each number hanging to the left of its wrapped lines; a side note under the steps is Caption + secondary, so it doesn't read as another step. Menu paths follow Google Cloud console's current names ("Google Auth Platform › Clients"). (Leaf Calendar `OnboardingStepPage.xaml`.)
+- Primary actions stay off until the step has what they need (Next on the client step waits for both boxes, or a saved client). (Leaf Calendar `OnboardingFlow.HasClientInput`.)
+- Errors show in an `InfoBar` (`Severity="Error"`, `IsClosable="False"`) above the primary button; work in progress shows an indeterminate `ProgressBar` or a 20 DIP `ProgressRing` with a Caption status line. (MA `LoginPage.xaml`; Leaf Calendar `OnboardingStepPage.xaml`, `AccountsPage.xaml`.)
 - Footer pinned at the bottom: a 1 DIP top divider (or the flyout footer strip brush), `Padding="24,16"`. Back (default button) on the left, the step's primary action (Accent) on the right, and a `PipsPager` centered, re-templated so each pip is a 24 × 3 rounded line: selected `AccentFillColorDefaultBrush`, others `ControlStrongFillColorDefaultBrush`. (Brief; Sony footer strip.)
 - Primary actions: "Get started", "Next", "Sign in with Google", "Open Leaf Calendar" (enabled only when sync finishes). (Brief.)
 - Closing early asks first (see Dialogs).
@@ -306,18 +306,18 @@ From the brief (item 5), with the reference apps filling in how it looks:
 
 ## 10. Dialogs and Warnings
 
-- Stock `ContentDialog` only, built in code with `XamlRoot` set. (Leaf `ScopeDialog.cs`, `AccountsPage.xaml.cs`; MA `ItemMenu.cs`.)
+- Stock `ContentDialog` only, built in code with `XamlRoot` set. (Leaf Calendar `ScopeDialog.cs`, `AccountsPage.xaml.cs`; MA `ItemMenu.cs`.)
 - Title: a short question for confirmations ("Disconnect this account?", "Leave setup?"), a noun for pickers ("Number of days", "New playlist").
 - Content: one or two plain sentences saying what happens and what doesn't ("Your Google Calendar isn't changed.").
 - Buttons: the primary button repeats the action verb ("Disconnect", "Remove", "Create", "Show", "Leave"); the close button is "Cancel", or a "Keep ..." phrase when Cancel would be unclear ("Keep setting up").
-- `DefaultButton`: **Close** for destructive actions, **Primary** for harmless ones. (Leaf `AccountsPage.xaml.cs` vs `MainWindow.xaml.cs`; MA "Remove from library" vs "New playlist".)
-- Non-blocking messages use an `InfoBar`, not a dialog: inline for page errors, bottom-center of the island for undo notices ("Event deleted." with Undo). Transient command failures auto-dismiss after 5 s. (Leaf `CalendarPage.xaml`; Sony spec "States".)
-- Every bar and notice message ends with a period, like descriptions (`DisplayText.Sentence` adds one to notices). (Leaf `CalendarViewModel.Say`.)
-- The bars and notices at the bottom of the island are raised like flyouts: `Translation` Z 32 with a `ThemeShadow` onto the calendar view, and the flyout border (`SurfaceStrokeColorDefaultBrush`, 1 px), so they stand out in dark theme too. (Leaf `CalendarPage.Float`.)
-- Real notifications are Windows toasts, never in-app popups. (Leaf spec 2.)
-- Mode bars (time travel, people overlay, the share availability hint) are informational `InfoBar`s stacked bottom-center of the calendar island with the notices (`Toasts`), 16 DIPs from its bottom. The share availability controls live in the right panel. (Leaf `CalendarPage.xaml`, `ShareSlotsPanel.cs`.)
+- `DefaultButton`: **Close** for destructive actions, **Primary** for harmless ones. (Leaf Calendar `AccountsPage.xaml.cs` vs `MainWindow.xaml.cs`; MA "Remove from library" vs "New playlist".)
+- Non-blocking messages use an `InfoBar`, not a dialog: inline for page errors, bottom-center of the island for undo notices ("Event deleted." with Undo). Transient command failures auto-dismiss after 5 s. (Leaf Calendar `CalendarPage.xaml`; Sony spec "States".)
+- Every bar and notice message ends with a period, like descriptions (`DisplayText.Sentence` adds one to notices). (Leaf Calendar `CalendarViewModel.Say`.)
+- The bars and notices at the bottom of the island are raised like flyouts: `Translation` Z 32 with a `ThemeShadow` onto the calendar view, and the flyout border (`SurfaceStrokeColorDefaultBrush`, 1 px), so they stand out in dark theme too. (Leaf Calendar `CalendarPage.Float`.)
+- Real notifications are Windows toasts, never in-app popups. (Leaf Calendar spec 2.)
+- Mode bars (time travel, people overlay, the share availability hint) are informational `InfoBar`s stacked bottom-center of the calendar island with the notices (`Toasts`), 16 DIPs from its bottom. The share availability controls live in the right panel. (Leaf Calendar `CalendarPage.xaml`, `ShareSlotsPanel.cs`.)
 
-> **Conflict:** Leaf's `ScopeDialog` uses "OK"; MA and Leaf's other dialogs use verbs. **Use verbs** in new dialogs. Existing `ScopeDialog` stays as it is.
+> **Conflict:** Leaf Calendar's `ScopeDialog` uses "OK"; MA and Leaf Calendar's other dialogs use verbs. **Use verbs** in new dialogs. Existing `ScopeDialog` stays as it is.
 
 ---
 
@@ -325,19 +325,19 @@ From the brief (item 5), with the reference apps filling in how it looks:
 
 | Motion | Duration and easing | Source |
 | --- | --- | --- |
-| Hover and press fills | **83 ms** `BrushTransition` | Leaf `LeafTheme.xaml`, owner preference |
+| Hover and press fills | **83 ms** `BrushTransition` | Leaf Calendar `LeafTheme.xaml`, owner preference |
 | Fades (show/hide) | 167 ms, decelerate in `(0,0)-(0,1)`, linear out | Sony `ImplicitMotion.cs` (Fluent) |
 | Layout glides (element moves) | 250 ms, decelerate `(0,0)-(0,1)` | Sony `ImplicitMotion.cs` |
-| Flyout enter / exit | Slide from the taskbar edge + fade: 250 ms decelerate in, 167 ms accelerate `(1,0)-(1,1)` out | Sony `FlyoutWindow.xaml.cs`; Leaf spec 8.2 |
-| Side panes open / close | 200 ms / 100 ms, on the `SplitView`'s own curve | Leaf `MainWindow.xaml.cs` |
+| Flyout enter / exit | Slide from the taskbar edge + fade: 250 ms decelerate in, 167 ms accelerate `(1,0)-(1,1)` out | Sony `FlyoutWindow.xaml.cs`; Leaf Calendar spec 8.2 |
+| Side panes open / close | 200 ms / 100 ms, on the `SplitView`'s own curve | Leaf Calendar `MainWindow.xaml.cs` |
 | Page changes in a `Frame` | Stock transitions: drill-in (settings), slide (onboarding), suppressed on first show | Layers; brief |
-| Period paging | Slide with the next period preloaded, nothing flashes blank | Leaf spec 6.4 |
+| Period paging | Slide with the next period preloaded, nothing flashes blank | Leaf Calendar spec 6.4 |
 
 - Pause layout glides while a window resizes. (Sony `ImplicitMotion.Pause`.)
 - No bounce, no elastic, no zoom in chrome. (MA's elastic heart and art zoom are media flourishes; don't bring them over.)
-- Animations are built once and kept; don't read `RenderTransform` back under AOT. (Leaf `MainWindow.xaml.cs` comment.)
+- Animations are built once and kept; don't read `RenderTransform` back under AOT. (Leaf Calendar `MainWindow.xaml.cs` comment.)
 
-> **Conflict:** MA uses slower custom curves (320/240 ms queue slide, 280 ms paging, 250/180 ms back button). **Use the Fluent 83/167/250 set** (Sony, and the owner's 83 ms rule). Existing Leaf pane timings (200/100) stay.
+> **Conflict:** MA uses slower custom curves (320/240 ms queue slide, 280 ms paging, 250/180 ms back button). **Use the Fluent 83/167/250 set** (Sony, and the owner's 83 ms rule). Existing Leaf Calendar pane timings (200/100) stay.
 
 ---
 
@@ -345,17 +345,17 @@ From the brief (item 5), with the reference apps filling in how it looks:
 
 | State | Rule | Source |
 | --- | --- | --- |
-| Hover | Subtle fill fades in over 83 ms (`SubtleFillColorSecondaryBrush`); whole row lights, not just the text. **None** on title bar icon buttons. | Leaf `LeafTheme.xaml`, `SidebarView.xaml` |
-| Pressed | `SubtleFillColorTertiaryBrush`; glyph stays full strength | Leaf; Layers caption buttons |
-| Focus | System focus visuals (`UseSystemFocusVisuals="True"`) on every custom template, including bare buttons | Leaf; MA `PlainCardButtonStyle` |
-| Disabled | Stock disabled look; custom templates and previews drop to 0.4 opacity. Group a section in a `ContentControl` so one `IsEnabled` disables it all. | Leaf; Layers spec; Sony `SectionStyle` |
-| Selected / on | Accent (toggle tiles checked, active scene, today, selected pip) | Sony; Leaf |
-| Empty | One short sentence in secondary text, plus the next action as a link or button when there is one ("Nothing in the next 8 hours.", "No Sony headphones connected" + "Open Bluetooth settings") | Leaf `DetailsPanel.xaml`; Sony spec "Page Rules" |
-| Loading | `ProgressRing` 20 DIP beside the action that's running, controls disabled; indeterminate `ProgressBar` for a whole step | Leaf `AccountsPage.xaml`; Sony spec "Connecting"; MA `LoginPage.xaml` |
-| Error | `InfoBar Severity="Error"` inline, or a caution-colored status line; the control reverts to the real value | MA; Leaf; Sony `CautionTextStyle` |
-| Scrollbars | Hidden until the pointer is over the scroller, then WinUI's auto-hiding indicator. Use `ScrollIndicator.ShowOnHover` on every new `ScrollViewer`. | Leaf `Controls/ScrollIndicator.cs`, owner preference |
+| Hover | Subtle fill fades in over 83 ms (`SubtleFillColorSecondaryBrush`); whole row lights, not just the text. **None** on title bar icon buttons. | Leaf Calendar `LeafTheme.xaml`, `SidebarView.xaml` |
+| Pressed | `SubtleFillColorTertiaryBrush`; glyph stays full strength | Leaf Calendar; Layers caption buttons |
+| Focus | System focus visuals (`UseSystemFocusVisuals="True"`) on every custom template, including bare buttons | Leaf Calendar; MA `PlainCardButtonStyle` |
+| Disabled | Stock disabled look; custom templates and previews drop to 0.4 opacity. Group a section in a `ContentControl` so one `IsEnabled` disables it all. | Leaf Calendar; Layers spec; Sony `SectionStyle` |
+| Selected / on | Accent (toggle tiles checked, active scene, today, selected pip) | Sony; Leaf Calendar |
+| Empty | One short sentence in secondary text, plus the next action as a link or button when there is one ("Nothing in the next 8 hours.", "No Sony headphones connected" + "Open Bluetooth settings") | Leaf Calendar `DetailsPanel.xaml`; Sony spec "Page Rules" |
+| Loading | `ProgressRing` 20 DIP beside the action that's running, controls disabled; indeterminate `ProgressBar` for a whole step | Leaf Calendar `AccountsPage.xaml`; Sony spec "Connecting"; MA `LoginPage.xaml` |
+| Error | `InfoBar Severity="Error"` inline, or a caution-colored status line; the control reverts to the real value | MA; Leaf Calendar; Sony `CautionTextStyle` |
+| Scrollbars | Hidden until the pointer is over the scroller, then WinUI's auto-hiding indicator. Use `ScrollIndicator.ShowOnHover` on every new `ScrollViewer`. | Leaf Calendar `Controls/ScrollIndicator.cs`, owner preference |
 
-> **Conflict (hover implementation):** MA forbids `VisualStateManager` setters in a `ControlTemplate` (they crashed WinUI on first hover) and does hover in code. Leaf's templates use VSM setters plus a `BrushTransition` and run fine under AOT. **Keep Leaf's approach**; switch to `PointerEntered`/`PointerExited` in code if a template ever crashes on hover.
+> **Conflict (hover implementation):** MA forbids `VisualStateManager` setters in a `ControlTemplate` (they crashed WinUI on first hover) and does hover in code. Leaf Calendar's templates use VSM setters plus a `BrushTransition` and run fine under AOT. **Keep Leaf Calendar's approach**; switch to `PointerEntered`/`PointerExited` in code if a template ever crashes on hover.
 
 ---
 
@@ -367,29 +367,29 @@ From the brief (item 5), with the reference apps filling in how it looks:
 - Toggle labels read as statements, first person is fine: "Start when I sign in", "Keep running in the background when I close the window". (Sony; MA.)
 - Descriptions: plain, second person, one or two sentences, ending with a period; include the constraint ("Notifies you once when your headphones drop below 20%."). (Sony; MA.)
 - Paths in text use "›": "Settings › Apps › Startup". (Layers spec; MA `LoginPage.xaml`.)
-- Middle dot " · " separates inline facts ("9:00 AM · in 12 min", "Event deleted · Undo"). (Leaf; Sony "AAC · DSEE Extreme".)
-- "…" (one character) on items that open more UI. (Layers; Leaf.)
+- Middle dot " · " separates inline facts ("9:00 AM · in 12 min", "Event deleted · Undo"). (Leaf Calendar; Sony "AAC · DSEE Extreme".)
+- "…" (one character) on items that open more UI. (Layers; Leaf Calendar.)
 - Empty and error text says what's wrong and what to do, never blames the user, never shows raw exception text.
 - Keep content the owner wrote verbatim; flag typos instead of fixing them. (Global instructions.)
 
-> **Conflict (capitalization):** Layers uses Title Case on controls ("Run on Startup", "Play Animation", "HUD Show Duration (In Seconds)") and MA mixes ("Top Picks for You" next to "Recently played"). Sony, MA's settings, and all of Leaf use sentence case, as Windows does. **Use sentence case.** (Title Case stays for code comment labels, per the owner's code style.)
+> **Conflict (capitalization):** Layers uses Title Case on controls ("Run on Startup", "Play Animation", "HUD Show Duration (In Seconds)") and MA mixes ("Top Picks for You" next to "Recently played"). Sony, MA's settings, and all of Leaf Calendar use sentence case, as Windows does. **Use sentence case.** (Title Case stays for code comment labels, per the owner's code style.)
 
 ---
 
 ## 14. Accessibility
 
 - `AutomationProperties.Name` on every icon-only control, link, nav item, and on the toggle/combobox of a setting row (same text as its label). (MA; Layers spec; Sony `AppPage.xaml`.)
-- `AutomationProperties.AutomationId` on everything a UI test touches (`SettingsButton`, `ClientIdBox`). (Leaf, all views.)
-- Landmarks: sidebar `Navigation`, calendar view `Main`. (Leaf `CalendarPage.xaml`.)
-- Every action works from the keyboard with a visible focus ring; logical tab order; Esc closes flyouts and panels; access keys on settings controls where they help (Layers: Alt+S, Alt+H...). (MA; Layers spec; Leaf `CalendarPage.xaml` Escape.)
+- `AutomationProperties.AutomationId` on everything a UI test touches (`SettingsButton`, `ClientIdBox`). (Leaf Calendar, all views.)
+- Landmarks: sidebar `Navigation`, calendar view `Main`. (Leaf Calendar `CalendarPage.xaml`.)
+- Every action works from the keyboard with a visible focus ring; logical tab order; Esc closes flyouts and panels; access keys on settings controls where they help (Layers: Alt+S, Alt+H...). (MA; Layers spec; Leaf Calendar `CalendarPage.xaml` Escape.)
 - Never color alone: calendar color plus name, status dot plus text. (MA rule; Layers status row.)
 - Contrast themes keep borders and hover visible (see Color). Text sizes follow the system text scale; don't hard-code heights that clip text in chrome.
-- Minimum sizes keep everything visible and unclipped at every DPI. (Leaf `MinimumWidth` comment; MA rule.)
+- Minimum sizes keep everything visible and unclipped at every DPI. (Leaf Calendar `MinimumWidth` comment; MA rule.)
 - The logic tests lint every XAML file (`XamlLintTests`) and check code-built colors for 4.5:1 (`ChromeColorsTests`); `AccessibilityTests` audits names and Tab reachability on every screen.
 
 ---
 
-## 15. Where Leaf Already Follows This / Known Gaps
+## 15. Where Leaf Calendar Already Follows This / Known Gaps
 
 Don't change existing work to close these. They're notes for new screens.
 
@@ -434,4 +434,4 @@ XAML to copy from:
 - `D:\sony-control\src\SonyControl.App\SettingsWindow.xaml(.cs)` and `D:\layers\src\Layers.UI\SettingsWindow.xaml(.cs)`: settings window, single instance, DPI-correct centering, custom caption buttons.
 - `D:\music-assistant\MusicAssistant\Pages\LoginPage.xaml`: sign-in step layout.
 - `D:\sony-control\src\SonyControl.App\ImplicitMotion.cs` and `FlyoutWindow.xaml(.cs)`: Fluent motion timings, acrylic flyout.
-- `src\LeafCalendar.App\Styles\LeafTheme.xaml`: Leaf's button and hover styles.
+- `src\LeafCalendar.App\Styles\LeafTheme.xaml`: Leaf Calendar's button and hover styles.

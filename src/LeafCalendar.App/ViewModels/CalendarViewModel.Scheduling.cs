@@ -266,7 +266,7 @@ public sealed partial class CalendarViewModel
 
     // The needs-reconnecting text, as Settings › Accounts shows it
     private string NeedsReconnectMessage(string providerId) =>
-        $"{ProviderName(providerId)} signed Leaf out. Sign in again to keep sharing booking links.";
+        $"{ProviderName(providerId)} signed Leaf Calendar out. Sign in again to keep sharing booking links.";
 
     // A provider signed in, out, was removed or needs reconnecting (raised on any thread). Signed out or removed: a share
     // on it turns plain, so Save and Copy & Save write no link from it. Needs reconnecting: the share keeps its switch and
@@ -576,7 +576,7 @@ public sealed partial class CalendarViewModel
     /// <summary>
     /// Books <paramref name="time"/> on the open group's link for its guests (the provider sends its confirmation emails).
     /// Booked: the group is deleted, sharing stops and a message says so (the event reaches Google through the provider's
-    /// own calendar connection, so Leaf creates none). Taken: a message asks for another time and the open times refresh.
+    /// own calendar connection, so Leaf Calendar creates none). Taken: a message asks for another time and the open times refresh.
     /// Not reachable: a message says nothing was booked; it's never tried again on its own, since a server error may
     /// still have booked it (the booking check finds that). Sign-in refused: the provider needs reconnecting.
     /// </summary>
@@ -684,7 +684,7 @@ public enum BookResult
     /// <summary>The time isn't open anymore; the group stays.</summary>
     Taken,
 
-    /// <summary>The provider couldn't be reached or failed; nothing was booked as far as Leaf knows, and the group stays.</summary>
+    /// <summary>The provider couldn't be reached or failed; nothing was booked as far as Leaf Calendar knows, and the group stays.</summary>
     Unavailable,
 
     /// <summary>The provider refused the sign-in and needs reconnecting; the group stays.</summary>

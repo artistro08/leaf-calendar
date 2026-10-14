@@ -415,7 +415,7 @@ public sealed class ScreenshotTour : IDisposable
         foreach (var theme in new[] { AppTheme.Light, AppTheme.Dark })
         {
             var name = theme.ToString().ToLowerInvariant();
-            // A Real Icon For The App-Sent Shot (Windows' generic app icon, never Leaf's own logo)
+            // A Real Icon For The App-Sent Shot (Windows' generic app icon, never Leaf Calendar's own logo)
             string logo;
             using (var bitmap = System.Drawing.SystemIcons.Application.ToBitmap())
             using (var png = new MemoryStream())

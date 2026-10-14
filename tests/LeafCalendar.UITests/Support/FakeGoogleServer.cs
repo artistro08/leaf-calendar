@@ -9,7 +9,7 @@ using LeafCalendar.Core.Http;
 
 namespace LeafCalendar.UITests.Support;
 
-/// <summary>A change Leaf sent to the fake Google.</summary>
+/// <summary>A change Leaf Calendar sent to the fake Google.</summary>
 public sealed record FakeWrite(string Method, string Path, string Query, string? IfMatch, string Body);
 
 /// <summary>
@@ -87,7 +87,7 @@ public sealed class FakeGoogleServer : IDisposable
     /// <summary>A calendar left out of the calendar list, as if it was deleted or unsubscribed on Google, or null.</summary>
     public string? DroppedCalendarId { get; set; }
 
-    /// <summary>When true, every connection is dropped without an answer (Leaf sees a network failure).</summary>
+    /// <summary>When true, every connection is dropped without an answer (Leaf Calendar sees a network failure).</summary>
     public bool Offline { get; set; }
 
     /// <summary>
@@ -102,7 +102,7 @@ public sealed class FakeGoogleServer : IDisposable
     /// <summary>When true, sign-in comes back as a different Google user (<see cref="OtherUserEmail"/>) than the fixture account.</summary>
     public bool SignInAsOtherUser { get; set; }
 
-    /// <summary>When true, Google's sign-in page never sends the browser back, as when someone walks away from it (Leaf waits until it's canceled).</summary>
+    /// <summary>When true, Google's sign-in page never sends the browser back, as when someone walks away from it (Leaf Calendar waits until it's canceled).</summary>
     public bool AbandonSignIn { get; set; }
 
     /// <summary>The other user's address (sub <see cref="OtherUserId"/>).</summary>
@@ -111,7 +111,7 @@ public sealed class FakeGoogleServer : IDisposable
     /// <summary>The other user's Google ID.</summary>
     public const string OtherUserId = "222222222222";
 
-    /// <summary>When true, refreshing an access token fails with <c>invalid_grant</c>, as when the user revoked Leaf's access.</summary>
+    /// <summary>When true, refreshing an access token fails with <c>invalid_grant</c>, as when the user revoked Leaf Calendar's access.</summary>
     public bool RejectRefresh { get; set; }
 
     /// <summary>People's busy times for <c>freeBusy</c>, by email; an address not here and not a seeded calendar answers <c>notFound</c>.</summary>
@@ -155,7 +155,7 @@ public sealed class FakeGoogleServer : IDisposable
     /// <summary>Waits for the latest write matching <paramref name="match"/>.</summary>
     public FakeWrite WaitForWrite(Func<FakeWrite, bool> match, int seconds = 20) =>
         Retry.WhileNull(() => Writes.LastOrDefault(match), TimeSpan.FromSeconds(seconds)).Result
-        ?? throw new InvalidOperationException("Leaf didn't send the expected change to Google.");
+        ?? throw new InvalidOperationException("Leaf Calendar didn't send the expected change to Google.");
 
     /// <inheritdoc />
     public void Dispose()
@@ -567,7 +567,7 @@ public sealed class FakeGoogleServer : IDisposable
     /// <summary>When true, the token endpoint refuses every request (<c>400 invalid_grant</c>): a refused sign-in or refresh.</summary>
     public bool CalComRefuseToken { get; set; }
 
-    /// <summary>When true, the links (<c>event-types</c>) answer <c>500</c>, so Leaf can't read them.</summary>
+    /// <summary>When true, the links (<c>event-types</c>) answer <c>500</c>, so Leaf Calendar can't read them.</summary>
     public bool CalComLinksDown { get; set; }
 
     /// <summary>How long the open times (<c>slots</c>) wait before answering.</summary>
@@ -579,7 +579,7 @@ public sealed class FakeGoogleServer : IDisposable
     /// <summary>The bookable times on every link (replace the list to change them).</summary>
     public IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> CalComOpen { get; set; } = [];
 
-    /// <summary>Every booking request body Leaf sent, in order (taken ones too).</summary>
+    /// <summary>Every booking request body Leaf Calendar sent, in order (taken ones too).</summary>
     public ConcurrentQueue<string> CalComBookings { get; } = new();
 
     /// <summary>When true, the next booking request answers <c>409</c>, as when the time was just taken.</summary>
@@ -911,7 +911,7 @@ public sealed class FakeGoogleServer : IDisposable
         return events;
     }
 
-    /// <summary>Puts an event on the fake Google (tests seed extra events with it before launching Leaf).</summary>
+    /// <summary>Puts an event on the fake Google (tests seed extra events with it before launching Leaf Calendar).</summary>
     public void AddEvent(string calendarId, JsonObject body)
     {
         lock (_gate)

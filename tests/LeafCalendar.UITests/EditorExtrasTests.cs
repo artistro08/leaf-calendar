@@ -37,7 +37,7 @@ public sealed class EditorExtrasTests : IDisposable
     {
         var leaf = Launch();
         leaf.WaitFor(Dentist);
-        Assert.True(Retry.WhileFalse(() => _google.Requests.Any(r => r.StartsWith("GET /userinfo", StringComparison.Ordinal)), TimeSpan.FromSeconds(20)).Success, "Leaf never looked up the account's domain.");
+        Assert.True(Retry.WhileFalse(() => _google.Requests.Any(r => r.StartsWith("GET /userinfo", StringComparison.Ordinal)), TimeSpan.FromSeconds(20)).Success, "Leaf Calendar never looked up the account's domain.");
         return leaf;
     }
 
@@ -96,7 +96,7 @@ public sealed class EditorExtrasTests : IDisposable
     [Fact]
     public void TimeZoneTokyo_KeepsTheClock_AndShowsYourTime()
     {
-        // Leaf shows Eastern time, the dentist's own zone, whatever this PC's zone is
+        // Leaf Calendar shows Eastern time, the dentist's own zone, whatever this PC's zone is
         Seed(new LeafSettings { PrimaryTimeZone = "America/New_York" });
         using var leaf = Launch();
         EditDentist(leaf);

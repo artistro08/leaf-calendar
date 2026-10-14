@@ -3,7 +3,7 @@ using Windows.Win32;
 namespace LeafCalendar.App.Interop;
 
 /// <summary>
-/// Releases idle memory when Leaf goes to the tray.
+/// Releases idle memory when Leaf Calendar goes to the tray.
 /// </summary>
 /// <remarks>
 /// A full GC runs first, then Windows is asked to page out the working set. Task Manager's number

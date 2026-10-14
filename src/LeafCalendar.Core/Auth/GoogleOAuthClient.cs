@@ -28,7 +28,7 @@ public sealed class GoogleOAuthClient(HttpClient http, OAuthClientCredentials cr
     /// <summary>Read-only access to your Google Workspace directory (coworkers as guest suggestions; personal accounts get nothing).</summary>
     public const string DirectoryScope = "https://www.googleapis.com/auth/directory.readonly";
 
-    /// <summary>Every scope Leaf requests.</summary>
+    /// <summary>Every scope Leaf Calendar requests.</summary>
     public static readonly IReadOnlyList<string> Scopes =
     [
         "openid",

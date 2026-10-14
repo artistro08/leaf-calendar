@@ -75,7 +75,7 @@ public sealed partial class SchedulingPage : Page
     /// <inheritdoc />
     protected override void OnNavigatedFrom(NavigationEventArgs e) => _context.Host.Closed -= OnHostClosed;
 
-    // Settings Closed On This Page (back to the calendar, or the window closed with Leaf staying in the tray): the page
+    // Settings Closed On This Page (back to the calendar, or the window closed with Leaf Calendar staying in the tray): the page
     // may not get Unloaded, so the app-lifetime hub is let go here, or the hub would keep the Settings view alive
     private void OnHostClosed(object? sender, EventArgs e)
     {
@@ -103,7 +103,7 @@ public sealed partial class SchedulingPage : Page
         _loaded = false;
     }
 
-    // Raised on any thread (a sign-in, a sign-out, or a provider signing Leaf out)
+    // Raised on any thread (a sign-in, a sign-out, or a provider signing Leaf Calendar out)
     private void OnSchedulingChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(Refresh);
 
     private void Refresh()

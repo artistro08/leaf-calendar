@@ -151,7 +151,7 @@ public sealed class SidebarTests : IDisposable
             .ToDictionary(r => r.AutomationId, r => string.Join(".", r.Properties.RuntimeId.Value));
 
     // Runs "Sync now" from the command menu (Settings, where Accounts has its own Sync now, shows in place of the sidebar) and
-    // waits until Leaf has fetched the calendar list again and had time to show it
+    // waits until Leaf Calendar has fetched the calendar list again and had time to show it
     private void SyncNow(LeafApp leaf)
     {
         var lists = _google.Requests.Count(r => r.Contains("/calendarList", StringComparison.Ordinal));

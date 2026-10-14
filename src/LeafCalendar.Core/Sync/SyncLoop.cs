@@ -2,16 +2,16 @@ using LeafCalendar.Core.Diagnostics;
 
 namespace LeafCalendar.Core.Sync;
 
-/// <summary>How often Leaf polls Google.</summary>
+/// <summary>How often Leaf Calendar polls Google.</summary>
 public enum SyncMode
 {
-    /// <summary>A Leaf window or the flyout is on screen.</summary>
+    /// <summary>A Leaf Calendar window or the flyout is on screen.</summary>
     Visible,
 
-    /// <summary>Leaf is only in the tray.</summary>
+    /// <summary>Leaf Calendar is only in the tray.</summary>
     Tray,
 
-    /// <summary>Leaf is only in the tray, and Windows is on Energy Saver or the connection is metered.</summary>
+    /// <summary>Leaf Calendar is only in the tray, and Windows is on Energy Saver or the connection is metered.</summary>
     Saver,
 }
 
@@ -22,7 +22,7 @@ public enum SyncMode
 /// <remarks>
 /// <see cref="TriggerNow"/> cuts the wait short. The app calls it on window or flyout open, resume
 /// from sleep, and network reconnect. A failed sync is logged and the loop keeps going. Google push
-/// needs a public HTTPS server, which Leaf doesn't have; a future push relay would only call
+/// needs a public HTTPS server, which Leaf Calendar doesn't have; a future push relay would only call
 /// <see cref="TriggerNow"/>.
 /// </remarks>
 public sealed class SyncLoop(Func<CancellationToken, Task> syncAll, TimeProvider time, AppLog log) : IAsyncDisposable
@@ -63,7 +63,7 @@ public sealed class SyncLoop(Func<CancellationToken, Task> syncAll, TimeProvider
     /// The cadence for the current state: on screen always syncs at the visible pace; otherwise Energy Saver or a
     /// metered connection slows the tray pace.
     /// </summary>
-    /// <param name="visible">A Leaf window or the flyout is on screen.</param>
+    /// <param name="visible">A Leaf Calendar window or the flyout is on screen.</param>
     /// <param name="energySaver">Windows' Energy Saver is on.</param>
     /// <param name="metered">The internet connection is metered (fixed or variable cost).</param>
     /// <returns>The mode to run the loop in.</returns>

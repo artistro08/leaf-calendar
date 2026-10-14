@@ -48,7 +48,7 @@ public static class CommandCatalog
         new("sync", "Sync now", "", Keywords: "refresh"),
         new("back", "Go back", "Alt+Left", CalendarCommand.NavigateBack),
         new("forward", "Go forward", "Alt+Right", CalendarCommand.NavigateForward),
-        new("quit", "Quit Leaf", "", Keywords: "exit close"),
+        new("quit", "Quit Leaf Calendar", "", Keywords: "exit close"),
     ];
 
     /// <summary>What an empty menu shows.</summary>

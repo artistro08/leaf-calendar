@@ -33,14 +33,14 @@ public enum ToastAction
 }
 
 /// <summary>
-/// A notification's activation arguments: the action, the Leaf profile it belongs to, and the event instance (account,
+/// A notification's activation arguments: the action, the Leaf Calendar profile it belongs to, and the event instance (account,
 /// calendar, event ID, and start) or account it's about.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Written as <c>key=value;key=value</c> with every value URL-escaped, so calendar IDs with <c>;</c>, <c>=</c>, or
 /// <c>%</c> survive. <see cref="Parse"/> never throws: anything malformed, unknown, or missing a field its action needs
-/// reads as null, because a notification's arguments come back from outside Leaf.
+/// reads as null, because a notification's arguments come back from outside Leaf Calendar.
 /// </para>
 /// <para>
 /// Only IDs travel here, never event text, email addresses, tokens, or a meeting URL. A Join click looks the event up

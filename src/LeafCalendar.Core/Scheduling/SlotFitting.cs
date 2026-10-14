@@ -118,7 +118,7 @@ public static class SlotFitting
 
     /// <summary>
     /// The bookable times inside a saved range, earliest first without overlap: the open times that fit wholly inside it,
-    /// or, with <paramref name="open"/> null (Leaf couldn't ask), steps of <paramref name="minutes"/> from its start.
+    /// or, with <paramref name="open"/> null (Leaf Calendar couldn't ask), steps of <paramref name="minutes"/> from its start.
     /// </summary>
     /// <param name="range">The saved range to split.</param>
     /// <param name="open">The link's bookable times, or null when they couldn't be fetched.</param>

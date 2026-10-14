@@ -206,7 +206,7 @@ public sealed class RichDescriptionTests : IDisposable
     }
 
     // Dropping Rich Text Or A File On The Description Does Nothing: The Box Refuses It (DoDragDrop reports no effect) And Its Text
-    // Is Unchanged. ponytail: no Leaf control accepts an outside drop, so there is no positive control proving delivery; the
+    // Is Unchanged. ponytail: no Leaf Calendar control accepts an outside drop, so there is no positive control proving delivery; the
     // title TextBox refused this source too (2026-10-01). If a drop target is ever added, drop there first as the control.
     [Fact]
     public void DropRichTextOrFile_ChangesNothing()

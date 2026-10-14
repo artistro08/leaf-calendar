@@ -376,7 +376,7 @@ public sealed class TimeGridTests : IDisposable
         Assert.True(Retry.WhileFalse(() => Rest(leaf).Top > 0, TimeSpan.FromSeconds(5)).Success);
         var top = Rest(leaf).Top;
 
-        // Ctrl stays down until Leaf has read the wheel (it checks the modifier keys when it handles the notch)
+        // Ctrl stays down until Leaf Calendar has read the wheel (it checks the modifier keys when it handles the notch)
         Keyboard.Press(VirtualKeyShort.CONTROL);
         try
         {

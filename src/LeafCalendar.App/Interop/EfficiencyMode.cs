@@ -4,7 +4,7 @@ using Windows.Win32.System.Threading;
 namespace LeafCalendar.App.Interop;
 
 /// <summary>
-/// Windows efficiency mode (EcoQoS) while Leaf is only in the tray (spec 3.4 item 3): the CPU runs Leaf's work at its
+/// Windows efficiency mode (EcoQoS) while Leaf Calendar is only in the tray (spec 3.4 item 3): the CPU runs Leaf Calendar's work at its
 /// most efficient speed. Timers, sync, and notifications keep working.
 /// </summary>
 internal static unsafe class EfficiencyMode

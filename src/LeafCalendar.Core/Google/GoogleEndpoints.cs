@@ -1,7 +1,7 @@
 namespace LeafCalendar.Core.Google;
 
 /// <summary>
-/// Where Leaf sends OAuth, Calendar, and People requests: Google in normal use, or a loopback fake Google
+/// Where Leaf Calendar sends OAuth, Calendar, and People requests: Google in normal use, or a loopback fake Google
 /// in UI tests (see <c>--fake-google</c> in <see cref="Hosting.LaunchOptions"/>).
 /// </summary>
 public sealed record GoogleEndpoints(Uri Authorization, Uri Token, Uri Revoke, Uri UserInfo, Uri CalendarApi, Uri PeopleApi)

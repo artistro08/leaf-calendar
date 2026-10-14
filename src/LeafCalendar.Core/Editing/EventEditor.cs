@@ -640,8 +640,8 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
             case DeleteKind.Instance:
                 EventStore.Restore(conn, tx, e.AccountId, e.CalendarId, e.EventId, e.BeforeJson ?? "[]");
                 // If-Match On Google's Canceled Copy: a row synced from Google carries its ETag. Deliberate exception: with the
-                // delete still queued or not synced back yet, the row is Leaf's own canceled stub with no ETag, so the patch goes
-                // without If-Match (there is no newer Google change to overwrite, only the day Leaf just canceled)
+                // delete still queued or not synced back yet, the row is Leaf Calendar's own canceled stub with no ETag, so the patch goes
+                // without If-Match (there is no newer Google change to overwrite, only the day Leaf Calendar just canceled)
                 OutboxStore.Add(conn, tx, new OutboxEntry(0, e.AccountId, e.CalendarId, e.EventId, OutboxOperation.Patch, """{"status":"confirmed"}""", current?.Etag, false, "[]", null, DependsOn: dependsOn));
                 break;
 

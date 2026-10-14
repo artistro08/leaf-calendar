@@ -7,7 +7,7 @@ namespace LeafCalendar.App.Views;
 
 /// <summary>
 /// The bars above the calendar about its zone: "Viewing your calendar in Tokyo time" while time traveling (Z), and the
-/// offer to follow Windows to a new zone while Leaf's primary zone is pinned.
+/// offer to follow Windows to a new zone while Leaf Calendar's primary zone is pinned.
 /// </summary>
 public sealed partial class TimeTravelBar : UserControl
 {
@@ -33,7 +33,7 @@ public sealed partial class TimeTravelBar : UserControl
         // Zone Switch Offer ("Keep London" names the pinned zone)
         if (vm.ZoneSwitchOffer is { } offer)
         {
-            ZoneSwitchBar.Message = $"Your PC is now on {DisplayZone.Describe(offer, now)}. Show Leaf in that time zone?";
+            ZoneSwitchBar.Message = $"Your PC is now on {DisplayZone.Describe(offer, now)}. Show Leaf Calendar in that time zone?";
             KeepButton.Content = "Keep " + TimeZoneCatalog.CityFor(TimeZoneCatalog.IanaId(DisplayZone.Resolve(null, vm.Settings.PrimaryTimeZone, vm.Zone)));
         }
 

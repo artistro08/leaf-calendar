@@ -4,7 +4,7 @@ namespace LeafCalendar.Core.Alerts;
 /// Spots a notification click that arrives twice: the same arguments again within five seconds.
 /// </summary>
 /// <remarks>
-/// A click that starts Leaf can reach it both as the launch and as <c>NotificationInvoked</c>, and acting twice would
+/// A click that starts Leaf Calendar can reach it both as the launch and as <c>NotificationInvoked</c>, and acting twice would
 /// send two replies to an invitation. The first sighting counts from when it arrived, so a real second click after five
 /// seconds still works. Call from one thread (the UI thread).
 /// </remarks>

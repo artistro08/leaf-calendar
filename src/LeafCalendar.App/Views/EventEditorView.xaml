@@ -558,7 +558,7 @@
                     </Grid>
                     <!-- /Description Box -->
                 </StackPanel>
-                <TextBlock Text="This description is too long to edit in Leaf." Visibility="{x:Bind Editor.DescriptionTooLong}" Style="{StaticResource LeafSecondaryTextStyle}" AutomationProperties.AutomationId="EditorDescriptionTooLong" />
+                <TextBlock Text="This description is too long to edit in Leaf Calendar." Visibility="{x:Bind Editor.DescriptionTooLong}" Style="{StaticResource LeafSecondaryTextStyle}" AutomationProperties.AutomationId="EditorDescriptionTooLong" />
                 <!-- /Description -->
 
                 <TextBlock Text="{x:Bind Editor.Error, Mode=OneWay}" Visibility="{x:Bind Editor.HasError, Mode=OneWay}" Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" AutomationProperties.AutomationId="EditorError" />

@@ -39,7 +39,7 @@ public sealed class OAuthErrorResponse
 /// <summary>OpenID Connect user info.</summary>
 public sealed class GoogleUserInfo
 {
-    /// <summary>Stable Google account ID; Leaf's account ID.</summary>
+    /// <summary>Stable Google account ID; Leaf Calendar's account ID.</summary>
     public string Sub { get; set; } = "";
 
     /// <summary>Account email; used for Meet <c>authuser</c>.</summary>
@@ -160,7 +160,7 @@ public sealed class ReminderOverride
 // EVENTS
 // =========================================================================
 
-/// <summary>One page of <c>calendars/{id}/events</c>. Items stay raw so Leaf stores Google's full JSON.</summary>
+/// <summary>One page of <c>calendars/{id}/events</c>. Items stay raw so Leaf Calendar stores Google's full JSON.</summary>
 public sealed class EventsPage
 {
     /// <summary>Raw event objects.</summary>
@@ -176,7 +176,7 @@ public sealed class EventsPage
     public string? TimeZone { get; set; }
 }
 
-/// <summary>The event fields Leaf indexes. The rest stays in the raw JSON.</summary>
+/// <summary>The event fields Leaf Calendar indexes. The rest stays in the raw JSON.</summary>
 public sealed class GoogleEvent
 {
     /// <summary>Event ID.</summary>
@@ -241,7 +241,7 @@ public sealed class PeopleSearchResult
     public PeoplePerson? Person { get; set; }
 }
 
-/// <summary>The fields Leaf asks for (<c>readMask=names,emailAddresses</c>).</summary>
+/// <summary>The fields Leaf Calendar asks for (<c>readMask=names,emailAddresses</c>).</summary>
 public sealed class PeoplePerson
 {
     /// <summary>Names; the first is the primary one.</summary>

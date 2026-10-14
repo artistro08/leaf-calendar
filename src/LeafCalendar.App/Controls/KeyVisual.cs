@@ -3,7 +3,7 @@
 // See the LICENSE file in the project root for more information.
 //
 // Ported from PowerToys: src/common/Common.UI.Controls/Controls/KeyVisual/KeyVisual.xaml.cs
-// (https://github.com/microsoft/PowerToys). Leaf changes (Native AOT: nothing from the template is read back through a
+// (https://github.com/microsoft/PowerToys). Leaf Calendar changes (Native AOT: nothing from the template is read back through a
 // typed cast): the presenter's style and content are this control's PresenterStyle and PresenterContent, which the
 // template binds, instead of being set on the template part; Update also runs when Content changes.
 

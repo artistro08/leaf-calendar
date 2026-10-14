@@ -1,4 +1,4 @@
-// Track A owns this file (Milestone 5 Task 5): the zone on screen (the PC's, Leaf's primary zone, time travel).
+// Track A owns this file (Milestone 5 Task 5): the zone on screen (the PC's, Leaf Calendar's primary zone, time travel).
 using CommunityToolkit.Mvvm.ComponentModel;
 using LeafCalendar.Core.Views;
 
@@ -15,7 +15,7 @@ public sealed partial class CalendarViewModel
     private string? _travelZoneId;
 
     /// <summary>
-    /// The zone the grid is drawn in: time travel's, else Leaf's primary time zone, else the PC's (followed while Leaf
+    /// The zone the grid is drawn in: time travel's, else Leaf Calendar's primary time zone, else the PC's (followed while Leaf Calendar
     /// runs, see <see cref="CheckTimeZone"/>).
     /// </summary>
     public TimeZoneInfo Zone => DisplayZone.Resolve(_travelZoneId, Settings?.PrimaryTimeZone, _zones.Zone);
@@ -39,7 +39,7 @@ public sealed partial class CalendarViewModel
         SyncZone();
     }
 
-    /// <summary>Takes Windows' new zone as Leaf's primary time zone.</summary>
+    /// <summary>Takes Windows' new zone as Leaf Calendar's primary time zone.</summary>
     public void AcceptZoneSwitch()
     {
         if (ZoneSwitchOffer is not { } offer)
@@ -58,7 +58,7 @@ public sealed partial class CalendarViewModel
     /// <summary>
     /// Follows the PC's time zone. When it changed since the last check and it's the zone on screen, the events are
     /// sorted into the new local days and the views redraw (hour labels, now line, today, the selected event's time,
-    /// and the upcoming list). With a pinned primary zone the calendar stays put and Leaf offers to switch (when the
+    /// and the upcoming list). With a pinned primary zone the calendar stays put and Leaf Calendar offers to switch (when the
     /// prompt setting is on). Runs every minute and whenever the window is activated.
     /// </summary>
     public void CheckTimeZone()

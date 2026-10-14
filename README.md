@@ -12,7 +12,7 @@
 
 ## Introduction
 
-In order to get things setup, you need to setup your own Google Cloud OAuth client. Your calendar is cached on your PC, so the app opens fast and works offline, and edits made offline are sent once you're back online. There's no telemetry, analytics, or tracking. See [PRIVACY.md](PRIVACY.md) for what Leaf keeps and sends.
+In order to get things setup, you need to setup your own Google Cloud OAuth client. Your calendar is cached on your PC, so the app opens fast and works offline, and edits made offline are sent once you're back online. There's no telemetry, analytics, or tracking. See [PRIVACY.md](PRIVACY.md) for what Leaf Calendar keeps and sends.
 
 - Day, week, month, and 2 to 9 day views, with a mini month and your calendar list in the sidebar
 - An event editor with guests, rooms, Google Meet links, and reminders
@@ -25,7 +25,7 @@ In order to get things setup, you need to setup your own Google Cloud OAuth clie
 
 - Windows 11 (x64)
 - A Google account
-- A Google Cloud project with an OAuth client of type **Desktop app**. Leaf walks you through creating one the first time it opens.
+- A Google Cloud project with an OAuth client of type **Desktop app**. Leaf Calendar walks you through creating one the first time it opens.
 
 ## Install
 

@@ -271,7 +271,7 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
                 }
                 catch (DuplicateEventException)
                 {
-                    // An earlier try got through before the connection dropped (the ID is Leaf's own)
+                    // An earlier try got through before the connection dropped (the ID is Leaf Calendar's own)
                     return await google.GetEventAsync(entry.AccountId, entry.CalendarId, entry.EventId, ct) ?? throw new EventGoneException();
                 }
 
@@ -303,7 +303,7 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
-            // Leaf's Own Stored Payload Is Corrupt: retrying can't fix it
+            // Leaf Calendar's Own Stored Payload Is Corrupt: retrying can't fix it
             throw new UnsendableEntryException();
         }
 
@@ -482,7 +482,7 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
         _ => "network",
     };
 
-    // Only Google failing on this one entry (a 5xx, an answer Leaf can't read) lets the rest of the queue go on
+    // Only Google failing on this one entry (a 5xx, an answer Leaf Calendar can't read) lets the rest of the queue go on
     private static bool StopsThePass(Exception ex) => StopsThePass(ErrorOf(ex));
 
     // The same, from the error a backed-off entry recorded
@@ -493,6 +493,6 @@ public sealed class OutboxSender(GoogleCalendarClient google, LeafDatabase datab
         ex is HttpRequestException or GoogleApiException or JsonException or IOException
         || (ex is TaskCanceledException && !ct.IsCancellationRequested);
 
-    // An entry Leaf itself can never send (corrupt payload, create without an ID, move to a calendar that's gone)
+    // An entry Leaf Calendar itself can never send (corrupt payload, create without an ID, move to a calendar that's gone)
     private sealed class UnsendableEntryException() : Exception("This outbox entry can't be sent.");
 }
