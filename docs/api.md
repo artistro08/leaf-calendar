@@ -138,6 +138,27 @@ Moves an event, like dragging it in Leaf Calendar: guests get an update. `scope`
 {"jsonrpc":"2.0","id":6,"result":{"id":"ZQpx…"}}
 ```
 
+### events.update
+
+Changes an event, like saving it in Leaf Calendar's editor. Only the params you send change. The result is the event's new `id` (null after `following`, as with `events.move`).
+
+| Param | |
+| --- | --- |
+| `id` | Required. |
+| `title`, `location` | Optional, at most 1,024 characters each. |
+| `description` | Optional plain text, at most 8,192 characters. |
+| `start`, `end` | Optional, together: two times, or two dates for all-day. |
+| `calendarId` | Optional: moves the event to that calendar. A repeating event moves only with `scope` `all`. |
+| `guests` | Optional, the whole guest list as email addresses. Guests you keep keep their answers; new ones are invited. Rooms stay. |
+| `meet` | Optional: `true` adds a Google Meet link, `false` removes it. |
+| `scope` | `this` (the default), `following`, or `all`, for repeating events. |
+| `notifyGuests` | Optional, `true` by default: guests get Google's update. |
+
+```json
+{"jsonrpc":"2.0","id":7,"method":"events.update","params":{"id":"ZQpx…","title":"Design review (moved)","location":"Room 5"}}
+{"jsonrpc":"2.0","id":7,"result":{"id":"ZQpx…"}}
+```
+
 ### events.delete
 
 Deletes an event, like Delete in Leaf Calendar: guests get a cancellation unless `notifyGuests` is `false`. `scope` is `this` (the default), `following`, or `all`, and matters only for repeating events. Leaf Calendar holds the delete for a few seconds before sending it, as it does for its own Undo. Events you can't change are `read_only`.

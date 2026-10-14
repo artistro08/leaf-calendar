@@ -174,6 +174,113 @@ internal static class ApiEvents
         }
     }
 
+    // The editor's Save: only the fields given change (guests are the whole list: those kept keep their answers, rooms stay),
+    // one scope for a repeating event, guests told unless notifyGuests is false; the new ID finds the saved instance
+    public static JsonElement Update(ApiContext context, UpdateParams p)
+    {
+        var scope = Scope(p.Scope);
+        if (p.Title is { Length: > MaxTitleLength } || (p.Location?.Length ?? 0) > MaxLocationLength || (p.Description?.Length ?? 0) > MaxDescriptionLength)
+        {
+            throw ApiTime.Invalid("title and location are at most 1,024 characters and description at most 8,192.");
+        }
+
+        if ((p.Start is null) != (p.End is null))
+        {
+            throw ApiTime.Invalid("start and end change together.");
+        }
+
+        var span = p.Start is null ? ((DateTimeOffset, DateTimeOffset, bool)?)null : ApiTime.ReadSpan(p.Start, p.End);
+        var guests = p.Guests is null ? null : Guests(p.Guests);
+
+        CalendarOccurrence o;
+        CalendarInfo? target = null;
+        using (var conn = context.Database.Open())
+        {
+            o = Find(conn, context, p.Id);
+            if (p.CalendarId is not null)
+            {
+                var (accountId, calendarId) = ApiIds.ReadCalendar(p.CalendarId) ?? throw ApiTime.Invalid("calendarId isn't a calendar ID.");
+                target = CalendarStore.GetAll(conn).FirstOrDefault(c => c.AccountId == accountId && c.Id == calendarId && c.IsVisible)
+                    ?? throw new ApiException(ApiErrors.NotFound, "No calendar with that ID.");
+                if (target.AccessRole is not ("owner" or "writer"))
+                {
+                    throw new ApiException(ApiErrors.ReadOnly, "You can't change that.");
+                }
+            }
+        }
+
+        if (!context.Editor.Permissions(o).CanEdit)
+        {
+            throw new ApiException(ApiErrors.ReadOnly, "You can't change that.");
+        }
+
+        EventDraft before;
+        try
+        {
+            before = context.Editor.Load(o);
+        }
+        catch (InvalidOperationException)
+        {
+            throw NotFound();
+        }
+
+        var after = before with
+        {
+            AccountId = target?.AccountId ?? before.AccountId,
+            CalendarId = target?.Id ?? before.CalendarId,
+            Title = p.Title ?? before.Title,
+            Location = p.Location ?? before.Location,
+            Description = p.Description is null ? before.Description : Html(p.Description),
+            HasConference = p.Meet ?? before.HasConference,
+            Guests = guests is null ? before.Guests : [
+                .. before.Guests.Where(g => g.IsResource),
+                .. guests.Select(email => before.Guests.FirstOrDefault(g => !g.IsResource && string.Equals(g.Email, email, StringComparison.OrdinalIgnoreCase)) ?? new Guest(email))],
+        };
+
+        if (span is var (start, end, allDay))
+        {
+            after = after with
+            {
+                Start = start,
+                End = end,
+                IsAllDay = allDay,
+                TimeZone = allDay ? before.TimeZone : before.TimeZone ?? context.Editor.LocalZoneId,
+            };
+        }
+
+        // Nothing Changed: Nothing To Send
+        if (Same(before, after))
+        {
+            return ApiParams.Write(new IdResult(ApiIds.Event(o)), ApiJsonContext.Default.IdResult);
+        }
+
+        try
+        {
+            context.Editor.Save(o, before, after, scope, sendUpdates: p.NotifyGuests ?? true);
+        }
+        catch (ArgumentException)
+        {
+            throw ApiTime.Invalid("Only scope all can move a repeating event to another calendar.");
+        }
+
+        if (scope == EditScope.Following && o.RecurringEventId is not null)
+        {
+            return ApiParams.Write(new IdResult(null), ApiJsonContext.Default.IdResult);
+        }
+
+        using (var conn = context.Database.Open())
+        {
+            var saved = Relocate(conn, context, o, after.Start, after.AccountId, after.CalendarId);
+            return ApiParams.Write(new IdResult(saved is null ? null : ApiIds.Event(saved)), ApiJsonContext.Default.IdResult);
+        }
+    }
+
+    // Same fields the API changes (guest lists by address, in order)
+    private static bool Same(EventDraft a, EventDraft b) =>
+        a.AccountId == b.AccountId && a.CalendarId == b.CalendarId && a.Title == b.Title && a.Location == b.Location
+        && a.Description == b.Description && a.HasConference == b.HasConference && a.Start == b.Start && a.End == b.End
+        && a.IsAllDay == b.IsAllDay && a.Guests.Select(g => g.Email).SequenceEqual(b.Guests.Select(g => g.Email), StringComparer.OrdinalIgnoreCase);
+
     // A delete, as in Leaf Calendar: one scope for a repeating event, held for the undo window, guests told unless notifyGuests is false
     public static JsonElement Delete(ApiContext context, DeleteParams p)
     {
@@ -204,13 +311,17 @@ internal static class ApiEvents
 
     // Where a moved instance landed: same calendar, same event or series, starting at the new time (a moved instance of a
     // series gets Google's {series}_{start} ID, so the old ID can't find it)
-    private static CalendarOccurrence? Relocate(SqliteConnection conn, ApiContext context, CalendarOccurrence before, DateTimeOffset start)
+    private static CalendarOccurrence? Relocate(SqliteConnection conn, ApiContext context, CalendarOccurrence before, DateTimeOffset start) =>
+        Relocate(conn, context, before, start, before.AccountId, before.CalendarId);
+
+    // The same, on the calendar the event now lives on (an update can move it)
+    private static CalendarOccurrence? Relocate(SqliteConnection conn, ApiContext context, CalendarOccurrence before, DateTimeOffset start, string accountId, string calendarId)
     {
         var zone = context.Host.Zone;
         var series = before.RecurringEventId ?? before.EventId;
         var day = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(start, zone).DateTime);
         return OccurrenceQuery.Load(conn, day.AddDays(-1), day.AddDays(2), zone, includeDeclined: true, keepSharedCopies: true)
-            .FirstOrDefault(o => o.AccountId == before.AccountId && o.CalendarId == before.CalendarId && o.Start == start
+            .FirstOrDefault(o => o.AccountId == accountId && o.CalendarId == calendarId && o.Start == start
                 && (o.EventId == before.EventId || o.EventId == series || o.RecurringEventId == series));
     }
 
