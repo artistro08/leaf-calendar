@@ -18,9 +18,12 @@ namespace LeafCalendar.App.Api;
 /// <see cref="ApiDispatcher"/>, and closes after 10 minutes without a request. Before a request runs, the connecting
 /// program (its file path, from Windows) must be approved; a new one is asked once per connection, with its icon and return link from the first line
 /// (<see cref="ApiHello"/>), and one removed in
-/// Settings is refused at its next request. Nothing escapes: a failing connection is logged by its error type and closed.
+/// Settings is refused at its next request. A new one whose first line carries an <c>askOnLink</c> code is told
+/// <c>approval_needed</c> and kept connected; the question waits for its connect link (<paramref name="waitForLink"/>),
+/// and each line it sends before the link opens is told the same (<paramref name="isWaitingForLink"/>).
+/// Nothing escapes: a failing connection is logged by its error type and closed.
 /// </remarks>
-internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<string, string?, string?, bool> isApproved, Func<ApiCaller, CancellationToken, Task<bool>> approve, AppLog log) : IAsyncDisposable
+internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<string, string?, string?, bool> isApproved, Func<ApiCaller, CancellationToken, Task<bool>> approve, Func<ApiCaller, bool> waitForLink, Func<string, bool> isWaitingForLink, AppLog log) : IAsyncDisposable
 {
     /// <summary>The most apps connected at once.</summary>
     public const int MaxConnections = 8;
@@ -31,6 +34,9 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
     private readonly SemaphoreSlim _slots = new(MaxConnections, MaxConnections);
     private readonly List<Task> _serving = [];
     private Task? _accepting;
+
+    /// <summary>Canceled when the API stops, so a question asked from a connect link closes with it.</summary>
+    public CancellationToken Stopping => _stop.Token;
 
     /// <summary>Opens the pipe; false when another program already holds the name (the API stays off).</summary>
     public bool Start()
@@ -137,6 +143,8 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
                 await using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true, NewLine = "\n" };
                 var asked = false;
                 var first = true;
+                var waiting = false;
+                var hello = ApiHello.None;
                 while (true)
                 {
                     string? line;
@@ -156,14 +164,34 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
                         continue;
                     }
 
-                    // What The App Sent With Its First Line (its icon and return link), For The Question
-                    var hello = first ? ApiHello.Read(line) : ApiHello.None;
-                    first = false;
+                    // What The App Sent With Its First Line (its icon, return link and link code), Kept For The Question
+                    var opening = first;
+                    if (first)
+                    {
+                        hello = ApiHello.Read(line);
+                        first = false;
+                    }
 
                     // Approved Now, Or Asked Once On This Connection (an app removed in Settings is refused here)
                     if (!isApproved(path, app?.Key, app?.Program))
                     {
-                        if (asked || !await approve(new ApiCaller(path, app?.Name ?? ClientName(path), processId, hello, app?.Program, app?.Key), ct))
+                        var caller = new ApiCaller(path, app?.Name ?? ClientName(path), processId, hello, app?.Program, app?.Key);
+
+                        // Asked From Its Connect Link Instead: told so on every line until the link opens or its code
+                        // expires; after that it's asked below, and a line sent while the question shows waits for your answer
+                        if (!asked && hello.LinkCode is { } code && (opening ? waitForLink(caller) : waiting && isWaitingForLink(code)))
+                        {
+                            if (opening)
+                            {
+                                log.Info("api.waiting-for-link", $"client={file}");
+                                waiting = true;
+                            }
+
+                            await writer.WriteLineAsync(ApiMessage.ApprovalNeeded(line).AsMemory(), ct);
+                            continue;
+                        }
+
+                        if (asked || !await approve(caller, ct))
                         {
                             log.Info("api.refused", $"client={file}");
                             await writer.WriteLineAsync(ApiMessage.NotApproved(line).AsMemory(), ct);

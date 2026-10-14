@@ -8,8 +8,8 @@ namespace LeafCalendar.Core.Api;
 // PARAMS (unknown members are refused, so a typo is an error, not ignored)
 // =========================================================================
 
-/// <summary><c>leaf.hello</c>'s params: the app's name for the log, and (first line only) its icon and return link (<see cref="ApiHello"/>).</summary>
-public sealed record HelloParams(string? Client = null, string? Icon = null, string? ReturnUrl = null);
+/// <summary><c>leaf.hello</c>'s params: the app's name for the log, and (first line only) its icon, return link and link code (<see cref="ApiHello"/>).</summary>
+public sealed record HelloParams(string? Client = null, string? Icon = null, string? ReturnUrl = null, string? AskOnLink = null);
 
 /// <summary>Params of methods that take none (<c>calendars.list</c>, <c>scheduling.links</c>).</summary>
 public sealed record NoParams;

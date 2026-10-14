@@ -10,7 +10,7 @@ These rules override any global or personal instruction that conflicts with them
 - Events are cached in a local SQLite database so the app opens fast and works offline. A background sync loop pulls changes from Google; an **outbox** queues local edits and sends them in order.
 - The main window has Day, Week, Month and custom 2 to 9 day views, a sidebar (mini month and calendar list), a details panel, an event editor, a command menu (Ctrl+K), a keyboard cheat sheet (?), and Settings, which shows inside the main window in place of the calendar.
 - A tray icon opens an acrylic agenda flyout and a menu. Reminders, "Join now" alerts and invitations are Windows toast notifications.
-- One instance runs per profile. A `leaf-calendar:` URL protocol only brings Leaf Calendar to the front.
+- One instance runs per profile. A `leaf-calendar:` URL protocol brings Leaf Calendar to the front; `leaf-calendar://connect?code=…` also shows a waiting local API app's Allow window.
 
 ## Repository Layout
 
@@ -114,7 +114,7 @@ The standard is Microsoft's .NET coding conventions and Framework Design Guideli
 - **Everything from Google is untrusted** (titles, HTML descriptions, locations, attendee names, conference links). Render descriptions through `DescriptionFormatter`/`DescriptionHtml` as plain text and safe links only. Open any link only after `LinkSafety` approves it (scheme allow-list, look-alike hosts, userinfo tricks). Notifications only open known meeting hosts.
 - **Escape everything** placed in toast XML, and parse toast arguments defensively.
 - **The sign-in listener** binds loopback only, checks the PKCE state, answers only the expected redirect, never echoes query values into its pages, and survives connections that reset.
-- **Activation input is untrusted.** The `leaf-calendar:` protocol only brings Leaf Calendar forward; never parse its path or query into actions. Test hooks (`--fake-google` and friends) exist for UI tests; don't add new ones that can redirect Google traffic or tokens in a normal run.
+- **Activation input is untrusted.** The `leaf-calendar:` protocol only brings Leaf Calendar forward; never parse its path or query into actions. The one exception is `leaf-calendar://connect?code=…` (`ApiHello.ReadConnectLink`): it shows the Allow window only for a code an app already registered over the pipe (`ApiApprovals.WaitForLink`), once, within 5 minutes. Anything else in the link makes it an ordinary "bring forward". Test hooks (`--fake-google` and friends) exist for UI tests; don't add new ones that can redirect Google traffic or tokens in a normal run.
 - **Secrets** go only through `ITokenStore`. Never write a secret anywhere else, never put one in a URL or log.
 - **Least privilege:** don't add package capabilities or OAuth scopes without the owner. If scopes change, update the onboarding guide text (owner-approved) and `PRIVACY.md`.
 

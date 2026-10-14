@@ -129,6 +129,10 @@ public static class ApiMessage
     public static string NotApproved(string line) =>
         Error(TryReadId(line), ApiErrors.ServerError, "You didn't allow this app to connect to Leaf Calendar.", ApiErrors.NotApproved);
 
+    /// <summary>The reply to a first <c>leaf.hello</c> with <c>askOnLink</c> from an app that isn't approved yet.</summary>
+    public static string ApprovalNeeded(string line) =>
+        Error(TryReadId(line), ApiErrors.ServerError, "Open leaf-calendar://connect?code=<your askOnLink code> so Leaf Calendar asks to allow this app.", ApiErrors.ApprovalNeeded);
+
     private static string Write(Action<Utf8JsonWriter> body)
     {
         using var buffer = new MemoryStream();

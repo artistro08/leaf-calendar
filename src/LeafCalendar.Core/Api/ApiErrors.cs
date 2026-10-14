@@ -27,6 +27,9 @@ public static class ApiErrors
     /// <summary>You chose Don't allow, the approval timed out, or the app was removed.</summary>
     public const string NotApproved = "not_approved";
 
+    /// <summary>The app sent <c>askOnLink</c> and isn't approved yet: Leaf Calendar asks once its connect link opens.</summary>
+    public const string ApprovalNeeded = "approval_needed";
+
     /// <summary>No event, calendar or link with that ID.</summary>
     public const string NotFound = "not_found";
 

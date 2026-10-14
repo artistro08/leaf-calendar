@@ -145,7 +145,7 @@ Checked against the project's security rules and the threat model (main spec 4.8
 | Malicious link launched through `meetings.join` | Leaf opens only links `LinkSafety` approves, through the existing join code. |
 | An edit lost or sent out of order | Every write goes through `EventEditor` and the outbox. |
 
-Unchanged: the `leaf-calendar:` protocol still only brings Leaf forward. Logs carry method names, the client's file name, counts and error codes, never event content, paths with the user name, or params.
+The `leaf-calendar:` protocol still only brings Leaf forward, except `leaf-calendar://connect?code=…`, which shows the Allow window for an app that sent that code as `askOnLink` in the last 5 minutes (see `docs/api.md`, "Asking From Your Own Button"). Logs carry method names, the client's file name, counts and error codes, never event content, paths with the user name, or params.
 
 ## 6. Settings
 

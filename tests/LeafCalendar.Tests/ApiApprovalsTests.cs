@@ -6,6 +6,7 @@ namespace LeafCalendar.Tests;
 public sealed class ApiApprovalsTests
 {
     private const string Path = @"C:\Apps\Raycast\node.exe";
+    private const string Code = "0123456789abcdef0123456789abcdef";
 
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 13, 12, 0, 0, TimeSpan.Zero));
     private readonly List<PendingApproval> _prompts = [];
@@ -105,6 +106,104 @@ public sealed class ApiApprovalsTests
         _ = approvals.AskAsync(caller, _prompts.Add, TestContext.Current.CancellationToken);
 
         Assert.Same(caller, Assert.Single(_prompts).Caller);
+    }
+
+    [Fact]
+    public void TakeLinked_AfterWaitForLink_IsTheCallerOnce()
+    {
+        var approvals = new ApiApprovals(_time);
+        var caller = Caller();
+
+        Assert.True(approvals.WaitForLink(caller, Code));
+
+        Assert.Same(caller, approvals.TakeLinked(Code));
+        Assert.Null(approvals.TakeLinked(Code));
+    }
+
+    [Fact]
+    public void TakeLinked_UnknownCode_IsNull()
+    {
+        var approvals = new ApiApprovals(_time);
+        approvals.WaitForLink(Caller(), Code);
+
+        Assert.Null(approvals.TakeLinked("fedcba9876543210fedcba9876543210"));
+    }
+
+    [Fact]
+    public void TakeLinked_AfterLinkWait_IsNull()
+    {
+        var approvals = new ApiApprovals(_time);
+        approvals.WaitForLink(Caller(), Code);
+
+        _time.Advance(ApiApprovals.LinkWait + TimeSpan.FromSeconds(1));
+
+        Assert.Null(approvals.TakeLinked(Code));
+    }
+
+    [Fact]
+    public void WaitForLink_SamePathAgain_OnlyTheNewCodeWorks()
+    {
+        var approvals = new ApiApprovals(_time);
+        approvals.WaitForLink(Caller(), Code);
+
+        approvals.WaitForLink(Caller(), "fedcba9876543210fedcba9876543210");
+
+        Assert.Null(approvals.TakeLinked(Code));
+        Assert.NotNull(approvals.TakeLinked("fedcba9876543210fedcba9876543210"));
+    }
+
+    [Fact]
+    public void IsWaitingForLink_UntilTheLinkOpens_IsTrue()
+    {
+        var approvals = new ApiApprovals(_time);
+        approvals.WaitForLink(Caller(), Code);
+
+        Assert.True(approvals.IsWaitingForLink(Code));
+
+        approvals.TakeLinked(Code);
+
+        Assert.False(approvals.IsWaitingForLink(Code));
+    }
+
+    [Fact]
+    public void IsWaitingForLink_AfterLinkWait_IsFalse()
+    {
+        var approvals = new ApiApprovals(_time);
+        approvals.WaitForLink(Caller(), Code);
+
+        _time.Advance(ApiApprovals.LinkWait + TimeSpan.FromSeconds(1));
+
+        Assert.False(approvals.IsWaitingForLink(Code));
+    }
+
+    [Fact]
+    public async Task IsWaitingForLink_PathRefusedMeanwhile_IsFalse()
+    {
+        var approvals = new ApiApprovals(_time);
+        approvals.WaitForLink(Caller(), Code);
+        var asking = Ask(approvals);
+        approvals.Answer(_prompts[0].Token, allow: false);
+        await asking;
+
+        Assert.False(approvals.IsWaitingForLink(Code));
+    }
+
+    [Fact]
+    public void IsWaitingForLink_UnknownCode_IsFalse()
+    {
+        Assert.False(new ApiApprovals(_time).IsWaitingForLink(Code));
+    }
+
+    [Fact]
+    public async Task WaitForLink_Refused_IsFalse()
+    {
+        var approvals = new ApiApprovals(_time);
+        var asking = Ask(approvals);
+        approvals.Answer(_prompts[0].Token, allow: false);
+        await asking;
+
+        Assert.False(approvals.WaitForLink(Caller(), Code));
+        Assert.Null(approvals.TakeLinked(Code));
     }
 
     [Fact]

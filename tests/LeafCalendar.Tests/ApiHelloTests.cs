@@ -8,6 +8,8 @@ public sealed class ApiHelloTests
     // A real 1 × 1 PNG
     internal const string OnePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
+    private const string Code = "0123456789abcdef0123456789abcdef";
+
     public static TheoryData<string> BadIcons => new()
     {
         "not base64!",
@@ -51,10 +53,20 @@ public sealed class ApiHelloTests
         Assert.Null(hello.ReturnUrl);
     }
 
+    [Fact]
+    public void Read_AskOnLink_KeepsTheCode()
+    {
+        var hello = ApiHello.Read(Hello($$"""{"client":"Raycast","askOnLink":"{{Code}}"}"""));
+
+        Assert.Equal(Code, hello.LinkCode);
+    }
+
     [Theory]
-    [InlineData("""{"client":"Raycast"}""", "icon=none returnUrl=none")]
-    [InlineData("""{"icon":"not base64!","returnUrl":"raycast://extensions/leaf"}""", "icon=refused returnUrl=ok")]
-    [InlineData("""{"icon":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==","returnUrl":"https://example.com"}""", "icon=ok returnUrl=refused")]
+    [InlineData("""{"client":"Raycast"}""", "icon=none returnUrl=none askOnLink=none")]
+    [InlineData("""{"icon":"not base64!","returnUrl":"raycast://extensions/leaf"}""", "icon=refused returnUrl=ok askOnLink=none")]
+    [InlineData("""{"icon":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==","returnUrl":"https://example.com"}""", "icon=ok returnUrl=refused askOnLink=none")]
+    [InlineData("""{"askOnLink":"0123456789abcdef0123456789abcdef"}""", "icon=none returnUrl=none askOnLink=ok")]
+    [InlineData("""{"askOnLink":"short"}""", "icon=none returnUrl=none askOnLink=refused")]
     public void Read_SaysWhatWasUsedForTheLog(string paramsJson, string log)
     {
         Assert.Equal(log, ApiHello.Read(Hello(paramsJson)).Log);
@@ -121,5 +133,57 @@ public sealed class ApiHelloTests
     public void ReadReturnUrl_AppScheme_Passes(string text)
     {
         Assert.Equal(text, ApiHello.ReadReturnUrl(text)!.OriginalString);
+    }
+
+    [Theory]
+    [InlineData("0123456789abcdef0123456789abcdef")]
+    [InlineData("AbC_-0123456789abcdef0123456789abcdef")]
+    public void ReadLinkCode_RandomCode_Passes(string code)
+    {
+        Assert.Equal(code, ApiHello.ReadLinkCode(code));
+    }
+
+    [Theory]
+    [InlineData("0123456789abcdef0123456789abcde")]
+    [InlineData("0123456789abcdef0123456789abcde!")]
+    [InlineData("0123456789abcdef 0123456789abcdef")]
+    [InlineData("0123456789abcdef0123456789abcdef&x=1")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void ReadLinkCode_BreaksARule_IsNull(string? code)
+    {
+        Assert.Null(ApiHello.ReadLinkCode(code));
+    }
+
+    [Fact]
+    public void ReadLinkCode_TooLong_IsNull()
+    {
+        Assert.Null(ApiHello.ReadLinkCode(new string('a', ApiHello.MaxLinkCodeLength + 1)));
+    }
+
+    [Theory]
+    [InlineData("leaf-calendar://connect?code=" + Code)]
+    [InlineData("LEAF-CALENDAR://CONNECT?code=" + Code)]
+    [InlineData("leaf-calendar://connect/?code=" + Code)]
+    public void ReadConnectLink_ConnectLink_IsTheCode(string link)
+    {
+        Assert.Equal(Code, ApiHello.ReadConnectLink(link));
+    }
+
+    [Theory]
+    [InlineData("leaf-calendar:")]
+    [InlineData("leaf-calendar://connect")]
+    [InlineData("leaf-calendar://connect?code=short")]
+    [InlineData("leaf-calendar://connect?code=" + Code + "&then=delete")]
+    [InlineData("leaf-calendar://connect?other=" + Code)]
+    [InlineData("leaf-calendar://connect/more?code=" + Code)]
+    [InlineData("leaf-calendar://open?code=" + Code)]
+    [InlineData("leaf-calendar://user@connect?code=" + Code)]
+    [InlineData("raycast://connect?code=" + Code)]
+    [InlineData("not a link")]
+    [InlineData(null)]
+    public void ReadConnectLink_AnythingElse_IsNull(string? link)
+    {
+        Assert.Null(ApiHello.ReadConnectLink(link));
     }
 }

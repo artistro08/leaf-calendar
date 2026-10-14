@@ -5,6 +5,7 @@ using LeafCalendar.App.Tray;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.App.Views.Onboarding;
 using LeafCalendar.Core.Alerts;
+using LeafCalendar.Core.Api;
 using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Hosting;
@@ -600,8 +601,14 @@ public partial class App : Application
                 HandleToast(toast);
                 return;
 
-            // The leaf-calendar: Link (the sign-in pages' "Open Leaf Calendar"), A Second Launch, Or Anything Else Just
-            // Brings Leaf Calendar Forward (a link's address is never read, so a page can't make Leaf Calendar do anything else)
+            // An App's Connect Link (leaf-calendar://connect?code=…, its code only): while the API runs, the question that
+            // app is waiting on shows
+            case ExtendedActivationKind.Protocol when _api is { } api && ApiHello.ReadConnectLink(activation.Arguments) is { } code && _approvals?.TakeLinked(code) is { } caller:
+                _ = AskFromLinkAsync(caller, api.Stopping);
+                return;
+
+            // Any Other leaf-calendar: Link (the sign-in pages' "Open Leaf Calendar"), A Second Launch, Or Anything Else Just
+            // Brings Leaf Calendar Forward (no other part of a link is read, so a page can't make Leaf Calendar do anything else)
             default:
                 BringToFront();
                 return;
