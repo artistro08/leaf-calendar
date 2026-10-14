@@ -40,14 +40,15 @@ if (-not $trusted) {
 }
 
 # Build Version: the manifest's release version (major.minor.build) with its last part counting minutes since the
-# manifest was last committed (by the release that set it), so every build is newer than that release and than the
+# commit that last changed that version (the release that set it; edits elsewhere in the manifest don't count, or they
+# would start the count again below a build already installed), so every build is newer than that release and than the
 # build before it, and installs as an update (an update keeps Leaf Calendar's settings and sign-in; a remove and reinstall
 # deletes them). The last part stops at 65535 (about 45 days): past that, a release raises the build number first.
 # Stamped into the manifest for the publish only, then put back
 $manifest = Join-Path $app 'Package.appxmanifest'
 $original = [IO.File]::ReadAllText($manifest)
 $base     = [regex]::Match($original, '<Identity [^>]*Version="(\d+\.\d+\.\d+)\.').Groups[1].Value
-$released = [DateTimeOffset]::FromUnixTimeSeconds([long](git -C $root log -1 --format=%ct -- src/LeafCalendar.App/Package.appxmanifest))
+$released = [DateTimeOffset]::FromUnixTimeSeconds([long](git -C $root log -1 -G '<Identity ' --format=%ct -- src/LeafCalendar.App/Package.appxmanifest))
 $minutes  = [int][math]::Floor(([DateTimeOffset]::UtcNow - $released).TotalMinutes) + 1
 if ($minutes -gt 65535) {
     throw "The manifest's version $base was set over 45 days ago; raise its third number (a release) before installing."
