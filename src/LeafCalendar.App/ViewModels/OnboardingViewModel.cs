@@ -77,7 +77,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     /// <summary>"Open Leaf Calendar" was pressed after the first sync finished.</summary>
     public event EventHandler? Finished;
 
-    /// <summary>The client step's form (same validation and Credential Locker storage as Settings).</summary>
+    /// <summary>The client step's form (same validation and encrypted storage as Settings).</summary>
     public SetupViewModel Client { get; }
 
     /// <summary>The step showing now.</summary>

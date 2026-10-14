@@ -10,7 +10,7 @@ namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
 /// Settings › Accounts › Change OAuth client: the client ID and secret as setting cards, with Save and Cancel. Uses the
-/// setup form's view model, so validation and Credential Locker storage are the same. Saving reloads Google and goes
+/// setup form's view model, so validation and encrypted storage are the same. Saving reloads Google and goes
 /// back to Accounts; Cancel just goes back.
 /// </summary>
 public sealed partial class ClientPage : Page
