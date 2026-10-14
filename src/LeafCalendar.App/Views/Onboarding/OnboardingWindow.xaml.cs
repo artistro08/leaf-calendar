@@ -14,7 +14,7 @@ namespace LeafCalendar.App.Views.Onboarding;
 
 /// <summary>
 /// The first-run window: a small fixed window (520 × 640 DIPs, Close only, centered on the monitor under the cursor)
-/// with Mica and a stock title bar, shown instead of the main window until Leaf has an OAuth client and an account.
+/// with Mica and a stock title bar, shown instead of the main window until Leaf Calendar has an OAuth client and an account.
 /// Steps (Welcome, Google Cloud OAuth client, Sign in, Syncing, Done) slide through a frame; a pinned footer holds
 /// Back, a line-style <see cref="PipsPager"/> step indicator, and the step's primary action. Closing before the first
 /// sync finishes asks "Leave setup?"; leaving exits the app unless an account already exists, in which case the main
@@ -156,7 +156,7 @@ public sealed partial class OnboardingWindow : Window
             XamlRoot = RootGrid.XamlRoot,
             RequestedTheme = RootGrid.ActualTheme,
             Title = "Leave setup?",
-            Content = "Leaf needs a Google account to show your calendar. You can finish setup later.",
+            Content = "Leaf Calendar needs a Google account to show your calendar. You can finish setup later.",
             PrimaryButtonText = "Leave",
             CloseButtonText = "Keep setting up",
             DefaultButton = ContentDialogButton.Close,

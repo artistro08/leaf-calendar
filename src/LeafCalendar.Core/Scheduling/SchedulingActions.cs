@@ -6,7 +6,7 @@ namespace LeafCalendar.Core.Scheduling;
 /// <summary>
 /// A scheduling provider (spec 3.1). Every provider implements this; each action it supports is one more interface
 /// (<see cref="ILinkSource"/>, <see cref="IOpenTimesSource"/>, <see cref="ITimeLinkBuilder"/>, <see cref="IBlockLinkBuilder"/>,
-/// <see cref="IBookingSource"/>, <see cref="IBookingCreator"/>), and Leaf shows only the UI for the actions it finds.
+/// <see cref="IBookingSource"/>, <see cref="IBookingCreator"/>), and Leaf Calendar shows only the UI for the actions it finds.
 /// </summary>
 public interface ISchedulingProvider
 {
@@ -70,6 +70,6 @@ public interface IBookingCreator
     /// </summary>
     /// <exception cref="SchedulingSlotTakenException">The time isn't open anymore.</exception>
     /// <exception cref="SchedulingAuthException">The provider refused the sign-in (its access token or the token refresh).</exception>
-    /// <exception cref="SchedulingUnavailableException">The provider couldn't be reached or failed; nothing was booked as far as Leaf knows.</exception>
+    /// <exception cref="SchedulingUnavailableException">The provider couldn't be reached or failed; nothing was booked as far as Leaf Calendar knows.</exception>
     Task<SchedulingBooking> BookAsync(SchedulingLink link, DateTimeOffset startUtc, IReadOnlyList<Contact> guests, TimeZoneInfo zone, CancellationToken ct);
 }

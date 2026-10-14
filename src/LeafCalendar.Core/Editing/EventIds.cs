@@ -4,12 +4,12 @@ using System.Security.Cryptography;
 namespace LeafCalendar.Core.Editing;
 
 /// <summary>
-/// Event IDs Leaf makes itself.
+/// Event IDs Leaf Calendar makes itself.
 /// </summary>
 /// <remarks>
 /// New events get a random 128-bit ID in lowercase base32hex (Google allows <c>a-v</c> and <c>0-9</c>,
 /// 5 to 1024 characters), so retrying a create after a dropped connection can't make a duplicate (spec 5.4).
-/// A single instance of a repeating event has Google's ID <c>{series}_{UTC start}</c>, which Leaf
+/// A single instance of a repeating event has Google's ID <c>{series}_{UTC start}</c>, which Leaf Calendar
 /// computes to edit or cancel an instance Google hasn't sent as its own row.
 /// </remarks>
 /// <seealso href="https://developers.google.com/workspace/calendar/api/v3/reference/events/insert"/>

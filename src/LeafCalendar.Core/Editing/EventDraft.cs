@@ -18,12 +18,12 @@ public sealed record Guest(
     string? Name = null);
 
 /// <summary>
-/// The fields Leaf's editor changes. Comparing a "before" and an "after" draft gives the patch Leaf sends
+/// The fields Leaf Calendar's editor changes. Comparing a "before" and an "after" draft gives the patch Leaf Calendar sends
 /// (<see cref="EventJson.BuildPatch"/>), so fields the editor doesn't know about are never touched.
 /// </summary>
 /// <remarks>
 /// Times follow <see cref="CalendarOccurrence"/>: all-day events use UTC midnights with an exclusive end.
-/// <see cref="Description"/> is Leaf-normalized description HTML (<see cref="DescriptionHtml.Normalize"/>); it's only written back when it changed.
+/// <see cref="Description"/> is Leaf Calendar-normalized description HTML (<see cref="DescriptionHtml.Normalize"/>); it's only written back when it changed.
 /// </remarks>
 public sealed record EventDraft
 {
@@ -51,11 +51,11 @@ public sealed record EventDraft
     /// <summary>Location (plain text).</summary>
     public string Location { get; init; } = "";
 
-    /// <summary>Description as Leaf-normalized description HTML (empty when none).</summary>
+    /// <summary>Description as Leaf Calendar-normalized description HTML (empty when none).</summary>
     public string Description { get; init; } = "";
 
     /// <summary>
-    /// True when reading cut the description short (<see cref="DescriptionHtml.IsTooLong"/>). Leaf then never writes the
+    /// True when reading cut the description short (<see cref="DescriptionHtml.IsTooLong"/>). Leaf Calendar then never writes the
     /// description back, since that would delete the rest of it on Google, and the editor shows it read-only.
     /// </summary>
     public bool DescriptionTooLong { get; init; }

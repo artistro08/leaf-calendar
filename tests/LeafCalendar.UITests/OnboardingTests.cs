@@ -13,7 +13,7 @@ public sealed class OnboardingTests : IDisposable
     public void Dispose() => _google.Dispose();
 
     /// <summary>
-    /// Runs onboarding end to end against the fake Google (client, sign-in, first sync) and presses "Open Leaf
+    /// Runs onboarding end to end against the fake Google (client, sign-in, first sync) and presses "Open Leaf Calendar
     /// Calendar". The main window is showing when it returns.
     /// </summary>
     internal static void CompleteOnboarding(LeafApp leaf)
@@ -152,7 +152,7 @@ public sealed class OnboardingTests : IDisposable
 
             leaf.OnboardingWindow.Close();
 
-            Assert.True(Retry.WhileFalse(() => leaf.AnyTextContains("Leaf needs a Google account to show your calendar."), TimeSpan.FromSeconds(10)).Success);
+            Assert.True(Retry.WhileFalse(() => leaf.AnyTextContains("Leaf Calendar needs a Google account to show your calendar."), TimeSpan.FromSeconds(10)).Success);
             leaf.WaitForAnywhere("CloseButton").AsButton().Invoke();
 
             Assert.True(Retry.WhileTrue(() => leaf.ExistsAnywhere("CloseButton"), TimeSpan.FromSeconds(5)).Success);
@@ -377,7 +377,7 @@ public sealed class OnboardingTests : IDisposable
             Assert.True(Retry.WhileTrue(() => leaf.WindowCount("Set up Leaf Calendar") > 0, TimeSpan.FromSeconds(10)).Success);
 
             // Next launch skips onboarding
-            // (closing the window leaves Leaf in the tray, so end this one first)
+            // (closing the window leaves Leaf Calendar in the tray, so end this one first)
             leaf.App.Kill();
             Assert.True(Retry.WhileFalse(() => leaf.App.HasExited, TimeSpan.FromSeconds(15)).Success);
             using var relaunched = Launch(profile);

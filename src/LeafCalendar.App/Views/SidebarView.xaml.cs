@@ -16,7 +16,7 @@ namespace LeafCalendar.App.Views;
 /// <summary>
 /// Sidebar: a mini month that jumps the view, the calendars grouped by account (the checkbox shows or
 /// hides, drag to reorder), and the Settings button in the bottom-left corner (colors live in
-/// Settings › Calendars). Visibility, color, and order are Leaf-only; Google is not changed.
+/// Settings › Calendars). Visibility, color, and order are Leaf Calendar-only; Google is not changed.
 /// </summary>
 public sealed partial class SidebarView : UserControl
 {

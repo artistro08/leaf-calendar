@@ -28,11 +28,11 @@ public sealed class LoopbackListener : IDisposable
 
     // Google signed in, or answered with an error (Cancel, access denied). Fixed text only: nothing from the query is
     // echoed. Each page tries the leaf-calendar: link once as it loads (the browser asks first) and also offers it as a
-    // link, which works on its own; the link only brings Leaf to the front.
+    // link, which works on its own; the link only brings Leaf Calendar to the front.
     private const string SignedInPage = "<h1>You're signed in</h1><p>You can close this tab and go back to Leaf Calendar.</p>";
     private const string NotFinishedPage = "<h1>Sign-in didn't finish</h1><p>You can close this tab and go back to Leaf Calendar to try again.</p>";
 
-    // The page around that text: Leaf's icon, centered on a card in Windows 11's light or dark colors (following the
+    // The page around that text: Leaf Calendar's icon, centered on a card in Windows 11's light or dark colors (following the
     // browser's theme), with the link as a button in the icon's green (darker in light mode so white text stays readable)
     private static string Page(string content) =>
         $$"""
@@ -115,7 +115,7 @@ public sealed class LoopbackListener : IDisposable
         </html>
         """;
 
-    // Leaf's 64 px icon (embedded from the App's assets), as a data URI so the page needs nothing else from the listener
+    // Leaf Calendar's 64 px icon (embedded from the App's assets), as a data URI so the page needs nothing else from the listener
     private static readonly string IconDataUri = LoadIcon();
 
     private static string LoadIcon()

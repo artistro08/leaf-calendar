@@ -79,7 +79,7 @@ public static class ConflictDialog
         var question = hasGoogle
             ? "This event changed on Google after you edited it here. Which version do you want to keep?"
             : conflict.Entry.Operation == OutboxOperation.Delete
-                ? "Google's copy of this event isn't available, so your delete couldn't be checked. Either way, the event leaves Leaf."
+                ? "Google's copy of this event isn't available, so your delete couldn't be checked. Either way, the event leaves Leaf Calendar."
                 : "Google's copy of this event isn't available, so your change couldn't be sent. Keep yours to save it on Google as a new event, or discard it.";
 
         var body = new StackPanel { Spacing = 16 };

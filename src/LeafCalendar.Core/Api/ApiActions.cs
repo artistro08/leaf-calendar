@@ -3,10 +3,10 @@ using LeafCalendar.Core.Alerts;
 
 namespace LeafCalendar.Core.Api;
 
-/// <summary>Methods that make Leaf do something on screen or in the browser: join a meeting, show a day, show an event (local API spec 4).</summary>
+/// <summary>Methods that make Leaf Calendar do something on screen or in the browser: join a meeting, show a day, show an event (local API spec 4).</summary>
 internal static class ApiActions
 {
-    // The join shortcut's pick (the next meeting in the upcoming lookahead), or one event's own link; Leaf opens it itself
+    // The join shortcut's pick (the next meeting in the upcoming lookahead), or one event's own link; Leaf Calendar opens it itself
     public static async Task<JsonElement> JoinAsync(ApiContext context, IdParams p)
     {
         JoinTarget? target;

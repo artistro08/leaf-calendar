@@ -59,7 +59,7 @@ public sealed partial class AboutPage : Page
 
     private void OnPrivacyClick(object sender, RoutedEventArgs e) => _ = _services.OpenPackageFileAsync(Privacy);
 
-    // Leaf's own log folder (OpenFolderAsync never throws)
+    // Leaf Calendar's own log folder (OpenFolderAsync never throws)
     private void OnOpenLogsClick(object sender, RoutedEventArgs e) => _ = _services.OpenFolderAsync(Path.GetDirectoryName(_services.Log.FilePath)!);
 
     private void OnDetailedLoggingToggled(object sender, RoutedEventArgs e)

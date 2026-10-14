@@ -9,7 +9,7 @@ namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
 /// Settings › Connected apps (local API spec, section 6): the switch that lets other apps on this PC connect (off by
-/// default), the apps you allowed, each with its program's icon and a Remove button, a card when another program holds Leaf's pipe name, and a
+/// default), the apps you allowed, each with its program's icon and a Remove button, a card when another program holds Leaf Calendar's pipe name, and a
 /// link to the developer reference. Changes save right away; a removed app is refused at its next request.
 /// </summary>
 public sealed partial class ConnectedAppsPage : Page

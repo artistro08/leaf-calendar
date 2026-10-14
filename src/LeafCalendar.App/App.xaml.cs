@@ -22,18 +22,18 @@ using Windows.Storage;
 namespace LeafCalendar.App;
 
 /// <summary>
-/// Leaf Calendar application entry. Leaf lives in the tray (spec 8.1): closing the main window keeps it running for
+/// Leaf Calendar application entry. Leaf Calendar lives in the tray (spec 8.1): closing the main window keeps it running for
 /// the tray icon, sync, and reminders, and only Quit ends it. Started by Windows at sign-in, it stays in the tray.
 /// </summary>
 /// <remarks>
 /// The main window and Settings share one calendar view model, which the App creates when either opens and releases
-/// once neither is open. Tray-only Leaf then polls every 60 seconds, runs in Windows efficiency mode, and trims its
+/// once neither is open. Tray-only Leaf Calendar then polls every 60 seconds, runs in Windows efficiency mode, and trims its
 /// memory (spec 3.4, 5.3).
 /// </remarks>
 [SuppressMessage("Design", "CA1001", Justification = "The App lives as long as the process; Quit disposes the tray icon, notifier, alerts, and view model.")]
 public partial class App : Application
 {
-    /// <summary>Leaf's icon file, for each window's title bar and taskbar button.</summary>
+    /// <summary>Leaf Calendar's icon file, for each window's title bar and taskbar button.</summary>
     internal static readonly string IconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "LeafCalendar.ico");
 
     private MainWindow? _window;
@@ -78,7 +78,7 @@ public partial class App : Application
         AppDomain.CurrentDomain.ProcessExit += (_, _) => RemoveTrayIcon();
     }
 
-    // A crash is about to end Leaf: what happened, then the dump
+    // A crash is about to end Leaf Calendar: what happened, then the dump
     private void OnCrash(string eventName, Exception? exception, string? message)
     {
         if (_log is not { } log || exception is null)
@@ -91,7 +91,7 @@ public partial class App : Application
         RemoveTrayIcon();
     }
 
-    // Leaf is ending without Quit (a crash, or the process exiting): the tray icon mustn't be left behind
+    // Leaf Calendar is ending without Quit (a crash, or the process exiting): the tray icon mustn't be left behind
     private void RemoveTrayIcon()
     {
         try
@@ -218,7 +218,7 @@ public partial class App : Application
     // TRAY
     // =========================================================================
 
-    // The tray icon and the minute clock. From here on, closing the last window doesn't end Leaf; Quit does.
+    // The tray icon and the minute clock. From here on, closing the last window doesn't end Leaf Calendar; Quit does.
     private void StartTray(LeafServices services)
     {
         if (_trayStarted)
@@ -229,7 +229,7 @@ public partial class App : Application
         _trayStarted = true;
         DispatcherShutdownMode = DispatcherShutdownMode.OnExplicitShutdown;
 
-        // Tray Icon (without one Leaf still runs, and launching it again brings the window back)
+        // Tray Icon (without one Leaf Calendar still runs, and launching it again brings the window back)
         try
         {
             _tray = new TrayIcon(services.Log, TrayDay(), services.Options.Profile, visible: !CurrentSettings().HideTrayIcon);
@@ -237,11 +237,11 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            // Any failure here would end the launch, and Leaf is still useful without its icon
+            // Any failure here would end the launch, and Leaf Calendar is still useful without its icon
             services.Log.Info("tray.create.failed", $"error={ex.GetType().Name}");
         }
 
-        // Tray Menu And Flyout (the host is created once and kept hidden; without it Leaf runs on without them)
+        // Tray Menu And Flyout (the host is created once and kept hidden; without it Leaf Calendar runs on without them)
         try
         {
             var host = new TrayHost(services.Log);
@@ -324,7 +324,7 @@ public partial class App : Application
         Windows.Networking.Connectivity.NetworkInformation.NetworkStatusChanged += _ => OnNetworkChanged();
         _ = Task.Run(OnNetworkChanged);
 
-        // Windows Restarts Leaf Into The Tray After An Update Or A Crash, So Reminders Go On (a sign-in restart is the
+        // Windows Restarts Leaf Calendar Into The Tray After An Update Or A Crash, So Reminders Go On (a sign-in restart is the
         // startup task's; UI tests' fake profiles don't register)
         if (services.Options.FakeGoogle is null)
         {
@@ -407,7 +407,7 @@ public partial class App : Application
         RefreshAgenda();
     });
 
-    // The minute clock's tick: nothing may escape it (an unhandled exception here ends Leaf; the next minute tries again)
+    // The minute clock's tick: nothing may escape it (an unhandled exception here ends Leaf Calendar; the next minute tries again)
     private void OnMinute()
     {
         try
@@ -483,7 +483,7 @@ public partial class App : Application
     private static NextUp? LoadNext(SqliteConnection conn, LeafSettings settings, DateTimeOffset now, TimeZoneInfo localZone) =>
         TrayAgenda.Next(TrayAgenda.Load(conn, now, DisplayZone.Resolve(null, settings.PrimaryTimeZone, localZone), TrayAgenda.NextDays, includeAllDay: false, settings.Use24HourTime), now, TimeSpan.FromMinutes(settings.TrayLookaheadMinutes));
 
-    // The saved settings (the view model may not exist while Leaf is only in the tray)
+    // The saved settings (the view model may not exist while Leaf Calendar is only in the tray)
     private LeafSettings CurrentSettings()
     {
         if (_calendar is { } vm)
@@ -539,7 +539,7 @@ public partial class App : Application
         window.Activate();
         window.BringToFront();
 
-        // Tray Probe: the memory budget test measures tray-only Leaf a few seconds after the window rendered
+        // Tray Probe: the memory budget test measures tray-only Leaf Calendar a few seconds after the window rendered
         if (services.Options.TrayProbe && _probeTimer is null)
         {
             _probeTimer = _dispatcher!.CreateTimer();
@@ -586,7 +586,7 @@ public partial class App : Application
 
         switch (activation.Kind)
         {
-            // Windows' Sign-In Start While Leaf Already Runs Changes Nothing
+            // Windows' Sign-In Start While Leaf Calendar Already Runs Changes Nothing
             case ExtendedActivationKind.StartupTask:
                 return;
 
@@ -601,7 +601,7 @@ public partial class App : Application
                 return;
 
             // The leaf-calendar: Link (the sign-in pages' "Open Leaf Calendar"), A Second Launch, Or Anything Else Just
-            // Brings Leaf Forward (a link's address is never read, so a page can't make Leaf do anything else)
+            // Brings Leaf Calendar Forward (a link's address is never read, so a page can't make Leaf Calendar do anything else)
             default:
                 BringToFront();
                 return;
@@ -642,7 +642,7 @@ public partial class App : Application
                 RefreshAgenda();
             };
 
-            // A Calendar Hidden Or Shown In Leaf Leaves Or Joins The Tray Right Away (the tray shows what Leaf shows)
+            // A Calendar Hidden Or Shown In Leaf Calendar Leaves Or Joins The Tray Right Away (the tray shows what Leaf Calendar shows)
             // Its Alerts Re-Plan Too (hidden calendars and default reminders feed the plan)
             _calendar.CalendarsChanged += (_, _) =>
             {
@@ -904,14 +904,14 @@ public partial class App : Application
             return;
         }
 
-        // The Same Click Twice (a click that starts Leaf also arrives as NotificationInvoked), so one reply is sent
+        // The Same Click Twice (a click that starts Leaf Calendar also arrives as NotificationInvoked), so one reply is sent
         if (_toastRepeats.IsRepeat(argument!))
         {
             services.Log.Info("notification.repeat");
             return;
         }
 
-        // Another Profile's Notification (every profile shares Leaf's notification identity; names ignore case, like
+        // Another Profile's Notification (every profile shares Leaf Calendar's notification identity; names ignore case, like
         // Program's single-instance key)
         if (!string.Equals(toast.Profile, services.Options.Profile, StringComparison.OrdinalIgnoreCase))
         {
@@ -1098,7 +1098,7 @@ public partial class App : Application
         }
     }
 
-    // Quit: the only way Leaf ends once it's in the tray
+    // Quit: the only way Leaf Calendar ends once it's in the tray
     private async void Quit()
     {
         if (_quitting)

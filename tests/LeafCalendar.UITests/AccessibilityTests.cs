@@ -227,7 +227,7 @@ public sealed class AccessibilityTests : IDisposable
     }
 
     /// <summary>
-    /// Launches Leaf on <paramref name="profile"/> and opens a screen. <paramref name="sized"/> runs between launch and
+    /// Launches Leaf Calendar on <paramref name="profile"/> and opens a screen. <paramref name="sized"/> runs between launch and
     /// opening (the tour sizes the window there). The room row needs the workspace domain before launch.
     /// </summary>
     public static LeafApp Open(string name, FakeGoogleServer google, string profile, Action<LeafApp>? sized = null)

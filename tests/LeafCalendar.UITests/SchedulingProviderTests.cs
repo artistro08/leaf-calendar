@@ -208,7 +208,7 @@ public sealed class SchedulingProviderTests : IDisposable
         Assert.NotNull(leaf.WaitInSettings($"ProviderSignIn_{Provider}"));
     }
 
-    // The booking Leaf sent to the fake Cal.com (waits up to 10 s; a failure shows Leaf's scheduling log lines)
+    // The booking Leaf Calendar sent to the fake Cal.com (waits up to 10 s; a failure shows Leaf Calendar's scheduling log lines)
     private JsonNode BookingSent()
     {
         var body = Retry.WhileNull(() => _google.CalComBookings.LastOrDefault(), TimeSpan.FromSeconds(10)).Result;
@@ -299,7 +299,7 @@ public sealed class SchedulingProviderTests : IDisposable
         {
             leaf.WaitInSettings($"ProviderSignIn_{Provider}").AsButton().Invoke();
 
-            Assert.True(ErrorSays(leaf, "Port 53817 is busy, so Leaf can't finish signing in. Close the app using it and try again."), "The busy port didn't say so.");
+            Assert.True(ErrorSays(leaf, "Port 53817 is busy, so Leaf Calendar can't finish signing in. Close the app using it and try again."), "The busy port didn't say so.");
             Assert.True(string.IsNullOrEmpty(SavedRefreshToken()), "A failed sign-in saved a refresh token.");
         }
         finally
@@ -397,7 +397,7 @@ public sealed class SchedulingProviderTests : IDisposable
         using (var leaf = Launch())
         {
             SavedShareGroupTests.OpenFirst(leaf);
-            const string Reconnect = "Cal.com signed Leaf out. Sign in again to keep sharing booking links.";
+            const string Reconnect = "Cal.com signed Leaf Calendar out. Sign in again to keep sharing booking links.";
             AssertMessages(leaf, Reconnect);
 
             // Approving In The Editor Would Close The Panel

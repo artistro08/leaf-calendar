@@ -8,7 +8,7 @@ namespace LeafCalendar.Core.Api;
 /// the link that takes you back to it after Allow.
 /// </summary>
 /// <remarks>
-/// Both are read only from a connection's first line, since Leaf asks before it runs any request, and both are untrusted:
+/// Both are read only from a connection's first line, since Leaf Calendar asks before it runs any request, and both are untrusted:
 /// the icon must be a small PNG (checked by its signature and header here; Windows decodes it in the App) and the link
 /// an app's own scheme, never the web, files, scripts, data or Windows' own. Anything that breaks a rule reads as
 /// nothing, so the window falls back to the program's own icon and to bringing the app's window forward. Never throws.

@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace LeafCalendar.Core.Google;
 
-/// <summary>Source-generated JSON metadata for every Google type Leaf reads or writes (AOT safe).</summary>
+/// <summary>Source-generated JSON metadata for every Google type Leaf Calendar reads or writes (AOT safe).</summary>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]

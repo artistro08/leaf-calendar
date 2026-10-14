@@ -72,7 +72,7 @@ public sealed class GoogleServices : IAsyncDisposable
         new(OAuth, _tokenStore, AccessTokens, _database, openBrowser, _time, _log);
 
     /// <summary>
-    /// Disconnects an account. Leaf asks Google to revoke the token (best effort), then deletes the
+    /// Disconnects an account. Leaf Calendar asks Google to revoke the token (best effort), then deletes the
     /// token and the account's local data. Google Calendar itself is not changed.
     /// </summary>
     public async Task DisconnectAsync(string accountId, CancellationToken ct)
@@ -117,7 +117,7 @@ public sealed class GoogleServices : IAsyncDisposable
     }
 
     /// <summary>
-    /// Looks up the Workspace domain (Google's <c>hd</c>) of every account that signed in before Leaf stored it, so
+    /// Looks up the Workspace domain (Google's <c>hd</c>) of every account that signed in before Leaf Calendar stored it, so
     /// rooms and event types know which accounts are Workspace ones. A failure is logged with the account ID and
     /// error type only, and the account is tried again on the next launch.
     /// </summary>

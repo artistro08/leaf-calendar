@@ -54,13 +54,13 @@
                         Click="OnGitHubClick"
                         AutomationProperties.AutomationId="GitHubLink" />
                 </controls:SettingRow>
-                <controls:SettingRow Glyph="&#xEA18;" Header="Privacy" Description="What Leaf keeps on this PC, what it sends to Google, and how to remove it.">
+                <controls:SettingRow Glyph="&#xEA18;" Header="Privacy" Description="What Leaf Calendar keeps on this PC, what it sends to Google, and how to remove it.">
                     <Button
                         Content="Open privacy statement"
                         Click="OnPrivacyClick"
                         AutomationProperties.AutomationId="PrivacyButton" />
                 </controls:SettingRow>
-                <controls:SettingRow Glyph="&#xE8A5;" Header="Third-party notices" Description="Licenses for the open source software Leaf uses.">
+                <controls:SettingRow Glyph="&#xE8A5;" Header="Third-party notices" Description="Licenses for the open source software Leaf Calendar uses.">
                     <Button
                         Content="Open notices"
                         Click="OnNoticesClick"
@@ -69,7 +69,7 @@
 
                 <!-- Troubleshooting -->
                 <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Troubleshooting" />
-                <controls:SettingRow Glyph="&#xE9F9;" Header="Logs" Description="Leaf's log never includes your events, guests, or searches.">
+                <controls:SettingRow Glyph="&#xE9F9;" Header="Logs" Description="Leaf Calendar's log never includes your events, guests, or searches.">
                     <Button
                         Content="Open log folder"
                         Click="OnOpenLogsClick"

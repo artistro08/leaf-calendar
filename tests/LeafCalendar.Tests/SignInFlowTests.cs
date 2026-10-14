@@ -216,7 +216,7 @@ public sealed class SignInFlowTests : IDisposable
             () => CreateFlow(GoogleRedirects(Approve)).RunAsync("work‮@example.com", "555", TestContext.Current.CancellationToken));
 
         // Both addresses come back as plain text, and nothing about the other user is kept (its grant isn't revoked:
-        // it may be an account Leaf already holds)
+        // it may be an account Leaf Calendar already holds)
         Assert.Equal("leaf.tester@gmail.com", error.SignedInEmail);
         Assert.Equal("work@example.com", error.ExpectedEmail);
         Assert.Empty(_store.GetAccountIds());

@@ -14,7 +14,7 @@
 
                 <!-- Appearance -->
                 <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Appearance" />
-                <controls:SettingRow Glyph="&#xE790;" Header="App theme" Description="Choose how Leaf looks.">
+                <controls:SettingRow Glyph="&#xE790;" Header="App theme" Description="Choose how Leaf Calendar looks.">
                     <ComboBox
                         x:Name="ThemeBox"
                         Width="240"
@@ -26,7 +26,7 @@
                         <ComboBoxItem Content="Dark" AutomationProperties.AutomationId="ThemeDark" />
                     </ComboBox>
                 </controls:SettingRow>
-                <controls:SettingRow Glyph="&#xE740;" Header="Expand the all-day section" Description="Show every all-day event when Leaf opens, not just the first few.">
+                <controls:SettingRow Glyph="&#xE740;" Header="Expand the all-day section" Description="Show every all-day event when Leaf Calendar opens, not just the first few.">
                     <ToggleSwitch
                         x:Name="AllDayExpandedSwitch"
                         Style="{StaticResource LeafCardToggleSwitchStyle}"
@@ -228,7 +228,7 @@
                             Style="{StaticResource LeafExpanderHeaderRowStyle}"
                             Glyph="&#xE770;"
                             Header="Start with Windows"
-                            Description="Leaf starts when you sign in to Windows, so reminders arrive on time.">
+                            Description="Leaf Calendar starts when you sign in to Windows, so reminders arrive on time.">
                             <ToggleSwitch
                                 x:Name="StartupSwitch"
                                 Style="{StaticResource LeafCardToggleSwitchStyle}"
@@ -241,7 +241,7 @@
                         Style="{StaticResource LeafExpanderItemRowStyle}"
                         BorderThickness="0"
                         Header="Start minimized"
-                        Description="Leaf waits in the tray. Turn off to open its window when you sign in.">
+                        Description="Leaf Calendar waits in the tray. Turn off to open its window when you sign in.">
                         <ToggleSwitch
                             x:Name="StartMinimizedSwitch"
                             Style="{StaticResource LeafCardToggleSwitchStyle}"

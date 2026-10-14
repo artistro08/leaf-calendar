@@ -47,7 +47,7 @@ public sealed record ProviderSettings(string ProviderId, string Server, string D
 /// <summary>A calendar by account and calendar ID.</summary>
 public sealed record CalendarRef(string AccountId, string CalendarId);
 
-/// <summary>An app you allowed to use Leaf's local API (Settings › Connected apps), by the program file that connected.</summary>
+/// <summary>An app you allowed to use Leaf Calendar's local API (Settings › Connected apps), by the program file that connected.</summary>
 /// <param name="Path">The program's full path, compared ignoring case.</param>
 /// <param name="Name">The name shown in Settings (the file's description, else its product name, else its file name).</param>
 /// <param name="ApprovedAt">When you allowed it.</param>
@@ -66,7 +66,7 @@ public enum MapProvider
 }
 
 /// <summary>
-/// Your working hours. Google's Calendar API doesn't expose the ones set in Google Calendar, so Leaf keeps its own.
+/// Your working hours. Google's Calendar API doesn't expose the ones set in Google Calendar, so Leaf Calendar keeps its own.
 /// Minutes from local midnight; the end is exclusive.
 /// </summary>
 public sealed record WorkingHours
@@ -205,7 +205,7 @@ public sealed record LeafSettings
     public bool NotificationSound { get; set; } = true;
 
     /// <summary>
-    /// No icon in the notification area: Leaf still runs in the background (sync, reminders, the global shortcuts), is
+    /// No icon in the notification area: Leaf Calendar still runs in the background (sync, reminders, the global shortcuts), is
     /// opened again by launching it, and quits from the command menu. Stored as the exception, so a settings file
     /// without it shows the icon.
     /// </summary>
@@ -241,7 +241,7 @@ public sealed record LeafSettings
     /// <summary>How many hours ahead the details panel's upcoming list looks.</summary>
     public int UpcomingHours { get; init; } = 8;
 
-    /// <summary>Leaf's own time zone (IANA ID); null follows Windows.</summary>
+    /// <summary>Leaf Calendar's own time zone (IANA ID); null follows Windows.</summary>
     public string? PrimaryTimeZone { get; init; }
 
     /// <summary>With <see cref="PrimaryTimeZone"/> set, offer to switch when Windows' time zone changes.</summary>
@@ -266,7 +266,7 @@ public sealed record LeafSettings
     public IReadOnlyList<string> CollapsedAccounts { get; init; } = [];
 
     /// <summary>
-    /// When Windows starts Leaf at sign-in, open its window too; false (the default, and what a row saved before this
+    /// When Windows starts Leaf Calendar at sign-in, open its window too; false (the default, and what a row saved before this
     /// existed reads as) starts it minimized to the tray. Settings shows it as "Start minimized", the other way round.
     /// </summary>
     public bool OpenWindowAtSignIn { get; init; }
@@ -274,7 +274,7 @@ public sealed record LeafSettings
     /// <summary>Detailed logging (Settings › About): a breadcrumb trail and crash dumps in the log folder. Off by default.</summary>
     public bool DetailedLogging { get; init; }
 
-    /// <summary>Other apps on this PC may connect to Leaf's local API (Settings › Connected apps). Off by default.</summary>
+    /// <summary>Other apps on this PC may connect to Leaf Calendar's local API (Settings › Connected apps). Off by default.</summary>
     public bool AllowApiConnections { get; init; }
 
     /// <summary>Apps allowed to use the local API, oldest first. Edit with <see cref="WithApprovedApp"/> and <see cref="WithoutApprovedApp"/>.</summary>
@@ -312,7 +312,7 @@ public sealed record LeafSettings
     /// A blank main account becomes null, and so does a window size that isn't positive and finite.
     /// Blank and repeated Meet-by-default and collapsed accounts are dropped. A share message saved before it existed
     /// (null) is the default one, and a long one is cut to its first 2,000 characters. (The old tray-excluded calendars are no longer read: the
-    /// tray follows what's shown in Leaf, so a saved row that still has them loads without them.)
+    /// tray follows what's shown in Leaf Calendar, so a saved row that still has them loads without them.)
     /// Approved apps without a full path, and repeats of a path (case ignored, the last kept), are dropped; a blank name
     /// becomes the file name, names are cut to 100 characters, and only the newest 50 are kept.
     /// A list whose contents didn't change keeps its instance, so normalizing twice gives an equal record.

@@ -59,7 +59,7 @@ public sealed class LocalApiTests : IDisposable
         var line = $$"""{"jsonrpc":"2.0","id":{{id}},"method":"{{method}}","params":{{paramsJson}}}""" + "\n";
         await pipe.WriteAsync(Encoding.UTF8.GetBytes(line), TestContext.Current.CancellationToken);
         await pipe.FlushAsync(TestContext.Current.CancellationToken);
-        var reply = await reader.ReadLineAsync(TestContext.Current.CancellationToken) ?? throw new InvalidOperationException("Leaf closed the connection.");
+        var reply = await reader.ReadLineAsync(TestContext.Current.CancellationToken) ?? throw new InvalidOperationException("Leaf Calendar closed the connection.");
         using var doc = JsonDocument.Parse(reply);
         return doc.RootElement.Clone();
     }
@@ -82,7 +82,7 @@ public sealed class LocalApiTests : IDisposable
 
     private static async Task<JsonElement> ReadReplyAsync(StreamReader reader)
     {
-        var reply = await reader.ReadLineAsync(TestContext.Current.CancellationToken) ?? throw new InvalidOperationException("Leaf closed the connection.");
+        var reply = await reader.ReadLineAsync(TestContext.Current.CancellationToken) ?? throw new InvalidOperationException("Leaf Calendar closed the connection.");
         using var doc = JsonDocument.Parse(reply);
         return doc.RootElement.Clone();
     }
@@ -215,7 +215,7 @@ public sealed class LocalApiTests : IDisposable
         using var leaf = Launch();
         TurnOn(leaf);
 
-        // A PNG header Leaf's check passes, with nothing after it for Windows to decode
+        // A PNG header Leaf Calendar's check passes, with nothing after it for Windows to decode
         var header = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 16, 0, 0, 0, 16 };
         await using var pipe = await ConnectAsync();
         using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, leaveOpen: true);

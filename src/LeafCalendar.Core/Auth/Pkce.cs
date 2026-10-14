@@ -9,7 +9,7 @@ namespace LeafCalendar.Core.Auth;
 /// </summary>
 /// <remarks>
 /// A fresh verifier and state are created for every sign-in. The verifier proves to Google that the
-/// app redeeming the code is the one that started sign-in; the state rejects replies Leaf never asked for.
+/// app redeeming the code is the one that started sign-in; the state rejects replies Leaf Calendar never asked for.
 /// </remarks>
 public static class Pkce
 {
@@ -20,7 +20,7 @@ public static class Pkce
     public static string CreateChallenge(string verifier) =>
         Base64Url.EncodeToString(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
 
-    /// <summary>Creates a random state value used to reject replies Leaf did not start.</summary>
+    /// <summary>Creates a random state value used to reject replies Leaf Calendar did not start.</summary>
     public static string CreateState() => Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
 
     /// <summary>Compares the expected and returned state in constant time.</summary>

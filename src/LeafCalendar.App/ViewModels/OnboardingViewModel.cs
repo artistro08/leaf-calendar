@@ -376,7 +376,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         }
         catch (SchedulingPortBusyException)
         {
-            Fail($"Port {CalCom.OAuth.RedirectPort} is busy, so Leaf can't finish signing in. Close the app using it and try again.");
+            Fail($"Port {CalCom.OAuth.RedirectPort} is busy, so Leaf Calendar can't finish signing in. Close the app using it and try again.");
             return;
         }
         catch (TimeoutException)
@@ -411,7 +411,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         Move(_flow.Skip(), forward: true);
     }
 
-    // Leaf's own fixed reason only (it carries the provider's OAuth error code), never a secret
+    // Leaf Calendar's own fixed reason only (it carries the provider's OAuth error code), never a secret
     private void LogCalFailure(Exception ex) =>
         _services.Log.Info("onboarding.calcom.signin.failed", $"error={ex.GetType().Name} reason=\"{(ex is SchedulingAuthException or SchedulingUnavailableException ? ex.Message : "")}\"");
 

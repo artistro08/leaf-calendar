@@ -288,7 +288,7 @@ public sealed partial class DetailsPanel : UserControl
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 TextWrapping = TextWrapping.NoWrap,
-                Style = (Style)Application.Current.Resources["LeafSecondaryTextStyle"], // its ThemeResource color follows Leaf's theme
+                Style = (Style)Application.Current.Resources["LeafSecondaryTextStyle"], // its ThemeResource color follows Leaf Calendar's theme
             });
 
             var legend = ShortcutLegend.Build(hint.Keys);
@@ -420,7 +420,7 @@ public sealed partial class DetailsPanel : UserControl
     }
 
     // A tone's visual state (its text color and soft fill, the theme's status brushes in DetailsPanel.xaml, so light,
-    // dark, and contrast themes all read in Leaf's own theme) and its icon (Segoe Fluent: CheckMark, Help, Cancel, Clock)
+    // dark, and contrast themes all read in Leaf Calendar's own theme) and its icon (Segoe Fluent: CheckMark, Help, Cancel, Clock)
     private static (string State, string Glyph) BadgeLook(ResponseTone tone) => tone switch
     {
         ResponseTone.Positive => ("PositiveTone", "\uE73E"),

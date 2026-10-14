@@ -33,7 +33,7 @@ public static class RenameCalendarDialog
         var hint = new TextBlock
         {
             Style = (Style)Application.Current.Resources["LeafSecondaryTextStyle"],
-            Text = "Only you see this name, in Leaf and in Google Calendar; leave it empty to use the calendar's own name.",
+            Text = "Only you see this name, in Leaf Calendar and in Google Calendar; leave it empty to use the calendar's own name.",
         };
 
         var dialog = new ContentDialog

@@ -42,7 +42,7 @@ public static class TrayAgenda
 
     /// <summary>
     /// The agenda for <paramref name="days"/> days from today (local to <paramref name="zone"/>), from the calendars
-    /// shown in Leaf (a calendar hidden there is left out here too).
+    /// shown in Leaf Calendar (a calendar hidden there is left out here too).
     /// </summary>
     public static IReadOnlyList<AgendaDay> Load(SqliteConnection conn, DateTimeOffset now, TimeZoneInfo zone, int days, bool includeAllDay, bool use24Hour)
     {

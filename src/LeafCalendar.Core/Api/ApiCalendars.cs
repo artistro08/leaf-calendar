@@ -10,7 +10,7 @@ internal static class ApiCalendars
     public static JsonElement Hello(ApiContext context, HelloParams _) =>
         ApiParams.Write(new HelloResult(context.LeafVersion, ApiDispatcher.ApiVersion, context.Profile), ApiJsonContext.Default.HelloResult);
 
-    // The calendars shown in Leaf, in its order, with where new events go marked
+    // The calendars shown in Leaf Calendar, in its order, with where new events go marked
     public static JsonElement List(ApiContext context, NoParams _)
     {
         using var conn = context.Database.Open();

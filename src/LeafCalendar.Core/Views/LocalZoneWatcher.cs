@@ -1,7 +1,7 @@
 namespace LeafCalendar.Core.Views;
 
 /// <summary>
-/// Notices when the PC's time zone changes while Leaf is running.
+/// Notices when the PC's time zone changes while Leaf Calendar is running.
 /// </summary>
 /// <remarks>
 /// <see cref="TimeZoneInfo.Local"/> is read once and cached for the life of the process, so a change in

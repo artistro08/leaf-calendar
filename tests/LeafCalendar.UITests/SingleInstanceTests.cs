@@ -20,7 +20,7 @@ public sealed class SingleInstanceTests : IDisposable
             leaf.WaitFor("CalendarRoot");
             leaf.MainWindow.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Minimized);
 
-            // Second Launch: hands its activation to the running Leaf and exits
+            // Second Launch: hands its activation to the running Leaf Calendar and exits
             using var second = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
             Assert.True(Retry.WhileFalse(() => second.App.HasExited, TimeSpan.FromSeconds(15)).Success);
 

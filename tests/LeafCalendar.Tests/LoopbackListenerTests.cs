@@ -85,7 +85,7 @@ public class LoopbackListenerTests
         Assert.Contains("Open Leaf Calendar", page, StringComparison.Ordinal);
         Assert.Contains("<meta http-equiv=\"refresh\" content=\"0;url=leaf-calendar:\">", page, StringComparison.Ordinal);
 
-        // Leaf's Icon Is Embedded, And The Page Follows The Browser's Dark Mode
+        // Leaf Calendar's Icon Is Embedded, And The Page Follows The Browser's Dark Mode
         Assert.Contains("<img src=\"data:image/png;base64,iVBOR", page, StringComparison.Ordinal);
         Assert.Contains("prefers-color-scheme: dark", page, StringComparison.Ordinal);
     }

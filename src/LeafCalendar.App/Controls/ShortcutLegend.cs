@@ -67,7 +67,7 @@ public static class ShortcutLegend
                 continue;
             }
 
-            // The Words: the given color, else the theme's secondary text (a ThemeResource style, so it follows Leaf's theme, not Windows')
+            // The Words: the given color, else the theme's secondary text (a ThemeResource style, so it follows Leaf Calendar's theme, not Windows')
             var words = new TextBlock
             {
                 Text = part.Text,

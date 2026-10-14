@@ -28,7 +28,7 @@ internal static class ApiEvents
     // READING
     // =========================================================================
 
-    // Events overlapping [start, end) on the calendars shown in Leaf, as the calendar draws them
+    // Events overlapping [start, end) on the calendars shown in Leaf Calendar, as the calendar draws them
     public static JsonElement List(ApiContext context, RangeParams p)
     {
         var start = ApiTime.ReadInstant(p.Start) ?? throw ApiTime.Invalid("start must be a time with an offset.");
@@ -230,7 +230,7 @@ internal static class ApiEvents
         return result.Count <= MaxGuests ? result : throw ApiTime.Invalid("guests holds more than 100 addresses.");
     }
 
-    // Plain text to Leaf's description HTML: every character escaped, each line its own line
+    // Plain text to Leaf Calendar's description HTML: every character escaped, each line its own line
     private static string Html(string? text) =>
         string.IsNullOrEmpty(text) ? "" : DescriptionHtml.Normalize(string.Join("<br>", text.ReplaceLineEndings("\n").Split('\n').Select(WebUtility.HtmlEncode)));
 

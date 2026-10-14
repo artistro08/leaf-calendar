@@ -6,7 +6,7 @@ using Windows.Win32.Foundation;
 
 namespace LeafCalendar.App.Interop;
 
-/// <summary>Opening placement for Leaf's windows (secondary ones follow Layers' settings window), and their remembered sizes.</summary>
+/// <summary>Opening placement for Leaf Calendar's windows (secondary ones follow Layers' settings window), and their remembered sizes.</summary>
 internal static class WindowPlacement
 {
     /// <summary>

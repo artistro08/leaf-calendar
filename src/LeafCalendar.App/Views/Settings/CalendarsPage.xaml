@@ -51,7 +51,7 @@
                                 <controls:PinnedItemsControl Margin="0,-1,0,0" ItemsSource="{x:Bind Calendars}" IsTabStop="False">
                                     <controls:PinnedItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:CalendarRow">
-                                            <!-- Calendar Row (color picker, then the show/hide switch with its "Show in Leaf" label) -->
+                                            <!-- Calendar Row (color picker, then the show/hide switch with its "Show in Leaf Calendar" label) -->
                                             <controls:SettingRow
                                                 Style="{StaticResource LeafExpanderItemRowStyle}"
                                                 Header="{x:Bind Name, Mode=OneWay}"
@@ -68,7 +68,7 @@
                                                     <StackPanel Orientation="Horizontal" Spacing="12">
                                                         <TextBlock
                                                             VerticalAlignment="Center"
-                                                            Text="Show in Leaf"
+                                                            Text="Show in Leaf Calendar"
                                                             AutomationProperties.AccessibilityView="Raw" />
                                                         <ToggleSwitch
                                                             Style="{StaticResource LeafCardToggleSwitchStyle}"
@@ -125,7 +125,7 @@
                             LostFocus="OnDefaultMessageLostFocus"
                             AutomationProperties.Name="Share availability message"
                             AutomationProperties.AutomationId="DefaultShareMessageBox" />
-                        <!-- Reset (Leaf's own message back), at the right like the Windows Settings reset buttons -->
+                        <!-- Reset (Leaf Calendar's own message back), at the right like the Windows Settings reset buttons -->
                         <Button
                             HorizontalAlignment="Right"
                             Content="Reset to default"

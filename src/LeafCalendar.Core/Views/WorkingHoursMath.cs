@@ -40,7 +40,7 @@ public static class WorkingHoursMath
     /// <paramref name="displayZone"/>, so while time traveling to Tokyo your 9 to 5 shows where it falls in Tokyo time;
     /// a working day can split across the drawn day's midnight. Everything else is shaded.
     /// </summary>
-    /// <param name="hours">Your working hours (Leaf's own setting; Google doesn't expose them).</param>
+    /// <param name="hours">Your working hours (Leaf Calendar's own setting; Google doesn't expose them).</param>
     /// <param name="date">The day drawn.</param>
     /// <param name="userZone">Your own zone (primary, else Windows).</param>
     /// <param name="displayZone">The zone on screen.</param>

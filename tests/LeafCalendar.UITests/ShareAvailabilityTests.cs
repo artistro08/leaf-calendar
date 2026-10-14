@@ -14,7 +14,7 @@ public sealed class ShareAvailabilityTests : IDisposable
     private const string Dentist = "Event_evt-single_202610011300";
 
     private readonly FakeGoogleServer _google = new();
-    // Leaf shows Eastern time (the copied text names ET), whatever this PC's time zone is
+    // Leaf Calendar shows Eastern time (the copied text names ET), whatever this PC's time zone is
     private const string Eastern = "America/New_York";
 
     private string _profile = SeededProfile.Create(new LeafSettings { PrimaryTimeZone = Eastern });

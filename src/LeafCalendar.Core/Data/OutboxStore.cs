@@ -5,7 +5,7 @@ namespace LeafCalendar.Core.Data;
 /// <summary>What an outbox entry asks Google to do.</summary>
 public enum OutboxOperation
 {
-    /// <summary><c>events.insert</c> with Leaf's client-generated ID.</summary>
+    /// <summary><c>events.insert</c> with Leaf Calendar's client-generated ID.</summary>
     Create,
 
     /// <summary><c>events.patch</c> with <c>If-Match</c>.</summary>

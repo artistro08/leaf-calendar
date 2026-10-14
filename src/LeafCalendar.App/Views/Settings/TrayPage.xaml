@@ -13,7 +13,7 @@
                 <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Tray" />
 
                 <!-- Icon (first on the page, so no group header: "Icon" only repeated the row) -->
-                <controls:SettingRow Glyph="&#xE91C;" Header="Show the tray icon" Description="When it's off, Leaf keeps running in the background, so sync, reminders, and the global shortcuts still work. To open Leaf, launch it again. To quit, use the command menu.">
+                <controls:SettingRow Glyph="&#xE91C;" Header="Show the tray icon" Description="When it's off, Leaf Calendar keeps running in the background, so sync, reminders, and the global shortcuts still work. To open Leaf Calendar, launch it again. To quit, use the command menu.">
                     <ToggleSwitch
                         x:Name="IconSwitch"
                         Style="{StaticResource LeafCardToggleSwitchStyle}"

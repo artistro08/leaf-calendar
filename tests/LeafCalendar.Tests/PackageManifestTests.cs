@@ -32,7 +32,7 @@ public class PackageManifestTests
         Assert.DoesNotContain(references, r => r is "Microsoft.WindowsAppSDK.AI" or "Microsoft.WindowsAppSDK.ML" or "Microsoft.WindowsAppSDK.Search" or "Microsoft.WindowsAppSDK.Widgets");
     }
 
-    // The Sign-In Pages' "Open Leaf Calendar" Link (leaf-calendar:) Opens Leaf
+    // The Sign-In Pages' "Open Leaf Calendar" Link (leaf-calendar:) Opens Leaf Calendar
     [Fact]
     public void Manifest_RegistersLeafCalendarProtocol()
     {

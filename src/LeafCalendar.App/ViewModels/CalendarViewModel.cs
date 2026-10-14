@@ -92,7 +92,7 @@ public enum SettingsSection
     /// <summary>Reminder, Join now, invitation, and sound switches.</summary>
     Notifications,
 
-    /// <summary>Other apps that may use Leaf's local API.</summary>
+    /// <summary>Other apps that may use Leaf Calendar's local API.</summary>
     ConnectedApps,
 
     /// <summary>The tray flyout's agenda and lookahead.</summary>
@@ -132,7 +132,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     private const int UndoDepth = 50;
     private readonly List<(CalendarOccurrence Occurrence, EventCopy Copy)> _clipboard = [];
 
-    // Marks Leaf's own events on the Windows clipboard, so Ctrl+V pastes them only while nothing else was copied since
+    // Marks Leaf Calendar's own events on the Windows clipboard, so Ctrl+V pastes them only while nothing else was copied since
     private const string ClipboardFormat = "LeafCalendar.Events";
 
     // Places visited, for back and forward; _restoring keeps a back or forward step from being recorded again
@@ -266,10 +266,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>True for a Google Workspace account (Google's <c>hd</c> sign-in claim); rooms and event types show only there.</summary>
     public bool IsWorkspace(string accountId) => _workspace.Contains(accountId);
 
-    // The accounts Leaf knows are Workspace ones
+    // The accounts Leaf Calendar knows are Workspace ones
     private HashSet<string> _workspace = [];
 
-    // Workspace domains are looked up once per session, for accounts that signed in before Leaf stored them
+    // Workspace domains are looked up once per session, for accounts that signed in before Leaf Calendar stored them
     private bool _domainsChecked;
 
     private void ReadAccounts(Microsoft.Data.Sqlite.SqliteConnection conn)
@@ -333,7 +333,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Opens the Settings window on a page (the sidebar's settings button, the grid corner's time zones button). Set by the main window.</summary>
     public Action<SettingsSection>? OpenSettings { get; set; }
 
-    /// <summary>Quits Leaf (the command menu's Quit; set by the App). The way out when the tray icon is hidden.</summary>
+    /// <summary>Quits Leaf Calendar (the command menu's Quit; set by the App). The way out when the tray icon is hidden.</summary>
     public Action? QuitApp { get; set; }
 
     /// <summary>The bar at the bottom of the calendar, or null.</summary>
@@ -390,7 +390,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
         catch (OperationCanceledException) when (_life.IsCancellationRequested)
         {
-            // Leaf Is Closing: not a failed sync, and nothing left to reload
+            // Leaf Calendar Is Closing: not a failed sync, and nothing left to reload
             return;
         }
         finally
@@ -803,7 +803,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     // CALENDARS
     // =========================================================================
 
-    /// <summary>Shows or hides a calendar in Leaf.</summary>
+    /// <summary>Shows or hides a calendar in Leaf Calendar.</summary>
     public void SetCalendarHidden(CalendarInfo calendar, bool hidden)
     {
         // A Full Or Busy Database Shows A Notice; The Reload Puts The List Back As Stored
@@ -820,7 +820,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         ReloadCalendars();
     }
 
-    /// <summary>Sets Leaf's color for a calendar (null restores Google's).</summary>
+    /// <summary>Sets Leaf Calendar's color for a calendar (null restores Google's).</summary>
     public void SetCalendarColor(CalendarInfo calendar, string? color)
     {
         try
@@ -836,7 +836,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         ReloadCalendars();
     }
 
-    /// <summary>The calendars grouped by account (the main account first, then in Leaf's order), for the sidebar and Settings › Calendars.</summary>
+    /// <summary>The calendars grouped by account (the main account first, then in Leaf Calendar's order), for the sidebar and Settings › Calendars.</summary>
     public List<AccountGroup> CalendarGroups() =>
         [.. Calendars
             .GroupBy(c => c.AccountId)
@@ -947,7 +947,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         ArgumentNullException.ThrowIfNull(calendar);
 
-        // Google's Email Reminders Ride Along Unchanged (Leaf edits popups only)
+        // Google's Email Reminders Ride Along Unchanged (Leaf Calendar edits popups only)
         string? stored;
         using (var conn = _services.Database.Open())
         {
@@ -975,7 +975,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
         if (_services.Google is not { } google || IsOffline)
         {
-            // No Google Because The Saved Secrets Couldn't Be Read (a timer is trying again), not because Leaf is offline
+            // No Google Because The Saved Secrets Couldn't Be Read (a timer is trying again), not because Leaf Calendar is offline
             Say(_services.Google is null && _services.SecretsUnavailable ? secretsUnavailable : offline, canUndo: false);
             return false;
         }
@@ -1018,7 +1018,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         return true;
     }
 
-    /// <summary>Moves a calendar up (-1) or down (+1) among its account's calendars (Leaf's order only).</summary>
+    /// <summary>Moves a calendar up (-1) or down (+1) among its account's calendars (Leaf Calendar's order only).</summary>
     public void MoveCalendar(CalendarInfo calendar, int delta)
     {
         ArgumentNullException.ThrowIfNull(calendar);
@@ -1597,8 +1597,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Copies the selection (Ctrl+C). The copies keep the events' data, so a cut event can still be pasted. The Windows
-    /// clipboard gets a readable summary (one line per event) plus Leaf's marker; the events themselves stay in Leaf.
-    /// Leaf's copies change only once the clipboard took the new content.
+    /// clipboard gets a readable summary (one line per event) plus Leaf Calendar's marker; the events themselves stay in Leaf Calendar.
+    /// Leaf Calendar's copies change only once the clipboard took the new content.
     /// </summary>
     /// <returns>True when the selection was copied.</returns>
     public bool CopySelection()
@@ -1612,7 +1612,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         {
             var copies = _selection.Select(o => (o, _services.Editor.CopyOf(o))).ToList();
 
-            // Readable Text, And Leaf's Marker For Paste
+            // Readable Text, And Leaf Calendar's Marker For Paste
             var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
             package.SetText(string.Join(Environment.NewLine, copies.Select(c => $"{c.o.Title} · {WhenText(c.o)}")));
             package.SetData(ClipboardFormat, "1");
@@ -1643,7 +1643,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Pastes the copied events at the picked time (or the next quarter hour), keeping their spacing (Ctrl+V). Only
-    /// Leaf's own copies are pasted, from Leaf's memory; nothing on the clipboard is ever read as an event or run. A copy
+    /// Leaf Calendar's own copies are pasted, from Leaf Calendar's memory; nothing on the clipboard is ever read as an event or run. A copy
     /// from a calendar you can't write to goes to your main calendar in that account (else your main calendar); with
     /// none, it's skipped with a hint.
     /// </summary>
@@ -1715,7 +1715,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 
-    // Something else copied since Leaf did (another app, or text in Leaf) wins; an unreadable clipboard doesn't block Leaf's paste
+    // Something else copied since Leaf Calendar did (another app, or text in Leaf Calendar) wins; an unreadable clipboard doesn't block Leaf Calendar's paste
     private static bool ClipboardIsOurs()
     {
         try
@@ -2423,7 +2423,7 @@ public sealed partial class AccountGroup(string accountId, string email, IEnumer
     /// <summary>The header's tooltip.</summary>
     public string FoldTip => IsExpanded ? "Collapse" : "Expand";
 
-    /// <summary>Calendars in Leaf's order (drag to reorder).</summary>
+    /// <summary>Calendars in Leaf Calendar's order (drag to reorder).</summary>
     public ObservableCollection<CalendarRow> Calendars { get; } = new(calendars);
 
     /// <summary>

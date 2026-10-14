@@ -249,7 +249,7 @@ public sealed class EditingTests : IDisposable
         Assert.DoesNotContain(_google.Writes, w => w.Path.EndsWith("/events/evt-weekly", StringComparison.Ordinal));
     }
 
-    // Ruling: A Description Leaf Had To Cut Short Is Read-Only And Never Sent (sending it would delete the rest on Google)
+    // Ruling: A Description Leaf Calendar Had To Cut Short Is Read-Only And Never Sent (sending it would delete the rest on Google)
     [Fact]
     public void Edit_DescriptionTooLong_IsReadOnlyAndNotSent()
     {
@@ -265,7 +265,7 @@ public sealed class EditingTests : IDisposable
         leaf.WaitFor("Event_evt-lunch_202610011600").Click();
         leaf.WaitFor("DetailsEditButton").AsButton().Invoke();
 
-        Assert.Equal("This description is too long to edit in Leaf.", leaf.WaitFor("EditorDescriptionTooLong").Name);
+        Assert.Equal("This description is too long to edit in Leaf Calendar.", leaf.WaitFor("EditorDescriptionTooLong").Name);
 
         // Typing Changes Nothing (the description is a RichEditBox, which has no Value pattern to ask; its text is checked instead)
         var description = leaf.WaitFor("EditorDescription");

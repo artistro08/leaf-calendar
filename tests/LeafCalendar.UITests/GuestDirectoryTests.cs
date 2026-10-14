@@ -31,7 +31,7 @@ public sealed class GuestDirectoryTests : IDisposable
     {
         var leaf = Launch();
         leaf.WaitFor("Event_evt-single_202610011300");
-        Assert.True(Retry.WhileFalse(() => _google.Requests.Any(r => r.StartsWith(UserInfo, StringComparison.Ordinal)), TimeSpan.FromSeconds(20)).Success, "Leaf never looked up the account's domain.");
+        Assert.True(Retry.WhileFalse(() => _google.Requests.Any(r => r.StartsWith(UserInfo, StringComparison.Ordinal)), TimeSpan.FromSeconds(20)).Success, "Leaf Calendar never looked up the account's domain.");
         return leaf;
     }
 

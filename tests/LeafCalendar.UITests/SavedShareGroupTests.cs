@@ -122,7 +122,7 @@ public sealed class SavedShareGroupTests : IDisposable
         Assert.True(Retry.WhileTrue(() => leaf.Exists(FirstSaved), TimeSpan.FromSeconds(10)).Success, "The group stayed after the event was saved.");
     }
 
-    // Copy saves the group with its title, and it's still on the calendar the next time Leaf starts
+    // Copy saves the group with its title, and it's still on the calendar the next time Leaf Calendar starts
     [Fact]
     public void Copy_SavesTheGroup_AndItIsThereAfterARestart()
     {

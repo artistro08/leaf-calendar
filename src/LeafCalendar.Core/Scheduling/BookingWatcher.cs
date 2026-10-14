@@ -30,7 +30,7 @@ public sealed class BookingFoundEventArgs(SchedulingBooking booking, string prov
 /// <param name="time">The clock for reading the groups.</param>
 public sealed class BookingWatcher(SchedulingHub hub, LeafDatabase database, AppLog log, TimeProvider time)
 {
-    // Saved groups Leaf is booking right now (Approve…)
+    // Saved groups Leaf Calendar is booking right now (Approve…)
     private readonly ConcurrentDictionary<long, byte> _booking = new();
 
     /// <summary>Raised once per found booking, on the sync thread.</summary>
@@ -40,7 +40,7 @@ public sealed class BookingWatcher(SchedulingHub hub, LeafDatabase database, App
     public event EventHandler? GroupsChanged;
 
     /// <summary>
-    /// Marks a saved group as being booked from Leaf until <see cref="EndBooking"/>: a booking the check finds in it
+    /// Marks a saved group as being booked from Leaf Calendar until <see cref="EndBooking"/>: a booking the check finds in it
     /// meanwhile closes nothing and raises nothing, since the caller closes the group and says it's booked.
     /// </summary>
     public void BeginBooking(long groupId) => _booking[groupId] = 0;
@@ -99,7 +99,7 @@ public sealed class BookingWatcher(SchedulingHub hub, LeafDatabase database, App
 
                 foreach (var result in BookingMatch.Find([.. set], providerId, linkId, bookings))
                 {
-                    // Being booked from Leaf right now: Leaf closes that group itself, with no notification
+                    // Being booked from Leaf Calendar right now: Leaf Calendar closes that group itself, with no notification
                     if (result.GroupIds.Any(_booking.ContainsKey))
                     {
                         continue;
@@ -114,7 +114,7 @@ public sealed class BookingWatcher(SchedulingHub hub, LeafDatabase database, App
                         }
                     }
 
-                    // Already closed during this check (booked from Leaf, or removed)
+                    // Already closed during this check (booked from Leaf Calendar, or removed)
                     if (!deleted)
                     {
                         continue;

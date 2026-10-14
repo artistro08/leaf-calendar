@@ -389,7 +389,7 @@ public sealed partial class CommandMenu : UserControl
         CommandResults.SelectedIndex = index >= 0 ? index : _rows.FindIndex(r => r.Kind != CommandRowKind.Header);
 
         // The Empty State Says What Didn't Match: Jump To Date Reads Only Dates
-        CommandEmptyText.Text = _dateMode ? "Leaf can't read that as a date." : "No events, actions, or dates match.";
+        CommandEmptyText.Text = _dateMode ? "Leaf Calendar can't read that as a date." : "No events, actions, or dates match.";
         CommandEmptyPanel.Visibility = nothing ? Visibility.Visible : Visibility.Collapsed;
         FitResults();
         ResultsScroll.ChangeView(null, 0, null, disableAnimation: true);

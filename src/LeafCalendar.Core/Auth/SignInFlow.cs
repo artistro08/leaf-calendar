@@ -27,7 +27,7 @@ public sealed class SignInFlow(
     TimeProvider time,
     AppLog log)
 {
-    /// <summary>How long Leaf waits for the browser to come back.</summary>
+    /// <summary>How long Leaf Calendar waits for the browser to come back.</summary>
     public static readonly TimeSpan Timeout = TimeSpan.FromMinutes(5);
 
     /// <summary>Runs sign-in and returns the saved account.</summary>
@@ -92,7 +92,7 @@ public sealed class SignInFlow(
             if (!tokens.HasScope(GoogleOAuthClient.CalendarScope))
             {
                 await TryRevokeAsync(tokens, ct);
-                throw Fail("calendar-scope-missing", "Leaf needs calendar access. Sign in again and allow calendar access.");
+                throw Fail("calendar-scope-missing", "Leaf Calendar needs calendar access. Sign in again and allow calendar access.");
             }
 
             if (tokens.RefreshToken is null)
@@ -115,7 +115,7 @@ public sealed class SignInFlow(
             throw Fail("exchange-failed", "Google couldn't complete sign-in. Try again.");
         }
 
-        // Only The Expected Account (nothing of the other user is kept; its grant isn't revoked, Leaf may hold it)
+        // Only The Expected Account (nothing of the other user is kept; its grant isn't revoked, Leaf Calendar may hold it)
         if (expectedAccountId is not null && user.Sub != expectedAccountId)
         {
             log.Info("signin.failed", "reason=wrong-account");

@@ -68,7 +68,7 @@ public sealed partial class AppLog(string directory, TimeProvider time)
     }
 
     /// <summary>
-    /// A path for a new crash dump in the log folder, after removing the oldest dumps (Leaf's and Windows Error
+    /// A path for a new crash dump in the log folder, after removing the oldest dumps (Leaf Calendar's and Windows Error
     /// Reporting's) so at most <see cref="MaxDumps"/> remain once it's written.
     /// </summary>
     public string NextDumpPath()

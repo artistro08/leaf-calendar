@@ -5,7 +5,7 @@ namespace LeafCalendar.Core.Views;
 /// clock is at a given moment.
 /// </summary>
 /// <remarks>
-/// Windows has no abbreviations (its zone names are "Central Standard Time" all year), so Leaf keeps its own for the
+/// Windows has no abbreviations (its zone names are "Central Standard Time" all year), so Leaf Calendar keeps its own for the
 /// zones where one is in common use. A zone without one gets its UTC offset (<see cref="TimeZoneCatalog.OffsetLabel"/>),
 /// so a label is never made up.
 /// </remarks>

@@ -454,7 +454,7 @@ public sealed partial class CalendarPage
         card.Shadow = shadow;
     }
 
-    // One dialog at a time: our own flag covers Leaf's sheet and time travel; any other dialog already open (a scope
+    // One dialog at a time: our own flag covers Leaf Calendar's sheet and time travel; any other dialog already open (a scope
     // question, the conflict dialog) makes WinUI refuse a second one, which is noted by type and otherwise ignored
     private void ShowDialog(Func<Task> show, string eventName)
     {

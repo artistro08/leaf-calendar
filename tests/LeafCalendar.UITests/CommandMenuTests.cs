@@ -383,7 +383,7 @@ public sealed class CommandMenuTests : IDisposable
         Assert.Equal("Go", leaf.WaitForAnywhere("CommandFooterVerb").Name);
 
         Keyboard.Type("zzzzqq");
-        Assert.True(Retry.WhileFalse(() => leaf.ExistsAnywhere("CommandEmpty") && leaf.WaitForAnywhere("CommandEmpty").Name == "Leaf can't read that as a date.", Wait).Success);
+        Assert.True(Retry.WhileFalse(() => leaf.ExistsAnywhere("CommandEmpty") && leaf.WaitForAnywhere("CommandEmpty").Name == "Leaf Calendar can't read that as a date.", Wait).Success);
         Assert.Empty(RowIds(leaf));
         Assert.Equal("Go", leaf.WaitForAnywhere("CommandFooterVerb").Name);
     }

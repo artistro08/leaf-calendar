@@ -339,12 +339,12 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string Location { get; set; }
 
-    /// <summary>Description as Leaf-normalized HTML (the view reads and writes it through <c>RichDescription</c>).</summary>
+    /// <summary>Description as Leaf Calendar-normalized HTML (the view reads and writes it through <c>RichDescription</c>).</summary>
     [ObservableProperty]
     public partial string Description { get; set; }
 
     /// <summary>
-    /// True when Leaf had to cut the description short when reading it. It's shown read-only and never saved, since saving
+    /// True when Leaf Calendar had to cut the description short when reading it. It's shown read-only and never saved, since saving
     /// it would delete the rest of it on Google.
     /// </summary>
     public bool DescriptionTooLong => Before.DescriptionTooLong;
@@ -737,7 +737,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     /// <summary>The room box shows (a Workspace account's calendar is picked, and the event takes guests).</summary>
     public bool ShowRooms => ShowGuests && IsWorkspaceAccount?.Invoke(ContactsAccountId) == true;
 
-    /// <summary>Leaf learned which accounts are Workspace ones (an older account's first lookup): the rows that depend on it update.</summary>
+    /// <summary>Leaf Calendar learned which accounts are Workspace ones (an older account's first lookup): the rows that depend on it update.</summary>
     public void AccountsChanged() => TypeInputsChanged();
 
     /// <summary>The room name being typed.</summary>

@@ -134,7 +134,7 @@ public sealed class LeafServices : IAsyncDisposable
 
     /// <summary>
     /// True while the saved secrets couldn't be read at startup (or a reload) and a timer is trying again, so
-    /// <see cref="Google"/> is null for that reason, not because Leaf is offline or not set up.
+    /// <see cref="Google"/> is null for that reason, not because Leaf Calendar is offline or not set up.
     /// </summary>
     public bool SecretsUnavailable => Volatile.Read(ref _secretsRetry) is not null;
 
@@ -143,7 +143,7 @@ public sealed class LeafServices : IAsyncDisposable
 
     /// <summary>
     /// The browser came back from a sign-in (Google signed in, or answered with a refusal or an error), so the window that
-    /// asked can come back to the front. Not raised when Leaf canceled it, when it timed out (the user has moved on), or
+    /// asked can come back to the front. Not raised when Leaf Calendar canceled it, when it timed out (the user has moved on), or
     /// when Google couldn't be reached. Raised on whatever thread the sign-in finished on.
     /// </summary>
     public event EventHandler? SignInReturned;
@@ -237,7 +237,7 @@ public sealed class LeafServices : IAsyncDisposable
     }
 
     /// <summary>
-    /// Opens Google's sign-in page. In fake-Google mode Leaf plays the browser itself. It doesn't wait,
+    /// Opens Google's sign-in page. In fake-Google mode Leaf Calendar plays the browser itself. It doesn't wait,
     /// because the redirect only completes once sign-in is listening for it.
     /// </summary>
     /// <exception cref="SignInException">The browser couldn't be opened.</exception>
@@ -312,7 +312,7 @@ public sealed class LeafServices : IAsyncDisposable
     }
 
     /// <summary>
-    /// Opens one of Leaf's own folders (the log folder, from Settings › About) in File Explorer. It's Leaf's only folder
+    /// Opens one of Leaf Calendar's own folders (the log folder, from Settings › About) in File Explorer. It's Leaf Calendar's only folder
     /// launch, and never takes a path from event, contact, or calendar content. In fake-Google mode nothing opens:
     /// <c>folder:&lt;path&gt;</c> is appended to <c>launched.txt</c>, as <see cref="LaunchAsync"/> does for links. A launch that
     /// fails is logged by error type and reported as false, never thrown.
@@ -337,7 +337,7 @@ public sealed class LeafServices : IAsyncDisposable
     }
 
     /// <summary>
-    /// Opens a file shipped in Leaf's package (the third-party notices, from Settings › About) in its default app.
+    /// Opens a file shipped in Leaf Calendar's package (the third-party notices, from Settings › About) in its default app.
     /// <paramref name="appUri"/> is a fixed <c>ms-appx:///</c> address, never one from event, contact, or calendar
     /// content. In fake-Google mode nothing opens: <c>file:&lt;uri&gt;</c> is appended to <c>launched.txt</c>, as
     /// <see cref="LaunchAsync"/> does for links. A launch that fails is logged by error type and reported as false, never thrown.

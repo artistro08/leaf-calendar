@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace LeafCalendar.Core.Settings;
 
-/// <summary>Source-generated JSON metadata for Leaf's own stored types (AOT safe).</summary>
+/// <summary>Source-generated JSON metadata for Leaf Calendar's own stored types (AOT safe).</summary>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     UseStringEnumConverter = true,

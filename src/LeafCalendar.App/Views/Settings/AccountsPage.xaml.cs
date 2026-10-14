@@ -124,7 +124,7 @@ public sealed partial class AccountsPage : Page
 
     private void OnUnloaded(object sender, RoutedEventArgs e) => ReleaseProviders();
 
-    // Settings Closed On This Page (back to the calendar, or the window closed with Leaf staying in the tray): the page
+    // Settings Closed On This Page (back to the calendar, or the window closed with Leaf Calendar staying in the tray): the page
     // may not get Unloaded, so the hub is let go here, or it would keep the Settings view alive
     private void OnHostClosed(object? sender, EventArgs e)
     {
@@ -142,7 +142,7 @@ public sealed partial class AccountsPage : Page
         }
     }
 
-    // Raised on any thread (a client saved or removed, a sign-in or sign-out, or a provider signing Leaf out)
+    // Raised on any thread (a client saved or removed, a sign-in or sign-out, or a provider signing Leaf Calendar out)
     private void OnSchedulingChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(RefreshProviders);
 
     private void RefreshProviders()
@@ -292,7 +292,7 @@ public sealed partial class AccountsPage : Page
             return;
         }
 
-        var content = "Leaf will sign out of this Google account and remove its calendars from this PC. Your Google Calendar isn't changed.";
+        var content = "Leaf Calendar will sign out of this Google account and remove its calendars from this PC. Your Google Calendar isn't changed.";
         if (unsent > 0)
         {
             content += unsent == 1

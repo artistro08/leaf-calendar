@@ -3,7 +3,7 @@ using Windows.Security.Credentials;
 namespace LeafCalendar.Core.Auth;
 
 /// <summary>
-/// Stores Leaf's secrets in Windows Credential Locker (<see cref="PasswordVault"/>).
+/// Stores Leaf Calendar's secrets in Windows Credential Locker (<see cref="PasswordVault"/>).
 /// </summary>
 /// <remarks>
 /// Entries are encrypted with the current Windows user's login and namespaced by profile:

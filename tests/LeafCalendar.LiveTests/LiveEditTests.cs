@@ -94,16 +94,16 @@ public class LiveEditTests
             var start = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(2).AddHours(15), TimeSpan.Zero);
 
             // Create (client-generated ID)
-            var id = editor.Create(new EventDraft { AccountId = live.AccountId, CalendarId = calendarId, Title = "Leaf live outbox", Start = start, End = start.AddHours(1), TimeZone = "America/New_York" }, sendUpdates: false);
+            var id = editor.Create(new EventDraft { AccountId = live.AccountId, CalendarId = calendarId, Title = "Leaf Calendar live outbox", Start = start, End = start.AddHours(1), TimeZone = "America/New_York" }, sendUpdates: false);
             await Sync(live, google, ct);
-            Assert.Equal("Leaf live outbox", (string?)(await google.GetEventAsync(calendarId, id, ct))!["summary"]);
+            Assert.Equal("Leaf Calendar live outbox", (string?)(await google.GetEventAsync(calendarId, id, ct))!["summary"]);
 
             // Patch (If-Match with the ETag Google returned for the create)
             var o = Occurrence(live, calendarId, id, start, start.AddHours(1));
             var before = editor.Load(o);
-            editor.Save(o, before, before with { Title = "Leaf live outbox (renamed)" }, EditScope.This, sendUpdates: false);
+            editor.Save(o, before, before with { Title = "Leaf Calendar live outbox (renamed)" }, EditScope.This, sendUpdates: false);
             await Sync(live, google, ct);
-            Assert.Equal("Leaf live outbox (renamed)", (string?)(await google.GetEventAsync(calendarId, id, ct))!["summary"]);
+            Assert.Equal("Leaf Calendar live outbox (renamed)", (string?)(await google.GetEventAsync(calendarId, id, ct))!["summary"]);
 
             // Delete (held for the undo window first)
             editor.Delete([o], EditScope.This, sendUpdates: false);
@@ -136,7 +136,7 @@ public class LiveEditTests
             var start = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(2).AddHours(15), TimeSpan.Zero);
 
             // Create With Meet (conferenceData.createRequest goes out with conferenceDataVersion=1)
-            var id = Editor(live).Create(new EventDraft { AccountId = live.AccountId, CalendarId = calendarId, Title = "Leaf live meet", Start = start, End = start.AddHours(1), TimeZone = "America/New_York", HasConference = true }, sendUpdates: false);
+            var id = Editor(live).Create(new EventDraft { AccountId = live.AccountId, CalendarId = calendarId, Title = "Leaf Calendar live meet", Start = start, End = start.AddHours(1), TimeZone = "America/New_York", HasConference = true }, sendUpdates: false);
             await Sync(live, google, ct);
 
             var link = (string?)(await google.GetEventAsync(calendarId, id, ct))!["hangoutLink"];
@@ -169,7 +169,7 @@ public class LiveEditTests
             var start = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(2).AddHours(15), TimeSpan.Zero);
 
             // Create With Meet
-            var id = editor.Create(new EventDraft { AccountId = live.AccountId, CalendarId = calendarId, Title = "Leaf live late undo", Start = start, End = start.AddHours(1), TimeZone = "America/New_York", HasConference = true }, sendUpdates: false);
+            var id = editor.Create(new EventDraft { AccountId = live.AccountId, CalendarId = calendarId, Title = "Leaf Calendar live late undo", Start = start, End = start.AddHours(1), TimeZone = "America/New_York", HasConference = true }, sendUpdates: false);
             await Sync(live, google, ct);
             var oldLink = (string?)(await google.GetEventAsync(calendarId, id, ct))!["hangoutLink"];
             Assert.StartsWith("https://meet.google.com/", oldLink, StringComparison.Ordinal);
@@ -191,7 +191,7 @@ public class LiveEditTests
             await Sync(live, google, ct);
             var copy = (await google.GetEventAsync(calendarId, copyId, ct))!;
             Assert.NotEqual(id, copyId);
-            Assert.Equal("Leaf live late undo", (string?)copy["summary"]);
+            Assert.Equal("Leaf Calendar live late undo", (string?)copy["summary"]);
             var newLink = (string?)copy["hangoutLink"];
             Assert.StartsWith("https://meet.google.com/", newLink, StringComparison.Ordinal);
             Assert.NotEqual(oldLink, newLink);
@@ -217,11 +217,11 @@ public class LiveEditTests
         var calendarId = await google.CreateTestCalendarAsync(ct);
         try
         {
-            var id = await google.InsertEventAsync(calendarId, "Leaf live conflict", ct);
+            var id = await google.InsertEventAsync(calendarId, "Leaf Calendar live conflict", ct);
             await Sync(live, google, ct);
             var o = Stored(live, calendarId, id);
 
-            // Google changes it behind Leaf's back, then Leaf edits its older copy
+            // Google changes it behind Leaf Calendar's back, then Leaf Calendar edits its older copy
             await google.PatchSummaryAsync(calendarId, id, "Changed on Google", ct);
             var editor = Editor(live);
             var before = editor.Load(o);
@@ -274,7 +274,7 @@ public class LiveEditTests
             // This And Following: from Nov 16, renamed
             var fifth = Occurrence(live, calendarId, masterId, At(16), At(16).AddMinutes(30), masterId);
             before = editor.Load(fifth);
-            editor.Save(fifth, before, before with { Title = "Leaf live split" }, EditScope.Following, sendUpdates: false);
+            editor.Save(fifth, before, before with { Title = "Leaf Calendar live split" }, EditScope.Following, sendUpdates: false);
             string newSeries;
             using (var conn = live.Database.Open())
             {
@@ -285,7 +285,7 @@ public class LiveEditTests
 
             Assert.Equal(4, (await google.ListInstanceStartsAsync(calendarId, masterId, ct)).Count);
             Assert.Equal([At(16), At(18)], await google.ListInstanceStartsAsync(calendarId, newSeries, ct));
-            Assert.Equal("Leaf live split", (string?)(await google.GetEventAsync(calendarId, newSeries, ct))!["summary"]);
+            Assert.Equal("Leaf Calendar live split", (string?)(await google.GetEventAsync(calendarId, newSeries, ct))!["summary"]);
         }
         finally
         {
@@ -312,7 +312,7 @@ public class LiveEditTests
         {
             guestId = await google.CreateTestCalendarAsync(ct);
             otherId = await google.CreateTestCalendarAsync(ct);
-            var id = await google.InsertInviteAsync(calendarId, guestId, "Leaf live reply", ct);
+            var id = await google.InsertInviteAsync(calendarId, guestId, "Leaf Calendar live reply", ct);
             await Sync(live, google, ct);
             var editor = Editor(live);
 
@@ -328,7 +328,7 @@ public class LiveEditTests
             var before = editor.Load(o);
             editor.Save(o, before, before with { CalendarId = otherId }, EditScope.This, sendUpdates: false);
             await Sync(live, google, ct);
-            Assert.Equal("Leaf live reply", (string?)(await google.GetEventAsync(otherId, id, ct))!["summary"]);
+            Assert.Equal("Leaf Calendar live reply", (string?)(await google.GetEventAsync(otherId, id, ct))!["summary"]);
         }
         finally
         {

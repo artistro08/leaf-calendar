@@ -51,7 +51,7 @@ public sealed partial class ShortcutsPage : Page
     }
 
     // Settings Left (back to the calendar, or the window closed) With A Shortcut Dialog Open: close it, which lets go of the
-    // keyboard and registers Leaf's shortcuts again (the page isn't navigated from, so the service's event is let go here)
+    // keyboard and registers Leaf Calendar's shortcuts again (the page isn't navigated from, so the service's event is let go here)
     private void OnHostClosed(object? sender, EventArgs e)
     {
         _context.Host.Closed -= OnHostClosed;
@@ -101,7 +101,7 @@ public sealed partial class ShortcutsPage : Page
         warning.Visibility = message is not null ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    // Wires A Picker To Its Shortcut: the default for Reset, Leaf's conflict check, and saving
+    // Wires A Picker To Its Shortcut: the default for Reset, Leaf Calendar's conflict check, and saving
     private void Wire(ShortcutControl control, ShortcutAction action, string name, string automationId)
     {
         control.ButtonName = name;
@@ -131,7 +131,7 @@ public sealed partial class ShortcutsPage : Page
             : null;
     }
 
-    // Leaf's own shortcuts let go while the dialog listens (so pressing them reaches it)
+    // Leaf Calendar's own shortcuts let go while the dialog listens (so pressing them reaches it)
     private void Opening(ShortcutAction action)
     {
         _before = _context.Calendar.Settings;

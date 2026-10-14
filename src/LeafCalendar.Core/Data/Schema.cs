@@ -55,9 +55,9 @@ internal static class Schema
         """;
 
     /// <summary>
-    /// Version 2: app settings, plus Leaf's own calendar display choices. <c>leaf_hidden</c> is null
-    /// until Leaf decides (it then follows Google's "selected"), so later Google list refreshes never
-    /// override a choice the user made in Leaf.
+    /// Version 2: app settings, plus Leaf Calendar's own calendar display choices. <c>leaf_hidden</c> is null
+    /// until Leaf Calendar decides (it then follows Google's "selected"), so later Google list refreshes never
+    /// override a choice the user made in Leaf Calendar.
     /// </summary>
     public const string V2 = """
         CREATE TABLE settings (
@@ -113,7 +113,7 @@ internal static class Schema
         """;
 
     /// <summary>
-    /// Version 5: every notification Leaf has shown, so a restart or a full resync never shows one twice. <c>key</c>
+    /// Version 5: every notification Leaf Calendar has shown, so a restart or a full resync never shows one twice. <c>key</c>
     /// names the alert (kind, event instance, reminder minutes; or kind, event, and Google's <c>sequence</c> for
     /// invites), <c>tag</c> is the short hash Windows knows the notification by, <c>event_end</c> says when the row may
     /// go, and <c>retracted</c> marks a "Join now" that was withdrawn.
@@ -132,7 +132,7 @@ internal static class Schema
         """;
 
     /// <summary>
-    /// Version 6: <c>accounts.hosted_domain</c>, Google's <c>hd</c> sign-in claim. Null until Leaf knows it (accounts
+    /// Version 6: <c>accounts.hosted_domain</c>, Google's <c>hd</c> sign-in claim. Null until Leaf Calendar knows it (accounts
     /// that signed in before Milestone 5 are looked up once), empty for a personal account, else the Workspace domain.
     /// </summary>
     public const string V6 = """
@@ -141,8 +141,8 @@ internal static class Schema
 
     /// <summary>
     /// Version 7: <c>calendars.google_shown</c>, whether the calendar was ticked (and not hidden) in Google Calendar at the
-    /// last list refresh. Null until then. When Google's choice changes (or isn't known yet), Leaf follows it; otherwise
-    /// Leaf's own choice in <c>leaf_hidden</c> stays.
+    /// last list refresh. Null until then. When Google's choice changes (or isn't known yet), Leaf Calendar follows it; otherwise
+    /// Leaf Calendar's own choice in <c>leaf_hidden</c> stays.
     /// </summary>
     public const string V7 = """
         ALTER TABLE calendars ADD COLUMN google_shown INTEGER;
@@ -207,7 +207,7 @@ internal static class Schema
 
     /// <summary>
     /// Version 12: <c>share_guests.name</c>, a saved guest's name (owner request 2026-10-07, saved groups show their
-    /// guests' names), empty when Leaf doesn't know it and for guests saved before. Local only.
+    /// guests' names), empty when Leaf Calendar doesn't know it and for guests saved before. Local only.
     /// </summary>
     public const string V12 = """
         ALTER TABLE share_guests ADD COLUMN name TEXT NOT NULL DEFAULT '';

@@ -27,8 +27,8 @@
                     x:Name="NameTakenRow"
                     Visibility="Collapsed"
                     Glyph="&#xE7BA;"
-                    Header="Another program is using Leaf's connection"
-                    Description="Other apps can't connect to Leaf right now. Close that program or restart your PC, then turn this off and on again."
+                    Header="Another program is using Leaf Calendar's connection"
+                    Description="Other apps can't connect to Leaf Calendar right now. Close that program or restart your PC, then turn this off and on again."
                     AutomationProperties.AutomationId="ApiNameTakenRow" />
 
                 <!-- Approved Apps (one card each, built in code) -->
@@ -36,7 +36,7 @@
                 <TextBlock
                     x:Name="NoAppsText"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="No apps yet. When an app asks to connect, Leaf shows a notification."
+                    Text="No apps yet. When an app asks to connect, Leaf Calendar shows a notification."
                     TextWrapping="Wrap"
                     AutomationProperties.AutomationId="ApiNoAppsText" />
                 <StackPanel x:Name="AppsList" Spacing="4" AutomationProperties.AutomationId="ApiAppsList" />

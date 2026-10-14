@@ -144,7 +144,7 @@ public static class DescriptionHtml
 
     /// <summary>
     /// True when reading the description cut it short (over 40,000 characters of HTML, or over 10,000 of text). Such a
-    /// description can't be edited in Leaf: writing it back would delete the rest on Google.
+    /// description can't be edited in Leaf Calendar: writing it back would delete the rest on Google.
     /// </summary>
     public static bool IsTooLong(string html)
     {
@@ -152,7 +152,7 @@ public static class DescriptionHtml
         return capped;
     }
 
-    /// <summary>Google's HTML in Leaf's subset: equal results mean the same description.</summary>
+    /// <summary>Google's HTML in Leaf Calendar's subset: equal results mean the same description.</summary>
     public static string Normalize(string html) => Write(Lines(html));
 
     private static void AppendRuns(StringBuilder html, IReadOnlyList<DescriptionRun> runs)

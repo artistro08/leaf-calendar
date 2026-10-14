@@ -26,11 +26,11 @@ if (-not $Register) { return }
 $layout = [IO.Path]::GetFullPath((Join-Path $app 'bin/aot-layout'))
 $existing = Get-AppxPackage LeafCalendar
 if ($existing -and -not $existing.IsDevelopmentMode) {
-    throw 'Leaf is installed from a package; uninstall it from Settings > Apps first.'
+    throw 'Leaf Calendar is installed from a package; uninstall it from Settings > Apps first.'
 }
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-# A Leaf running from the last layout locks its files, so close it before overwriting them
+# A Leaf Calendar running from the last layout locks its files, so close it before overwriting them
 Get-Process LeafCalendar -ErrorAction SilentlyContinue | Where-Object Path -like "$layout\*" |
     ForEach-Object { $_ | Stop-Process -Force; $_.WaitForExit() }
 if (Test-Path $layout) { Remove-Item $layout -Recurse -Force }

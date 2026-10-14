@@ -29,10 +29,10 @@ public sealed class LiveGoogle(LiveAccount live)
         }
     }
 
-    /// <summary>Creates a "Leaf live test &lt;guid&gt;" calendar and returns its ID.</summary>
+    /// <summary>Creates a "Leaf Calendar live test &lt;guid&gt;" calendar and returns its ID.</summary>
     public async Task<string> CreateTestCalendarAsync(CancellationToken ct)
     {
-        var body = new JsonObject { ["summary"] = $"Leaf live test {Guid.NewGuid():N}" };
+        var body = new JsonObject { ["summary"] = $"Leaf Calendar live test {Guid.NewGuid():N}" };
         var created = await SendAsync(HttpMethod.Post, "calendars", body, ct);
         var id = created!["id"]!.GetValue<string>();
         _owned.Add(id);
@@ -71,7 +71,7 @@ public sealed class LiveGoogle(LiveAccount live)
     {
         var body = new JsonObject
         {
-            ["summary"] = "Leaf live recurrence",
+            ["summary"] = "Leaf Calendar live recurrence",
             ["start"] = new JsonObject { ["dateTime"] = startLocal, ["timeZone"] = timeZone },
             ["end"] = new JsonObject { ["dateTime"] = endLocal, ["timeZone"] = timeZone },
             ["recurrence"] = new JsonArray([.. recurrence.Select(r => (JsonNode)r)]),
@@ -152,7 +152,7 @@ public sealed class LiveGoogle(LiveAccount live)
     {
         var body = new JsonObject
         {
-            ["summary"] = "Leaf live reminders",
+            ["summary"] = "Leaf Calendar live reminders",
             ["start"] = new JsonObject { ["dateTime"] = start.ToString("O", System.Globalization.CultureInfo.InvariantCulture) },
             ["end"] = new JsonObject { ["dateTime"] = start.AddHours(1).ToString("O", System.Globalization.CultureInfo.InvariantCulture) },
             ["reminders"] = reminders,

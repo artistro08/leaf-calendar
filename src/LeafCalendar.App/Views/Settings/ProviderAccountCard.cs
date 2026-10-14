@@ -176,7 +176,7 @@ internal sealed class ProviderAccountCard
             : state switch
             {
                 ProviderState.SignedIn => "Signed in",
-                ProviderState.NeedsReconnect => $"{_info.Name} signed Leaf out. Sign in again to keep sharing booking links.",
+                ProviderState.NeedsReconnect => $"{_info.Name} signed Leaf Calendar out. Sign in again to keep sharing booking links.",
                 _ => _info.Description,
             };
 
@@ -280,7 +280,7 @@ internal sealed class ProviderAccountCard
         Refresh();
     }
 
-    // Logs why a sign-in failed: Leaf's own fixed exception text and the inner exception's type (plus a JSON path), never
+    // Logs why a sign-in failed: Leaf Calendar's own fixed exception text and the inner exception's type (plus a JSON path), never
     // anything Cal.com sent or any secret
     private void LogSignInFailure(Exception ex)
     {
@@ -322,7 +322,7 @@ internal sealed class ProviderAccountCard
         }
         catch (SchedulingPortBusyException)
         {
-            ShowError($"Port {_info.OAuth.RedirectPort} is busy, so Leaf can't finish signing in. Close the app using it and try again.");
+            ShowError($"Port {_info.OAuth.RedirectPort} is busy, so Leaf Calendar can't finish signing in. Close the app using it and try again.");
         }
         catch (Exception ex) when (ex is SchedulingUnavailableException or InvalidDataException)
         {

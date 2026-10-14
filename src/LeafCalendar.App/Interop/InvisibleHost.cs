@@ -49,7 +49,7 @@ internal static class InvisibleHost
 
     /// <summary>
     /// Takes the foreground (light dismiss needs it: without it a popup closes as soon as it opens). A plain
-    /// SetForegroundWindow was refused once Leaf wasn't the last app used, so the tray flyout and menu stopped opening
+    /// SetForegroundWindow was refused once Leaf Calendar wasn't the last app used, so the tray flyout and menu stopped opening
     /// after a click or two; this joins the front window's input thread to ask (<see cref="Foreground.Take"/>), and only
     /// runs for a tray click or a hotkey the user just pressed. False when Windows still refused.
     /// </summary>

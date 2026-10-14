@@ -4,13 +4,13 @@ using Microsoft.Windows.AppNotifications;
 namespace LeafCalendar.App.Notifications;
 
 /// <summary>
-/// Shows Leaf's notifications as Windows App SDK app notifications (spec 8.4) and reports clicks.
+/// Shows Leaf Calendar's notifications as Windows App SDK app notifications (spec 8.4) and reports clicks.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Leaf is packaged, so Windows activates the COM class declared in Package.appxmanifest when a notification is clicked.
-/// While Leaf runs, the click arrives here as <see cref="Invoked"/>; when it doesn't, Windows starts Leaf and
-/// <see cref="Program"/> registers before reading the click, then hands it to the App. Windows Do Not Disturb and Focus apply on their own; Leaf has no
+/// Leaf Calendar is packaged, so Windows activates the COM class declared in Package.appxmanifest when a notification is clicked.
+/// While Leaf Calendar runs, the click arrives here as <see cref="Invoked"/>; when it doesn't, Windows starts Leaf Calendar and
+/// <see cref="Program"/> registers before reading the click, then hands it to the App. Windows Do Not Disturb and Focus apply on their own; Leaf Calendar has no
 /// pause switch (spec 1.4).
 /// </para>
 /// <para>
@@ -32,7 +32,7 @@ internal sealed class Notifier(LeafServices services) : IDisposable
 
     /// <summary>
     /// Registers with Windows: the click handler first, then the registration, as Windows App SDK requires. When a click
-    /// started Leaf, <see cref="Program"/> already registered, so this only takes over the clicks.
+    /// started Leaf Calendar, <see cref="Program"/> already registered, so this only takes over the clicks.
     /// </summary>
     public void Register()
     {
@@ -57,7 +57,7 @@ internal sealed class Notifier(LeafServices services) : IDisposable
         }
         catch (Exception ex)
         {
-            // Runs while the tray starts, so nothing may escape: Leaf runs on without notifications
+            // Runs while the tray starts, so nothing may escape: Leaf Calendar runs on without notifications
             services.Log.Info("notifications.register.failed", $"error={ex.GetType().Name}");
         }
     }
@@ -114,7 +114,7 @@ internal sealed class Notifier(LeafServices services) : IDisposable
         }
     }
 
-    /// <summary>Unregisters, so Windows starts a new Leaf for a later click (Quit).</summary>
+    /// <summary>Unregisters, so Windows starts a new Leaf Calendar for a later click (Quit).</summary>
     public void Dispose()
     {
         if (!_registered)

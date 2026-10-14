@@ -4,7 +4,7 @@ using LeafCalendar.Core.Settings;
 
 namespace LeafCalendar.Core.Events;
 
-/// <summary>Video meeting services Leaf recognizes by host.</summary>
+/// <summary>Video meeting services Leaf Calendar recognizes by host.</summary>
 public enum MeetingProvider
 {
     /// <summary>meet.google.com.</summary>
@@ -122,7 +122,7 @@ public static partial class LinkSafety
     }
 
     /// <summary>
-    /// A link's address as Leaf shows it (tooltips, "Video call:"), matching what <c>LaunchAsync</c> opens. A non-ASCII
+    /// A link's address as Leaf Calendar shows it (tooltips, "Video call:"), matching what <c>LaunchAsync</c> opens. A non-ASCII
     /// host is shown in its ASCII (punycode) form, so a look-alike such as Cyrillic "аpple.com" can't pass for the real
     /// site, and invisible or direction-changing characters are removed. Null when the host has no ASCII form (such a
     /// link is never allowlisted, so it shouldn't be shown as clickable).

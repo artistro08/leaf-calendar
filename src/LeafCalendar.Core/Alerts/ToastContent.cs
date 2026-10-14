@@ -15,7 +15,7 @@ namespace LeafCalendar.Core.Alerts;
 public sealed record ToastMessage(string Tag, string Group, string Xml);
 
 /// <summary>
-/// Builds every notification Leaf shows (spec 8.4) as Windows toast XML.
+/// Builds every notification Leaf Calendar shows (spec 8.4) as Windows toast XML.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -170,7 +170,7 @@ public static class ToastContent
             SignInGroup,
             new ToastArgs(ToastAction.SignIn, profile, accountId),
             null,
-            ["Sign in again", $"Leaf can't sync {email} anymore. Sign in again in Settings to keep it up to date."],
+            ["Sign in again", $"Leaf Calendar can't sync {email} anymore. Sign in again in Settings to keep it up to date."],
             [],
             sound);
 
@@ -235,7 +235,7 @@ public static class ToastContent
     private static XElement Choice(string minutes, string content) =>
         new("selection", new XAttribute("id", minutes), new XAttribute("content", content));
 
-    // Background Activation: Leaf Acts Without Coming To The Front
+    // Background Activation: Leaf Calendar Acts Without Coming To The Front
     private static XElement Button(string content, ToastArgs args) => new(
         "action",
         new XAttribute("content", content),

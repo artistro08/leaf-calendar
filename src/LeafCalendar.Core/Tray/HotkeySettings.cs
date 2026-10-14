@@ -3,9 +3,9 @@
 // See the LICENSE file in the project root for more information.
 //
 // Ported from PowerToys: src/settings-ui/Settings.UI.Library/HotkeySettings.cs (https://github.com/microsoft/PowerToys).
-// Leaf changes: no JSON or conflict properties (Leaf stores Hotkey text and checks conflicts itself), IsValid also
+// Leaf Calendar changes: no JSON or conflict properties (Leaf Calendar stores Hotkey text and checks conflicts itself), IsValid also
 // requires Ctrl, Alt, or Win and a key Hotkey accepts (Shift+J is a capital J), Windows' own Win+L and Alt+F4 are
-// refused, key names come from Leaf's table instead of the keyboard layout, and ToString joins with "+".
+// refused, key names come from Leaf Calendar's table instead of the keyboard layout, and ToString joins with "+".
 
 using System.Globalization;
 
@@ -13,7 +13,7 @@ namespace LeafCalendar.Core.Tray;
 
 /// <summary>
 /// A key combination as the shortcut picker tracks it: Win, Ctrl, Alt, Shift, and one key (a Win32 virtual-key code,
-/// 0 for none). <see cref="ToHotkey"/> turns a valid one into the <see cref="Hotkey"/> Leaf registers.
+/// 0 for none). <see cref="ToHotkey"/> turns a valid one into the <see cref="Hotkey"/> Leaf Calendar registers.
 /// </summary>
 public sealed record HotkeySettings
 {
@@ -64,7 +64,7 @@ public sealed record HotkeySettings
         hotkey.Modifiers.HasFlag(HotkeyModifiers.Shift),
         hotkey.Key);
 
-    /// <summary>The shortcut Leaf registers, or null when the combination isn't <see cref="IsValid"/>.</summary>
+    /// <summary>The shortcut Leaf Calendar registers, or null when the combination isn't <see cref="IsValid"/>.</summary>
     public Hotkey? ToHotkey() => IsValid() && Hotkey.TryCreate(Modifiers, Code, out var hotkey) ? hotkey : null;
 
     /// <summary>The key caps in PowerToys' order: Win (92) and Shift (16) as key codes so they draw as glyphs, Ctrl and Alt as text, then the key.</summary>
@@ -112,7 +112,7 @@ public sealed record HotkeySettings
         return shortcutList;
     }
 
-    /// <summary>True for a combination Leaf can register: Ctrl, Alt, or Win (Shift optional) with a letter, a number, or F1–F24 except F12, and not Win+L or Alt+F4.</summary>
+    /// <summary>True for a combination Leaf Calendar can register: Ctrl, Alt, or Win (Shift optional) with a letter, a number, or F1–F24 except F12, and not Win+L or Alt+F4.</summary>
     public bool IsValid()
     {
         if (IsAccessibleShortcut())

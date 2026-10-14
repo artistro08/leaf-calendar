@@ -1,4 +1,4 @@
-# Prints the size of Leaf's MSIX and fails when it carries Windows App SDK AI/ML/Search/Widgets
+# Prints the size of Leaf Calendar's MSIX and fails when it carries Windows App SDK AI/ML/Search/Widgets
 # files or is over budget. Used after tools/publish-aot.ps1 (locally and in the manual CI job).
 # Requires PowerShell 7 on Windows.
 # Measured 2026-10-04: 35.5 MB (the 10/03 icon work); budget rounded up to the next 5.
@@ -18,7 +18,7 @@ if (-not $Msix) {
 }
 if (-not $Msix) { throw 'No .msix found. Run tools/publish-aot.ps1 first.' }
 
-# Forbidden Payload (Leaf has no AI features; spec 1.4 and 13)
+# Forbidden Payload (Leaf Calendar has no AI features; spec 1.4 and 13)
 $forbidden = @('onnxruntime.dll', 'DirectML.dll', 'NPUDetect.dll', 'PerceptiveStreaming.dll',
     'Microsoft.Windows.Widgets.dll', 'Microsoft.Windows.Search.dll',
     'Microsoft.Asg.SemanticIndex.*', 'Microsoft.Windows.AI.*', 'Microsoft.Windows.Workloads*', 'workloads*.json')

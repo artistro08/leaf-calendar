@@ -16,7 +16,7 @@ public sealed record ApiRequest(JsonElement? Id, string Method, JsonElement Para
 /// <seealso href="https://www.jsonrpc.org/specification"/>
 public static class ApiMessage
 {
-    /// <summary>The longest line Leaf reads (1 MB); a longer one closes the connection.</summary>
+    /// <summary>The longest line Leaf Calendar reads (1 MB); a longer one closes the connection.</summary>
     public const int MaxLineBytes = 1_048_576;
 
     private static readonly JsonDocumentOptions Options = new() { MaxDepth = 32 };
@@ -86,7 +86,7 @@ public static class ApiMessage
         result.WriteTo(w);
     });
 
-    /// <summary>An error reply; <paramref name="dataCode"/> (Leaf's short code) goes under <c>data.code</c>.</summary>
+    /// <summary>An error reply; <paramref name="dataCode"/> (Leaf Calendar's short code) goes under <c>data.code</c>.</summary>
     public static string Error(JsonElement? id, int code, string message, string? dataCode = null) => Write(w =>
     {
         w.WritePropertyName("id");
@@ -127,7 +127,7 @@ public static class ApiMessage
 
     /// <summary>The reply to a request from an app that isn't (or is no longer) approved.</summary>
     public static string NotApproved(string line) =>
-        Error(TryReadId(line), ApiErrors.ServerError, "You didn't allow this app to connect to Leaf.", ApiErrors.NotApproved);
+        Error(TryReadId(line), ApiErrors.ServerError, "You didn't allow this app to connect to Leaf Calendar.", ApiErrors.NotApproved);
 
     private static string Write(Action<Utf8JsonWriter> body)
     {

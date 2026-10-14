@@ -264,7 +264,7 @@ public sealed class TrayAgendaTests : IDisposable
     [InlineData("Event deleted", "Event deleted.")]
     [InlineData("Event deleted · 1 couldn't be changed", "Event deleted · 1 couldn't be changed.")]
     [InlineData("Couldn't delete. Try again.", "Couldn't delete. Try again.")]
-    [InlineData("Show Leaf in that time zone?", "Show Leaf in that time zone?")]
+    [InlineData("Show Leaf Calendar in that time zone?", "Show Leaf Calendar in that time zone?")]
     [InlineData("Done!", "Done!")]
     [InlineData("Syncing…", "Syncing…")]
     [InlineData("Copied ", "Copied.")]

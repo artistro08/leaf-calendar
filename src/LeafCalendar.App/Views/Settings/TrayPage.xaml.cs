@@ -10,7 +10,7 @@ namespace LeafCalendar.App.Views.Settings;
 /// Settings › Tray (spec 9): how many days the flyout lists, whether all-day events are in it, and how far ahead the
 /// flyout header and the tooltip look. Changes save right away; the flyout and tooltip use them from their next refresh.
 /// The next event is always looked for in today and tomorrow, whatever the agenda's days, so a lookahead that crosses
-/// midnight still finds it. The tray shows the calendars shown in Leaf, so there's no calendar choice here.
+/// midnight still finds it. The tray shows the calendars shown in Leaf Calendar, so there's no calendar choice here.
 /// </summary>
 public sealed partial class TrayPage : Page
 {
@@ -24,7 +24,7 @@ public sealed partial class TrayPage : Page
     {
         InitializeComponent();
         DaysBox.Maximum = LeafSettings.MaxFlyoutDays;
-        DaysRow.Description = $"How many days the tray flyout lists, starting today. From 1 to {LeafSettings.MaxFlyoutDays}. It shows the calendars you show in Leaf.";
+        DaysRow.Description = $"How many days the tray flyout lists, starting today. From 1 to {LeafSettings.MaxFlyoutDays}. It shows the calendars you show in Leaf Calendar.";
         ScrollIndicator.ShowOnHover(PageScroll);
     }
 

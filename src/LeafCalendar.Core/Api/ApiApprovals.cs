@@ -22,7 +22,7 @@ public sealed record PendingApproval(string Token, ApiCaller Caller);
 /// </summary>
 /// <remarks>
 /// One question per program path at a time (case ignored): other connections from it wait on the same answer. No answer
-/// within <see cref="Wait"/> is a no, but isn't remembered (nor is a wait the API's stop cut short); Don't allow is remembered until Leaf restarts, so a retrying
+/// within <see cref="Wait"/> is a no, but isn't remembered (nor is a wait the API's stop cut short); Don't allow is remembered until Leaf Calendar restarts, so a retrying
 /// app can't keep prompting. Tokens are 128 random bits. Approved paths
 /// are saved by the caller (in settings) before it calls <see cref="Answer"/>.
 /// </remarks>
@@ -35,7 +35,7 @@ public sealed class ApiApprovals(TimeProvider time)
     private readonly Dictionary<string, (PendingApproval Request, TaskCompletionSource<bool> Answer)> _pending = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _refused = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>True when you chose Don't allow for this path since Leaf started.</summary>
+    /// <summary>True when you chose Don't allow for this path since Leaf Calendar started.</summary>
     public bool IsRefused(string path)
     {
         lock (_gate)
@@ -110,7 +110,7 @@ public sealed class ApiApprovals(TimeProvider time)
         }
     }
 
-    /// <summary>Answers a question; a no is remembered until Leaf restarts. An unknown token does nothing.</summary>
+    /// <summary>Answers a question; a no is remembered until Leaf Calendar restarts. An unknown token does nothing.</summary>
     public void Answer(string token, bool allow)
     {
         TaskCompletionSource<bool>? answer = null;

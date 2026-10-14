@@ -14,7 +14,7 @@ namespace LeafCalendar.Core.Scheduling;
 
 /// <summary>
 /// Cal.com, through its v2 REST API: your links (event types), their bookable times, bookings made on them, booking a
-/// time, and the booking page links Leaf copies.
+/// time, and the booking page links Leaf Calendar copies.
 /// </summary>
 /// <remarks>
 /// Every call asks <paramref name="accessToken"/> for a fresh OAuth access token (it refreshes quietly when needed; a
@@ -181,7 +181,7 @@ public sealed class CalComProvider(HttpClient http, Func<CancellationToken, Task
             ? new SchedulingBooking(uid, start.ToUniversalTime(), created.ToUniversalTime(), DisplayText.Clean(b.Attendees?.FirstOrDefault()?.Name, MaxName))
             : null;
 
-    // One request: token and version headers, status mapped to Leaf's three failures, body read through the source-generated context
+    // One request: token and version headers, status mapped to Leaf Calendar's three failures, body read through the source-generated context
     private async Task<T> SendAsync<T>(HttpMethod method, string relative, string version, HttpContent? content, JsonTypeInfo<T> type, CancellationToken ct)
         where T : class
     {
@@ -220,7 +220,7 @@ public sealed class CalComProvider(HttpClient http, Func<CancellationToken, Task
                 case HttpStatusCode.BadRequest when method == HttpMethod.Post && IsTakenMessage(text):
                     throw new SchedulingSlotTakenException("That time isn't open on Cal.com anymore.");
                 case (HttpStatusCode)429:
-                    throw new SchedulingUnavailableException("Cal.com asked Leaf to slow down.", response.Headers.RetryAfter?.Delta);
+                    throw new SchedulingUnavailableException("Cal.com asked Leaf Calendar to slow down.", response.Headers.RetryAfter?.Delta);
             }
 
             if (!response.IsSuccessStatusCode)

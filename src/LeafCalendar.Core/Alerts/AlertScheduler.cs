@@ -9,7 +9,7 @@ namespace LeafCalendar.Core.Alerts;
 /// </summary>
 /// <remarks>
 /// <para>
-/// An alert missed while the PC slept, while Leaf wasn't running, or before a sync brought the event still shows, however
+/// An alert missed while the PC slept, while Leaf Calendar wasn't running, or before a sync brought the event still shows, however
 /// long ago it came due, as long as its event hasn't ended (an all-day event ends at midnight after its last day in the
 /// display zone). Per event instance only the latest alert that came due counts, so waking in the middle of a meeting
 /// shows one "Join now" and not three stale reminders. Every shown alert goes into <see cref="AlertLedger"/> first, so the
@@ -174,7 +174,7 @@ public sealed class AlertScheduler(LeafDatabase database, TimeProvider time, Fun
                     Retract(conn, _plan, now, tz, retracted);
                     syncSoon = SyncDue(_plan, enabled, now);
 
-                    // Pruned After Retract, so a "Join now" left open (Leaf off for days) is withdrawn before its row, its only handle, goes
+                    // Pruned After Retract, so a "Join now" left open (Leaf Calendar off for days) is withdrawn before its row, its only handle, goes
                     if (replanned)
                     {
                         AlertLedger.Prune(conn, now - LedgerKeep);

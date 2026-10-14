@@ -11,7 +11,7 @@ using Microsoft.UI.Xaml.Navigation;
 namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
-/// Settings › Time zones: Leaf's primary time zone (Windows' by default, or a zone Leaf keeps, with an offer to switch
+/// Settings › Time zones: Leaf Calendar's primary time zone (Windows' by default, or a zone Leaf Calendar keeps, with an offer to switch
 /// when Windows' zone changes), then the extra time-zone columns (up to four), added, renamed, reordered (drag, or Move up and Move down in a row's "More options"), and
 /// removed. Changes save immediately and the grid follows. The "+" in the grid's corner opens this page.
 /// </summary>
@@ -81,7 +81,7 @@ public sealed partial class TimeZonesPage : Page
         _loading = false;
     }
 
-    // The expander's summary: the saved zone's city, or Windows' with a note that Leaf follows it
+    // The expander's summary: the saved zone's city, or Windows' with a note that Leaf Calendar follows it
     private void UpdatePrimarySummary() => PrimaryZoneSummary.Text = _vm.Settings.PrimaryTimeZone is { } id
         ? TimeZoneCatalog.CityFor(id)
         : $"Same as Windows ({TimeZoneCatalog.CityFor(_vm.UserZone.Id)})";

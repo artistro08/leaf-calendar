@@ -8,7 +8,7 @@ namespace LeafCalendar.Core.Editing;
 /// Google Calendar shows too) and its default reminders.
 /// </summary>
 /// <remarks>
-/// Google holds these values. Leaf sends the patch first and mirrors the result locally only after Google accepts it,
+/// Google holds these values. Leaf Calendar sends the patch first and mirrors the result locally only after Google accepts it,
 /// so an offline or refused change leaves everything as it was.
 /// </remarks>
 /// <seealso href="https://developers.google.com/workspace/calendar/api/v3/reference/calendarList/patch"/>
@@ -39,7 +39,7 @@ public static class CalendarEdits
 
     /// <summary>
     /// The patch that sets the calendar's default popup reminders: 0 to 40,320 minutes, no repeats, earliest first, at
-    /// most five. Leaf edits popups only, so the other reminders in <paramref name="storedJson"/> (Google's
+    /// most five. Leaf Calendar edits popups only, so the other reminders in <paramref name="storedJson"/> (Google's
     /// <c>defaultReminders</c> as stored, such as email ones) are sent back unchanged after them; unreadable entries are left out.
     /// </summary>
     public static string RemindersPatch(IEnumerable<int> minutes, string? storedJson = null)

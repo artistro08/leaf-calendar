@@ -9,7 +9,7 @@ using LeafCalendar.UITests.Support;
 namespace LeafCalendar.UITests;
 
 /// <summary>
-/// About ten showcase screenshots of Leaf on the desktop: every other window minimized first (Win+M), Leaf centered
+/// About ten showcase screenshots of Leaf Calendar on the desktop: every other window minimized first (Win+M), Leaf Calendar centered
 /// at 80% of the main screen up to 1366 × 768, and each shot taken of the window with the desktop showing around it. Set
 /// LEAF_SHOWCASE to a folder to run it. Fake data only, so no one's real calendar shows. Each shot starts from a
 /// fresh profile seeded with its theme.
@@ -147,7 +147,7 @@ public sealed class ShowcaseTour : IDisposable
         Assert.True(failed.Count == 0, string.Join(Environment.NewLine, failed));
     }
 
-    // Win+M: every other window goes down, so the desktop shows around Leaf
+    // Win+M: every other window goes down, so the desktop shows around Leaf Calendar
     private static void MinimizeAll()
     {
         Keyboard.TypeSimultaneously(VirtualKeyShort.LWIN, VirtualKeyShort.KEY_M);

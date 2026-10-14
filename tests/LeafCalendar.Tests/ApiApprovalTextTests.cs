@@ -9,19 +9,19 @@ public sealed class ApiApprovalTextTests
     [Fact]
     public void Headline_NamesTheApp()
     {
-        Assert.Equal("Raycast wants to connect to Leaf", ApiApprovalText.Headline(Caller(@"C:\Apps\Raycast.exe", "Raycast")));
+        Assert.Equal("Raycast wants to connect to Leaf Calendar", ApiApprovalText.Headline(Caller(@"C:\Apps\Raycast.exe", "Raycast")));
     }
 
     [Fact]
     public void Headline_DropsCharactersThatReorderText()
     {
-        Assert.Equal("Raycast wants to connect to Leaf", ApiApprovalText.Headline(Caller(@"C:\Apps\Raycast.exe", "Ray\u202Ecast")));
+        Assert.Equal("Raycast wants to connect to Leaf Calendar", ApiApprovalText.Headline(Caller(@"C:\Apps\Raycast.exe", "Ray\u202Ecast")));
     }
 
     [Fact]
     public void Headline_NameThatCleansToNothing_UsesTheFileName()
     {
-        Assert.Equal("Raycast wants to connect to Leaf", ApiApprovalText.Headline(Caller(@"C:\Apps\Raycast.exe", "\u202E\u200B")));
+        Assert.Equal("Raycast wants to connect to Leaf Calendar", ApiApprovalText.Headline(Caller(@"C:\Apps\Raycast.exe", "\u202E\u200B")));
     }
 
     [Fact]

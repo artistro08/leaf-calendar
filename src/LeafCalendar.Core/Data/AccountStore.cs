@@ -14,7 +14,7 @@ public enum AccountStatus
 
 /// <summary>
 /// A connected Google account. <see cref="Id"/> is Google's stable <c>sub</c>. <see cref="HostedDomain"/> is Google's
-/// <c>hd</c> sign-in claim: null while Leaf doesn't know it yet, empty for a personal account, else the Workspace domain.
+/// <c>hd</c> sign-in claim: null while Leaf Calendar doesn't know it yet, empty for a personal account, else the Workspace domain.
 /// </summary>
 public sealed record Account(string Id, string Email, string? DisplayName, string? Picture, AccountStatus Status, string? HostedDomain = null);
 

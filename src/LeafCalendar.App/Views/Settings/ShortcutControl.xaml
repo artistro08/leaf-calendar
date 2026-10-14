@@ -4,7 +4,7 @@
     See the LICENSE file in the project root for more information.
 
     Ported from PowerToys: src/settings-ui/Settings.UI/SettingsXAML/Controls/ShortcutControl/ShortcutControl.xaml
-    (https://github.com/microsoft/PowerToys). Leaf changes: the preview's key caps are added in code instead of an
+    (https://github.com/microsoft/PowerToys). Leaf Calendar changes: the preview's key caps are added in code instead of an
     ItemsControl (Native AOT); TextBlock for PowerToys' IsEnabledTextBlock; the placeholder text inline; 240 is PowerToys'
     SettingActionControlMinWidth.
 -->

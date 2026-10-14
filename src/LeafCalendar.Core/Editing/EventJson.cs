@@ -8,7 +8,7 @@ using LeafCalendar.Core.Recurrence;
 namespace LeafCalendar.Core.Editing;
 
 /// <summary>
-/// Converts between Google's event JSON and <see cref="EventDraft"/>, and builds the JSON Leaf sends.
+/// Converts between Google's event JSON and <see cref="EventDraft"/>, and builds the JSON Leaf Calendar sends.
 /// </summary>
 /// <remarks>
 /// Reads use <see cref="JsonDocument"/>; building and merging use <see cref="JsonNode"/> (both AOT safe).
@@ -163,7 +163,7 @@ public static class EventJson
             body["location"] = draft.Location;
         }
 
-        // Normalized again here: a draft can come from anywhere, and only Leaf's allowlisted subset goes to Google
+        // Normalized again here: a draft can come from anywhere, and only Leaf Calendar's allowlisted subset goes to Google
         var description = DescriptionHtml.Normalize(draft.Description);
         if (description.Length > 0)
         {
@@ -264,7 +264,7 @@ public static class EventJson
             patch["location"] = after.Location;
         }
 
-        // Same description in Leaf's subset → nothing to send (Google's original HTML stays as it was). One Leaf had to cut
+        // Same description in Leaf Calendar's subset → nothing to send (Google's original HTML stays as it was). One Leaf Calendar had to cut
         // short is never sent: that would delete the rest of it on Google
         var description = DescriptionHtml.Normalize(after.Description);
         if (!before.DescriptionTooLong && DescriptionHtml.Normalize(before.Description) != description)
@@ -338,7 +338,7 @@ public static class EventJson
         return target.ToJsonString();
     }
 
-    /// <summary>A created event's body as Leaf stores it before Google answers.</summary>
+    /// <summary>A created event's body as Leaf Calendar stores it before Google answers.</summary>
     /// <exception cref="JsonException">The JSON is invalid or not an object.</exception>
     public static string AsLocal(string createdJson)
     {

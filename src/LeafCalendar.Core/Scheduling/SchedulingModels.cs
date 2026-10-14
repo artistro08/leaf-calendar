@@ -61,7 +61,7 @@ public sealed class SchedulingUnavailableException : Exception
     public SchedulingUnavailableException(string message, TimeSpan? retryAfter)
         : base(message) => RetryAfter = retryAfter;
 
-    /// <summary>How long the provider asked Leaf to wait (a 429's <c>Retry-After</c>), or null.</summary>
+    /// <summary>How long the provider asked Leaf Calendar to wait (a 429's <c>Retry-After</c>), or null.</summary>
     public TimeSpan? RetryAfter { get; }
 }
 

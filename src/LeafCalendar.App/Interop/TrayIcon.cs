@@ -11,7 +11,7 @@ using Windows.Win32.UI.WindowsAndMessaging;
 namespace LeafCalendar.App.Interop;
 
 /// <summary>
-/// Leaf's notification-area icon and the hidden window that receives its messages (spec 8.1).
+/// Leaf Calendar's notification-area icon and the hidden window that receives its messages (spec 8.1).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -33,7 +33,7 @@ namespace LeafCalendar.App.Interop;
 /// it), drawn at the taskbar's exact small-icon size (<see cref="TrayGlyph"/>), so it's never scaled.
 /// </para>
 /// <para>
-/// The icon has a fixed identity per profile (<c>NIF_GUID</c>), so an icon left behind by a Leaf that was killed or
+/// The icon has a fixed identity per profile (<c>NIF_GUID</c>), so an icon left behind by a Leaf Calendar that was killed or
 /// crashed is deleted when the next one adds its own. Windows ties the GUID to the signed package; when it refuses
 /// the GUID (an unsigned dev build that moved), the icon goes by window and ID as before. A crash removes the icon on
 /// the way out (<see cref="Dispose"/> from the App's crash handlers).
@@ -156,7 +156,7 @@ internal sealed unsafe class TrayIcon : IDisposable
 
     /// <summary>
     /// Shows or hides the icon (the hidden window stays either way: the global shortcuts are registered on it). Hidden,
-    /// Leaf runs in the background with nothing in the notification area.
+    /// Leaf Calendar runs in the background with nothing in the notification area.
     /// </summary>
     public void SetVisible(bool visible)
     {
@@ -236,7 +236,7 @@ internal sealed unsafe class TrayIcon : IDisposable
     }
 
     // Adds the icon (fails while Explorer isn't up yet at sign-in; TaskbarCreated adds it then). An icon a killed or
-    // crashed Leaf left with this identity goes first; if Windows refuses the identity, the icon goes by window and ID
+    // crashed Leaf Calendar left with this identity goes first; if Windows refuses the identity, the icon goes by window and ID
     private void Add()
     {
         LoadIcon();

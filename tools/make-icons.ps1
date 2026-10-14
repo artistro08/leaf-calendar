@@ -1,4 +1,4 @@
-# Renders Leaf's icons into src/LeafCalendar.App/Assets (see tools/make-icons.cjs): the MSIX visual assets and the
+# Renders Leaf Calendar's icons into src/LeafCalendar.App/Assets (see tools/make-icons.cjs): the MSIX visual assets and the
 # window/exe icon (LeafCalendar.ico) from tools/icons/leaf-calendar-main.svg, and the daily tray icons (white for dark
 # mode, black for light mode, at every small-icon size from 100% to 400% scale) from tools/icons/daily.
 # Uses resvg (https://github.com/yisibl/resvg-js), installed by npm into a temp folder; needs Node.js, no admin.

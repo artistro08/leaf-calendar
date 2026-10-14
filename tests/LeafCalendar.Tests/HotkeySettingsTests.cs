@@ -31,10 +31,10 @@ public sealed class HotkeySettingsTests
 
     [Theory]
     [InlineData(false, false, false, false, J)]   // No modifier
-    [InlineData(false, false, false, true, J)]    // Shift alone is a capital letter (PowerToys allows it; Leaf doesn't)
+    [InlineData(false, false, false, true, J)]    // Shift alone is a capital letter (PowerToys allows it; Leaf Calendar doesn't)
     [InlineData(false, true, true, false, 0)]     // Modifiers only
     [InlineData(false, true, false, false, F12)]  // Kept for debuggers
-    [InlineData(false, true, false, false, Left)] // Not a key Leaf registers
+    [InlineData(false, true, false, false, Left)] // Not a key Leaf Calendar registers
     [InlineData(true, false, false, false, L)]    // Windows' lock
     [InlineData(false, false, true, false, F4)]   // Windows' close
     [InlineData(false, false, false, false, Tab)] // Accessible (moves focus)

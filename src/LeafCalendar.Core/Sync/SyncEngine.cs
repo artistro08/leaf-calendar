@@ -256,7 +256,7 @@ public sealed class SyncEngine(GoogleCalendarClient google, LeafDatabase databas
                 calendars = CalendarStore.GetForAccount(conn, accountId);
             }
 
-            // Events Per Calendar (not those hidden from Google Calendar's list: they appear nowhere in Leaf; their sync
+            // Events Per Calendar (not those hidden from Google Calendar's list: they appear nowhere in Leaf Calendar; their sync
             // token picks up where it left off once they're shown again)
             foreach (var calendar in calendars.Where(c => !c.Hidden))
             {

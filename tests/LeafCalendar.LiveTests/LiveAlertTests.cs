@@ -34,7 +34,7 @@ public class LiveAlertTests
                 ["overrides"] = new JsonArray(new JsonObject { ["method"] = "popup", ["minutes"] = 3 }),
             }, ct);
 
-            // Sync, And Show The Test Calendar In Leaf
+            // Sync, And Show The Test Calendar In Leaf Calendar
             await live.Services.Sync.SyncAccountAsync(live.AccountId, ct);
             using var conn = live.Database.Open();
             CalendarStore.SetHidden(conn, live.AccountId, calendarId, false);

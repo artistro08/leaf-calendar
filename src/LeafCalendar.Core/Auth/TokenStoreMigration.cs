@@ -12,7 +12,7 @@ public static class TokenStoreMigration
     /// <para>The Locker's secrets that <c>secrets.bin</c> lacks (an account it has no refresh token for, and the OAuth client
     /// when it has none) are written to it in one write, and only then is the Locker emptied. <c>secrets.bin</c>'s own
     /// secrets are never replaced: they're newer (a sign-in since the move). So a first move, a move a passing Locker
-    /// failure put off while the user set Leaf up again, and a rebuild of a <c>secrets.bin</c> that's bad data (it reads as
+    /// failure put off while the user set Leaf Calendar up again, and a rebuild of a <c>secrets.bin</c> that's bad data (it reads as
     /// empty) are one path. When <c>secrets.bin</c> can't be read right now, nothing is touched until it can.</para>
     /// <para>When that write fails, this run uses the Locker (untouched) if <c>secrets.bin</c> holds nothing, or
     /// <c>secrets.bin</c> otherwise (the Locker keeps its leftovers); the next start tries again. When the Locker can't be

@@ -13,19 +13,19 @@ namespace LeafCalendar.Core.Api;
 /// </summary>
 public interface IApiHost
 {
-    /// <summary>The zone Leaf shows times in (your primary zone, else Windows').</summary>
+    /// <summary>The zone Leaf Calendar shows times in (your primary zone, else Windows').</summary>
     TimeZoneInfo Zone { get; }
 
     /// <summary>The current settings.</summary>
     LeafSettings Settings { get; }
 
-    /// <summary>Opens a link through Leaf's usual launch check; false when it didn't open.</summary>
+    /// <summary>Opens a link through Leaf Calendar's usual launch check; false when it didn't open.</summary>
     Task<bool> OpenLinkAsync(Uri link);
 
-    /// <summary>Brings Leaf forward on a day.</summary>
+    /// <summary>Brings Leaf Calendar forward on a day.</summary>
     void ShowDay(DateOnly day);
 
-    /// <summary>Brings Leaf forward with an event open.</summary>
+    /// <summary>Brings Leaf Calendar forward with an event open.</summary>
     void ShowEvent(CalendarOccurrence occurrence);
 
     /// <summary>Saved times were added, booked or deleted, so the calendar reads them again.</summary>

@@ -22,7 +22,7 @@ public sealed class SchedulingHubTests : IDisposable
     private readonly InMemoryTokenStore _tokens = new();
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 12, 17, 0, 0, TimeSpan.Zero));
 
-    // Never Cal.com's real port 53817: the owner's Leaf may be signing in on it
+    // Never Cal.com's real port 53817: the owner's Leaf Calendar may be signing in on it
     private readonly SchedulingProviderInfo _calcom = SchedulingProviders.Find("calcom")! with
     {
         OAuth = CalComProvider.OAuth with { RedirectPort = FreePort() },

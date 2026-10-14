@@ -19,7 +19,7 @@ using Xunit.v3;
 namespace LeafCalendar.UITests.Support;
 
 /// <summary>
-/// Launches the registered Leaf package with a throwaway profile and finds elements by automation ID.
+/// Launches the registered Leaf Calendar package with a throwaway profile and finds elements by automation ID.
 /// </summary>
 public sealed class LeafApp : IDisposable
 {
@@ -37,7 +37,7 @@ public sealed class LeafApp : IDisposable
     /// onboarding, whose title bar has another ID, is never mistaken for it.
     /// </summary>
     public Window MainWindow => Retry.WhileNull(FindMainWindow, TimeSpan.FromSeconds(20)).Result
-        ?? throw new InvalidOperationException("Leaf's main window didn't appear.");
+        ?? throw new InvalidOperationException("Leaf Calendar's main window didn't appear.");
 
     /// <summary>How many main windows are open right now (0 or 1).</summary>
     public int MainWindowCount() => App.GetAllTopLevelWindows(_automation).Count(IsMainWindow);
@@ -45,7 +45,7 @@ public sealed class LeafApp : IDisposable
     /// <summary>The Settings view's navigation, in the main window in place of the calendar (waits up to 15 s).</summary>
     public AutomationElement SettingsView =>
         Retry.WhileNull(() => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("SettingsNavigation")), TimeSpan.FromSeconds(15)).Result
-        ?? throw new InvalidOperationException("Leaf's Settings view didn't appear.");
+        ?? throw new InvalidOperationException("Leaf Calendar's Settings view didn't appear.");
 
     /// <summary>True while Settings shows in the main window.</summary>
     public bool IsSettingsOpen => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("SettingsNavigation")) is not null;
@@ -68,7 +68,7 @@ public sealed class LeafApp : IDisposable
 
     /// <summary>The first-run onboarding window (waits up to 20 s). Its window title differs from the main window's, so neither is mistaken for the other.</summary>
     public Window OnboardingWindow => TopLevelWindow("Set up Leaf Calendar", TimeSpan.FromSeconds(20))
-        ?? throw new InvalidOperationException("Leaf's onboarding window didn't appear.");
+        ?? throw new InvalidOperationException("Leaf Calendar's onboarding window didn't appear.");
 
     /// <summary>Waits up to 15 s for an element in the onboarding window by automation ID.</summary>
     public AutomationElement WaitInOnboarding(string automationId) =>
@@ -211,7 +211,7 @@ public sealed class LeafApp : IDisposable
     }
 
     /// <summary>
-    /// With the fake Google refusing connections, runs Sync now until the title bar shows Leaf is offline: syncing stays in
+    /// With the fake Google refusing connections, runs Sync now until the title bar shows Leaf Calendar is offline: syncing stays in
     /// the background, so the offline icon shows only once 3 syncs in a row couldn't reach Google, and the window's own
     /// loop only syncs every 15 s. A sync asked for while one runs is the same sync, so it keeps asking (up to 60 s).
     /// </summary>
@@ -222,7 +222,7 @@ public sealed class LeafApp : IDisposable
         {
             if (watch.Elapsed > TimeSpan.FromSeconds(60))
             {
-                throw new InvalidOperationException("Leaf never showed it was offline.");
+                throw new InvalidOperationException("Leaf Calendar never showed it was offline.");
             }
 
             SyncNow();
@@ -265,7 +265,7 @@ public sealed class LeafApp : IDisposable
     /// <summary>Creates a unique throwaway profile name.</summary>
     public static string NewProfile() => "uitest-" + Guid.NewGuid().ToString("N")[..12];
 
-    /// <summary>Launches Leaf with <c>--profile</c> plus extra arguments.</summary>
+    /// <summary>Launches Leaf Calendar with <c>--profile</c> plus extra arguments.</summary>
     public static LeafApp Launch(string? profile = null, string extraArguments = "") =>
         new(Application.LaunchStoreApp($"{Package.Id.FamilyName}!App", $"--profile {profile ?? NewProfile()} {extraArguments}".Trim()));
 
@@ -278,7 +278,7 @@ public sealed class LeafApp : IDisposable
         "profiles",
         profile);
 
-    /// <summary>IDs of the Leaf processes running with <paramref name="profile"/> (found by command line).</summary>
+    /// <summary>IDs of the Leaf Calendar processes running with <paramref name="profile"/> (found by command line).</summary>
     public static IReadOnlyList<int> ProcessIds(string profile)
     {
         var ids = new List<int>();
@@ -297,7 +297,7 @@ public sealed class LeafApp : IDisposable
     }
 
     /// <summary>
-    /// Ends any Leaf still running with the profile (e.g. one a helper launched before it threw, so no one disposed it),
+    /// Ends any Leaf Calendar still running with the profile (e.g. one a helper launched before it threw, so no one disposed it),
     /// waits for it to exit so leaf.db is closed, then deletes the profile's secrets and local files.
     /// </summary>
     public static void DeleteProfile(string profile)
@@ -414,8 +414,8 @@ public sealed class LeafApp : IDisposable
     public double Scale => NativeMethods.GetDpiForWindow(MainWindow.Properties.NativeWindowHandle.Value) / 96.0;
 
     /// <summary>
-    /// Links Leaf opened, oldest first (fake-Google mode records them instead of opening a browser). Read again for up
-    /// to a second while Leaf still has the file open for writing.
+    /// Links Leaf Calendar opened, oldest first (fake-Google mode records them instead of opening a browser). Read again for up
+    /// to a second while Leaf Calendar still has the file open for writing.
     /// </summary>
     public static IReadOnlyList<string> LaunchedLinks(string profile)
     {
@@ -433,7 +433,7 @@ public sealed class LeafApp : IDisposable
         }
     }
 
-    /// <summary>Notifications Leaf showed or withdrew, oldest first ("show" or "remove", group, tag, toast XML; fake-Google mode records them instead of showing them).</summary>
+    /// <summary>Notifications Leaf Calendar showed or withdrew, oldest first ("show" or "remove", group, tag, toast XML; fake-Google mode records them instead of showing them).</summary>
     public static IReadOnlyList<string> NotificationLines(string profile)
     {
         var file = Path.Combine(ProfileFolder(profile), "notifications.txt");
@@ -443,7 +443,7 @@ public sealed class LeafApp : IDisposable
         }
         catch (IOException)
         {
-            // Leaf is writing it; the next poll reads it
+            // Leaf Calendar is writing it; the next poll reads it
             return [];
         }
     }
@@ -451,7 +451,7 @@ public sealed class LeafApp : IDisposable
     /// <summary>Waits for a notification line matching <paramref name="match"/>.</summary>
     public static string WaitForNotification(string profile, Func<string, bool> match, int seconds = 60) =>
         Retry.WhileNull(() => NotificationLines(profile).FirstOrDefault(match), TimeSpan.FromSeconds(seconds)).Result
-        ?? throw new InvalidOperationException("Leaf didn't show the expected notification.");
+        ?? throw new InvalidOperationException("Leaf Calendar didn't show the expected notification.");
 
     /// <summary>Waits (up to 5 s) until <paramref name="element"/> stops moving on screen, so a navigation's scroll has landed.</summary>
     public static void WaitUntilStill(AutomationElement element)
@@ -537,7 +537,7 @@ public sealed class LeafApp : IDisposable
     /// <summary>The tray icon's "right-clicked" event (<c>WM_CONTEXTMENU</c>).</summary>
     public const uint TrayContextMenu = 0x007B;
 
-    /// <summary>The hidden window that owns this Leaf's tray icon, or 0 when there's none.</summary>
+    /// <summary>The hidden window that owns this Leaf Calendar's tray icon, or 0 when there's none.</summary>
     public nint TrayWindow()
     {
         var hwnd = nint.Zero;
@@ -564,13 +564,13 @@ public sealed class LeafApp : IDisposable
         Retry.WhileTrue(() => (hwnd = TrayWindow()) == nint.Zero, TimeSpan.FromSeconds(10));
         if (hwnd == nint.Zero)
         {
-            throw new InvalidOperationException("Leaf's tray icon window didn't appear.");
+            throw new InvalidOperationException("Leaf Calendar's tray icon window didn't appear.");
         }
 
         NativeMethods.PostMessage(hwnd, 0x8001, (nint)((y << 16) | (x & 0xFFFF)), (nint)((1 << 16) | (int)trayEvent));
     }
 
-    /// <summary>True while this Leaf's invisible tray host window (the menu's and the flyout's anchor) is shown.</summary>
+    /// <summary>True while this Leaf Calendar's invisible tray host window (the menu's and the flyout's anchor) is shown.</summary>
     public bool IsTrayHostShown()
     {
         var hwnd = nint.Zero;
@@ -591,14 +591,14 @@ public sealed class LeafApp : IDisposable
         PostTrayMessage(TrayContextMenu, NativeMethods.GetSystemMetrics(NativeMethods.PrimaryScreenWidth) - 100, NativeMethods.GetSystemMetrics(NativeMethods.PrimaryScreenHeight) - 20);
 
     /// <summary>
-    /// Waits up to 15 s for an element in any of this Leaf's top-level windows or popups (the tray menu and flyout open
+    /// Waits up to 15 s for an element in any of this Leaf Calendar's top-level windows or popups (the tray menu and flyout open
     /// in popups of their own, which aren't always reported as windows).
     /// </summary>
     public AutomationElement WaitForPopup(string automationId) =>
         Retry.WhileNull(() => FindInPopups(automationId), TimeSpan.FromSeconds(15)).Result
         ?? throw new InvalidOperationException($"Element '{automationId}' didn't appear in any window or popup.");
 
-    /// <summary>True when an element with this ID is currently in one of this Leaf's windows or popups.</summary>
+    /// <summary>True when an element with this ID is currently in one of this Leaf Calendar's windows or popups.</summary>
     public bool PopupExists(string automationId) => FindInPopups(automationId) is not null;
 
     private AutomationElement? FindInPopups(string automationId) =>

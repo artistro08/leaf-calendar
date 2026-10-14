@@ -16,7 +16,7 @@ public static class ApiApprovalText
     // Longer than any path Windows reports (the pipe reads 1,024 characters at most)
     private const int MaxPathLength = 2048;
 
-    /// <summary>"{name} wants to connect to Leaf"; a name that cleans to nothing (only invisible characters) becomes the file name.</summary>
+    /// <summary>"{name} wants to connect to Leaf Calendar"; a name that cleans to nothing (only invisible characters) becomes the file name.</summary>
     public static string Headline(ApiCaller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
@@ -26,7 +26,7 @@ public static class ApiApprovalText
             name = DisplayText.Clean(Path.GetFileNameWithoutExtension(caller.Path), MaxNameLength);
         }
 
-        return $"{name} wants to connect to Leaf";
+        return $"{name} wants to connect to Leaf Calendar";
     }
 
     /// <summary>

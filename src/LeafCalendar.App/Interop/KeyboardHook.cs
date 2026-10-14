@@ -4,7 +4,7 @@
 //
 // Ported from PowerToys: src/common/interop/KeyboardHook.cpp (Start, Close, HookProc) and
 // src/common/ManagedCommon/HotkeySettingsControlHook.cs (https://github.com/microsoft/PowerToys).
-// Leaf changes: C# through CsWin32 without marshaling, so the hook procedure is a static [UnmanagedCallersOnly] function
+// Leaf Calendar changes: C# through CsWin32 without marshaling, so the hook procedure is a static [UnmanagedCallersOnly] function
 // (no delegate for the GC to collect); one instance at a time (there's one shortcut dialog); no exception may leave the
 // hook procedure (a failing callback lets the key through).
 

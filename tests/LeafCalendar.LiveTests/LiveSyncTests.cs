@@ -23,15 +23,15 @@ public class LiveSyncTests
         try
         {
             // Create
-            var eventId = await google.InsertEventAsync(calendarId, "Leaf live create", ct);
+            var eventId = await google.InsertEventAsync(calendarId, "Leaf Calendar live create", ct);
             await live.Services.Sync.SyncAccountAsync(live.AccountId, ct);
-            Assert.Contains("Leaf live create", Get(live, calendarId, eventId)!.RawJson, StringComparison.Ordinal);
+            Assert.Contains("Leaf Calendar live create", Get(live, calendarId, eventId)!.RawJson, StringComparison.Ordinal);
 
             // Update (incremental)
             var token = SyncToken(live, calendarId);
-            await google.PatchSummaryAsync(calendarId, eventId, "Leaf live update", ct);
+            await google.PatchSummaryAsync(calendarId, eventId, "Leaf Calendar live update", ct);
             await live.Services.Sync.SyncAccountAsync(live.AccountId, ct);
-            Assert.Contains("Leaf live update", Get(live, calendarId, eventId)!.RawJson, StringComparison.Ordinal);
+            Assert.Contains("Leaf Calendar live update", Get(live, calendarId, eventId)!.RawJson, StringComparison.Ordinal);
             Assert.NotEqual(token, SyncToken(live, calendarId));
 
             // Delete
@@ -69,7 +69,7 @@ public class LiveSyncTests
                 ct);
             var expected = await google.ListInstanceStartsAsync(calendarId, eventId, ct);
 
-            // Expand from what Leaf synced, exactly as the views will
+            // Expand from what Leaf Calendar synced, exactly as the views will
             await live.Services.Sync.SyncAccountAsync(live.AccountId, ct);
             using var raw = JsonDocument.Parse(Get(live, calendarId, eventId)!.RawJson);
             var start = raw.RootElement.GetProperty("start");

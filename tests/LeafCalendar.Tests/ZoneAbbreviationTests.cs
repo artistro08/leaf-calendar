@@ -80,7 +80,7 @@ public class ZoneAbbreviationTests
     [Fact]
     public void For_CustomZone_FallsBackToTheOffset()
     {
-        var custom = TimeZoneInfo.CreateCustomTimeZone("Leaf/Test", TimeSpan.FromHours(3), "Test", "Test");
+        var custom = TimeZoneInfo.CreateCustomTimeZone("Leaf Calendar/Test", TimeSpan.FromHours(3), "Test", "Test");
 
         Assert.Equal("UTC+3", ZoneAbbreviation.For(custom, July));
     }

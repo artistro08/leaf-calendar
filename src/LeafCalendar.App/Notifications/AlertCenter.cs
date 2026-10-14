@@ -9,7 +9,7 @@ using LeafCalendar.Core.Sync;
 namespace LeafCalendar.App.Notifications;
 
 /// <summary>
-/// Turns Leaf's alerts into Windows notifications (spec 8.4): reminders at Google's reminder times, the persistent
+/// Turns Leaf Calendar's alerts into Windows notifications (spec 8.4): reminders at Google's reminder times, the persistent
 /// "Join now" at start (withdrawn once its meeting ends, moves, or is declined), new and updated invitations,
 /// "1 change needs your review" (spec 5.5), and "Sign in again" (spec 4.2).
 /// </summary>
@@ -247,7 +247,7 @@ internal sealed class AlertCenter : IDisposable
 
     private void OnSignInNeeded(object? sender, string accountId) => ShowSignIn(a => a.Id == accountId);
 
-    // At Start: accounts whose sign-in stopped working while Leaf wasn't running (each toast replaces its earlier one)
+    // At Start: accounts whose sign-in stopped working while Leaf Calendar wasn't running (each toast replaces its earlier one)
     private void ShowSignInsNeeded() => ShowSignIn(a => a.Status == AccountStatus.NeedsSignIn);
 
     private void ShowSignIn(Func<Account, bool> which)

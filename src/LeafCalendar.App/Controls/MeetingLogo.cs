@@ -34,7 +34,7 @@ public sealed partial class MeetingLogo : UserControl
         Show();
     }
 
-    /// <summary>The meeting service, or null for a link Leaf doesn't recognize.</summary>
+    /// <summary>The meeting service, or null for a link Leaf Calendar doesn't recognize.</summary>
     public MeetingProvider? Provider
     {
         get => _provider;

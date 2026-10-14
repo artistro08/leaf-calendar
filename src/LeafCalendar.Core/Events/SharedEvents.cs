@@ -10,7 +10,7 @@ namespace LeafCalendar.Core.Events;
 /// <remarks>
 /// Copies are the same event when they share Google's iCalendar UID and the same start, end, and all-day flag, and sit
 /// on different calendars. One copy is drawn (and selected, opened, and edited): the one <c>preference</c> ranks lowest
-/// (Leaf ranks a calendar you can edit, then your main account, first), else the first in the input. It takes the place
+/// (Leaf Calendar ranks a calendar you can edit, then your main account, first), else the first in the input. It takes the place
 /// of the group's first copy, so the input order holds; the others are remembered as stripes and as aliases of the
 /// drawn one. Events without a UID are never merged.
 /// </remarks>

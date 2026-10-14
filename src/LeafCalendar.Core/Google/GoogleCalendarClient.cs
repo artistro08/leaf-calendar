@@ -11,7 +11,7 @@ using LeafCalendar.Core.Auth;
 namespace LeafCalendar.Core.Google;
 
 /// <summary>
-/// Google Calendar REST API v3 calls Leaf needs for sync and for sending edits.
+/// Google Calendar REST API v3 calls Leaf Calendar needs for sync and for sending edits.
 /// </summary>
 /// <remarks>
 /// Events are listed with <c>singleEvents=false</c> so repeating events arrive as one master plus
@@ -74,10 +74,10 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
     // =========================================================================
 
     /// <summary>
-    /// Creates an event with Leaf's own ID and returns Google's JSON for it. A body carrying <c>conferenceData</c>
+    /// Creates an event with Leaf Calendar's own ID and returns Google's JSON for it. A body carrying <c>conferenceData</c>
     /// is sent with <c>conferenceDataVersion=1</c>, so its create request makes a new Meet link.
     /// </summary>
-    /// <exception cref="ArgumentException"><paramref name="eventJson"/> has no <c>id</c>; Leaf always makes its own so a retry can't duplicate.</exception>
+    /// <exception cref="ArgumentException"><paramref name="eventJson"/> has no <c>id</c>; Leaf Calendar always makes its own so a retry can't duplicate.</exception>
     /// <exception cref="DuplicateEventException">The ID exists already (an earlier try got through).</exception>
     public async Task<string> InsertEventAsync(string accountId, string calendarId, string eventJson, bool sendUpdates, CancellationToken ct)
     {
@@ -251,7 +251,7 @@ public sealed class GoogleCalendarClient(HttpClient http, AccessTokenProvider to
 
     private static string Updates(bool sendUpdates) => sendUpdates ? "all" : "none";
 
-    // Maps write statuses to Leaf's exceptions; success returns the body ("" for 204).
+    // Maps write statuses to Leaf Calendar's exceptions; success returns the body ("" for 204).
     // A 409 means "that ID exists" only for an insert; elsewhere it stays a GoogleApiException (a permanent refusal).
     // A 404 or 410 means "the event is gone" except for an insert, where it's the calendar (also a permanent refusal)
     private static async Task<string> ReadEventAsync(HttpResponseMessage response, CancellationToken ct, bool isInsert = false)

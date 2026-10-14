@@ -16,7 +16,7 @@
         <InternalsVisibleTo Include="LeafCalendar.Tests" />
     </ItemGroup>
 
-    <!-- Leaf's icon on the browser sign-in page (LoopbackListener) -->
+    <!-- Leaf Calendar's icon on the browser sign-in page (LoopbackListener) -->
     <ItemGroup>
         <EmbeddedResource Include="..\LeafCalendar.App\Assets\Square44x44Logo.targetsize-64_altform-unplated.png" LogicalName="LeafCalendar.Core.Auth.SignInIcon.png" Link="Auth\SignInIcon.png" />
     </ItemGroup>

@@ -4,11 +4,11 @@ using Microsoft.Data.Sqlite;
 
 namespace LeafCalendar.Core.Data;
 
-/// <summary>A notification Leaf showed: its key, kind, Windows tag, and when its event ends.</summary>
+/// <summary>A notification Leaf Calendar showed: its key, kind, Windows tag, and when its event ends.</summary>
 public sealed record LedgerEntry(string Key, AlertKind Kind, string Tag, DateTimeOffset EventEnd);
 
 /// <summary>
-/// Reads and writes the <c>alert_ledger</c> table, Leaf's memory of the notifications it already showed.
+/// Reads and writes the <c>alert_ledger</c> table, Leaf Calendar's memory of the notifications it already showed.
 /// </summary>
 /// <remarks>
 /// Rows stay until their event has been over for a while (<see cref="Prune"/>), so an invite for a meeting weeks away

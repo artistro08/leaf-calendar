@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 namespace LeafCalendar.Core.Data;
 
 /// <summary>
-/// Leaf's local SQLite database (one file per profile).
+/// Leaf Calendar's local SQLite database (one file per profile).
 /// </summary>
 /// <remarks>
 /// Uses WAL mode so the UI can read while sync writes. Every connection turns on foreign keys,

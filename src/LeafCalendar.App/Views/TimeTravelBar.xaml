@@ -25,7 +25,7 @@
             </InfoBar.ActionButton>
         </InfoBar>
 
-        <!-- Zone Switch Offer (Windows moved to another zone while Leaf's primary zone is pinned) -->
+        <!-- Zone Switch Offer (Windows moved to another zone while Leaf Calendar's primary zone is pinned) -->
         <InfoBar
             CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
             x:Name="ZoneSwitchBar"

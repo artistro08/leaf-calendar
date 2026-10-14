@@ -1,6 +1,6 @@
 namespace LeafCalendar.Core.Events;
 
-/// <summary>Google's event type, as Leaf draws it.</summary>
+/// <summary>Google's event type, as Leaf Calendar draws it.</summary>
 public enum EventKind
 {
     /// <summary>Ordinary event.</summary>
@@ -36,7 +36,7 @@ public enum ResponseStatus
 }
 
 /// <summary>
-/// What Leaf shows about one event, read from Google's stored JSON. Everything here comes from people
+/// What Leaf Calendar shows about one event, read from Google's stored JSON. Everything here comes from people
 /// who can send you invites, so it is displayed as plain text only.
 /// </summary>
 /// <param name="Title">The event's title, or "(No title)" when it has none.</param>

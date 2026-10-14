@@ -11,20 +11,20 @@ using WinRT;
 
 namespace LeafCalendar.App;
 
-/// <summary>A later launch handed to the running Leaf: how it was started, and its arguments when it has any.</summary>
+/// <summary>A later launch handed to the running Leaf Calendar: how it was started, and its arguments when it has any.</summary>
 /// <param name="Kind">How it was started.</param>
 /// <param name="Arguments">The notification's argument or the command line, when there is one.</param>
 /// <param name="ReadError">The exception type when the activation couldn't be read (logged by the App), else null.</param>
 internal sealed record Activation(ExtendedActivationKind Kind, string? Arguments, string? ReadError = null);
 
 /// <summary>
-/// Entry point. Leaf runs once per profile: a second launch with the same profile hands its activation to the running
-/// Leaf and exits. How this process was started (a plain launch, Windows' sign-in startup task, a notification, or the
+/// Entry point. Leaf Calendar runs once per profile: a second launch with the same profile hands its activation to the running
+/// Leaf Calendar and exits. How this process was started (a plain launch, Windows' sign-in startup task, a notification, or the
 /// <c>leaf-calendar:</c> link) is kept for the App.
 /// </summary>
 public static class Program
 {
-    // How long a second launch waits for the running Leaf to take its activation before giving up and exiting
+    // How long a second launch waits for the running Leaf Calendar to take its activation before giving up and exiting
     private const uint RedirectTimeoutMs = 10_000;
 
     // Redirected Activations: one can arrive before the app is ready for it, so it waits here until the app is
@@ -44,20 +44,20 @@ public static class Program
     /// <summary>The exception type when this launch's activation couldn't be read (the log doesn't exist yet), else null.</summary>
     internal static string? StartReadError { get; private set; }
 
-    /// <summary>True when Main registered for notifications (a click started Leaf), so Notifier only takes over the clicks.</summary>
+    /// <summary>True when Main registered for notifications (a click started Leaf Calendar), so Notifier only takes over the clicks.</summary>
     internal static bool NotificationsRegistered { get; private set; }
 
-    // The command line argument Package.appxmanifest's COM server starts Leaf with for a notification click
+    // The command line argument Package.appxmanifest's COM server starts Leaf Calendar with for a notification click
     private const string ToastLaunchArgument = "----AppNotificationActivated:";
 
-    /// <summary>Redirects to the running Leaf for this profile, or starts the app.</summary>
+    /// <summary>Redirects to the running Leaf Calendar for this profile, or starts the app.</summary>
     [STAThread]
     private static void Main(string[] args)
     {
         WinRT.ComWrappersSupport.InitializeComWrappers();
         Options = LaunchOptions.Parse(args);
 
-        // A Notification Click That Started Leaf Can Only Be Read After Registering, As Windows App SDK Requires (the
+        // A Notification Click That Started Leaf Calendar Can Only Be Read After Registering, As Windows App SDK Requires (the
         // manifest's COM server argument marks that launch; Notifier registers every other launch once the tray starts)
         if (Options.FakeGoogle is null && Environment.CommandLine.Contains(ToastLaunchArgument, StringComparison.Ordinal))
         {
@@ -70,10 +70,10 @@ public static class Program
         StartKind = started.Kind;
         StartReadError = started.ReadError;
 
-        // A leaf-calendar: Link Only Brings Leaf Forward: its address (which may arrive as the command line) is never read
+        // A leaf-calendar: Link Only Brings Leaf Calendar Forward: its address (which may arrive as the command line) is never read
         Options = LaunchOptions.Parse(started.Kind == ExtendedActivationKind.Protocol ? [] : args);
 
-        // A Notification Click That Started Leaf Belongs To The Profile It Names (Windows starts it without --profile)
+        // A Notification Click That Started Leaf Calendar Belongs To The Profile It Names (Windows starts it without --profile)
         if (started.Kind == ExtendedActivationKind.AppNotification)
         {
             StartArgument = started.Arguments;
@@ -189,11 +189,11 @@ public static class Program
     }
 
     // Microsoft's documented pattern: redirect on a background thread while this STA thread waits with COM pumping,
-    // so the redirect can't deadlock it. The wait is bounded: a running Leaf that never answers doesn't keep this
+    // so the redirect can't deadlock it. The wait is bounded: a running Leaf Calendar that never answers doesn't keep this
     // process around; it just exits.
     private static unsafe void RedirectTo(AppInstance main, AppActivationArguments args)
     {
-        // This process was just launched by the user, so it may hand the foreground to the running Leaf
+        // This process was just launched by the user, so it may hand the foreground to the running Leaf Calendar
         PInvoke.AllowSetForegroundWindow(main.ProcessId);
 
         var redirect = Task.Run(() => main.RedirectActivationToAsync(args).AsTask().Wait());
