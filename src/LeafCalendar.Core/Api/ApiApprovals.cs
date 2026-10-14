@@ -32,9 +32,71 @@ public sealed class ApiApprovals(TimeProvider time)
     /// <summary>How long a connection waits for your answer.</summary>
     public static readonly TimeSpan Wait = TimeSpan.FromSeconds(60);
 
+    /// <summary>How long an app that asked to be asked from a link (<see cref="WaitForLink"/>) waits for that link.</summary>
+    public static readonly TimeSpan LinkWait = TimeSpan.FromMinutes(5);
+
     private readonly Lock _gate = new();
     private readonly Dictionary<string, (PendingApproval Request, TaskCompletionSource<bool> Answer)> _pending = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _refused = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, (ApiCaller Caller, DateTimeOffset Until)> _linked = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Holds the question for <paramref name="caller"/> until <c>leaf-calendar://connect?code=<paramref name="code"/></c>
+    /// opens, within <see cref="LinkWait"/>; a newer code from the same path replaces an older one. False (nothing held)
+    /// when you chose Don't allow for this path since Leaf Calendar started.
+    /// </summary>
+    public bool WaitForLink(ApiCaller caller, string code)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        ArgumentException.ThrowIfNullOrEmpty(code);
+
+        lock (_gate)
+        {
+            if (_refused.Contains(caller.Path))
+            {
+                return false;
+            }
+
+            // Expired Codes And This Path's Older Code Go
+            var now = time.GetUtcNow();
+            foreach (var (old, waiting) in _linked)
+            {
+                if (waiting.Until <= now || string.Equals(waiting.Caller.Path, caller.Path, StringComparison.OrdinalIgnoreCase))
+                {
+                    _linked.Remove(old);
+                }
+            }
+
+            _linked[code] = (caller, now + LinkWait);
+            return true;
+        }
+    }
+
+    /// <summary>The app a connect link's code belongs to, once (the code is used up), or null when unknown or expired.</summary>
+    public ApiCaller? TakeLinked(string code)
+    {
+        lock (_gate)
+        {
+            if (!_linked.Remove(code, out var waiting))
+            {
+                return null;
+            }
+
+            return waiting.Until > time.GetUtcNow() && !_refused.Contains(waiting.Caller.Path) ? waiting.Caller : null;
+        }
+    }
+
+    /// <summary>
+    /// True while a connect link's code still waits: not opened yet, within <see cref="LinkWait"/>, and its path not
+    /// refused, so the app's later lines are told to open the link rather than asked about at once.
+    /// </summary>
+    public bool IsWaitingForLink(string code)
+    {
+        lock (_gate)
+        {
+            return _linked.TryGetValue(code, out var waiting) && waiting.Until > time.GetUtcNow() && !_refused.Contains(waiting.Caller.Path);
+        }
+    }
 
     /// <summary>True when you chose Don't allow for this path since Leaf Calendar started.</summary>
     public bool IsRefused(string path)

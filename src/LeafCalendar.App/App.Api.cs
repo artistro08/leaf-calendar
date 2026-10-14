@@ -75,13 +75,15 @@ public partial class App
                 return;
             }
 
-            _approvals ??= new ApiApprovals(services.Time);
+            var approvals = _approvals ??= new ApiApprovals(services.Time);
             var context = new ApiContext(services.Database, services.Editor, services.Scheduling, new ApiHost(this), services.Time, LeafVersion(), services.Options.Profile, services.Bookings);
             var server = new ApiPipeServer(
                 ApiClients.PipeName(Environment.UserName, services.Options.Profile),
                 new ApiDispatcher(context, services.Log),
                 IsApprovedApp,
                 ApproveAsync,
+                WaitForLink,
+                approvals.IsWaitingForLink,
                 services.Log);
             var started = server.Start();
             _api = started ? server : null;
@@ -143,6 +145,26 @@ public partial class App
             {
                 _dispatcher.TryEnqueue(() => EndApproval(asked));
             }
+        }
+    }
+
+    // A new program sent an askOnLink code (on a pipe thread): its question waits for its connect link; false when you
+    // chose Don't allow for it since Leaf Calendar started
+    private bool WaitForLink(ApiCaller caller) =>
+        caller.Hello.LinkCode is { } code && _approvals is { } approvals && approvals.WaitForLink(caller, code);
+
+    // Its connect link opened (on the UI thread): the same question, window and 60-second wait as a first connection,
+    // closed if the API stops; the waiting connection hears the answer at its next line. Fire and forget, so nothing
+    // may escape
+    private async Task AskFromLinkAsync(ApiCaller caller, CancellationToken ct)
+    {
+        try
+        {
+            await ApproveAsync(caller, ct);
+        }
+        catch (Exception ex)
+        {
+            _services?.Log.Info("api.link.failed", $"error={ex.GetType().Name}");
         }
     }
 

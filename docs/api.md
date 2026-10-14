@@ -66,18 +66,34 @@ Says which Leaf Calendar you're talking to. `client` is your app's name; Leaf Ca
 {"jsonrpc":"2.0","id":1,"result":{"leafVersion":"0.1.308","apiVersion":1,"profile":"default"}}
 ```
 
-Two optional params count only when `leaf.hello` is the **first** message on the connection, since that's when Leaf Calendar asks the person. Later, or once your app is approved, they're accepted and ignored. Leaf Calendar keeps neither.
+Three optional params count only when `leaf.hello` is the **first** message on the connection, since that's when Leaf Calendar asks the person. Later, or once your app is approved, they're accepted and ignored. Leaf Calendar keeps none of them.
 
 | Param | Rules | When it breaks a rule |
 | --- | --- | --- |
 | `icon` | Base64 PNG, at most 64 KB decoded, at most 256 × 256 pixels. The approval window shows it in place of your program's icon. | Ignored: the window shows your program's icon. So does an icon that passes these rules but Windows can't decode. |
 | `returnUrl` | An absolute link to your app's own scheme, at most 2,048 characters, no user info. Not `http`, `https`, `microsoft-edge`, `file`, `ftp`, `javascript`, `data`, `shell`, `search-ms`, `search`, or any `ms-` scheme. | Ignored. |
+| `askOnLink` | A random code you make, 32 to 128 letters, digits, `-` or `_` (16 random bytes as hex is enough). Leaf Calendar waits to ask until the person opens `leaf-calendar://connect?code=<the code>`. | Ignored: Leaf Calendar asks right away. |
 
 ```json
 {"jsonrpc":"2.0","id":1,"method":"leaf.hello","params":{"client":"My extension","icon":"iVBORw0KGgo…","returnUrl":"raycast://extensions/me/leaf"}}
 ```
 
 After **Allow**, Leaf Calendar opens `returnUrl`; without one it brings your program's main window to the front.
+
+#### Asking From Your Own Button
+
+Send `askOnLink` when your app has its own "Sign in" or "Connect" button, so the Allow window shows when the person presses it instead of as soon as you connect:
+
+1. Send the first `leaf.hello` with `askOnLink`. An app that's already allowed gets the usual result. One that isn't gets the `approval_needed` error at once, and the connection stays open. Every request you send before the person opens the link gets the same error.
+2. When the person presses your button, open `leaf-calendar://connect?code=<the code>`. Leaf Calendar shows the Allow window. The code works once, for 5 minutes; after that, your next request asks right away.
+3. After **Allow**, Leaf Calendar opens `returnUrl`. Send your next request on the same connection; it's answered as an allowed app's. After **Don't allow**, it gets `not_approved`.
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"leaf.hello","params":{"client":"My extension","returnUrl":"raycast://oauth?package_name=Extension&code=allowed&state=…","askOnLink":"9f86d081884c7d659a2feaa0c55ad015"}}
+{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"Open leaf-calendar://connect?code=<your askOnLink code> so Leaf Calendar asks to allow this app.","data":{"code":"approval_needed"}}}
+```
+
+Leaf Calendar reads nothing else from a `leaf-calendar:` link. Any other link, or a code it isn't waiting for, only brings Leaf Calendar to the front.
 
 `apiVersion` changes only when a method or field is removed or changes meaning. New methods and fields don't change it.
 
@@ -299,6 +315,7 @@ Leaf Calendar's own errors use `-32000` with a short code in `data.code`:
 | `data.code` | When |
 | --- | --- |
 | `not_approved` | You chose Don't allow, the approval timed out, or the app was removed. The connection closes. |
+| `approval_needed` | Your first `leaf.hello` sent `askOnLink` and your app isn't allowed yet. Open the connect link; the connection stays open. |
 | `not_found` | No event, calendar, link or saved times with that ID. |
 | `taken` | That time isn't open on the scheduling provider anymore. |
 | `read_only` | You can't change that event or calendar. |

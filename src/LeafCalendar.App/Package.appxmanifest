@@ -42,7 +42,7 @@
           <uap5:StartupTask TaskId="LeafCalendarStartup" Enabled="true" DisplayName="Leaf Calendar" />
         </uap5:Extension>
 
-        <!-- leaf-calendar: (the sign-in pages' "Open Leaf Calendar" link) only brings Leaf Calendar to the front; the address is never read -->
+        <!-- leaf-calendar: (the sign-in pages' "Open Leaf Calendar" link) brings Leaf Calendar to the front; only a connect link's code is read (an app's waiting Allow question) -->
         <uap:Extension Category="windows.protocol">
           <uap:Protocol Name="leaf-calendar">
             <uap:DisplayName>Leaf Calendar</uap:DisplayName>

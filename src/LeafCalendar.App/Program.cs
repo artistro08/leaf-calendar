@@ -160,7 +160,8 @@ public static class Program
     /// <summary>Stops Main's click handler once Notifier's is attached.</summary>
     internal static void ReleaseNotifications() => AppNotificationManager.Default.NotificationInvoked -= OnEarlyNotification;
 
-    // What an activation carries: a notification's argument, or a plain launch's command line. The WinRT payload is read
+    // What an activation carries: a notification's argument, a plain launch's command line, or a link's address (read
+    // only by ApiHello.ReadConnectLink, which takes nothing but a connect link's code). The WinRT payload is read
     // through As<T>(), which Native AOT supports (a C# cast of a WinRT object read back isn't safe there).
     private static Activation Read(AppActivationArguments args)
     {
@@ -177,6 +178,7 @@ public static class Program
             {
                 ExtendedActivationKind.AppNotification => new Activation(kind, args.Data.As<AppNotificationActivatedEventArgs>().Argument),
                 ExtendedActivationKind.Launch => new Activation(kind, args.Data.As<Windows.ApplicationModel.Activation.ILaunchActivatedEventArgs>().Arguments),
+                ExtendedActivationKind.Protocol => new Activation(kind, args.Data.As<Windows.ApplicationModel.Activation.IProtocolActivatedEventArgs>().Uri?.OriginalString),
                 _ => new Activation(kind, null),
             };
         }

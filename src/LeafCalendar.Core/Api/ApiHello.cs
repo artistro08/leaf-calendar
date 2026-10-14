@@ -16,9 +16,24 @@ namespace LeafCalendar.Core.Api;
 /// <param name="Icon">The checked PNG, or empty.</param>
 /// <param name="ReturnUrl">The checked return link, or null.</param>
 /// <param name="Log">For the log: whether each was <c>ok</c>, <c>none</c> (not sent) or <c>refused</c> (broke a rule); never the values.</param>
-public sealed record ApiHello(ReadOnlyMemory<byte> Icon, Uri? ReturnUrl, string Log = ApiHello.NoneLog)
+/// <param name="LinkCode">
+/// The checked <c>askOnLink</c> code, or null: the app asks to be asked only once you open
+/// <c>leaf-calendar://connect?code=…</c> (such as from its own "Sign in" button), not as soon as it connects.
+/// </param>
+public sealed record ApiHello(ReadOnlyMemory<byte> Icon, Uri? ReturnUrl, string Log = ApiHello.NoneLog, string? LinkCode = null)
 {
-    private const string NoneLog = "icon=none returnUrl=none";
+    private const string NoneLog = "icon=none returnUrl=none askOnLink=none";
+
+    /// <summary>The fewest characters a link code may have (128 random bits as hex).</summary>
+    public const int MinLinkCodeLength = 32;
+
+    /// <summary>The most characters a link code may have.</summary>
+    public const int MaxLinkCodeLength = 128;
+
+    // The Only Link Leaf Calendar Reads: leaf-calendar://connect?code=<code>
+    private const string ConnectScheme = "leaf-calendar";
+    private const string ConnectHost = "connect";
+    private const string ConnectQuery = "?code=";
 
     /// <summary>The most bytes an icon may have, decoded.</summary>
     public const int MaxIconBytes = 65_536;
@@ -62,8 +77,9 @@ public sealed record ApiHello(ReadOnlyMemory<byte> Icon, Uri? ReturnUrl, string 
 
         var icon = ReadIcon(p.Icon);
         var link = ReadReturnUrl(p.ReturnUrl);
-        var log = $"icon={Status(p.Icon, !icon.IsEmpty)} returnUrl={Status(p.ReturnUrl, link is not null)}";
-        return log == NoneLog ? None : new ApiHello(icon, link, log);
+        var code = ReadLinkCode(p.AskOnLink);
+        var log = $"icon={Status(p.Icon, !icon.IsEmpty)} returnUrl={Status(p.ReturnUrl, link is not null)} askOnLink={Status(p.AskOnLink, code is not null)}";
+        return log == NoneLog ? None : new ApiHello(icon, link, log, code);
     }
 
     // What the log says about one param: ok, none (not sent), or refused (sent, but broke a rule)
@@ -108,5 +124,33 @@ public sealed record ApiHello(ReadOnlyMemory<byte> Icon, Uri? ReturnUrl, string 
 
         var refused = RefusedSchemes.Contains(link.Scheme) || link.Scheme.StartsWith("ms-", StringComparison.OrdinalIgnoreCase) || link.UserInfo.Length > 0;
         return refused ? null : link;
+    }
+
+    /// <summary>
+    /// The link code, or null unless it's <see cref="MinLinkCodeLength"/> to <see cref="MaxLinkCodeLength"/> letters,
+    /// digits, <c>-</c> or <c>_</c> (enough to be unguessable, and nothing a link could smuggle more into).
+    /// </summary>
+    public static string? ReadLinkCode(string? code) =>
+        code is { Length: >= MinLinkCodeLength and <= MaxLinkCodeLength } && code.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_') ? code : null;
+
+    /// <summary>
+    /// The code in a <c>leaf-calendar://connect?code=…</c> link, or null for any other link. Activation input is
+    /// untrusted, so nothing else in a link is ever read: any other host, path, query param or user info makes it null.
+    /// </summary>
+    public static string? ReadConnectLink(string? text)
+    {
+        if (string.IsNullOrEmpty(text) || !Uri.TryCreate(text, UriKind.Absolute, out var link))
+        {
+            return null;
+        }
+
+        var isConnect = string.Equals(link.Scheme, ConnectScheme, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(link.Host, ConnectHost, StringComparison.OrdinalIgnoreCase)
+            && link.UserInfo.Length == 0
+            && link.IsDefaultPort
+            && link.AbsolutePath is "" or "/"
+            && link.Fragment.Length == 0
+            && link.Query.StartsWith(ConnectQuery, StringComparison.Ordinal);
+        return isConnect ? ReadLinkCode(link.Query[ConnectQuery.Length..]) : null;
     }
 }
