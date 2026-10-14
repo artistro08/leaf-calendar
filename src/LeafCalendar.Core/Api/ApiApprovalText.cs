@@ -39,10 +39,13 @@ public static class ApiApprovalText
         return DisplayText.Clean(caller.Path, MaxPathLength);
     }
 
-    /// <summary>The warning for a program that runs other scripts (Node, Python, PowerShell and the like), or null.</summary>
+    /// <summary>
+    /// The warning for a program that runs other scripts (Node, Python, PowerShell and the like), or null. A runtime inside
+    /// its own app package's folder only runs that app's scripts, so it gets none.
+    /// </summary>
     public static string? RuntimeWarning(ApiCaller caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        return ApiClients.IsGeneralRuntime(caller.Path) ? $"Allowing {Path.GetFileName(caller.Path)} to connect will give access to all of your calendars." : null;
+        return !caller.Packaged && ApiClients.IsGeneralRuntime(caller.Path) ? $"Allowing {Path.GetFileName(caller.Path)} to connect will give access to all of your calendars." : null;
     }
 }

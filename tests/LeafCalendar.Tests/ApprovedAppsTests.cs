@@ -22,8 +22,26 @@ public sealed class ApprovedAppsTests
     {
         var settings = new LeafSettings().WithApprovedApp(App(@"C:\Apps\Raycast\node.exe"));
 
-        Assert.True(settings.IsApproved(@"c:\apps\raycast\NODE.EXE"));
-        Assert.False(settings.IsApproved(@"C:\Apps\Other\node.exe"));
+        Assert.True(settings.IsApproved(@"c:\apps\raycast\NODE.EXE", packaged: false));
+        Assert.False(settings.IsApproved(@"C:\Apps\Other\node.exe", packaged: false));
+    }
+
+    [Fact]
+    public void IsApproved_AppApprovedInsideItsPackage_OnlyWhileItStillRunsAsThatPackage()
+    {
+        var settings = new LeafSettings().WithApprovedApp(new ApprovedApp(@"C:\Program Files\WindowsApps\Raycast\node.exe", "Raycast", At, @"C:\Program Files\WindowsApps\Raycast\Raycast.exe"));
+
+        Assert.True(settings.IsApproved(@"C:\Program Files\WindowsApps\Raycast\node.exe", packaged: true));
+        Assert.False(settings.IsApproved(@"C:\Program Files\WindowsApps\Raycast\node.exe", packaged: false));
+    }
+
+    [Fact]
+    public void IsApproved_AppApprovedOutsideAPackage_EitherWay()
+    {
+        var settings = new LeafSettings().WithApprovedApp(App(@"C:\Apps\Raycast\node.exe"));
+
+        Assert.True(settings.IsApproved(@"C:\Apps\Raycast\node.exe", packaged: true));
+        Assert.True(settings.IsApproved(@"C:\Apps\Raycast\node.exe", packaged: false));
     }
 
     [Fact]
@@ -63,6 +81,18 @@ public sealed class ApprovedAppsTests
         var settings = new LeafSettings { ApprovedApps = [App(@"C:\x\tool.exe", "  ")] }.Normalize();
 
         Assert.Equal("tool", Assert.Single(settings.ApprovedApps).Name);
+    }
+
+    [Theory]
+    [InlineData(@"C:\Apps\Raycast\Raycast.exe", @"C:\Apps\Raycast\Raycast.exe")]
+    [InlineData(@"Raycast\Raycast.exe", null)]
+    [InlineData("  ", null)]
+    [InlineData(null, null)]
+    public void Normalize_IconPath_OnlyAFullPath(string? iconPath, string? expected)
+    {
+        var settings = new LeafSettings { ApprovedApps = [App(@"C:\Apps\Raycast\node.exe") with { IconPath = iconPath }] }.Normalize();
+
+        Assert.Equal(expected, Assert.Single(settings.ApprovedApps).IconPath);
     }
 
     [Fact]

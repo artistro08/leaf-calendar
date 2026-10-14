@@ -76,11 +76,11 @@ public partial class App
             }
 
             _approvals ??= new ApiApprovals(services.Time);
-            var context = new ApiContext(services.Database, services.Editor, services.Scheduling, new ApiHost(this), services.Time, LeafVersion(), services.Options.Profile);
+            var context = new ApiContext(services.Database, services.Editor, services.Scheduling, new ApiHost(this), services.Time, LeafVersion(), services.Options.Profile, services.Bookings);
             var server = new ApiPipeServer(
                 ApiClients.PipeName(Environment.UserName, services.Options.Profile),
                 new ApiDispatcher(context, services.Log),
-                path => CurrentSettings().IsApproved(path),
+                (path, packaged) => CurrentSettings().IsApproved(path, packaged),
                 ApproveAsync,
                 services.Log);
             var started = server.Start();
@@ -201,7 +201,7 @@ public partial class App
         {
             if (allow)
             {
-                UpdateSettings(s => s.WithApprovedApp(new ApprovedApp(caller.Path, caller.Name, services.Time.GetUtcNow())));
+                UpdateSettings(s => s.WithApprovedApp(new ApprovedApp(caller.Path, caller.Name, services.Time.GetUtcNow(), caller.AppProgram)));
             }
         }
         catch (Exception ex)
@@ -293,5 +293,10 @@ public partial class App
         });
 
         public void ShowEvent(CalendarOccurrence occurrence) => app._dispatcher.TryEnqueue(() => app.RevealEvent(occurrence));
+
+        // ReloadGroups reads off the UI thread and lands on it, so it starts there
+        public void SharesChanged() => app._dispatcher.TryEnqueue(() => app._calendar?.ReloadGroups());
+
+        public LeafCalendar.Core.People.ContactSearch? Contacts => app._services?.Google?.Contacts;
     }
 }

@@ -69,7 +69,7 @@ public sealed partial class ConnectedAppsPage : Page
             remove.Click += (_, _) => _context.Save(x => x.WithoutApprovedApp(path));
             var row = new SettingRow { Glyph = "", Header = app.Name, Description = app.Path, Content = remove };
             AppsList.Children.Add(row);
-            _ = ShowIconAsync(row, app.Path);
+            _ = ShowIconAsync(row, app.IconPath ?? app.Path);
         }
 
         _loading = false;

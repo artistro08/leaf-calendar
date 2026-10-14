@@ -111,8 +111,13 @@ public sealed partial class ApprovalWindow : Window
             // Screen Readers Say Who's Asking (the headline was set before it had an automation peer, so no change was raised)
             FrameworkElementAutomationPeer.CreatePeerForElement(HeadlineText)?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
 
-            // The Icon: the app's own when it sent one Windows can decode, else the program's
-            if (await ApiIcons.PngAsync(Request.Caller.Hello.Icon) is { } app)
+            // The Icon: a packaged app's own program's (Windows vouches for it), else the one the app sent when Windows can
+            // decode it, else the program's
+            if (Request.Caller.Packaged)
+            {
+                await ShowProgramIconAsync(logUndecodable: false);
+            }
+            else if (await ApiIcons.PngAsync(Request.Caller.Hello.Icon) is { } app)
             {
                 ShowIcon(app, "ApiApprovalAppIcon");
             }
@@ -161,7 +166,8 @@ public sealed partial class ApprovalWindow : Window
         }
     }
 
-    // The program's own icon, or the generic glyph when it has none (an app icon Windows couldn't decode is logged)
+    // The program's own icon (a packaged app's main program's), or the generic glyph when it has none (an app icon Windows
+    // couldn't decode is logged)
     private async Task ShowProgramIconAsync(bool logUndecodable)
     {
         if (logUndecodable)
@@ -169,7 +175,7 @@ public sealed partial class ApprovalWindow : Window
             _log.Info("api.icon.undecodable");
         }
 
-        if (await ApiIcons.ProgramAsync(Request.Caller.Path, 96) is { } program)
+        if (await ApiIcons.ProgramAsync(Request.Caller.AppProgram ?? Request.Caller.Path, 96) is { } program)
         {
             ShowIcon(program, "ApiApprovalProgramIcon");
         }

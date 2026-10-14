@@ -183,6 +183,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         // Local Edits Reload The Views
         services.Editor.LocalZoneId = TimeZoneCatalog.IanaId(UserZone);
         services.Editor.Changed += OnEditsChanged;
+        services.Editor.DeletesDue += OnDeletesDue;
         services.Conflicts.Changed += OnEditsChanged;
         services.Scheduling.Changed += OnSchedulingChanged;
         RefreshSyncState();
@@ -1191,6 +1192,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         _minuteTimer.Stop();
         _services.GoogleChanged -= OnGoogleChanged;
         _services.Editor.Changed -= OnEditsChanged;
+        _services.Editor.DeletesDue -= OnDeletesDue;
         _services.Conflicts.Changed -= OnEditsChanged;
         _services.Scheduling.Changed -= OnSchedulingChanged;
         if (_attachedSync is not null)
@@ -1845,7 +1847,6 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             var deleted = deletable.Count == 1 ? "Event deleted" : string.Create(CultureInfo.InvariantCulture, $"{deletable.Count} events deleted");
             var skipped = permissions.Count - deletable.Count;
             Say(skipped > 0 ? string.Create(CultureInfo.InvariantCulture, $"{deleted} · {skipped} couldn't be changed") : deleted, canUndo: true);
-            _ = NudgeAfterUndoWindowAsync();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -2161,27 +2162,28 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     private static bool IsEditFailure(Exception ex) =>
         ex is Microsoft.Data.Sqlite.SqliteException or System.Text.Json.JsonException or InvalidOperationException;
 
-    // Deletes wait out the undo window; nudge the sync loop once it has passed so they go out right away, and count
-    // them as waiting from then on (offline, no sync event would say so)
-    private async Task NudgeAfterUndoWindowAsync()
-    {
-        await Task.Delay(EventEditor.UndoWindow + TimeSpan.FromSeconds(0.5));
-        _dispatcher.TryEnqueue(RefreshSyncState);
-        _services.Google?.Loop.TriggerNow();
-    }
-
     private EventDetails? LoadDetails(CalendarOccurrence o)
     {
         using var conn = _services.Database.Open();
         return EventStore.Get(conn, o.AccountId, o.CalendarId, o.EventId) is { } stored ? EventDetailsParser.Parse(stored.RawJson) : null;
     }
 
-    // Local edits and conflict answers arrive on the UI thread
+    // Edits made in Leaf Calendar and conflict answers arrive on the UI thread and refresh at once; edits from the local API arrive
+    // on a pipe thread, so they hop to the UI thread first
     private void OnEditsChanged(object? sender, EventArgs e)
     {
+        if (!_dispatcher.HasThreadAccess)
+        {
+            _dispatcher.TryEnqueue(() => OnEditsChanged(sender, e));
+            return;
+        }
+
         RefreshSyncState();
         Run(RefreshAsync);
     }
+
+    // Held deletes are due on a timer thread: count them as waiting from then on (offline, no sync event would say so)
+    private void OnDeletesDue(object? sender, EventArgs e) => _dispatcher.TryEnqueue(RefreshSyncState);
 
     private void RefreshSyncState()
     {

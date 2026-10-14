@@ -53,6 +53,24 @@ public sealed class ApiEditsTests : IDisposable
     }
 
     [Fact]
+    public async Task Create_Meet_AsksGoogleForAMeetLink()
+    {
+        await _api.CallAsync("events.create", "{\"title\":\"Sync\"," + Times + ",\"meet\":true}");
+
+        var payload = Assert.Single(_api.Outbox()).Payload;
+        Assert.Contains("createRequest", payload, StringComparison.Ordinal);
+        Assert.Contains("hangoutsMeet", payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Create_NoMeet_HasNoConference()
+    {
+        await _api.CallAsync("events.create", "{\"title\":\"Sync\"," + Times + "}");
+
+        Assert.DoesNotContain("conferenceData", Assert.Single(_api.Outbox()).Payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Create_NotifyGuestsFalse_SendsNoInvitations()
     {
         await _api.CallAsync("events.create", "{\"title\":\"Sync\"," + Times + ",\"guests\":[\"sam@example.com\"],\"notifyGuests\":false}");
@@ -179,5 +197,170 @@ public sealed class ApiEditsTests : IDisposable
 
         Assert.Equal(ApiErrors.ReadOnly, (await _api.FailAsync("events.move", $$"""{"id":"{{id}}","start":"2026-10-01T16:00:00-04:00","end":"2026-10-01T17:00:00-04:00"}""")).DataCode);
         Assert.Empty(_api.Outbox());
+    }
+
+    [Fact]
+    public async Task Delete_Single_QueuesADeleteThatTellsGuests()
+    {
+        var id = await IdOf("One");
+
+        Assert.Equal("{}", (await _api.CallAsync("events.delete", $$"""{"id":"{{id}}"}""")).GetRawText());
+
+        var entry = Assert.Single(_api.Outbox());
+        Assert.Equal(OutboxOperation.Delete, entry.Operation);
+        Assert.True(entry.SendUpdates);
+        Assert.Equal(ApiErrors.NotFound, (await _api.FailAsync("events.get", $$"""{"id":"{{id}}"}""")).DataCode);
+    }
+
+    [Fact]
+    public async Task Delete_NotifyGuestsFalse_TellsNoOne()
+    {
+        var id = await IdOf("One");
+
+        await _api.CallAsync("events.delete", $$"""{"id":"{{id}}","notifyGuests":false}""");
+
+        Assert.False(Assert.Single(_api.Outbox()).SendUpdates);
+    }
+
+    [Fact]
+    public async Task Delete_SeriesInstance_LeavesTheRest()
+    {
+        var id = await IdOf("Weekly", "2026-10-08");
+
+        await _api.CallAsync("events.delete", $$"""{"id":"{{id}}","scope":"this"}""");
+
+        Assert.Equal(ApiErrors.NotFound, (await _api.FailAsync("events.get", $$"""{"id":"{{id}}"}""")).DataCode);
+        Assert.Equal("Weekly", (await _api.CallAsync("events.get", $$"""{"id":"{{await IdOf("Weekly", "2026-10-15")}}"}""")).GetProperty("title").GetString());
+    }
+
+    [Fact]
+    public async Task Delete_BadScope_IsInvalid()
+    {
+        var id = await IdOf("One");
+
+        Assert.Equal(ApiErrors.InvalidParams, (await _api.FailAsync("events.delete", $$"""{"id":"{{id}}","scope":"everything"}""")).Code);
+        Assert.Empty(_api.Outbox());
+    }
+
+    [Fact]
+    public async Task Delete_ReadOnlyEvent_IsReadOnly()
+    {
+        _api.Store(ApiHarness.Primary, """{"id":"evt-theirs","status":"confirmed","summary":"Theirs","organizer":{"email":"boss@example.com"},"attendees":[{"email":"leaf.tester@gmail.com","self":true,"responseStatus":"accepted"},{"email":"boss@example.com","organizer":true,"responseStatus":"accepted"}],"start":{"dateTime":"2026-10-01T11:00:00-04:00"},"end":{"dateTime":"2026-10-01T12:00:00-04:00"}}""");
+        var id = await IdOf("Theirs");
+
+        Assert.Equal(ApiErrors.ReadOnly, (await _api.FailAsync("events.delete", $$"""{"id":"{{id}}"}""")).DataCode);
+        Assert.Empty(_api.Outbox());
+    }
+
+    [Fact]
+    public async Task Update_Text_ChangesOnlyWhatsGiven()
+    {
+        var id = await IdOf("One");
+
+        var result = await _api.CallAsync("events.update", $$"""{"id":"{{id}}","title":"One, renamed","location":"Cafe","description":"Bring <notes>"}""");
+
+        Assert.Equal(OutboxOperation.Patch, Assert.Single(_api.Outbox()).Operation);
+        var got = await _api.CallAsync("events.get", $$"""{"id":"{{result.GetProperty("id").GetString()}}"}""");
+        Assert.Equal("One, renamed", got.GetProperty("title").GetString());
+        Assert.Equal("Cafe", got.GetProperty("location").GetString());
+        Assert.Contains("Bring <notes>", got.GetProperty("description").GetString(), StringComparison.Ordinal);
+        Assert.Equal("2026-10-01T14:00:00-04:00", got.GetProperty("start").GetString());
+    }
+
+    [Fact]
+    public async Task Update_Times_ReturnsTheIdThatFindsIt()
+    {
+        var id = await IdOf("One");
+
+        var result = await _api.CallAsync("events.update", $$"""{"id":"{{id}}","start":"2026-10-02T09:00:00-04:00","end":"2026-10-02T09:45:00-04:00"}""");
+
+        var got = await _api.CallAsync("events.get", $$"""{"id":"{{result.GetProperty("id").GetString()}}"}""");
+        Assert.Equal("2026-10-02T09:00:00-04:00", got.GetProperty("start").GetString());
+        Assert.Equal("2026-10-02T09:45:00-04:00", got.GetProperty("end").GetString());
+    }
+
+    [Fact]
+    public async Task Update_Guests_KeepsTheirAnswersAndInvitesNewOnes()
+    {
+        _api.Store(ApiHarness.Primary, """{"id":"evt-meet","status":"confirmed","summary":"Meet","organizer":{"email":"leaf.tester@gmail.com","self":true},"attendees":[{"email":"leaf.tester@gmail.com","self":true,"organizer":true,"responseStatus":"accepted"},{"email":"sam@example.com","responseStatus":"accepted"},{"email":"gone@example.com","responseStatus":"tentative"}],"start":{"dateTime":"2026-10-01T16:00:00-04:00"},"end":{"dateTime":"2026-10-01T17:00:00-04:00"}}""");
+        var id = await IdOf("Meet");
+
+        var result = await _api.CallAsync("events.update", $$"""{"id":"{{id}}","guests":["leaf.tester@gmail.com","SAM@example.com","kim@example.com"]}""");
+
+        Assert.True(Assert.Single(_api.Outbox()).SendUpdates);
+        var guests = (await _api.CallAsync("events.get", $$"""{"id":"{{result.GetProperty("id").GetString()}}"}""")).GetProperty("guests").EnumerateArray()
+            .ToDictionary(g => g.GetProperty("email").GetString()!, g => g.GetProperty("response").GetString());
+        Assert.Equal("accepted", guests["sam@example.com"]);
+        Assert.Equal("needsAction", guests["kim@example.com"]);
+        Assert.False(guests.ContainsKey("gone@example.com"));
+    }
+
+    [Fact]
+    public async Task Update_Guests_WithoutYou_KeepsYou()
+    {
+        _api.Store(ApiHarness.Primary, """{"id":"evt-meet","status":"confirmed","summary":"Meet","organizer":{"email":"leaf.tester@gmail.com","self":true},"attendees":[{"email":"leaf.tester@gmail.com","self":true,"organizer":true,"responseStatus":"accepted"},{"email":"sam@example.com","responseStatus":"accepted"}],"start":{"dateTime":"2026-10-01T16:00:00-04:00"},"end":{"dateTime":"2026-10-01T17:00:00-04:00"}}""");
+        var id = await IdOf("Meet");
+
+        var result = await _api.CallAsync("events.update", $$"""{"id":"{{id}}","guests":["sam@example.com","kim@example.com"]}""");
+
+        var guests = (await _api.CallAsync("events.get", $$"""{"id":"{{result.GetProperty("id").GetString()}}"}""")).GetProperty("guests").EnumerateArray()
+            .Select(g => g.GetProperty("email").GetString()).ToList();
+        Assert.Equal(["leaf.tester@gmail.com", "sam@example.com", "kim@example.com"], guests);
+    }
+
+    [Fact]
+    public async Task Update_Calendar_MovesTheEvent()
+    {
+        var id = await IdOf("One");
+        var family = ApiIds.Calendar(ApiHarness.Account, ApiHarness.Family);
+
+        var result = await _api.CallAsync("events.update", $$"""{"id":"{{id}}","calendarId":"{{family}}"}""");
+
+        var got = await _api.CallAsync("events.get", $$"""{"id":"{{result.GetProperty("id").GetString()}}"}""");
+        Assert.Equal(family, got.GetProperty("calendarId").GetString());
+    }
+
+    [Fact]
+    public async Task Update_Meet_AsksGoogleForAMeetLink()
+    {
+        var id = await IdOf("One");
+
+        await _api.CallAsync("events.update", $$"""{"id":"{{id}}","meet":true,"notifyGuests":false}""");
+
+        var entry = Assert.Single(_api.Outbox());
+        Assert.Contains("hangoutsMeet", entry.Payload, StringComparison.Ordinal);
+        Assert.False(entry.SendUpdates);
+    }
+
+    [Fact]
+    public async Task Update_Nothing_ChangesNothing()
+    {
+        var id = await IdOf("One");
+
+        var result = await _api.CallAsync("events.update", $$"""{"id":"{{id}}","title":"One"}""");
+
+        Assert.Equal(id, result.GetProperty("id").GetString());
+        Assert.Empty(_api.Outbox());
+    }
+
+    [Theory]
+    [InlineData(",\"start\":\"2026-10-02T09:00:00-04:00\"")]
+    [InlineData(",\"guests\":[\"not an address\"]")]
+    [InlineData(",\"scope\":\"everything\"")]
+    public async Task Update_BadParams_IsInvalid(string more)
+    {
+        var id = await IdOf("One");
+
+        Assert.Equal(ApiErrors.InvalidParams, (await _api.FailAsync("events.update", $$"""{"id":"{{id}}"{{more}}}""")).Code);
+        Assert.Empty(_api.Outbox());
+    }
+
+    [Fact]
+    public async Task Update_ReadOnlyEvent_IsReadOnly()
+    {
+        _api.Store(ApiHarness.Primary, """{"id":"evt-theirs","status":"confirmed","summary":"Theirs","organizer":{"email":"boss@example.com"},"attendees":[{"email":"leaf.tester@gmail.com","self":true,"responseStatus":"accepted"},{"email":"boss@example.com","organizer":true,"responseStatus":"accepted"}],"start":{"dateTime":"2026-10-01T11:00:00-04:00"},"end":{"dateTime":"2026-10-01T12:00:00-04:00"}}""");
+        var id = await IdOf("Theirs");
+
+        Assert.Equal(ApiErrors.ReadOnly, (await _api.FailAsync("events.update", $$"""{"id":"{{id}}","title":"Mine now"}""")).DataCode);
     }
 }

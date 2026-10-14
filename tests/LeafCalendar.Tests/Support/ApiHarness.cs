@@ -5,6 +5,7 @@ using LeafCalendar.Core.Diagnostics;
 using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
+using LeafCalendar.Core.People;
 using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Settings;
 using Microsoft.Extensions.Time.Testing;
@@ -79,6 +80,15 @@ public sealed class FakeApiHost : IApiHost
 
     /// <inheritdoc />
     public void ShowEvent(CalendarOccurrence occurrence) => Events.Add(occurrence);
+
+    /// <summary>How many times saved times changed.</summary>
+    public int SharesChangedCount { get; private set; }
+
+    /// <inheritdoc />
+    public void SharesChanged() => SharesChangedCount++;
+
+    /// <inheritdoc />
+    public ContactSearch? Contacts => null;
 }
 
 /// <summary>A dispatcher over a seeded test database (the calendar-list.json calendars, New York time, Oct 1 2026 8 AM).</summary>

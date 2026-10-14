@@ -43,6 +43,9 @@ public static class ShareGroupStore
     /// <summary>The longest title kept.</summary>
     public const int MaxTitleLength = 100;
 
+    /// <summary>The title of an event booked from a group without one.</summary>
+    public const string GenericTitle = "Held times";
+
     /// <summary>The longest guest address kept (the longest an email address can be).</summary>
     public const int MaxGuestEmailLength = 254;
 

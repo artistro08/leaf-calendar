@@ -1,6 +1,7 @@
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.People;
 using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Settings;
 
@@ -26,7 +27,16 @@ public interface IApiHost
 
     /// <summary>Brings Leaf forward with an event open.</summary>
     void ShowEvent(CalendarOccurrence occurrence);
+
+    /// <summary>Saved times were added, booked or deleted, so the calendar reads them again.</summary>
+    void SharesChanged();
+
+    /// <summary>Google contacts search, or null before anyone signs in to Google.</summary>
+    ContactSearch? Contacts { get; }
 }
 
-/// <summary>Everything the API's methods use: the database, the editor (every write), the scheduling providers, the app, the clock, and who Leaf is.</summary>
-public sealed record ApiContext(LeafDatabase Database, EventEditor Editor, SchedulingHub Scheduling, IApiHost Host, TimeProvider Time, string LeafVersion, string Profile);
+/// <summary>
+/// Everything the API's methods use: the database, the editor (every write), the scheduling providers, the app, the
+/// clock, who Leaf Calendar is, and the booking check (so a booking made here isn't reported again as one made elsewhere).
+/// </summary>
+public sealed record ApiContext(LeafDatabase Database, EventEditor Editor, SchedulingHub Scheduling, IApiHost Host, TimeProvider Time, string LeafVersion, string Profile, BookingWatcher? Bookings = null);

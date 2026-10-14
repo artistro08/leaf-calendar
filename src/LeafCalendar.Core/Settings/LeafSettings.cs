@@ -51,7 +51,8 @@ public sealed record CalendarRef(string AccountId, string CalendarId);
 /// <param name="Path">The program's full path, compared ignoring case.</param>
 /// <param name="Name">The name shown in Settings (the file's description, else its product name, else its file name).</param>
 /// <param name="ApprovedAt">When you allowed it.</param>
-public sealed record ApprovedApp(string Path, string Name, DateTimeOffset ApprovedAt);
+/// <param name="IconPath">The program whose icon Settings shows, when it isn't <paramref name="Path"/> (a packaged app's main program, such as Raycast.exe for Raycast's copy of Node); null otherwise. Set only for an app approved while it ran inside its own app package, which <see cref="LeafSettings.IsApproved"/> then requires.</param>
+public sealed record ApprovedApp(string Path, string Name, DateTimeOffset ApprovedAt, string? IconPath = null);
 
 /// <summary>Which map site "Open in maps" uses (Settings › General).</summary>
 [System.Text.Json.Serialization.JsonConverter(typeof(MapProviderConverter))]
@@ -279,8 +280,16 @@ public sealed record LeafSettings
     /// <summary>Apps allowed to use the local API, oldest first. Edit with <see cref="WithApprovedApp"/> and <see cref="WithoutApprovedApp"/>.</summary>
     public IReadOnlyList<ApprovedApp> ApprovedApps { get; init; } = [];
 
-    /// <summary>True when the program at <paramref name="path"/> is an approved app (case ignored).</summary>
-    public bool IsApproved(string path) => ApprovedApps.Any(a => string.Equals(a.Path, path, StringComparison.OrdinalIgnoreCase));
+    /// <summary>
+    /// True when the program at <paramref name="path"/> is an approved app (case ignored). An app approved while it ran
+    /// inside its own app package (it has an <see cref="ApprovedApp.IconPath"/>, and was asked without the script-host
+    /// warning) counts only while it still runs as that package: the same file started any other way may be running
+    /// anyone's script, so it's asked again.
+    /// </summary>
+    /// <param name="path">The connecting program's full path.</param>
+    /// <param name="packaged">Whether it runs inside its own app package's folder, with that package's identity.</param>
+    public bool IsApproved(string path, bool packaged) =>
+        ApprovedApps.Any(a => string.Equals(a.Path, path, StringComparison.OrdinalIgnoreCase) && (packaged || a.IconPath is null));
 
     /// <summary>Returns a copy with <paramref name="app"/> approved, replacing an earlier approval of the same path.</summary>
     public LeafSettings WithApprovedApp(ApprovedApp app)
@@ -363,14 +372,18 @@ public sealed record LeafSettings
         };
     }
 
-    // Full paths only, one per path (the last approval wins), named, the newest MaxApprovedApps kept
+    // Full paths only (an icon path that isn't one is dropped), one per path (the last approval wins), named, the newest MaxApprovedApps kept
     private static List<ApprovedApp> CleanApps(IReadOnlyList<ApprovedApp>? apps) =>
         [.. (apps ?? [])
             .Where(a => a is not null && !string.IsNullOrWhiteSpace(a.Path) && System.IO.Path.IsPathFullyQualified(a.Path))
             .Reverse()
             .DistinctBy(a => a.Path, StringComparer.OrdinalIgnoreCase)
             .Reverse()
-            .Select(a => a with { Name = Clip(string.IsNullOrWhiteSpace(a.Name) ? System.IO.Path.GetFileNameWithoutExtension(a.Path) : a.Name.Trim(), MaxAppNameLength) })
+            .Select(a => a with
+            {
+                Name = Clip(string.IsNullOrWhiteSpace(a.Name) ? System.IO.Path.GetFileNameWithoutExtension(a.Path) : a.Name.Trim(), MaxAppNameLength),
+                IconPath = a.IconPath is { } icon && System.IO.Path.IsPathFullyQualified(icon) ? icon : null,
+            })
             .TakeLast(MaxApprovedApps)];
 
     // Trimmed, capped, unknown and repeated provider IDs dropped (the first kept), the unused server emptied

@@ -20,7 +20,7 @@ namespace LeafCalendar.App.Api;
 /// (<see cref="ApiHello"/>), and one removed in
 /// Settings is refused at its next request. Nothing escapes: a failing connection is logged by its error type and closed.
 /// </remarks>
-internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<string, bool> isApproved, Func<ApiCaller, CancellationToken, Task<bool>> approve, AppLog log) : IAsyncDisposable
+internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<string, bool, bool> isApproved, Func<ApiCaller, CancellationToken, Task<bool>> approve, AppLog log) : IAsyncDisposable
 {
     /// <summary>The most apps connected at once.</summary>
     public const int MaxConnections = 8;
@@ -129,8 +129,9 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
                     return;
                 }
 
-                var (processId, path) = client;
+                var (processId, path, packageFolder) = client;
                 var file = Path.GetFileName(path);
+                var app = PackageApp(path, packageFolder);
                 log.Info("api.connected", $"client={file}");
                 var reader = new ApiLineReader(pipe);
                 await using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true, NewLine = "\n" };
@@ -160,9 +161,9 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
                     first = false;
 
                     // Approved Now, Or Asked Once On This Connection (an app removed in Settings is refused here)
-                    if (!isApproved(path))
+                    if (!isApproved(path, app is not null))
                     {
-                        if (asked || !await approve(new ApiCaller(path, ClientName(path), processId, hello), ct))
+                        if (asked || !await approve(new ApiCaller(path, app?.Name ?? ClientName(path), processId, hello, app?.Program), ct))
                         {
                             log.Info("api.refused", $"client={file}");
                             await writer.WriteLineAsync(ApiMessage.NotApproved(line).AsMemory(), ct);
@@ -202,8 +203,9 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
         }
     }
 
-    // The connecting program's process ID and full path, from Windows (null when they can't be read, such as a process that already ended)
-    private static unsafe (int ProcessId, string Path)? Client(NamedPipeServerStream pipe)
+    // The connecting program's process ID, full path and app package folder (null when it isn't packaged), from Windows
+    // (null when they can't be read, such as a process that already ended)
+    private static unsafe (int ProcessId, string Path, string? PackageFolder)? Client(NamedPipeServerStream pipe)
     {
         uint pid;
         if (!PInvoke.GetNamedPipeClientProcessId((HANDLE)pipe.SafePipeHandle.DangerousGetHandle(), &pid))
@@ -222,12 +224,56 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
             var buffer = stackalloc char[1024];
             var size = 1024u;
             return PInvoke.QueryFullProcessImageName(process, PROCESS_NAME_FORMAT.PROCESS_NAME_WIN32, buffer, &size)
-                ? ((int)pid, new string(buffer, 0, (int)size))
+                ? ((int)pid, new string(buffer, 0, (int)size), PackageFolder(process))
                 : null;
         }
         finally
         {
             PInvoke.CloseHandle(process);
+        }
+    }
+
+    // The install folder of the process's app package, from its package identity (null for a program that isn't packaged)
+    private static unsafe string? PackageFolder(HANDLE process)
+    {
+        // Full names are at most 127 characters, and the folder is under WindowsApps; both lengths count the closing null
+        var name = stackalloc char[128];
+        var nameLength = 128u;
+        if (PInvoke.GetPackageFullName(process, &nameLength, name) != WIN32_ERROR.ERROR_SUCCESS)
+        {
+            return null;
+        }
+
+        var folder = stackalloc char[1024];
+        var folderLength = 1024u;
+        fixed (char* fullName = new string(name, 0, (int)nameLength - 1))
+        {
+            return PInvoke.GetPackagePathByFullName(fullName, &folderLength, folder) == WIN32_ERROR.ERROR_SUCCESS
+                ? new string(folder, 0, (int)folderLength - 1)
+                : null;
+        }
+    }
+
+    // The app that owns a program inside its own package's folder (Raycast and Raycast.exe for Raycast's copy of Node), from
+    // the package's manifest; null when the program isn't packaged, sits outside the folder, or the manifest lacks a plain
+    // name or a main program
+    private static (string Name, string Program)? PackageApp(string path, string? packageFolder)
+    {
+        if (packageFolder is null || !ApiClients.IsInFolder(path, packageFolder))
+        {
+            return null;
+        }
+
+        try
+        {
+            var manifest = File.ReadAllText(Path.Combine(packageFolder, "AppxManifest.xml"));
+            return ApiClients.ManifestDisplayName(manifest) is { } name && ApiClients.ManifestProgram(manifest, packageFolder) is { } program
+                ? (name, program)
+                : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
         }
     }
 

@@ -21,10 +21,19 @@ public sealed record RangeParams(string? Start = null, string? End = null, List<
 public sealed record IdParams(string? Id = null);
 
 /// <summary><c>events.create</c>'s params.</summary>
-public sealed record CreateParams(string? CalendarId = null, string? Title = null, string? Start = null, string? End = null, string? Location = null, string? Description = null, List<string>? Guests = null, bool? NotifyGuests = null);
+public sealed record CreateParams(string? CalendarId = null, string? Title = null, string? Start = null, string? End = null, string? Location = null, string? Description = null, List<string>? Guests = null, bool? NotifyGuests = null, bool? Meet = null);
+
+/// <summary><c>people.search</c>'s params.</summary>
+public sealed record PeopleParams(string? Query = null);
 
 /// <summary><c>events.move</c>'s params.</summary>
 public sealed record MoveParams(string? Id = null, string? Start = null, string? End = null, string? Scope = null);
+
+/// <summary><c>events.update</c>'s params: only the fields given change.</summary>
+public sealed record UpdateParams(string? Id = null, string? Scope = null, bool? NotifyGuests = null, string? CalendarId = null, string? Title = null, string? Start = null, string? End = null, string? Location = null, string? Description = null, List<string>? Guests = null, bool? Meet = null);
+
+/// <summary><c>events.delete</c>'s params.</summary>
+public sealed record DeleteParams(string? Id = null, string? Scope = null, bool? NotifyGuests = null);
 
 /// <summary><c>app.showDay</c>'s params.</summary>
 public sealed record DayParams(string? Date = null);
@@ -37,6 +46,18 @@ public sealed record GuestParam(string? Name = null, string? Email = null);
 
 /// <summary><c>scheduling.timeLink</c>'s params.</summary>
 public sealed record TimeLinkParams(string? LinkId = null, string? Start = null, List<GuestParam>? Guests = null);
+
+/// <summary><c>availability.free</c>'s params.</summary>
+public sealed record FreeParams(string? Start = null, string? End = null, int? Minutes = null, string? LinkId = null);
+
+/// <summary>One time in <c>shares.create</c>.</summary>
+public sealed record TimeParam(string? Start = null, string? End = null);
+
+/// <summary><c>shares.create</c>'s params.</summary>
+public sealed record ShareCreateParams(List<TimeParam>? Times = null, string? Title = null, string? Message = null, List<GuestParam>? Guests = null, string? LinkId = null);
+
+/// <summary><c>shares.book</c>'s params.</summary>
+public sealed record ShareBookParams(string? Id = null, string? Start = null, string? End = null);
 
 // =========================================================================
 // RESULTS
@@ -75,6 +96,21 @@ public sealed record TimeRangeResult(string Start, string End);
 /// <summary>A booking link.</summary>
 public sealed record UrlResult(string Url);
 
+/// <summary><c>shares.create</c>'s result: the saved times' ID and the text to paste (<see cref="Html"/> only with a link).</summary>
+public sealed record ShareTextResult(string Id, string Text, string? Html);
+
+/// <summary>A guest of saved times.</summary>
+public sealed record ShareGuestResult(string? Name, string Email);
+
+/// <summary>Someone <c>people.search</c> found.</summary>
+public sealed record PersonResult(string? Name, string Email);
+
+/// <summary>The link saved times are on.</summary>
+public sealed record ShareLinkResult(string Id, int Minutes);
+
+/// <summary>Saved times (<c>shares.list</c>).</summary>
+public sealed record ShareResult(string Id, string Title, string Message, List<TimeRangeResult> Times, List<ShareGuestResult> Guests, ShareLinkResult? Link);
+
 /// <summary>Source-generated JSON for the local API (Native AOT), camelCase, unknown members refused.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
 [JsonSerializable(typeof(HelloParams))]
@@ -86,6 +122,15 @@ public sealed record UrlResult(string Url);
 [JsonSerializable(typeof(DayParams))]
 [JsonSerializable(typeof(OpenTimesParams))]
 [JsonSerializable(typeof(TimeLinkParams))]
+[JsonSerializable(typeof(UpdateParams))]
+[JsonSerializable(typeof(DeleteParams))]
+[JsonSerializable(typeof(PeopleParams))]
+[JsonSerializable(typeof(List<PersonResult>))]
+[JsonSerializable(typeof(FreeParams))]
+[JsonSerializable(typeof(ShareCreateParams))]
+[JsonSerializable(typeof(ShareBookParams))]
+[JsonSerializable(typeof(ShareTextResult))]
+[JsonSerializable(typeof(List<ShareResult>))]
 [JsonSerializable(typeof(HelloResult))]
 [JsonSerializable(typeof(List<CalendarResult>))]
 [JsonSerializable(typeof(List<EventResult>))]
