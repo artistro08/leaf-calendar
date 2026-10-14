@@ -37,6 +37,6 @@ public interface IApiHost
 
 /// <summary>
 /// Everything the API's methods use: the database, the editor (every write), the scheduling providers, the app, the
-/// clock, who Leaf is, and the booking check (so a booking made here isn't reported again as one made elsewhere).
+/// clock, who Leaf Calendar is, and the booking check (so a booking made here isn't reported again as one made elsewhere).
 /// </summary>
 public sealed record ApiContext(LeafDatabase Database, EventEditor Editor, SchedulingHub Scheduling, IApiHost Host, TimeProvider Time, string LeafVersion, string Profile, BookingWatcher? Bookings = null);

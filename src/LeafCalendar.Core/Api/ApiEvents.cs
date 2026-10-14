@@ -174,7 +174,7 @@ internal static class ApiEvents
         }
     }
 
-    // A delete, as in Leaf: one scope for a repeating event, held for the undo window, guests told unless notifyGuests is false
+    // A delete, as in Leaf Calendar: one scope for a repeating event, held for the undo window, guests told unless notifyGuests is false
     public static JsonElement Delete(ApiContext context, DeleteParams p)
     {
         var scope = Scope(p.Scope);

@@ -19,7 +19,7 @@ Leaf keeps your calendar and every change you make. Other apps never open Leaf's
 
 Allowed apps are listed in **Settings › Connected apps**. Remove one there and its next request is refused.
 
-> Leaf remembers an app by the program file that connected. If you allow a general runtime such as `node.exe` or `python.exe`, every script that uses it can connect, and the window warns you. A program inside an installed app's own package folder, such as Raycast's copy of Node, is named after that app and gets no warning, since only that app runs it.
+> Leaf Calendar remembers an app by the program file that connected. If you allow a general runtime such as `node.exe` or `python.exe`, every script that uses it can connect, and the window warns you. A program inside an installed app's own package folder, such as Raycast's copy of Node, is named after that app and gets no warning, since only that app runs it.
 
 ## Connecting
 
@@ -122,7 +122,7 @@ Creates an event and returns its `id`. Without `calendarId`, it goes to your def
 | `description` | Optional plain text, at most 8,192 characters. |
 | `guests` | Optional email addresses, at most 100. |
 | `notifyGuests` | Optional, `true` by default: Google emails the invitations. `false` adds the guests without emailing them. |
-| `meet` | Optional, `false` by default. `true` asks Google for a Google Meet link, as Leaf's **Add Google Meet** does; it shows as `meetingLink` once Google answers. |
+| `meet` | Optional, `false` by default. `true` asks Google for a Google Meet link, as Leaf Calendar's **Add Google Meet** does; it shows as `meetingLink` once Google answers. |
 
 ```json
 {"jsonrpc":"2.0","id":5,"method":"events.create","params":{"title":"Coffee","start":"2026-10-15T10:00:00-04:00","end":"2026-10-15T10:30:00-04:00","guests":["sam@example.com"]}}
@@ -140,7 +140,7 @@ Moves an event, like dragging it in Leaf: guests get an update. `scope` is `this
 
 ### events.delete
 
-Deletes an event, like Delete in Leaf: guests get a cancellation unless `notifyGuests` is `false`. `scope` is `this` (the default), `following`, or `all`, and matters only for repeating events. Leaf holds the delete for a few seconds before sending it, as it does for its own Undo. Events you can't change are `read_only`.
+Deletes an event, like Delete in Leaf Calendar: guests get a cancellation unless `notifyGuests` is `false`. `scope` is `this` (the default), `following`, or `all`, and matters only for repeating events. Leaf Calendar holds the delete for a few seconds before sending it, as it does for its own Undo. Events you can't change are `read_only`.
 
 ```json
 {"jsonrpc":"2.0","id":7,"method":"events.delete","params":{"id":"ZQpx…"}}
@@ -202,7 +202,7 @@ A booking link that opens one exact time. The first guest fills in the booker; o
 
 ### people.search
 
-People to suggest as guests, as Leaf's guest box does: those in your events whose name has a word starting with `query`, or whose address or its domain does, then your Google contacts. Without `query` (or with an empty one), the people you meet with most. Each address once, at most 8. `query` is at most 100 characters. `name` is null when Leaf doesn't know it.
+People to suggest as guests, as Leaf Calendar's guest box does: those in your events whose name has a word starting with `query`, or whose address or its domain does, then your Google contacts. Without `query` (or with an empty one), the people you meet with most. Each address once, at most 8. `query` is at most 100 characters. `name` is null when Leaf Calendar doesn't know it.
 
 ```json
 {"jsonrpc":"2.0","id":12,"method":"people.search","params":{"query":"sam"}}
@@ -220,7 +220,7 @@ Your free times between `start` and `end` (at most 31 days): your working hours 
 
 ### shares.create
 
-Saves times to offer someone, like **Copy & Save** in Leaf's share panel: they stay on your calendar until you book one, delete them, or they pass. Returns the saved times' `id` and the text to paste, in your share message (**Settings › Scheduling**) and Leaf's time format. With `linkId`, each time is split by the link's length and carries its own booking link, and `html` is the same text with each time as a link; otherwise `html` is null.
+Saves times to offer someone, like **Copy & Save** in Leaf Calendar's share panel: they stay on your calendar until you book one, delete them, or they pass. Returns the saved times' `id` and the text to paste, in your share message (**Settings › Scheduling**) and Leaf Calendar's time format. With `linkId`, each time is split by the link's length and carries its own booking link, and `html` is the same text with each time as a link; otherwise `html` is null.
 
 | Param | |
 | --- | --- |

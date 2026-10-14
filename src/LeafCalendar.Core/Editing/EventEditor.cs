@@ -216,7 +216,7 @@ public sealed class EventEditor(LeafDatabase database, TimeProvider time)
         });
 
         // The held deletes are due once the undo window passes: changed again then, so the sync loop sends them at once
-        // (whoever deleted, Leaf or the local API). Raised on a timer thread
+        // (whoever deleted, Leaf Calendar or the local API). Raised on a timer thread
         if (seqs.Count > 0)
         {
             _ = Task.Delay(UndoWindow + DueMargin, time).ContinueWith(_ => Changed?.Invoke(this, EventArgs.Empty), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);

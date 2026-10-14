@@ -10,7 +10,7 @@ using LeafCalendar.Core.Views;
 namespace LeafCalendar.Core.Api;
 
 /// <summary>
-/// Free times and saved times (local API spec 4): what Leaf's share panel does, for apps without a calendar grid. Free
+/// Free times and saved times (local API spec 4): what Leaf Calendar's share panel does, for apps without a calendar grid. Free
 /// times are your working hours minus your busy events; saved times are share groups, written and booked as the share
 /// panel's Copy &amp; Save and Approve… do.
 /// </summary>
