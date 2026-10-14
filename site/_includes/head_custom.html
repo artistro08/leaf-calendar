@@ -8,7 +8,7 @@
 <meta name="color-scheme" content="light dark">
 
 <script>
-    // Theme (runs before the page draws, so a saved choice never flashes the other theme)
+    /* Theme (runs before the page draws, so a saved choice never flashes the other theme) */
     (function () {
         let stylesheet = document.getElementById('leaf-dark-stylesheet');
         let system     = window.matchMedia('(prefers-color-scheme: dark)');
@@ -26,7 +26,7 @@
             return saved ? saved === 'dark' : system.matches;
         }
 
-        // Screenshots: each one has a "-dark" twin taken from the dark app
+        /* Screenshots: each one has a "-dark" twin taken from the dark app */
         function swapImages(dark) {
             document.querySelectorAll('.main-content img[src*="assets/images/"]').forEach((image) => {
                 let light = image.getAttribute('src').replace(/-dark\.png$/, '.png');
@@ -45,7 +45,7 @@
             try {
                 localStorage.setItem('leaf-theme', isDark() ? 'light' : 'dark');
             } catch (e) {
-                // Not saved (private window): it still switches for this page
+                /* Not saved (private window): it still switches for this page */
                 stylesheet.media = stylesheet.media === 'all' ? 'not all' : 'all';
                 document.documentElement.classList.toggle('leaf-dark', stylesheet.media === 'all');
                 swapImages(stylesheet.media === 'all');
@@ -58,7 +58,7 @@
         window.leafToggleTheme = toggle;
         apply();
 
-        // Bind to Event Listeners
+        /* Bind to Event Listeners */
         system.addEventListener('change', apply);
         document.addEventListener('DOMContentLoaded', apply);
     })();
