@@ -122,6 +122,7 @@ Creates an event and returns its `id`. Without `calendarId`, it goes to your def
 | `description` | Optional plain text, at most 8,192 characters. |
 | `guests` | Optional email addresses, at most 100. |
 | `notifyGuests` | Optional, `true` by default: Google emails the invitations. `false` adds the guests without emailing them. |
+| `meet` | Optional, `false` by default. `true` asks Google for a Google Meet link, as Leaf's **Add Google Meet** does; it shows as `meetingLink` once Google answers. |
 
 ```json
 {"jsonrpc":"2.0","id":5,"method":"events.create","params":{"title":"Coffee","start":"2026-10-15T10:00:00-04:00","end":"2026-10-15T10:30:00-04:00","guests":["sam@example.com"]}}
@@ -197,6 +198,15 @@ A booking link that opens one exact time. The first guest fills in the booker; o
 ```json
 {"jsonrpc":"2.0","id":12,"method":"scheduling.timeLink","params":{"linkId":"bApj…","start":"2026-10-13T10:00:00-04:00","guests":[{"name":"Sam","email":"sam@example.com"}]}}
 {"jsonrpc":"2.0","id":12,"result":{"url":"https://cal.com/you/30min?date=2026-10-13&slot=…"}}
+```
+
+### people.search
+
+People to suggest as guests, as Leaf's guest box does: those in your events whose name has a word starting with `query`, or whose address or its domain does, then your Google contacts. Without `query` (or with an empty one), the people you meet with most. Each address once, at most 8. `query` is at most 100 characters. `name` is null when Leaf doesn't know it.
+
+```json
+{"jsonrpc":"2.0","id":12,"method":"people.search","params":{"query":"sam"}}
+{"jsonrpc":"2.0","id":12,"result":[{"name":"Sam Rivera","email":"sam@example.com"}]}
 ```
 
 ### availability.free

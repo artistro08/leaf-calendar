@@ -21,7 +21,10 @@ public sealed record RangeParams(string? Start = null, string? End = null, List<
 public sealed record IdParams(string? Id = null);
 
 /// <summary><c>events.create</c>'s params.</summary>
-public sealed record CreateParams(string? CalendarId = null, string? Title = null, string? Start = null, string? End = null, string? Location = null, string? Description = null, List<string>? Guests = null, bool? NotifyGuests = null);
+public sealed record CreateParams(string? CalendarId = null, string? Title = null, string? Start = null, string? End = null, string? Location = null, string? Description = null, List<string>? Guests = null, bool? NotifyGuests = null, bool? Meet = null);
+
+/// <summary><c>people.search</c>'s params.</summary>
+public sealed record PeopleParams(string? Query = null);
 
 /// <summary><c>events.move</c>'s params.</summary>
 public sealed record MoveParams(string? Id = null, string? Start = null, string? End = null, string? Scope = null);
@@ -96,6 +99,9 @@ public sealed record ShareTextResult(string Id, string Text, string? Html);
 /// <summary>A guest of saved times.</summary>
 public sealed record ShareGuestResult(string? Name, string Email);
 
+/// <summary>Someone <c>people.search</c> found.</summary>
+public sealed record PersonResult(string? Name, string Email);
+
 /// <summary>The link saved times are on.</summary>
 public sealed record ShareLinkResult(string Id, int Minutes);
 
@@ -114,6 +120,8 @@ public sealed record ShareResult(string Id, string Title, string Message, List<T
 [JsonSerializable(typeof(OpenTimesParams))]
 [JsonSerializable(typeof(TimeLinkParams))]
 [JsonSerializable(typeof(DeleteParams))]
+[JsonSerializable(typeof(PeopleParams))]
+[JsonSerializable(typeof(List<PersonResult>))]
 [JsonSerializable(typeof(FreeParams))]
 [JsonSerializable(typeof(ShareCreateParams))]
 [JsonSerializable(typeof(ShareBookParams))]

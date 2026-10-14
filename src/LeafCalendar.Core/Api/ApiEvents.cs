@@ -137,6 +137,7 @@ internal static class ApiEvents
             Location = p.Location ?? "",
             Description = Html(p.Description),
             Guests = [.. guests.Select(email => new Guest(email))],
+            HasConference = p.Meet ?? false,
         };
         var id = context.Editor.Create(draft, sendUpdates: p.NotifyGuests ?? true);
         return ApiParams.Write(new IdResult(ApiIds.Event(target.AccountId, target.Id, id, start)), ApiJsonContext.Default.IdResult);

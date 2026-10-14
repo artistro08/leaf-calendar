@@ -23,7 +23,7 @@ public sealed class ApiDispatcher(ApiContext context, AppLog log)
     {
         "leaf.hello", "calendars.list", "events.list", "events.get", "events.create", "events.move", "events.delete", "meetings.join",
         "app.showDay", "app.showEvent", "scheduling.links", "scheduling.openTimes", "scheduling.timeLink",
-        "availability.free", "shares.create", "shares.list", "shares.book", "shares.delete",
+        "availability.free", "shares.create", "shares.list", "shares.book", "shares.delete", "people.search",
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>The reply line for <paramref name="line"/>, or null for a notification.</summary>
@@ -89,6 +89,7 @@ public sealed class ApiDispatcher(ApiContext context, AppLog log)
         "shares.list" => Task.FromResult(ApiShares.List(context, ApiParams.Read(r.Params, ApiJsonContext.Default.NoParams))),
         "shares.book" => ApiShares.BookAsync(context, ApiParams.Read(r.Params, ApiJsonContext.Default.ShareBookParams), ct),
         "shares.delete" => Task.FromResult(ApiShares.Delete(context, ApiParams.Read(r.Params, ApiJsonContext.Default.IdParams))),
+        "people.search" => ApiPeople.SearchAsync(context, ApiParams.Read(r.Params, ApiJsonContext.Default.PeopleParams), ct),
         _ => throw new ApiProtocolException(ApiErrors.MethodNotFound, "Unknown method."),
     };
 }

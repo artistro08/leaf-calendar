@@ -1,6 +1,7 @@
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.People;
 using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Settings;
 
@@ -29,6 +30,9 @@ public interface IApiHost
 
     /// <summary>Saved times were added, booked or deleted, so the calendar reads them again.</summary>
     void SharesChanged();
+
+    /// <summary>Google contacts search, or null before anyone signs in to Google.</summary>
+    ContactSearch? Contacts { get; }
 }
 
 /// <summary>

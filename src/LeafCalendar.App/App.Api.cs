@@ -296,5 +296,7 @@ public partial class App
 
         // ReloadGroups reads off the UI thread and lands on it, so it starts there
         public void SharesChanged() => app._dispatcher.TryEnqueue(() => app._calendar?.ReloadGroups());
+
+        public LeafCalendar.Core.People.ContactSearch? Contacts => app._services?.Google?.Contacts;
     }
 }

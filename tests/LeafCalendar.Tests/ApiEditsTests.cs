@@ -53,6 +53,24 @@ public sealed class ApiEditsTests : IDisposable
     }
 
     [Fact]
+    public async Task Create_Meet_AsksGoogleForAMeetLink()
+    {
+        await _api.CallAsync("events.create", "{\"title\":\"Sync\"," + Times + ",\"meet\":true}");
+
+        var payload = Assert.Single(_api.Outbox()).Payload;
+        Assert.Contains("createRequest", payload, StringComparison.Ordinal);
+        Assert.Contains("hangoutsMeet", payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Create_NoMeet_HasNoConference()
+    {
+        await _api.CallAsync("events.create", "{\"title\":\"Sync\"," + Times + "}");
+
+        Assert.DoesNotContain("conferenceData", Assert.Single(_api.Outbox()).Payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Create_NotifyGuestsFalse_SendsNoInvitations()
     {
         await _api.CallAsync("events.create", "{\"title\":\"Sync\"," + Times + ",\"guests\":[\"sam@example.com\"],\"notifyGuests\":false}");
