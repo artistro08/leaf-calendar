@@ -2,16 +2,22 @@ using System.Security.Cryptography;
 
 namespace LeafCalendar.Core.Api;
 
-/// <summary>An approval waiting on your answer: the notification's token, and the program asking.</summary>
-public sealed record PendingApproval(string Token, string Path, string Name);
+/// <summary>
+/// A program asking to connect: its full path and name (from its file), its process (to bring its window back after
+/// Allow), and what it sent with its first <c>leaf.hello</c>.
+/// </summary>
+public sealed record ApiCaller(string Path, string Name, int ProcessId, ApiHello Hello);
+
+/// <summary>An approval waiting on your answer: its random token, and the program asking.</summary>
+public sealed record PendingApproval(string Token, ApiCaller Caller);
 
 /// <summary>
 /// The one-time question "Allow {app} to connect?" (local API spec 3.5).
 /// </summary>
 /// <remarks>
 /// One question per program path at a time (case ignored): other connections from it wait on the same answer. No answer
-/// within <see cref="Wait"/> is a no, but isn't remembered; Don't allow is remembered until Leaf restarts, so a retrying
-/// app can't keep prompting. Tokens are 128 random bits, so a notification's arguments can't be guessed. Approved paths
+/// within <see cref="Wait"/> is a no, but isn't remembered (nor is a wait the API's stop cut short); Don't allow is remembered until Leaf restarts, so a retrying
+/// app can't keep prompting. Tokens are 128 random bits. Approved paths
 /// are saved by the caller (in settings) before it calls <see cref="Answer"/>.
 /// </remarks>
 public sealed class ApiApprovals(TimeProvider time)
@@ -33,13 +39,15 @@ public sealed class ApiApprovals(TimeProvider time)
     }
 
     /// <summary>
-    /// Asks once for <paramref name="path"/> (calling <paramref name="prompt"/> to show the question) and waits for the
+    /// Asks once for the caller's path (calling <paramref name="prompt"/> to show the question) and waits for the
     /// answer; false when refused before, refused now, or unanswered within <see cref="Wait"/>.
     /// </summary>
-    public async Task<bool> AskAsync(string path, string name, Action<PendingApproval> prompt, CancellationToken ct)
+    public async Task<bool> AskAsync(ApiCaller caller, Action<PendingApproval> prompt, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(caller);
         ArgumentNullException.ThrowIfNull(prompt);
 
+        var path = caller.Path;
         TaskCompletionSource<bool> answer;
         PendingApproval? asked = null;
         lock (_gate)
@@ -55,7 +63,7 @@ public sealed class ApiApprovals(TimeProvider time)
             }
             else
             {
-                asked = new PendingApproval(Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16)), path, name);
+                asked = new PendingApproval(Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16)), caller);
                 answer = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 _pending[path] = (asked, answer);
             }
@@ -72,6 +80,11 @@ public sealed class ApiApprovals(TimeProvider time)
         }
         catch (TimeoutException)
         {
+            return false;
+        }
+        finally
+        {
+            // Unanswered (timed out, or the API stopped): the next connection asks again rather than waiting on a dead question
             lock (_gate)
             {
                 if (_pending.TryGetValue(path, out var waiting) && waiting.Answer == answer)
@@ -79,8 +92,6 @@ public sealed class ApiApprovals(TimeProvider time)
                     _pending.Remove(path);
                 }
             }
-
-            return false;
         }
     }
 

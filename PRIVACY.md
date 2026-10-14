@@ -33,7 +33,7 @@ This only applies if you sign in to Cal.com in Settings › Accounts. Until you 
 
 ## Connected Apps
 
-Connected apps is off until you turn it on in Settings › Connected apps. When it's on, apps on this PC that you allow can see your events (titles, times, locations, descriptions and guests), create and move events, join meetings, and use your Cal.com links. They connect through a channel only your Windows account can open, and Leaf never gives them your Google or Cal.com sign-in. Remove an app in Settings › Connected apps to stop it; turn the switch off to stop them all.
+Connected apps is off until you turn it on in Settings › Connected apps. When it's on, apps on this PC that you allow can see your events (titles, times, locations, descriptions and guests), create and move events, join meetings, and use your Cal.com links. They connect through a channel only your Windows account can open, and Leaf never gives them your Google or Cal.com sign-in. Remove an app in Settings › Connected apps to stop it; turn the switch off to stop them all. An app may send its icon and a link back to itself when it connects; Leaf shows the icon in the approval window and opens the link after you allow it, and keeps neither.
 
 ## Where Leaf Sends Data
 

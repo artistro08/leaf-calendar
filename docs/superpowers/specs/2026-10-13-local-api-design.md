@@ -52,8 +52,8 @@ Everything testable lives here. None of it knows about pipes or windows.
 | Piece | Job |
 | --- | --- |
 | `Api/ApiPipeServer.cs` | Runs the pipe while the switch is on (3.3). Reads lines, passes each to `ApiDispatcher`, writes replies. Stops when the switch goes off or Leaf quits. |
-| Client check | `GetNamedPipeClientProcessId` then `QueryFullProcessImageName` (CsWin32) gives the program path. The display name comes from the file's product name, falling back to the file name. |
-| Approval | A Windows notification (3.5). The connection waits for the answer. |
+| Client check | `GetNamedPipeClientProcessId` then `QueryFullProcessImageName` (CsWin32) gives the program path. The display name is the file's description, else its product name, else the file name (`ApiClients.DisplayName`; Windows' own programs carry the OS as their product name). |
+| Approval | A standalone approval window (`2026-10-13-api-approval-window-design.md`). The connection waits for the answer. |
 | `IApiHost` | Marshals to the UI thread with `DispatcherQueue.TryEnqueue`; joins through the existing join code; shows a day or event with the existing navigation. |
 | Settings | The switch and the approved-apps list (section 6). |
 
@@ -86,12 +86,12 @@ Standard JSON-RPC codes for protocol problems: `-32700` parse error, `-32600` in
 1. On connect, Leaf reads the client's program path (3.2). If it can't, the connection closes.
 2. Approved path: requests run.
 3. Path refused since Leaf started: `not_approved`, close.
-4. New path: Leaf shows a notification naming the app and its full path, with **Allow** and **Don't allow**. Requests wait up to 60 seconds. Allow saves the path to `ApprovedApps`. Don't allow, dismissing, or no answer in time: `not_approved`, close; Don't allow is remembered until Leaf restarts, so a retrying app can't spam you.
-5. Only one approval notification per path at a time; other connections from the same path wait on the same answer.
+4. New path: Leaf shows the approval window naming the app with its icon and full path, with **Allow** and **Don't allow** (approval window spec). Requests wait up to 60 seconds. Allow saves the path to `ApprovedApps`. Don't allow, Esc, closing the window, or no answer in time: `not_approved`, close; Don't allow is remembered until Leaf restarts, so a retrying app can't spam you.
+5. Only one question per path at a time; other connections from the same path wait on the same answer.
 
-The prompt runs under the existing toast escaping and defensive argument parsing rules. The path and name in it are escaped.
+The window's name comes from the program file and is cleaned like event text; the app's icon and return link are checked as the approval window spec says.
 
-Known limit (stated in the notification and in Settings): approval trusts a program file. Approving a general runtime such as `node.exe`, `python.exe` or `powershell.exe` approves every script it runs. A Raycast extension runs inside Raycast's own Node, so its prompt names Raycast's file.
+Known limit (stated in the approval window and in Settings): approval trusts a program file. Approving a general runtime such as `node.exe`, `python.exe` or `powershell.exe` approves every script it runs. A Raycast extension runs inside Raycast's own Node, so its prompt names Raycast's file.
 
 ## 4. Methods
 
@@ -101,7 +101,7 @@ IDs are opaque strings (`ApiIds`, 3.1). Calendar IDs carry the account too, sinc
 
 | Method | Params | Result |
 | --- | --- | --- |
-| `leaf.hello` | `{ client?: string }` | `{ leafVersion, apiVersion: 1, profile }`. `client` is logged as the file name only; it is never trusted. |
+| `leaf.hello` | `{ client?: string, icon?: string, returnUrl?: string }` | `{ leafVersion, apiVersion: 1, profile }`. `client` is logged as the file name only; it is never trusted. `icon` and `returnUrl` count only on the first line (approval window spec 3). |
 | `calendars.list` | none | `[ { id, account, name, color, canEdit, isDefault } ]` for calendars shown in Leaf. `account` is the Google account's email address. |
 | `events.list` | `{ start, end, calendarIds? }` | Events overlapping the range, sorted by start: `[ { id, calendarId, title, start, end, allDay, location, response, color, meetingLink } ]`. Range at most 366 days. Only calendars shown in Leaf (the same events the calendar draws, declined ones only when Leaf shows them); `calendarIds` narrows that. |
 | `events.get` | `{ id }` | The `events.list` fields plus `description` (plain text through `DescriptionFormatter`) and `guests: [ { name, email, response, organizer } ]`. |
@@ -141,11 +141,11 @@ Unchanged: the `leaf-calendar:` protocol still only brings Leaf forward. Logs ca
 A new **Connected apps** page in Settings (proposed placement: after Notifications). Following the Settings pattern: one setting per card, saves at once.
 
 1. **Allow other apps to connect** switch, off by default.
-2. While on: the approved apps, one card each with its name and path and a **Remove** button. Empty: a short line saying none yet.
+2. While on: the approved apps, one card each with its program's icon, name and path and a **Remove** button. Empty: a short line saying none yet.
 3. If the pipe name is taken: a card saying so.
 4. A link to `docs/api.md` on GitHub for developers.
 
-All wording on this page and in the approval notification is **pending owner approval**; the plan quotes each string for review before it ships.
+All wording on this page and in the approval window is **pending owner approval**; the plan quotes each string for review before it ships.
 
 ## 7. Documentation
 
@@ -157,7 +157,7 @@ All wording on this page and in the approval notification is **pending owner app
 
 - **Logic tests (Core):** message parsing (valid, malformed, oversize, batch, notification), every method's params checks and results against a test database (including guests and `notifyGuests` on create), every error code, `ApiIds` round trips and rejects, `ApprovedApps` add, remove, path normalization, and that no result contains a token or setting.
 - **Lint:** the new Settings page passes `XamlLintTests`.
-- **UI test:** one class against the fake Google server and a `uitest-` profile: turn the switch on, connect to the pipe, approve through the existing `--toast-action` path, call `events.list` and `app.showDay`, then remove the app and see `not_approved`.
+- **UI test:** one class against the fake Google server and a `uitest-` profile: turn the switch on, connect to the pipe, approve through the approval window's Allow button, call `events.list` and `app.showDay`, then remove the app and see `not_approved`.
 - Not covered by automated tests: a second Windows user and a squatted pipe name. Checked by hand.
 
 ## 9. Out of Scope

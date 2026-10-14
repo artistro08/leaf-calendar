@@ -1,18 +1,20 @@
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
+using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
-using LeafCalendar.Core.Alerts;
+using FlaUI.Core.WindowsAPI;
 using LeafCalendar.Core.Api;
 using LeafCalendar.UITests.Support;
 
 namespace LeafCalendar.UITests;
 
-public sealed partial class LocalApiTests : IDisposable
+public sealed class LocalApiTests : IDisposable
 {
+    internal const string OnePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
     private const string MeetLink = "https://meet.google.com/abc-defg-hij?authuser=leaf.tester%40gmail.com";
 
     private readonly FakeGoogleServer _google = new();
@@ -23,9 +25,6 @@ public sealed partial class LocalApiTests : IDisposable
         LeafApp.DeleteProfile(_profile);
         _google.Dispose();
     }
-
-    [GeneratedRegex("request=([0-9a-f]{32})")]
-    private static partial Regex RequestToken();
 
     private string PipeName => ApiClients.PipeName(Environment.UserName, _profile);
 
@@ -65,13 +64,27 @@ public sealed partial class LocalApiTests : IDisposable
         return doc.RootElement.Clone();
     }
 
-    // The approval notification's Allow, as UI tests click notifications (a second launch with --toast-action)
-    private void Allow()
+    // The approval window's Allow
+    private static void Allow(LeafApp leaf)
     {
-        var line = LeafApp.WaitForNotification(_profile, l => l.StartsWith("show\tapi\t", StringComparison.Ordinal));
-        var token = RequestToken().Match(line).Groups[1].Value;
-        using var second = LeafApp.Launch(_profile, $"--fake-google {_google.BaseUri} --toast-action {new ToastArgs(ToastAction.AllowApp, _profile, Request: token).Encode()}");
-        Assert.True(Retry.WhileFalse(() => second.App.HasExited, TimeSpan.FromSeconds(15)).Success);
+        var allow = leaf.WaitInApproval("ApiApprovalAllowButton").AsButton();
+        Assert.True(Retry.WhileFalse(() => allow.IsEnabled, TimeSpan.FromSeconds(10)).Success);
+        allow.Invoke();
+    }
+
+    // A line sent without waiting for its reply (the reply waits on the approval)
+    private static async Task SendLineAsync(Stream pipe, int id, string method, string paramsJson)
+    {
+        var line = $$"""{"jsonrpc":"2.0","id":{{id}},"method":"{{method}}","params":{{paramsJson}}}""" + "\n";
+        await pipe.WriteAsync(Encoding.UTF8.GetBytes(line), TestContext.Current.CancellationToken);
+        await pipe.FlushAsync(TestContext.Current.CancellationToken);
+    }
+
+    private static async Task<JsonElement> ReadReplyAsync(StreamReader reader)
+    {
+        var reply = await reader.ReadLineAsync(TestContext.Current.CancellationToken) ?? throw new InvalidOperationException("Leaf closed the connection.");
+        using var doc = JsonDocument.Parse(reply);
+        return doc.RootElement.Clone();
     }
 
     [Fact]
@@ -83,7 +96,7 @@ public sealed partial class LocalApiTests : IDisposable
         await using var pipe = await ConnectAsync();
         using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, leaveOpen: true);
         var hello = SendAsync(pipe, reader, 1, "leaf.hello");
-        Allow();
+        Allow(leaf);
 
         Assert.Equal(1, (await hello).GetProperty("result").GetProperty("apiVersion").GetInt32());
         leaf.WaitInSettings("ApiRemoveButton_0");
@@ -105,7 +118,7 @@ public sealed partial class LocalApiTests : IDisposable
         await using var pipe = await ConnectAsync();
         using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, leaveOpen: true);
         var hello = SendAsync(pipe, reader, 1, "leaf.hello");
-        Allow();
+        Allow(leaf);
         await hello;
 
         leaf.WaitInSettings("ApiRemoveButton_0").AsButton().Invoke();
@@ -122,5 +135,109 @@ public sealed partial class LocalApiTests : IDisposable
 
         using var pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
         await Assert.ThrowsAsync<TimeoutException>(() => pipe.ConnectAsync(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task EnterDoesNothing_EscRefuses()
+    {
+        using var leaf = Launch();
+        TurnOn(leaf);
+
+        await using var pipe = await ConnectAsync();
+        using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, leaveOpen: true);
+        var hello = SendAsync(pipe, reader, 1, "leaf.hello");
+        leaf.WaitInApproval("ApiApprovalPath");
+        leaf.ApprovalWindow.SetForeground();
+
+        Keyboard.Type(VirtualKeyShort.ENTER);
+        Keyboard.Type(VirtualKeyShort.SPACE);
+        Thread.Sleep(500);
+        Assert.True(leaf.IsApprovalOpen);
+
+        Keyboard.Type(VirtualKeyShort.ESCAPE);
+        Assert.Equal("not_approved", (await hello).GetProperty("error").GetProperty("data").GetProperty("code").GetString());
+        Assert.True(Retry.WhileTrue(() => leaf.IsApprovalOpen, TimeSpan.FromSeconds(10)).Success);
+    }
+
+    [Fact]
+    public async Task AllowIsOff_ForTheFirstSeconds()
+    {
+        using var leaf = Launch();
+        TurnOn(leaf);
+
+        await using var pipe = await ConnectAsync();
+        using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, leaveOpen: true);
+        await SendLineAsync(pipe, 1, "leaf.hello", "{}");
+
+        Assert.False(leaf.WaitInApproval("ApiApprovalAllowButton").IsEnabled);
+        Assert.True(leaf.WaitInApproval("ApiApprovalDenyButton").IsEnabled);
+
+        // No App Icon Sent: The Program's Own
+        leaf.WaitInApprovalRaw("ApiApprovalProgramIcon");
+        Allow(leaf);
+        await ReadReplyAsync(reader);
+    }
+
+    [Fact]
+    public async Task SwitchOff_ClosesTheWindow()
+    {
+        using var leaf = Launch();
+        TurnOn(leaf);
+
+        await using var pipe = await ConnectAsync();
+        using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, leaveOpen: true);
+        await SendLineAsync(pipe, 1, "leaf.hello", "{}");
+        leaf.WaitInApproval("ApiApprovalAllowButton");
+
+        leaf.WaitInSettings("ApiAllowSwitch").Patterns.Toggle.Pattern.Toggle();
+
+        Assert.True(Retry.WhileTrue(() => leaf.IsApprovalOpen, TimeSpan.FromSeconds(10)).Success);
+    }
+
+    [Fact]
+    public async Task AppIcon_ShowsInsteadOfTheProgramIcon()
+    {
+        using var leaf = Launch();
+        TurnOn(leaf);
+
+        await using var pipe = await ConnectAsync();
+        using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, leaveOpen: true);
+        await SendLineAsync(pipe, 1, "leaf.hello", $$"""{"icon":"{{OnePixelPng}}"}""");
+
+        leaf.WaitInApprovalRaw("ApiApprovalAppIcon");
+        Allow(leaf);
+        Assert.Equal(1, (await ReadReplyAsync(reader)).GetProperty("result").GetProperty("apiVersion").GetInt32());
+    }
+
+    [Fact]
+    public async Task BrokenIcon_ShowsTheProgramIcon()
+    {
+        using var leaf = Launch();
+        TurnOn(leaf);
+
+        // A PNG header Leaf's check passes, with nothing after it for Windows to decode
+        var header = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 16, 0, 0, 0, 16 };
+        await using var pipe = await ConnectAsync();
+        using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, leaveOpen: true);
+        await SendLineAsync(pipe, 1, "leaf.hello", $$"""{"icon":"{{Convert.ToBase64String(header)}}"}""");
+
+        leaf.WaitInApprovalRaw("ApiApprovalProgramIcon");
+        Allow(leaf);
+        await ReadReplyAsync(reader);
+    }
+
+    [Fact]
+    public async Task Allow_OpensTheReturnLink()
+    {
+        using var leaf = Launch();
+        TurnOn(leaf);
+
+        await using var pipe = await ConnectAsync();
+        using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, leaveOpen: true);
+        await SendLineAsync(pipe, 1, "leaf.hello", """{"returnUrl":"leaf-uitest://back"}""");
+
+        Allow(leaf);
+        await ReadReplyAsync(reader);
+        Assert.True(Retry.WhileFalse(() => LeafApp.LaunchedLinks(_profile).Contains("leaf-uitest://back"), TimeSpan.FromSeconds(10)).Success);
     }
 }

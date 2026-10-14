@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Xml.Linq;
-using LeafCalendar.Core.Api;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Tray;
@@ -56,9 +55,6 @@ public static class ToastContent
 
     /// <summary>Group of short notices ("No meeting to join").</summary>
     public const string NoticeGroup = "notices";
-
-    /// <summary>Group of the local API's approval questions.</summary>
-    public const string ApiGroup = "api";
 
     /// <summary>The single conflict notification's tag (a newer count replaces it).</summary>
     public const string ConflictTag = "conflicts";
@@ -192,36 +188,6 @@ public static class ToastContent
     /// <summary>The join shortcut found nothing to join (spec 8.5).</summary>
     public static ToastMessage NoMeeting(bool sound) =>
         Build("no-meeting", NoticeGroup, null, null, ["No meeting to join", "Nothing with a meeting link starts in the next 10 minutes."], [], sound);
-
-    /// <summary>The approval notification's tag for a token.</summary>
-    public static string ApprovalTag(string token) => "api-" + token;
-
-    /// <summary>
-    /// "{name} wants to connect to Leaf" with Allow and Don't allow (local API spec 3.5). It stays on screen until answered,
-    /// like a reminder. The name and path come from the connecting program's file, so they enter as escaped text like event
-    /// text; the buttons carry only the random token. A general runtime (Node, Python, PowerShell) adds a line saying every
-    /// script it runs gets in.
-    /// </summary>
-    public static ToastMessage ApproveApp(PendingApproval request, bool generalRuntime, string profile, bool sound)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        return Build(
-            ApprovalTag(request.Token),
-            ApiGroup,
-            null,
-            "reminder",
-            [
-                $"{request.Name} wants to connect to Leaf",
-                "It will be able to see your events, create and move them, and join meetings.",
-                generalRuntime ? $"Allowing {Path.GetFileName(request.Path)} lets every script that uses it connect." : null,
-                request.Path,
-            ],
-            [
-                Button("Allow", new ToastArgs(ToastAction.AllowApp, profile, Request: request.Token)),
-                Button("Don't allow", new ToastArgs(ToastAction.DenyApp, profile, Request: request.Token)),
-            ],
-            sound);
-    }
 
     // Every Line Goes Through DisplayText.Clean And Enters As Escaped Element Text; The First Line Is The Headline, So It Never Drops Out
     private static ToastMessage Build(string tag, string group, ToastArgs? launch, string? scenario, IEnumerable<string?> lines, List<XElement> actions, bool sound)

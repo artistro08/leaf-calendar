@@ -1,12 +1,15 @@
 using System.Diagnostics;
 using LeafCalendar.App.Api;
-using LeafCalendar.Core.Alerts;
+using LeafCalendar.App.Views.Api;
 using LeafCalendar.Core.Api;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Dispatching;
 using Windows.ApplicationModel;
+using Windows.Win32;
+using Windows.Win32.Foundation;
+using Windows.Win32.UI.WindowsAndMessaging;
 
 namespace LeafCalendar.App;
 
@@ -18,6 +21,9 @@ public partial class App
     private ApiPipeServer? _api;
     private ApiApprovals? _approvals;
     private bool _apiOn;
+    private Task _apiStopped = Task.CompletedTask;
+    private readonly Queue<PendingApproval> _waitingApprovals = new();
+    private ApprovalWindow? _approvalWindow;
 
     // Starts or stops the pipe to match the switch (at startup and after every settings change); nothing may escape
     private void UpdateApi()
@@ -43,9 +49,29 @@ public partial class App
                 services.ApiNameTaken = false;
                 if (running is not null)
                 {
-                    _ = running.DisposeAsync().AsTask();
+                    _apiStopped = running.DisposeAsync().AsTask();
                 }
 
+                return;
+            }
+
+            StartApi(services);
+        }
+        catch (Exception ex)
+        {
+            services.Log.Info("api.update.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // Opens the pipe once the last one has fully closed (a quick off and on would otherwise find its own old pipe and say
+    // the name is taken); async void on the UI thread, so nothing may escape
+    private async void StartApi(LeafServices services)
+    {
+        try
+        {
+            await _apiStopped;
+            if (!_apiOn || _api is not null)
+            {
                 return;
             }
 
@@ -67,52 +93,162 @@ public partial class App
         }
     }
 
-    // A new program asks: one notification, a 60-second wait, and the notification goes once it's answered or timed out
-    private async Task<bool> ApproveAsync(string path, CancellationToken ct)
+    // A new program asks: its window (one on screen at a time), a 60-second wait, and the window closes once the
+    // question is answered, timed out, or the API stopped
+    private async Task<bool> ApproveAsync(ApiCaller caller, CancellationToken ct)
     {
+        // What The App Sent (ok, none or refused for each; never the values)
+        _services?.Log.Info("api.asked", $"client={Path.GetFileName(caller.Path)} {caller.Hello.Log}");
+
         PendingApproval? shown = null;
-        var allowed = await _approvals!.AskAsync(path, ClientName(path), request =>
+        try
         {
-            shown = request;
-            _dispatcher.TryEnqueue(() => ShowApproval(request));
-        }, ct);
-
-        if (shown is { } asked && _notifier is { } notifier)
-        {
-            await notifier.RemoveAsync(ToastContent.ApprovalTag(asked.Token), ToastContent.ApiGroup);
+            return await _approvals!.AskAsync(caller, request =>
+            {
+                shown = request;
+                _dispatcher.TryEnqueue(() => ShowApproval(request));
+            }, ct);
         }
-
-        return allowed;
+        finally
+        {
+            if (shown is { } asked)
+            {
+                _dispatcher.TryEnqueue(() => EndApproval(asked));
+            }
+        }
     }
 
+    // Queues the question; it shows once no other is on screen (ShowNextApproval catches everything)
     private void ShowApproval(PendingApproval request)
+    {
+        _waitingApprovals.Enqueue(request);
+        ShowNextApproval();
+    }
+
+    // The next waiting question that's still open (one that ended while it waited never shows). A window that fails to
+    // open is skipped, so the queue never sticks behind it (its question times out as unanswered); a dispatcher callback,
+    // so nothing may escape
+    private void ShowNextApproval()
+    {
+        while (_approvalWindow is null && _waitingApprovals.TryDequeue(out var next))
+        {
+            if (_approvals?.Find(next.Token) is null)
+            {
+                continue;
+            }
+
+            try
+            {
+                var window = new ApprovalWindow(next, CurrentSettings().Theme, _services!.Log);
+                window.Answered += (_, allow) => AnswerApproval(next, allow);
+                window.Closed += (_, _) =>
+                {
+                    _approvalWindow = null;
+                    ShowNextApproval();
+                };
+                window.Activate();
+                _approvalWindow = window;
+            }
+            catch (Exception ex)
+            {
+                _services?.Log.Info("api.prompt.failed", $"error={ex.GetType().Name}");
+            }
+        }
+    }
+
+    // The question ended (answered, timed out, or the API stopped): its window closes; a queued one is skipped when its
+    // turn comes. A dispatcher callback, so nothing may escape
+    private void EndApproval(PendingApproval request)
     {
         try
         {
-            _notifier?.Show(ToastContent.ApproveApp(request, ApiClients.IsGeneralRuntime(request.Path), _services!.Options.Profile, CurrentSettings().NotificationSound));
+            if (_approvalWindow is { } window && window.Request == request)
+            {
+                window.Close();
+            }
         }
         catch (Exception ex)
         {
-            // A dispatcher callback, so nothing may escape
-            _services?.Log.Info("api.prompt.failed", $"error={ex.GetType().Name}");
+            _services?.Log.Info("api.prompt.close-failed", $"error={ex.GetType().Name}");
         }
     }
 
-    // Allow or Don't allow on the notification (from HandleToast, on the UI thread): an approval is saved before the waiting connection hears it
-    private void AnswerApproval(string token, bool allow)
+    // The theme setting changed: an open approval window follows it
+    private void ApplyApprovalTheme(AppTheme theme)
     {
-        if (_approvals?.Find(token) is not { } request)
+        try
+        {
+            _approvalWindow?.ApplyTheme(theme);
+        }
+        catch (Exception ex)
+        {
+            _services?.Log.Info("api.prompt.theme-failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    // Allow or Don't allow (from the window's click, Esc or Close, so nothing may escape): an approval is saved before the
+    // waiting connection hears it, then Allow sends you back to the app. A save that fails still answers, so the app isn't
+    // left waiting, and it's let in this once
+    private void AnswerApproval(PendingApproval request, bool allow)
+    {
+        if (_approvals is not { } approvals || approvals.Find(request.Token) is null || _services is not { } services)
         {
             return;
         }
 
-        if (allow)
+        var caller = request.Caller;
+        try
         {
-            UpdateSettings(s => s.WithApprovedApp(new ApprovedApp(request.Path, request.Name, _services!.Time.GetUtcNow())));
+            if (allow)
+            {
+                UpdateSettings(s => s.WithApprovedApp(new ApprovedApp(caller.Path, caller.Name, services.Time.GetUtcNow())));
+            }
+        }
+        catch (Exception ex)
+        {
+            services.Log.Info("api.approval.save-failed", $"error={ex.GetType().Name}");
         }
 
-        _approvals.Answer(token, allow);
-        _services!.Log.Info(allow ? "api.allowed" : "api.denied", $"client={Path.GetFileName(request.Path)}");
+        approvals.Answer(request.Token, allow);
+        services.Log.Info(allow ? "api.allowed" : "api.denied", $"client={Path.GetFileName(caller.Path)}");
+        if (allow)
+        {
+            _ = ReturnToAppAsync(caller);
+        }
+    }
+
+    // After Allow: the app's return link when it sent a valid one, else its own window comes forward, restored when it was
+    // minimized (Leaf may hand focus over, since you just clicked in its window; no visible window, nothing happens);
+    // nothing may escape
+    private async Task ReturnToAppAsync(ApiCaller caller)
+    {
+        try
+        {
+            if (caller.Hello.ReturnUrl is { } link)
+            {
+                await _services!.LaunchReturnLinkAsync(link);
+                _services.Log.Info("api.returned", "by=link");
+                return;
+            }
+
+            using var process = Process.GetProcessById(caller.ProcessId);
+            if (process.MainWindowHandle != 0)
+            {
+                var window = new HWND(process.MainWindowHandle);
+                if (PInvoke.IsIconic(window))
+                {
+                    PInvoke.ShowWindow(window, SHOW_WINDOW_CMD.SW_RESTORE);
+                }
+
+                PInvoke.SetForegroundWindow(window);
+                _services!.Log.Info("api.returned", "by=window");
+            }
+        }
+        catch (Exception ex)
+        {
+            // The app already quit (ArgumentException) or can't be read
+            _services?.Log.Info("api.return.failed", $"error={ex.GetType().Name}");
+        }
     }
 
     // A settings change from outside Settings: through the calendar's view model when it exists (so it shows at once), else straight to the database
@@ -126,26 +262,6 @@ public partial class App
 
         using var conn = _services!.Database.Open();
         SettingsStore.Save(conn, change(SettingsStore.Load(conn)).Normalize());
-    }
-
-    // The program's product name, else its description, else its file name
-    private static string ClientName(string path)
-    {
-        try
-        {
-            var info = FileVersionInfo.GetVersionInfo(path);
-            var name = !string.IsNullOrWhiteSpace(info.ProductName) ? info.ProductName : info.FileDescription;
-            if (!string.IsNullOrWhiteSpace(name))
-            {
-                return name.Trim();
-            }
-        }
-        catch (Exception ex) when (ex is FileNotFoundException or IOException or UnauthorizedAccessException)
-        {
-            // The file name below
-        }
-
-        return Path.GetFileNameWithoutExtension(path);
     }
 
     private static string LeafVersion()

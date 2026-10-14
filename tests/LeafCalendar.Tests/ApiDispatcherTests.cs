@@ -21,6 +21,14 @@ public sealed class ApiDispatcherTests : IDisposable
     }
 
     [Fact]
+    public async Task Hello_WithIconAndReturnUrl_IsAccepted()
+    {
+        var result = await _api.CallAsync("leaf.hello", $$"""{"client":"Raycast","icon":"{{ApiHelloTests.OnePixelPng}}","returnUrl":"raycast://extensions/leaf"}""");
+
+        Assert.Equal(1, result.GetProperty("apiVersion").GetInt32());
+    }
+
+    [Fact]
     public async Task UnknownMethod_IsMethodNotFound()
     {
         Assert.Equal(ApiErrors.MethodNotFound, (await _api.FailAsync("events.explode")).Code);

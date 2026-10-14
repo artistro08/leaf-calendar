@@ -279,6 +279,19 @@ public sealed class LeafServices : IAsyncDisposable
             return false;
         }
 
+        return await OpenAsync(uri);
+    }
+
+    /// <summary>
+    /// Opens the link an app sent to bring you back to it after you allowed it (approval window spec 4). The link was
+    /// checked by <see cref="Core.Api.ApiHello.ReadReturnUrl"/> (an app's own scheme only), so <see cref="LinkSafety"/>,
+    /// which allows only web and meeting links, doesn't apply. Recorded, logged and reported like <see cref="LaunchAsync"/>.
+    /// </summary>
+    public Task<bool> LaunchReturnLinkAsync(Uri link) => OpenAsync(link);
+
+    // Opens a checked link (its canonical address); in fake-Google mode it's appended to launched.txt instead. Never throws.
+    private async Task<bool> OpenAsync(Uri uri)
+    {
         try
         {
             if (Options.FakeGoogle is not null)

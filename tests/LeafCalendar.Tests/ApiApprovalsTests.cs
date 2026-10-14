@@ -10,8 +10,10 @@ public sealed class ApiApprovalsTests
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 13, 12, 0, 0, TimeSpan.Zero));
     private readonly List<PendingApproval> _prompts = [];
 
+    private static ApiCaller Caller(string path = Path) => new(path, "Raycast", 1234, ApiHello.None);
+
     private Task<bool> Ask(ApiApprovals approvals, string path = Path) =>
-        approvals.AskAsync(path, "Raycast", _prompts.Add, TestContext.Current.CancellationToken);
+        approvals.AskAsync(Caller(path), _prompts.Add, TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task AskAsync_Allow_IsTrue()
@@ -65,6 +67,21 @@ public sealed class ApiApprovalsTests
     }
 
     [Fact]
+    public async Task AskAsync_Canceled_AsksAgainNextTime()
+    {
+        var approvals = new ApiApprovals(_time);
+        using var stop = new CancellationTokenSource();
+        var asking = approvals.AskAsync(Caller(), _prompts.Add, stop.Token);
+
+        await stop.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => asking);
+        Assert.Null(approvals.Find(_prompts[0].Token));
+        _ = Ask(approvals);
+        Assert.Equal(2, _prompts.Count);
+    }
+
+    [Fact]
     public void Find_UnknownToken_IsNull()
     {
         Assert.Null(new ApiApprovals(_time).Find("0123456789abcdef0123456789abcdef"));
@@ -76,7 +93,18 @@ public sealed class ApiApprovalsTests
         var approvals = new ApiApprovals(_time);
         _ = Ask(approvals);
 
-        Assert.Equal(Path, approvals.Find(_prompts[0].Token)!.Path);
+        Assert.Equal(Path, approvals.Find(_prompts[0].Token)!.Caller.Path);
+    }
+
+    [Fact]
+    public void AskAsync_KeepsWhatTheAppSent()
+    {
+        var approvals = new ApiApprovals(_time);
+        var caller = new ApiCaller(Path, "Raycast", 4321, new ApiHello(new byte[] { 1, 2, 3 }, new Uri("raycast://extensions/leaf")));
+
+        _ = approvals.AskAsync(caller, _prompts.Add, TestContext.Current.CancellationToken);
+
+        Assert.Same(caller, Assert.Single(_prompts).Caller);
     }
 
     [Fact]

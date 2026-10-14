@@ -72,7 +72,7 @@ internal static class ApiEvents
         var summary = Summary(conn, o, context.Host.Zone);
         var result = new EventDetailResult(
             summary.Id, summary.CalendarId, summary.Title, summary.Start, summary.End, summary.AllDay, summary.Location,
-            summary.Response, summary.Color, summary.MeetingLink, Details(conn, o)?.Description ?? "",
+            summary.Response, summary.Color, summary.MeetingLink, Details(conn, o, includeDescription: true)?.Description ?? "",
             [.. guests.Where(g => !g.IsResource).Select(g => new GuestResult(g.Name, g.Email, Response(g.Response), g.IsOrganizer))]);
         return ApiParams.Write(result, ApiJsonContext.Default.EventDetailResult);
     }
@@ -165,8 +165,10 @@ internal static class ApiEvents
             throw new ApiException(ApiErrors.ReadOnly, "You can't change that.");
         }
 
+        // A single event ignores the scope, so it still gets its new ID. "Following" on a series has none: a split leaves the
+        // old series' earlier instances, and one of them may start at the new time, so Relocate could name the wrong event
         context.Editor.Move([new EventMove(o, start, end, allDay)], scope, sendUpdates: true);
-        if (scope == EditScope.Following)
+        if (scope == EditScope.Following && o.RecurringEventId is not null)
         {
             return ApiParams.Write(new IdResult(null), ApiJsonContext.Default.IdResult);
         }
@@ -233,7 +235,7 @@ internal static class ApiEvents
 
     private static EventResult Summary(SqliteConnection conn, CalendarOccurrence o, TimeZoneInfo zone)
     {
-        var details = Details(conn, o);
+        var details = Details(conn, o, includeDescription: false);
         return new EventResult(
             ApiIds.Event(o),
             ApiIds.Calendar(o.AccountId, o.CalendarId),
@@ -247,8 +249,8 @@ internal static class ApiEvents
             JoinPicker.KnownHost(details?.ConferenceUri)?.AbsoluteUri);
     }
 
-    // The stored event's details, or null when it's gone or unreadable
-    private static EventDetails? Details(SqliteConnection conn, CalendarOccurrence o)
+    // The stored event's details, or null when it's gone or unreadable (the description only when asked: a year's list doesn't need it)
+    private static EventDetails? Details(SqliteConnection conn, CalendarOccurrence o, bool includeDescription)
     {
         if (EventStore.Get(conn, o.AccountId, o.CalendarId, o.EventId) is not { } stored)
         {
@@ -257,7 +259,7 @@ internal static class ApiEvents
 
         try
         {
-            return EventDetailsParser.Parse(stored.RawJson, includeDescription: true);
+            return EventDetailsParser.Parse(stored.RawJson, includeDescription);
         }
         catch (JsonException)
         {

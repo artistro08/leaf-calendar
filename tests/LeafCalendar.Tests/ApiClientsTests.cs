@@ -17,6 +17,17 @@ public sealed class ApiClientsTests
     }
 
     [Theory]
+    [InlineData("Windows PowerShell", "Microsoft® Windows® Operating System", "Windows PowerShell")]
+    [InlineData("  Raycast  ", "Raycast", "Raycast")]
+    [InlineData("", "Node.js", "Node.js")]
+    [InlineData(null, null, "my-tool")]
+    [InlineData(" ", " ", "my-tool")]
+    public void DisplayName_PrefersTheDescription(string? description, string? product, string expected)
+    {
+        Assert.Equal(expected, ApiClients.DisplayName(description, product, @"C:\Tools\my-tool.exe"));
+    }
+
+    [Theory]
     [InlineData(@"C:\Program Files\nodejs\node.exe", true)]
     [InlineData(@"C:\Python312\python.exe", true)]
     [InlineData(@"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe", true)]

@@ -143,6 +143,27 @@ public sealed class ApiEditsTests : IDisposable
     }
 
     [Fact]
+    public async Task Move_FollowingOntoAnEarlierInstance_ReturnsNoId()
+    {
+        var id = await IdOf("Weekly", "2026-10-15");
+
+        var result = await _api.CallAsync("events.move", $$"""{"id":"{{id}}","start":"2026-10-08T09:00:00-04:00","end":"2026-10-08T09:30:00-04:00","scope":"following"}""");
+
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, result.GetProperty("id").ValueKind);
+    }
+
+    [Fact]
+    public async Task Move_SingleWithFollowing_ReturnsTheNewId()
+    {
+        var id = await IdOf("One");
+
+        var result = await _api.CallAsync("events.move", $$"""{"id":"{{id}}","start":"2026-10-01T16:00:00-04:00","end":"2026-10-01T17:00:00-04:00","scope":"following"}""");
+
+        var moved = await _api.CallAsync("events.get", $$"""{"id":"{{result.GetProperty("id").GetString()}}"}""");
+        Assert.Equal("2026-10-01T16:00:00-04:00", moved.GetProperty("start").GetString());
+    }
+
+    [Fact]
     public async Task Move_BadScope_IsInvalid()
     {
         var id = await IdOf("One");

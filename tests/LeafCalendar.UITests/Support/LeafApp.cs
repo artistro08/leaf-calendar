@@ -79,6 +79,62 @@ public sealed class LeafApp : IDisposable
     public bool InOnboarding(string automationId) =>
         App.GetAllTopLevelWindows(_automation).FirstOrDefault(w => NameOf(w) == "Set up Leaf Calendar")?.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) is not null;
 
+    /// <summary>The local API's approval window, waiting up to 20 s for it.</summary>
+    public Window ApprovalWindow => Retry.WhileNull(FindApprovalWindow, TimeSpan.FromSeconds(20)).Result
+        ?? throw new InvalidOperationException("The approval window didn't appear.");
+
+    /// <summary>True while the approval window is open.</summary>
+    public bool IsApprovalOpen => FindApprovalWindow() is not null;
+
+    /// <summary>Waits up to 15 s for an element in the approval window by automation ID.</summary>
+    public AutomationElement WaitInApproval(string automationId) =>
+        Retry.WhileNull(() => ApprovalWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)), TimeSpan.FromSeconds(15)).Result
+            ?? throw new InvalidOperationException($"Element '{automationId}' didn't appear in the approval window.");
+
+    /// <summary>
+    /// Waits up to 15 s for a decorative element in the approval window (an icon hidden from screen readers, so it's only
+    /// in the raw view, which ordinary searches skip).
+    /// </summary>
+    public AutomationElement WaitInApprovalRaw(string automationId)
+    {
+        var walker = _automation.TreeWalkerFactory.GetRawViewWalker();
+        return Retry.WhileNull(() => FindRaw(walker, ApprovalWindow, automationId), TimeSpan.FromSeconds(15)).Result
+            ?? throw new InvalidOperationException($"Element '{automationId}' didn't appear in the approval window's raw view.");
+    }
+
+    // Depth-first through the raw view
+    private static AutomationElement? FindRaw(ITreeWalker walker, AutomationElement parent, string automationId)
+    {
+        for (var child = walker.GetFirstChild(parent); child is not null; child = walker.GetNextSibling(child))
+        {
+            if (child.Properties.AutomationId.ValueOrDefault == automationId)
+            {
+                return child;
+            }
+
+            if (FindRaw(walker, child, automationId) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    // The top-level window holding the approval buttons (a Grid has no automation peer, so its root ID is never seen; a window that closes mid-search is skipped)
+    private Window? FindApprovalWindow() =>
+        App.GetAllTopLevelWindows(_automation).FirstOrDefault(w =>
+        {
+            try
+            {
+                return w.FindFirstDescendant(cf => cf.ByAutomationId("ApiApprovalAllowButton")) is not null;
+            }
+            catch (Exception ex) when (ex is COMException or FlaUI.Core.Exceptions.ElementNotAvailableException)
+            {
+                return false;
+            }
+        });
+
     /// <summary>Waits for onboarding's optional Cal.com step (after the first sync), then presses Skip.</summary>
     public void SkipCalComStep()
     {

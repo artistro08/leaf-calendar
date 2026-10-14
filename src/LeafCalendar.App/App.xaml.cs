@@ -628,6 +628,7 @@ public partial class App : Application
                 UpdateApi();
 
                 var s = CurrentSettings();
+                ApplyApprovalTheme(s.Theme);
                 _tray?.SetVisible(!s.HideTrayIcon);
                 var zone = DisplayZone.Resolve(null, s.PrimaryTimeZone, _zone.Zone);
                 var key = (s.FlyoutDays, s.FlyoutAllDay, s.TrayLookaheadMinutes, s.Use24HourTime, Zone: s.PrimaryTimeZone, Today: TimeZoneInfo.ConvertTime(_services!.Time.GetUtcNow(), zone).Date);
@@ -922,11 +923,6 @@ public partial class App : Application
         {
             switch (toast.Action)
             {
-                // The Local API's Approval Question: the token finds the waiting app (an old or unknown token does nothing)
-                case ToastAction.AllowApp or ToastAction.DenyApp:
-                    AnswerApproval(toast.Request!, toast.Action == ToastAction.AllowApp);
-                    return;
-
                 case ToastAction.ReviewConflicts:
                     ShowMainWindow();
                     _dispatcher?.TryEnqueue(DispatcherQueuePriority.Low, () => _ = _window?.ReviewConflictsAsync());

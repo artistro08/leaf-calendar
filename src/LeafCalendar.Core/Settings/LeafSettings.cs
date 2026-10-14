@@ -49,7 +49,7 @@ public sealed record CalendarRef(string AccountId, string CalendarId);
 
 /// <summary>An app you allowed to use Leaf's local API (Settings › Connected apps), by the program file that connected.</summary>
 /// <param name="Path">The program's full path, compared ignoring case.</param>
-/// <param name="Name">The name shown in Settings (the file's product name, else its file name).</param>
+/// <param name="Name">The name shown in Settings (the file's description, else its product name, else its file name).</param>
 /// <param name="ApprovedAt">When you allowed it.</param>
 public sealed record ApprovedApp(string Path, string Name, DateTimeOffset ApprovedAt);
 

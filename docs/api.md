@@ -15,11 +15,11 @@ Leaf keeps your calendar and every change you make. Other apps never open Leaf's
 
 1. Open Leaf, then **Settings › Connected apps**.
 2. Turn on **Allow other apps to connect**.
-3. Send your first request from your app. Leaf shows a notification asking whether to allow it, with **Allow** and **Don't allow**. Your request waits up to 60 seconds for the answer.
+3. Send your first request from your app. Leaf opens a small "{app} wants to connect to Leaf" window on top of the screen, with **Allow** and **Don't allow**. Your request waits up to 60 seconds for the answer. Make that first request a `leaf.hello` with your `icon` and `returnUrl` (below) so the window shows your icon and Leaf can send the person back to you.
 
 Allowed apps are listed in **Settings › Connected apps**. Remove one there and its next request is refused.
 
-> Leaf remembers an app by the program file that connected. If you allow a general runtime such as `node.exe` or `python.exe`, every script that uses it can connect. A Raycast extension runs inside Raycast's own copy of Node, so the notification names that file.
+> Leaf remembers an app by the program file that connected. If you allow a general runtime such as `node.exe` or `python.exe`, every script that uses it can connect. A Raycast extension runs inside Raycast's own copy of Node, so the window names that file and shows the app's icon.
 
 ## Connecting
 
@@ -65,6 +65,19 @@ Says which Leaf you're talking to. `client` is your app's name; Leaf only logs i
 {"jsonrpc":"2.0","id":1,"method":"leaf.hello","params":{"client":"Raycast"}}
 {"jsonrpc":"2.0","id":1,"result":{"leafVersion":"0.1.308","apiVersion":1,"profile":"default"}}
 ```
+
+Two optional params count only when `leaf.hello` is the **first** message on the connection, since that's when Leaf asks the person. Later, or once your app is approved, they're accepted and ignored. Leaf keeps neither.
+
+| Param | Rules | When it breaks a rule |
+| --- | --- | --- |
+| `icon` | Base64 PNG, at most 64 KB decoded, at most 256 × 256 pixels. The approval window shows it in place of your program's icon. | Ignored: the window shows your program's icon. So does an icon that passes these rules but Windows can't decode. |
+| `returnUrl` | An absolute link to your app's own scheme, at most 2,048 characters, no user info. Not `http`, `https`, `microsoft-edge`, `file`, `ftp`, `javascript`, `data`, `shell`, `search-ms`, `search`, or any `ms-` scheme. | Ignored. |
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"leaf.hello","params":{"client":"My extension","icon":"iVBORw0KGgo…","returnUrl":"raycast://extensions/me/leaf"}}
+```
+
+After **Allow**, Leaf opens `returnUrl`; without one it brings your program's main window to the front.
 
 `apiVersion` changes only when a method or field is removed or changes meaning. New methods and fields don't change it.
 

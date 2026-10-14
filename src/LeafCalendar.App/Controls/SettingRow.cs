@@ -1,10 +1,11 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 
 namespace LeafCalendar.App.Controls;
 
 /// <summary>
-/// One Windows 11 Settings row: a card with an optional 16 px icon, a header and a description on the left, and its
+/// One Windows 11 Settings row: a card with an optional 16 px icon (or a 24 px picture), a header and a description on the left, and its
 /// control (the content) on the right. The look is the implicit style in <c>Styles/LeafTheme.xaml</c>. Give the
 /// control inside the row an <c>AutomationProperties.Name</c> matching the header.
 /// </summary>
@@ -30,6 +31,14 @@ public sealed partial class SettingRow : ContentControl
     public static readonly DependencyProperty IconVisibilityProperty =
         DependencyProperty.Register(nameof(IconVisibility), typeof(Visibility), typeof(SettingRow), new PropertyMetadata(Visibility.Collapsed));
 
+    /// <summary>Identifies <see cref="Image"/>.</summary>
+    public static readonly DependencyProperty ImageProperty =
+        DependencyProperty.Register(nameof(Image), typeof(ImageSource), typeof(SettingRow), new PropertyMetadata(null, OnImageChanged));
+
+    /// <summary>Identifies <see cref="ImageVisibility"/>.</summary>
+    public static readonly DependencyProperty ImageVisibilityProperty =
+        DependencyProperty.Register(nameof(ImageVisibility), typeof(Visibility), typeof(SettingRow), new PropertyMetadata(Visibility.Collapsed));
+
     /// <summary>The setting's name, in sentence case.</summary>
     public string Header
     {
@@ -51,6 +60,20 @@ public sealed partial class SettingRow : ContentControl
         set => SetValue(GlyphProperty, value);
     }
 
+    /// <summary>A 24 px picture for the left edge, such as an app's icon; set it with an empty <see cref="Glyph"/>. None when null.</summary>
+    public ImageSource? Image
+    {
+        get => (ImageSource?)GetValue(ImageProperty);
+        set => SetValue(ImageProperty, value);
+    }
+
+    /// <summary>Shown when <see cref="Image"/> is set (for the template).</summary>
+    public Visibility ImageVisibility
+    {
+        get => (Visibility)GetValue(ImageVisibilityProperty);
+        private set => SetValue(ImageVisibilityProperty, value);
+    }
+
     /// <summary>Shown when <see cref="Description"/> has text (for the template).</summary>
     public Visibility DescriptionVisibility
     {
@@ -70,4 +93,7 @@ public sealed partial class SettingRow : ContentControl
 
     private static void OnGlyphChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((SettingRow)d).IconVisibility = string.IsNullOrEmpty(e.NewValue as string) ? Visibility.Collapsed : Visibility.Visible;
+
+    private static void OnImageChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
+        ((SettingRow)d).ImageVisibility = e.NewValue is null ? Visibility.Collapsed : Visibility.Visible;
 }

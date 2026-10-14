@@ -60,3 +60,5 @@ GetNamedPipeClientProcessId
 OpenProcess
 QueryFullProcessImageName
 CloseHandle
+IsIconic
+ShowWindow

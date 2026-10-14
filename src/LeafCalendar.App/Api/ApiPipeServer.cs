@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
 using LeafCalendar.Core.Api;
@@ -15,10 +16,11 @@ namespace LeafCalendar.App.Api;
 /// <remarks>
 /// Each connection reads lines (<see cref="ApiLineReader"/>, 1 MB each), answers them in order through the
 /// <see cref="ApiDispatcher"/>, and closes after 10 minutes without a request. Before a request runs, the connecting
-/// program (its file path, from Windows) must be approved; a new one is asked once per connection, and one removed in
+/// program (its file path, from Windows) must be approved; a new one is asked once per connection, with its icon and return link from the first line
+/// (<see cref="ApiHello"/>), and one removed in
 /// Settings is refused at its next request. Nothing escapes: a failing connection is logged by its error type and closed.
 /// </remarks>
-internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<string, bool> isApproved, Func<string, CancellationToken, Task<bool>> approve, AppLog log) : IAsyncDisposable
+internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<string, bool> isApproved, Func<ApiCaller, CancellationToken, Task<bool>> approve, AppLog log) : IAsyncDisposable
 {
     /// <summary>The most apps connected at once.</summary>
     public const int MaxConnections = 8;
@@ -27,6 +29,7 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
 
     private readonly CancellationTokenSource _stop = new();
     private readonly SemaphoreSlim _slots = new(MaxConnections, MaxConnections);
+    private readonly List<Task> _serving = [];
     private Task? _accepting;
 
     /// <summary>Opens the pipe; false when another program already holds the name (the API stays off).</summary>
@@ -48,7 +51,7 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
         return true;
     }
 
-    /// <inheritdoc />
+    /// <summary>Closes the pipe and every connection; it completes once no instance of the name is left open.</summary>
     public async ValueTask DisposeAsync()
     {
         await _stop.CancelAsync();
@@ -56,6 +59,15 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
         {
             await accepting;
         }
+
+        // Each connection holds an instance of the name, so reopening before they close would read as "name taken"
+        Task[] serving;
+        lock (_serving)
+        {
+            serving = [.. _serving];
+        }
+
+        await Task.WhenAll(serving);
 
         _stop.Dispose();
         log.Info("api.stopped");
@@ -77,7 +89,12 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
                 await waiting.WaitForConnectionAsync(ct);
                 var connected = waiting;
                 waiting = null;
-                _ = Task.Run(() => ServeAsync(connected, ct), CancellationToken.None);
+                var serving = Task.Run(() => ServeAsync(connected, ct), CancellationToken.None);
+                lock (_serving)
+                {
+                    _serving.RemoveAll(t => t.IsCompleted);
+                    _serving.Add(serving);
+                }
 
                 await _slots.WaitAsync(ct);
                 waiting = Create(firstInstance: false);
@@ -106,17 +123,19 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
         {
             await using (pipe)
             {
-                if (ClientPath(pipe) is not { } path)
+                if (Client(pipe) is not { } client)
                 {
                     log.Info("api.client.unknown");
                     return;
                 }
 
+                var (processId, path) = client;
                 var file = Path.GetFileName(path);
                 log.Info("api.connected", $"client={file}");
                 var reader = new ApiLineReader(pipe);
                 await using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true, NewLine = "\n" };
                 var asked = false;
+                var first = true;
                 while (true)
                 {
                     string? line;
@@ -136,22 +155,27 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
                         continue;
                     }
 
+                    // What The App Sent With Its First Line (its icon and return link), For The Question
+                    var hello = first ? ApiHello.Read(line) : ApiHello.None;
+                    first = false;
+
                     // Approved Now, Or Asked Once On This Connection (an app removed in Settings is refused here)
                     if (!isApproved(path))
                     {
-                        if (asked || !await approve(path, ct))
+                        if (asked || !await approve(new ApiCaller(path, ClientName(path), processId, hello), ct))
                         {
                             log.Info("api.refused", $"client={file}");
-                            await writer.WriteLineAsync(ApiMessage.NotApproved(line));
+                            await writer.WriteLineAsync(ApiMessage.NotApproved(line).AsMemory(), ct);
                             return;
                         }
 
                         asked = true;
                     }
 
+                    // Cancelable, So An App That Stops Reading Can't Hold The Pipe Open When The API Stops
                     if (await dispatcher.HandleAsync(line, ct) is { } reply)
                     {
-                        await writer.WriteLineAsync(reply);
+                        await writer.WriteLineAsync(reply.AsMemory(), ct);
                     }
                 }
             }
@@ -178,8 +202,8 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
         }
     }
 
-    // The connecting program's full path, from Windows (null when it can't be read, such as a process that already ended)
-    private static unsafe string? ClientPath(NamedPipeServerStream pipe)
+    // The connecting program's process ID and full path, from Windows (null when they can't be read, such as a process that already ended)
+    private static unsafe (int ProcessId, string Path)? Client(NamedPipeServerStream pipe)
     {
         uint pid;
         if (!PInvoke.GetNamedPipeClientProcessId((HANDLE)pipe.SafePipeHandle.DangerousGetHandle(), &pid))
@@ -198,12 +222,26 @@ internal sealed class ApiPipeServer(string name, ApiDispatcher dispatcher, Func<
             var buffer = stackalloc char[1024];
             var size = 1024u;
             return PInvoke.QueryFullProcessImageName(process, PROCESS_NAME_FORMAT.PROCESS_NAME_WIN32, buffer, &size)
-                ? new string(buffer, 0, (int)size)
+                ? ((int)pid, new string(buffer, 0, (int)size))
                 : null;
         }
         finally
         {
             PInvoke.CloseHandle(process);
+        }
+    }
+
+    // The program's name from its file (ApiClients.DisplayName picks it)
+    private static string ClientName(string path)
+    {
+        try
+        {
+            var info = FileVersionInfo.GetVersionInfo(path);
+            return ApiClients.DisplayName(info.FileDescription, info.ProductName, path);
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or IOException or UnauthorizedAccessException)
+        {
+            return ApiClients.DisplayName(null, null, path);
         }
     }
 }
