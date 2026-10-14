@@ -1,7 +1,7 @@
 namespace LeafCalendar.Core.Auth;
 
 /// <summary>
-/// The user's own Google OAuth "Desktop app" client. Stored only in Credential Locker.
+/// The user's own Google OAuth "Desktop app" client. Stored only in the encrypted secrets file (ITokenStore).
 /// </summary>
 public sealed record OAuthClientCredentials(string ClientId, string ClientSecret)
 {

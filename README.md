@@ -64,6 +64,7 @@ dotnet test --project tests/LeafCalendar.Tests/LeafCalendar.Tests.csproj -c Debu
 
 ## Documentation
 
+- [User guide](https://artistro08.github.io/leaf-calendar/)
 - [Product spec](docs/superpowers/specs/2026-09-29-leaf-calendar-design.md)
 - [Design standard](docs/design-standard.md)
 - [Privacy](PRIVACY.md)

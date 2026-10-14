@@ -51,7 +51,7 @@
                     </Grid>
                     <Grid ColumnSpacing="4" ColumnDefinitions="14,*">
                         <TextBlock Text="3." />
-                        <TextBlock Grid.Column="1" TextWrapping="Wrap" Text="In Google Auth Platform, click Get started and choose External as the audience. Then, in Audience, click Publish app. While it's in Testing, Google signs you out every 7 days." />
+                        <TextBlock Grid.Column="1" TextWrapping="Wrap" Text="In Google Auth Platform, click Get started and choose External as the audience. Then, in Audience › Test users, add your Google account. While it's in Testing, Google signs you out every 7 days; click Publish app to stop that." />
                     </Grid>
                     <Grid ColumnSpacing="4" ColumnDefinitions="14,*">
                         <TextBlock Text="4." />
