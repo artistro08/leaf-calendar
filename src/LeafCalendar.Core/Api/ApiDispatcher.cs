@@ -21,7 +21,7 @@ public sealed class ApiDispatcher(ApiContext context, AppLog log)
     // The methods there are; only these names reach the log, since a request's method is the client's own text
     private static readonly FrozenSet<string> Methods = new[]
     {
-        "leaf.hello", "calendars.list", "events.list", "events.get", "events.create", "events.move", "events.delete", "meetings.join",
+        "leaf.hello", "calendars.list", "events.list", "events.get", "events.create", "events.move", "events.update", "events.delete", "meetings.join",
         "app.showDay", "app.showEvent", "scheduling.links", "scheduling.openTimes", "scheduling.timeLink",
         "availability.free", "shares.create", "shares.list", "shares.book", "shares.delete", "people.search",
     }.ToFrozenSet(StringComparer.Ordinal);
@@ -77,6 +77,7 @@ public sealed class ApiDispatcher(ApiContext context, AppLog log)
         "events.get" => Task.FromResult(ApiEvents.Get(context, ApiParams.Read(r.Params, ApiJsonContext.Default.IdParams))),
         "events.create" => Task.FromResult(ApiEvents.Create(context, ApiParams.Read(r.Params, ApiJsonContext.Default.CreateParams))),
         "events.move" => Task.FromResult(ApiEvents.Move(context, ApiParams.Read(r.Params, ApiJsonContext.Default.MoveParams))),
+        "events.update" => Task.FromResult(ApiEvents.Update(context, ApiParams.Read(r.Params, ApiJsonContext.Default.UpdateParams))),
         "events.delete" => Task.FromResult(ApiEvents.Delete(context, ApiParams.Read(r.Params, ApiJsonContext.Default.DeleteParams))),
         "meetings.join" => ApiActions.JoinAsync(context, ApiParams.Read(r.Params, ApiJsonContext.Default.IdParams)),
         "app.showDay" => Task.FromResult(ApiActions.ShowDay(context, ApiParams.Read(r.Params, ApiJsonContext.Default.DayParams))),

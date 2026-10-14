@@ -29,6 +29,9 @@ public sealed record PeopleParams(string? Query = null);
 /// <summary><c>events.move</c>'s params.</summary>
 public sealed record MoveParams(string? Id = null, string? Start = null, string? End = null, string? Scope = null);
 
+/// <summary><c>events.update</c>'s params: only the fields given change.</summary>
+public sealed record UpdateParams(string? Id = null, string? Scope = null, bool? NotifyGuests = null, string? CalendarId = null, string? Title = null, string? Start = null, string? End = null, string? Location = null, string? Description = null, List<string>? Guests = null, bool? Meet = null);
+
 /// <summary><c>events.delete</c>'s params.</summary>
 public sealed record DeleteParams(string? Id = null, string? Scope = null, bool? NotifyGuests = null);
 
@@ -119,6 +122,7 @@ public sealed record ShareResult(string Id, string Title, string Message, List<T
 [JsonSerializable(typeof(DayParams))]
 [JsonSerializable(typeof(OpenTimesParams))]
 [JsonSerializable(typeof(TimeLinkParams))]
+[JsonSerializable(typeof(UpdateParams))]
 [JsonSerializable(typeof(DeleteParams))]
 [JsonSerializable(typeof(PeopleParams))]
 [JsonSerializable(typeof(List<PersonResult>))]
