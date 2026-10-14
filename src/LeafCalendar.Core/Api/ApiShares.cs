@@ -108,6 +108,10 @@ internal static class ApiShares
         }
 
         var times = BusyMath.Merge(p.Times.Select(t => ReadTime(t)));
+        if (times[0].End <= context.Time.GetUtcNow())
+        {
+            throw ApiTime.Invalid("Each time must end in the future.");
+        }
         if ((p.Title?.Length ?? 0) > ShareGroupStore.MaxTitleLength || (p.Message?.Length ?? 0) > AvailabilityText.MaxMessageLength)
         {
             throw ApiTime.Invalid("title is at most 100 characters and message at most 2,000.");
@@ -135,13 +139,13 @@ internal static class ApiShares
                 throw ApiScheduling.NotConnected();
             }
 
-            // Not reachable: split by the link's length instead, as Copy does offline
+            // Open Times Not Readable (not reachable, backing off, refused, or not offered): split by the link's length instead, as Copy does offline
             IReadOnlyList<BusyRange>? open;
             try
             {
                 open = await ApiScheduling.OpenTimesAsync(context, link, provider, times[0].Start, times[^1].End, ct);
             }
-            catch (ApiException ex) when (ex.Code == ApiErrors.Unavailable)
+            catch (ApiException ex) when (ex.Code is ApiErrors.Unavailable or ApiErrors.NotConnected)
             {
                 open = null;
             }
@@ -191,7 +195,6 @@ internal static class ApiShares
         if (group.ProviderId.Length > 0)
         {
             await BookOnLinkAsync(context, group, start, ct);
-            Delete(context, id);
             return ApiParams.Write(new IdResult(null), ApiJsonContext.Default.IdResult);
         }
 
@@ -213,14 +216,9 @@ internal static class ApiShares
     }
 
     // Books start on the group's link for its guests (the first is the booker; the rest only when the link takes them),
-    // telling the booking check it's ours until the group is gone
+    // then deletes the group, telling the booking check it's ours until the group is gone
     private static async Task BookOnLinkAsync(ApiContext context, ShareGroup group, DateTimeOffset start, CancellationToken ct)
     {
-        if (!group.Slots.Any(s => s.Start <= start && start < s.End))
-        {
-            throw ApiTime.Invalid("start must fall inside one of the saved times.");
-        }
-
         if (group.Guests.Count == 0)
         {
             throw ApiTime.Invalid("Booking on a link needs a guest to book for.");
@@ -232,12 +230,25 @@ internal static class ApiShares
             throw ApiScheduling.NotConnected();
         }
 
+        // The Link's Whole Length Fits In One Saved Time
+        var end = start + TimeSpan.FromMinutes(link.Minutes);
+        if (!group.Slots.Any(s => s.Start <= start && end <= s.End))
+        {
+            throw ApiTime.Invalid("start and the link's length must fall inside one of the saved times.");
+        }
+
+        if (context.Scheduling.IsWaiting(provider.Id))
+        {
+            throw ApiScheduling.Unavailable();
+        }
+
         var guests = link.AllowsGuests ? group.Guests : [.. group.Guests.Take(1)];
         var zone = TimeZoneInfo.TryFindSystemTimeZoneById(group.ZoneId, out var shared) ? shared : context.Host.Zone;
         context.Bookings?.BeginBooking(group.Id);
         try
         {
             await creator.BookAsync(link, start.ToUniversalTime(), guests, zone, ct);
+            Delete(context, group.Id);
         }
         catch (SchedulingSlotTakenException)
         {
@@ -248,9 +259,9 @@ internal static class ApiShares
             context.Scheduling.MarkNeedsReconnect(provider.Id);
             throw ApiScheduling.NotConnected();
         }
-        catch (SchedulingUnavailableException)
+        catch (SchedulingUnavailableException ex)
         {
-            throw ApiScheduling.Unavailable();
+            throw ApiScheduling.Unavailable(context, provider.Id, ex);
         }
         finally
         {

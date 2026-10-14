@@ -296,6 +296,19 @@ public sealed class ApiEditsTests : IDisposable
     }
 
     [Fact]
+    public async Task Update_Guests_WithoutYou_KeepsYou()
+    {
+        _api.Store(ApiHarness.Primary, """{"id":"evt-meet","status":"confirmed","summary":"Meet","organizer":{"email":"leaf.tester@gmail.com","self":true},"attendees":[{"email":"leaf.tester@gmail.com","self":true,"organizer":true,"responseStatus":"accepted"},{"email":"sam@example.com","responseStatus":"accepted"}],"start":{"dateTime":"2026-10-01T16:00:00-04:00"},"end":{"dateTime":"2026-10-01T17:00:00-04:00"}}""");
+        var id = await IdOf("Meet");
+
+        var result = await _api.CallAsync("events.update", $$"""{"id":"{{id}}","guests":["sam@example.com","kim@example.com"]}""");
+
+        var guests = (await _api.CallAsync("events.get", $$"""{"id":"{{result.GetProperty("id").GetString()}}"}""")).GetProperty("guests").EnumerateArray()
+            .Select(g => g.GetProperty("email").GetString()).ToList();
+        Assert.Equal(["leaf.tester@gmail.com", "sam@example.com", "kim@example.com"], guests);
+    }
+
+    [Fact]
     public async Task Update_Calendar_MovesTheEvent()
     {
         var id = await IdOf("One");

@@ -219,20 +219,23 @@ public sealed class EventEditorTests : IDisposable
     }
 
     [Fact]
-    public void Delete_RaisesChangedAgainOnceTheUndoWindowPasses()
+    public void Delete_RaisesDeletesDueOnceTheUndoWindowPasses()
     {
         var changed = 0;
+        var due = 0;
         _editor.Changed += (_, _) => changed++;
+        _editor.DeletesDue += (_, _) => due++;
 
         _editor.Delete([Occurrence("evt-weekly", Oct9)], EditScope.This, sendUpdates: true);
-        var atOnce = changed;
+        var dueAtOnce = due;
         _time.Advance(EventEditor.UndoWindow);
-        var atTheEnd = changed;
+        var dueAtTheEnd = due;
         _time.Advance(TimeSpan.FromSeconds(1));
 
-        Assert.Equal(1, atOnce);
-        Assert.Equal(1, atTheEnd);
-        Assert.Equal(2, changed);
+        Assert.Equal(0, dueAtOnce);
+        Assert.Equal(0, dueAtTheEnd);
+        Assert.Equal(1, due);
+        Assert.Equal(1, changed);
     }
 
     [Fact]

@@ -183,6 +183,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         // Local Edits Reload The Views
         services.Editor.LocalZoneId = TimeZoneCatalog.IanaId(UserZone);
         services.Editor.Changed += OnEditsChanged;
+        services.Editor.DeletesDue += OnDeletesDue;
         services.Conflicts.Changed += OnEditsChanged;
         services.Scheduling.Changed += OnSchedulingChanged;
         RefreshSyncState();
@@ -1191,6 +1192,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         _minuteTimer.Stop();
         _services.GoogleChanged -= OnGoogleChanged;
         _services.Editor.Changed -= OnEditsChanged;
+        _services.Editor.DeletesDue -= OnDeletesDue;
         _services.Conflicts.Changed -= OnEditsChanged;
         _services.Scheduling.Changed -= OnSchedulingChanged;
         if (_attachedSync is not null)
@@ -2179,6 +2181,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         RefreshSyncState();
         Run(RefreshAsync);
     }
+
+    // Held deletes are due on a timer thread: count them as waiting from then on (offline, no sync event would say so)
+    private void OnDeletesDue(object? sender, EventArgs e) => _dispatcher.TryEnqueue(RefreshSyncState);
 
     private void RefreshSyncState()
     {

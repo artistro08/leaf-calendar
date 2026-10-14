@@ -37,13 +37,21 @@ internal static class ApiScheduling
         return ApiParams.Write(result, ApiJsonContext.Default.ListTimeRangeResult);
     }
 
-    /// <summary>A link's bookable times between two instants; a refused sign-in marks the provider as needing reconnecting.</summary>
+    /// <summary>
+    /// A link's bookable times between two instants; a refused sign-in marks the provider as needing reconnecting, and a
+    /// rate limit starts its back-off (during which it isn't asked and counts as not reachable).
+    /// </summary>
     /// <exception cref="ApiException">No provider can answer (<see cref="ApiErrors.NotConnected"/>), or it couldn't be reached (<see cref="ApiErrors.Unavailable"/>).</exception>
     internal static async Task<IReadOnlyList<BusyRange>> OpenTimesAsync(ApiContext context, SchedulingLink link, ISchedulingProvider provider, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
         if (provider is not IOpenTimesSource source)
         {
             throw NotConnected();
+        }
+
+        if (context.Scheduling.IsWaiting(provider.Id))
+        {
+            throw Unavailable();
         }
 
         try
@@ -55,9 +63,9 @@ internal static class ApiScheduling
             context.Scheduling.MarkNeedsReconnect(provider.Id);
             throw NotConnected();
         }
-        catch (SchedulingUnavailableException)
+        catch (SchedulingUnavailableException ex)
         {
-            throw Unavailable();
+            throw Unavailable(context, provider.Id, ex);
         }
     }
 
@@ -111,4 +119,15 @@ internal static class ApiScheduling
     internal static ApiException NotConnected() => new(ApiErrors.NotConnected, "No scheduling provider is connected.");
 
     internal static ApiException Unavailable() => new(ApiErrors.Unavailable, "The scheduling provider couldn't be reached. Try again later.");
+
+    /// <summary><see cref="Unavailable()"/> for a failed call, starting the provider's back-off when it asked for one.</summary>
+    internal static ApiException Unavailable(ApiContext context, string providerId, SchedulingUnavailableException ex)
+    {
+        if (ex.RetryAfter is { } retryAfter)
+        {
+            context.Scheduling.WaitFor(providerId, retryAfter);
+        }
+
+        return Unavailable();
+    }
 }

@@ -160,6 +160,39 @@ public sealed class ApiSharesTests : IDisposable
     }
 
     [Fact]
+    public async Task Create_PassedTime_IsInvalid()
+    {
+        Assert.Equal(ApiErrors.InvalidParams, (await _api.FailAsync("shares.create", """{"times":[{"start":"2026-10-01T06:00:00-04:00","end":"2026-10-01T07:00:00-04:00"}]}""")).Code);
+        Assert.Empty((await _api.CallAsync("shares.list")).EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Create_WithLink_InABackOff_SplitsByTheLinksLengthWithoutAsking()
+    {
+        SignIn();
+        var link = await LinkId();
+        _api.Scheduling.WaitFor("calcom", TimeSpan.FromMinutes(5));
+        var asked = _api.Http.Requests.Count;
+
+        var result = await _api.CallAsync("shares.create", $$"""{"times":[{"start":"2026-10-13T10:00:00-04:00","end":"2026-10-13T11:00:00-04:00"}],"linkId":"{{link}}"}""");
+
+        Assert.Contains("Tue Oct 13, 10:30–11 AM ET: https://cal.com/leaf-tester/30min", result.GetProperty("text").GetString(), StringComparison.Ordinal);
+        Assert.Equal(asked, _api.Http.Requests.Count);
+    }
+
+    [Fact]
+    public async Task Free_WithLink_InABackOff_IsUnavailableWithoutAsking()
+    {
+        SignIn();
+        var link = await LinkId();
+        _api.Scheduling.WaitFor("calcom", TimeSpan.FromMinutes(5));
+        var asked = _api.Http.Requests.Count;
+
+        Assert.Equal(ApiErrors.Unavailable, (await _api.FailAsync("availability.free", $$"""{"start":"2026-10-13T00:00:00-04:00","end":"2026-10-14T00:00:00-04:00","linkId":"{{link}}"}""")).DataCode);
+        Assert.Equal(asked, _api.Http.Requests.Count);
+    }
+
+    [Fact]
     public async Task List_LeavesOutPassedTimes()
     {
         await CreateAsync("""{"times":[{"start":"2026-10-01T10:00:00-04:00","end":"2026-10-01T11:00:00-04:00"},{"start":"2026-10-02T10:00:00-04:00","end":"2026-10-02T11:00:00-04:00"}]}""");
@@ -233,6 +266,37 @@ public sealed class ApiSharesTests : IDisposable
         var id = await CreateAsync($$"""{"times":[{"start":"2026-10-13T10:00:00-04:00","end":"2026-10-13T11:00:00-04:00"}],"guests":[{"email":"sam@example.com"}],"linkId":"{{await LinkId()}}"}""");
 
         Assert.Equal(ApiErrors.Taken, (await _api.FailAsync("shares.book", $$"""{"id":"{{id}}","start":"2026-10-13T10:00:00-04:00"}""")).DataCode);
+        Assert.Single((await _api.CallAsync("shares.list")).EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Book_WithLink_RunningPastTheSavedTimes_IsInvalid()
+    {
+        SignIn();
+        var id = await CreateAsync($$"""{"times":[{"start":"2026-10-13T10:00:00-04:00","end":"2026-10-13T11:00:00-04:00"}],"guests":[{"email":"sam@example.com"}],"linkId":"{{await LinkId()}}"}""");
+
+        Assert.Equal(ApiErrors.InvalidParams, (await _api.FailAsync("shares.book", $$"""{"id":"{{id}}","start":"2026-10-13T10:45:00-04:00"}""")).Code);
+        Assert.DoesNotContain(_api.Http.Requests, r => r.Uri.AbsoluteUri.StartsWith(Cal + "v2/bookings", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Book_WithLink_RateLimited_WaitsBeforeAskingAgain()
+    {
+        SignIn();
+        _api.Http.On(r => r.Method == HttpMethod.Post && r.Uri.AbsoluteUri == Cal + "v2/bookings", _ =>
+        {
+            var response = FakeHttpHandler.Json(HttpStatusCode.TooManyRequests, """{"status":"error"}""");
+            response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromMinutes(2));
+            return response;
+        });
+        var id = await CreateAsync($$"""{"times":[{"start":"2026-10-13T10:00:00-04:00","end":"2026-10-13T11:00:00-04:00"}],"guests":[{"email":"sam@example.com"}],"linkId":"{{await LinkId()}}"}""");
+        var book = $$"""{"id":"{{id}}","start":"2026-10-13T10:00:00-04:00"}""";
+
+        Assert.Equal(ApiErrors.Unavailable, (await _api.FailAsync("shares.book", book)).DataCode);
+        Assert.True(_api.Scheduling.IsWaiting("calcom"));
+        var asked = _api.Http.Requests.Count;
+        Assert.Equal(ApiErrors.Unavailable, (await _api.FailAsync("shares.book", book)).DataCode);
+        Assert.Equal(asked, _api.Http.Requests.Count);
         Assert.Single((await _api.CallAsync("shares.list")).EnumerateArray());
     }
 

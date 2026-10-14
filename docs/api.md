@@ -19,7 +19,7 @@ Leaf keeps your calendar and every change you make. Other apps never open Leaf's
 
 Allowed apps are listed in **Settings › Connected apps**. Remove one there and its next request is refused.
 
-> Leaf Calendar remembers an app by the program file that connected. If you allow a general runtime such as `node.exe` or `python.exe`, every script that uses it can connect, and the window warns you. A program inside an installed app's own package folder, such as Raycast's copy of Node, is named after that app and gets no warning, since only that app runs it.
+> Leaf Calendar remembers an app by the program file that connected. If you allow a general runtime such as `node.exe` or `python.exe`, every script that uses it can connect, and the window warns you. A program inside an installed app's own package folder, such as Raycast's copy of Node, is named after that app and gets no warning, since only that app runs it. If that same file connects without running as part of its app, Leaf Calendar asks again, with the warning.
 
 ## Connecting
 
@@ -140,7 +140,7 @@ Moves an event, like dragging it in Leaf: guests get an update. `scope` is `this
 
 ### events.update
 
-Changes an event, like saving it in Leaf Calendar's editor. Only the params you send change. The result is the event's new `id` (null after `following`, as with `events.move`).
+Changes an event, like saving it in Leaf Calendar's editor. Only the params you send change. The result is the event's new `id` (null after `following`, as with `events.move`, and after a move to a calendar on another account, which Google sees as a new event).
 
 | Param | |
 | --- | --- |
@@ -149,7 +149,7 @@ Changes an event, like saving it in Leaf Calendar's editor. Only the params you 
 | `description` | Optional plain text, at most 8,192 characters. |
 | `start`, `end` | Optional, together: two times, or two dates for all-day. |
 | `calendarId` | Optional: moves the event to that calendar. A repeating event moves only with `scope` `all`. |
-| `guests` | Optional, the whole guest list as email addresses. Guests you keep keep their answers; new ones are invited. Rooms stay. |
+| `guests` | Optional, the whole guest list as email addresses. Guests you keep keep their answers; new ones are invited. Rooms and you stay. |
 | `meet` | Optional: `true` adds a Google Meet link, `false` removes it. |
 | `scope` | `this` (the default), `following`, or `all`, for repeating events. |
 | `notifyGuests` | Optional, `true` by default: guests get Google's update. |
@@ -241,11 +241,11 @@ Your free times between `start` and `end` (at most 31 days): your working hours 
 
 ### shares.create
 
-Saves times to offer someone, like **Copy & Save** in Leaf Calendar's share panel: they stay on your calendar until you book one, delete them, or they pass. Returns the saved times' `id` and the text to paste, in your share message (**Settings › Scheduling**) and Leaf Calendar's time format. With `linkId`, each time is split by the link's length and carries its own booking link, and `html` is the same text with each time as a link; otherwise `html` is null.
+Saves times to offer someone, like **Copy & Save** in Leaf Calendar's share panel: they stay on your calendar until you book one, delete them, or they pass. Returns the saved times' `id` and the text to paste, in your share message (**Settings › Scheduling**) and Leaf Calendar's time format. With `linkId`, each time is split by the link's open times (by its length alone when the provider can't say) and carries its own booking link, and `html` is the same text with each time as a link; otherwise `html` is null.
 
 | Param | |
 | --- | --- |
-| `times` | Required, 1 to 50 `{start, end}` times. Overlapping and touching times are joined. |
+| `times` | Required, 1 to 50 `{start, end}` times, each ending in the future. Overlapping and touching times are joined. |
 | `title` | Optional, at most 100 characters. |
 | `message` | Optional, at most 2,000 characters; `{times}` marks where the times go. Your share message by default. |
 | `guests` | Optional, at most 50 `{name, email}`; `name` is optional. A link fills in the first as the booker. |
@@ -270,7 +270,7 @@ Your saved times that haven't all passed, oldest first, with passed times left o
 Books one of the saved times, like **Approve…**, and deletes the saved times. `start` must fall inside one of them.
 
 - **Plain times:** creates an event from `start` to `end` (required, inside the same time) on your default calendar, titled with the saved title (or "Held times"), with the guests invited. The result is the new event's `id`.
-- **Times on a link:** books `start` on the provider for the guests (the first is the booker, so at least one is needed); the provider sends its confirmations and puts the event on your calendar, so the result's `id` is null. `end` is ignored. A time no longer open fails with `taken`.
+- **Times on a link:** books `start` on the provider for the guests (the link's whole length must fit inside the same time) (the first is the booker, so at least one is needed); the provider sends its confirmations and puts the event on your calendar, so the result's `id` is null. `end` is ignored. A time no longer open fails with `taken`.
 
 ```json
 {"jsonrpc":"2.0","id":16,"method":"shares.book","params":{"id":"cwox…","start":"2026-10-13T10:00:00-04:00","end":"2026-10-13T10:30:00-04:00"}}
