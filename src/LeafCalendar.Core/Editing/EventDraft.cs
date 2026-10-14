@@ -23,7 +23,7 @@ public sealed record Guest(
 /// </summary>
 /// <remarks>
 /// Times follow <see cref="CalendarOccurrence"/>: all-day events use UTC midnights with an exclusive end.
-/// <see cref="Description"/> is Leaf Calendar-normalized description HTML (<see cref="DescriptionHtml.Normalize"/>); it's only written back when it changed.
+/// <see cref="Description"/> is description HTML normalized by Leaf Calendar (<see cref="DescriptionHtml.Normalize"/>); it's only written back when it changed.
 /// </remarks>
 public sealed record EventDraft
 {
@@ -51,7 +51,7 @@ public sealed record EventDraft
     /// <summary>Location (plain text).</summary>
     public string Location { get; init; } = "";
 
-    /// <summary>Description as Leaf Calendar-normalized description HTML (empty when none).</summary>
+    /// <summary>Description as description HTML normalized by Leaf Calendar (empty when none).</summary>
     public string Description { get; init; } = "";
 
     /// <summary>

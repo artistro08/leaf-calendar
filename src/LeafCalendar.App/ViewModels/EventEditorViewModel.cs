@@ -339,7 +339,7 @@ public sealed partial class EventEditorViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string Location { get; set; }
 
-    /// <summary>Description as Leaf Calendar-normalized HTML (the view reads and writes it through <c>RichDescription</c>).</summary>
+    /// <summary>Description as HTML normalized by Leaf Calendar (the view reads and writes it through <c>RichDescription</c>).</summary>
     [ObservableProperty]
     public partial string Description { get; set; }
 
