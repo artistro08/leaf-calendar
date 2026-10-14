@@ -80,7 +80,7 @@ public partial class App
             var server = new ApiPipeServer(
                 ApiClients.PipeName(Environment.UserName, services.Options.Profile),
                 new ApiDispatcher(context, services.Log),
-                (path, packaged) => CurrentSettings().IsApproved(path, packaged),
+                IsApprovedApp,
                 ApproveAsync,
                 services.Log);
             var started = server.Start();
@@ -91,6 +91,34 @@ public partial class App
         {
             services.Log.Info("api.update.failed", $"error={ex.GetType().Name}");
         }
+    }
+
+    // Whether a connecting program is approved (on a pipe thread). An approved packaged app that updated into a new folder
+    // has its approval moved there, on the UI thread, so Settings shows its current path and icon
+    private bool IsApprovedApp(string path, string? packageKey, string? appProgram)
+    {
+        var settings = CurrentSettings();
+        if (!settings.IsApproved(path, packageKey))
+        {
+            return false;
+        }
+
+        if (packageKey is not null && settings.ApprovedApps.Any(a => string.Equals(a.PackageKey, packageKey, StringComparison.OrdinalIgnoreCase) && !string.Equals(a.Path, path, StringComparison.OrdinalIgnoreCase)))
+        {
+            _dispatcher.TryEnqueue(() =>
+            {
+                try
+                {
+                    UpdateSettings(s => s.WithAppMoved(packageKey, path, appProgram));
+                }
+                catch (Exception ex)
+                {
+                    _services?.Log.Info("api.approval.move-failed", $"error={ex.GetType().Name}");
+                }
+            });
+        }
+
+        return true;
     }
 
     // A new program asks: its window (one on screen at a time), a 60-second wait, and the window closes once the
@@ -201,7 +229,7 @@ public partial class App
         {
             if (allow)
             {
-                UpdateSettings(s => s.WithApprovedApp(new ApprovedApp(caller.Path, caller.Name, services.Time.GetUtcNow(), caller.AppProgram)));
+                UpdateSettings(s => s.WithApprovedApp(new ApprovedApp(caller.Path, caller.Name, services.Time.GetUtcNow(), caller.AppProgram, caller.PackageKey)));
             }
         }
         catch (Exception ex)

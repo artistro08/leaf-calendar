@@ -47,12 +47,16 @@ public sealed record ProviderSettings(string ProviderId, string Server, string D
 /// <summary>A calendar by account and calendar ID.</summary>
 public sealed record CalendarRef(string AccountId, string CalendarId);
 
-/// <summary>An app you allowed to use Leaf Calendar's local API (Settings › Connected apps), by the program file that connected.</summary>
-/// <param name="Path">The program's full path, compared ignoring case.</param>
+/// <summary>
+/// An app you allowed to use Leaf Calendar's local API (Settings › Connected apps), by the program file that connected, or
+/// for a program inside an app package, by its package key (so it stays allowed when the app updates).
+/// </summary>
+/// <param name="Path">The program's full path, compared ignoring case (for a packaged app, where it last connected from).</param>
 /// <param name="Name">The name shown in Settings (the file's description, else its product name, else its file name).</param>
 /// <param name="ApprovedAt">When you allowed it.</param>
 /// <param name="IconPath">The program whose icon Settings shows, when it isn't <paramref name="Path"/> (a packaged app's main program, such as Raycast.exe for Raycast's copy of Node); null otherwise. Set only for an app approved while it ran inside its own app package, which <see cref="LeafSettings.IsApproved"/> then requires.</param>
-public sealed record ApprovedApp(string Path, string Name, DateTimeOffset ApprovedAt, string? IconPath = null);
+/// <param name="PackageKey">For an app approved while it ran inside its own app package, its package family name and the program's place inside the package (<see cref="Api.ApiClients.PackageKey(string, string, string)"/>); approvals are matched by it instead of <paramref name="Path"/>, compared ignoring case. Null otherwise.</param>
+public sealed record ApprovedApp(string Path, string Name, DateTimeOffset ApprovedAt, string? IconPath = null, string? PackageKey = null);
 
 /// <summary>Which map site "Open in maps" uses (Settings › General).</summary>
 [System.Text.Json.Serialization.JsonConverter(typeof(MapProviderConverter))]
@@ -281,22 +285,42 @@ public sealed record LeafSettings
     public IReadOnlyList<ApprovedApp> ApprovedApps { get; init; } = [];
 
     /// <summary>
-    /// True when the program at <paramref name="path"/> is an approved app (case ignored). An app approved while it ran
-    /// inside its own app package (it has an <see cref="ApprovedApp.IconPath"/>, and was asked without the script-host
-    /// warning) counts only while it still runs as that package: the same file started any other way may be running
-    /// anyone's script, so it's asked again.
+    /// True when the connecting program is an approved app (case ignored). An app approved while it ran inside its own app
+    /// package (asked without the script-host warning) is matched by its package key, so it stays approved when the app
+    /// updates into a new folder, and counts only while it still runs as that package: the same file started any other way
+    /// may be running anyone's script, so it's asked again. Any other app is matched by its path.
     /// </summary>
     /// <param name="path">The connecting program's full path.</param>
-    /// <param name="packaged">Whether it runs inside its own app package's folder, with that package's identity.</param>
-    public bool IsApproved(string path, bool packaged) =>
-        ApprovedApps.Any(a => string.Equals(a.Path, path, StringComparison.OrdinalIgnoreCase) && (packaged || a.IconPath is null));
+    /// <param name="packageKey">Its package key when it runs inside its own app package's folder, with that package's identity; else null.</param>
+    public bool IsApproved(string path, string? packageKey) =>
+        ApprovedApps.Any(a => a.PackageKey is { } key
+            ? string.Equals(key, packageKey, StringComparison.OrdinalIgnoreCase)
+            : string.Equals(a.Path, path, StringComparison.OrdinalIgnoreCase) && (packageKey is not null || a.IconPath is null));
 
-    /// <summary>Returns a copy with <paramref name="app"/> approved, replacing an earlier approval of the same path.</summary>
+    /// <summary>Returns a copy with <paramref name="app"/> approved, replacing an earlier approval of the same path or package.</summary>
     public LeafSettings WithApprovedApp(ApprovedApp app)
     {
         ArgumentNullException.ThrowIfNull(app);
-        return this with { ApprovedApps = [.. ApprovedApps.Where(a => !string.Equals(a.Path, app.Path, StringComparison.OrdinalIgnoreCase)), app] };
+        return this with { ApprovedApps = [.. ApprovedApps.Where(a => !SameApp(a, app.Path, app.PackageKey)), app] };
     }
+
+    /// <summary>
+    /// Returns a copy where the approval kept under <paramref name="packageKey"/> has the program's new
+    /// <paramref name="path"/> and <paramref name="iconPath"/> (the app updated into a new folder), so Settings shows where it
+    /// is now. Everything else, including when you allowed it, stays.
+    /// </summary>
+    public LeafSettings WithAppMoved(string packageKey, string path, string? iconPath) =>
+        this with
+        {
+            ApprovedApps = [.. ApprovedApps.Select(a => string.Equals(a.PackageKey, packageKey, StringComparison.OrdinalIgnoreCase)
+                ? a with { Path = path, IconPath = iconPath }
+                : a)],
+        };
+
+    // The same approval: the same package, or the same path
+    private static bool SameApp(ApprovedApp a, string path, string? packageKey) =>
+        string.Equals(a.Path, path, StringComparison.OrdinalIgnoreCase)
+        || (packageKey is not null && string.Equals(a.PackageKey, packageKey, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Returns a copy without the approval of the program at <paramref name="path"/>.</summary>
     public LeafSettings WithoutApprovedApp(string path) =>
@@ -372,12 +396,15 @@ public sealed record LeafSettings
         };
     }
 
-    // Full paths only (an icon path that isn't one is dropped), one per path (the last approval wins), named, the newest MaxApprovedApps kept
+    // Full paths only (an icon path that isn't one is dropped), a package key for one inside an app package's install folder
+    // (approvals saved before package keys get theirs here), one per package or path (the last approval wins), named, the
+    // newest MaxApprovedApps kept
     private static List<ApprovedApp> CleanApps(IReadOnlyList<ApprovedApp>? apps) =>
         [.. (apps ?? [])
             .Where(a => a is not null && !string.IsNullOrWhiteSpace(a.Path) && System.IO.Path.IsPathFullyQualified(a.Path))
+            .Select(a => a with { PackageKey = string.IsNullOrWhiteSpace(a.PackageKey) ? Api.ApiClients.PackageKey(a.Path) : a.PackageKey })
             .Reverse()
-            .DistinctBy(a => a.Path, StringComparer.OrdinalIgnoreCase)
+            .DistinctBy(a => a.PackageKey ?? a.Path, StringComparer.OrdinalIgnoreCase)
             .Reverse()
             .Select(a => a with
             {
