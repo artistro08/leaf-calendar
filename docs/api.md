@@ -19,7 +19,7 @@ Leaf Calendar keeps your calendar and every change you make. Other apps never op
 
 Allowed apps are listed in **Settings › Connected apps**. Remove one there and its next request is refused.
 
-> Leaf Calendar remembers an app by the program file that connected. If you allow a general runtime such as `node.exe` or `python.exe`, every script that uses it can connect, and the window warns you. A program inside an installed app's own package folder, such as Raycast's copy of Node, is named after that app and gets no warning, since only that app runs it. If that same file connects without running as part of its app, Leaf Calendar asks again, with the warning.
+> Leaf Calendar remembers an app by the program file that connected. If you allow a general runtime such as `node.exe` or `python.exe`, every script that uses it can connect, and the window warns you. A program inside an installed app's own package folder, such as Raycast's copy of Node, is named after that app and gets no warning, since only that app runs it. Leaf Calendar remembers it by the app, so it stays allowed when the app updates. If that same file connects without running as part of its app, Leaf Calendar asks again, with the warning.
 
 ## Connecting
 

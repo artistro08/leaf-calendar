@@ -59,6 +59,57 @@ public static class ApiClients
     }
 
     /// <summary>
+    /// The package family name in a package full name (<c>Name_Version_Architecture_ResourceId_PublisherId</c>): its name and
+    /// publisher ID, the part that stays the same when the app updates (Raycast.Raycast_qypenmj9wpt2a). Null when
+    /// <paramref name="fullName"/> isn't a full name.
+    /// </summary>
+    public static string? FamilyName(string fullName)
+    {
+        var parts = (fullName ?? "").Split('_');
+        return parts.Length == 5 && parts[0].Length > 0 && System.Version.TryParse(parts[1], out var version) && version.Revision >= 0
+            && parts[2].Length > 0 && parts[4].Length == 13 && parts[4].All(char.IsAsciiLetterOrDigit)
+            ? $"{parts[0]}_{parts[4]}"
+            : null;
+    }
+
+    /// <summary>
+    /// What an approval of a program inside an app package is kept under: the package's family name and the program's place
+    /// inside the package (<c>Raycast.Raycast_qypenmj9wpt2a!Raycast\backend\node.exe</c>), so it still matches after the app
+    /// updates into a new folder. Null when <paramref name="fullName"/> isn't a full name or the program sits outside
+    /// <paramref name="packageFolder"/>.
+    /// </summary>
+    public static string? PackageKey(string fullName, string path, string packageFolder) =>
+        FamilyName(fullName) is { } family && IsInFolder(path, packageFolder)
+            ? $"{family}!{Path.GetRelativePath(packageFolder, path)}"
+            : null;
+
+    /// <summary>
+    /// <see cref="PackageKey(string, string, string)"/> from a program's install path alone, for approvals saved before
+    /// package keys: the folder named by a package full name (as under WindowsApps) is the package's. Null when no folder
+    /// on the path is one.
+    /// </summary>
+    public static string? PackageKey(string path)
+    {
+        try
+        {
+            var parts = Path.GetFullPath(path).Split(Path.DirectorySeparatorChar);
+            for (var i = 1; i < parts.Length - 1; i++)
+            {
+                if (FamilyName(parts[i]) is not null)
+                {
+                    return PackageKey(parts[i], path, string.Join(Path.DirectorySeparatorChar, parts[..(i + 1)]));
+                }
+            }
+
+            return null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// The package's own name from its <c>AppxManifest.xml</c> (<c>Properties/DisplayName</c>), or null when it's missing,
     /// blank, or a resource reference (<c>ms-resource:</c>) that would need the package's resources to read.
     /// </summary>

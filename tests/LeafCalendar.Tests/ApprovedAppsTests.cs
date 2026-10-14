@@ -6,6 +6,13 @@ public sealed class ApprovedAppsTests
 {
     private static readonly DateTimeOffset At = new(2026, 10, 13, 12, 0, 0, TimeSpan.Zero);
 
+    private const string RaycastKey = @"Raycast.Raycast_qypenmj9wpt2a!Raycast\backend\node.exe";
+    private const string Raycast273 = @"C:\Program Files\WindowsApps\Raycast.Raycast_2.7.3.0_x64__qypenmj9wpt2a\Raycast\backend\node.exe";
+    private const string Raycast28 = @"C:\Program Files\WindowsApps\Raycast.Raycast_2.8.0.0_x64__qypenmj9wpt2a\Raycast\backend\node.exe";
+    private const string Raycast28Icon = @"C:\Program Files\WindowsApps\Raycast.Raycast_2.8.0.0_x64__qypenmj9wpt2a\Raycast\Raycast.exe";
+    private const string Raycast29 = @"C:\Program Files\WindowsApps\Raycast.Raycast_2.9.0.0_x64__qypenmj9wpt2a\Raycast\backend\node.exe";
+    private const string Raycast29Icon = @"C:\Program Files\WindowsApps\Raycast.Raycast_2.9.0.0_x64__qypenmj9wpt2a\Raycast\Raycast.exe";
+
     private static ApprovedApp App(string path, string name = "Raycast") => new(path, name, At);
 
     [Fact]
@@ -22,8 +29,8 @@ public sealed class ApprovedAppsTests
     {
         var settings = new LeafSettings().WithApprovedApp(App(@"C:\Apps\Raycast\node.exe"));
 
-        Assert.True(settings.IsApproved(@"c:\apps\raycast\NODE.EXE", packaged: false));
-        Assert.False(settings.IsApproved(@"C:\Apps\Other\node.exe", packaged: false));
+        Assert.True(settings.IsApproved(@"c:\apps\raycast\NODE.EXE", packageKey: null));
+        Assert.False(settings.IsApproved(@"C:\Apps\Other\node.exe", packageKey: null));
     }
 
     [Fact]
@@ -31,8 +38,62 @@ public sealed class ApprovedAppsTests
     {
         var settings = new LeafSettings().WithApprovedApp(new ApprovedApp(@"C:\Program Files\WindowsApps\Raycast\node.exe", "Raycast", At, @"C:\Program Files\WindowsApps\Raycast\Raycast.exe"));
 
-        Assert.True(settings.IsApproved(@"C:\Program Files\WindowsApps\Raycast\node.exe", packaged: true));
-        Assert.False(settings.IsApproved(@"C:\Program Files\WindowsApps\Raycast\node.exe", packaged: false));
+        Assert.True(settings.IsApproved(@"C:\Program Files\WindowsApps\Raycast\node.exe", packageKey: "Raycast.Raycast_qypenmj9wpt2a!node.exe"));
+        Assert.False(settings.IsApproved(@"C:\Program Files\WindowsApps\Raycast\node.exe", packageKey: null));
+    }
+
+    [Fact]
+    public void IsApproved_PackagedApp_StillApprovedAfterItsPackageUpdates()
+    {
+        var settings = new LeafSettings().WithApprovedApp(new ApprovedApp(Raycast28, "Raycast", At, Raycast28Icon, RaycastKey));
+
+        Assert.True(settings.IsApproved(Raycast29, RaycastKey.ToUpperInvariant()));
+        Assert.False(settings.IsApproved(Raycast29, null));
+        Assert.False(settings.IsApproved(Raycast29, @"Other.App_qypenmj9wpt2a!Raycast\backend\node.exe"));
+    }
+
+    [Fact]
+    public void Normalize_ApprovalsFromBeforePackageKeys_GetThemFromTheirInstallFolder_OneRowPerApp()
+    {
+        var settings = new LeafSettings
+        {
+            ApprovedApps =
+            [
+                new ApprovedApp(Raycast273, "Raycast", At),
+                new ApprovedApp(Raycast28, "Raycast", At.AddDays(1), Raycast28Icon),
+                new ApprovedApp(@"C:\Program Files\PowerShell\7\pwsh.exe", "PowerShell 7", At),
+            ],
+        }.Normalize();
+
+        Assert.Equal([Raycast28, @"C:\Program Files\PowerShell\7\pwsh.exe"], settings.ApprovedApps.Select(a => a.Path));
+        Assert.Equal(RaycastKey, settings.ApprovedApps[0].PackageKey);
+        Assert.Null(settings.ApprovedApps[1].PackageKey);
+        Assert.True(settings.IsApproved(Raycast29, RaycastKey));
+    }
+
+    [Fact]
+    public void WithApprovedApp_SamePackage_ReplacesIt()
+    {
+        var settings = new LeafSettings()
+            .WithApprovedApp(new ApprovedApp(Raycast28, "Old", At, Raycast28Icon, RaycastKey))
+            .WithApprovedApp(new ApprovedApp(Raycast29, "New", At, null, RaycastKey));
+
+        Assert.Equal("New", Assert.Single(settings.ApprovedApps).Name);
+    }
+
+    [Fact]
+    public void WithAppMoved_UpdatesThePathAndIconOfThatPackagesApproval()
+    {
+        var settings = new LeafSettings()
+            .WithApprovedApp(new ApprovedApp(Raycast28, "Raycast", At, Raycast28Icon, RaycastKey))
+            .WithApprovedApp(App(@"C:\Apps\tool.exe", "Tool"))
+            .WithAppMoved(RaycastKey, Raycast29, Raycast29Icon);
+
+        var raycast = settings.ApprovedApps[0];
+        Assert.Equal(Raycast29, raycast.Path);
+        Assert.Equal(Raycast29Icon, raycast.IconPath);
+        Assert.Equal(At, raycast.ApprovedAt);
+        Assert.Equal(@"C:\Apps\tool.exe", settings.ApprovedApps[1].Path);
     }
 
     [Fact]
@@ -40,8 +101,8 @@ public sealed class ApprovedAppsTests
     {
         var settings = new LeafSettings().WithApprovedApp(App(@"C:\Apps\Raycast\node.exe"));
 
-        Assert.True(settings.IsApproved(@"C:\Apps\Raycast\node.exe", packaged: true));
-        Assert.True(settings.IsApproved(@"C:\Apps\Raycast\node.exe", packaged: false));
+        Assert.True(settings.IsApproved(@"C:\Apps\Raycast\node.exe", packageKey: "Raycast.Raycast_qypenmj9wpt2a!node.exe"));
+        Assert.True(settings.IsApproved(@"C:\Apps\Raycast\node.exe", packageKey: null));
     }
 
     [Fact]

@@ -97,4 +97,35 @@ public sealed class ApiClientsTests
         Assert.Null(ApiClients.ManifestProgram("""<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" />""", RaycastFolder));
         Assert.Null(ApiClients.ManifestProgram("not xml", RaycastFolder));
     }
+
+    [Theory]
+    [InlineData("Raycast.Raycast_2.8.0.0_x64__qypenmj9wpt2a", "Raycast.Raycast_qypenmj9wpt2a")]
+    [InlineData("Microsoft.WindowsTerminal_1.21.3231.0_x64__8wekyb3d8bbwe", "Microsoft.WindowsTerminal_8wekyb3d8bbwe")]
+    [InlineData("Microsoft.Lang_1.0.0.0_neutral_split.language-en_8wekyb3d8bbwe", "Microsoft.Lang_8wekyb3d8bbwe")]
+    [InlineData("Raycast", null)]
+    [InlineData("Raycast_2.8_x64__qypenmj9wpt2a", null)]
+    [InlineData("Raycast.Raycast_2.8.0.0_x64__short", null)]
+    [InlineData("a_b_c_d_e_f", null)]
+    public void FamilyName_FromAFullName(string fullName, string? expected)
+    {
+        Assert.Equal(expected, ApiClients.FamilyName(fullName));
+    }
+
+    [Fact]
+    public void PackageKey_IsTheFamilyAndTheProgramInsideThePackage()
+    {
+        Assert.Equal(@"Raycast.Raycast_qypenmj9wpt2a!Raycast\backend\node.exe", ApiClients.PackageKey("Raycast.Raycast_2.7.3.0_x64__qypenmj9wpt2a", RaycastFolder + @"\Raycast\backend\node.exe", RaycastFolder));
+        Assert.Null(ApiClients.PackageKey("Raycast.Raycast_2.7.3.0_x64__qypenmj9wpt2a", @"C:\Tools\node.exe", RaycastFolder));
+        Assert.Null(ApiClients.PackageKey("not a full name", RaycastFolder + @"\node.exe", RaycastFolder));
+    }
+
+    [Theory]
+    [InlineData(@"C:\Program Files\WindowsApps\Raycast.Raycast_2.7.3.0_x64__qypenmj9wpt2a\Raycast\backend\node.exe", @"Raycast.Raycast_qypenmj9wpt2a!Raycast\backend\node.exe")]
+    [InlineData(@"D:\WindowsApps\Raycast.Raycast_2.8.0.0_x64__qypenmj9wpt2a\node.exe", @"Raycast.Raycast_qypenmj9wpt2a!node.exe")]
+    [InlineData(@"C:\Program Files\PowerShell\7\pwsh.exe", null)]
+    [InlineData(@"C:\Program Files\WindowsApps\Raycast.Raycast_2.8.0.0_x64__qypenmj9wpt2a", null)]
+    public void PackageKey_FromAnInstallPath(string path, string? expected)
+    {
+        Assert.Equal(expected, ApiClients.PackageKey(path));
+    }
 }
