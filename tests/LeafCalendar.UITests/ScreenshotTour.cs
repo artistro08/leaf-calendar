@@ -11,7 +11,7 @@ public sealed class ScreenshotTour : IDisposable
     private readonly List<string> _profiles = [];
 
     // Settings Pages And Window Widths For Capture_SettingsPages (0 is the minimum)
-    private static readonly string[] SettingsPages = ["General", "Calendars", "TimeZones", "Notifications", "Tray", "Shortcuts", "Accounts", "About"];
+    private static readonly string[] SettingsPages = ["General", "Calendars", "TimeZones", "Notifications", "ConnectedApps", "Tray", "Shortcuts", "Accounts", "About"];
     private static readonly int[] SettingsWidths = [0, 1500];
 
     public void Dispose()
@@ -396,6 +396,69 @@ public sealed class ScreenshotTour : IDisposable
         }
 
         Assert.True(failed.Count == 0, string.Join(Environment.NewLine, failed));
+    }
+
+    /// <summary>
+    /// The local API's approval window in light and dark: with the app's own icon, without one, and asked from Windows
+    /// PowerShell (a general runtime, so the warning shows). Set LEAF_SCREENSHOTS to run it.
+    /// </summary>
+    [Fact]
+    public async Task Capture_ApprovalWindow()
+    {
+        var folder = Environment.GetEnvironmentVariable("LEAF_SCREENSHOTS");
+        if (string.IsNullOrEmpty(folder))
+        {
+            Assert.Skip("Set LEAF_SCREENSHOTS to a folder to capture the approval window.");
+        }
+
+        Directory.CreateDirectory(folder);
+        foreach (var theme in new[] { AppTheme.Light, AppTheme.Dark })
+        {
+            var name = theme.ToString().ToLowerInvariant();
+            // A Real Icon For The App-Sent Shot (Windows' generic app icon, never Leaf's own logo)
+            string logo;
+            using (var bitmap = System.Drawing.SystemIcons.Application.ToBitmap())
+            using (var png = new MemoryStream())
+            {
+                bitmap.Save(png, System.Drawing.Imaging.ImageFormat.Png);
+                logo = Convert.ToBase64String(png.ToArray());
+            }
+
+            foreach (var (shot, hello, fromPowerShell) in new[] { ("ApprovalIcon", $$"""{"icon":"{{logo}}"}""", false), ("ApprovalPlain", "{}", false), ("ApprovalRuntime", "{}", true) })
+            {
+                var profile = SeededProfile.Create(new LeafSettings { Theme = theme, AllowApiConnections = true });
+                _profiles.Add(profile);
+                try
+                {
+                    using var leaf = LeafApp.Launch(profile, $"--fake-google {_google.BaseUri} --start-date 2026-10-01");
+                    leaf.WaitFor("PeriodTitle");
+                    var line = $$"""{"jsonrpc":"2.0","id":1,"method":"leaf.hello","params":{{hello}}}""";
+                    var pipeName = Core.Api.ApiClients.PipeName(Environment.UserName, profile);
+
+                    // Asked From Windows PowerShell (a general runtime), Or From This Test
+                    using var powershell = fromPowerShell
+                        ? System.Diagnostics.Process.Start("powershell.exe", $"-NoProfile -Command \"$p = New-Object System.IO.Pipes.NamedPipeClientStream('.', '{pipeName}', 'InOut'); $p.Connect(10000); $w = New-Object System.IO.StreamWriter($p); $w.AutoFlush = $true; $w.WriteLine('{line.Replace("\"", "\\\"", StringComparison.Ordinal)}'); Start-Sleep 60\"")
+                        : null;
+                    await using var pipe = fromPowerShell ? null : new System.IO.Pipes.NamedPipeClientStream(".", pipeName, System.IO.Pipes.PipeDirection.InOut, System.IO.Pipes.PipeOptions.Asynchronous | System.IO.Pipes.PipeOptions.CurrentUserOnly);
+                    if (pipe is not null)
+                    {
+                        await pipe.ConnectAsync(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken);
+                        await pipe.WriteAsync(System.Text.Encoding.UTF8.GetBytes(line + "\n"), TestContext.Current.CancellationToken);
+                    }
+
+                    // Captured Once Allow Is On, So The Shot Shows The Accent Button
+                    var allow = leaf.WaitInApproval("ApiApprovalAllowButton");
+                    Retry.WhileFalse(() => allow.IsEnabled, TimeSpan.FromSeconds(10));
+                    Thread.Sleep(500);
+                    CaptureAll(leaf, folder, $"more-{shot}-{name}");
+                    powershell?.Kill();
+                }
+                finally
+                {
+                    LeafApp.DeleteProfile(profile);
+                }
+            }
+        }
     }
 
     /// <summary>

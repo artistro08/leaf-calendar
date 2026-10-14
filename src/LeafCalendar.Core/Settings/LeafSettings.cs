@@ -47,6 +47,12 @@ public sealed record ProviderSettings(string ProviderId, string Server, string D
 /// <summary>A calendar by account and calendar ID.</summary>
 public sealed record CalendarRef(string AccountId, string CalendarId);
 
+/// <summary>An app you allowed to use Leaf's local API (Settings › Connected apps), by the program file that connected.</summary>
+/// <param name="Path">The program's full path, compared ignoring case.</param>
+/// <param name="Name">The name shown in Settings (the file's description, else its product name, else its file name).</param>
+/// <param name="ApprovedAt">When you allowed it.</param>
+public sealed record ApprovedApp(string Path, string Name, DateTimeOffset ApprovedAt);
+
 /// <summary>Which map site "Open in maps" uses (Settings › General).</summary>
 [System.Text.Json.Serialization.JsonConverter(typeof(MapProviderConverter))]
 public enum MapProvider
@@ -101,6 +107,11 @@ public sealed record LeafSettings
     public const int MaxTimeZones = 4;
 
     private const int MaxLabelLength = 24;
+
+    /// <summary>Most approved apps kept (the newest win).</summary>
+    public const int MaxApprovedApps = 50;
+
+    private const int MaxAppNameLength = 100;
 
     /// <summary>Most days the tray flyout's agenda lists.</summary>
     public const int MaxFlyoutDays = 14;
@@ -262,6 +273,26 @@ public sealed record LeafSettings
     /// <summary>Detailed logging (Settings › About): a breadcrumb trail and crash dumps in the log folder. Off by default.</summary>
     public bool DetailedLogging { get; init; }
 
+    /// <summary>Other apps on this PC may connect to Leaf's local API (Settings › Connected apps). Off by default.</summary>
+    public bool AllowApiConnections { get; init; }
+
+    /// <summary>Apps allowed to use the local API, oldest first. Edit with <see cref="WithApprovedApp"/> and <see cref="WithoutApprovedApp"/>.</summary>
+    public IReadOnlyList<ApprovedApp> ApprovedApps { get; init; } = [];
+
+    /// <summary>True when the program at <paramref name="path"/> is an approved app (case ignored).</summary>
+    public bool IsApproved(string path) => ApprovedApps.Any(a => string.Equals(a.Path, path, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Returns a copy with <paramref name="app"/> approved, replacing an earlier approval of the same path.</summary>
+    public LeafSettings WithApprovedApp(ApprovedApp app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+        return this with { ApprovedApps = [.. ApprovedApps.Where(a => !string.Equals(a.Path, app.Path, StringComparison.OrdinalIgnoreCase)), app] };
+    }
+
+    /// <summary>Returns a copy without the approval of the program at <paramref name="path"/>.</summary>
+    public LeafSettings WithoutApprovedApp(string path) =>
+        this with { ApprovedApps = [.. ApprovedApps.Where(a => !string.Equals(a.Path, path, StringComparison.OrdinalIgnoreCase))] };
+
     /// <summary>
     /// Returns a copy with every value made safe.
     /// </summary>
@@ -281,6 +312,8 @@ public sealed record LeafSettings
     /// Blank and repeated Meet-by-default and collapsed accounts are dropped. A share message saved before it existed
     /// (null) is the default one, and a long one is cut to its first 2,000 characters. (The old tray-excluded calendars are no longer read: the
     /// tray follows what's shown in Leaf, so a saved row that still has them loads without them.)
+    /// Approved apps without a full path, and repeats of a path (case ignored, the last kept), are dropped; a blank name
+    /// becomes the file name, names are cut to 100 characters, and only the newest 50 are kept.
     /// A list whose contents didn't change keeps its instance, so normalizing twice gives an equal record.
     /// </remarks>
     public LeafSettings Normalize()
@@ -326,8 +359,19 @@ public sealed record LeafSettings
             Scheduling = Keep(Scheduling, CleanScheduling(Scheduling)),
             ShareMessage = ShareMessage is null ? AvailabilityText.DefaultMessage : Clip(ShareMessage, AvailabilityText.MaxMessageLength),
             BookingLinkNote = BookingLinkNote is null or ShareLinks.FirstDefaultNote ? ShareLinks.DefaultNote : Clip(BookingLinkNote, ShareLinks.MaxNoteLength),
+            ApprovedApps = Keep(ApprovedApps, CleanApps(ApprovedApps)),
         };
     }
+
+    // Full paths only, one per path (the last approval wins), named, the newest MaxApprovedApps kept
+    private static List<ApprovedApp> CleanApps(IReadOnlyList<ApprovedApp>? apps) =>
+        [.. (apps ?? [])
+            .Where(a => a is not null && !string.IsNullOrWhiteSpace(a.Path) && System.IO.Path.IsPathFullyQualified(a.Path))
+            .Reverse()
+            .DistinctBy(a => a.Path, StringComparer.OrdinalIgnoreCase)
+            .Reverse()
+            .Select(a => a with { Name = Clip(string.IsNullOrWhiteSpace(a.Name) ? System.IO.Path.GetFileNameWithoutExtension(a.Path) : a.Name.Trim(), MaxAppNameLength) })
+            .TakeLast(MaxApprovedApps)];
 
     // Trimmed, capped, unknown and repeated provider IDs dropped (the first kept), the unused server emptied
     private static List<ProviderSettings> CleanScheduling(IReadOnlyList<ProviderSettings>? list) =>

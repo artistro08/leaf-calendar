@@ -297,6 +297,7 @@ public sealed partial class CalendarPage
             "settings-calendars" => SettingsSection.Calendars,
             "settings-time-zones" => SettingsSection.TimeZones,
             "settings-notifications" => SettingsSection.Notifications,
+            "settings-connected-apps" => SettingsSection.ConnectedApps,
             "settings-tray" => SettingsSection.Tray,
             "settings-shortcuts" => SettingsSection.Shortcuts,
             "settings-accounts" => SettingsSection.Accounts,

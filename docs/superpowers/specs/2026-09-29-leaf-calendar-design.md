@@ -220,6 +220,11 @@ Anyone can send an invite, so event content is treated as hostile.
 | Sensitive data in logs | Redaction rules plus a test that scans logs produced by a full test run. |
 | Vulnerable dependency | Vulnerable package check on every build. |
 | Other local users reading data | Package `LocalFolder` is per user, and DPAPI ties the secrets to the Windows user. |
+| Another Windows user drives your Leaf through the local API | The pipe allows only the current Windows user (`CurrentUserOnly`). See `2026-10-13-local-api-design.md`. |
+| A program grabs the local API's pipe name first | `FirstPipeInstance`: Leaf won't share the name, and Settings › Connected apps says so. |
+| A web page drives the local API | There is no HTTP server, and browsers can't open named pipes. |
+| An unknown local app reads your calendar | The local API is off by default, then asks once per program file. An app already running under your Windows account can pretend to be an approved one (it could read Leaf's data folder anyway); the prompt and Settings say so. |
+| Oversized or hostile API messages | 1 MB per line, 8 connections, 10 minutes idle, every field checked, IDs read strictly. No method returns tokens, OAuth clients or settings, and every write goes through the outbox. |
 | Test-mode switch pointed at a hostile server | `--fake-google` accepts only an absolute `http` loopback address, and only with a throwaway `uitest-` profile. Real profiles never run in fake mode, so their client secret and refresh token are never sent to the fake server. |
 
 ---
@@ -597,6 +602,10 @@ Ctrl+wheel over the time grid zooms like Ctrl+= / Ctrl+-.
 - Invite notifications on or off
 - Sound on or off
 - Booking notifications on or off (shown only while a scheduling provider is signed in; see 8.4 and `2026-10-12-scheduling-providers-design.md`)
+
+**Connected apps**
+- Allow other apps to connect (the local API), off by default
+- Approved apps, each with Remove; a card when another program holds Leaf's pipe name; a link to the developer reference (`docs/api.md`). See `2026-10-13-local-api-design.md`.
 
 **Tray**
 - Days shown in the flyout agenda

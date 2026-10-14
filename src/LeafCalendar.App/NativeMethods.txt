@@ -56,3 +56,9 @@ WindowFromPoint
 GetAncestor
 ToUnicodeEx
 GetKeyboardLayout
+GetNamedPipeClientProcessId
+OpenProcess
+QueryFullProcessImageName
+CloseHandle
+IsIconic
+ShowWindow

@@ -116,6 +116,23 @@ public sealed class LeafServices : IAsyncDisposable
     public GoogleServices? Google { get; private set; }
 
     /// <summary>
+    /// True while Settings › Connected apps is on but another program holds the local API's pipe name, so no app can
+    /// connect (local API spec 3.3). Set by the App, read by Settings.
+    /// </summary>
+    public bool ApiNameTaken
+    {
+        get;
+        set
+        {
+            field = value;
+            ApiStateChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>Raised when <see cref="ApiNameTaken"/> is set, on the thread that set it.</summary>
+    public event EventHandler? ApiStateChanged;
+
+    /// <summary>
     /// True while the saved secrets couldn't be read at startup (or a reload) and a timer is trying again, so
     /// <see cref="Google"/> is null for that reason, not because Leaf is offline or not set up.
     /// </summary>
@@ -262,6 +279,19 @@ public sealed class LeafServices : IAsyncDisposable
             return false;
         }
 
+        return await OpenAsync(uri);
+    }
+
+    /// <summary>
+    /// Opens the link an app sent to bring you back to it after you allowed it (approval window spec 4). The link was
+    /// checked by <see cref="Core.Api.ApiHello.ReadReturnUrl"/> (an app's own scheme only), so <see cref="LinkSafety"/>,
+    /// which allows only web and meeting links, doesn't apply. Recorded, logged and reported like <see cref="LaunchAsync"/>.
+    /// </summary>
+    public Task<bool> LaunchReturnLinkAsync(Uri link) => OpenAsync(link);
+
+    // Opens a checked link (its canonical address); in fake-Google mode it's appended to launched.txt instead. Never throws.
+    private async Task<bool> OpenAsync(Uri uri)
+    {
         try
         {
             if (Options.FakeGoogle is not null)

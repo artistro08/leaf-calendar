@@ -886,6 +886,14 @@
                                 Glyph="{TemplateBinding Glyph}"
                                 Visibility="{TemplateBinding IconVisibility}"
                                 AutomationProperties.AccessibilityView="Raw" />
+                            <Image
+                                Width="24"
+                                Height="24"
+                                Margin="0,0,16,0"
+                                VerticalAlignment="Center"
+                                Source="{TemplateBinding Image}"
+                                Visibility="{TemplateBinding ImageVisibility}"
+                                AutomationProperties.AccessibilityView="Raw" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Text="{TemplateBinding Header}" TextWrapping="Wrap" />
                                 <TextBlock

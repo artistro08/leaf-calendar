@@ -39,6 +39,7 @@ public static class CommandCatalog
         new("settings-calendars", "Settings › Calendars", "", Keywords: "preferences colors"),
         new("settings-time-zones", "Settings › Time zones", "", Keywords: "preferences"),
         new("settings-notifications", "Settings › Notifications", "", Keywords: "preferences reminders"),
+        new("settings-connected-apps", "Settings › Connected apps", "", Keywords: "preferences api raycast integrations"),
         new("settings-tray", "Settings › Tray", "", Keywords: "preferences"),
         new("settings-shortcuts", "Settings › Shortcuts", "", Keywords: "preferences keys"),
         new("settings-accounts", "Settings › Accounts", "", Keywords: "preferences google"),
