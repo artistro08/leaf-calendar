@@ -10,7 +10,7 @@ plugins:
 
 # Theme (leaf and leaf-dark in _sass/color_schemes; head_custom.html switches between them)
 color_scheme: leaf
-favicon_ico: /assets/images/logo.png
+favicon_ico: /assets/images/logo-64.png
 search_enabled: true
 heading_anchors: true
 back_to_top: true
