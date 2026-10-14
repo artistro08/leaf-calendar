@@ -1,6 +1,7 @@
 ---
 title: Connected apps
 nav_order: 10
+has_children: true
 ---
 
 # Connected apps
@@ -45,4 +46,4 @@ Apps connect through a private channel that only your Windows account can open. 
 
 ## For developers
 
-Building something that talks to Leaf Calendar? See the [API reference](https://github.com/artistro08/leaf-calendar/blob/main/docs/api.md).
+Building something that talks to Leaf Calendar? See the [API reference](../api/).

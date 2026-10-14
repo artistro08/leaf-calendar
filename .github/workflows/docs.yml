@@ -7,6 +7,7 @@ on:
     branches: [main]
     paths:
       - 'site/**'
+      - 'docs/api.md'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
@@ -27,6 +28,14 @@ jobs:
       - uses: actions/checkout@v5
 
       - uses: actions/configure-pages@v5
+
+      # API Reference (docs/api.md stays the only copy; it gets its page's front matter here)
+      - name: Add the API reference
+        run: |
+          {
+            printf -- '---\ntitle: API reference\nparent: Connected apps\nnav_order: 1\n---\n\n'
+            cat docs/api.md
+          } > site/api.md
 
       - uses: actions/jekyll-build-pages@v1
         with:
