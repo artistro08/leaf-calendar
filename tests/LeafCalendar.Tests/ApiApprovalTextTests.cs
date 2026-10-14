@@ -43,6 +43,13 @@ public sealed class ApiApprovalTextTests
     }
 
     [Fact]
+    public void RuntimeWarning_RuntimeInsideItsAppsPackage_IsNull()
+    {
+        var caller = new ApiCaller(@"C:\Program Files\WindowsApps\Raycast.Raycast_2.7.3.0_x64__qypenmj9wpt2a\Raycast\backend\node.exe", "Raycast", 1, ApiHello.None, AppProgram: @"C:\Program Files\WindowsApps\Raycast.Raycast_2.7.3.0_x64__qypenmj9wpt2a\Raycast\Raycast.exe");
+        Assert.Null(ApiApprovalText.RuntimeWarning(caller));
+    }
+
+    [Fact]
     public void RuntimeWarning_OrdinaryApp_IsNull()
     {
         Assert.Null(ApiApprovalText.RuntimeWarning(Caller(@"C:\Apps\Raycast.exe", "Raycast")));

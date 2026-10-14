@@ -201,7 +201,7 @@ public partial class App
         {
             if (allow)
             {
-                UpdateSettings(s => s.WithApprovedApp(new ApprovedApp(caller.Path, caller.Name, services.Time.GetUtcNow())));
+                UpdateSettings(s => s.WithApprovedApp(new ApprovedApp(caller.Path, caller.Name, services.Time.GetUtcNow(), caller.AppProgram)));
             }
         }
         catch (Exception ex)

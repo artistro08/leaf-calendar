@@ -91,7 +91,7 @@ Standard JSON-RPC codes for protocol problems: `-32700` parse error, `-32600` in
 
 The window's name comes from the program file and is cleaned like event text; the app's icon and return link are checked as the approval window spec says.
 
-Known limit (stated in the approval window and in Settings): approval trusts a program file. Approving a general runtime such as `node.exe`, `python.exe` or `powershell.exe` approves every script it runs. A Raycast extension runs inside Raycast's own Node, so its prompt names Raycast's file.
+Known limit (stated in the approval window and in Settings): approval trusts a program file. Approving a general runtime such as `node.exe`, `python.exe` or `powershell.exe` approves every script it runs. A program with an app package identity whose file sits inside that package's install folder (Raycast's own Node, for a Raycast extension) is named after the package's manifest `DisplayName` and gets no runtime warning: Windows protects the folder, so only that app runs it. Both checks are needed, because a packaged app's child processes can carry its identity while running a program from elsewhere (a packaged terminal starting `node.exe`). A `ms-resource:` display name falls back to the file's own name, with the warning.
 
 ## 4. Methods
 

@@ -65,6 +65,18 @@ public sealed class ApprovedAppsTests
         Assert.Equal("tool", Assert.Single(settings.ApprovedApps).Name);
     }
 
+    [Theory]
+    [InlineData(@"C:\Apps\Raycast\Raycast.exe", @"C:\Apps\Raycast\Raycast.exe")]
+    [InlineData(@"Raycast\Raycast.exe", null)]
+    [InlineData("  ", null)]
+    [InlineData(null, null)]
+    public void Normalize_IconPath_OnlyAFullPath(string? iconPath, string? expected)
+    {
+        var settings = new LeafSettings { ApprovedApps = [App(@"C:\Apps\Raycast\node.exe") with { IconPath = iconPath }] }.Normalize();
+
+        Assert.Equal(expected, Assert.Single(settings.ApprovedApps).IconPath);
+    }
+
     [Fact]
     public void Normalize_KeepsTheNewestFifty()
     {

@@ -4,9 +4,15 @@ namespace LeafCalendar.Core.Api;
 
 /// <summary>
 /// A program asking to connect: its full path and name (from its file), its process (to bring its window back after
-/// Allow), and what it sent with its first <c>leaf.hello</c>.
+/// Allow), and what it sent with its first <c>leaf.hello</c>. <see cref="AppProgram"/> is set when the program runs inside
+/// its own app package's folder (such as Raycast's copy of Node): only that app runs it, so <see cref="Name"/> is the app's
+/// and the app's main program stands for it (its icon over any icon the caller sent).
 /// </summary>
-public sealed record ApiCaller(string Path, string Name, int ProcessId, ApiHello Hello);
+public sealed record ApiCaller(string Path, string Name, int ProcessId, ApiHello Hello, string? AppProgram = null)
+{
+    /// <summary>True when the caller runs inside its own app package's folder (<see cref="AppProgram"/> is set).</summary>
+    public bool Packaged => AppProgram is not null;
+}
 
 /// <summary>An approval waiting on your answer: its random token, and the program asking.</summary>
 public sealed record PendingApproval(string Token, ApiCaller Caller);

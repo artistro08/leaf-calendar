@@ -19,7 +19,7 @@ Leaf keeps your calendar and every change you make. Other apps never open Leaf's
 
 Allowed apps are listed in **Settings › Connected apps**. Remove one there and its next request is refused.
 
-> Leaf remembers an app by the program file that connected. If you allow a general runtime such as `node.exe` or `python.exe`, every script that uses it can connect. A Raycast extension runs inside Raycast's own copy of Node, so the window names that file and shows the app's icon.
+> Leaf remembers an app by the program file that connected. If you allow a general runtime such as `node.exe` or `python.exe`, every script that uses it can connect, and the window warns you. A program inside an installed app's own package folder, such as Raycast's copy of Node, is named after that app and gets no warning, since only that app runs it.
 
 ## Connecting
 
