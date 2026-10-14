@@ -1,0 +1,94 @@
+{%- comment -%} Dark Mode: the dark scheme layers over the light one. It follows the system setting until the toggle saves a choice {%- endcomment -%}
+<link
+    id="leaf-dark-stylesheet"
+    rel="stylesheet"
+    href="{{ '/assets/css/just-the-docs-leaf-dark.css' | relative_url }}"
+    media="(prefers-color-scheme: dark)"
+>
+<meta name="color-scheme" content="light dark">
+
+<script>
+    // Theme (runs before the page draws, so a saved choice never flashes the other theme)
+    (function () {
+        let stylesheet = document.getElementById('leaf-dark-stylesheet');
+        let system     = window.matchMedia('(prefers-color-scheme: dark)');
+
+        function savedTheme() {
+            try {
+                return localStorage.getItem('leaf-theme');
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function isDark() {
+            let saved = savedTheme();
+            return saved ? saved === 'dark' : system.matches;
+        }
+
+        // Screenshots: each one has a "-dark" twin taken from the dark app
+        function swapImages(dark) {
+            document.querySelectorAll('.main-content img[src*="assets/images/"]').forEach((image) => {
+                let light = image.getAttribute('src').replace(/-dark\.png$/, '.png');
+                image.setAttribute('src', dark ? light.replace(/\.png$/, '-dark.png') : light);
+            });
+        }
+
+        function apply() {
+            let dark = isDark();
+            stylesheet.media = dark ? 'all' : 'not all';
+            document.documentElement.classList.toggle('leaf-dark', dark);
+            swapImages(dark);
+        }
+
+        function toggle() {
+            try {
+                localStorage.setItem('leaf-theme', isDark() ? 'light' : 'dark');
+            } catch (e) {
+                // Not saved (private window): it still switches for this page
+                stylesheet.media = stylesheet.media === 'all' ? 'not all' : 'all';
+                document.documentElement.classList.toggle('leaf-dark', stylesheet.media === 'all');
+                swapImages(stylesheet.media === 'all');
+                return;
+            }
+
+            apply();
+        }
+
+        window.leafToggleTheme = toggle;
+        apply();
+
+        // Bind to Event Listeners
+        system.addEventListener('change', apply);
+        document.addEventListener('DOMContentLoaded', apply);
+    })();
+</script>
+
+<style>
+    .leaf-theme-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.5rem;
+        padding: 0;
+        color: inherit;
+        cursor: pointer;
+        background: none;
+        border: 0;
+    }
+
+    .leaf-theme-toggle svg {
+        width: 1.25rem;
+        height: 1.25rem;
+        fill: currentColor;
+    }
+
+    .leaf-theme-toggle .leaf-icon-sun,
+    .leaf-dark .leaf-theme-toggle .leaf-icon-moon {
+        display: none;
+    }
+
+    .leaf-dark .leaf-theme-toggle .leaf-icon-sun {
+        display: block;
+    }
+</style>
