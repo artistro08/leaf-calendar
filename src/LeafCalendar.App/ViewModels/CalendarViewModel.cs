@@ -2176,9 +2176,16 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         return EventStore.Get(conn, o.AccountId, o.CalendarId, o.EventId) is { } stored ? EventDetailsParser.Parse(stored.RawJson) : null;
     }
 
-    // Local edits and conflict answers arrive on the UI thread
+    // Edits made in Leaf and conflict answers arrive on the UI thread and refresh at once; edits from the local API arrive
+    // on a pipe thread, so they hop to the UI thread first
     private void OnEditsChanged(object? sender, EventArgs e)
     {
+        if (!_dispatcher.HasThreadAccess)
+        {
+            _dispatcher.TryEnqueue(() => OnEditsChanged(sender, e));
+            return;
+        }
+
         RefreshSyncState();
         Run(RefreshAsync);
     }
