@@ -379,6 +379,7 @@ A view inside the main window, modeled on the Windows 11 Settings app. See Secti
   - Optional-guest toggle.
   - Meeting rooms and resources (Workspace accounts).
 - Location, opened in Google Maps or Bing Maps (setting).
+  - Location suggestions from Google Maps (opt-in, Settings › General, with the user's own Maps API key). See `2026-10-15-location-suggestions-design.md`.
 - Description with bold, italic, underline, links, and lists. Links are kept but not edited in the editor (Milestone 6).
 - Conferencing: auto Google Meet (default per account, or none). Pasted Zoom, Teams, Webex, and other links are detected. Built in the Milestone 3 polish: Add Google Meet / Remove in the editor, off for new events. Per-account default in Settings › Accounts (Milestone 5).
 - Reminders: calendar defaults or custom.

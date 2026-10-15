@@ -64,3 +64,14 @@ dotnet test --project tests/LeafCalendar.LiveTests/LeafCalendar.LiveTests.csproj
 ```
 
 The variables are read from the process first, then from your user-level variables, so an older shell still works. The client and refresh token are saved, encrypted for your Windows user, in `%LOCALAPPDATA%\LeafCalendar.LiveTests\profiles\live-tests\secrets.bin` (not the Credential Locker, and never your `default` profile). Delete that file to sign out. Normal runs (without `LEAF_LIVE_CALCOM_SIGNIN`) use them.
+
+## Google Maps
+
+`LivePlacesTests` checks location suggestions against real Google Maps: your key passes the Settings key check, and a lookup finds a place. It skips until `LEAF_LIVE_MAPS_KEY` is set to a Maps API key with Places API (New) turned on (each run uses two Autocomplete requests from your free monthly amount).
+
+```powershell
+[Environment]::SetEnvironmentVariable('LEAF_LIVE_MAPS_KEY', (Read-Host -AsSecureString | ConvertFrom-SecureString -AsPlainText), 'User')
+dotnet test --project tests/LeafCalendar.LiveTests/LeafCalendar.LiveTests.csproj --filter-class "*LivePlacesTests"
+```
+
+The key is saved only in a temporary folder the test deletes when it ends.
