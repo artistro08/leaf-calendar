@@ -207,7 +207,7 @@ public sealed partial class GeneralPage : Page
             {
                 ShowKeyCheck(answer switch
                 {
-                    KeyCheck.Works => "Key is setup and active.",
+                    KeyCheck.Works => "Key is set up and active.",
                     KeyCheck.Refused => "Google didn't accept this key. Check that Places API (New) and billing are turned on for it.",
                     _ => "",
                 });

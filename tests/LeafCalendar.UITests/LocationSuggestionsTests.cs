@@ -79,7 +79,7 @@ public sealed class LocationSuggestionsTests : IDisposable
         using var leaf = Launch();
         TurnOn(leaf, FakeGoogleServer.MapsKey);
 
-        Assert.Equal("Key is setup and active.", CheckText(leaf));
+        Assert.Equal("Key is set up and active.", CheckText(leaf));
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class LocationSuggestionsTests : IDisposable
         Keyboard.Type(FakeGoogleServer.MapsKey);
         Keyboard.Press(VirtualKeyShort.RETURN);
 
-        Assert.Equal("Key is setup and active.", CheckText(leaf));
+        Assert.Equal("Key is set up and active.", CheckText(leaf));
         Assert.False(leaf.WaitInSettings("MapsKeySaveButton").IsEnabled, "Save stayed on after the key was saved.");
     }
 
@@ -113,7 +113,7 @@ public sealed class LocationSuggestionsTests : IDisposable
     {
         using var leaf = Launch();
         TurnOn(leaf, FakeGoogleServer.MapsKey);
-        Assert.Equal("Key is setup and active.", CheckText(leaf));
+        Assert.Equal("Key is set up and active.", CheckText(leaf));
 
         // Close the row and open it again: the key shows as dots, and its clear button shows without clicking in
         var expander = leaf.WaitInSettings("PlacesExpander").Patterns.ExpandCollapse.Pattern;
@@ -130,7 +130,7 @@ public sealed class LocationSuggestionsTests : IDisposable
     {
         using var leaf = Launch();
         TurnOn(leaf, FakeGoogleServer.MapsKey);
-        Assert.Equal("Key is setup and active.", CheckText(leaf));
+        Assert.Equal("Key is set up and active.", CheckText(leaf));
         leaf.CloseSettings();
         CreateNew(leaf, "Coffee");
 
@@ -149,7 +149,7 @@ public sealed class LocationSuggestionsTests : IDisposable
     {
         using var leaf = Launch();
         TurnOn(leaf, FakeGoogleServer.MapsKey);
-        Assert.Equal("Key is setup and active.", CheckText(leaf));
+        Assert.Equal("Key is set up and active.", CheckText(leaf));
         leaf.CloseSettings();
         CreateNew(leaf, "Keep me");
 
