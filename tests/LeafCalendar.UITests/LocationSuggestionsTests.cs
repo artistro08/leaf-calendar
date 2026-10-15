@@ -111,6 +111,24 @@ public sealed class LocationSuggestionsTests : IDisposable
     }
 
     [Fact]
+    public void Editor_EscWithSuggestionsOpen_OnlyClosesTheList()
+    {
+        using var leaf = Launch();
+        TurnOn(leaf, FakeGoogleServer.MapsKey);
+        Assert.Equal("The key works.", CheckText(leaf));
+        leaf.CloseSettings();
+        CreateNew(leaf, "Keep me");
+
+        Type(leaf, "EditorLocation", "blue");
+        WaitForSuggestion(leaf, "Blue Bottle Coffee");
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+
+        // The list closes; the editor and its title stay
+        Assert.True(Retry.WhileTrue(() => Suggestions(leaf).Count > 0, TimeSpan.FromSeconds(5)).Success, "Esc didn't close the suggestion list.");
+        Assert.Equal("Keep me", leaf.WaitFor("EditorTitle").AsTextBox().Text);
+    }
+
+    [Fact]
     public void Editor_Off_NeverAsksGoogle()
     {
         using var leaf = Launch();

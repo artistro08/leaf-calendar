@@ -296,9 +296,9 @@ public sealed partial class EventEditorView : UserControl
             return;
         }
 
-        // Esc in an open dropdown (or the guest suggestions) only closes it
+        // Esc in an open dropdown (or the guest, room, or location suggestions) only closes it
         if (e.Key == VirtualKey.Escape && !RepeatBox.IsDropDownOpen && !EndsBox.IsDropDownOpen && !CalendarBox.IsDropDownOpen && !_reminderDropDownOpen && !GuestBox.IsSuggestionListOpen && !RoomBox.IsSuggestionListOpen
-            && !TimeZoneBox.IsSuggestionListOpen && !EventTypeBox.IsDropDownOpen && !ShowAsBox.IsDropDownOpen && !VisibilityBox.IsDropDownOpen)
+            && !LocationBox.IsSuggestionListOpen && !TimeZoneBox.IsSuggestionListOpen && !EventTypeBox.IsDropDownOpen && !ShowAsBox.IsDropDownOpen && !VisibilityBox.IsDropDownOpen)
         {
             e.Handled = true;
             _owner?.CancelEdit();

@@ -51,6 +51,10 @@ public sealed partial class GeneralPage : Page
     // Counts Maps key checks so a slow older answer can't replace a newer one's line
     private int _keyChecks;
 
+    // The key the box was last filled with or saved, so only a real change saves (a key that couldn't be read when the
+    // page opened shows as empty, and leaving the box mustn't delete it)
+    private string _keyShown = "";
+
     /// <summary>Creates the page.</summary>
     public GeneralPage()
     {
@@ -75,7 +79,8 @@ public sealed partial class GeneralPage : Page
         _ = LoadStartupAsync();
 
         // The Saved Key, Once (Load runs again on every settings change and would replace what's being typed)
-        MapsKeyBox.Password = _context.Services.Places.SavedKey ?? "";
+        _keyShown = _context.Services.Places.SavedKey ?? "";
+        MapsKeyBox.Password = _keyShown;
     }
 
     /// <inheritdoc />
@@ -163,12 +168,13 @@ public sealed partial class GeneralPage : Page
         {
             var places = _context.Services.Places;
             var key = MapsKeyBox.Password.Trim();
-            if (key == (places.SavedKey ?? ""))
+            if (key == _keyShown)
             {
                 return;
             }
 
             places.SaveKey(key);
+            _keyShown = key;
             var check = ++_keyChecks;
             ShowKeyCheck("");
             if (key.Length == 0)
