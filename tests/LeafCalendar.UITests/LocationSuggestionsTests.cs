@@ -108,11 +108,12 @@ public sealed class LocationSuggestionsTests : IDisposable
         using var leaf = Launch();
         TurnOnCities(leaf, cities: true);
 
-        TypeInPrimaryZone(leaf, "Austin");
+        // A city in another zone than this PC's, clicked
+        TypeInPrimaryZone(leaf, "Lyon");
         WaitForSuggestion(leaf, "Google Maps");
-        WaitForSuggestion(leaf, "Austin, TX, USA").Click();
+        WaitForSuggestion(leaf, "Lyon, France").Click();
 
-        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("PrimaryZoneSummary").Name == "Chicago", TimeSpan.FromSeconds(10)).Success, $"The summary reads {leaf.WaitInSettings("PrimaryZoneSummary").Name}.");
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("PrimaryZoneSummary").Name == "Paris", TimeSpan.FromSeconds(10)).Success, $"The summary reads {leaf.WaitInSettings("PrimaryZoneSummary").Name}.");
     }
 
     [Fact]

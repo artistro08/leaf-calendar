@@ -150,8 +150,9 @@ public sealed partial class TimeZoneBox : UserControl
     // The picked zone's row in the text, and the list closed
     private void ShowPicked()
     {
+        // The city rows stay until new rows replace them: a click on one can arrive after focus left the box and put
+        // the picked zone back, and must still find its city
         _cities?.Cancel();
-        _cityRows.Clear();
         _box.IsSuggestionListOpen = false;
         var text = PickedText();
         _box.Text = text;
@@ -262,6 +263,8 @@ public sealed partial class TimeZoneBox : UserControl
         var text = _box.Text;
         if (_cities is { IsOn: true } cities && text.Trim().Length > 0)
         {
+            // Cities found for older text aren't Enter's pick for this text
+            _cityRows.Clear();
             cities.Typed(text, found => ShowCities(text, found));
             return;
         }
@@ -318,14 +321,15 @@ public sealed partial class TimeZoneBox : UserControl
         ShowPicked();
     }
 
-    // The city's zone becomes the pick, as the list's own row for it when it has one; no zone puts the picked zone back
+    // The city's zone becomes the pick: its own row, else a row on the same Windows zone ("Asia/Calcutta" for
+    // "Asia/Kolkata"), else a new row; no zone puts the picked zone back
     private async Task PickCityAsync(CitySearch cities, City city)
     {
         _box.IsSuggestionListOpen = false;
         if (await cities.ZoneOfAsync(city) is { } zoneId)
         {
             var zone = TimeZoneInfo.FindSystemTimeZoneById(zoneId);
-            var id = _allIds.Find(i => TimeZoneCatalog.IsSameZone(i, zone)) ?? zoneId;
+            var id = _allIds.Contains(zoneId) ? zoneId : _allIds.Find(i => TimeZoneCatalog.IsSameZone(i, zone)) ?? zoneId;
             AddRow(id);
             if (id != _picked)
             {
