@@ -4,6 +4,7 @@ using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.People;
+using LeafCalendar.Core.Places;
 using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Tray;
@@ -205,6 +206,13 @@ public sealed partial class CalendarViewModel
             [.. answers.SelectMany(a => a.Contacts).DistinctBy(c => c.Email, StringComparer.OrdinalIgnoreCase).Take(ContactSearch.MaxResults)],
             answers.FirstOrDefault()?.Access ?? ContactAccess.Allowed);
     }
+
+    /// <summary>
+    /// Google Maps places for the editor's Location box, or none while location suggestions are off
+    /// (<see cref="PlaceSearch.IsOn"/>), checked on every search so a Settings change applies at the next keystroke.
+    /// </summary>
+    public async Task<IReadOnlyList<Place>> SearchPlacesAsync(string text, CancellationToken ct) =>
+        _services.Places.IsOn(Settings) ? await _services.Places.SearchAsync(text, ct) : [];
 
     // People from your own events, per account: read once off the UI thread, read again after the events change or
     // after a read that failed

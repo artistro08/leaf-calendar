@@ -19,6 +19,7 @@ namespace LeafCalendar.App.Views;
 /// The event editor, shown in the details panel. Fields bind to an <see cref="EventEditorViewModel"/>; saving goes
 /// through <see cref="CalendarViewModel.SaveEditorAsync"/>, which asks about repeating events.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "A control isn't disposable; Detach disposes the place suggestions when the editor is let go.")]
 public sealed partial class EventEditorView : UserControl
 {
     // The calendar's own color first, then Google's 11 event colors
@@ -29,6 +30,9 @@ public sealed partial class EventEditorView : UserControl
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _suggestTimer;
 
     private CalendarViewModel? _owner;
+
+    // Google Maps suggestions for the Location box (made once the owner is known)
+    private PlaceSuggestions? _places;
     private bool _endTimeAsked;
     private bool _zoneAsked;
     private bool _reminderDropDownOpen;
@@ -72,6 +76,7 @@ public sealed partial class EventEditorView : UserControl
 
         Detach();
         _owner = owner;
+        _places = new PlaceSuggestions(LocationBox, owner);
         Editor = editor;
         _endTimeAsked = false;
         _zoneAsked = false;
@@ -177,6 +182,8 @@ public sealed partial class EventEditorView : UserControl
     {
         _owner = null;
         _suggestTimer.Stop();
+        _places?.Dispose();
+        _places = null;
         if (Editor is not { } editor)
         {
             return;
@@ -370,6 +377,19 @@ public sealed partial class EventEditorView : UserControl
         {
             editor.PickRoom(room);
         }
+    }
+
+    // A picked place puts its full line in Location; Enter on typed text keeps the text. The pick is found by reference
+    // in our own list (never cast back from WinRT); the "Google Maps" row does nothing.
+    private void OnLocationQuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        if (Editor is { } editor && _places?.Find(args.ChosenSuggestion) is { } place)
+        {
+            editor.Location = place.Text;
+        }
+
+        _places?.Cancel();
+        sender.IsSuggestionListOpen = false;
     }
 
     private void OnAllowContactsClick(object sender, RoutedEventArgs e)

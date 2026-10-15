@@ -217,8 +217,25 @@
                 <!-- Divider -->
                 <Border Style="{StaticResource LeafDividerStyle}" AutomationProperties.AutomationId="EditorDivider_Guests" />
 
-                <!-- Location -->
-                <TextBox Header="Location" Text="{x:Bind Editor.Location, Mode=TwoWay}" Visibility="{x:Bind Editor.ShowLocation, Mode=OneWay}" AutomationProperties.AutomationId="EditorLocation" />
+                <!-- Location (Google Maps suggestions while they're on in Settings; otherwise a plain box) -->
+                <AutoSuggestBox
+                    x:Name="LocationBox"
+                    Header="Location"
+                    UpdateTextOnSelect="False"
+                    Text="{x:Bind Editor.Location, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    QuerySubmitted="OnLocationQuerySubmitted"
+                    Visibility="{x:Bind Editor.ShowLocation, Mode=OneWay}"
+                    AutomationProperties.AutomationId="EditorLocation">
+                    <AutoSuggestBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PlaceSuggestion">
+                            <StackPanel Padding="0,4" AutomationProperties.Name="{x:Bind Name}">
+                                <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" Visibility="{x:Bind PlaceVisibility}" />
+                                <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" Text="{x:Bind Address}" TextTrimming="CharacterEllipsis" Visibility="{x:Bind PlaceVisibility}" />
+                                <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" HorizontalAlignment="Right" Text="{x:Bind Name}" Visibility="{x:Bind AttributionVisibility}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </AutoSuggestBox.ItemTemplate>
+                </AutoSuggestBox>
 
                 <!-- Divider (between the location and the video call and guests) -->
                 <Border Style="{StaticResource LeafDividerStyle}" Visibility="{x:Bind Editor.ShowGuests, Mode=OneWay}" AutomationProperties.AutomationId="EditorDivider_Call" />

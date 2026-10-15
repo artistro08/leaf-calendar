@@ -8,6 +8,7 @@ using LeafCalendar.Core.Events;
 using LeafCalendar.Core.People;
 using LeafCalendar.Core.Views;
 using CalendarRooms = LeafCalendar.Core.People.Rooms;
+using Microsoft.UI.Xaml;
 
 namespace LeafCalendar.App.ViewModels;
 
@@ -88,6 +89,28 @@ public sealed class ContactSuggestion(string name, string email)
 
     /// <summary>The shown text (what a screen reader says for the item).</summary>
     public override string ToString() => Display;
+}
+
+/// <summary>
+/// A row in the Location box's list (an App type, so WinRT can hold the list): a place's name and address, or the
+/// "Google Maps" attribution Google requires at the end.
+/// </summary>
+public sealed class PlaceSuggestion(string name, string address, bool isAttribution)
+{
+    /// <summary>The place's name, or "Google Maps" for the attribution row (plain text; Core already cleaned it).</summary>
+    public string Name { get; } = name;
+
+    /// <summary>The place's address, or empty.</summary>
+    public string Address { get; } = address;
+
+    /// <summary>The place rows' lines show.</summary>
+    public Visibility PlaceVisibility { get; } = isAttribution ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>The attribution row's line shows.</summary>
+    public Visibility AttributionVisibility { get; } = isAttribution ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>The name (what a screen reader says for the item).</summary>
+    public override string ToString() => Name;
 }
 
 
