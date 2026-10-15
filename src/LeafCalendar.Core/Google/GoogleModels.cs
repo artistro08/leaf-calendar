@@ -328,3 +328,58 @@ public sealed class FreeBusyPeriod
     /// <summary>End.</summary>
     public DateTimeOffset End { get; set; }
 }
+
+// =========================================================================
+// PLACES
+// =========================================================================
+
+/// <summary>A Places Autocomplete (New) request: what was typed, and the language to answer in.</summary>
+public sealed class PlacesAutocompleteRequest
+{
+    /// <summary>The text typed so far.</summary>
+    public string Input { get; set; } = "";
+
+    /// <summary>A BCP-47 language for the answer (Windows' display language), or null for Google's default.</summary>
+    public string? LanguageCode { get; set; }
+}
+
+/// <summary>A Places Autocomplete (New) answer (only the fields Leaf Calendar's field mask asks for).</summary>
+public sealed class PlacesAutocompleteResponse
+{
+    /// <summary>Suggestions, best first (at most five).</summary>
+    public List<PlacesSuggestion>? Suggestions { get; set; }
+}
+
+/// <summary>One suggestion; only place predictions are used.</summary>
+public sealed class PlacesSuggestion
+{
+    /// <summary>A place, or null for a query prediction.</summary>
+    public PlacePrediction? PlacePrediction { get; set; }
+}
+
+/// <summary>A suggested place: its full line, and the same line split into the name and the address.</summary>
+public sealed class PlacePrediction
+{
+    /// <summary>The full line ("Blue Bottle Coffee, Mint Street, San Francisco, CA, USA").</summary>
+    public PlacesText? Text { get; set; }
+
+    /// <summary>The name and the address apart.</summary>
+    public PlacesStructuredFormat? StructuredFormat { get; set; }
+}
+
+/// <summary>A prediction's name (<see cref="MainText"/>) and address (<see cref="SecondaryText"/>).</summary>
+public sealed class PlacesStructuredFormat
+{
+    /// <summary>The place's name.</summary>
+    public PlacesText? MainText { get; set; }
+
+    /// <summary>The place's address.</summary>
+    public PlacesText? SecondaryText { get; set; }
+}
+
+/// <summary>A piece of text in a Places answer.</summary>
+public sealed class PlacesText
+{
+    /// <summary>The text.</summary>
+    public string? Text { get; set; }
+}

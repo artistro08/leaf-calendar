@@ -1,10 +1,10 @@
 namespace LeafCalendar.Core.Google;
 
 /// <summary>
-/// Where Leaf Calendar sends OAuth, Calendar, and People requests: Google in normal use, or a loopback fake Google
+/// Where Leaf Calendar sends OAuth, Calendar, People, and Places requests: Google in normal use, or a loopback fake Google
 /// in UI tests (see <c>--fake-google</c> in <see cref="Hosting.LaunchOptions"/>).
 /// </summary>
-public sealed record GoogleEndpoints(Uri Authorization, Uri Token, Uri Revoke, Uri UserInfo, Uri CalendarApi, Uri PeopleApi)
+public sealed record GoogleEndpoints(Uri Authorization, Uri Token, Uri Revoke, Uri UserInfo, Uri CalendarApi, Uri PeopleApi, Uri PlacesApi)
 {
     /// <summary>Real Google.</summary>
     public static GoogleEndpoints Default { get; } = new(
@@ -13,7 +13,8 @@ public sealed record GoogleEndpoints(Uri Authorization, Uri Token, Uri Revoke, U
         new Uri("https://oauth2.googleapis.com/revoke"),
         new Uri("https://openidconnect.googleapis.com/v1/userinfo"),
         new Uri("https://www.googleapis.com/calendar/v3/"),
-        new Uri("https://people.googleapis.com/v1/"));
+        new Uri("https://people.googleapis.com/v1/"),
+        new Uri("https://places.googleapis.com/v1/"));
 
     /// <summary>A fake Google rooted at <paramref name="root"/> (which ends with <c>/</c>).</summary>
     public static GoogleEndpoints ForFake(Uri root) => new(
@@ -22,5 +23,6 @@ public sealed record GoogleEndpoints(Uri Authorization, Uri Token, Uri Revoke, U
         new Uri(root, "revoke"),
         new Uri(root, "userinfo"),
         new Uri(root, "calendar/v3/"),
-        new Uri(root, "people/v1/"));
+        new Uri(root, "people/v1/"),
+        new Uri(root, "places/v1/"));
 }

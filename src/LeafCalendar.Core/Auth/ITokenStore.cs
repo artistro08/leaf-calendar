@@ -31,12 +31,12 @@ public interface ITokenStore
     /// <summary>IDs of accounts that have a refresh token.</summary>
     IReadOnlyList<string> GetAccountIds();
 
-    /// <summary>Returns a scheduling provider's secret value (such as its OAuth client secret or refresh token), or null.</summary>
+    /// <summary>Returns an integration's (a scheduling provider or Google Maps) secret value (such as its OAuth client secret or refresh token), or null.</summary>
     string? GetProviderSecret(string providerId, string key);
 
-    /// <summary>Saves (replaces) a scheduling provider's secret value.</summary>
+    /// <summary>Saves (replaces) an integration's (a scheduling provider or Google Maps) secret value.</summary>
     void SetProviderSecret(string providerId, string key, string value);
 
-    /// <summary>Deletes every secret of a scheduling provider (Disconnect).</summary>
+    /// <summary>Deletes every secret of an integration (a scheduling provider or Google Maps), as Disconnect does.</summary>
     void RemoveProviderSecrets(string providerId);
 }
