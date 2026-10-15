@@ -73,6 +73,78 @@ public sealed class LocationSuggestionsTests : IDisposable
     private static string CheckText(LeafApp leaf) =>
         Retry.WhileEmpty(() => leaf.WaitInSettings("MapsKeyCheckText").Name, TimeSpan.FromSeconds(10)).Result ?? "";
 
+    // Location suggestions on with a working key, then (when asked) city suggestions in time zone fields
+    private static void TurnOnCities(LeafApp leaf, bool cities)
+    {
+        TurnOn(leaf, FakeGoogleServer.MapsKey);
+        Assert.Equal("Key is set up and active.", CheckText(leaf));
+        if (cities)
+        {
+            var zones = leaf.WaitInSettings("TimeZonePlacesSwitch").AsToggleButton();
+            Assert.True(Retry.WhileFalse(() => zones.IsEnabled, TimeSpan.FromSeconds(5)).Success, "The time zone switch stayed off.");
+            zones.Toggle();
+        }
+    }
+
+    // Settings › Time zones: stops following Windows and types into Leaf Calendar's own zone box
+    private static void TypeInPrimaryZone(LeafApp leaf, string text)
+    {
+        leaf.OpenSettings("TimeZones");
+        leaf.ExpandInSettings("PrimaryZoneExpander");
+        leaf.WaitInSettings("FollowWindowsZoneSwitch").AsToggleButton().Toggle();
+        var box = leaf.WaitInSettings("PrimaryZoneBox");
+        Assert.True(Retry.WhileFalse(() => box.IsEnabled, TimeSpan.FromSeconds(5)).Success);
+        LeafApp.TextIn(box).Focus();
+        Thread.Sleep(200);
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
+        Keyboard.Type(text);
+    }
+
+    private int CitySearches() => _google.Requests.Count(r => r.Contains("/places/", StringComparison.Ordinal));
+
+    [Fact]
+    public void TimeZone_CitiesOn_PickingACityPicksItsZone()
+    {
+        using var leaf = Launch();
+        TurnOnCities(leaf, cities: true);
+
+        TypeInPrimaryZone(leaf, "Austin");
+        WaitForSuggestion(leaf, "Google Maps");
+        WaitForSuggestion(leaf, "Austin, TX, USA").Click();
+
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("PrimaryZoneSummary").Name == "Chicago", TimeSpan.FromSeconds(10)).Success, $"The summary reads {leaf.WaitInSettings("PrimaryZoneSummary").Name}.");
+    }
+
+    [Fact]
+    public void TimeZone_CitiesOff_ShowsOnlyTheBuiltInZones()
+    {
+        using var leaf = Launch();
+        TurnOnCities(leaf, cities: false);
+        var before = CitySearches();
+
+        TypeInPrimaryZone(leaf, "Chicago");
+
+        Assert.True(Retry.WhileFalse(() => Suggestions(leaf).Any(s => s.Properties.Name.ValueOrDefault?.Contains("Chicago", StringComparison.Ordinal) == true), TimeSpan.FromSeconds(10)).Success, "Chicago's zone didn't show.");
+        Thread.Sleep(1000);
+        Assert.Equal(before, CitySearches());
+    }
+
+    [Fact]
+    public void AddTimeZone_City_AddsItsZoneLabeledWithTheCity()
+    {
+        using var leaf = Launch();
+        TurnOnCities(leaf, cities: true);
+        leaf.OpenSettings("TimeZones");
+
+        leaf.WaitInSettings("TimeZoneSearch").Focus();
+        Thread.Sleep(200);
+        Keyboard.Type("lyo");
+        WaitForSuggestion(leaf, "Lyon, France").Click();
+
+        // Paris's zone (never the zone you're in, which can't be added), labeled Lyon
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("ZoneLabelBox_Europe/Paris").AsTextBox().Text == "Lyon", TimeSpan.FromSeconds(10)).Success, "Lyon's zone wasn't added with its label.");
+    }
+
     [Fact]
     public void Settings_GoodKey_SaysItWorks()
     {

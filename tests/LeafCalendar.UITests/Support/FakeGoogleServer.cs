@@ -960,20 +960,37 @@ public sealed class FakeGoogleServer : IDisposable
     /// <summary>The Maps API key the fake accepts; any other is refused with 400, as Google does.</summary>
     public const string MapsKey = "fake-maps-key";
 
-    // Two places for any input starting with "blue", none otherwise
+    // Two places for any input starting with "blue", none otherwise. A city search (cities only) finds Austin for "aus"
+    // and Lyon for "lyo", and each city's details hold its time zone
     private (int, string, string?) Places(string method, string target, string? key, string body)
     {
-        if (method != "POST" || new Uri(BaseUri, target).AbsolutePath != "/places/v1/places:autocomplete")
-        {
-            return NotFound();
-        }
-
-        if (key != MapsKey)
+        var path = new Uri(BaseUri, target).AbsolutePath;
+        if (key != MapsKey && path.StartsWith("/places/v1/", StringComparison.Ordinal))
         {
             return (400, Error(400, "badRequest"), null);
         }
 
-        var input = JsonNode.Parse(body)?["input"]?.GetValue<string>() ?? "";
+        if (method == "GET" && path is "/places/v1/places/fake-austin" or "/places/v1/places/fake-lyon")
+        {
+            return (200, path.EndsWith("austin", StringComparison.Ordinal) ? """{"timeZone":{"id":"America/Chicago"}}""" : """{"timeZone":{"id":"Europe/Paris"}}""", null);
+        }
+
+        if (method != "POST" || path != "/places/v1/places:autocomplete")
+        {
+            return NotFound();
+        }
+
+        var request = JsonNode.Parse(body);
+        var input = request?["input"]?.GetValue<string>() ?? "";
+        if (request?["includedPrimaryTypes"] is not null)
+        {
+            return input.StartsWith("aus", StringComparison.OrdinalIgnoreCase)
+                ? (200, """{"suggestions":[{"placePrediction":{"placeId":"fake-austin","structuredFormat":{"mainText":{"text":"Austin"},"secondaryText":{"text":"TX, USA"}}}}]}""", null)
+                : input.StartsWith("lyo", StringComparison.OrdinalIgnoreCase)
+                    ? (200, """{"suggestions":[{"placePrediction":{"placeId":"fake-lyon","structuredFormat":{"mainText":{"text":"Lyon"},"secondaryText":{"text":"France"}}}}]}""", null)
+                    : (200, "{}", null);
+        }
+
         if (!input.StartsWith("blue", StringComparison.OrdinalIgnoreCase))
         {
             return (200, "{}", null);

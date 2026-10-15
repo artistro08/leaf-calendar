@@ -94,6 +94,7 @@ public sealed partial class EventEditorView : UserControl
 
         editor.PropertyChanged += OnEditorPropertyChanged;
         LeafBrushes.ContrastChanged += OnContrastChanged;
+        TimeZoneBox.Calendar = owner;
         TimeZoneBox.Show(editor.TimeZoneId, editor.Before.Start);
         BuildColors();
         LoadDescription();

@@ -214,6 +214,17 @@ public sealed partial class CalendarViewModel
     public async Task<IReadOnlyList<Place>> SearchPlacesAsync(string text, CancellationToken ct) =>
         _services.Places.IsOn(Settings) ? await _services.Places.SearchAsync(text, ct) : [];
 
+    /// <summary>True when time zone boxes suggest Google Maps cities (both switches on, and a Maps API key saved).</summary>
+    public bool CitySuggestionsOn => _services.Places.TimeZonesOn(Settings);
+
+    /// <summary>Google Maps cities matching <paramref name="text"/> in the search session <paramref name="session"/>; none while city suggestions are off.</summary>
+    public async Task<IReadOnlyList<City>> SearchCitiesAsync(string text, string session, CancellationToken ct) =>
+        CitySuggestionsOn ? await _services.Places.SearchCitiesAsync(text, session, ct) : [];
+
+    /// <summary>A picked city's IANA time zone (ending its search session), or null when Google can't say.</summary>
+    public Task<string?> CityTimeZoneAsync(City city, string session, CancellationToken ct) =>
+        _services.Places.TimeZoneOfAsync(city.PlaceId, session, ct);
+
     // People from your own events, per account: read once off the UI thread, read again after the events change or
     // after a read that failed
     private readonly Dictionary<string, Task<IReadOnlyList<Contact>>> _localPeople = new(StringComparer.Ordinal);
