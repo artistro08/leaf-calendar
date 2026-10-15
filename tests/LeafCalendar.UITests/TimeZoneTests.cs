@@ -41,6 +41,28 @@ public sealed class TimeZoneTests : IDisposable
     }
 
     [Fact]
+    public void ClickingASuggestion_AddsThatZone_NotTheFirst()
+    {
+        using var leaf = Launch();
+        OpenTimeZones(leaf);
+        leaf.WaitInSettings("TimeZoneSearch").Focus();
+        Thread.Sleep(500);
+        Keyboard.Type("Pa");
+
+        // The second row ("City (Detail)"), clicked
+        var rows = Retry.WhileFalse(() => Rows(leaf).Count >= 2, TimeSpan.FromSeconds(10)).Success ? Rows(leaf) : throw new InvalidOperationException("Fewer than two zones matched.");
+        var name = rows[1].Properties.Name.ValueOrDefault ?? "";
+        rows[1].Click();
+
+        var city = name[..name.IndexOf(" (", StringComparison.Ordinal)];
+        Assert.True(Retry.WhileNull(() => leaf.FindAllAnywhere("TimeZoneList").SelectMany(l => l.FindAllDescendants(cf => cf.ByName($"Column label for {city}"))).FirstOrDefault(), TimeSpan.FromSeconds(5)).Success, $"Clicking {name} didn't add it.");
+    }
+
+    // The search box's suggestion rows (the list is a popup, so every window is searched)
+    private static List<AutomationElement> Rows(LeafApp leaf) =>
+        [.. leaf.FindAllAnywhere("SuggestionsList").SelectMany(list => list.FindAllDescendants(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.ListItem)))];
+
+    [Fact]
     public void AddTokyo_ShowsColumnAndPersists()
     {
         using (var leaf = Launch())

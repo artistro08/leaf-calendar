@@ -18,14 +18,27 @@ public static class ZoneSuggestions
         return [.. choices.Select(c => new ListViewItem { Content = c.ToString(), IsEnabled = !TimeZoneCatalog.IsSameZone(c.Id, current) })];
     }
 
-    /// <summary>The choice behind a picked row (matched by reference to our own rows, never read back), or null for a disabled or unknown one.</summary>
+    /// <summary>The choice behind a picked row, or null for a disabled or unknown one.</summary>
     public static TimeZoneChoice? Chosen(List<ListViewItem> rows, IReadOnlyList<TimeZoneChoice> choices, object? picked)
     {
         ArgumentNullException.ThrowIfNull(rows);
         ArgumentNullException.ThrowIfNull(choices);
 
-        var index = rows.FindIndex(r => ReferenceEquals(r, picked));
+        var index = IndexOf(rows, picked);
         return index >= 0 && index < choices.Count && rows[index].IsEnabled ? choices[index] : null;
+    }
+
+    /// <summary>
+    /// Which of our own rows the box picked, or -1. A highlighted row comes back as the row itself (matched by reference,
+    /// never read back), but a clicked one comes back as its text, because the list hands a click on a row that is its
+    /// own container back as the row's content.
+    /// </summary>
+    public static int IndexOf(List<ListViewItem> rows, object? picked)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+
+        var index = rows.FindIndex(r => ReferenceEquals(r, picked));
+        return index >= 0 || picked is not string text ? index : rows.FindIndex(r => r.Content is string row && row == text);
     }
 
     /// <summary>The first choice that isn't <paramref name="current"/> (what Enter takes with nothing picked), or null.</summary>
