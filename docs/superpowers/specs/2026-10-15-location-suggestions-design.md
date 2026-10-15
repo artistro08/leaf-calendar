@@ -16,7 +16,7 @@ Settings › General gets one card:
 
 - A `ToggleSwitch` titled "Location suggestions", described "Suggest places from Google Maps as you type a location. Needs a Maps API key with Places API (New) turned on." Saved in `LeafSettings.LocationSuggestions` (bool, default false).
 - Inside the card's expander, a `PasswordBox` labeled "Maps API key", enabled while the switch is on. It shows the saved key as dots, with the stock reveal (peek) button and a clear ("x") button right-aligned; Windows' stock `PasswordBox` has no clear button, so `LeafPasswordBoxStyle` is the stock template plus the stock `DeleteButtonStyle` button TextBox uses. The key saves when the box loses focus, trimmed; an empty box deletes the saved key.
-- Saving a key runs one test lookup and shows one line under the box: "The key works." or "Google didn't accept this key. Check that Places API (New) and billing are turned on for it." Network trouble shows nothing (the check is only about the key).
+- Save (or Enter) stores the key, runs one test lookup and shows one line under the box: "Key is setup and active." or "Google didn't accept this key. Check that Places API (New) and billing are turned on for it." Network trouble shows nothing (the check is only about the key).
 
 Location suggestions are **on** only when the switch is on and a key is saved.
 
@@ -67,7 +67,7 @@ The key is a secret. It goes only through `ITokenStore`, as `SetProviderSecret("
 - "Location suggestions"
 - "Suggest places from Google Maps as you type a location. Needs a Maps API key with Places API (New) turned on."
 - "Maps API key"
-- "The key works."
+- "Key is setup and active."
 - "Google didn't accept this key. Check that Places API (New) and billing are turned on for it."
 - "Google Maps" (attribution; Google's required text, never localized)
 - "Location suggestions are off." (API error message)

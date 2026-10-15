@@ -51,7 +51,7 @@ public sealed class LocationSuggestionsTests : IDisposable
         leaf.WaitFor("EditorTitle").AsTextBox().Text = title;
     }
 
-    // Settings › General: turns location suggestions on and types a key; Tab moves focus off the box, which saves it
+    // Settings › General: turns location suggestions on, types a key and presses Save
     private static void TurnOn(LeafApp leaf, string key)
     {
         leaf.OpenSettings("General");
@@ -67,7 +67,7 @@ public sealed class LocationSuggestionsTests : IDisposable
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Press(VirtualKeyShort.DELETE);
         Keyboard.Type(key);
-        Keyboard.Press(VirtualKeyShort.TAB);
+        leaf.WaitInSettings("MapsKeySaveButton").AsButton().Invoke();
     }
 
     private static string CheckText(LeafApp leaf) =>
@@ -79,7 +79,7 @@ public sealed class LocationSuggestionsTests : IDisposable
         using var leaf = Launch();
         TurnOn(leaf, FakeGoogleServer.MapsKey);
 
-        Assert.Equal("The key works.", CheckText(leaf));
+        Assert.Equal("Key is setup and active.", CheckText(leaf));
     }
 
     [Fact]
@@ -92,11 +92,45 @@ public sealed class LocationSuggestionsTests : IDisposable
     }
 
     [Fact]
+    public void Settings_EnterSavesTheKey()
+    {
+        using var leaf = Launch();
+        leaf.OpenSettings("General");
+        leaf.WaitInSettings("PlacesSwitch").AsToggleButton().Toggle();
+        var box = leaf.WaitInSettings("MapsKeyBox");
+        Assert.True(Retry.WhileFalse(() => box.IsEnabled, TimeSpan.FromSeconds(5)).Success, "The key box stayed off.");
+        box.Focus();
+        // Enter right after typing, before Save turns on
+        Keyboard.Type(FakeGoogleServer.MapsKey);
+        Keyboard.Press(VirtualKeyShort.RETURN);
+
+        Assert.Equal("Key is setup and active.", CheckText(leaf));
+        Assert.False(leaf.WaitInSettings("MapsKeySaveButton").IsEnabled, "Save stayed on after the key was saved.");
+    }
+
+    [Fact]
+    public void Settings_SavedKey_ClearShowsAfterReopening()
+    {
+        using var leaf = Launch();
+        TurnOn(leaf, FakeGoogleServer.MapsKey);
+        Assert.Equal("Key is setup and active.", CheckText(leaf));
+
+        // Close the row and open it again: the key shows as dots, and its clear button shows without clicking in
+        var expander = leaf.WaitInSettings("PlacesExpander").Patterns.ExpandCollapse.Pattern;
+        expander.Collapse();
+        expander.Expand();
+
+        var clear = Retry.WhileNull(() => leaf.WaitInSettings("MapsKeyBox").FindFirstDescendant(cf => cf.ByAutomationId("PasswordClearButton")), TimeSpan.FromSeconds(5)).Result;
+        Assert.NotNull(clear);
+        Assert.False(clear.IsOffscreen, "The clear button is hidden.");
+    }
+
+    [Fact]
     public void Editor_On_SuggestsPlaces_AndPickFillsLocation()
     {
         using var leaf = Launch();
         TurnOn(leaf, FakeGoogleServer.MapsKey);
-        Assert.Equal("The key works.", CheckText(leaf));
+        Assert.Equal("Key is setup and active.", CheckText(leaf));
         leaf.CloseSettings();
         CreateNew(leaf, "Coffee");
 
@@ -115,7 +149,7 @@ public sealed class LocationSuggestionsTests : IDisposable
     {
         using var leaf = Launch();
         TurnOn(leaf, FakeGoogleServer.MapsKey);
-        Assert.Equal("The key works.", CheckText(leaf));
+        Assert.Equal("Key is setup and active.", CheckText(leaf));
         leaf.CloseSettings();
         CreateNew(leaf, "Keep me");
 

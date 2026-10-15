@@ -8,8 +8,10 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.ApplicationModel;
+using Windows.System;
 
 namespace LeafCalendar.App.Views.Settings;
 
@@ -52,7 +54,7 @@ public sealed partial class GeneralPage : Page
     private int _keyChecks;
 
     // The key the box was last filled with or saved, so only a real change saves (a key that couldn't be read when the
-    // page opened shows as empty, and leaving the box mustn't delete it)
+    // page opened shows as empty, and Save mustn't delete it unless the box changed)
     private string _keyShown = "";
 
     /// <summary>Creates the page.</summary>
@@ -109,6 +111,7 @@ public sealed partial class GeneralPage : Page
         MapProviderBox.SelectedIndex = Array.IndexOf(MapSources, s.MapProvider);
         PlacesSwitch.IsOn = s.LocationSuggestions;
         MapsKeyBox.IsEnabled = s.LocationSuggestions;
+        UpdateMapsKeySave();
         LoadWorkingHours(s.WorkingHours, s.WeekStart, s.Use24HourTime);
         StartMinimizedSwitch.IsOn = !s.OpenWindowAtSignIn;
 
@@ -156,13 +159,29 @@ public sealed partial class GeneralPage : Page
         // Turning On Opens The Key Row
         var on = PlacesSwitch.IsOn;
         MapsKeyBox.IsEnabled = on;
+        UpdateMapsKeySave();
         PlacesExpander.IsExpanded |= on;
         _context.Save(s => s with { LocationSuggestions = on });
     }
 
-    // A changed key saves when the box loses focus (an empty box removes it), then one lookup says whether Google
-    // accepts it. Network trouble says nothing; only the newest check's answer shows.
-    private async void OnMapsKeyLostFocus(object sender, RoutedEventArgs e)
+    // Save is on only while the box differs from the saved key
+    private void OnMapsKeyChanged(object sender, RoutedEventArgs e) => UpdateMapsKeySave();
+
+    private void UpdateMapsKeySave() => MapsKeySaveButton.IsEnabled = MapsKeyBox.IsEnabled && MapsKeyBox.Password.Trim() != _keyShown;
+
+    // Enter saves too (not gated on Save, which follows PasswordChanged a moment after typing or pasting)
+    private void OnMapsKeyKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Enter)
+        {
+            e.Handled = true;
+            OnMapsKeySave(sender, e);
+        }
+    }
+
+    // Save (or Enter) stores a changed key (an empty box removes it), then one lookup says whether Google accepts it.
+    // Network trouble says nothing; only the newest check's answer shows.
+    private async void OnMapsKeySave(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -175,6 +194,7 @@ public sealed partial class GeneralPage : Page
 
             places.SaveKey(key);
             _keyShown = key;
+            UpdateMapsKeySave();
             var check = ++_keyChecks;
             ShowKeyCheck("");
             if (key.Length == 0)
@@ -187,7 +207,7 @@ public sealed partial class GeneralPage : Page
             {
                 ShowKeyCheck(answer switch
                 {
-                    KeyCheck.Works => "The key works.",
+                    KeyCheck.Works => "Key is setup and active.",
                     KeyCheck.Refused => "Google didn't accept this key. Check that Places API (New) and billing are turned on for it.",
                     _ => "",
                 });

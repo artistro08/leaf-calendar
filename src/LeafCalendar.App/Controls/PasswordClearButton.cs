@@ -8,8 +8,8 @@ namespace LeafCalendar.App.Controls;
 /// <see cref="PasswordBox"/> is sealed and has no clear button, so the style adds one and this wires its click.
 /// </summary>
 /// <remarks>
-/// Clearing keeps focus in the box, as TextBox's own clear button does, so the box's LostFocus (where a page saves it)
-/// runs once the user moves on.
+/// The button shows whenever the enabled box holds text, focused or not, so a saved value that shows as dots can be
+/// cleared without first clicking into the box. Clearing moves focus into the box, as TextBox's own clear button does.
 /// </remarks>
 internal static class PasswordClearButton
 {
@@ -29,13 +29,21 @@ internal static class PasswordClearButton
         }
 
         box.Loaded -= OnLoaded;
-        if (TemplatePart.Find<Button>(box, "ClearButton") is { } clear)
+        if (TemplatePart.Find<Button>(box, "ClearButton") is not { } clear)
         {
-            clear.Click += (_, _) =>
-            {
-                box.Password = "";
-                box.Focus(FocusState.Programmatic);
-            };
+            return;
         }
+
+        // Shown While There's Something To Clear
+        void Update() => clear.Visibility = box.IsEnabled && box.Password.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        box.PasswordChanged += (_, _) => Update();
+        box.IsEnabledChanged += (_, _) => Update();
+        Update();
+
+        clear.Click += (_, _) =>
+        {
+            box.Password = "";
+            box.Focus(FocusState.Programmatic);
+        };
     }
 }
