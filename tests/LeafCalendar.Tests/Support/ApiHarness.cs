@@ -6,6 +6,7 @@ using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.People;
+using LeafCalendar.Core.Places;
 using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Settings;
 using Microsoft.Extensions.Time.Testing;
@@ -89,6 +90,9 @@ public sealed class FakeApiHost : IApiHost
 
     /// <inheritdoc />
     public ContactSearch? Contacts => null;
+
+    /// <inheritdoc />
+    public PlaceSearch? Places { get; set; }
 }
 
 /// <summary>A dispatcher over a seeded test database (the calendar-list.json calendars, New York time, Oct 1 2026 8 AM).</summary>

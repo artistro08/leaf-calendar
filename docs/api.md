@@ -246,6 +246,17 @@ People to suggest as guests, as Leaf Calendar's guest box does: those in your ev
 {"jsonrpc":"2.0","id":12,"result":[{"name":"Sam Rivera","email":"sam@example.com"}]}
 ```
 
+### places.search
+
+Places to suggest for an event's location, as Leaf Calendar's Location box does, from Google Maps. Only when location suggestions are on in Settings › General with a Maps API key saved; otherwise the reply is a `not_enabled` error. At most 5, best first. `query` is at most 100 characters; an empty one gives an empty list. `address` is null when Google gives none. Put `text` in the event's `location`. If Google can't be reached or refuses the key, the list is empty.
+
+Apps that show these results must show "Google Maps" with them, as Google's terms require.
+
+```json
+{"jsonrpc":"2.0","id":13,"method":"places.search","params":{"query":"blue bottle"}}
+{"jsonrpc":"2.0","id":13,"result":[{"name":"Blue Bottle Coffee","address":"Mint Street, San Francisco, CA, USA","text":"Blue Bottle Coffee, Mint Street, San Francisco, CA, USA"}]}
+```
+
 ### availability.free
 
 Your free times between `start` and `end` (at most 31 days): your working hours (**Settings › General**) on your work days, minus events that show you as busy (not declined, not marked free), from now on. Stretches shorter than `minutes` (optional, 5 to 1,440, 30 by default) are left out. With `linkId`, only times that link has open are kept.
@@ -323,6 +334,7 @@ Leaf Calendar's own errors use `-32000` with a short code in `data.code`:
 | `no_meeting` | Nothing to join. |
 | `not_signed_in` | No Google account is signed in. |
 | `unavailable` | The scheduling provider couldn't be reached. Try again later. |
+| `not_enabled` | Location suggestions are off in Settings, or no Maps API key is saved. |
 
 ## Security
 

@@ -2,6 +2,7 @@ using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.People;
+using LeafCalendar.Core.Places;
 using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Settings;
 
@@ -33,6 +34,9 @@ public interface IApiHost
 
     /// <summary>Google contacts search, or null before anyone signs in to Google.</summary>
     ContactSearch? Contacts { get; }
+
+    /// <summary>Google Maps place search (on only while <see cref="PlaceSearch.IsOn"/> says so for <see cref="Settings"/>), or null.</summary>
+    PlaceSearch? Places { get; }
 }
 
 /// <summary>
