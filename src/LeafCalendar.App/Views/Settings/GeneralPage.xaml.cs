@@ -1,6 +1,7 @@
 using System.Globalization;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
+using LeafCalendar.Core.Places;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
@@ -14,7 +15,7 @@ namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
 /// Settings › General: theme, the calendar view options, date and time, working hours, the map
-/// site for locations, and starting with Windows. Every change saves
+/// site for locations, location suggestions (with the Maps API key), and starting with Windows. Every change saves
 /// right away through the shared calendar view model, so the main window follows it; changes made elsewhere (the view
 /// menu, shortcuts) show here too. Starting with Windows is the package's startup task, whose state Windows owns.
 /// </summary>
@@ -47,6 +48,9 @@ public sealed partial class GeneralPage : Page
     // Counts startup loads so a slow older one can't overwrite a newer one's result or clear its flag
     private int _startupLoads;
 
+    // Counts Maps key checks so a slow older answer can't replace a newer one's line
+    private int _keyChecks;
+
     /// <summary>Creates the page.</summary>
     public GeneralPage()
     {
@@ -54,6 +58,7 @@ public sealed partial class GeneralPage : Page
         ScrollIndicator.ShowOnHover(PageScroll);
         HourHeightSlider.Minimum = LeafSettings.MinHourHeight;
         HourHeightSlider.Maximum = LeafSettings.MaxHourHeight;
+        PasswordClearButton.Attach(MapsKeyBox);
 
         // Choices Built From The Settings' Own List ("Next 2 hours")
         UpcomingHoursBox.ItemsSource = LeafSettings.UpcomingChoices.Select(h => string.Create(English, $"Next {h} hours")).ToList();
@@ -68,6 +73,9 @@ public sealed partial class GeneralPage : Page
         _context.Host.SettingsChanged += OnSettingsChanged;
         Load();
         _ = LoadStartupAsync();
+
+        // The Saved Key, Once (Load runs again on every settings change and would replace what's being typed)
+        MapsKeyBox.Password = _context.Services.Places.SavedKey ?? "";
     }
 
     /// <inheritdoc />
@@ -94,6 +102,8 @@ public sealed partial class GeneralPage : Page
         AllDayExpandedSwitch.IsOn = s.AllDayExpanded;
         UpcomingHoursBox.SelectedIndex = LeafSettings.UpcomingChoices.ToList().IndexOf(s.UpcomingHours);
         MapProviderBox.SelectedIndex = Array.IndexOf(MapSources, s.MapProvider);
+        PlacesSwitch.IsOn = s.LocationSuggestions;
+        MapsKeyBox.IsEnabled = s.LocationSuggestions;
         LoadWorkingHours(s.WorkingHours, s.WeekStart, s.Use24HourTime);
         StartMinimizedSwitch.IsOn = !s.OpenWindowAtSignIn;
 
@@ -129,6 +139,64 @@ public sealed partial class GeneralPage : Page
             var provider = MapSources[MapProviderBox.SelectedIndex];
             _context.Save(s => s with { MapProvider = provider });
         }
+    }
+
+    private void OnPlacesToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        // Turning On Opens The Key Row
+        var on = PlacesSwitch.IsOn;
+        MapsKeyBox.IsEnabled = on;
+        PlacesExpander.IsExpanded |= on;
+        _context.Save(s => s with { LocationSuggestions = on });
+    }
+
+    // A changed key saves when the box loses focus (an empty box removes it), then one lookup says whether Google
+    // accepts it. Network trouble says nothing; only the newest check's answer shows.
+    private async void OnMapsKeyLostFocus(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var places = _context.Services.Places;
+            var key = MapsKeyBox.Password.Trim();
+            if (key == (places.SavedKey ?? ""))
+            {
+                return;
+            }
+
+            places.SaveKey(key);
+            var check = ++_keyChecks;
+            ShowKeyCheck("");
+            if (key.Length == 0)
+            {
+                return;
+            }
+
+            var answer = await places.CheckKeyAsync(key, CancellationToken.None);
+            if (check == _keyChecks)
+            {
+                ShowKeyCheck(answer switch
+                {
+                    KeyCheck.Works => "The key works.",
+                    KeyCheck.Refused => "Google didn't accept this key. Check that Places API (New) and billing are turned on for it.",
+                    _ => "",
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _context.Services.Log.Info("places.key.save.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    private void ShowKeyCheck(string text)
+    {
+        MapsKeyCheckText.Text = text;
+        MapsKeyCheckText.Visibility = text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // =========================================================================
