@@ -149,6 +149,8 @@ public sealed partial class TimeZonesPage : Page
         var text = sender.Text;
         if (_cities.IsOn && text.Trim().Length > 0)
         {
+            // Cities found for older text aren't Enter's pick for this text
+            _cityRows.Clear();
             _cities.Typed(text, found => ShowCities(text, found));
             return;
         }

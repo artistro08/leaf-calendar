@@ -117,6 +117,22 @@ public sealed class LocationSuggestionsTests : IDisposable
     }
 
     [Fact]
+    public void TimeZone_EscThenEnter_KeepsTheZone()
+    {
+        using var leaf = Launch();
+        TurnOnCities(leaf, cities: true);
+
+        TypeInPrimaryZone(leaf, "Lyon");
+        WaitForSuggestion(leaf, "Lyon, France");
+        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Keyboard.Press(VirtualKeyShort.RETURN);
+
+        // Nothing was picked, so no city's zone is looked up and the zone stays this PC's
+        Thread.Sleep(2000);
+        Assert.DoesNotContain(_google.Requests, r => r.Contains("fake-lyon", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void TimeZone_CitiesOff_ShowsOnlyTheBuiltInZones()
     {
         using var leaf = Launch();

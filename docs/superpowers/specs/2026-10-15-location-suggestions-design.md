@@ -62,7 +62,7 @@ The key is a secret. It goes only through `ITokenStore`, as `SetProviderSecret("
 
 ## Privacy
 
-`PRIVACY.md` gains: when location suggestions are on, the text you type into an event's location is sent to Google Maps (Places API) with your API key, under Google's terms; nothing from it is stored except the place you pick, saved in the event. The key is stored encrypted like the other secrets and removed by clearing the box.
+`PRIVACY.md` gains: when location suggestions are on, the text you type into an event's location is sent to Google Maps (Places API) with your API key, under Google's terms; nothing from it is stored except the place you pick, saved in the event. With time zone suggestions also on, text typed into a time zone box goes too, and the picked city goes back to Google for its time zone; only that zone (and the city's name as a new column's label) is kept. The key is stored encrypted like the other secrets and removed by clearing the box.
 
 ## Copy (owner-approved 2026-10-15)
 
@@ -75,13 +75,15 @@ The key is a secret. It goes only through `ITokenStore`, as `SetProviderSecret("
 - "Location suggestions are off." (API error message)
 - "Location suggestions are off in Settings, or no Maps API key is saved." (`not_enabled` in `docs/api.md`)
 - "Show suggestions in time zone fields" (owner's wording, 2026-10-15)
+- "Save" (the key box's button)
 
 ## Testing
 
 - **Logic tests** (`PlaceSearchTests`, fake `HttpMessageHandler`): request shape (POST, header key, field mask, body), mapping, the 5 cap, cleaning of control/bidi characters, dropped empty predictions, no request for empty/long query or no key, every failure returns `[]`, logs carry no query or key, key never in the URL, `CheckKeyAsync` mapping.
 - **Logic tests** (`ApiPlacesTests`): `not_enabled` when off, mapping and null address, long query refused, Google failure returns `[]`.
 - **Settings:** `LeafSettings` round-trip with `LocationSuggestions`.
-- **UI test** (`LocationSuggestionsTests`): the fake Google server answers `places/v1/places:autocomplete`; with the setting on and a key, typing shows suggestions and the "Google Maps" row, and picking one fills Location; with it off, Location is a plain box. Plus the key check line in Settings.
+- **UI test** (`LocationSuggestionsTests`): the fake Google server answers `places/v1/places:autocomplete`; with the setting on and a key, typing shows suggestions and the "Google Maps" row, and picking one fills Location; with it off, Location is a plain box. Plus the key check line in Settings, Save and Enter, and the clear button after reopening the row.
+- **Time zone fields:** `PlaceSearchTests` cover the cities-only request with its session token, the Place Details request (escaped ID, `timeZone` field mask), unknown zones and failures as null, and `TimeZonesOn`. UI tests click a city (in another zone than the PC's) in Settings' primary zone box and in "Add a time zone", and check the built-in zones alone show while the switch is off.
 - **Live test:** one autocomplete with a real key, skipped until `LEAF_LIVE_MAPS_KEY` is set.
 
 ## Out of Scope

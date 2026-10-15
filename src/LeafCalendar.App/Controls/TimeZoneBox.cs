@@ -42,6 +42,9 @@ public sealed partial class TimeZoneBox : UserControl
     private DateTimeOffset _now;
     private CitySearch? _cities;
 
+    // Counts Show calls, so a city's zone that Google answers after the box moved on is dropped
+    private int _shows;
+
     // The zone the user last picked (a row on show isn't a pick until it's clicked or submitted)
     private string? _picked;
 
@@ -103,6 +106,7 @@ public sealed partial class TimeZoneBox : UserControl
     /// </summary>
     public void Show(string zoneId, DateTimeOffset now)
     {
+        _shows++;
         _now = now;
         _allIds.Clear();
         _allLabels.Clear();
@@ -301,10 +305,17 @@ public sealed partial class TimeZoneBox : UserControl
             return;
         }
 
-        if (_cities is { } cities && _cityRows.Count > 0)
+        // A city's own row, or the first city for typed text (never for a zone's row, such as the picked zone Esc put back)
+        var city = _cityRows.Find(c => c.Row == text).City;
+        if (city is null && _cityRows.Count > 0 && text.Trim().Length > 0 && !_allLabels.Contains(text))
         {
-            var city = _cityRows.Find(c => c.Row == text).City ?? _cityRows[0].City;
-            Calendar?.Fire(() => PickCityAsync(cities, city), "places.timezone.pick.failed");
+            city = _cityRows[0].City;
+        }
+
+        if (_cities is { } cities && city is not null)
+        {
+            var shown = _shows;
+            Calendar?.Fire(() => PickCityAsync(cities, city, shown), "places.timezone.pick.failed");
             return;
         }
 
@@ -322,11 +333,18 @@ public sealed partial class TimeZoneBox : UserControl
     }
 
     // The city's zone becomes the pick: its own row, else a row on the same Windows zone ("Asia/Calcutta" for
-    // "Asia/Kolkata"), else a new row; no zone puts the picked zone back
-    private async Task PickCityAsync(CitySearch cities, City city)
+    // "Asia/Kolkata"), else a new row; no zone puts the picked zone back. An answer that lands after the box showed
+    // another zone (the editor moved to another event) is dropped
+    private async Task PickCityAsync(CitySearch cities, City city, int shown)
     {
         _box.IsSuggestionListOpen = false;
-        if (await cities.ZoneOfAsync(city) is { } zoneId)
+        var zoneId = await cities.ZoneOfAsync(city);
+        if (shown != _shows)
+        {
+            return;
+        }
+
+        if (zoneId is not null)
         {
             var zone = TimeZoneInfo.FindSystemTimeZoneById(zoneId);
             var id = _allIds.Contains(zoneId) ? zoneId : _allIds.Find(i => TimeZoneCatalog.IsSameZone(i, zone)) ?? zoneId;

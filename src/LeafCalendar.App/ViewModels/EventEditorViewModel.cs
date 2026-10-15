@@ -7,8 +7,8 @@ using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.People;
 using LeafCalendar.Core.Views;
-using CalendarRooms = LeafCalendar.Core.People.Rooms;
 using Microsoft.UI.Xaml;
+using CalendarRooms = LeafCalendar.Core.People.Rooms;
 
 namespace LeafCalendar.App.ViewModels;
 
