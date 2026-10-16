@@ -73,6 +73,8 @@ The key is a secret. It goes only through `ITokenStore`, as `SetProviderSecret("
 - "Location suggestions are off." (API error message)
 - "Location suggestions are off in Settings, or no Maps API key is saved." (`not_enabled` in `docs/api.md`)
 - "Save" (the key box's button)
+- "Clear" (the key box's clear button: tooltip and name)
+- "query is at most 100 characters." (`places.search` error message)
 
 Time zone boxes don't use Google: they suggest cities from Leaf Calendar's built-in list (`TimeZoneCatalog`, from GeoNames). A Google-backed version shipped in 0.1.309 behind a "Show suggestions in time zone fields" switch and was replaced by the built-in list, which needs no key, costs nothing, and works offline.
 
