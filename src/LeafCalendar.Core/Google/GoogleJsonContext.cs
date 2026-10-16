@@ -18,6 +18,9 @@ namespace LeafCalendar.Core.Google;
 [JsonSerializable(typeof(DirectorySearchResponse))]
 [JsonSerializable(typeof(FreeBusyRequest))]
 [JsonSerializable(typeof(FreeBusyResponse))]
+[JsonSerializable(typeof(PlacesAutocompleteRequest))]
+[JsonSerializable(typeof(PlacesAutocompleteResponse))]
+[JsonSerializable(typeof(PlaceTimeZoneResponse))]
 internal sealed partial class GoogleJsonContext : JsonSerializerContext
 {
 }

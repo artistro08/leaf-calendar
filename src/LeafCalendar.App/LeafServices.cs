@@ -8,6 +8,7 @@ using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.Hosting;
+using LeafCalendar.Core.Places;
 using LeafCalendar.Core.Scheduling;
 using Microsoft.Windows.System.Power;
 using Windows.Networking.Connectivity;
@@ -75,6 +76,9 @@ public sealed class LeafServices : IAsyncDisposable
 
         Endpoints = options.FakeGoogle is { } fake ? GoogleEndpoints.ForFake(fake) : GoogleEndpoints.Default;
         Google = CreateGoogle();
+
+        // Location Suggestions (the user's own Maps API key; not tied to the OAuth client, so it outlives a client change)
+        Places = new PlaceSearch(_http, Tokens, Log, Endpoints);
     }
 
     /// <summary>Real Google, or the fake Google from <c>--fake-google</c>.</summary>
@@ -112,6 +116,9 @@ public sealed class LeafServices : IAsyncDisposable
 
     /// <summary>Checks saved times for bookings after each sync pass.</summary>
     public BookingWatcher Bookings { get; }
+
+    /// <summary>Google Maps place search for the editor's Location box and <c>places.search</c> (on only while <see cref="PlaceSearch.IsOn"/>).</summary>
+    public PlaceSearch Places { get; }
 
     /// <summary>Google services, or null before the OAuth client is set up.</summary>
     public GoogleServices? Google { get; private set; }

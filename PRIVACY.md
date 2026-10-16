@@ -31,18 +31,27 @@ This only applies if you sign in to Cal.com in Settings › Accounts. Until you 
 - Your Cal.com client secret and sign-in token are stored encrypted on this PC. Signing out removes the sign-in token. Removing the OAuth client (Settings › Accounts) removes the client ID and secret too.
 - Leaf Calendar's log never includes Cal.com link names, booking addresses, attendee names or emails, or any secret.
 
+## Location Suggestions (Google Maps)
+
+This only applies if you turn on Location suggestions in Settings › General and save a Maps API key. Until you do, Leaf Calendar never contacts Google Maps.
+
+- **What's sent:** the text you type into an event's location, with your Maps API key, to Google's Places API, so Google can suggest places. Apps you allowed in Settings › Connected apps can ask for the same suggestions. If you also turn on Show suggestions in time zone fields, the text you type into a time zone box is sent too, so Google can suggest cities, and the city you pick is sent back to Google to learn its time zone. Google's own terms and privacy policy cover what Google does with it.
+- **What's kept:** nothing from the suggestions, except the place you pick, which is saved in the event like any location you type, and the time zone of a city you pick (with the city's name as the column label when you add it as an extra time zone).
+- **Your key** is stored encrypted on your PC with your other Leaf Calendar secrets. Clear the key box in Settings › General to remove it, or turn the switch off to stop lookups.
+- Leaf Calendar's log never includes what you type, the places or cities Google suggests, or your key.
+
 ## Connected Apps
 
 Connected apps is off until you turn it on in Settings › Connected apps. When it's on, apps on this PC that you allow can see your events (titles, times, locations, descriptions and guests), create and move events, join meetings, and use your Cal.com links. They connect through a channel only your Windows account can open, and Leaf Calendar never gives them your Google or Cal.com sign-in. Remove an app in Settings › Connected apps to stop it; turn the switch off to stop them all. An app may send its icon and a link back to itself when it connects; Leaf Calendar shows the icon in the approval window and opens the link after you allow it, and keeps neither.
 
 ## Where Leaf Calendar Sends Data
 
-- **Google.** Sign-in goes to Google's sign-in pages in your browser. Calendar and contact requests go to Google's Calendar and People APIs. All of it is over HTTPS.
+- **Google.** Sign-in goes to Google's sign-in pages in your browser. Calendar and contact requests go to Google's Calendar and People APIs. Location suggestions go to Google's Places API, with your own Maps API key, only while you have them turned on. All of it is over HTTPS.
 - **Your Google Cloud project.** Leaf Calendar signs in with the OAuth client ID and secret you created in Google Cloud Console, so Google counts Leaf Calendar's requests against your own project. No one else's app or key is involved.
 - **Connected apps.** To apps on this PC you allowed in Settings › Connected apps (off by default).
 - **Links you open.** When you join a meeting or open a link, a location, or "View on GitHub", Leaf Calendar hands the address to your browser or the meeting app. A location opens in Google Maps or Bing Maps (Settings › General › Open locations in), so that site gets the location's text.
 
-Leaf Calendar sends nothing else (Cal.com only if you sign in to it, see Scheduling above) and runs no servers of its own.
+Leaf Calendar sends nothing else (Cal.com only if you sign in to it, see Scheduling above; Google Maps only if you turn on location suggestions) and runs no servers of its own.
 
 ## What Leaf Calendar Keeps On Your PC
 
@@ -59,6 +68,7 @@ The database isn't encrypted by Leaf Calendar. Windows keeps it to your user acc
 In `secrets.bin`, in the same folder, encrypted with Windows data protection (DPAPI) so only your Windows user can read it:
 
 - Your OAuth client ID and secret, and the same for Cal.com if you set it up (the Cal.com sign-in token is stored there too).
+- Your Maps API key, if you saved one for location suggestions.
 - One sign-in token per Google account (a refresh token). Short-lived access tokens stay in memory and are never saved.
 
 If `secrets.bin` ever can't be read (damaged, or made for another Windows user), Leaf Calendar moves it aside to `secrets.bin.unreadable`, still encrypted, before saving a new one.

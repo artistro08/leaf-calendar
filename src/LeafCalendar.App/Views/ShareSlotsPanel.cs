@@ -280,6 +280,7 @@ public sealed partial class ShareSlotsPanel : UserControl
         // empty. An open group whose times all passed turns back into new picks with the boxes as typed
         if (vm.IsSharing && (!_sharing || (vm.OpenGroupId is not null && _group != vm.OpenGroupId)))
         {
+            _zoneBox.Calendar = vm;
             _zoneBox.Show(vm.ShareZoneId, vm.Now);
             _message.Text = vm.ShareText.Replace("\r\n", "\r", StringComparison.Ordinal);
             _titleBox.Text = vm.ShareTitle;

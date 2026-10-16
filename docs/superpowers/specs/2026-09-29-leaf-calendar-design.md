@@ -318,7 +318,7 @@ Anyone can send an invite, so event content is treated as hostile.
 ### 6.4 Calendar Area
 
 - **Views:** Day, Week, Month, and custom 1 to 31 days.
-- **Time zones:** multiple zone columns on the left edge. Add, rename, and drag to reorder. Search zones by city or abbreviation (NYC, SF, LON); typing in a zone box filters its list to the matching zones, forgiving a small typo (one letter off for 4 to 6 letters typed, two for 7 or more, so "Pheonix" finds Phoenix), with exact and part-of-a-name matches first. Cities show their current names (Kyiv, Kolkata, Kathmandu, Yangon, Nuuk, Ho Chi Minh City) even where Windows still uses the old IANA spelling; searching the old name still finds them, and settings keep the zone ID as it was. Time travel names the zone as "Tokyo time (JST)", leaving out a short name the label already has ("UTC time").
+- **Time zones:** multiple zone columns on the left edge. Add, rename, and drag to reorder. Search zones by city or abbreviation (NYC, SF, LON); typing in a zone box filters its list to the matching zones, forgiving a small typo (one letter off for 4 to 6 letters typed, two for 7 or more, so "Pheonix" finds Phoenix), with exact and part-of-a-name matches first. Cities show their current names (Kyiv, Kolkata, Kathmandu, Yangon, Nuuk, Ho Chi Minh City) even where Windows still uses the old IANA spelling; searching the old name still finds them, and settings keep the zone ID as it was. Time travel names the zone as "Tokyo time (JST)", leaving out a short name the label already has ("UTC time"). With location suggestions and "Show suggestions in time zone fields" on (opt-in, Settings › General), time zone boxes suggest Google Maps cities first, the built-in zones only when Google has none, and picking a city picks its zone; see `2026-10-15-location-suggestions-design.md`.
 - **All-day row:** collapsible. Multi-day events keep their titles visible.
 - **Toggles:** weekends, declined events, week numbers. The week can start on any day.
 - **Current-time line.** Working hours shaded (Leaf's own setting; Google's API doesn't expose them), 9 AM–5 PM Monday–Friday by default.
@@ -379,6 +379,7 @@ A view inside the main window, modeled on the Windows 11 Settings app. See Secti
   - Optional-guest toggle.
   - Meeting rooms and resources (Workspace accounts).
 - Location, opened in Google Maps or Bing Maps (setting).
+  - Location suggestions from Google Maps (opt-in, Settings › General, with the user's own Maps API key). See `2026-10-15-location-suggestions-design.md`.
 - Description with bold, italic, underline, links, and lists. Links are kept but not edited in the editor (Milestone 6).
 - Conferencing: auto Google Meet (default per account, or none). Pasted Zoom, Teams, Webex, and other links are detected. Built in the Milestone 3 polish: Add Google Meet / Remove in the editor, off for new events. Per-account default in Settings › Accounts (Milestone 5).
 - Reminders: calendar defaults or custom.
@@ -576,6 +577,7 @@ Ctrl+wheel over the time grid zooms like Ctrl+= / Ctrl+-.
 - Default day count (the view you last used is kept)
 - Upcoming meetings lookahead in the right panel
 - Map provider (Google Maps or Bing Maps)
+- Location suggestions with a Maps API key, and city suggestions in time zone fields (both opt-in)
 - Launch at startup
 - Working hours (start, end, days)
 - All-day default (Appearance group)

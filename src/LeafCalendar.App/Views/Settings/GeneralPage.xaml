@@ -214,6 +214,77 @@
                     </ComboBox>
                 </controls:SettingRow>
 
+                <!-- Location Suggestions (an expander, like Start with Windows: the switch in its header, the key inside) -->
+                <Expander
+                    x:Name="PlacesExpander"
+                    Style="{StaticResource LeafSettingExpanderStyle}"
+                    AutomationProperties.Name="Location suggestions"
+                    AutomationProperties.AutomationId="PlacesExpander">
+                    <Expander.Header>
+                        <controls:SettingRow
+                            Style="{StaticResource LeafExpanderHeaderRowStyle}"
+                            Glyph="&#xE721;"
+                            Header="Location suggestions"
+                            Description="Suggest places from Google Maps as you type a location. Needs a Maps API key with Places API (New) turned on.">
+                            <ToggleSwitch
+                                x:Name="PlacesSwitch"
+                                Style="{StaticResource LeafCardToggleSwitchStyle}"
+                                Toggled="OnPlacesToggled"
+                                AutomationProperties.Name="Location suggestions"
+                                AutomationProperties.AutomationId="PlacesSwitch" />
+                        </controls:SettingRow>
+                    </Expander.Header>
+                    <StackPanel>
+                        <controls:SettingRow
+                            Style="{StaticResource LeafExpanderItemRowStyle}"
+                            BorderThickness="0"
+                            Header="Maps API key">
+                            <StackPanel Width="320" Spacing="4">
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <!-- Key (peek and clear buttons on the right, from LeafPasswordBoxStyle; Enter saves too) -->
+                                    <PasswordBox
+                                        x:Name="MapsKeyBox"
+                                        Style="{StaticResource LeafPasswordBoxStyle}"
+                                        PasswordChanged="OnMapsKeyChanged"
+                                        KeyDown="OnMapsKeyKeyDown"
+                                        AutomationProperties.Name="Maps API key"
+                                        AutomationProperties.AutomationId="MapsKeyBox" />
+                                    <Button
+                                        x:Name="MapsKeySaveButton"
+                                        Grid.Column="1"
+                                        Content="Save"
+                                        IsEnabled="False"
+                                        Click="OnMapsKeySave"
+                                        AutomationProperties.AutomationId="MapsKeySaveButton" />
+                                </Grid>
+                                <TextBlock
+                                    x:Name="MapsKeyCheckText"
+                                    Style="{StaticResource LeafSecondaryTextStyle}"
+                                    TextWrapping="Wrap"
+                                    Visibility="Collapsed"
+                                    AutomationProperties.LiveSetting="Polite"
+                                    AutomationProperties.AutomationId="MapsKeyCheckText" />
+                            </StackPanel>
+                        </controls:SettingRow>
+                        <!-- Cities in time zone boxes (off with location suggestions, as it needs the key) -->
+                        <controls:SettingRow
+                            Style="{StaticResource LeafExpanderItemRowStyle}"
+                            Header="Show suggestions in time zone fields">
+                            <ToggleSwitch
+                                x:Name="TimeZonePlacesSwitch"
+                                Style="{StaticResource LeafCardToggleSwitchStyle}"
+                                Toggled="OnTimeZonePlacesToggled"
+                                AutomationProperties.Name="Show suggestions in time zone fields"
+                                AutomationProperties.AutomationId="TimeZonePlacesSwitch" />
+                        </controls:SettingRow>
+                    </StackPanel>
+                </Expander>
+                <!-- /Location Suggestions -->
+
                 <!-- Startup (spec 8.1) -->
                 <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Text="Startup" />
                 <!-- Start With Windows (an expander, like Windows Settings: the switch in its header, Start minimized inside) -->

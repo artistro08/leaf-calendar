@@ -26,6 +26,9 @@ public sealed record CreateParams(string? CalendarId = null, string? Title = nul
 /// <summary><c>people.search</c>'s params.</summary>
 public sealed record PeopleParams(string? Query = null);
 
+/// <summary><c>places.search</c>'s params.</summary>
+public sealed record PlacesParams(string? Query = null);
+
 /// <summary><c>events.move</c>'s params.</summary>
 public sealed record MoveParams(string? Id = null, string? Start = null, string? End = null, string? Scope = null);
 
@@ -105,6 +108,9 @@ public sealed record ShareGuestResult(string? Name, string Email);
 /// <summary>Someone <c>people.search</c> found.</summary>
 public sealed record PersonResult(string? Name, string Email);
 
+/// <summary>A place <c>places.search</c> found: its name, its address (null when Google gave none), and the line to put in an event's <c>location</c>.</summary>
+public sealed record PlaceResult(string Name, string? Address, string Text);
+
 /// <summary>The link saved times are on.</summary>
 public sealed record ShareLinkResult(string Id, int Minutes);
 
@@ -126,6 +132,8 @@ public sealed record ShareResult(string Id, string Title, string Message, List<T
 [JsonSerializable(typeof(DeleteParams))]
 [JsonSerializable(typeof(PeopleParams))]
 [JsonSerializable(typeof(List<PersonResult>))]
+[JsonSerializable(typeof(PlacesParams))]
+[JsonSerializable(typeof(List<PlaceResult>))]
 [JsonSerializable(typeof(FreeParams))]
 [JsonSerializable(typeof(ShareCreateParams))]
 [JsonSerializable(typeof(ShareBookParams))]

@@ -328,3 +328,84 @@ public sealed class FreeBusyPeriod
     /// <summary>End.</summary>
     public DateTimeOffset End { get; set; }
 }
+
+// =========================================================================
+// PLACES
+// =========================================================================
+
+/// <summary>A Places Autocomplete (New) request: what was typed, and the language to answer in.</summary>
+public sealed class PlacesAutocompleteRequest
+{
+    /// <summary>The text typed so far.</summary>
+    public string Input { get; set; } = "";
+
+    /// <summary>A BCP-47 language for the answer (Windows' display language), or null for Google's default.</summary>
+    public string? LanguageCode { get; set; }
+
+    /// <summary>Place types to suggest only (<c>["(cities)"]</c> for cities), or null for any place.</summary>
+    public List<string>? IncludedPrimaryTypes { get; set; }
+
+    /// <summary>
+    /// The search session these requests and the Place Details call that ends it share (Google bills the session's
+    /// suggestions as one), or null.
+    /// </summary>
+    public string? SessionToken { get; set; }
+}
+
+/// <summary>A Place Details (New) answer with only its time zone (the field mask asks for nothing else).</summary>
+public sealed class PlaceTimeZoneResponse
+{
+    /// <summary>The place's time zone, or null.</summary>
+    public PlaceTimeZone? TimeZone { get; set; }
+}
+
+/// <summary>A place's time zone.</summary>
+public sealed class PlaceTimeZone
+{
+    /// <summary>The IANA time zone ID ("America/Chicago").</summary>
+    public string? Id { get; set; }
+}
+
+/// <summary>A Places Autocomplete (New) answer (only the fields Leaf Calendar's field mask asks for).</summary>
+public sealed class PlacesAutocompleteResponse
+{
+    /// <summary>Suggestions, best first (at most five).</summary>
+    public List<PlacesSuggestion>? Suggestions { get; set; }
+}
+
+/// <summary>One suggestion; only place predictions are used.</summary>
+public sealed class PlacesSuggestion
+{
+    /// <summary>A place, or null for a query prediction.</summary>
+    public PlacePrediction? PlacePrediction { get; set; }
+}
+
+/// <summary>A suggested place: its ID, its full line, and the same line split into the name and the address.</summary>
+public sealed class PlacePrediction
+{
+    /// <summary>The place's ID (for a Place Details call).</summary>
+    public string? PlaceId { get; set; }
+
+    /// <summary>The full line ("Blue Bottle Coffee, Mint Street, San Francisco, CA, USA").</summary>
+    public PlacesText? Text { get; set; }
+
+    /// <summary>The name and the address apart.</summary>
+    public PlacesStructuredFormat? StructuredFormat { get; set; }
+}
+
+/// <summary>A prediction's name (<see cref="MainText"/>) and address (<see cref="SecondaryText"/>).</summary>
+public sealed class PlacesStructuredFormat
+{
+    /// <summary>The place's name.</summary>
+    public PlacesText? MainText { get; set; }
+
+    /// <summary>The place's address.</summary>
+    public PlacesText? SecondaryText { get; set; }
+}
+
+/// <summary>A piece of text in a Places answer.</summary>
+public sealed class PlacesText
+{
+    /// <summary>The text.</summary>
+    public string? Text { get; set; }
+}

@@ -78,6 +78,7 @@ Standard JSON-RPC codes for protocol problems: `-32700` parse error, `-32600` in
 | `no_meeting` | `meetings.join` found nothing to join. |
 | `not_signed_in` | No Google account is signed in. |
 | `unavailable` | The scheduling provider couldn't be reached. Try again later. |
+| `not_enabled` | Location suggestions are off in Settings, or no Maps API key is saved. |
 | `taken` | `shares.book` on a link: the time isn't open on the provider anymore. |
 
 `message` is a short English sentence for logs, never exception text, never event content.
@@ -117,6 +118,7 @@ IDs are opaque strings (`ApiIds`, 3.1). Calendar IDs carry the account too, sinc
 | `scheduling.openTimes` | `{ linkId, start, end }` | `[ { start, end } ]`. Range at most 31 days. |
 | `scheduling.timeLink` | `{ linkId, start, guests?: [ { name, email } ] }` | `{ url }` through the provider's `ITimeLinkBuilder`, the same link Copy makes. |
 | `people.search` | `{ query? }` | `[ { name, email } ]`, the editor's guest suggestions: `FrequentPeople` from every account's events (main account first; all of them, by frequency, with no query; `FrequentPeople.Match` otherwise), then with a query `ContactSearch.SearchAsync` on every account (`IApiHost.Contacts`; none before sign-in). Each address once, at most `ContactSearch.MaxResults`. |
+| `places.search` | `{ query? }` | `[ { name, address, text } ]`, the Location box's suggestions: `PlaceSearch.SearchAsync` (`IApiHost.Places`), only while `PlaceSearch.IsOn(Settings)`, else `not_enabled`. At most `PlaceSearch.MaxResults`; `address` null when empty; Google failures are an empty list. Apps must show "Google Maps" with the results. |
 | `availability.free` | `{ start, end, minutes?, linkId? }` | `[ { start, end } ]`: `WorkingHours` on its days (in the display zone, from now on), minus occurrences that aren't `IsFree` or declined (`BusyMath.Subtract`); stretches under `minutes` (5 to 1,440, default 30) dropped. `linkId` keeps only the link's open times. Range at most 31 days. For apps without a grid to drag on. |
 | `shares.create` | `{ times: [ { start, end } ], title?, message?, guests?: [ { name?, email } ], linkId? }` | `{ id, text, html }`: the share panel's Copy &amp; Save. Times (1 to 50, the earliest ending after now) merged and saved as a share group (`ShareGroupStore.Insert`) in the display zone; `message` defaults to `ShareMessage`. Text is `AvailabilityText.Compose`, or with a link `ShareLinks.Build` (open times when the provider answers, else split by length: not reachable, in its rate-limit back-off, refused, or without open times) and its `html`; `html` is null otherwise. |
 | `shares.list` | none | `[ { id, title, message, times, guests: [ { name, email } ], link: { id, minutes } \| null } ]`, as `ShareGroupStore.GetAll` (passed times left out). |

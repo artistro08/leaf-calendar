@@ -348,5 +348,7 @@ public partial class App
         public void SharesChanged() => app._dispatcher.TryEnqueue(() => app._calendar?.ReloadGroups());
 
         public LeafCalendar.Core.People.ContactSearch? Contacts => app._services?.Google?.Contacts;
+
+        public LeafCalendar.Core.Places.PlaceSearch? Places => app._services?.Places;
     }
 }

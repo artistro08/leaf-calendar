@@ -48,6 +48,9 @@ public static class ApiErrors
     /// <summary>The scheduling provider couldn't be reached.</summary>
     public const string Unavailable = "unavailable";
 
+    /// <summary>Location suggestions are off in Settings, or no Maps API key is saved.</summary>
+    public const string NotEnabled = "not_enabled";
+
     /// <summary>That time isn't open on the scheduling provider anymore.</summary>
     public const string Taken = "taken";
 }

@@ -9,6 +9,7 @@
                 <ResourceDictionary Source="ms-appx:///Styles/LeafTheme.xaml" />
                 <ResourceDictionary Source="ms-appx:///Styles/KeyCharPresenter.xaml" />
                 <ResourceDictionary Source="ms-appx:///Styles/KeyVisual.xaml" />
+                <ResourceDictionary Source="ms-appx:///Styles/LeafPasswordBox.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

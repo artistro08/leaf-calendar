@@ -1,3 +1,5 @@
+using LeafCalendar.App.ViewModels;
+using LeafCalendar.Core.Places;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
@@ -20,6 +22,8 @@ namespace LeafCalendar.App.Controls;
 /// "Pheonix"). Like the guest box, the rows are only replaced while typing, so focus and the caret stay where they are.
 /// Enter or a click picks a row; Enter on typed text takes the best match (no match puts the picked zone back). Esc, or
 /// leaving the box without picking, puts the picked zone back; Esc in an open list closes only the list.
+/// With a <see cref="Calendar"/> and city suggestions on in Settings, typed text lists Google Maps cities instead (then
+/// "Google Maps"), and picking one picks the city's zone; the zones above are the fallback when Google has no city.
 /// The rows are plain strings (a list of Core records can't go to WinRT under Native AOT), and a pick is found by its row
 /// text in our own list. The search box is sealed, so this control hosts one, built in code (a XAML file whose root
 /// subclasses a stock control failed to parse), and hands it the name and automation ID set on the control.
@@ -32,7 +36,14 @@ public sealed partial class TimeZoneBox : UserControl
     private readonly List<string> _allIds = [];
     private readonly List<string> _allLabels = [];
 
+    // Google Maps cities on show, by row
+    private readonly List<(string Row, City City)> _cityRows = [];
+
     private DateTimeOffset _now;
+    private CitySearch? _cities;
+
+    // Counts Show calls, so a city's zone that Google answers after the box moved on is dropped
+    private int _shows;
 
     // The zone the user last picked (a row on show isn't a pick until it's clicked or submitted)
     private string? _picked;
@@ -63,6 +74,23 @@ public sealed partial class TimeZoneBox : UserControl
         set => _box.Header = value;
     }
 
+    /// <summary>Where Google Maps cities come from (and whether they're on), or null for the zones alone.</summary>
+    public CalendarViewModel? Calendar
+    {
+        get;
+        set
+        {
+            if (ReferenceEquals(field, value))
+            {
+                return;
+            }
+
+            _cities?.Cancel();
+            field = value;
+            _cities = value is null ? null : new CitySearch(DispatcherQueue, value);
+        }
+    }
+
     /// <summary>Whether the list of zones is open (Esc then closes only the list).</summary>
     public bool IsSuggestionListOpen => _box.IsSuggestionListOpen;
 
@@ -78,6 +106,7 @@ public sealed partial class TimeZoneBox : UserControl
     /// </summary>
     public void Show(string zoneId, DateTimeOffset now)
     {
+        _shows++;
         _now = now;
         _allIds.Clear();
         _allLabels.Clear();
@@ -87,14 +116,19 @@ public sealed partial class TimeZoneBox : UserControl
             _allLabels.Add(label);
         }
 
+        AddRow(zoneId);
+        _picked = _allIds.Contains(zoneId) ? zoneId : null;
+        ShowPicked();
+    }
+
+    // A known zone the list doesn't hold (another IANA name for one of its zones) gets its own row at the top
+    private void AddRow(string zoneId)
+    {
         if (!_allIds.Contains(zoneId) && TimeZoneCatalog.IsKnown(zoneId))
         {
             _allIds.Insert(0, zoneId);
-            _allLabels.Insert(0, TimeZoneCatalog.ListLabel(zoneId, now));
+            _allLabels.Insert(0, TimeZoneCatalog.ListLabel(zoneId, _now));
         }
-
-        _picked = _allIds.Contains(zoneId) ? zoneId : null;
-        ShowPicked();
     }
 
     // The search box takes the name and automation ID set on the control (screen readers and UI tests find it, and its
@@ -120,6 +154,9 @@ public sealed partial class TimeZoneBox : UserControl
     // The picked zone's row in the text, and the list closed
     private void ShowPicked()
     {
+        // The city rows stay until new rows replace them: a click on one can arrive after focus left the box and put
+        // the picked zone back, and must still find its city
+        _cities?.Cancel();
         _box.IsSuggestionListOpen = false;
         var text = PickedText();
         _box.Text = text;
@@ -132,8 +169,33 @@ public sealed partial class TimeZoneBox : UserControl
     }
 
     // Shows the rows of these zones (a new list each time: the box keeps the one it's given)
-    private void ShowRows(IEnumerable<string> ids) =>
+    private void ShowRows(IEnumerable<string> ids)
+    {
+        _cityRows.Clear();
         _box.ItemsSource = ids.Select(id => _allLabels[_allIds.IndexOf(id)]).ToList();
+    }
+
+    // Google's cities for the typed text, then its attribution; the matching zones when it has none (or fails)
+    private void ShowCities(string text, IReadOnlyList<City> cities)
+    {
+        if (!_focused || _box.Text != text)
+        {
+            return;
+        }
+
+        if (cities.Count == 0)
+        {
+            var ids = text.Trim().Length == 0 ? _allIds : Matches(text);
+            ShowRows(ids);
+            _box.IsSuggestionListOpen = ids.Count > 0;
+            return;
+        }
+
+        _cityRows.Clear();
+        _cityRows.AddRange(cities.Select(c => (CitySearch.Row(c), c)));
+        _box.ItemsSource = _cityRows.Select(c => c.Row).Append(CitySearch.Attribution).ToList();
+        _box.IsSuggestionListOpen = true;
+    }
 
     // Coming into the box lists every zone and selects the text, so typing replaces it. The select-all runs again once
     // the click that focused the box has placed its caret (unless a letter was typed since)
@@ -201,7 +263,17 @@ public sealed partial class TimeZoneBox : UserControl
             return;
         }
 
-        var ids = _box.Text.Trim().Length == 0 ? _allIds : Matches(_box.Text);
+        // Google's cities first while they're on (shown once typing pauses)
+        var text = _box.Text;
+        if (_cities is { IsOn: true } cities && text.Trim().Length > 0)
+        {
+            // Cities found for older text aren't Enter's pick for this text
+            _cityRows.Clear();
+            cities.Typed(text, found => ShowCities(text, found));
+            return;
+        }
+
+        var ids = text.Trim().Length == 0 ? _allIds : Matches(text);
         ShowRows(ids);
         _box.IsSuggestionListOpen = ids.Count > 0;
     }
@@ -224,9 +296,29 @@ public sealed partial class TimeZoneBox : UserControl
         Submit(args.ChosenSuggestion as string ?? args.QueryText);
 
     // A row's own text (one clicked, or one the arrow keys moved to) or the best match for typed text becomes the pick,
-    // said once; no match puts the picked zone back
+    // said once; no match puts the picked zone back. A city (the one picked, or the first for typed text) picks its zone
+    // once Google says which; the attribution row picks nothing
     private void Submit(string text)
     {
+        if (text == CitySearch.Attribution && _cityRows.Count > 0)
+        {
+            return;
+        }
+
+        // A city's own row, or the first city for typed text (never for a zone's row, such as the picked zone Esc put back)
+        var city = _cityRows.Find(c => c.Row == text).City;
+        if (city is null && _cityRows.Count > 0 && text.Trim().Length > 0 && !_allLabels.Contains(text))
+        {
+            city = _cityRows[0].City;
+        }
+
+        if (_cities is { } cities && city is not null)
+        {
+            var shown = _shows;
+            Calendar?.Fire(() => PickCityAsync(cities, city, shown), "places.timezone.pick.failed");
+            return;
+        }
+
         var index = _allLabels.IndexOf(text);
         var id = index >= 0 ? _allIds[index]
             : text.Trim().Length > 0 && Matches(text) is [var best, ..] ? best
@@ -235,6 +327,33 @@ public sealed partial class TimeZoneBox : UserControl
         {
             _picked = id;
             ZoneChanged?.Invoke(this, id);
+        }
+
+        ShowPicked();
+    }
+
+    // The city's zone becomes the pick: its own row, else a row on the same Windows zone ("Asia/Calcutta" for
+    // "Asia/Kolkata"), else a new row; no zone puts the picked zone back. An answer that lands after the box showed
+    // another zone (the editor moved to another event) is dropped
+    private async Task PickCityAsync(CitySearch cities, City city, int shown)
+    {
+        _box.IsSuggestionListOpen = false;
+        var zoneId = await cities.ZoneOfAsync(city);
+        if (shown != _shows)
+        {
+            return;
+        }
+
+        if (zoneId is not null)
+        {
+            var zone = TimeZoneInfo.FindSystemTimeZoneById(zoneId);
+            var id = _allIds.Contains(zoneId) ? zoneId : _allIds.Find(i => TimeZoneCatalog.IsSameZone(i, zone)) ?? zoneId;
+            AddRow(id);
+            if (id != _picked)
+            {
+                _picked = id;
+                ZoneChanged?.Invoke(this, id);
+            }
         }
 
         ShowPicked();

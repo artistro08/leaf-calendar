@@ -1,20 +1,23 @@
 using System.Globalization;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
+using LeafCalendar.Core.Places;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.ApplicationModel;
+using Windows.System;
 
 namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
 /// Settings › General: theme, the calendar view options, date and time, working hours, the map
-/// site for locations, and starting with Windows. Every change saves
+/// site for locations, location suggestions (with the Maps API key), and starting with Windows. Every change saves
 /// right away through the shared calendar view model, so the main window follows it; changes made elsewhere (the view
 /// menu, shortcuts) show here too. Starting with Windows is the package's startup task, whose state Windows owns.
 /// </summary>
@@ -47,6 +50,13 @@ public sealed partial class GeneralPage : Page
     // Counts startup loads so a slow older one can't overwrite a newer one's result or clear its flag
     private int _startupLoads;
 
+    // Counts Maps key checks so a slow older answer can't replace a newer one's line
+    private int _keyChecks;
+
+    // The key the box was last filled with or saved, so only a real change saves (a key that couldn't be read when the
+    // page opened shows as empty, and Save mustn't delete it unless the box changed)
+    private string _keyShown = "";
+
     /// <summary>Creates the page.</summary>
     public GeneralPage()
     {
@@ -54,6 +64,7 @@ public sealed partial class GeneralPage : Page
         ScrollIndicator.ShowOnHover(PageScroll);
         HourHeightSlider.Minimum = LeafSettings.MinHourHeight;
         HourHeightSlider.Maximum = LeafSettings.MaxHourHeight;
+        PasswordClearButton.Attach(MapsKeyBox);
 
         // Choices Built From The Settings' Own List ("Next 2 hours")
         UpcomingHoursBox.ItemsSource = LeafSettings.UpcomingChoices.Select(h => string.Create(English, $"Next {h} hours")).ToList();
@@ -68,6 +79,10 @@ public sealed partial class GeneralPage : Page
         _context.Host.SettingsChanged += OnSettingsChanged;
         Load();
         _ = LoadStartupAsync();
+
+        // The Saved Key, Once (Load runs again on every settings change and would replace what's being typed)
+        _keyShown = _context.Services.Places.SavedKey ?? "";
+        MapsKeyBox.Password = _keyShown;
     }
 
     /// <inheritdoc />
@@ -94,6 +109,11 @@ public sealed partial class GeneralPage : Page
         AllDayExpandedSwitch.IsOn = s.AllDayExpanded;
         UpcomingHoursBox.SelectedIndex = LeafSettings.UpcomingChoices.ToList().IndexOf(s.UpcomingHours);
         MapProviderBox.SelectedIndex = Array.IndexOf(MapSources, s.MapProvider);
+        PlacesSwitch.IsOn = s.LocationSuggestions;
+        MapsKeyBox.IsEnabled = s.LocationSuggestions;
+        TimeZonePlacesSwitch.IsOn = s.TimeZoneSuggestions;
+        TimeZonePlacesSwitch.IsEnabled = s.LocationSuggestions;
+        UpdateMapsKeySave();
         LoadWorkingHours(s.WorkingHours, s.WeekStart, s.Use24HourTime);
         StartMinimizedSwitch.IsOn = !s.OpenWindowAtSignIn;
 
@@ -129,6 +149,92 @@ public sealed partial class GeneralPage : Page
             var provider = MapSources[MapProviderBox.SelectedIndex];
             _context.Save(s => s with { MapProvider = provider });
         }
+    }
+
+    private void OnPlacesToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        // Turning On Opens The Key Row
+        var on = PlacesSwitch.IsOn;
+        MapsKeyBox.IsEnabled = on;
+        TimeZonePlacesSwitch.IsEnabled = on;
+        UpdateMapsKeySave();
+        PlacesExpander.IsExpanded |= on;
+        _context.Save(s => s with { LocationSuggestions = on });
+    }
+
+    private void OnTimeZonePlacesToggled(object sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+        {
+            var on = TimeZonePlacesSwitch.IsOn;
+            _context.Save(s => s with { TimeZoneSuggestions = on });
+        }
+    }
+
+    // Save is on only while the box differs from the saved key
+    private void OnMapsKeyChanged(object sender, RoutedEventArgs e) => UpdateMapsKeySave();
+
+    private void UpdateMapsKeySave() => MapsKeySaveButton.IsEnabled = MapsKeyBox.IsEnabled && MapsKeyBox.Password.Trim() != _keyShown;
+
+    // Enter saves too (not gated on Save, which follows PasswordChanged a moment after typing or pasting)
+    private void OnMapsKeyKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Enter)
+        {
+            e.Handled = true;
+            OnMapsKeySave(sender, e);
+        }
+    }
+
+    // Save (or Enter) stores a changed key (an empty box removes it), then one lookup says whether Google accepts it.
+    // Network trouble says nothing; only the newest check's answer shows.
+    private async void OnMapsKeySave(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var places = _context.Services.Places;
+            var key = MapsKeyBox.Password.Trim();
+            if (key == _keyShown)
+            {
+                return;
+            }
+
+            places.SaveKey(key);
+            _keyShown = key;
+            UpdateMapsKeySave();
+            var check = ++_keyChecks;
+            ShowKeyCheck("");
+            if (key.Length == 0)
+            {
+                return;
+            }
+
+            var answer = await places.CheckKeyAsync(key, CancellationToken.None);
+            if (check == _keyChecks)
+            {
+                ShowKeyCheck(answer switch
+                {
+                    KeyCheck.Works => "Key is set up and active.",
+                    KeyCheck.Refused => "Google didn't accept this key. Check that Places API (New) and billing are turned on for it.",
+                    _ => "",
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _context.Services.Log.Info("places.key.save.failed", $"error={ex.GetType().Name}");
+        }
+    }
+
+    private void ShowKeyCheck(string text)
+    {
+        MapsKeyCheckText.Text = text;
+        MapsKeyCheckText.Visibility = text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // =========================================================================

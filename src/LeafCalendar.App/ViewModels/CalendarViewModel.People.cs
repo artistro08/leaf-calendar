@@ -4,6 +4,7 @@ using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.People;
+using LeafCalendar.Core.Places;
 using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Tray;
@@ -205,6 +206,24 @@ public sealed partial class CalendarViewModel
             [.. answers.SelectMany(a => a.Contacts).DistinctBy(c => c.Email, StringComparer.OrdinalIgnoreCase).Take(ContactSearch.MaxResults)],
             answers.FirstOrDefault()?.Access ?? ContactAccess.Allowed);
     }
+
+    /// <summary>
+    /// Google Maps places for the editor's Location box, or none while location suggestions are off
+    /// (<see cref="PlaceSearch.IsOn"/>), checked on every search so a Settings change applies at the next keystroke.
+    /// </summary>
+    public async Task<IReadOnlyList<Place>> SearchPlacesAsync(string text, CancellationToken ct) =>
+        _services.Places.IsOn(Settings) ? await _services.Places.SearchAsync(text, ct) : [];
+
+    /// <summary>True when time zone boxes suggest Google Maps cities (both switches on, and a Maps API key saved).</summary>
+    public bool CitySuggestionsOn => _services.Places.TimeZonesOn(Settings);
+
+    /// <summary>Google Maps cities matching <paramref name="text"/> in the search session <paramref name="session"/>; none while city suggestions are off.</summary>
+    public async Task<IReadOnlyList<City>> SearchCitiesAsync(string text, string session, CancellationToken ct) =>
+        CitySuggestionsOn ? await _services.Places.SearchCitiesAsync(text, session, ct) : [];
+
+    /// <summary>A picked city's IANA time zone (ending its search session), or null when Google can't say.</summary>
+    public Task<string?> CityTimeZoneAsync(City city, string session, CancellationToken ct) =>
+        _services.Places.TimeZoneOfAsync(city.PlaceId, session, ct);
 
     // People from your own events, per account: read once off the UI thread, read again after the events change or
     // after a read that failed
