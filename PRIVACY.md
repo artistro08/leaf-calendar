@@ -35,10 +35,10 @@ This only applies if you sign in to Cal.com in Settings › Accounts. Until you 
 
 This only applies if you turn on Location suggestions in Settings › General and save a Maps API key. Until you do, Leaf Calendar never contacts Google Maps.
 
-- **What's sent:** the text you type into an event's location, with your Maps API key, to Google's Places API, so Google can suggest places. Apps you allowed in Settings › Connected apps can ask for the same suggestions. If you also turn on Show suggestions in time zone fields, the text you type into a time zone box is sent too, so Google can suggest cities, and the city you pick is sent back to Google to learn its time zone. Google's own terms and privacy policy cover what Google does with it.
-- **What's kept:** nothing from the suggestions, except the place you pick, which is saved in the event like any location you type, and the time zone of a city you pick (with the city's name as the column label when you add it as an extra time zone).
+- **What's sent:** the text you type into an event's location, with your Maps API key, to Google's Places API, so Google can suggest places. Apps you allowed in Settings › Connected apps can ask for the same suggestions. Google's own terms and privacy policy cover what Google does with it.
+- **What's kept:** nothing from the suggestions, except the place you pick, which is saved in the event like any location you type.
 - **Your key** is stored encrypted on your PC with your other Leaf Calendar secrets. Clear the key box in Settings › General to remove it, or turn the switch off to stop lookups.
-- Leaf Calendar's log never includes what you type, the places or cities Google suggests, or your key.
+- Leaf Calendar's log never includes what you type, the places Google suggests, or your key.
 
 ## Connected Apps
 

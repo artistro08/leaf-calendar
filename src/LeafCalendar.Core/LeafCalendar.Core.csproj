@@ -19,5 +19,7 @@
     <!-- Leaf Calendar's icon on the browser sign-in page (LoopbackListener) -->
     <ItemGroup>
         <EmbeddedResource Include="..\LeafCalendar.App\Assets\Square44x44Logo.targetsize-64_altform-unplated.png" LogicalName="LeafCalendar.Core.Auth.SignInIcon.png" Link="Auth\SignInIcon.png" />
+        <!-- Cities and their time zones, from GeoNames (tools/build-cities.ps1) -->
+        <EmbeddedResource Include="Views\Cities.tsv.gz" LogicalName="LeafCalendar.Core.Views.Cities.tsv.gz" />
     </ItemGroup>
 </Project>

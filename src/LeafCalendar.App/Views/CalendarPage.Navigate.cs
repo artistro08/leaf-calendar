@@ -502,6 +502,7 @@ public sealed partial class CalendarPage
         IReadOnlyList<TimeZoneChoice> suggestions = [];
         List<ListViewItem> rows = [];
         TimeZoneChoice? picked = null;
+        TimeZoneCatalog.WarmCities();
 
         var box = new AutoSuggestBox { PlaceholderText = "Search a city or zone (Tokyo, NYC, UTC)", Width = 360, UpdateTextOnSelect = false };
         AutomationProperties.SetName(box, "Time zone");

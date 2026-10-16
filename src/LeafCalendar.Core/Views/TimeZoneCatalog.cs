@@ -1,23 +1,32 @@
 using System.Globalization;
+using System.IO.Compression;
+using System.Text;
 using LeafCalendar.Core.Settings;
 
 namespace LeafCalendar.Core.Views;
 
-/// <summary>A time zone offered in search. <see cref="ToString"/> is what the search box shows.</summary>
-public sealed record TimeZoneChoice(string Id, string City, string Detail)
+/// <summary>
+/// A time zone offered in search: a zone (named by its city), or a city in it (<see cref="Place"/> says where the city
+/// is: "Texas, United States"). <see cref="ToString"/> is what the search box shows.
+/// </summary>
+public sealed record TimeZoneChoice(string Id, string City, string Detail, string? Place = null)
 {
     /// <inheritdoc />
-    public override string ToString() => $"{City} ({Detail})";
+    public override string ToString() => Place is null ? $"{City} ({Detail})" : $"{City}, {Place} ({Detail})";
 }
 
 /// <summary>
-/// Finds time zones by city, IANA ID, Windows name, or common abbreviation (NYC, SF, LON...), forgiving small typos.
+/// Finds time zones by city, IANA ID, Windows name, or common abbreviation (NYC, SF, LON...), forgiving small typos, and
+/// cities of 5,000 people or more by the start of their name ("Aus" finds Austin, on Chicago's zone).
 /// </summary>
 /// <remarks>
 /// A curated list of major cities comes first. Every other zone Windows knows is added from its
 /// primary IANA ID. Only zones this PC can resolve are offered. A query of 4 to 6 letters also matches a word of a city,
 /// alias or Windows name one letter off ("Tokoy"), and 7 or more letters two off ("Pheonix"); those rank below every
 /// exact and part-of-a-name match.
+/// The cities come from GeoNames (built into Leaf Calendar by tools/build-cities.ps1, read once, biggest first). An exact
+/// alias or zone name ("LA", "UTC", "Chicago") still ranks first; cities come next, above every other zone match, the
+/// biggest first. A city named like a zone that's listed, on that zone, isn't listed again.
 /// </remarks>
 public static class TimeZoneCatalog
 {
@@ -78,6 +87,14 @@ public static class TimeZoneCatalog
     };
 
     private static readonly Lazy<IReadOnlyList<Entry>> AllEntries = new(BuildEntries);
+    private static readonly Lazy<IReadOnlyList<CityEntry>> AllCities = new(LoadCities);
+
+    // Most cities one search lists, and the shortest query that lists any
+    private const int MaxCities = 20;
+    private const int MinCityQuery = 2;
+
+    /// <summary>Reads the city list in the background, so the first search typed doesn't wait for it.</summary>
+    public static void WarmCities() => _ = Task.Run(() => AllCities.Value);
 
     /// <summary>A zone's IANA ID (what Google wants), converting a Windows ID such as "Eastern Standard Time".</summary>
     public static string IanaId(TimeZoneInfo zone) =>
@@ -101,14 +118,107 @@ public static class TimeZoneCatalog
     {
         var q = query.Trim();
 
-        return AllEntries.Value
+        // Zones: an exact match ranks 0, every other match below the cities
+        var zones = AllEntries.Value
             .Select((entry, order) => (entry, order, rank: Rank(entry, q, typos)))
             .Where(x => x.rank < int.MaxValue)
-            .OrderBy(x => x.rank)
+            .Select(x => (Rank: x.rank == 0 ? 0 : x.rank + 2, x.order, Choice: new TimeZoneChoice(x.entry.Id, x.entry.City, Detail(x.entry.Id, now))))
+            .ToList();
+
+        // Cities: a whole name ranks 1, the start of one 2, the biggest first. A city named like a listed zone, on that
+        // zone, isn't listed again; the zone takes its place when that's higher
+        var cities = new List<(int Rank, int order, TimeZoneChoice Choice)>();
+        foreach (var (rank, city) in MatchingCities(q))
+        {
+            var order = cities.Count + zones.Count;
+            var zone = TimeZoneInfo.FindSystemTimeZoneById(city.ZoneId);
+            var same = zones.FindIndex(z => z.Choice.City.Equals(city.Name, StringComparison.OrdinalIgnoreCase) && IsSameZone(z.Choice.Id, zone));
+            if (same < 0)
+            {
+                cities.Add((rank, order, new TimeZoneChoice(city.ZoneId, city.Name, Detail(city.ZoneId, now), city.Place)));
+            }
+            else if (rank < zones[same].Rank)
+            {
+                zones[same] = (rank, order, zones[same].Choice);
+            }
+        }
+
+        return [.. zones.Concat(cities)
+            .OrderBy(x => x.Rank)
             .ThenBy(x => x.order)
             .Take(max)
-            .Select(x => new TimeZoneChoice(x.entry.Id, x.entry.City, Detail(x.entry.Id, now)))
-            .ToList();
+            .Select(x => x.Choice)];
+    }
+
+    // Cities whose whole name (rank 1) or the start of it (rank 2) is the query, accents or not, biggest first
+    private static List<(int Rank, CityEntry City)> MatchingCities(string query)
+    {
+        if (query.Length < MinCityQuery)
+        {
+            return [];
+        }
+
+        var plain = Plain(query);
+        List<(int, CityEntry)> whole = [];
+        List<(int, CityEntry)> starts = [];
+        foreach (var city in AllCities.Value)
+        {
+            if (city.Plain.Equals(plain, StringComparison.OrdinalIgnoreCase) || city.Ascii.Equals(plain, StringComparison.OrdinalIgnoreCase))
+            {
+                whole.Add((1, city));
+            }
+            else if (starts.Count < MaxCities && (city.Plain.StartsWith(plain, StringComparison.OrdinalIgnoreCase) || city.Ascii.StartsWith(plain, StringComparison.OrdinalIgnoreCase)))
+            {
+                starts.Add((2, city));
+            }
+        }
+
+        return [.. whole.Concat(starts).Take(MaxCities)];
+    }
+
+    // Text without its accents ("Zürich" -> "Zurich")
+    private static string Plain(string text)
+    {
+        var parts = text.Normalize(NormalizationForm.FormD);
+        var plain = new StringBuilder(parts.Length);
+        foreach (var c in parts)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+            {
+                plain.Append(c);
+            }
+        }
+
+        return plain.ToString().Normalize(NormalizationForm.FormC);
+    }
+
+    // The built-in city list: name, accent-free name (empty when the same), region, country and zone per line, biggest
+    // first. Cities on zones this PC doesn't know are left out
+    private static List<CityEntry> LoadCities()
+    {
+        using var stream = typeof(TimeZoneCatalog).Assembly.GetManifestResourceStream("LeafCalendar.Core.Views.Cities.tsv.gz");
+        if (stream is null)
+        {
+            return [];
+        }
+
+        using var gzip = new GZipStream(stream, CompressionMode.Decompress);
+        using var reader = new StreamReader(gzip, Encoding.UTF8);
+        var known = new Dictionary<string, bool>(StringComparer.Ordinal);
+        var cities = new List<CityEntry>(65_000);
+        while (reader.ReadLine() is { } line)
+        {
+            var f = line.Split('\t');
+            if (f.Length != 5 || !(known.TryGetValue(f[4], out var ok) ? ok : known[f[4]] = IsKnown(f[4])))
+            {
+                continue;
+            }
+
+            var place = string.Join(", ", new[] { f[2], f[3] }.Where(s => s.Length > 0));
+            cities.Add(new CityEntry(f[0], Plain(f[0]), f[1].Length > 0 ? f[1] : f[0], place, f[4]));
+        }
+
+        return cities;
     }
 
     /// <summary>
@@ -204,7 +314,10 @@ public static class TimeZoneCatalog
             return entry.Curated ? 0 : int.MaxValue;
         }
 
-        if (entry.Aliases.Any(a => a.Equals(query, StringComparison.OrdinalIgnoreCase)) || entry.City.Equals(query, StringComparison.OrdinalIgnoreCase))
+        // An alias, the city, or the city as the IANA ID spells it (an old name such as "Kiev")
+        if (entry.Aliases.Any(a => a.Equals(query, StringComparison.OrdinalIgnoreCase))
+            || entry.City.Equals(query, StringComparison.OrdinalIgnoreCase)
+            || entry.Id[(entry.Id.LastIndexOf('/') + 1)..].Replace('_', ' ').Equals(query, StringComparison.OrdinalIgnoreCase))
         {
             return 0;
         }
@@ -295,4 +408,7 @@ public static class TimeZoneCatalog
     }
 
     private sealed record Entry(string Id, string City, string[] Aliases, string[] Words, bool Curated);
+
+    // A city: its name, the name without accents, GeoNames' ASCII spelling ("Zuerich"), where it is, and its zone
+    private sealed record CityEntry(string Name, string Plain, string Ascii, string Place, string ZoneId);
 }

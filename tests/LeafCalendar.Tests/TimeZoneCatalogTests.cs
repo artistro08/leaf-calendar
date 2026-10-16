@@ -151,6 +151,53 @@ public class TimeZoneCatalogTests
     }
 
     [Fact]
+    public void Search_City_FindsItsZone()
+    {
+        var first = TimeZoneCatalog.Search("Austin", Now)[0];
+
+        Assert.Equal(("America/Chicago", "Austin", "Texas, United States"), (first.Id, first.City, first.Place));
+        Assert.Equal("Austin, Texas, United States (CDT · Central Standard Time)", first.ToString());
+    }
+
+    [Fact]
+    public void Search_StartOfACityName_FindsIt() =>
+        Assert.Contains(TimeZoneCatalog.Search("bould", Now), c => c is { City: "Boulder", Place: "Colorado, United States", Id: "America/Denver" });
+
+    [Fact]
+    public void Search_SameNamedCities_BiggestFirst_EachWithItsZone()
+    {
+        var paris = TimeZoneCatalog.Search("Paris", Now, 50);
+
+        Assert.Equal("Europe/Paris", paris[0].Id);
+        Assert.Contains(paris, c => c is { City: "Paris", Place: "Texas, United States", Id: "America/Chicago" });
+    }
+
+    [Fact]
+    public void Search_AccentFreeName_FindsTheCity() =>
+        Assert.Contains(TimeZoneCatalog.Search("Zurich", Now), c => c is { City: "Zürich", Id: "Europe/Zurich" });
+
+    [Theory]
+    [InlineData("LA", "America/Los_Angeles")]
+    [InlineData("UTC", "Etc/UTC")]
+    [InlineData("PST", "America/Los_Angeles")]
+    public void Search_ExactAlias_OutranksCities(string query, string id) =>
+        Assert.Equal(id, TimeZoneCatalog.Search(query, Now)[0].Id);
+
+    [Fact]
+    public void Search_CityNamedLikeItsZone_ShowsOnce()
+    {
+        var chicago = TimeZoneCatalog.Search("Chicago", Now, 50);
+
+        Assert.Equal("America/Chicago", chicago[0].Id);
+        Assert.Null(chicago[0].Place);
+        Assert.DoesNotContain(chicago, c => c is { City: "Chicago", Place: "Illinois, United States" });
+    }
+
+    [Fact]
+    public void Search_Cities_AreAllOnZonesThisPcKnows() =>
+        Assert.All(TimeZoneCatalog.Search("San", Now, 500), c => Assert.True(TimeZoneCatalog.IsKnown(c.Id), c.Id));
+
+    [Fact]
     public void All_ListsEveryZoneByOffset_AsWindowsWritesThem()
     {
         var all = TimeZoneCatalog.All(Now).ToList();

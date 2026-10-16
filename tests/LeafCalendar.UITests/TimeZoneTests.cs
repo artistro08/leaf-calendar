@@ -58,6 +58,50 @@ public sealed class TimeZoneTests : IDisposable
         Assert.True(Retry.WhileNull(() => leaf.FindAllAnywhere("TimeZoneList").SelectMany(l => l.FindAllDescendants(cf => cf.ByName($"Column label for {city}"))).FirstOrDefault(), TimeSpan.FromSeconds(5)).Success, $"Clicking {name} didn't add it.");
     }
 
+    // The first suggestion row whose text starts with this
+    private static AutomationElement WaitForRow(LeafApp leaf, string start) =>
+        Retry.WhileNull(() => Rows(leaf).FirstOrDefault(r => r.Properties.Name.ValueOrDefault?.StartsWith(start, StringComparison.Ordinal) == true), TimeSpan.FromSeconds(10)).Result
+        ?? throw new InvalidOperationException($"No row starts with '{start}'. Shown: {string.Join(" | ", Rows(leaf).Select(r => r.Properties.Name.ValueOrDefault))}");
+
+    [Fact]
+    public void AddTimeZone_City_AddsItsZoneLabeledWithTheCity()
+    {
+        using var leaf = Launch();
+        OpenTimeZones(leaf);
+        leaf.WaitInSettings("TimeZoneSearch").Focus();
+        Thread.Sleep(500);
+        Keyboard.Type("Lyon");
+
+        // The city shows with its zone, and adds Paris's zone (not this PC's), labeled Lyon
+        var lyon = WaitForRow(leaf, "Lyon, ");
+        Assert.Contains("(CEST · ", lyon.Properties.Name.ValueOrDefault, StringComparison.Ordinal);
+        lyon.Click();
+
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("ZoneLabelBox_Europe/Paris").AsTextBox().Text == "Lyon", TimeSpan.FromSeconds(10)).Success, "Lyon's zone wasn't added with its label.");
+    }
+
+    [Fact]
+    public void PrimaryZone_City_PicksItsZone()
+    {
+        using var leaf = Launch();
+        leaf.OpenSettings("TimeZones");
+        leaf.ExpandInSettings("PrimaryZoneExpander");
+        leaf.WaitInSettings("FollowWindowsZoneSwitch").AsToggleButton().Toggle();
+        var box = leaf.WaitInSettings("PrimaryZoneBox");
+        Assert.True(Retry.WhileFalse(() => box.IsEnabled, TimeSpan.FromSeconds(5)).Success);
+        LeafApp.TextIn(box).Focus();
+        Thread.Sleep(200);
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
+        Keyboard.Type("Lyon");
+
+        // The row names the city and its zone's row; clicking it picks Paris's zone
+        var lyon = WaitForRow(leaf, "Lyon, ");
+        Assert.EndsWith("· (UTC+02:00) Paris (CEST)", lyon.Properties.Name.ValueOrDefault, StringComparison.Ordinal);
+        lyon.Click();
+
+        Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("PrimaryZoneSummary").Name == "Paris", TimeSpan.FromSeconds(10)).Success, $"The summary reads {leaf.WaitInSettings("PrimaryZoneSummary").Name}.");
+    }
+
     // The search box's suggestion rows (the list is a popup, so every window is searched)
     private static List<AutomationElement> Rows(LeafApp leaf) =>
         [.. leaf.FindAllAnywhere("SuggestionsList").SelectMany(list => list.FindAllDescendants(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.ListItem)))];

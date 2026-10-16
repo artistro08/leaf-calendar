@@ -25,3 +25,12 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+-------------------------------------------------------------------------------
+City names and time zones (time zone search): "cities5000", "admin1CodesASCII"
+and "countryInfo" from GeoNames, https://www.geonames.org, used under the
+Creative Commons Attribution 4.0 License,
+https://creativecommons.org/licenses/by/4.0/
+
+Changes: trimmed to each city's name, region, country and time zone, and
+compressed (tools/build-cities.ps1).
