@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
-using LeafCalendar.Core.Places;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
@@ -21,10 +20,6 @@ public sealed partial class TimeZonesPage : Page
     private readonly ObservableCollection<ZoneRow> _rows = [];
     private IReadOnlyList<TimeZoneChoice> _suggestions = [];
     private List<ListViewItem> _suggestionRows = [];
-
-    // Google Maps cities on show in the search box, by row
-    private readonly List<(ListViewItem Row, City City)> _cityRows = [];
-    private CitySearch _cities = null!;
 
     // True while the saved values are being shown (the switches' Toggled events are ignored meanwhile)
     private bool _loading;
@@ -54,9 +49,8 @@ public sealed partial class TimeZonesPage : Page
     {
         _context = (SettingsContext)e.Parameter;
         _vm = _context.Calendar;
-        _cities = new CitySearch(DispatcherQueue, _vm);
-        PrimaryZoneBox.Calendar = _vm;
         _rows.Clear();
+        TimeZoneCatalog.WarmCities();
 
         var now = _vm.Now;
         foreach (var zone in _vm.Settings.TimeZones)
@@ -137,73 +131,21 @@ public sealed partial class TimeZonesPage : Page
     // EXTRA TIME ZONES
     // =========================================================================
 
-    // Suggestions go to the box as rows of plain strings (ZoneSuggestions), the zone you're in shown disabled. While
-    // city suggestions are on, typed text lists Google Maps cities once typing pauses, the zones only when it has none
+    // Suggestions go to the box as rows of plain strings (ZoneSuggestions), the zone you're in shown disabled; cities
+    // show with their zone ("Austin, Texas, United States (CDT · Central Standard Time)")
     private void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
-        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
+        if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
         {
-            return;
+            _suggestions = TimeZoneCatalog.Search(sender.Text, _vm.Now);
+            _suggestionRows = ZoneSuggestions.Rows(_suggestions, _vm.Zone);
+            sender.ItemsSource = _suggestionRows;
         }
-
-        var text = sender.Text;
-        if (_cities.IsOn && text.Trim().Length > 0)
-        {
-            // Cities found for older text aren't Enter's pick for this text
-            _cityRows.Clear();
-            _cities.Typed(text, found => ShowCities(text, found));
-            return;
-        }
-
-        ShowZones(text);
     }
 
-    private void ShowZones(string text)
-    {
-        _cityRows.Clear();
-        _suggestions = TimeZoneCatalog.Search(text, _vm.Now);
-        _suggestionRows = ZoneSuggestions.Rows(_suggestions, _vm.Zone);
-        Search.ItemsSource = _suggestionRows;
-    }
-
-    // Google's cities, then its attribution (a row that can't be picked); the zones when it has none (or fails)
-    private void ShowCities(string text, IReadOnlyList<City> cities)
-    {
-        if (Search.Text != text)
-        {
-            return;
-        }
-
-        if (cities.Count == 0)
-        {
-            ShowZones(text);
-            return;
-        }
-
-        _cityRows.Clear();
-        _cityRows.AddRange(cities.Select(c => (new ListViewItem { Content = CitySearch.Row(c) }, c)));
-        _suggestions = [];
-        _suggestionRows = [.. _cityRows.Select(c => c.Row), new ListViewItem { Content = CitySearch.Attribution, IsEnabled = false }];
-        Search.ItemsSource = _suggestionRows;
-        Search.IsSuggestionListOpen = true;
-    }
-
-    // Enter or a click adds the highlighted (or clicked) zone, else the best match; highlighting alone adds nothing.
-    // With cities on show, the picked city (else the first) adds its zone, labeled with the city when that isn't the zone's
+    // Enter or a click adds the highlighted (or clicked) zone, else the best match; highlighting alone adds nothing
     private void OnQuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
-        if (_cityRows.Count > 0)
-        {
-            var index = args.ChosenSuggestion is null ? 0 : ZoneSuggestions.IndexOf([.. _cityRows.Select(c => c.Row)], args.ChosenSuggestion);
-            if (index >= 0)
-            {
-                var city = _cityRows[index].City;
-                _vm.Fire(() => AddCityAsync(city), "places.timezone.add.failed");
-            }
-
-            return;
-        }
-
         var found = TimeZoneCatalog.Search(args.QueryText, _vm.Now);
         var choice = ZoneSuggestions.Chosen(_suggestionRows, _suggestions, args.ChosenSuggestion) ?? ZoneSuggestions.FirstPickable(found, _vm.Zone);
         if (choice is not null)
@@ -212,29 +154,16 @@ public sealed partial class TimeZonesPage : Page
         }
     }
 
-    // The city's zone (not the zone you're in), labeled with the city when the zone's own city is another ("Austin" for
-    // Chicago's zone)
-    private async Task AddCityAsync(City city)
-    {
-        _cityRows.Clear();
-        if (await _cities.ZoneOfAsync(city) is not { } id || TimeZoneCatalog.IsSameZone(id, _vm.Zone))
-        {
-            return;
-        }
-
-        var zoneCity = TimeZoneCatalog.CityFor(id);
-        var detail = TimeZoneCatalog.Search(zoneCity, _vm.Now).FirstOrDefault(c => c.Id == id)?.Detail ?? id;
-        Add(new TimeZoneChoice(id, zoneCity, detail), city.Name == zoneCity ? "" : city.Name);
-    }
-
-    private void Add(TimeZoneChoice choice, string label = "")
+    // A city adds its zone, labeled with the city when the zone's own city is another ("Austin" on Chicago's zone)
+    private void Add(TimeZoneChoice choice)
     {
         if (_rows.Count >= LeafSettings.MaxTimeZones || _rows.Any(r => r.Id == choice.Id))
         {
             return;
         }
 
-        _rows.Add(new ZoneRow(choice.Id, choice.City, choice.Detail) { Label = label });
+        var city = choice.Place is null ? choice.City : TimeZoneCatalog.CityFor(choice.Id);
+        _rows.Add(new ZoneRow(choice.Id, city, choice.Detail) { Label = city == choice.City ? "" : choice.City });
         Search.Text = "";
         Save();
     }

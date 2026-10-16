@@ -145,12 +145,6 @@ public sealed record LeafSettings
     /// <summary>Suggest places from Google Maps in the editor's Location box and through <c>places.search</c> (needs a saved Maps API key).</summary>
     public bool LocationSuggestions { get; init; }
 
-    /// <summary>
-    /// Suggest cities from Google Maps in time zone boxes, picking the city's zone (needs <see cref="LocationSuggestions"/>
-    /// and a saved Maps API key).
-    /// </summary>
-    public bool TimeZoneSuggestions { get; init; }
-
     /// <summary>24-hour clock instead of AM/PM.</summary>
     public bool Use24HourTime { get; init; }
 

@@ -16,7 +16,6 @@ Settings › General gets one card:
 
 - A `ToggleSwitch` titled "Location suggestions", described "Suggest places from Google Maps as you type a location. Needs a Maps API key with Places API (New) turned on." Saved in `LeafSettings.LocationSuggestions` (bool, default false).
 - Inside the card's expander, a `PasswordBox` labeled "Maps API key", enabled while the switch is on. It shows the saved key as dots, with the stock reveal (peek) button and a clear ("x") button right-aligned; Windows' stock `PasswordBox` has no clear button, so `LeafPasswordBoxStyle` is the stock template plus the stock `DeleteButtonStyle` button TextBox uses; the clear button shows whenever the box holds text, focused or not. A Save button beside the box (on while the box differs from the saved key) or Enter saves the key, trimmed; an empty box deletes the saved key.
-- Below it, a `ToggleSwitch` "Show suggestions in time zone fields", saved in `LeafSettings.TimeZoneSuggestions` (bool, default false), enabled while the main switch is on.
 - Save (or Enter) stores the key, runs one test lookup and shows one line under the box: "Key is set up and active." or "Google didn't accept this key. Check that Places API (New) and billing are turned on for it." Network trouble shows nothing (the check is only about the key).
 
 Location suggestions are **on** only when the switch is on and a key is saved.
@@ -49,7 +48,6 @@ The key is a secret. It goes only through `ITokenStore`, as `SetProviderSecret("
 - `LeafServices` builds one `PlaceSearch` at startup (it doesn't depend on the OAuth client, so it isn't in `GoogleServices`) and exposes it as `Places`.
 - **Editor:** the Location `TextBox` becomes an `AutoSuggestBox` (`AutomationId` `EditorLocation`, same as today). With location suggestions off it never opens a list, so it looks and works exactly like the old text box. Suggestions wait 250 ms after typing pauses, only the newest search lands (`LatestSearch`), and a result for text no longer in the box is dropped. Each row shows the name with the address under it in secondary text. The list ends with a non-selectable "Google Maps" row. Picking a place sets Location to its `Text`. Typed text is kept as-is when nothing is picked.
 - Turning the setting off or removing the key takes effect from the next keystroke.
-- **Time zone fields:** while `PlaceSearch.TimeZonesOn` (both switches on and a key saved), typed text in a time zone box (the editor's, the share panel's, Settings' primary zone, and Settings' "Add a time zone") lists Google Maps cities (`SearchCitiesAsync`, autocomplete with `includedPrimaryTypes: ["(cities)"]` and a session token) once typing pauses, rows "Austin, TX, USA", then "Google Maps". Google takes precedence: the built-in zones show only when Google has no city or fails. Picking a city (or Enter, which takes the first) calls Place Details (`TimeZoneOfAsync`, `GET {PlacesApi}places/{id}?sessionToken=…`, field mask `timeZone`), which ends the session, so Google bills that one "Place Details Pro" call and not the session's suggestions. The zone becomes the pick, as the list's own row for the same Windows zone when there is one; an unknown zone or a failure changes nothing. "Add a time zone" labels the column with the city when its name isn't the zone's city ("Austin" on Chicago's zone) and never adds the zone you're in.
 
 ## Local API: `places.search`
 
@@ -62,7 +60,7 @@ The key is a secret. It goes only through `ITokenStore`, as `SetProviderSecret("
 
 ## Privacy
 
-`PRIVACY.md` gains: when location suggestions are on, the text you type into an event's location is sent to Google Maps (Places API) with your API key, under Google's terms; nothing from it is stored except the place you pick, saved in the event. With time zone suggestions also on, text typed into a time zone box goes too, and the picked city goes back to Google for its time zone; only that zone (and the city's name as a new column's label) is kept. The key is stored encrypted like the other secrets and removed by clearing the box.
+`PRIVACY.md` gains: when location suggestions are on, the text you type into an event's location is sent to Google Maps (Places API) with your API key, under Google's terms; nothing from it is stored except the place you pick, saved in the event. The key is stored encrypted like the other secrets and removed by clearing the box.
 
 ## Copy (owner-approved 2026-10-15)
 
@@ -74,16 +72,18 @@ The key is a secret. It goes only through `ITokenStore`, as `SetProviderSecret("
 - "Google Maps" (attribution; Google's required text, never localized)
 - "Location suggestions are off." (API error message)
 - "Location suggestions are off in Settings, or no Maps API key is saved." (`not_enabled` in `docs/api.md`)
-- "Show suggestions in time zone fields" (owner's wording, 2026-10-15)
 - "Save" (the key box's button)
+- "Clear" (the key box's clear button: tooltip and name)
+- "query is at most 100 characters." (`places.search` error message)
+
+Time zone boxes don't use Google: they suggest cities from Leaf Calendar's built-in list (`TimeZoneCatalog`, from GeoNames). A Google-backed version shipped in 0.1.309 behind a "Show suggestions in time zone fields" switch and was replaced by the built-in list, which needs no key, costs nothing, and works offline.
 
 ## Testing
 
 - **Logic tests** (`PlaceSearchTests`, fake `HttpMessageHandler`): request shape (POST, header key, field mask, body), mapping, the 5 cap, cleaning of control/bidi characters, dropped empty predictions, no request for empty/long query or no key, every failure returns `[]`, logs carry no query or key, key never in the URL, `CheckKeyAsync` mapping.
 - **Logic tests** (`ApiPlacesTests`): `not_enabled` when off, mapping and null address, long query refused, Google failure returns `[]`.
 - **Settings:** `LeafSettings` round-trip with `LocationSuggestions`.
-- **UI test** (`LocationSuggestionsTests`): the fake Google server answers `places/v1/places:autocomplete`; with the setting on and a key, typing shows suggestions and the "Google Maps" row, and picking one fills Location; with it off, Location is a plain box. Plus the key check line in Settings, Save and Enter, and the clear button after reopening the row.
-- **Time zone fields:** `PlaceSearchTests` cover the cities-only request with its session token, the Place Details request (escaped ID, `timeZone` field mask), unknown zones and failures as null, and `TimeZonesOn`. UI tests click a city (in another zone than the PC's) in Settings' primary zone box and in "Add a time zone", and check the built-in zones alone show while the switch is off.
+- **UI test** (`LocationSuggestionsTests`): the fake Google server answers `places/v1/places:autocomplete`; with the setting on and a key, typing shows suggestions and the "Google Maps" row, and picking one fills Location; with it off, Location is a plain box. Plus the key check line in Settings.
 - **Live test:** one autocomplete with a real key, skipped until `LEAF_LIVE_MAPS_KEY` is set.
 
 ## Out of Scope

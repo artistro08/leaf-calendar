@@ -111,8 +111,6 @@ public sealed partial class GeneralPage : Page
         MapProviderBox.SelectedIndex = Array.IndexOf(MapSources, s.MapProvider);
         PlacesSwitch.IsOn = s.LocationSuggestions;
         MapsKeyBox.IsEnabled = s.LocationSuggestions;
-        TimeZonePlacesSwitch.IsOn = s.TimeZoneSuggestions;
-        TimeZonePlacesSwitch.IsEnabled = s.LocationSuggestions;
         UpdateMapsKeySave();
         LoadWorkingHours(s.WorkingHours, s.WeekStart, s.Use24HourTime);
         StartMinimizedSwitch.IsOn = !s.OpenWindowAtSignIn;
@@ -161,19 +159,9 @@ public sealed partial class GeneralPage : Page
         // Turning On Opens The Key Row
         var on = PlacesSwitch.IsOn;
         MapsKeyBox.IsEnabled = on;
-        TimeZonePlacesSwitch.IsEnabled = on;
         UpdateMapsKeySave();
         PlacesExpander.IsExpanded |= on;
         _context.Save(s => s with { LocationSuggestions = on });
-    }
-
-    private void OnTimeZonePlacesToggled(object sender, RoutedEventArgs e)
-    {
-        if (!_loading)
-        {
-            var on = TimeZonePlacesSwitch.IsOn;
-            _context.Save(s => s with { TimeZoneSuggestions = on });
-        }
     }
 
     // Save is on only while the box differs from the saved key
