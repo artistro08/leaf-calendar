@@ -14,7 +14,7 @@ namespace LeafCalendar.App.Controls;
 /// east). Used for the event's zone in the editor, the share zone, and Settings' primary zone.
 /// </summary>
 /// <remarks>
-/// At rest the box shows the picked zone's row. Focusing it selects that text (so typing replaces it) and lists every
+/// At rest the box shows the picked zone's row, or the city's row when a city was picked. Focusing it selects that text (so typing replaces it) and lists every
 /// zone, so you can still browse. Typing filters the list to the zones that match, ranked like the old search boxes (a
 /// city, an alias such as NYC or PHX, a Windows name, then any row holding the text, then a small typo such as
 /// "Pheonix"), with built-in cities among them, each with its zone's row ("Austin, Texas, United States · (UTC-05:00)
@@ -41,6 +41,9 @@ public sealed partial class TimeZoneBox : UserControl
 
     // The zone the user last picked (a row on show isn't a pick until it's clicked or submitted)
     private string? _picked;
+
+    // The city row picked for it, shown in its place (null for a zone row, or a zone set by Show)
+    private string? _pickedRow;
 
     // The box's text field and suggestion list, and whether focus is in the box (set once per visit)
     private TextBox? _field;
@@ -94,6 +97,7 @@ public sealed partial class TimeZoneBox : UserControl
 
         AddRow(zoneId);
         _picked = _allIds.Contains(zoneId) ? zoneId : null;
+        _pickedRow = null;
         ShowPicked();
     }
 
@@ -167,8 +171,8 @@ public sealed partial class TimeZoneBox : UserControl
         });
     }
 
-    // The picked zone's row (empty when none is picked)
-    private string PickedText() => _picked is null ? "" : _allLabels[_allIds.IndexOf(_picked)];
+    // The picked city's row, else the picked zone's row (empty when none is picked)
+    private string PickedText() => _picked is null ? "" : _pickedRow ?? Row(_picked);
 
     // Leaving the box without picking puts the picked zone back. Checked once focus has landed, as focus moving inside
     // the box (or into its list) raises this too
@@ -273,11 +277,18 @@ public sealed partial class TimeZoneBox : UserControl
         Submit(args.ChosenSuggestion as string ?? args.QueryText);
 
     // A row's own text (one clicked, or one the arrow keys moved to) or the best match for typed text becomes the pick,
-    // said once; no match puts the picked zone back
+    // said once, and a city's row stays in the box; no match puts the picked zone back
     private void Submit(string text)
     {
-        var id = ZoneOf(text) ?? (text.Trim().Length > 0 && Matches(text) is [var best, ..] ? ZoneOf(best) : null);
-        if (id is not null && id != _picked)
+        var row = ZoneOf(text) is null && text.Trim().Length > 0 && Matches(text) is [var best, ..] ? best : text;
+        if (ZoneOf(row) is not { } id)
+        {
+            ShowPicked();
+            return;
+        }
+
+        _pickedRow = _cityRows.ContainsKey(row) ? row : null;
+        if (id != _picked)
         {
             _picked = id;
             ZoneChanged?.Invoke(this, id);

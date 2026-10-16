@@ -94,12 +94,14 @@ public sealed class TimeZoneTests : IDisposable
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Keyboard.Type("Lyon");
 
-        // The row names the city and its zone's row; clicking it picks Paris's zone
+        // The row names the city and its zone's row; clicking it picks Paris's zone, and the box keeps the row picked
         var lyon = WaitForRow(leaf, "Lyon, ");
-        Assert.EndsWith("· (UTC+02:00) Paris (CEST)", lyon.Properties.Name.ValueOrDefault, StringComparison.Ordinal);
+        var row = lyon.Properties.Name.ValueOrDefault ?? "";
+        Assert.EndsWith("· (UTC+02:00) Paris (CEST)", row, StringComparison.Ordinal);
         lyon.Click();
 
         Assert.True(Retry.WhileFalse(() => leaf.WaitInSettings("PrimaryZoneSummary").Name == "Paris", TimeSpan.FromSeconds(10)).Success, $"The summary reads {leaf.WaitInSettings("PrimaryZoneSummary").Name}.");
+        Assert.True(Retry.WhileFalse(() => LeafApp.TextIn(box).AsTextBox().Text == row, TimeSpan.FromSeconds(5)).Success, $"The box reads {LeafApp.TextIn(box).AsTextBox().Text}.");
     }
 
     // The search box's suggestion rows (the list is a popup, so every window is searched)
