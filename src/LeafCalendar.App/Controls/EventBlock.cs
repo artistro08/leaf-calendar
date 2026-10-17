@@ -18,7 +18,8 @@ namespace LeafCalendar.App.Controls;
 /// is on several shown calendars), the title, and
 /// (when tall enough) the time. Declined events show as an outline with struck-through text, and
 /// unanswered or tentative events as an outline. A selected card is filled with the event's color at full strength.
-/// Focus time, out of office, and birthdays get an icon.
+/// Focus time, out of office, and birthdays get an icon. A Sunsama task's tracked time is a striped texture over the card
+/// from the top (in a contrast theme, a highlight edge line where it ends).
 /// </summary>
 public sealed partial class EventBlock : Grid
 {
@@ -44,6 +45,10 @@ public sealed partial class EventBlock : Grid
     private readonly TextBlock _time = new() { FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly FontIcon _icon = new() { FontSize = 11, Margin = new Thickness(0, 1, 4, 0), Visibility = Visibility.Collapsed };
     private readonly ToolTip _tip = new();
+
+    // Tracked Time: the top row's share of the card, under the text
+    private readonly Grid _trackedArea = new() { Visibility = Visibility.Collapsed, IsHitTestVisible = false };
+    private readonly Border _tracked = new();
     private CalendarOccurrence? _occurrence;
     private Action<CalendarOccurrence>? _select;
     private string _timeText = "";
@@ -62,7 +67,12 @@ public sealed partial class EventBlock : Grid
         _text.Children.Add(titleRow);
         _text.Children.Add(_time);
 
+        _trackedArea.RowDefinitions.Add(new RowDefinition());
+        _trackedArea.RowDefinitions.Add(new RowDefinition());
+        _trackedArea.Children.Add(_tracked);
+
         var inner = new Grid();
+        inner.Children.Add(_trackedArea);
         inner.Children.Add(_accents);
         inner.Children.Add(_text);
 
@@ -138,6 +148,34 @@ public sealed partial class EventBlock : Grid
         PointerExited += (_, _) => _owner?.ViewModel.PointerEvent = null;
     }
 
+    // Tracked Time From The Top: stripes over the card's color, or a highlight edge line in a contrast theme (the name says it too)
+    private void BindTracked(double fill, string accent)
+    {
+        if (fill <= 0)
+        {
+            _trackedArea.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        fill = Math.Min(fill, 1);
+        _trackedArea.RowDefinitions[0].Height = new GridLength(fill, GridUnitType.Star);
+        _trackedArea.RowDefinitions[1].Height = new GridLength(1 - fill, GridUnitType.Star);
+        _trackedArea.Visibility = Visibility.Visible;
+        var full = fill >= 1;
+        _tracked.CornerRadius = new CornerRadius(3, 3, full ? 3 : 0, full ? 3 : 0);
+        if (LeafBrushes.HighContrast)
+        {
+            _tracked.Background = LeafBrushes.Transparent;
+            _tracked.BorderBrush = LeafBrushes.TrackedEdge;
+            _tracked.BorderThickness = new Thickness(0, 0, 0, 2);
+        }
+        else
+        {
+            _tracked.Background = LeafBrushes.TrackedStripes(accent);
+            _tracked.BorderThickness = new Thickness(0);
+        }
+    }
+
     // One bar per color, and the text moved clear of them (a lone bar leaves the usual 9 px)
     private void BindStripes(IReadOnlyList<string> colors)
     {
@@ -184,14 +222,17 @@ public sealed partial class EventBlock : Grid
     /// <summary>
     /// Shows <paramref name="occurrence"/>, faded when <paramref name="past"/>. An event shown on several calendars passes
     /// each one's bar color in <paramref name="stripes"/> (its own first) and gets a bar per calendar; otherwise the card
-    /// has its one accent bar.
+    /// has its one accent bar. <paramref name="trackedFill"/> (0 to 1) is how much of the card Sunsama's tracked texture
+    /// covers, and <paramref name="spokenSuffix"/> follows the time in the tooltip and spoken name (a task's channel and
+    /// tracked total).
     /// </summary>
-    public void Bind(CalendarOccurrence occurrence, EventPalette palette, string timeText, bool selected, bool compact, Action<CalendarOccurrence> select, bool past, IReadOnlyList<string>? stripes = null)
+    public void Bind(CalendarOccurrence occurrence, EventPalette palette, string timeText, bool selected, bool compact, Action<CalendarOccurrence> select, bool past, IReadOnlyList<string>? stripes = null, double trackedFill = 0, string spokenSuffix = "")
     {
         _occurrence = occurrence;
         _select = select;
         // Spoken And Hovered With AM/PM (the card itself shows the grid form, which its place on the grid disambiguates)
-        _timeText = _owner is { } owner ? TimeLabels.Range(occurrence.Start, occurrence.End, owner.ViewModel.Zone, owner.ViewModel.Settings.Use24HourTime) : timeText;
+        _timeText = (_owner is { } owner ? TimeLabels.Range(occurrence.Start, occurrence.End, owner.ViewModel.Zone, owner.ViewModel.Settings.Use24HourTime) : timeText) + spokenSuffix;
+        BindTracked(trackedFill, palette.Accent);
 
         // A Selected Card Is Always Solid (its palette is the accent at full strength), Even When Unanswered Or Declined
         var declined = occurrence.SelfResponse == ResponseStatus.Declined;

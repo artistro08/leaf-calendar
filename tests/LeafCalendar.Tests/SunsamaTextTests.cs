@@ -60,4 +60,11 @@ public sealed class SunsamaTextTests
     [InlineData("6AC7A44534029300011D076E")]
     [InlineData("../../etc/passwd/aaaaaaaa")]
     public void IsTaskId_RejectsOtherShapes(string? id) => Assert.False(SunsamaText.IsTaskId(id));
+
+    [Theory]
+    [InlineData(84, "1 h 24 m")]
+    [InlineData(30, "30 m")]
+    [InlineData(120, "2 h")]
+    [InlineData(0, "0 m")]
+    public void Format_Minutes_ReadsLikeADuration(int minutes, string text) => Assert.Equal(text, SunsamaText.Format(minutes));
 }

@@ -61,6 +61,16 @@ public static partial class SunsamaText
         return new DateTimeOffset(local, offset).ToUniversalTime();
     }
 
+    /// <summary>Writes minutes the way the details panel and the block's spoken name show them: "1 h 24 m", "30 m", "2 h".</summary>
+    /// <param name="minutes">A duration in minutes.</param>
+    /// <returns>The short text.</returns>
+    public static string Format(int minutes) => (minutes / 60, minutes % 60) switch
+    {
+        (0, var m) => string.Create(CultureInfo.InvariantCulture, $"{m} m"),
+        (var h, 0) => string.Create(CultureInfo.InvariantCulture, $"{h} h"),
+        (var h, var m) => string.Create(CultureInfo.InvariantCulture, $"{h} h {m} m"),
+    };
+
     /// <summary>True for Sunsama's task ID shape: 24 lowercase hex characters.</summary>
     /// <param name="id">A task ID from Sunsama.</param>
     /// <returns>True when the ID is safe to put in a link.</returns>

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -8,6 +9,7 @@ using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.People;
 using LeafCalendar.Core.Settings;
+using LeafCalendar.Core.Sunsama;
 using LeafCalendar.Core.Sync;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Dispatching;
@@ -186,6 +188,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         services.Editor.DeletesDue += OnDeletesDue;
         services.Conflicts.Changed += OnEditsChanged;
         services.Scheduling.Changed += OnSchedulingChanged;
+
+        // Sunsama's Saved Blocks And Sign-In Reload The Views
+        services.Sunsama.Changed += OnSunsamaChanged;
+        services.Sunsama.DataChanged += OnSunsamaDataChanged;
         RefreshSyncState();
         ReloadGroups();
 
@@ -422,10 +428,29 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     internal bool IsRefreshingSelection { get; private set; }
 
     /// <summary>True when at least one selected event is one you can change (and so delete).</summary>
-    public bool CanDeleteSelection => _selection.Exists(o => _services.Editor.Permissions(o).CanEdit);
+    public bool CanDeleteSelection => _selection.Exists(o => !SunsamaOccurrences.IsSunsama(o) && _services.Editor.Permissions(o).CanEdit);
 
     /// <summary>True when <paramref name="occurrence"/> is selected.</summary>
     public bool IsSelected(CalendarOccurrence occurrence) => _selection.Exists(s => s.Key == occurrence.Key);
+
+    // Sunsama Rows As Shown, By Occurrence Key: drawn blocks and matched Google events (filled by LoadAsync, any thread)
+    private readonly ConcurrentDictionary<string, SunsamaShown> _sunsamaShown = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The Sunsama row behind an occurrence: a Sunsama block's own task, or the task matched to a Google event. Null when
+    /// there's none or Sunsama is signed out.
+    /// </summary>
+    public SunsamaShown? SunsamaShownFor(CalendarOccurrence occurrence) =>
+        _services.Sunsama.State == SunsamaState.SignedOut ? null : _sunsamaShown.GetValueOrDefault(occurrence.Key);
+
+    /// <summary>Opens the task behind a Sunsama block or a matched Google event in the Sunsama app (Open in Sunsama).</summary>
+    public void OpenInSunsama(CalendarOccurrence occurrence)
+    {
+        if (SunsamaShownFor(occurrence) is { } shown)
+        {
+            Run(async () => await _services.LaunchSunsamaAsync(shown.Block.TaskId), "sunsama.open.failed");
+        }
+    }
 
     /// <summary>The cached events changed (redraw).</summary>
     public event EventHandler? OccurrencesChanged;
@@ -551,6 +576,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         PeriodStart = Mode == CalendarViewMode.Month ? ViewNavigator.MonthStartOf(focus ?? first) : first;
         PeriodTitle = Mode == CalendarViewMode.Month ? ViewNavigator.MonthTitle(focus ?? first) : ViewNavigator.PeriodTitle(first, lastExclusive.AddDays(-1));
         WindowTitle = Mode == CalendarViewMode.Month ? PeriodTitle : ViewNavigator.DateRangeTitle(first, lastExclusive.AddDays(-1));
+        _services.Sunsama.SetDays(first, lastExclusive);
 
         var months = (ViewNavigator.MonthStartOf(first), ViewNavigator.MonthStartOf(lastExclusive.AddDays(-1)));
         if (months == _ensuredMonths)
@@ -1203,6 +1229,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         _services.Editor.DeletesDue -= OnDeletesDue;
         _services.Conflicts.Changed -= OnEditsChanged;
         _services.Scheduling.Changed -= OnSchedulingChanged;
+        _services.Sunsama.Changed -= OnSunsamaChanged;
+        _services.Sunsama.DataChanged -= OnSunsamaDataChanged;
         if (_attachedSync is not null)
         {
             _attachedSync.DataChanged -= OnSyncDataChanged;
@@ -1227,7 +1255,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public DateTimeOffset? CursorTime { get; set; }
 
     /// <summary>True when you may change the event (drags check this before they start).</summary>
-    public bool CanEdit(CalendarOccurrence occurrence) => _services.Editor.Permissions(occurrence).CanEdit;
+    public bool CanEdit(CalendarOccurrence occurrence) => !SunsamaOccurrences.IsSunsama(occurrence) && _services.Editor.Permissions(occurrence).CanEdit;
 
     /// <summary>Opens the editor on the selected event (E; "E then U" focuses the end time).</summary>
     public void BeginEdit(bool focusEnd = false)
@@ -1496,6 +1524,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// </summary>
     public async Task MoveAsync(CalendarOccurrence occurrence, DateTimeOffset start, DateTimeOffset end, bool isAllDay)
     {
+        // Sunsama Blocks Are Read-Only: nothing moves, the block redraws where it was
+        if (SunsamaOccurrences.IsSunsama(occurrence))
+        {
+            OccurrencesChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
         var moves = BulkMoves(occurrence, start, end, isAllDay);
         var skipped = _selection.Count > 1 && IsSelected(occurrence) ? _selection.Count - moves.Count : 0;
         var scope = await ScopeForAsync([.. moves.Select(m => m.Occurrence)], includeFollowing: true);
@@ -1521,6 +1556,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Copies an event to a new time (Alt+drag) and selects the copy (in a calendar you can write to, like paste).</summary>
     public void Duplicate(CalendarOccurrence occurrence, DateTimeOffset start, DateTimeOffset end, bool isAllDay)
     {
+        // Sunsama Blocks Are Read-Only: never copied into Google
+        if (SunsamaOccurrences.IsSunsama(occurrence))
+        {
+            OccurrencesChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
         string? id = null;
         _reselect = (isAllDay ? DateOnly.FromDateTime(start.UtcDateTime) : LocalDate(start), o => o.EventId == id);
         try
@@ -1575,7 +1617,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public void SelectAllVisible()
     {
         _selection.Clear();
-        _selection.AddRange(VisibleDays().SelectMany(Cache.ForDay).DistinctBy(o => o.Key));
+        _selection.AddRange(VisibleDays().SelectMany(Cache.ForDay).Where(o => !SunsamaOccurrences.IsSunsama(o)).DistinctBy(o => o.Key));
         PublishSelection();
     }
 
@@ -1594,7 +1636,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             _selection.Clear();
         }
 
-        foreach (var hit in hits.Where(h => !_selection.Exists(s => s.Key == h.Key)))
+        foreach (var hit in hits.Where(h => !SunsamaOccurrences.IsSunsama(h) && !_selection.Exists(s => s.Key == h.Key)))
         {
             _selection.Add(hit);
         }
@@ -1613,14 +1655,15 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <returns>True when the selection was copied.</returns>
     public bool CopySelection()
     {
-        if (_selection.Count == 0)
+        // Sunsama Blocks Are Read-Only: never copied into Google
+        if (!_selection.Exists(o => !SunsamaOccurrences.IsSunsama(o)))
         {
             return false;
         }
 
         try
         {
-            var copies = _selection.Select(o => (o, _services.Editor.CopyOf(o))).ToList();
+            var copies = _selection.Where(o => !SunsamaOccurrences.IsSunsama(o)).Select(o => (o, _services.Editor.CopyOf(o))).ToList();
 
             // Readable Text, And Leaf Calendar's Marker For Paste
             var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
@@ -1814,6 +1857,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// </summary>
     public async Task DeleteAsync(IReadOnlyList<CalendarOccurrence> items, bool sendUpdates)
     {
+        // Sunsama Blocks Are Read-Only: never deleted (nothing is written to Sunsama or Google)
+        items = [.. items.Where(o => !SunsamaOccurrences.IsSunsama(o))];
+        if (items.Count == 0)
+        {
+            return;
+        }
+
         try
         {
             // Only Events You Can Change
@@ -2146,6 +2196,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         ArgumentNullException.ThrowIfNull(occurrence);
 
+        // A Sunsama Block Just Springs Back: there's no Google event to explain
+        if (SunsamaOccurrences.IsSunsama(occurrence))
+        {
+            return;
+        }
+
         string? reason = null;
         try
         {
@@ -2220,15 +2276,41 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     private Task<IReadOnlyList<CalendarOccurrence>> LoadAsync(DateOnly from, DateOnly to, CancellationToken ct)
     {
         var includeDeclined = Settings.ShowDeclined;
+        var sunsama = _services.Sunsama.State != SunsamaState.SignedOut;
+        var projected = Settings.SunsamaProjected;
         return Task.Run<IReadOnlyList<CalendarOccurrence>>(
             () =>
             {
                 using var conn = _services.Database.Open();
                 // Every copy of a shared event: the cache merges them (SharedEvents) and draws the preferred one
-                return OccurrenceQuery.Load(conn, from, to, Zone, includeDeclined, keepSharedCopies: true);
+                var events = OccurrenceQuery.Load(conn, from, to, Zone, includeDeclined, keepSharedCopies: true);
+                if (!sunsama)
+                {
+                    return events;
+                }
+
+                // Sunsama Rows: saved by Sunsama's local day, so a day either side, kept to this window's instants
+                var (blocks, byKey) = SunsamaOccurrences.Build(SunsamaStore.Range(conn, from.AddDays(-1), to.AddDays(1)));
+                foreach (var (key, shown) in byKey)
+                {
+                    _sunsamaShown[key] = shown;
+                }
+
+                var (start, end) = (OccurrenceQuery.LocalMidnight(from, Zone), OccurrenceQuery.LocalMidnight(to, Zone));
+                return projected ? [.. events, .. blocks.Where(b => b.Start >= start && b.Start < end)] : events;
             },
             ct);
     }
+
+    // Sunsama Signed In Or Out: forget what was shown, then reload (UI thread)
+    private void OnSunsamaChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(() =>
+    {
+        _sunsamaShown.Clear();
+        ReloadCalendars();
+    });
+
+    // New Saved Sunsama Blocks (a background thread): reload on the UI thread
+    private void OnSunsamaDataChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(ReloadCalendars);
 
     private void AttachSync()
     {
@@ -2337,7 +2419,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         var items = UpcomingCalendar is { } calendar ? UpcomingIn(calendar, now) : Enumerable.Range(0, 2)
             .SelectMany(i => Cache.ForDay(LocalDate(now).AddDays(i)))
             .DistinctBy(o => o.Key)
-            .Where(o => !o.IsAllDay && o.End > now && o.Start < now + TimeSpan.FromHours(Settings.UpcomingHours))
+            .Where(o => !SunsamaOccurrences.IsSunsama(o) && !o.IsAllDay && o.End > now && o.Start < now + TimeSpan.FromHours(Settings.UpcomingHours))
             .OrderBy(o => o.Start)
             .Take(20)
             .Select(o => new UpcomingItem(o, o.Title, TimeLabels.Range(o.Start, o.End, Zone, Settings.Use24HourTime), TimeLabels.Relative(o.Start, o.End, now), EventColors.ResolveAccent(o.ColorId, o.CalendarColor), o.HasConference, ProviderOf(o), Select, occurrence => Fire(() => JoinAsync(occurrence), "calendar.join.failed")))
@@ -2350,7 +2432,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
 
         // Set before the list changes, so the panel reads it when the change arrives
-        LeftToday = Cache.ForDay(LocalDate(now)).Any(o => !o.IsAllDay && o.End > now);
+        LeftToday = Cache.ForDay(LocalDate(now)).Any(o => !SunsamaOccurrences.IsSunsama(o) && !o.IsAllDay && o.End > now);
         Upcoming.Clear();
         foreach (var item in items)
         {

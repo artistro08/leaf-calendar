@@ -3,6 +3,7 @@ using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Events;
 using LeafCalendar.Core.Google;
 using LeafCalendar.Core.People;
+using LeafCalendar.Core.Sunsama;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
@@ -211,8 +212,11 @@ public sealed partial class DayColumn : Canvas
             var colW = usable / b.ColumnCount;
             var card = _blocks[shown++];
             var height = Math.Max(b.EndMinute - b.StartMinute, DayLayout.MinVisualMinutes) / 60 * hour - 2;
-            // Marking Times To Share: every event looks past (they're taken; the day behind them wears diagonal lines)
-            var faded = vm.IsPast(b.Occurrence) || vm.IsSharing;
+            // Marking Times To Share: every event looks past (they're taken; the day behind them wears diagonal lines).
+            // A completed Sunsama task looks past too
+            var task = vm.SunsamaShownFor(b.Occurrence);
+            var sunsama = SunsamaOccurrences.IsSunsama(b.Occurrence);
+            var faded = vm.IsPast(b.Occurrence) || vm.IsSharing || (sunsama && task?.Block.Completed == true);
             var palette = LeafBrushes.CardPalette(EventColors.ResolveAccent(b.Occurrence.ColorId, b.Occurrence.CalendarColor), dark, faded, vm.IsSelected(b.Occurrence));
 
             card.Width = Math.Max(colW - 2, 10);
@@ -221,8 +225,21 @@ public sealed partial class DayColumn : Canvas
             SetLeft(card, 2 + b.Column * colW);
             SetTop(card, b.StartMinute / 60 * hour + 1);
             card.HoldsEnd = b.Occurrence.End <= OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
-            // The card shows its times without AM/PM (its place on the grid says which); the tooltip and name keep them
-            card.Bind(b.Occurrence, palette, TimeLabels.GridRange(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime), vm.IsSelected(b.Occurrence), compact: height < 36, _select, faded, StripesFor(b.Occurrence, dark));
+            // The card shows its times without AM/PM (its place on the grid says which); the tooltip and name keep them.
+            // A Sunsama task's channel follows the time, and its tracked total (Tracked time on) the tooltip and name
+            var channel = sunsama && task is { Block.Channel.Length: > 0 } ? $" · {task.Block.Channel}" : "";
+            var tracked = vm.Settings.SunsamaTracked && task is { Fill: > 0, Block.TrackedMinutes: { } minutes } ? $" · {SunsamaText.Format(minutes)} tracked" : "";
+            card.Bind(
+                b.Occurrence,
+                palette,
+                TimeLabels.GridRange(b.Occurrence.Start, b.Occurrence.End, vm.Zone, vm.Settings.Use24HourTime) + channel,
+                vm.IsSelected(b.Occurrence),
+                compact: height < 36,
+                _select,
+                faded,
+                StripesFor(b.Occurrence, dark),
+                trackedFill: tracked.Length > 0 ? task!.Fill : 0,
+                spokenSuffix: channel + tracked);
         }
 
         for (var i = shown; i < _blocks.Count; i++)
