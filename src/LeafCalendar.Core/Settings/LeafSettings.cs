@@ -208,6 +208,12 @@ public sealed record LeafSettings
     /// <summary>Show a notification when someone books a time through a scheduling link.</summary>
     public bool BookingNotifications { get; set; } = true;
 
+    /// <summary>Show Sunsama's task times on the calendar (sidebar › Sunsama › Projected tasks).</summary>
+    public bool SunsamaProjected { get; set; } = true;
+
+    /// <summary>Show Sunsama's tracked time on tasks and matched events (sidebar › Sunsama › Tracked time).</summary>
+    public bool SunsamaTracked { get; set; } = true;
+
     /// <summary>Notifications play the Windows sound.</summary>
     public bool NotificationSound { get; set; } = true;
 

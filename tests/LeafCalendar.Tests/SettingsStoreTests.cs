@@ -223,4 +223,34 @@ public sealed class SettingsStoreTests : IDisposable
         // A server saved before revision 1 still reads; it is emptied
         Assert.Equal(new ProviderSettings("calcom", "", "101"), Assert.Single(loaded.Scheduling));
     }
+
+    [Fact]
+    public void Load_OldRow_SunsamaSwitchesAreOn()
+    {
+        using var conn = _db.Database.Open();
+        using (var insert = conn.CreateCommand())
+        {
+            insert.CommandText = "INSERT INTO settings (key, value) VALUES ('app', $value);";
+            insert.Parameters.AddWithValue("$value", """{"showDeclined":true}""");
+            insert.ExecuteNonQuery();
+        }
+
+        var settings = SettingsStore.Load(conn);
+
+        Assert.True(settings.ShowDeclined);
+        Assert.True(settings.SunsamaProjected);
+        Assert.True(settings.SunsamaTracked);
+    }
+
+    [Fact]
+    public void SunsamaSwitches_RoundTrip()
+    {
+        using var conn = _db.Database.Open();
+
+        SettingsStore.Save(conn, new LeafSettings { SunsamaProjected = false, SunsamaTracked = false });
+        var loaded = SettingsStore.Load(conn);
+
+        Assert.False(loaded.SunsamaProjected);
+        Assert.False(loaded.SunsamaTracked);
+    }
 }
