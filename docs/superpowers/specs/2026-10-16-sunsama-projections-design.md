@@ -35,6 +35,7 @@ You see when Sunsama plans for you to work on each task, next to your real event
 From `https://api.sunsama.com/.well-known/oauth-authorization-server` and the help article "MCP (Model Context Protocol)":
 
 - Registration endpoint `https://api.sunsama.com/oauth/register`; token endpoint auth method `none` is supported, so Leaf Calendar is a public client and keeps no client secret.
+- Authorize `https://api.sunsama.com/oauth/authorize`, token `https://api.sunsama.com/oauth/token`. Leaf Calendar sends `resource=https://api.sunsama.com/mcp` on the authorize and token requests (MCP authorization). Redirect `http://127.0.0.1:53818/sunsama/callback` (Cal.com keeps 53817).
 - PKCE `S256` only. Grants `authorization_code` and `refresh_token`. Scopes `read`, `execute`, `offline_access`.
 - Resources used (`resources/read`):
   - `sunsama://me`: the user's `timezone` (IANA, for example `America/Chicago`) and `calendars` (each with `id` and `provider`, `google-calendar` or `sunsama-calendar`).
@@ -70,8 +71,8 @@ From `https://api.sunsama.com/.well-known/oauth-authorization-server` and the he
 
 A Sunsama task matches a Google event Leaf Calendar has when:
 
-1. its timebox event's `calendarId` is a Google calendar in `sunsama://me` and the event ID equals a cached Google event ID, or
-2. it was imported from Google Calendar (`importedFrom.service == "googleCalendar"`) and a cached event on a visible calendar has the same title and the same start instant.
+1. A task with a timebox event, or imported from a calendar event (`importedFrom.identifier.sunsamaId` is that event's `eventId` in the day's events), whose event is on a Google calendar (its `calendarId` is in `sunsama://me` with provider `google-calendar`), matches the cached Leaf Calendar occurrence on the same calendar ID with the same start instant and the same title; if none has the same title, the one with the same start on that calendar.
+2. A Google-side event with no cached match (its calendar hidden or not synced yet) draws nothing.
 
 A matched task draws no block. The matched Google event shows the task's tracked total.
 
@@ -111,11 +112,11 @@ A Sunsama **expander** card, built like the Google account expanders right above
 
 ### 6.2 Sidebar
 
-A **Sunsama** group under the Google accounts in the calendar list, shown only while signed in, with two items using the calendar row's checkbox: **Projected tasks** and **Tracked time**. Projected tasks has a color choice if calendar rows have one; Tracked time has none (it draws no blocks).
+A **Sunsama** group under the Google accounts in the calendar list, shown only while signed in, with two items using the calendar row's checkbox: **Projected tasks** and **Tracked time**. Sunsama blocks use one fixed color, Tangerine (`#F4511E`). Calendar colors are chosen in Settings › Calendars, which lists Google calendars only, so a color choice for Sunsama is left for later. The Sunsama rows have no right-click menu and can't be reordered.
 
 ### 6.3 Calendar Grid
 
-- Sunsama blocks draw in the same day columns as events, with the existing `EventBlock`, in the **Projected tasks** item's color (owner, 2026-10-16):
+- Sunsama blocks draw in the same day columns as events, with the existing `EventBlock`, in the Sunsama color (owner, 2026-10-16):
   - **Projected** tasks look like an **unanswered invitation**: the same outlined card with a light fill that `EventBlock` draws for `NeedsAction` (`EventBlock.cs`, the `outlined` case).
   - **Timeboxed** tasks look like a **regular event**: a solid card.
   - Selected blocks are solid, like any selected event.
@@ -127,7 +128,7 @@ A **Sunsama** group under the Google accounts in the calendar list, shown only w
 Tracked time is drawn **on top of** the block it belongs to, never as its own block beside it: no change to how side-by-side events are laid out.
 
 - **Where:** Sunsama blocks (projected and timeboxed) and Google events matched to a task (4.4).
-- **How much:** proportional, filling from the top down. A task's tracked minutes fill its blocks in time order: each block takes up to its own length, the rest carries to the next. 1 h 24 m tracked on blocks of 40 m and 1 h 20 m: the first is fully textured, the second 44 of 80 minutes (55%). Tracked time beyond the blocks' total leaves every block fully textured. A matched Google event is filled against its own length.
+- **How much:** proportional, filling from the top down. A task's tracked minutes fill its blocks in time order (the task's blocks on that day; each day is filled from the task's whole tracked total, since Sunsama gives no per-day split): each block takes up to its own length, the rest carries to the next. 1 h 24 m tracked on blocks of 40 m and 1 h 20 m: the first is fully textured, the second 44 of 80 minutes (55%). Tracked time beyond the blocks' total leaves every block fully textured. A matched Google event is filled against its own length.
 - **Look:** a texture laid over the event's own color: diagonal stripes in the event's accent color at low opacity over its current fill, so the event's color still reads through. The edge where the texture ends is a straight line across the card. The title and time stay readable above it.
 - **Drawing:** one overlay element inside `EventBlock`, sized by a fraction (0 to 1) computed in Core (`SunsamaTracked.Fill`, pure, logic-tested). The stripes come from a `LinearGradientBrush` with hard stops repeated across the card. If WinUI won't repeat a gradient, the fallback is the same stripes from a small Composition brush. Checked in the build.
 - **High contrast:** no stripes; the tracked part gets a solid `SystemColorHighlightColor` edge line and the fraction is spoken, so the information isn't color-only.
@@ -143,7 +144,7 @@ For a Sunsama block: title, time, channel, estimate, tracked total, and **Open i
 ### 6.5 Safety
 
 - Titles, channels and notes are untrusted: shown as plain text. Notes are not shown.
-- **Open in Sunsama** builds its link from fixed text plus the task ID, and only when the ID is 24 hex characters (Sunsama's ID format); any other ID shows no link. The fallback is the fixed `https://app.sunsama.com/`. `sunsama://` is added to `LinkSafety`'s allow-list for this one link shape only.
+- **Open in Sunsama** builds its link from fixed text plus the task ID, and only when the ID is 24 hex characters (Sunsama's ID format); any other ID shows no link. The fallback is the fixed `https://app.sunsama.com/`. The link is built only by `SunsamaLinks.TaskLink` and opened by its own launcher (`LeafServices.LaunchSunsamaAsync`, like `LaunchReturnLinkAsync`), so `LinkSafety`'s allow-list is unchanged.
 - No task content, email or token is logged; only counts, IDs and exception type names.
 
 ## 7. Errors
@@ -215,7 +216,13 @@ The user guide shows how to use it, in the same voice and layout as `site/people
 | Details: estimate | "{duration} planned" |
 | Details: link | "Open in Sunsama" |
 | Sync status | "Couldn't reach Sunsama. Leaf Calendar will try again." |
-| Browser page after sign-in | "You're signed in to Sunsama. You can close this tab." |
+| Browser page after sign-in | the existing page: "You're signed in" / "You can close this tab and go back to Leaf Calendar." |
+| Sign-in refused | "Sunsama didn't finish signing in. Try again." |
+| Port busy | "Port 53818 is busy, so Leaf Calendar can't finish signing in. Close the app using it and try again." (the Cal.com wording with Sunsama's port) |
+| Can't reach Sunsama during sign-in | "Couldn't reach Sunsama. Check your connection and try again." (the Cal.com wording) |
+| Sign-in timed out | "Sign-in timed out. Try again." (existing) |
+| Block tooltip and spoken name | "{title} · {time} · {channel}" plus " · {duration} tracked" when Tracked time is on |
+| Right-click menu on a Sunsama block | "Open in Sunsama" |
 
 ## 10. Non-Goals
 
