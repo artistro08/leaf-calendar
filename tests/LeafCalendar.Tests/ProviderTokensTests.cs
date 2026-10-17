@@ -246,4 +246,23 @@ public sealed class ProviderTokensTests : IDisposable
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Create().GetAccessTokenAsync(cts.Token));
     }
+
+    [Fact]
+    public async Task GetAccessTokenAsync_PublicClientWithResource_SendsResourceNoSecret()
+    {
+        _provider.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Answer("at-1"));
+        using var tokens = new ProviderTokens(
+            new HttpClient(_provider),
+            OAuth with { Resource = new Uri("https://api.example.test/mcp") },
+            new ProviderClient("public-1", ""),
+            "rt-1",
+            _time,
+            _saved.Add);
+
+        await tokens.GetAccessTokenAsync(TestContext.Current.CancellationToken);
+
+        var form = QueryString.Parse(_provider.Requests.Single().Body!);
+        Assert.Equal(["client_id", "grant_type", "refresh_token", "resource"], form.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal("https://api.example.test/mcp", form["resource"]);
+    }
 }
