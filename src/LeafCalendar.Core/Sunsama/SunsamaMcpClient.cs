@@ -13,7 +13,8 @@ namespace LeafCalendar.Core.Sunsama;
 /// MCP's streamable HTTP transport is JSON-RPC 2.0 posted to one URL; the server answers with plain JSON or a short
 /// server-sent event stream, and keeps a session by the <c>Mcp-Session-Id</c> header. Leaf Calendar sends
 /// <c>initialize</c>, <c>notifications/initialized</c> and then <c>resources/read</c>, and nothing that changes anything.
-/// A session the server forgot (404) is started again once. One call runs at a time. See
+/// A session the server forgot (404) is started again once. One call runs at a time; the gate is never disposed, so a
+/// call still on its way when a sign-out drops the client finishes or fails normally. See
 /// <see href="https://modelcontextprotocol.io/specification/2025-06-18/basic/transports">MCP transports</see>.
 /// </remarks>
 /// <param name="http">The shared HTTP client.</param>
@@ -27,6 +28,7 @@ public sealed class SunsamaMcpClient(HttpClient http, Uri endpoint, Func<Cancell
     private string? _sessionId;
     private bool _initialized;
     private int _nextId;
+    private volatile bool _ended;
 
     /// <summary>
     /// Reads one resource (for example <c>sunsama://tasks/2026-10-16</c>) and returns the JSON inside its first content's
@@ -39,9 +41,11 @@ public sealed class SunsamaMcpClient(HttpClient http, Uri endpoint, Func<Cancell
     /// <exception cref="SchedulingUnavailableException">Offline, a timeout, 429, another error, or an unreadable answer.</exception>
     public async Task<JsonDocument> ReadResourceAsync(string uri, CancellationToken ct)
     {
+        ThrowIfEnded();
         await _gate.WaitAsync(ct);
         try
         {
+            ThrowIfEnded();
             for (var attempt = 0; attempt < 2; attempt++)
             {
                 await EnsureSessionAsync(ct);
@@ -73,8 +77,20 @@ public sealed class SunsamaMcpClient(HttpClient http, Uri endpoint, Func<Cancell
         _initialized = false;
     }
 
-    /// <inheritdoc />
-    public void Dispose() => _gate.Dispose();
+    /// <summary>
+    /// Ends this client (a sign-out or a new sign-in): a call already running finishes, and every call waiting or
+    /// arriving after it throws <see cref="SchedulingUnavailableException"/>.
+    /// </summary>
+    /// <remarks>The gate isn't disposed, so callers already waiting on it aren't stranded (as in <see cref="ProviderTokens"/>).</remarks>
+    public void Dispose() => _ended = true;
+
+    private void ThrowIfEnded()
+    {
+        if (_ended)
+        {
+            throw new SchedulingUnavailableException("This Sunsama sign-in has ended.");
+        }
+    }
 
     // Starts a session: initialize, keep the session ID, then the initialized notification
     private async Task EnsureSessionAsync(CancellationToken ct)
