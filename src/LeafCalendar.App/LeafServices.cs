@@ -10,6 +10,7 @@ using LeafCalendar.Core.Google;
 using LeafCalendar.Core.Hosting;
 using LeafCalendar.Core.Places;
 using LeafCalendar.Core.Scheduling;
+using LeafCalendar.Core.Sunsama;
 using Microsoft.Windows.System.Power;
 using Windows.Networking.Connectivity;
 using Windows.System;
@@ -68,6 +69,9 @@ public sealed class LeafServices : IAsyncDisposable
         _schedulingHttp.DefaultRequestHeaders.UserAgent.ParseAdd("LeafCalendar");
         Scheduling = new SchedulingHub(_schedulingHttp, Tokens, Log, Time, options.FakeGoogle);
         Bookings = new BookingWatcher(Scheduling, Database, Log, Time);
+
+        // Sunsama (read-only task times; under --fake-google it talks to the fake under sunsama/)
+        Sunsama = new SunsamaService(_schedulingHttp, Tokens, Database, Log, Time, options.FakeGoogle is { } root ? SunsamaEndpoints.ForFake(root) : SunsamaEndpoints.Default);
         LoadScheduling();
 
         // Sync Triggers
@@ -116,6 +120,9 @@ public sealed class LeafServices : IAsyncDisposable
 
     /// <summary>Checks saved times for bookings after each sync pass.</summary>
     public BookingWatcher Bookings { get; }
+
+    /// <summary>The Sunsama sign-in and the task times fetched after each sync pass.</summary>
+    public SunsamaService Sunsama { get; }
 
     /// <summary>Google Maps place search for the editor's Location box and <c>places.search</c> (on only while <see cref="PlaceSearch.IsOn"/>).</summary>
     public PlaceSearch Places { get; }
@@ -240,6 +247,7 @@ public sealed class LeafServices : IAsyncDisposable
             await google.DisposeAsync();
         }
 
+        Sunsama.Dispose();
         _http.Dispose();
         _schedulingHttp.Dispose();
     }
@@ -296,6 +304,43 @@ public sealed class LeafServices : IAsyncDisposable
     /// which allows only web and meeting links, doesn't apply. Recorded, logged and reported like <see cref="LaunchAsync"/>.
     /// </summary>
     public Task<bool> LaunchReturnLinkAsync(Uri link) => OpenAsync(link);
+
+    /// <summary>
+    /// Opens a Sunsama task in the Sunsama app (<c>sunsama://action/details/&lt;id&gt;</c>), or Sunsama's home page in the browser
+    /// when no app handles <c>sunsama://</c> (spec 2026-10-16, Open in Sunsama). The link is built only by
+    /// <see cref="SunsamaLinks.TaskLink"/>, so <see cref="LinkSafety"/> doesn't apply. In fake-Google mode the link is appended
+    /// to <c>launched.txt</c>. Never throws; false when nothing opened.
+    /// </summary>
+    public async Task<bool> LaunchSunsamaAsync(string taskId)
+    {
+        if (SunsamaLinks.TaskLink(taskId) is not { } link)
+        {
+            Log.Info("sunsama.link.blocked");
+            return false;
+        }
+
+        if (Options.FakeGoogle is not null)
+        {
+            return await OpenAsync(link);
+        }
+
+        try
+        {
+            return await Launcher.LaunchUriAsync(link, new LauncherOptions { FallbackUri = SunsamaLinks.Fallback });
+        }
+        catch (Exception ex)
+        {
+            // A launch failure is never thrown; the type only
+            Log.Info("sunsama.link.failed", string.Create(CultureInfo.InvariantCulture, $"error={ex.GetType().Name} hresult=0x{ex.HResult:X8}"));
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Raises <see cref="SignInReturned"/> for a sign-in that isn't Google's (Sunsama's), so the window that asked comes
+    /// back to the front when the browser came back.
+    /// </summary>
+    public void NotifySignInReturned() => SignInReturned?.Invoke(this, EventArgs.Empty);
 
     // Opens a checked link (its canonical address); in fake-Google mode it's appended to launched.txt instead. Never throws.
     private async Task<bool> OpenAsync(Uri uri)
@@ -391,9 +436,16 @@ public sealed class LeafServices : IAsyncDisposable
             return null;
         }
 
-        var google = new GoogleServices(_http, credentials, Tokens, Database, Log, Time, Endpoints, afterSync: Bookings.CheckAsync);
+        var google = new GoogleServices(_http, credentials, Tokens, Database, Log, Time, Endpoints, afterSync: AfterSyncAsync);
         google.Loop.Start();
         return google;
+    }
+
+    // After Each Google Sync Pass: the booking check, then the Sunsama fetch, so both follow SyncLoop's pace
+    private async Task AfterSyncAsync(CancellationToken ct)
+    {
+        await Bookings.CheckAsync(ct);
+        await Sunsama.SyncAsync(ct);
     }
 
     // Secrets Readable Again: Google services are built, and everything listening reattaches (GoogleChanged, any thread)
@@ -430,7 +482,7 @@ public sealed class LeafServices : IAsyncDisposable
         }
     }
 
-    // Builds the signed-in scheduling providers from their saved secrets; at startup and from a timer, so nothing may escape
+    // Builds the signed-in scheduling providers and Sunsama from their saved secrets; at startup and from a timer, so nothing may escape
     private void LoadScheduling()
     {
         try
@@ -440,6 +492,15 @@ public sealed class LeafServices : IAsyncDisposable
         catch (Exception ex)
         {
             Log.Info("scheduling.load.failed", $"error={ex.GetType().Name}");
+        }
+
+        try
+        {
+            Sunsama.Load();
+        }
+        catch (Exception ex)
+        {
+            Log.Info("sunsama.load.failed", $"error={ex.GetType().Name}");
         }
     }
 

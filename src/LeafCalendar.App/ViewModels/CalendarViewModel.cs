@@ -252,8 +252,16 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         return string.Join(", ", parts);
     }
 
-    /// <summary>The user's view settings.</summary>
-    public LeafSettings Settings { get; private set; }
+    /// <summary>The user's view settings. Sunsama is fetched only while one of its two sidebar items is on.</summary>
+    public LeafSettings Settings
+    {
+        get;
+        private set
+        {
+            field = value;
+            _services.Sunsama.Enabled = value.SunsamaProjected || value.SunsamaTracked;
+        }
+    }
 
     /// <summary>The ±3-month event cache.</summary>
     public EventWindowCache Cache { get; }
