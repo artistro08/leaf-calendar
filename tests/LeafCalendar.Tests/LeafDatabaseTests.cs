@@ -25,7 +25,7 @@ public sealed class LeafDatabaseTests : IDisposable
         foreignKeys.CommandText = "PRAGMA foreign_keys;";
 
         Assert.Equal("wal", (string)mode.ExecuteScalar()!);
-        Assert.Equal(13L, (long)version.ExecuteScalar()!);
+        Assert.Equal(14L, (long)version.ExecuteScalar()!);
         Assert.Equal(1L, (long)foreignKeys.ExecuteScalar()!);
     }
 
@@ -100,7 +100,7 @@ public sealed class LeafDatabaseTests : IDisposable
             Assert.Equal(1L, pending[1].DependsOn);
             Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM calendars;", r => r.GetInt64(0)).Single());
             Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM events;", r => r.GetInt64(0)).Single());
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.True(AlertLedger.TryAdd(conn, "k", LeafCalendar.Core.Alerts.AlertKind.Reminder, "t", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
             conn.Close();
             SqliteConnection.ClearPool(conn);
@@ -131,7 +131,7 @@ public sealed class LeafDatabaseTests : IDisposable
             var account = Assert.Single(AccountStore.GetAll(conn));
             Assert.Equal(("acct", "a@example.com", "A"), (account.Id, account.Email, account.DisplayName));
             Assert.Null(account.HostedDomain);
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             conn.Close();
             SqliteConnection.ClearPool(conn);
         }
@@ -159,7 +159,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.True(Assert.Single(CalendarStore.GetAll(conn)).IsVisible);
 
             CalendarStore.ReplaceForAccount(conn, "acct", [new LeafCalendar.Core.Google.CalendarListEntry { Id = "todoist", Summary = "Todoist", Selected = false }]);
@@ -191,7 +191,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.Single(AccountStore.GetAll(conn));
             Assert.Empty(ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow));
             conn.Close();
@@ -222,7 +222,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             var group = Assert.Single(ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow));
             Assert.Equal("Coffee", group.Title);
             Assert.Empty(group.Guests);
@@ -256,7 +256,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             var groups = ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow);
             Assert.Equal(["Coffee", "Lunch"], groups.Select(g => g.Title));
             Assert.Equal([new Contact("", "pat@example.com")], groups[0].Guests);
@@ -291,7 +291,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             var group = Assert.Single(ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow));
             Assert.Equal([new Contact("", "pat@example.com"), new Contact("", "sam@example.com")], group.Guests);
             conn.Close();
@@ -322,7 +322,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             var group = Assert.Single(ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow));
             Assert.Equal("Held", group.Title);
             Assert.Equal(("", 0), (group.ProviderId, group.LinkMinutes));
