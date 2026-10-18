@@ -51,7 +51,7 @@ public sealed class SunsamaOccurrencesTests
             SunsamaOccurrences.ToOccurrence(Block("t1", SunsamaBlockKind.Projected, start: Start.AddHours(2))).Key);
 
     [Fact]
-    public void Build_DrawsProjectedAndTimeboxButNotMatched()
+    public void Build_MixedRows_DrawsProjectedAndTimeboxButNotMatched()
     {
         var (blocks, byKey) = SunsamaOccurrences.Build([Block("t1", SunsamaBlockKind.Projected), Block("t2", SunsamaBlockKind.Timebox), Block("t3", SunsamaBlockKind.Matched)]);
 
@@ -90,7 +90,7 @@ public sealed class SunsamaOccurrencesTests
         Assert.Equal(1.0, SunsamaOccurrences.Build([Block("t3", SunsamaBlockKind.Matched, 60, 500)]).ByKey[SunsamaOccurrences.MatchKey("acct", "cal", "ev", Start)].Fill);
 
     [Fact]
-    public void MatchKey_IsTheGoogleOccurrencesKey() =>
+    public void MatchKey_GoogleOccurrence_IsItsKey() =>
         Assert.Equal(
             new CalendarOccurrence("acct", "cal", "ev", null, null, Start, Start.AddHours(1), false, "x", EventKind.Default, ResponseStatus.Accepted, "#000000", null, false, false).Key,
             SunsamaOccurrences.MatchKey("acct", "cal", "ev", Start));

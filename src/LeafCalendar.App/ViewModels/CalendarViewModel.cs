@@ -2400,7 +2400,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
                 }
 
                 // Sunsama Rows: saved by Sunsama's local day, so a day either side, kept to this window's instants
-                var (blocks, byKey) = SunsamaOccurrences.Build(SunsamaStore.Range(conn, from.AddDays(-1), to.AddDays(1)), color, now);
+                var (blocks, byKey) = SunsamaOccurrences.Build(SunsamaStore.Range(conn, null, from.AddDays(-1), to.AddDays(1)), color, now);
                 var (start, end) = (OccurrenceQuery.LocalMidnight(from, Zone), OccurrenceQuery.LocalMidnight(to, Zone));
 
                 // A task deleted or moved in Sunsama leaves this window's lookup, so a Google event loses its old tracked time

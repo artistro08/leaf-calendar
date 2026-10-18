@@ -15,5 +15,5 @@ public sealed class SunsamaLinksTests
     public void TaskLink_BadId_ReturnsNull(string id) => Assert.Null(SunsamaLinks.TaskLink(id));
 
     [Fact]
-    public void Fallback_IsSunsamaHome() => Assert.Equal(new Uri("https://app.sunsama.com/"), SunsamaLinks.Fallback);
+    public void Fallback_Always_IsSunsamaHome() => Assert.Equal(new Uri("https://app.sunsama.com/"), SunsamaLinks.Fallback);
 }

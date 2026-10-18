@@ -56,12 +56,13 @@ public static class SunsamaStore
 
     /// <summary>Every saved row from <paramref name="from"/> up to (not including) <paramref name="toExclusive"/>, by day then start.</summary>
     /// <param name="conn">An open connection.</param>
+    /// <param name="tx">The transaction to read in, or null.</param>
     /// <param name="from">The first local day.</param>
     /// <param name="toExclusive">The day after the last.</param>
     /// <returns>The rows.</returns>
-    public static IReadOnlyList<SunsamaBlock> Range(SqliteConnection conn, DateOnly from, DateOnly toExclusive) =>
+    public static IReadOnlyList<SunsamaBlock> Range(SqliteConnection conn, SqliteTransaction? tx, DateOnly from, DateOnly toExclusive) =>
         conn.Query(
-            null,
+            tx,
             $"SELECT {Columns} FROM sunsama_block WHERE day >= $from AND day < $to ORDER BY day, start_utc, task_id;",
             r => new SunsamaBlock(
                 DateOnly.ParseExact(r.GetString(0), "yyyy-MM-dd", CultureInfo.InvariantCulture),
@@ -87,7 +88,8 @@ public static class SunsamaStore
 
     /// <summary>Deletes every saved row (Sign out).</summary>
     /// <param name="conn">An open connection.</param>
-    public static void Clear(SqliteConnection conn) => conn.Execute(null, "DELETE FROM sunsama_block;");
+    /// <param name="tx">The transaction to delete in, or null.</param>
+    public static void Clear(SqliteConnection conn, SqliteTransaction? tx) => conn.Execute(tx, "DELETE FROM sunsama_block;");
 
     private static string Day(DateOnly day) => day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 

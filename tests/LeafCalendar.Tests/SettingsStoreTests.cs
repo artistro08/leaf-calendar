@@ -252,7 +252,7 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(expected, new LeafSettings { SunsamaColor = stored }.Normalize().SunsamaColor);
 
     [Fact]
-    public void SunsamaSwitches_RoundTrip()
+    public void SunsamaSwitches_SavedAndLoaded_RoundTrip()
     {
         using var conn = _db.Database.Open();
 

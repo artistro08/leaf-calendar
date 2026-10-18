@@ -1,5 +1,6 @@
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.People;
+using LeafCalendar.Core.Sunsama;
 using LeafCalendar.Tests.Support;
 using Microsoft.Data.Sqlite;
 
@@ -326,6 +327,35 @@ public sealed class LeafDatabaseTests : IDisposable
             var group = Assert.Single(ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow));
             Assert.Equal("Held", group.Title);
             Assert.Equal(("", 0), (group.ProviderId, group.LinkMinutes));
+            conn.Close();
+            SqliteConnection.ClearPool(conn);
+        }
+    }
+
+    [Fact]
+    public void Migrate_FromVersion13_AddsSunsamaBlockTable()
+    {
+        using var folder = new TempFolder();
+        var database = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
+        var day = new DateOnly(2026, 10, 16);
+        var start = new DateTimeOffset(2026, 10, 16, 15, 0, 0, TimeSpan.Zero);
+
+        // A Version 13 Database (from before Sunsama task times were kept)
+        using (var conn = database.Open())
+        using (var setup = conn.CreateCommand())
+        {
+            setup.CommandText = Schema.V1 + Schema.V2 + Schema.V3 + Schema.V4 + Schema.V5 + Schema.V6 + Schema.V7 + Schema.V8 + Schema.V9 + Schema.V10 + Schema.V11 + Schema.V12 + Schema.V13 + "PRAGMA user_version = 13;";
+            setup.ExecuteNonQuery();
+        }
+
+        database.Migrate();
+
+        using (var conn = database.Open())
+        {
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            var row = new SunsamaBlock(day, "t1", "Title", "Channel", start, start.AddHours(1), 60, 30, false, SunsamaBlockKind.Projected, null, null, null);
+            SunsamaStore.ReplaceDay(conn, null, day, [row]);
+            Assert.Equal(row, Assert.Single(SunsamaStore.Range(conn, null, day, day.AddDays(1))));
             conn.Close();
             SqliteConnection.ClearPool(conn);
         }

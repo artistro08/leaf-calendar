@@ -248,7 +248,7 @@ public sealed class ProviderTokensTests : IDisposable
     }
 
     [Fact]
-    public async Task ForgetAccessToken_NextCallRefreshes()
+    public async Task ForgetAccessToken_TokenStillValid_NextCallRefreshes()
     {
         _provider.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Answer("at-1"));
         var tokens = Create();

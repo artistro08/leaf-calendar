@@ -231,7 +231,7 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
                 // A New Sign-In Starts Clean: rows kept after a refusal (or another account's) go, and the next pass refetches
                 using (var conn = database.Open())
                 {
-                    SunsamaStore.Clear(conn);
+                    SunsamaStore.Clear(conn, null);
                 }
 
                 old = _session;
@@ -280,7 +280,7 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
         {
             using (var conn = database.Open())
             {
-                SunsamaStore.Clear(conn);
+                SunsamaStore.Clear(conn, null);
             }
 
             tokens.RemoveProviderSecrets(ProviderId);
@@ -400,7 +400,7 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
                     }
 
                     // A day saved as it was raises nothing, so an unchanged plan doesn't reload the calendar every pass
-                    if (!Same(SunsamaStore.Range(conn, day, day.AddDays(1)), rows))
+                    if (!Same(SunsamaStore.Range(conn, null, day, day.AddDays(1)), rows))
                     {
                         SunsamaStore.ReplaceDay(conn, null, day, rows);
                         changed++;

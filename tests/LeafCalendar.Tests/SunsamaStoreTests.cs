@@ -28,7 +28,7 @@ public sealed class SunsamaStoreTests : IDisposable
 
         SunsamaStore.ReplaceDay(conn, null, Day, saved);
 
-        Assert.Equal(saved, SunsamaStore.Range(conn, Day, Day.AddDays(1)));
+        Assert.Equal(saved, SunsamaStore.Range(conn, null, Day, Day.AddDays(1)));
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public sealed class SunsamaStoreTests : IDisposable
 
         SunsamaStore.ReplaceDay(conn, null, Day, [Block(Day, "new")]);
 
-        Assert.Equal(["new", "other"], SunsamaStore.Range(conn, Day, Day.AddDays(2)).Select(b => b.TaskId));
+        Assert.Equal(["new", "other"], SunsamaStore.Range(conn, null, Day, Day.AddDays(2)).Select(b => b.TaskId));
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public sealed class SunsamaStoreTests : IDisposable
         using var conn = _db.Database.Open();
         SunsamaStore.ReplaceDay(conn, null, Day.AddDays(1), [Block(Day.AddDays(1), "next")]);
 
-        Assert.Empty(SunsamaStore.Range(conn, Day, Day.AddDays(1)));
+        Assert.Empty(SunsamaStore.Range(conn, null, Day, Day.AddDays(1)));
     }
 
     [Fact]
@@ -58,8 +58,8 @@ public sealed class SunsamaStoreTests : IDisposable
         using var conn = _db.Database.Open();
         SunsamaStore.ReplaceDay(conn, null, Day, [Block(Day, "t1")]);
 
-        SunsamaStore.Clear(conn);
+        SunsamaStore.Clear(conn, null);
 
-        Assert.Empty(SunsamaStore.Range(conn, Day, Day.AddDays(1)));
+        Assert.Empty(SunsamaStore.Range(conn, null, Day, Day.AddDays(1)));
     }
 }

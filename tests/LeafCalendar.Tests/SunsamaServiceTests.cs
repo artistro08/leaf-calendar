@@ -130,7 +130,7 @@ public sealed class SunsamaServiceTests : IDisposable
     private IReadOnlyList<SunsamaBlock> Rows()
     {
         using var conn = _db.Database.Open();
-        return SunsamaStore.Range(conn, Day, Day.AddDays(1));
+        return SunsamaStore.Range(conn, null, Day, Day.AddDays(1));
     }
 
     [Fact]
