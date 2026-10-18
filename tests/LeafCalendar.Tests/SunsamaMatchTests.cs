@@ -51,6 +51,23 @@ public sealed class SunsamaMatchTests
     }
 
     [Fact]
+    public void Blocks_TaskAlsoAGoogleEvent_DrawsNoProjectedOrTimeboxBlock()
+    {
+        var google = new SunsamaEventRef("s-lunch", "work@example.com", "Lunch Break", Noon, Noon.AddHours(1), OnGoogle: true);
+        var box = new SunsamaEventRef("e1", "sunsama-cal", "Lunch Break", Noon.AddHours(2), Noon.AddHours(3), OnGoogle: false);
+        var hidden = new SunsamaEventRef("s-hidden", "hidden@example.com", "Title", Noon, Noon.AddHours(1), OnGoogle: true);
+        var cached = new[] { Google("work@example.com", "g-lunch", "Lunch Break", Noon) };
+
+        var blocks = SunsamaMatch.Blocks(
+            Day,
+            [Task("t1", [(Noon.AddHours(4), Noon.AddHours(5))], google, box), Task("t2", [(Noon.AddHours(4), Noon.AddHours(5))], hidden)],
+            cached);
+
+        var block = Assert.Single(blocks);
+        Assert.Equal(("t1", SunsamaBlockKind.Matched), (block.TaskId, block.Kind));
+    }
+
+    [Fact]
     public void Blocks_GoogleEventTitleDiffers_FallsBackToSameStart()
     {
         var ev = new SunsamaEventRef("s", "work@example.com", "Renamed in Sunsama", Noon, Noon.AddHours(1), OnGoogle: true);

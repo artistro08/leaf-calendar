@@ -9,10 +9,10 @@ namespace LeafCalendar.Core.Sunsama;
 public static class SunsamaMatch
 {
     /// <summary>
-    /// Builds one day's rows: a <see cref="SunsamaBlockKind.Projected"/> row per projected entry, a
-    /// <see cref="SunsamaBlockKind.Timebox"/> row per event on a non-Google calendar, and a
-    /// <see cref="SunsamaBlockKind.Matched"/> row per Google-side event found among <paramref name="cached"/> (same calendar,
-    /// same start, preferring the same title). A Google-side event with no cached match gives nothing.
+    /// Builds one day's rows. A task tied to a Google-side event gets only a <see cref="SunsamaBlockKind.Matched"/> row per
+    /// such event found among <paramref name="cached"/> (same calendar, same start, preferring the same title); one with no
+    /// cached match gives nothing. Any other task gets a <see cref="SunsamaBlockKind.Projected"/> row per projected entry and
+    /// a <see cref="SunsamaBlockKind.Timebox"/> row per event on a non-Google calendar.
     /// </summary>
     /// <param name="day">The local day the tasks were fetched for.</param>
     /// <param name="tasks">The day's tasks.</param>
@@ -29,15 +29,16 @@ public static class SunsamaMatch
             SunsamaBlock Row(DateTimeOffset start, DateTimeOffset end, SunsamaBlockKind kind, CalendarOccurrence? match = null) =>
                 new(day, task.Id, task.Title, task.Channel, start, end, task.EstimateMinutes, task.TrackedMinutes, task.Completed, kind, match?.AccountId, match?.CalendarId, match?.EventId);
 
-            blocks.AddRange(task.Projected.Select(p => Row(p.Start, p.End, SunsamaBlockKind.Projected)));
-            foreach (var e in task.Events)
+            // A Task Already on Google Draws No Block of Its Own (spec goal 4), matched or not
+            if (!task.Events.Any(e => e.OnGoogle))
             {
-                if (!e.OnGoogle)
-                {
-                    blocks.Add(Row(e.Start, e.End, SunsamaBlockKind.Timebox));
-                    continue;
-                }
+                blocks.AddRange(task.Projected.Select(p => Row(p.Start, p.End, SunsamaBlockKind.Projected)));
+                blocks.AddRange(task.Events.Select(e => Row(e.Start, e.End, SunsamaBlockKind.Timebox)));
+                continue;
+            }
 
+            foreach (var e in task.Events.Where(e => e.OnGoogle))
+            {
                 var sameStart = cached.Where(o => !o.IsAllDay && o.CalendarId == e.CalendarId && o.Start == e.Start).ToList();
                 if ((sameStart.FirstOrDefault(o => string.Equals(o.Title, e.Title, StringComparison.Ordinal)) ?? sameStart.FirstOrDefault()) is { } match)
                 {

@@ -83,6 +83,17 @@ public sealed class SunsamaMcpClientTests : IDisposable
     }
 
     [Fact]
+    public async Task ReadResourceAsync_EventStreamWithoutThisCallsId_ThrowsUnavailable()
+    {
+        ServeSession(r => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent($"event: message\ndata: {ReadResult(7, """{"user":{}}""")}\n\n", Encoding.UTF8, "text/event-stream"),
+        });
+
+        await Assert.ThrowsAsync<SchedulingUnavailableException>(() => Create().ReadResourceAsync("sunsama://me", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task ReadResourceAsync_SessionGone_StartsANewOneOnce()
     {
         var reads = 0;

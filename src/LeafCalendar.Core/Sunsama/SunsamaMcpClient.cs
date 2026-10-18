@@ -246,10 +246,10 @@ public sealed class SunsamaMcpClient(HttpClient http, Uri endpoint, Func<Cancell
         return stream.ToArray();
     }
 
-    // An event stream's reply: the last data message with this call's id, else the last one that reads
+    // An event stream's reply: the last data message with this call's id (a message for anything else isn't the reply)
     private static JsonDocument FromEvents(string body, int id)
     {
-        JsonDocument? best = null;
+        JsonDocument? reply = null;
         foreach (var line in body.Split('\n'))
         {
             if (!line.StartsWith("data:", StringComparison.Ordinal))
@@ -267,15 +267,14 @@ public sealed class SunsamaMcpClient(HttpClient http, Uri endpoint, Func<Cancell
                 continue;
             }
 
-            var matches = doc.RootElement.ValueKind == JsonValueKind.Object
+            if (doc.RootElement.ValueKind == JsonValueKind.Object
                 && doc.RootElement.TryGetProperty("id", out var got)
                 && got.ValueKind == JsonValueKind.Number
                 && got.TryGetInt32(out var n)
-                && n == id;
-            if (matches || best is null)
+                && n == id)
             {
-                best?.Dispose();
-                best = doc;
+                reply?.Dispose();
+                reply = doc;
             }
             else
             {
@@ -283,7 +282,7 @@ public sealed class SunsamaMcpClient(HttpClient http, Uri endpoint, Func<Cancell
             }
         }
 
-        return best ?? throw new SchedulingUnavailableException("Sunsama's event stream had no reply.");
+        return reply ?? throw new SchedulingUnavailableException("Sunsama's event stream had no reply.");
     }
 
     private static JsonDocument Parse(string text)

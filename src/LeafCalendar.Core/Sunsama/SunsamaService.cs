@@ -78,6 +78,7 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
     private int _running;
     private int _failures;
     private DateTimeOffset _waitUntil;
+    private bool _registerAgain;
 
     /// <summary>Raised when <see cref="State"/> or <see cref="Email"/> changes.</summary>
     public event EventHandler? Changed;
@@ -146,7 +147,7 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
                 return;
             }
 
-            _session = StartSession(clientId, refreshToken, committed: true);
+            _session = StartSession(clientId, refreshToken);
             State = SunsamaState.SignedIn;
             Email = email;
         }
@@ -173,12 +174,13 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
             endings = _endings;
         }
 
-        // Register Once, Then Reuse the Client
-        var clientId = NonEmpty(tokens.GetProviderSecret(ProviderId, ClientIdKey));
+        // Register Once, Then Reuse the Client (unless a sign-in while signed out by Sunsama was refused)
+        var clientId = Volatile.Read(ref _registerAgain) ? null : NonEmpty(tokens.GetProviderSecret(ProviderId, ClientIdKey));
         if (clientId is null)
         {
             clientId = await SunsamaRegistration.RegisterAsync(http, endpoints.Register, $"http://127.0.0.1:{endpoints.RedirectPort.ToString(CultureInfo.InvariantCulture)}{RedirectPath}", ct);
             tokens.SetProviderSecret(ProviderId, ClientIdKey, clientId);
+            Volatile.Write(ref _registerAgain, false);
             log.Info("sunsama.registered");
         }
 
@@ -189,17 +191,22 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
         }
         catch (SchedulingAuthException)
         {
-            // A refused or lost client registers again next time (only this service writes Sunsama's secrets)
+            // A refused or lost client registers again next time (only this service writes Sunsama's secrets). Signed out
+            // by Sunsama, the saved sign-in stays until a new one replaces it, so only the client is replaced
             if (State == SunsamaState.SignedOut)
             {
                 tokens.RemoveProviderSecrets(ProviderId);
+            }
+            else if (State == SunsamaState.NeedsSignIn)
+            {
+                Volatile.Write(ref _registerAgain, true);
             }
 
             throw;
         }
 
         // Prove the Tokens Work Before Saving Them
-        var session = StartSession(clientId, refreshToken, committed: false);
+        var session = StartSession(clientId, refreshToken);
         SunsamaProfile? profile;
         string email;
         Session? old;
@@ -227,7 +234,6 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
                     SunsamaStore.Clear(conn);
                 }
 
-                session.Committed = true;
                 old = _session;
                 _session = session;
                 _profile = profile;
@@ -266,6 +272,8 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
             State = SunsamaState.SignedOut;
             Email = null;
             _failures = 0;
+            _waitUntil = default;
+            _registerAgain = false;
         }
 
         try
@@ -489,26 +497,30 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
 
     private static (DateTimeOffset, string, SunsamaBlockKind, DateTimeOffset, string?) Order(SunsamaBlock b) => (b.Start, b.TaskId, b.Kind, b.End, b.MatchedEventId);
 
-    // Tokens and an MCP client for one sign-in. A rotated refresh token is saved only once the sign-in is committed
-    private Session StartSession(string clientId, string refreshToken, bool committed)
+    // Tokens and an MCP client for one sign-in. A rotated refresh token is saved only while this is the current session:
+    // not before a sign-in proves it (the sign-in saves it then), and not after a sign-out or a newer sign-in replaced it
+    private Session StartSession(string clientId, string refreshToken)
     {
-        var session = new Session(refreshToken) { Committed = committed };
+        var session = new Session(refreshToken);
         session.Tokens = new ProviderTokens(http, _oauth, new ProviderClient(clientId, ""), refreshToken, time, rotated =>
         {
-            session.RefreshToken = rotated;
-            if (!session.Committed)
+            lock (_gate)
             {
-                return;
-            }
+                session.RefreshToken = rotated;
+                if (!ReferenceEquals(_session, session))
+                {
+                    return;
+                }
 
-            // A save that fails keeps this session working; the type only (the next start may need a new sign-in)
-            try
-            {
-                tokens.SetProviderSecret(ProviderId, RefreshTokenKey, rotated);
-            }
-            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
-            {
-                log.Info("sunsama.token.save-failed", $"error={ex.GetType().Name}");
+                // A save that fails keeps this session working; the type only (the next start may need a new sign-in)
+                try
+                {
+                    tokens.SetProviderSecret(ProviderId, RefreshTokenKey, rotated);
+                }
+                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+                {
+                    log.Info("sunsama.token.save-failed", $"error={ex.GetType().Name}");
+                }
             }
         });
         session.Mcp = new SunsamaMcpClient(http, endpoints.Mcp, session.Tokens.GetAccessTokenAsync, session.Tokens.ForgetAccessToken);
@@ -522,8 +534,6 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
         public SunsamaMcpClient Mcp { get; set; } = null!;
 
         public string RefreshToken { get; set; } = refreshToken;
-
-        public bool Committed { get; set; }
 
         // Ends both, so calls still on their way fail as unavailable
         public void Dispose()

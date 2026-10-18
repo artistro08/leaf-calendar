@@ -443,7 +443,7 @@ public sealed class SunsamaServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SyncAsync_RefusedRefresh_MarksSignedOutKeepsRows()
+    public async Task SyncAsync_RefusedRefresh_NeedsSignInKeepsRows()
     {
         SeedSignedIn();
         SaveRow("kept");
@@ -479,12 +479,72 @@ public sealed class SunsamaServiceTests : IDisposable
         Assert.Equal(SunsamaState.SignedOut, service.State);
         Assert.Null(service.Email);
         Assert.Null(_tokens.GetProviderSecret(SunsamaService.ProviderId, "refresh_token"));
+        Assert.Null(_tokens.GetProviderSecret(SunsamaService.ProviderId, "client_id"));
+        Assert.Null(_tokens.GetProviderSecret(SunsamaService.ProviderId, "email"));
         Assert.Empty(Rows());
         Assert.Equal((1, 1), (changed, dataChanged));
     }
 
     [Fact]
-    public async Task Logs_NeverContainTaskTextOrEmail()
+    public async Task SignOut_WhileATokenRefreshRuns_RotatedTokenIsNotSavedAgain()
+    {
+        SeedSignedIn();
+        var refreshing = new TaskCompletionSource();
+        var release = new TaskCompletionSource();
+        _server.On(
+            r => r.Uri.AbsoluteUri == Root + "sunsama/oauth/token",
+            _ =>
+            {
+                refreshing.TrySetResult();
+                release.Task.Wait(TestContext.Current.CancellationToken);
+                return FakeHttpHandler.Json(HttpStatusCode.OK, """{"access_token":"at-1","refresh_token":"rt-new","expires_in":3600}""");
+            });
+        ServeMcp();
+        var service = Create();
+        service.Load();
+        service.SetDays(Day, Day.AddDays(1));
+
+        var pass = Task.Run(() => service.SyncAsync(TestContext.Current.CancellationToken), TestContext.Current.CancellationToken);
+        await refreshing.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        service.SignOut();
+        release.SetResult();
+        await pass;
+
+        Assert.Null(_tokens.GetProviderSecret(SunsamaService.ProviderId, "refresh_token"));
+        Assert.Empty(Rows());
+    }
+
+    [Fact]
+    public async Task SignInAsync_ClientRefusedWhileNeedsSignIn_RegistersAgainNextTime()
+    {
+        SeedSignedIn();
+        string? refusal = "invalid_grant";
+        _server.On(
+            r => r.Uri.AbsoluteUri == Root + "sunsama/oauth/token",
+            _ => refusal is null
+                ? FakeHttpHandler.Json(HttpStatusCode.OK, """{"access_token":"at-1","refresh_token":"rt-new","expires_in":3600}""")
+                : FakeHttpHandler.Json(HttpStatusCode.BadRequest, $$"""{"error":"{{refusal}}"}"""));
+        _server.On(HttpMethod.Post, Root + "sunsama/oauth/register", HttpStatusCode.Created, """{"client_id":"c-new"}""");
+        ServeMcp();
+        var service = Create();
+        service.Load();
+        service.SetDays(Day, Day.AddDays(1));
+        await service.SyncAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(SunsamaState.NeedsSignIn, service.State);
+
+        refusal = "invalid_client";
+        await Assert.ThrowsAsync<SchedulingAuthException>(() => service.SignInAsync(Approve, TestContext.Current.CancellationToken));
+        Assert.Equal("rt-saved", _tokens.GetProviderSecret(SunsamaService.ProviderId, "refresh_token"));
+        refusal = null;
+        await service.SignInAsync(Approve, TestContext.Current.CancellationToken);
+
+        Assert.Single(_server.Requests, r => r.Uri.AbsolutePath == "/sunsama/oauth/register");
+        Assert.Equal("c-new", _tokens.GetProviderSecret(SunsamaService.ProviderId, "client_id"));
+        Assert.Equal(SunsamaState.SignedIn, service.State);
+    }
+
+    [Fact]
+    public async Task SyncAsync_AfterSignIn_LogsNoTaskTextOrEmail()
     {
         _server.On(HttpMethod.Post, Root + "sunsama/oauth/register", HttpStatusCode.Created, """{"client_id":"c1"}""");
         ServeToken();
