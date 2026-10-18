@@ -9,7 +9,7 @@ namespace LeafCalendar.UITests;
 
 /// <summary>
 /// The Sunsama card in Settings › Accounts against the fake Sunsama: signing in and out from its header without opening
-/// it, the reason after Sunsama refuses the saved sign-in, and the Permissions row inside (spec 2026-10-16, section 6.1).
+/// it, the reason after Sunsama refuses the saved sign-in, and the Color row inside (spec 2026-10-16, section 6.1).
 /// </summary>
 public sealed class SunsamaSettingsTests : IDisposable
 {
@@ -107,16 +107,24 @@ public sealed class SunsamaSettingsTests : IDisposable
         Assert.False(leaf.Exists("OfflineIndicator"), "Sunsama being down showed Google's offline icon.");
     }
 
-    // Opening the card shows what Leaf Calendar can see
+    // The card's Color row: pick Purple from the calendar palette, and the card says so; the default link goes back to Tangerine
     [Fact]
-    public void Expand_ShowsPermissions()
+    public void Color_PickAndReset()
     {
+        SignedIn();
         using var leaf = SunsamaGridTests.Launch(_profile, _google);
         leaf.OpenSettings("Accounts");
-
         leaf.ExpandInSettings("SunsamaExpander");
+        Assert.True(SettingsShows(leaf, "Tangerine"));
 
-        Assert.True(SettingsShows(leaf, "Permissions"));
-        Assert.True(SettingsShows(leaf, "Leaf Calendar can only read your Sunsama tasks and calendar. It never changes anything in Sunsama."));
+        leaf.WaitInSettings("SunsamaColor").AsButton().Invoke();
+        leaf.WaitForAnywhere("ColorSwatch_A47AE2").AsButton().Invoke();
+
+        Assert.True(SettingsShows(leaf, "Purple"), "The card didn't show the picked color.");
+
+        leaf.WaitInSettings("SunsamaColor").AsButton().Invoke();
+        leaf.WaitForAnywhere("SunsamaColorReset").AsButton().Invoke();
+
+        Assert.True(SettingsShows(leaf, "Tangerine"), "The default link didn't go back to Tangerine.");
     }
 }

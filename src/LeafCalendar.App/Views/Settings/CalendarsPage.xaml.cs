@@ -4,7 +4,6 @@ using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.People;
-using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -158,52 +157,15 @@ public sealed partial class CalendarsPage : Page
         }
 
         var calendar = _context.Calendar;
-        var grid = new VariableSizedWrapGrid { Orientation = Orientation.Horizontal, MaximumRowsOrColumns = 6, ItemWidth = 32, ItemHeight = 32 };
-        var flyout = new Flyout();
+        var flyout = ColorPaletteFlyout.Create(
+            row.Color,
+            ActualTheme == ElementTheme.Dark,
+            hex => calendar.SetCalendarColor(row.Info, hex),
+            "Use Google's color",
+            "ColorReset",
+            () => calendar.SetCalendarColor(row.Info, null));
         _colorFlyout = flyout;
         _colorRow = row;
-        foreach (var (hex, colorName) in EventColors.CalendarColorNames)
-        {
-            var color = LeafBrushes.FromHex(hex).Color;
-            var ring = LeafBrushes.PrimaryText(ActualTheme == ElementTheme.Dark);
-            var current = string.Equals(hex, row.Color, StringComparison.OrdinalIgnoreCase);
-            var name = current ? $"{colorName}, current" : colorName;
-            var swatch = new Button
-            {
-                Width = 26,
-                Height = 26,
-                Padding = new Thickness(0),
-                CornerRadius = new CornerRadius(13),
-                Background = new SolidColorBrush(color),
-                BorderBrush = ring,
-                BorderThickness = new Thickness(current ? 2 : 0),
-            };
-
-            // Hover And Press Tint The Color Instead Of Replacing It (the current one's ring stays too)
-            swatch.Resources["ButtonBackgroundPointerOver"] = new SolidColorBrush(color) { Opacity = 0.8 };
-            swatch.Resources["ButtonBackgroundPressed"] = new SolidColorBrush(color) { Opacity = 0.6 };
-            swatch.Resources["ButtonBorderBrushPointerOver"] = ring;
-            swatch.Resources["ButtonBorderBrushPressed"] = ring;
-            AutomationProperties.SetAutomationId(swatch, $"ColorSwatch_{hex[1..]}");
-            AutomationProperties.SetName(swatch, name);
-            ToolTipService.SetToolTip(swatch, name);
-            swatch.Click += (_, _) =>
-            {
-                flyout.Hide();
-                calendar.SetCalendarColor(row.Info, hex);
-            };
-            grid.Children.Add(swatch);
-        }
-
-        var reset = new HyperlinkButton { Content = "Use Google's color", Margin = new Thickness(0, 8, 0, 0) };
-        AutomationProperties.SetAutomationId(reset, "ColorReset");
-        reset.Click += (_, _) =>
-        {
-            flyout.Hide();
-            calendar.SetCalendarColor(row.Info, null);
-        };
-
-        flyout.Content = new StackPanel { Children = { grid, reset } };
         flyout.ShowAt(button);
     }
 

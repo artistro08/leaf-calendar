@@ -26,7 +26,7 @@ public static class SunsamaOccurrences
     /// <summary>The occurrence calendar for timeboxed tasks.</summary>
     public const string TimeboxCalendarId = "timebox";
 
-    /// <summary>The one fixed Sunsama color, Tangerine.</summary>
+    /// <summary>The default Sunsama color, Tangerine (Settings › Accounts › Sunsama › Color changes it).</summary>
     public const string Color = "#F4511E";
 
     /// <summary>True for an occurrence built from a Sunsama row.</summary>
@@ -43,8 +43,9 @@ public static class SunsamaOccurrences
     /// regular event. Free time, so it never counts as busy.
     /// </summary>
     /// <param name="block">A projected or timebox row.</param>
+    /// <param name="color">The Sunsama color (<see cref="Color"/> unless one was picked).</param>
     /// <returns>The read-only occurrence.</returns>
-    public static CalendarOccurrence ToOccurrence(SunsamaBlock block)
+    public static CalendarOccurrence ToOccurrence(SunsamaBlock block, string color = Color)
     {
         ArgumentNullException.ThrowIfNull(block);
         var projected = block.Kind == SunsamaBlockKind.Projected;
@@ -60,7 +61,7 @@ public static class SunsamaOccurrences
             block.Title,
             EventKind.Default,
             projected ? ResponseStatus.NeedsAction : ResponseStatus.Accepted,
-            Color,
+            color,
             null,
             IsFree: true,
             HasConference: false);
@@ -73,8 +74,9 @@ public static class SunsamaOccurrences
     /// filled against its own length.
     /// </summary>
     /// <param name="rows">Saved rows.</param>
+    /// <param name="color">The Sunsama color (<see cref="Color"/> unless one was picked).</param>
     /// <returns>The occurrences and the lookup.</returns>
-    public static (List<CalendarOccurrence> Blocks, Dictionary<string, SunsamaShown> ByKey) Build(IReadOnlyList<SunsamaBlock> rows)
+    public static (List<CalendarOccurrence> Blocks, Dictionary<string, SunsamaShown> ByKey) Build(IReadOnlyList<SunsamaBlock> rows, string color = Color)
     {
         ArgumentNullException.ThrowIfNull(rows);
 
@@ -86,7 +88,7 @@ public static class SunsamaOccurrences
             var fills = SunsamaTracked.Fill(taskBlocks);
             for (var i = 0; i < taskBlocks.Count; i++)
             {
-                var occurrence = ToOccurrence(taskBlocks[i]);
+                var occurrence = ToOccurrence(taskBlocks[i], color);
                 blocks.Add(occurrence);
                 byKey[occurrence.Key] = new SunsamaShown(taskBlocks[i], fills[i]);
             }

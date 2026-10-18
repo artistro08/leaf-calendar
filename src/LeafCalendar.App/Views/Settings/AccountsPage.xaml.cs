@@ -6,6 +6,7 @@ using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Core.Sunsama;
+using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
@@ -170,6 +171,11 @@ public sealed partial class AccountsPage : Page
         SunsamaSignOut.Visibility = signedIn || refused ? Visibility.Visible : Visibility.Collapsed;
         SunsamaCancel.Visibility = signingIn ? Visibility.Visible : Visibility.Collapsed;
         SunsamaRing.IsActive = signingIn;
+
+        // Color: its name (the palette's, or Tangerine for the default) and its dot
+        var color = _context.Calendar.SunsamaColor;
+        SunsamaColorDot.Fill = LeafBrushes.FromHex(color);
+        SunsamaColorRow.Description = EventColors.CalendarColorNames.FirstOrDefault(c => c.Hex == color).Name ?? "Tangerine";
         SunsamaRing.Visibility = signingIn ? Visibility.Visible : Visibility.Collapsed;
 
         // Sunsama Refused The Saved Sign-In: say why (the card opens so the reason shows)
@@ -274,6 +280,24 @@ public sealed partial class AccountsPage : Page
     }
 
     private void OnSunsamaCancelClick(object sender, RoutedEventArgs e) => _sunsamaSignIn?.Cancel();
+
+    // The calendar palette; the blocks, the sidebar items and the card repaint at once
+    private void OnSunsamaColorClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button)
+        {
+            return;
+        }
+
+        void Use(string? hex)
+        {
+            _context.Save(s => s with { SunsamaColor = hex });
+            _context.Calendar.ReloadCalendars();
+            RefreshSunsama();
+        }
+
+        ColorPaletteFlyout.Create(_context.Calendar.SunsamaColor, ActualTheme == ElementTheme.Dark, hex => Use(hex), "Use the default color", "SunsamaColorReset", () => Use(null)).ShowAt(button);
+    }
 
     // Sign out: removes the sign-in and every saved block; the sidebar group goes with them
     private void OnSunsamaSignOutClick(object sender, RoutedEventArgs e)

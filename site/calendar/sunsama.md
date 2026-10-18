@@ -14,13 +14,15 @@ Sign in to [Sunsama](https://sunsama.com), and the times Sunsama plans for your 
 
 ## Sign in
 
-1. Go to **Settings › Accounts** and find the **Sunsama** card.
+1. Go to **Settings › Accounts** and find the **Sunsama** card, at the bottom of the page.
 2. Click **Sign in with Sunsama**. Your browser opens Sunsama. Sign in and allow access.
 3. Back in Leaf Calendar, you'll see "Successfully signed in to Sunsama", and the card shows your Sunsama email.
 
 ![Settings › Accounts with the Sunsama card open, signed in](../../assets/images/sunsama-expander.png)
 
-There's no OAuth client to create: Leaf Calendar registers its own with Sunsama the first time you sign in. Open the card to see what it can do: Leaf Calendar can only read your Sunsama tasks and calendar.
+There's no OAuth client to create: Leaf Calendar registers its own with Sunsama the first time you sign in. Leaf Calendar can only read your Sunsama tasks and calendar.
+
+To pick the color your Sunsama blocks are drawn in, open the card and click the dot next to **Color**. **Use the default color** goes back to tangerine.
 
 ## Turning it on and off
 

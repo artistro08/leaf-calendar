@@ -258,6 +258,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         return string.Join(", ", parts);
     }
 
+    /// <summary>The color Sunsama's blocks, sidebar items and details are drawn in (the picked one, else Tangerine).</summary>
+    public string SunsamaColor => Settings.SunsamaColor ?? SunsamaOccurrences.Color;
+
     /// <summary>The user's view settings. Sunsama is fetched only while one of its two sidebar items is on.</summary>
     public LeafSettings Settings
     {
@@ -945,8 +948,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
                 SunsamaOccurrences.AccountId,
                 "Sunsama",
                 [
-                    new CalendarRow(SunsamaRow(SunsamaOccurrences.ProjectedCalendarId, "Projected tasks", Settings.SunsamaProjected)),
-                    new CalendarRow(SunsamaRow(SunsamaOccurrences.TrackedCalendarId, "Tracked time", Settings.SunsamaTracked)),
+                    new CalendarRow(SunsamaRow(SunsamaOccurrences.ProjectedCalendarId, "Projected tasks", Settings.SunsamaProjected, SunsamaColor)),
+                    new CalendarRow(SunsamaRow(SunsamaOccurrences.TrackedCalendarId, "Tracked time", Settings.SunsamaTracked, SunsamaColor)),
                 ],
                 isExpanded: !Settings.CollapsedAccounts.Contains(SunsamaOccurrences.AccountId),
                 canReorder: false));
@@ -955,9 +958,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         return groups;
     }
 
-    // A Sunsama sidebar row, checked when its setting is on (one fixed color; never stored)
-    private static CalendarInfo SunsamaRow(string id, string name, bool on) =>
-        new(SunsamaOccurrences.AccountId, id, name, SunsamaOccurrences.Color, "reader", false, false, null, LeafHidden: !on, null, 0);
+    // A Sunsama sidebar row, checked when its setting is on, in the Sunsama color (never stored)
+    private static CalendarInfo SunsamaRow(string id, string name, bool on, string color) =>
+        new(SunsamaOccurrences.AccountId, id, name, color, "reader", false, false, null, LeafHidden: !on, null, 0);
 
     /// <summary>
     /// Folds an account's calendars away under its header, or shows them again, in the sidebar and Settings › Calendars
@@ -2369,6 +2372,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         var includeDeclined = Settings.ShowDeclined;
         var sunsama = _services.Sunsama.State != SunsamaState.SignedOut;
         var projected = Settings.SunsamaProjected;
+        var color = SunsamaColor;
         return Task.Run<IReadOnlyList<CalendarOccurrence>>(
             () =>
             {
@@ -2381,7 +2385,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
                 }
 
                 // Sunsama Rows: saved by Sunsama's local day, so a day either side, kept to this window's instants
-                var (blocks, byKey) = SunsamaOccurrences.Build(SunsamaStore.Range(conn, from.AddDays(-1), to.AddDays(1)));
+                var (blocks, byKey) = SunsamaOccurrences.Build(SunsamaStore.Range(conn, from.AddDays(-1), to.AddDays(1)), color);
                 var (start, end) = (OccurrenceQuery.LocalMidnight(from, Zone), OccurrenceQuery.LocalMidnight(to, Zone));
 
                 // A task deleted or moved in Sunsama leaves this window's lookup, so a Google event loses its old tracked time

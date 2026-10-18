@@ -100,11 +100,11 @@ Table `sunsama_block`: `day` (local date text), `task_id`, `title`, `channel`, `
 
 ### 6.1 Settings › Accounts
 
-A Sunsama **expander** card, built like the Google account expanders right above it in Settings › Accounts (`AccountsPage.xaml`, "One Expander Per Account") and the Working hours expander in Settings › General (`Expander` with `LeafSettingExpanderStyle`, `LeafExpanderHeaderRowStyle` header, `LeafExpanderItemRowStyle` rows). It is its own control, not `ProviderAccountCard`: Sunsama has no OAuth client form, since Leaf Calendar registers its own client.
+A Sunsama **expander** card, last in Settings › Accounts, under its own "Sunsama" header below the Cal.com OAuth client (owner, 2026-10-17: it's its own thing), built like the Google account expanders in Settings › Accounts (`AccountsPage.xaml`, "One Expander Per Account") and the Working hours expander in Settings › General (`Expander` with `LeafSettingExpanderStyle`, `LeafExpanderHeaderRowStyle` header, `LeafExpanderItemRowStyle` rows). It is its own control, not `ProviderAccountCard`: Sunsama has no OAuth client form, since Leaf Calendar registers its own client.
 
 - **Header row (owner, 2026-10-16: the button lives here):** the Sunsama name, a status line ("Not signed in" or the signed-in account email), and on the right, before the expand chevron (the header `SettingRow`'s content slot, the empty space on the Google account headers), the state's button: **Sign in with Sunsama** (accent) when signed out; a progress ring and **Cancel** while the browser is open, like the Cal.com sign-in; **Sign out** when signed in. Clicking the button doesn't expand or collapse the card. Collapsed by default.
 - **Stacked row inside:**
-  - **Permissions:** a plain line saying what Leaf Calendar can see: read-only access to your Sunsama tasks and calendar.
+  - **Color (owner, 2026-10-17, in place of a Permissions row):** the calendar palette from Settings › Calendars, for the Sunsama blocks, the sidebar items and the details dot. The row names the color ("Tangerine" for the default); "Use the default color" goes back to Tangerine. Saved as `LeafSettings.SunsamaColor`.
 - A success InfoBar ("Successfully signed in to Sunsama", the existing provider wording) shows above the expander after a sign-in. Errors show in an InfoBar inside the expander.
 - A refused refresh token shows the signed-out state with the reason line (9).
 - Signing out deletes the tokens and every saved block, and the sidebar group goes away.
@@ -112,7 +112,7 @@ A Sunsama **expander** card, built like the Google account expanders right above
 
 ### 6.2 Sidebar
 
-A **Sunsama** group under the Google accounts in the calendar list, shown only while signed in, with two items using the calendar row's checkbox: **Projected tasks** and **Tracked time**. Sunsama blocks use one fixed color, Tangerine (`#F4511E`). Calendar colors are chosen in Settings › Calendars, which lists Google calendars only, so a color choice for Sunsama is left for later. The Sunsama rows have no right-click menu and can't be reordered.
+A **Sunsama** group under the Google accounts in the calendar list, shown only while signed in, with two items using the calendar row's checkbox: **Projected tasks** and **Tracked time**. Sunsama blocks and both rows use the Sunsama color, Tangerine (`#F4511E`) unless another is picked on the Sunsama card (6.1). Settings › Calendars lists Google calendars only. The Sunsama rows have no right-click menu and can't be reordered.
 
 ### 6.3 Calendar Grid
 
@@ -169,7 +169,7 @@ The fake Sunsama server lives inside the fake Google server under a `sunsama/` p
 - The sidebar calendar list class: the Sunsama group shows when signed in; Projected tasks hides and shows blocks; Tracked time hides and shows tracked totals.
 - The calendar grid class: projected blocks draw at their times with the channel after the time; a matched task draws no block; the tracked overlay shows on a block with tracked time and its spoken name says "tracked".
 - The details panel class: a Sunsama block's details and a matched Google event's tracked total.
-- The Settings › Accounts class: sign in, cancel and sign out from the expander's header without it expanding; the expander opens to show the Permissions row.
+- The Settings › Accounts class: sign in, cancel and sign out from the expander's header without it expanding; the expander opens to the Color row, and a picked color shows there.
 
 `ScreenshotTour` gains the Sunsama shots (8.3), and the tour is run once to make them and for a visual check in light and dark.
 
@@ -206,8 +206,11 @@ The user guide shows how to use it, in the same voice and layout as `site/people
 | Sign-in button | "Sign in with Sunsama" (matches the existing "Sign in with {provider}") |
 | Sign-out button | "Sign out" |
 | Cancel while signing in | "Cancel" |
-| Permissions row header | "Permissions" |
-| Permissions row text | "Leaf Calendar can only read your Sunsama tasks and calendar. It never changes anything in Sunsama." |
+| Settings group header | "Sunsama" |
+| Color row header | "Color" |
+| Color row text | the color's palette name, or "Tangerine" for the default |
+| Color button name | "Color for Sunsama" (tooltip "Change color", existing) |
+| Color flyout link | "Use the default color" |
 | After sign-in | "Successfully signed in to Sunsama" (existing provider wording) |
 | Signed out after a refusal | "Sunsama signed you out. Sign in again to see your task plan." |
 | Sidebar group | "Sunsama" |

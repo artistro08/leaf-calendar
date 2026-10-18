@@ -242,15 +242,25 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.True(settings.SunsamaTracked);
     }
 
+    [Theory]
+    [InlineData("#A47AE2", "#A47AE2")]
+    [InlineData("#a47ae2", "#A47AE2")]
+    [InlineData("#123456", null)]
+    [InlineData("purple", null)]
+    [InlineData("", null)]
+    public void Normalize_SunsamaColor_KeepsOnlyAPaletteColor(string stored, string? expected) =>
+        Assert.Equal(expected, new LeafSettings { SunsamaColor = stored }.Normalize().SunsamaColor);
+
     [Fact]
     public void SunsamaSwitches_RoundTrip()
     {
         using var conn = _db.Database.Open();
 
-        SettingsStore.Save(conn, new LeafSettings { SunsamaProjected = false, SunsamaTracked = false });
+        SettingsStore.Save(conn, new LeafSettings { SunsamaProjected = false, SunsamaTracked = false, SunsamaColor = "#A47AE2" });
         var loaded = SettingsStore.Load(conn);
 
         Assert.False(loaded.SunsamaProjected);
         Assert.False(loaded.SunsamaTracked);
+        Assert.Equal("#A47AE2", loaded.SunsamaColor);
     }
 }

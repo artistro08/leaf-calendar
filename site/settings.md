@@ -135,12 +135,6 @@ See [Joining meetings](../tray-and-notifications/joining/#changing-the-shortcuts
 - **Main account**: listed first, and used to look up people's busy times.
 - **Sync now**: get the latest changes from Google right away.
 
-**Sunsama**
-
-- **Sign in with Sunsama**: show the times Sunsama plans for your tasks on your calendar. Open the card to see what Leaf Calendar can read. **Sign out** removes the sign-in and the Sunsama blocks. See [Sunsama tasks](../calendar/sunsama/).
-
-![Settings › Accounts with the Sunsama card open](../assets/images/sunsama-expander.png)
-
 **New events**
 
 - **Default calendar**: where new events go.
@@ -152,6 +146,13 @@ See [Joining meetings](../tray-and-notifications/joining/#changing-the-shortcuts
 **Cal.com OAuth client**
 
 - Add your Cal.com client, sign in, sign out, or remove it. See [Cal.com booking links](../people-and-scheduling/cal-com/).
+
+**Sunsama**
+
+- **Sign in with Sunsama**: show the times Sunsama plans for your tasks on your calendar. **Sign out** removes the sign-in and the Sunsama blocks. See [Sunsama tasks](../calendar/sunsama/).
+- **Color** (open the card): the color your Sunsama blocks are drawn in.
+
+![Settings › Accounts with the Sunsama card open](../assets/images/sunsama-expander.png)
 
 ## About
 

@@ -214,6 +214,12 @@ public sealed record LeafSettings
     /// <summary>Show Sunsama's tracked time on tasks and matched events (sidebar › Sunsama › Tracked time).</summary>
     public bool SunsamaTracked { get; set; } = true;
 
+    /// <summary>
+    /// The color Sunsama's blocks and sidebar items are drawn in, from the calendar palette (Settings › Accounts › Sunsama ›
+    /// Color), or null for the default, Tangerine.
+    /// </summary>
+    public string? SunsamaColor { get; init; }
+
     /// <summary>Notifications play the Windows sound.</summary>
     public bool NotificationSound { get; set; } = true;
 
@@ -394,6 +400,7 @@ public sealed record LeafSettings
             UpcomingHours = UpcomingChoices.Contains(UpcomingHours) ? UpcomingHours : 8,
             PrimaryTimeZone = PrimaryTimeZone is { } z && TimeZoneInfo.TryFindSystemTimeZoneById(z, out _) ? z : null,
             MainAccountId = string.IsNullOrWhiteSpace(MainAccountId) ? null : MainAccountId,
+            SunsamaColor = EventColors.CalendarPalette.FirstOrDefault(c => string.Equals(c, SunsamaColor, StringComparison.OrdinalIgnoreCase)),
             MainWindowSize = MainWindowSize?.Clean(),
             SettingsWindowSize = SettingsWindowSize?.Clean(),
             MeetByDefaultAccounts = Keep(MeetByDefaultAccounts, CleanAccounts(MeetByDefaultAccounts)),

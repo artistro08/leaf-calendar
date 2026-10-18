@@ -227,7 +227,7 @@ public sealed partial class DetailsPanel : UserControl
         SunsamaWhen.Text = task.When;
         SunsamaChannel.Text = Core.Tray.DisplayText.Clean(block.Channel, 200);
         SunsamaChannelRow.Visibility = Visible(block.Channel.Length > 0);
-        SunsamaDot.Fill = LeafBrushes.FromHex(SunsamaOccurrences.Color);
+        SunsamaDot.Fill = LeafBrushes.FromHex(_vm?.SunsamaColor ?? SunsamaOccurrences.Color);
         SunsamaPlanned.Text = block.EstimateMinutes is { } planned ? $"{SunsamaText.Format(planned)} planned" : "";
         SunsamaPlanned.Visibility = Visible(block.EstimateMinutes is not null);
         var tracked = _vm?.Settings.SunsamaTracked == true ? block.TrackedMinutes : null;

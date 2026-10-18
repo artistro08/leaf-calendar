@@ -26,6 +26,16 @@ public sealed class SunsamaOccurrencesTests
     }
 
     [Fact]
+    public void ToOccurrence_PickedColor_IsTheCalendarColor() =>
+        Assert.Equal("#A47AE2", SunsamaOccurrences.ToOccurrence(Block("t1", SunsamaBlockKind.Projected), "#A47AE2").CalendarColor);
+
+    [Fact]
+    public void Build_PickedColor_PaintsEveryBlock() =>
+        Assert.All(
+            SunsamaOccurrences.Build([Block("t1", SunsamaBlockKind.Projected), Block("t2", SunsamaBlockKind.Timebox)], "#A47AE2").Blocks,
+            o => Assert.Equal("#A47AE2", o.CalendarColor));
+
+    [Fact]
     public void ToOccurrence_Timebox_LooksLikeARegularEvent()
     {
         var o = SunsamaOccurrences.ToOccurrence(Block("t1", SunsamaBlockKind.Timebox));
