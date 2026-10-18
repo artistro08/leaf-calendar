@@ -27,8 +27,9 @@ public sealed record FakeWrite(string Method, string Path, string Query, string?
 /// <see cref="Offline"/> drops every connection, and <see cref="EditOnGoogle"/> changes an event as if someone
 /// edited it elsewhere. Free/busy answers from <see cref="Busy"/> and the seeded calendars, calendar-list PATCHes show on
 /// later list GETs, and the directory answers only while <see cref="HostedDomain"/> is set. Under <c>/calcom/</c> it also
-/// plays Cal.com: OAuth sign-in, links, open times (<see cref="CalComOpen"/>), bookings and booking a time. Start the app
-/// with <c>--fake-google {BaseUri}</c>.
+/// plays Cal.com: OAuth sign-in, links, open times (<see cref="CalComOpen"/>), bookings and booking a time. Under
+/// <c>/sunsama/</c> it plays Sunsama: client registration, OAuth sign-in and the MCP server's resources
+/// (<see cref="SeedSunsamaDay"/>). Start the app with <c>--fake-google {BaseUri}</c>.
 /// </remarks>
 public sealed class FakeGoogleServer : IDisposable
 {
@@ -209,7 +210,9 @@ public sealed class FakeGoogleServer : IDisposable
                 string? location;
                 try
                 {
-                    (status, content, location) = target.StartsWith("/calcom/", StringComparison.Ordinal)
+                    (status, content, location) = target.StartsWith("/sunsama/", StringComparison.Ordinal)
+                        ? RouteSunsama(method, target, headers.GetValueOrDefault("authorization"), body)
+                        : target.StartsWith("/calcom/", StringComparison.Ordinal)
                         ? await RouteCalComAsync(method, target, headers.GetValueOrDefault("authorization"), body)
                         : target.StartsWith("/places/", StringComparison.Ordinal)
                             ? Places(method, target, headers.GetValueOrDefault("x-goog-api-key"), body)
@@ -545,6 +548,95 @@ public sealed class FakeGoogleServer : IDisposable
         return names.SelectMany(n => n.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             .Concat(emails)
             .Any(w => w.StartsWith(text, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // =========================================================================
+    // SUNSAMA (under /sunsama/, where --fake-google moves every Sunsama address)
+    // =========================================================================
+
+    /// <summary>The access token the fake Sunsama issues; its MCP server refuses any other bearer token with 401.</summary>
+    public const string SunsamaAccessToken = "sunsama_access_uitest";
+
+    /// <summary>The refresh token the fake Sunsama issues (tests seed it to start signed in).</summary>
+    public const string SunsamaRefreshToken = "sunsama_refresh_uitest";
+
+    /// <summary>The client ID the fake Sunsama registers.</summary>
+    public const string SunsamaClientId = "sunsama-client-uitest";
+
+    // Each day's tasks and calendar events, by yyyy-MM-dd
+    private readonly ConcurrentDictionary<string, (string Tasks, string Events)> _sunsamaDays = new(StringComparer.Ordinal);
+
+    /// <summary>When true, the token endpoint refuses every request (<c>400 invalid_grant</c>): a revoked sign-in.</summary>
+    public bool SunsamaRefuseToken { get; set; }
+
+    /// <summary>The <c>sunsama://me</c> answer: the account, its time zone and calendars (one Google, one Sunsama).</summary>
+    public string SunsamaMe { get; set; } = """
+        {"user":{"email":"uitest@example.com","timezone":"America/Chicago","calendars":[
+          {"id":"leaf.tester@gmail.com","provider":"google-calendar"},{"id":"sunsama-cal","provider":"sunsama-calendar"}]}}
+        """;
+
+    /// <summary>Sets one day's <c>sunsama://tasks/{day}</c> and <c>sunsama://calendar/events/{day}</c> answers.</summary>
+    public void SeedSunsamaDay(DateOnly day, string tasksJson, string eventsJson) =>
+        _sunsamaDays[day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)] = (tasksJson, eventsJson);
+
+    // OAuth (register, then authorize redirects straight back like a consent already given, token issues the fixed
+    // tokens), then the MCP server behind the bearer token: initialize, the initialized notification, resources/read
+    private (int, string, string?) RouteSunsama(string method, string target, string? authorization, string body)
+    {
+        var uri = new Uri(BaseUri, target);
+        var path = uri.AbsolutePath["/sunsama".Length..];
+        var query = QueryString.Parse(uri.Query);
+
+        switch (method, path)
+        {
+            case ("GET", "/oauth/authorize"):
+                return (302, "", $"{query["redirect_uri"]}?code=sunsama-code&state={Uri.EscapeDataString(query["state"])}");
+            case ("POST", "/oauth/register"):
+                return (201, $$"""{"client_id":"{{SunsamaClientId}}"}""", null);
+            case ("POST", "/oauth/token"):
+                return SunsamaRefuseToken
+                    ? (400, """{"error":"invalid_grant"}""", null)
+                    : (200, $$"""{"access_token":"{{SunsamaAccessToken}}","refresh_token":"{{SunsamaRefreshToken}}","expires_in":3600}""", null);
+            case ("POST", "/mcp") when authorization != $"Bearer {SunsamaAccessToken}":
+                return (401, """{"error":"invalid_token"}""", null);
+            case ("POST", "/mcp"):
+                var message = JsonNode.Parse(body)!;
+                var id = message["id"]?.GetValue<int>() ?? 0;
+                switch ((string?)message["method"])
+                {
+                    case "initialize":
+                        return (200, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject { ["protocolVersion"] = "2025-06-18", ["capabilities"] = new JsonObject() } }.ToJsonString(), null);
+                    case "notifications/initialized":
+                        return (202, "", null);
+                    case "resources/read":
+                        var resource = (string?)message["params"]?["uri"] ?? "";
+                        var text = SunsamaResource(resource);
+                        var result = new JsonObject
+                        {
+                            ["jsonrpc"] = "2.0",
+                            ["id"] = id,
+                            ["result"] = new JsonObject { ["contents"] = new JsonArray(new JsonObject { ["uri"] = resource, ["mimeType"] = "application/json", ["text"] = text }) },
+                        };
+                        return (200, result.ToJsonString(), null);
+                }
+
+                return (200, $$$"""{"jsonrpc":"2.0","id":{{{id}}},"error":{"code":-32601,"message":"Method not found"}}""", null);
+        }
+
+        return (404, Error(404, "Not found"), null);
+    }
+
+    // A resource's JSON text; a day nothing was seeded for has no tasks and no events
+    private string SunsamaResource(string uri)
+    {
+        if (uri == "sunsama://me")
+        {
+            return SunsamaMe;
+        }
+
+        var day = uri[(uri.LastIndexOf('/') + 1)..];
+        (string Tasks, string Events) seeded = _sunsamaDays.GetValueOrDefault(day, ("""{"tasks":[]}""", """{"events":[]}"""));
+        return uri.StartsWith("sunsama://tasks/", StringComparison.Ordinal) ? seeded.Tasks : seeded.Events;
     }
 
     // =========================================================================
@@ -996,6 +1088,7 @@ public sealed class FakeGoogleServer : IDisposable
     {
         200 => "OK",
         201 => "Created",
+        202 => "Accepted",
         204 => "No Content",
         302 => "Found",
         400 => "Bad Request",
