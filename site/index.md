@@ -37,6 +37,7 @@ If you've used Notion Calendar, you'll feel at home. Leaf Calendar borrows its b
 Leaf Calendar works on its own, and you can connect a few extras when you want more:
 
 - **[Cal.com](people-and-scheduling/cal-com/).** Share your free times as booking links. Each time you copy opens Cal.com on that exact slot, with your guests filled in, and Leaf Calendar tells you when someone books.
+- **[Sunsama](calendar/sunsama/).** See when Sunsama plans to work on each task, and the time you've tracked, right on your calendar. Read-only: nothing is changed in Sunsama.
 - **[Other apps on your PC](connected-apps/).** Let apps like Raycast see your events, create and move them, and join meetings through Leaf Calendar. Each app asks you first.
 
 ## Private by design

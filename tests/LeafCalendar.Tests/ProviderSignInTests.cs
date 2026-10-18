@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Http;
 using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Tests.Support;
@@ -200,5 +201,47 @@ public sealed class ProviderSignInTests : IDisposable
     public void ErrorCodes_KeepsOnlyTheCodes(string body, string expected)
     {
         Assert.Equal(expected, SchedulingTokenRequest.ErrorCodes(body));
+    }
+
+    [Fact]
+    public async Task RunAsync_PublicPkceClient_SendsChallengeVerifierAndResourceButNoSecret()
+    {
+        var oauth = _oauth with { UsePkce = true, Resource = new Uri("https://api.example.test/mcp") };
+        _provider.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, TokenAnswer);
+        Dictionary<string, string>? authorize = null;
+        var signIn = new ProviderSignIn(new HttpClient(_provider), oauth, new ProviderClient("public-1", ""), url =>
+        {
+            authorize = QueryString.Parse(url.Query);
+            return Redirects(Approve)(url);
+        }, _time);
+
+        await signIn.RunAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("S256", authorize!["code_challenge_method"]);
+        Assert.Equal("https://api.example.test/mcp", authorize["resource"]);
+        var token = Assert.Single(_provider.Requests);
+        var verifier = token.Form("code_verifier")!;
+        Assert.Equal(Pkce.CreateChallenge(verifier), authorize["code_challenge"]);
+        Assert.Equal("https://api.example.test/mcp", token.Form("resource"));
+        Assert.Equal("public-1", token.Form("client_id"));
+        Assert.Null(token.Form("client_secret"));
+    }
+
+    [Fact]
+    public async Task RunAsync_ConfidentialClient_StillSendsNoVerifier()
+    {
+        _provider.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, TokenAnswer);
+        Dictionary<string, string>? authorize = null;
+        var signIn = Create(url =>
+        {
+            authorize = QueryString.Parse(url.Query);
+            return Redirects(Approve)(url);
+        });
+
+        await signIn.RunAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(authorize!.ContainsKey("code_challenge"));
+        Assert.False(authorize.ContainsKey("resource"));
+        Assert.Null(Assert.Single(_provider.Requests).Form("code_verifier"));
     }
 }

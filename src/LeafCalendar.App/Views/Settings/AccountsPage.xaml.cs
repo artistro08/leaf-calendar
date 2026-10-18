@@ -2,8 +2,11 @@ using System.Collections.Specialized;
 using System.Globalization;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
+using LeafCalendar.Core.Auth;
 using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Settings;
+using LeafCalendar.Core.Sunsama;
+using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
@@ -23,8 +26,8 @@ public sealed record DefaultCalendarChoice(string Name, string? Email)
 
 /// <summary>
 /// Settings › Accounts: adding a Google account, an expander per account (Meet by default and Disconnect inside), the
-/// main account, and Sync now; the scheduling providers (<see cref="ProviderAccountCard"/>); then the default calendar
-/// and the OAuth client.
+/// main account, and Sync now; the scheduling providers (<see cref="ProviderAccountCard"/>); the Sunsama card; then the
+/// default calendar and the OAuth client.
 /// </summary>
 public sealed partial class AccountsPage : Page
 {
@@ -50,6 +53,12 @@ public sealed partial class AccountsPage : Page
 
     // The Scheduling Provider Cards (spec 9.3)
     private readonly List<ProviderAccountCard> _providerCards = [];
+
+    // The Sunsama Sign-In Waiting On The Browser, Or Null
+    private CancellationTokenSource? _sunsamaSignIn;
+
+    // True Once "Sunsama signed you out" Has Shown For This Refusal, So A Refresh Doesn't Reopen The Card
+    private bool _sunsamaRefusalShown;
 
     /// <summary>Creates the page.</summary>
     public AccountsPage()
@@ -119,7 +128,9 @@ public sealed partial class AccountsPage : Page
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         _context.Services.Scheduling.Changed += OnSchedulingChanged;
+        _context.Services.Sunsama.Changed += OnSunsamaChanged;
         RefreshProviders();
+        RefreshSunsama();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e) => ReleaseProviders();
@@ -136,10 +147,190 @@ public sealed partial class AccountsPage : Page
     private void ReleaseProviders()
     {
         _context.Services.Scheduling.Changed -= OnSchedulingChanged;
+        _context.Services.Sunsama.Changed -= OnSunsamaChanged;
+        _sunsamaSignIn?.Cancel();
         foreach (var card in _providerCards)
         {
             card.Release();
         }
+    }
+
+    // =========================================================================
+    // SUNSAMA
+    // =========================================================================
+
+    // Raised on any thread (a sign-in, a sign-out, or Sunsama refusing the saved sign-in)
+    private void OnSunsamaChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(RefreshSunsama);
+
+    // The header shows the state's button: Sign in, the ring and Cancel while the browser is open, or Sign out
+    private void RefreshSunsama()
+    {
+        var sunsama = _context.Services.Sunsama;
+        var signingIn = _sunsamaSignIn is not null;
+        var signedIn = !signingIn && sunsama.State == SunsamaState.SignedIn;
+        var refused = !signingIn && sunsama.State == SunsamaState.NeedsSignIn;
+        SunsamaHeader.Description = sunsama.State == SunsamaState.SignedIn && sunsama.Email is { Length: > 0 } email ? email : "Not signed in";
+        SunsamaSignIn.Visibility = signingIn || signedIn ? Visibility.Collapsed : Visibility.Visible;
+        SunsamaSignOut.Visibility = signedIn || refused ? Visibility.Visible : Visibility.Collapsed;
+        SunsamaCancel.Visibility = signingIn ? Visibility.Visible : Visibility.Collapsed;
+        SunsamaRing.IsActive = signingIn;
+
+        // Color: its name (the palette's, or Tangerine for the default) and its dot
+        var color = _context.Calendar.SunsamaColor;
+        SunsamaColorDot.Fill = LeafBrushes.FromHex(color);
+        SunsamaColorRow.Description = EventColors.CalendarColorNames.FirstOrDefault(c => c.Hex == color).Name ?? "Tangerine";
+        SunsamaRing.Visibility = signingIn ? Visibility.Visible : Visibility.Collapsed;
+
+        // Sunsama Refused The Saved Sign-In: say why once (the card opens so the reason shows, and stays as you leave it)
+        if (sunsama.State != SunsamaState.NeedsSignIn)
+        {
+            _sunsamaRefusalShown = false;
+        }
+
+        if (!signingIn && sunsama.State == SunsamaState.NeedsSignIn && !_sunsamaRefusalShown)
+        {
+            _sunsamaRefusalShown = true;
+            ShowSunsamaError("Sunsama signed you out. Sign in again to see your task plan.");
+        }
+        else if (sunsama.State == SunsamaState.SignedIn)
+        {
+            ShowSunsamaError(null);
+        }
+    }
+
+    private void ShowSunsamaError(string? message)
+    {
+        SunsamaError.Message = message ?? "";
+        SunsamaError.IsOpen = message is not null;
+        SunsamaError.Visibility = message is null ? Visibility.Collapsed : Visibility.Visible;
+        if (message is not null)
+        {
+            ShowSunsamaSuccess(false);
+            SunsamaExpander.IsExpanded = true;
+        }
+    }
+
+    private void ShowSunsamaSuccess(bool show)
+    {
+        SunsamaSuccess.IsOpen = show;
+        SunsamaSuccess.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnSunsamaSuccessClosed(InfoBar sender, InfoBarClosedEventArgs args) => ShowSunsamaSuccess(false);
+
+    // Sign in through the browser, with Cancel; a refusal or failure says why and saves nothing
+    private async void OnSunsamaSignInClick(object sender, RoutedEventArgs e)
+    {
+        if (_sunsamaSignIn is not null)
+        {
+            return;
+        }
+
+        var services = _context.Services;
+        using var cts = new CancellationTokenSource();
+        _sunsamaSignIn = cts;
+        ShowSunsamaError(null);
+        ShowSunsamaSuccess(false);
+        RefreshSunsama();
+
+        // async void: anything that escapes here would terminate the process
+        var returned = false;
+        try
+        {
+            await services.Sunsama.SignInAsync(services.OpenSignInPageAsync, cts.Token);
+            returned = true;
+            ShowSunsamaSuccess(true);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            // Canceled (Cancel, or the page let go): nothing was saved, so there's nothing to say
+        }
+        catch (SchedulingAuthException ex)
+        {
+            returned = true;
+            services.Log.Info("sunsama.accounts.signin.refused", $"error={ex.GetType().Name}");
+            ShowSunsamaError("Sunsama didn't finish signing in. Try again.");
+        }
+        catch (SchedulingPortBusyException)
+        {
+            ShowSunsamaError(string.Create(CultureInfo.InvariantCulture, $"Port {SunsamaService.RedirectPort} is busy, so Leaf Calendar can't finish signing in. Close the app using it and try again."));
+        }
+        catch (Exception ex) when (ex is SchedulingUnavailableException or InvalidDataException)
+        {
+            services.Log.Info("sunsama.accounts.signin.unavailable", $"error={ex.GetType().Name}");
+            ShowSunsamaError("Couldn't reach Sunsama. Check your connection and try again.");
+        }
+        catch (TimeoutException)
+        {
+            services.Log.Info("sunsama.accounts.signin.timeout");
+            ShowSunsamaError("Sign-in timed out. Try again.");
+        }
+        catch (SignInException ex)
+        {
+            // The browser couldn't be opened (the Google sign-in's own text)
+            ShowSunsamaError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            services.Log.Info("sunsama.accounts.signin.failed", $"error={ex.GetType().Name}");
+            ShowSunsamaError("Something went wrong. Try again.");
+        }
+        finally
+        {
+            _sunsamaSignIn = null;
+            RefreshSunsama();
+        }
+
+        // The Browser Came Back: Leaf Calendar comes to the front (still inside async void, so nothing may escape)
+        if (returned)
+        {
+            try
+            {
+                services.NotifySignInReturned();
+            }
+            catch (Exception ex)
+            {
+                services.Log.Info("sunsama.accounts.front.failed", $"error={ex.GetType().Name}");
+            }
+        }
+    }
+
+    private void OnSunsamaCancelClick(object sender, RoutedEventArgs e) => _sunsamaSignIn?.Cancel();
+
+    // The calendar palette; the blocks, the sidebar items and the card repaint at once
+    private void OnSunsamaColorClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button)
+        {
+            return;
+        }
+
+        void Use(string? hex)
+        {
+            _context.Save(s => s with { SunsamaColor = hex });
+            _context.Calendar.ReloadCalendars();
+            RefreshSunsama();
+        }
+
+        ColorPaletteFlyout.Create(_context.Calendar.SunsamaColor, ActualTheme == ElementTheme.Dark, hex => Use(hex), "Use the default color", "SunsamaColorReset", () => Use(null)).ShowAt(button);
+    }
+
+    // Sign out: removes the sign-in and every saved block; the sidebar group goes with them
+    private void OnSunsamaSignOutClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _context.Services.Sunsama.SignOut();
+        }
+        catch (Exception ex)
+        {
+            // A click handler, so nothing may escape; the type only
+            _context.Services.Log.Info("sunsama.accounts.signout.failed", $"error={ex.GetType().Name}");
+            ShowSunsamaError("Something went wrong. Try again.");
+        }
+
+        ShowSunsamaSuccess(false);
+        RefreshSunsama();
     }
 
     // Raised on any thread (a client saved or removed, a sign-in or sign-out, or a provider signing Leaf Calendar out)

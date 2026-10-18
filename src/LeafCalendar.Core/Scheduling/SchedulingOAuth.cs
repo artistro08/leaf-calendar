@@ -12,11 +12,24 @@ namespace LeafCalendar.Core.Scheduling;
 /// <param name="RedirectPort">The fixed loopback port the redirect comes back on (providers match redirect URIs exactly).</param>
 /// <param name="RedirectPath">The redirect path, starting with <c>/</c>.</param>
 /// <param name="ClientPage">Where you create your own OAuth client on the provider's site.</param>
-public sealed record SchedulingOAuth(Uri Authorize, Uri Token, IReadOnlyList<string> Scopes, int RedirectPort, string RedirectPath, Uri ClientPage);
+/// <param name="UsePkce">Sends a PKCE S256 challenge and verifier (public clients such as Sunsama's).</param>
+/// <param name="Resource">The protected resource sent as <c>resource</c> on authorize and token requests (MCP servers).</param>
+public sealed record SchedulingOAuth(
+    Uri Authorize,
+    Uri Token,
+    IReadOnlyList<string> Scopes,
+    int RedirectPort,
+    string RedirectPath,
+    Uri ClientPage,
+    bool UsePkce = false,
+    Uri? Resource = null);
 
-/// <summary>Your own OAuth client for a provider (a confidential client: ID and secret).</summary>
+/// <summary>
+/// An OAuth client for a provider: your own confidential client (ID and secret), or a public client with an empty secret
+/// (Sunsama's, registered by Leaf Calendar), which sends no <c>client_secret</c>.
+/// </summary>
 /// <param name="ClientId">The client ID.</param>
-/// <param name="ClientSecret">The client secret; sent only in the token request body, never in a URL or a log.</param>
+/// <param name="ClientSecret">The client secret ("" for a public client); sent only in the token request body, never in a URL or a log.</param>
 public sealed record ProviderClient(string ClientId, string ClientSecret)
 {
     /// <summary>Names the type only, so printing a client (in a log or an exception) never shows its ID or secret, which are never logged.</summary>
@@ -55,12 +68,21 @@ internal sealed partial class SchedulingOAuthJsonContext : JsonSerializerContext
 // The token request both the sign-in and the refresh send, with the provider's errors mapped
 internal static class SchedulingTokenRequest
 {
-    // Posts the form plus the client's ID and secret (body only). 400/401 and an answer without an access token are
-    // refusals; offline, a timeout, 429, 5xx and an unreadable answer may pass. Cancellation propagates.
+    // Posts the form plus the client's ID, its secret when it has one (body only) and the resource when set. 400/401 and
+    // an answer without an access token are refusals; offline, a timeout, 429, 5xx and an unreadable answer may pass.
+    // Cancellation propagates.
     public static async Task<OAuthTokenResponse> SendAsync(HttpClient http, SchedulingOAuth oauth, ProviderClient client, List<KeyValuePair<string?, string?>> form, CancellationToken ct)
     {
         form.Add(new("client_id", client.ClientId));
-        form.Add(new("client_secret", client.ClientSecret));
+        if (client.ClientSecret.Length > 0)
+        {
+            form.Add(new("client_secret", client.ClientSecret));
+        }
+
+        if (oauth.Resource is { } resource)
+        {
+            form.Add(new("resource", resource.AbsoluteUri));
+        }
 
         using var content = new FormUrlEncodedContent(form);
         HttpResponseMessage response;

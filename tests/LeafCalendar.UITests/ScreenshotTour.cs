@@ -150,6 +150,56 @@ public sealed class ScreenshotTour : IDisposable
     }
 
     /// <summary>
+    /// Sunsama in light and dark for the user guide: the week with projected and timeboxed blocks (one striped with tracked
+    /// time) at 1366 × 768, the sidebar's Sunsama group, the details panel for a block and for the matched Google event, and
+    /// Settings › Accounts with the Sunsama card open. Set LEAF_SCREENSHOTS to run it.
+    /// </summary>
+    [Fact]
+    public void Capture_Sunsama()
+    {
+        var folder = Environment.GetEnvironmentVariable("LEAF_SCREENSHOTS");
+        if (string.IsNullOrEmpty(folder))
+        {
+            Assert.Skip("Set LEAF_SCREENSHOTS to a folder to capture the Sunsama screens.");
+        }
+
+        Directory.CreateDirectory(folder);
+        SunsamaGridTests.Seed(_google);
+        var block = SunsamaGridTests.BlockId(SunsamaGridTests.ProjectedId, SunsamaGridTests.ProjectedStart);
+        foreach (var theme in new[] { AppTheme.Light, AppTheme.Dark })
+        {
+            var name = theme.ToString().ToLowerInvariant();
+            var profile = SunsamaGridTests.SignedInProfile(new LeafSettings { Theme = theme, PrimaryTimeZone = "America/Chicago" });
+            _profiles.Add(profile);
+            using var leaf = SunsamaGridTests.Launch(profile, _google);
+            Place(leaf, 1366, 768);
+            SunsamaGridTests.WaitForBlock(leaf, block);
+            Thread.Sleep(1500);
+
+            // The Week, Then The Sidebar's Sunsama Group
+            leaf.MainWindow.CaptureToFile(Path.Combine(folder, $"sunsama-week-{name}.png"));
+            leaf.WaitFor("Sidebar").CaptureToFile(Path.Combine(folder, $"sunsama-sidebar-{name}.png"));
+
+            // Details: A Block, Then The Matched Google Event
+            leaf.WaitFor(block).Click();
+            leaf.WaitFor("DetailsSunsamaTitle");
+            Thread.Sleep(600);
+            leaf.WaitFor("DetailsPanel").CaptureToFile(Path.Combine(folder, $"sunsama-details-{name}.png"));
+            leaf.WaitFor(SunsamaGridTests.Dentist).Click();
+            leaf.WaitFor("DetailsEventTracked");
+            Thread.Sleep(600);
+            leaf.WaitFor("DetailsPanel").CaptureToFile(Path.Combine(folder, $"sunsama-matched-{name}.png"));
+
+            // Settings › Accounts With The Sunsama Card Open
+            var settings = leaf.OpenSettings("Accounts");
+            leaf.ExpandInSettings("SunsamaExpander");
+            leaf.WaitInSettings("SunsamaExpander").Patterns.ScrollItem.Pattern.ScrollIntoView();
+            Thread.Sleep(600);
+            settings.CaptureToFile(Path.Combine(folder, $"sunsama-expander-{name}.png"));
+        }
+    }
+
+    /// <summary>
     /// Cal.com in light and dark at the minimum and a wide window: Settings › Accounts before any OAuth client (with the
     /// client form open) and signed in, Settings › Scheduling and the Booking notifications card, then the share panel with
     /// the switch on, the closed times shaded and a fitted drag's messages. Set LEAF_SCREENSHOTS to run it.

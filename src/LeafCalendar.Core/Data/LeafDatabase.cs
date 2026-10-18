@@ -151,5 +151,14 @@ public sealed class LeafDatabase(string path)
             conn.Execute(tx, "PRAGMA user_version = 13;");
             tx.Commit();
         }
+
+        // Version 14
+        if (version < 14)
+        {
+            using var tx = conn.BeginTransaction();
+            conn.Execute(tx, Schema.V14);
+            conn.Execute(tx, "PRAGMA user_version = 14;");
+            tx.Commit();
+        }
     }
 }

@@ -79,6 +79,12 @@ public sealed class ProviderTokens(
     /// </remarks>
     public void Dispose() => _ended = true;
 
+    /// <summary>
+    /// Forgets the cached access token, so the next call refreshes: for a server that refused a token it should still
+    /// take (Sunsama's MCP server ending one early).
+    /// </summary>
+    public void ForgetAccessToken() => _accessToken = null;
+
     private void ThrowIfEnded()
     {
         if (_ended)

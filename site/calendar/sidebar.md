@@ -28,6 +28,15 @@ Every Google account you've signed in to is listed with its calendars, including
 
 > Renaming a calendar needs an internet connection, since the new name is saved to Google.
 
+## Sunsama
+
+When you're [signed in to Sunsama](../sunsama/), a **Sunsama** group shows under your Google accounts with two items. Check or uncheck them like calendars:
+
+- **Projected tasks** shows or hides your Sunsama task blocks.
+- **Tracked time** shows or hides the time you've tracked on tasks.
+
+![The sidebar's Sunsama group with Projected tasks and Tracked time](../../assets/images/sunsama-sidebar.png)
+
 ## The buttons at the bottom
 
 - **Settings** (the gear) opens [Settings](../../settings/). You can also press `Ctrl+,`.

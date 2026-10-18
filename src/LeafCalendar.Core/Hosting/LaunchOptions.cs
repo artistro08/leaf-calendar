@@ -11,7 +11,7 @@ namespace LeafCalendar.Core.Hosting;
 /// <list type="bullet">
 /// <item><c>--profile &lt;name&gt;</c> isolates data. Only <c>[A-Za-z0-9_-]{1,64}</c> is accepted; anything else means <c>default</c>.</item>
 /// <item><c>--tray-probe</c> closes the window after it renders and trims memory (memory budget test).</item>
-/// <item><c>--fake-google &lt;uri&gt;</c> sends every Google request to a fake server (UI tests). Only an absolute
+/// <item><c>--fake-google &lt;uri&gt;</c> sends every Google, Cal.com and Sunsama request to a fake server (UI tests). Only an absolute
 /// <c>http</c> loopback address is accepted, and only with a throwaway <c>uitest-</c> profile, so a real profile's
 /// secrets are never sent to the fake server.</item>
 /// <item><c>--start-date yyyy-MM-dd</c> opens on that date and treats it as "today". It's honored only with <c>--fake-google</c>.</item>

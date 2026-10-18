@@ -1,5 +1,6 @@
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.Sunsama;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -10,8 +11,9 @@ namespace LeafCalendar.App.Controls;
 
 /// <summary>
 /// Right-click menu for events (spec 7.3 and 7.4): reply, copy, cut, color, delete. It acts on the whole selection
-/// when the clicked event is part of it; otherwise it selects just that event first. Items are built in code and
-/// their clicks capture the view model, so nothing is read back from a menu item.
+/// when the clicked event is part of it; otherwise it selects just that event first. A Sunsama block is read-only and
+/// gets only Open in Sunsama. Items are built in code and their clicks capture the view model, so nothing is read back
+/// from a menu item.
 /// </summary>
 public static class EventContextMenu
 {
@@ -25,8 +27,22 @@ public static class EventContextMenu
             vm.Select(occurrence);
         }
 
-        var single = vm.Selection.Count == 1 ? vm.SelectedInfo : null;
         var menu = new MenuFlyout();
+
+        // A Sunsama Block: nothing to change, only the task in Sunsama (no menu at all for an ID that isn't Sunsama's shape)
+        if (SunsamaOccurrences.IsSunsama(occurrence))
+        {
+            vm.Select(occurrence);
+            if (SunsamaText.IsTaskId(vm.SunsamaShownFor(occurrence)?.Block.TaskId))
+            {
+                menu.Items.Add(Item("Open in Sunsama", "MenuOpenInSunsama", 0xE8A7, () => vm.OpenInSunsama(occurrence)));
+                menu.ShowAt(target, position);
+            }
+
+            return;
+        }
+
+        var single = vm.Selection.Count == 1 ? vm.SelectedInfo : null;
 
         // Reply (one invite)
         if (single is { CanRespond: true })

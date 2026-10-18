@@ -70,6 +70,7 @@ Leaf Calendar is a fast, low-memory, native Windows 11 desktop calendar with fea
 | Local DB encryption | None beyond Windows user profile protection. Tokens are encrypted separately. |
 | Share availability | Google free/busy based, copied as text, or as booking links when a scheduling provider (Cal.com) is signed in. Plus a button that opens Google's appointment schedule page. |
 | Scheduling providers | One small interface per provider action; Cal.com first (2026-10-12, issue #28). No webhooks (no Leaf server); bookings are checked after each sync while saved provider times exist. |
+| Sunsama | Read-only: Sunsama's projected and timeboxed task times drawn on the calendar, with each task's channel and tracked time (2026-10-16). Nothing is written to Sunsama or Google. See `2026-10-16-sunsama-projections-design.md`. |
 | Search | No search box. Search goes through the command menu. |
 | Tray menu | XAML menu, placement follows taskbar position. |
 | Tray flyout construction | An invisible host window opens a stock `Flyout` holding the acrylic panel (Layers' HUD pattern), so light dismiss, Esc, and focus are stock and Win32 stays on CsWin32 without marshaling (Milestone 4). |
@@ -180,7 +181,8 @@ Built in Milestone 3 (owner redesign) as its own onboarding window, shown instea
 - Writes go to a temp file that replaces `secrets.bin` in one move, so a crash never leaves half a file. A file DPAPI reports as bad data (damaged, or made for another user or profile) reads as empty (the user signs in again), and the next write moves it aside to `secrets.bin.unreadable` before replacing it. Any other failure to read it (DPAPI failing for a passing reason, such as a key not yet available after a password change, or a locked file) is reported as "try later", never as signed out, and nothing overwrites the file. Sync retries on its own schedule; at startup Leaf opens as usual without Google services (as before setup, but never showing setup to a signed-in user) and tries the secrets again every 30 seconds; sign-in and calendar changes show their usual "try again" messages.
 - Earlier builds kept secrets in the user-wide **Windows Credential Locker** (`PasswordVault`), which uninstalling doesn't clear. While `secrets.bin` doesn't exist, each start copies the Locker's secrets into it in one write, then deletes them from the Locker. If that write fails, the Locker stays untouched, that run uses it (nobody looks signed out), and the next start tries again. If the Locker can't be read, there's nothing to lose, so the file store is used. Once `secrets.bin` exists it's the store; deleting Locker leftovers is best effort and retried each start. If `secrets.bin` is bad data and leftovers exist, they rebuild it in one write first; if it can't be read right now, the leftovers are kept. The move itself never stops Leaf from starting.
 - Access tokens live in memory only.
-- Scheduling provider secrets (Cal.com OAuth client ID, client secret and refresh token) live in the same file, in a separate `Providers` map, with the same encryption and atomic writes. Signing out of a provider removes its refresh token only; Remove OAuth client removes all three.
+- Sunsama signs in with a public OAuth client Leaf Calendar registers itself (dynamic client registration, no secret) and PKCE, on a fixed loopback port (53818), with scopes `read` and `offline_access` only. Its client ID, refresh token and email are provider secrets under `sunsama`; Sign out removes them and every saved Sunsama row. See `2026-10-16-sunsama-projections-design.md` sections 3 and 4.2.
+- Scheduling provider secrets (Cal.com OAuth client ID, client secret and refresh token) live in the same file, in a separate `Providers` map, with the same encryption and atomic writes. Signing out of Cal.com removes its refresh token only; Remove OAuth client removes all three. (Sunsama's sign-out removes all of its secrets; see below.)
 - Disconnecting an account calls Google's revoke endpoint, removes its refresh token, and deletes its local data. If it has pending outbox changes, Leaf warns first.
 
 ### 4.4 Local Data
@@ -241,6 +243,7 @@ Anyone can send an invite, so event content is treated as hostile.
 | `outbox` | Sequence, account ID, operation (create / patch / delete / move / RSVP), target event, payload JSON, base etag, send-updates choice, attempt count, last error. Also the rows before the edit (for undo and rejected edits), a hold-until time (the 6-second undo window for deletes; after it, undo (Ctrl+Z, any delete from this session) re-creates the event quietly with a new ID (no emails; guest replies reset), and restores a canceled instance or an ended repeat instead), and a state (pending or conflict). |
 | `conflicts` | Outbox entry, local version JSON, Google version JSON, detected time. |
 | `settings` | Key/value app settings. |
+| `sunsama_block` | Sunsama task times saved per local day (migration 14): task ID, title, channel, start/end, planned and tracked minutes, completed, kind (projected / timebox / matched) and the matched Google event. See `2026-10-16-sunsama-projections-design.md` 5.2. |
 
 ### 5.2 Initial Sync
 
@@ -258,6 +261,7 @@ Anyone can send an invite, so event content is treated as hostile.
 - `410 Gone` (token expired): full resync of that calendar. The outbox is untouched.
 - The calendar list, colors, and settings sync on startup and every 15 minutes.
 - The sync engine exposes a "changes available" trigger so a push relay can be added later without rework.
+- After each pass, while signed in to Sunsama and one of its sidebar items is on, Leaf Calendar fetches the days on screen from Sunsama's MCP server and replaces those days' saved rows (`2026-10-16-sunsama-projections-design.md` 4.5).
 
 ### 5.4 Offline Editing (Outbox)
 
@@ -299,7 +303,7 @@ Anyone can send an invite, so event content is treated as hostile.
 1. Navigation icon (toggles the sidebar), top-left corner.
 2. Back button, visible only when there is somewhere to go back to (an opened command menu result). Settings no longer needs it (Section 6.7). The stock title bar back button (Milestone 5).
 3. Leaf icon and "Leaf Calendar".
-4. Right side: Today button, previous/next pagers, sync status icon (Milestone 3: pending changes and conflicts, details in its tooltip; one slot, shown only when something needs attention: conflicts, then offline, then changes waiting. Syncing stays in the background with no progress ring, so offline and changes waiting show only once 3 syncs in a row couldn't reach Google, and hide again when one gets through), view picker (Day / Week / Month / X days), then the caption buttons.
+4. Right side: Today button, previous/next pagers, sync status icon (Milestone 3: pending changes and conflicts, details in its tooltip; one slot, shown only when something needs attention: conflicts, then offline, then changes waiting. Syncing stays in the background with no progress ring, so offline and changes waiting show only once 3 syncs in a row couldn't reach Google, and hide again when one gets through; while Google is fine, the same slot shows a quiet Sunsama icon once 3 passes in a row couldn't reach Sunsama, `2026-10-16-sunsama-projections-design.md` 7), view picker (Day / Week / Month / X days), then the caption buttons.
 5. Search icon (opens the command menu): at the top of the left sidebar, in its title-bar row, styled like the details panel's edit and delete icons (owner request, Milestone 3; built in Milestone 5: centered over the mini month's Next month button, or after the app title when the sidebar is closed).
 
 ### 6.3 Sidebar (Collapsible)
@@ -313,6 +317,7 @@ Anyone can send an invite, so event content is treated as hostile.
 - Button: "Share availability".
 - Milestone 3 owner redesign: calendar rows only show or hide their calendar (the checkbox keeps the calendar's color); colors moved to Settings › Calendars. The "Google booking pages" link was removed from the sidebar. An icon-only Settings button sits at the bottom-left of the sidebar and replaces the Accounts row.
 - Subscribed calendars appear automatically from the Google calendar list.
+- A **Sunsama** group under the Google accounts, shown only while signed in to Sunsama, with **Projected tasks** and **Tracked time** (`2026-10-16-sunsama-projections-design.md` 6.2).
 - Milestone 5: right-click a calendar for Rename… (Google summary override, needs a connection), Show upcoming events (next 30 days, in the details panel), and Change color… (opens Settings › Calendars). A share-availability icon sits beside the Settings icon.
 
 ### 6.4 Calendar Area
@@ -324,12 +329,14 @@ Anyone can send an invite, so event content is treated as hostile.
 - **Current-time line.** Working hours shaded (Leaf's own setting; Google's API doesn't expose them), 9 AM–5 PM Monday–Friday by default.
 - **Zoom:** grid density (hour height). The whole-app interface scale was dropped by the owner in Milestone 5.
 - **Event styles:** focus time, out of office, and birthday events each have a distinct look.
+- **Sunsama:** read-only projected and timeboxed task blocks in the Sunsama color, with the channel after the time and a striped tracked-time overlay (also on matched Google events). Dragging one says "You can't edit projected times." with **Open task in Sunsama** (`2026-10-16-sunsama-projections-design.md` 6.3).
 - **Navigation:** smooth horizontal scrolling (trackpad, `Shift`+wheel, drag). Pagers jump a full period with a slide animation, with the next period preloaded so nothing flashes blank.
 
 ### 6.5 Right Panel (Collapsible)
 
 - Nothing selected: upcoming meetings for the next X hours (setting), each with a Join button.
 - Event selected: event details and the editor (Section 7). Shows Busy/Free and visibility (read-only).
+- Sunsama block selected: the task's title, time, channel, planned and tracked time, and **Open in Sunsama**; a Google event matched to a task adds its tracked line and **Open in Sunsama** (`2026-10-16-sunsama-projections-design.md` 6.4).
 
 ### 6.6 Command Menu
 
@@ -588,6 +595,7 @@ Ctrl+wheel over the time grid zooms like Ctrl+= / Ctrl+-.
 - Default calendar for new events (built in the Milestone 3 polish)
 - Default conferencing per account (Google Meet or none)
 - Scheduling providers (Cal.com first): your own OAuth client ID and secret, Sign in with Cal.com, Sign out (keeps the client), Remove OAuth client; see `2026-10-12-scheduling-providers-design.md`
+- Sunsama (its own group under the scheduling providers): Sign in with Sunsama, Sign out, and the color Sunsama blocks are drawn in; see `2026-10-16-sunsama-projections-design.md` 6.1
 
 **Calendars**
 - Color, visibility, order, and display name (Google summary override)

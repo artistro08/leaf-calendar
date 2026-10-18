@@ -1,5 +1,6 @@
 using LeafCalendar.Core.Data;
 using LeafCalendar.Core.People;
+using LeafCalendar.Core.Sunsama;
 using LeafCalendar.Tests.Support;
 using Microsoft.Data.Sqlite;
 
@@ -25,7 +26,7 @@ public sealed class LeafDatabaseTests : IDisposable
         foreignKeys.CommandText = "PRAGMA foreign_keys;";
 
         Assert.Equal("wal", (string)mode.ExecuteScalar()!);
-        Assert.Equal(13L, (long)version.ExecuteScalar()!);
+        Assert.Equal(14L, (long)version.ExecuteScalar()!);
         Assert.Equal(1L, (long)foreignKeys.ExecuteScalar()!);
     }
 
@@ -100,7 +101,7 @@ public sealed class LeafDatabaseTests : IDisposable
             Assert.Equal(1L, pending[1].DependsOn);
             Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM calendars;", r => r.GetInt64(0)).Single());
             Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM events;", r => r.GetInt64(0)).Single());
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.True(AlertLedger.TryAdd(conn, "k", LeafCalendar.Core.Alerts.AlertKind.Reminder, "t", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
             conn.Close();
             SqliteConnection.ClearPool(conn);
@@ -131,7 +132,7 @@ public sealed class LeafDatabaseTests : IDisposable
             var account = Assert.Single(AccountStore.GetAll(conn));
             Assert.Equal(("acct", "a@example.com", "A"), (account.Id, account.Email, account.DisplayName));
             Assert.Null(account.HostedDomain);
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             conn.Close();
             SqliteConnection.ClearPool(conn);
         }
@@ -159,7 +160,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.True(Assert.Single(CalendarStore.GetAll(conn)).IsVisible);
 
             CalendarStore.ReplaceForAccount(conn, "acct", [new LeafCalendar.Core.Google.CalendarListEntry { Id = "todoist", Summary = "Todoist", Selected = false }]);
@@ -191,7 +192,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.Single(AccountStore.GetAll(conn));
             Assert.Empty(ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow));
             conn.Close();
@@ -222,7 +223,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             var group = Assert.Single(ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow));
             Assert.Equal("Coffee", group.Title);
             Assert.Empty(group.Guests);
@@ -256,7 +257,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             var groups = ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow);
             Assert.Equal(["Coffee", "Lunch"], groups.Select(g => g.Title));
             Assert.Equal([new Contact("", "pat@example.com")], groups[0].Guests);
@@ -291,7 +292,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             var group = Assert.Single(ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow));
             Assert.Equal([new Contact("", "pat@example.com"), new Contact("", "sam@example.com")], group.Guests);
             conn.Close();
@@ -322,10 +323,39 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(13L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             var group = Assert.Single(ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow));
             Assert.Equal("Held", group.Title);
             Assert.Equal(("", 0), (group.ProviderId, group.LinkMinutes));
+            conn.Close();
+            SqliteConnection.ClearPool(conn);
+        }
+    }
+
+    [Fact]
+    public void Migrate_FromVersion13_AddsSunsamaBlockTable()
+    {
+        using var folder = new TempFolder();
+        var database = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
+        var day = new DateOnly(2026, 10, 16);
+        var start = new DateTimeOffset(2026, 10, 16, 15, 0, 0, TimeSpan.Zero);
+
+        // A Version 13 Database (from before Sunsama task times were kept)
+        using (var conn = database.Open())
+        using (var setup = conn.CreateCommand())
+        {
+            setup.CommandText = Schema.V1 + Schema.V2 + Schema.V3 + Schema.V4 + Schema.V5 + Schema.V6 + Schema.V7 + Schema.V8 + Schema.V9 + Schema.V10 + Schema.V11 + Schema.V12 + Schema.V13 + "PRAGMA user_version = 13;";
+            setup.ExecuteNonQuery();
+        }
+
+        database.Migrate();
+
+        using (var conn = database.Open())
+        {
+            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            var row = new SunsamaBlock(day, "t1", "Title", "Channel", start, start.AddHours(1), 60, 30, false, SunsamaBlockKind.Projected, null, null, null);
+            SunsamaStore.ReplaceDay(conn, null, day, [row]);
+            Assert.Equal(row, Assert.Single(SunsamaStore.Range(conn, null, day, day.AddDays(1))));
             conn.Close();
             SqliteConnection.ClearPool(conn);
         }

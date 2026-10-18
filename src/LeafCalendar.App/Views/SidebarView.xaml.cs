@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Sunsama;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -123,7 +124,7 @@ public sealed partial class SidebarView : UserControl
             return;
         }
 
-        AccountGroup.Sync(_groups, _viewModel.CalendarGroups());
+        AccountGroup.Sync(_groups, _viewModel.CalendarGroups(includeSunsama: true));
 
         // Forget Checkboxes Whose Calendar Left (a removed calendar or account), Repaint Those Whose Color Changed
         var shown = _groups.SelectMany(g => g.Calendars).ToHashSet();
@@ -434,7 +435,9 @@ public sealed partial class SidebarView : UserControl
         AutomationProperties.SetName(args.ItemContainer, row.Name);
 
         Paint(box, row);
-        args.ItemContainer.ContextFlyout = MenuFor(row);
+
+        // Sunsama's rows are settings: no color, rename or hide-others menu
+        args.ItemContainer.ContextFlyout = row.Info.AccountId == SunsamaOccurrences.AccountId ? null : MenuFor(row);
     }
 
     // =========================================================================

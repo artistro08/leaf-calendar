@@ -1,6 +1,7 @@
 using System.Globalization;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.Sunsama;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
@@ -1014,9 +1015,10 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
-        // An Event You Can't Change Can Still Be Alt+Dragged To A Copy (in a calendar you can write to)
+        // An Event You Can't Change Can Still Be Alt+Dragged To A Copy (in a calendar you can write to); a Sunsama block
+        // never moves or copies, it only gives a little
         var copyOnly = !_vm.CanEdit(occurrence);
-        if (copyOnly && !KeyState.IsDown(Windows.System.VirtualKey.Menu))
+        if (copyOnly && (SunsamaOccurrences.IsSunsama(occurrence) || !KeyState.IsDown(Windows.System.VirtualKey.Menu)))
         {
             _drag = new DragSession(DragKind.Nudge, e.GetCurrentPoint(this).Position) { Occurrence = occurrence, Card = card, Pull = pull };
             return;

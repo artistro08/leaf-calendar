@@ -36,8 +36,19 @@ public sealed class CommandMenuTests : IDisposable
         return box;
     }
 
-    // An element's automation ID, or "" for parts that don't support one (the list's scroll bar pieces)
-    private static string Id(AutomationElement e) => e.Properties.AutomationId.ValueOrDefault ?? "";
+    // An element's automation ID, or "" for parts that don't support one (the list's scroll bar pieces) and for a row the
+    // list removed while it was being read (results redraw as the search settles; UI Automation then throws)
+    private static string Id(AutomationElement e)
+    {
+        try
+        {
+            return e.Properties.AutomationId.ValueOrDefault ?? "";
+        }
+        catch (System.Runtime.InteropServices.COMException)
+        {
+            return "";
+        }
+    }
 
     // The result rows' automation IDs, top to bottom
     // (none while the list is gone: with no rows it collapses; rows scrolled out of view have no bounds, so they go last)

@@ -224,4 +224,28 @@ internal static class Schema
         ALTER TABLE share_groups ADD COLUMN link_url     TEXT    NOT NULL DEFAULT '';
         ALTER TABLE share_groups ADD COLUMN link_minutes INTEGER NOT NULL DEFAULT 0;
         """;
+
+    /// <summary>
+    /// Version 14: <c>sunsama_block</c>, the Sunsama task times shown on the calendar (spec 2026-10-16, Sunsama projections),
+    /// saved per local day so they show offline. Local only; Sign out deletes every row.
+    /// </summary>
+    public const string V14 = """
+        CREATE TABLE sunsama_block (
+            day                 TEXT    NOT NULL,
+            task_id             TEXT    NOT NULL,
+            title               TEXT    NOT NULL,
+            channel             TEXT    NOT NULL,
+            start_utc           TEXT    NOT NULL,
+            end_utc             TEXT    NOT NULL,
+            estimate_minutes    INTEGER,
+            tracked_minutes     INTEGER,
+            completed           INTEGER NOT NULL,
+            kind                TEXT    NOT NULL,
+            matched_account_id  TEXT,
+            matched_calendar_id TEXT,
+            matched_event_id    TEXT
+        );
+
+        CREATE INDEX ix_sunsama_block_day ON sunsama_block (day);
+        """;
 }

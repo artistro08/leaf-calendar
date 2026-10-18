@@ -88,6 +88,39 @@ public static class LeafBrushes
     /// </summary>
     public static SolidColorBrush ClosedTimeEdge => HighContrast ? SystemBrush(UIElementType.GrayText) : Transparent;
 
+    /// <summary>
+    /// Sunsama's tracked-time texture (spec 2026-10-16, section 6.3.1): diagonal 3 px stripes in the card's accent at 35%,
+    /// repeated across the card, so the card's own color reads through. Cached per accent (UI thread only).
+    /// </summary>
+    public static LinearGradientBrush TrackedStripes(string accentHex)
+    {
+        if (StripesCache.TryGetValue(accentHex, out var cached))
+        {
+            return cached;
+        }
+
+        var color = FromHex(accentHex).Color;
+        var tint = Color.FromArgb(0x59, color.R, color.G, color.B);
+        var brush = new LinearGradientBrush
+        {
+            MappingMode = BrushMappingMode.Absolute,
+            StartPoint = new Windows.Foundation.Point(0, 0),
+            EndPoint = new Windows.Foundation.Point(6, 6),
+            SpreadMethod = GradientSpreadMethod.Repeat,
+        };
+        brush.GradientStops.Add(new GradientStop { Color = tint, Offset = 0 });
+        brush.GradientStops.Add(new GradientStop { Color = tint, Offset = 0.5 });
+        brush.GradientStops.Add(new GradientStop { Color = Colors.Transparent, Offset = 0.5 });
+        brush.GradientStops.Add(new GradientStop { Color = Colors.Transparent, Offset = 1 });
+        StripesCache[accentHex] = brush;
+        return brush;
+    }
+
+    /// <summary>The edge where tracked time ends, in a contrast theme (no stripes there): the highlight color.</summary>
+    public static SolidColorBrush TrackedEdge => SystemBrush(UIElementType.Highlight);
+
+    private static readonly Dictionary<string, LinearGradientBrush> StripesCache = new(StringComparer.OrdinalIgnoreCase);
+
     // =========================================================================
     // CONTRAST THEMES
     // =========================================================================
