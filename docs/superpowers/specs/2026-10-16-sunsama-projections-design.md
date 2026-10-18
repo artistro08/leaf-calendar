@@ -50,15 +50,15 @@ From `https://api.sunsama.com/.well-known/oauth-authorization-server` and the he
 ### 4.1 MCP Client (`SunsamaMcpClient`)
 
 - Streamable HTTP: POST JSON-RPC 2.0 to the server URL with `Accept: application/json, text/event-stream`. Sends `initialize`, then `notifications/initialized`, keeps the `Mcp-Session-Id` header the server returns, then calls `resources/read`.
-- Reads a reply as plain JSON or as one SSE `data:` message, whichever the server sends.
+- Reads a reply as plain JSON or as the SSE `data:` message carrying the call's id, whichever the server sends.
 - A 404 for the session starts a new session once and retries the call.
-- JSON only through a source-generated context (`SunsamaJsonContext`).
+- JSON is read with `JsonDocument` and written with `Utf8JsonWriter` by hand (no serializer, so nothing for AOT to trim).
 - One shared `HttpClient`. Nothing is created until Sunsama is connected.
 
 ### 4.2 Sign-In and Tokens
 
 - Reuses `ProviderSignIn` and `ProviderTokens` from `Core/Scheduling/`. `ProviderSignIn` gains PKCE (on for Sunsama, off for Cal.com, which refuses `code_verifier`).
-- Registration (`SunsamaRegistration`) posts `client_name` "Leaf Calendar", the loopback `redirect_uris`, `token_endpoint_auth_method: none`, `grant_types: [authorization_code, refresh_token]`. The returned client ID is saved; a refused or lost client ID registers again at the next sign-in.
+- Registration (`SunsamaRegistration`) posts `client_name` "Leaf Calendar", the loopback `redirect_uris`, `token_endpoint_auth_method: none`, `grant_types: [authorization_code, refresh_token]`. The returned client ID is saved. A sign-in Sunsama refuses while signed out removes the saved client, so the next sign-in registers again; while Sunsama has signed you out, the saved sign-in stays and only the next sign-in registers a new client. Signing out removes the client ID too, so every sign-in after a sign-out registers again.
 - The listener uses a fixed loopback port and path, so the registered redirect stays valid.
 
 ### 4.3 Parsing (`SunsamaParser`, pure)
@@ -74,27 +74,27 @@ A Sunsama task matches a Google event Leaf Calendar has when:
 1. A task with a timebox event, or imported from a calendar event (`importedFrom.identifier.sunsamaId` is that event's `eventId` in the day's events), whose event is on a Google calendar (its `calendarId` is in `sunsama://me` with provider `google-calendar`), matches the cached Leaf Calendar occurrence on the same calendar ID with the same start instant and the same title; if none has the same title, the one with the same start on that calendar.
 2. A Google-side event with no cached match (its calendar hidden or not synced yet) draws nothing.
 
-A matched task draws no block. The matched Google event shows the task's tracked total.
+A task tied to a Google-side event draws no block of its own (no projected or timeboxed block), matched or not. The matched Google event shows the task's tracked total.
 
-### 4.5 Fetching (`SunsamaSync`)
+### 4.5 Fetching (`SunsamaService.SyncAsync`)
 
-- Runs on `SyncLoop`'s pace (15 s on screen, 60 s in the tray, 5 minutes on Energy Saver or a metered connection), only while Sunsama is connected and at least one of the two sidebar items is on.
-- Fetches the days on screen. `sunsama://me` is read once per session and again when the zone is needed and missing.
+- Starts after each Google sync pass without holding it up, so it runs on `SyncLoop`'s pace (15 s on screen, 60 s in the tray, 5 minutes on Energy Saver or a metered connection), only while Sunsama is signed in and at least one of the two sidebar items is on. One pass runs at a time, and a 429's `Retry-After` skips passes until it ends.
+- Fetches the days on screen, at most 42. `sunsama://me` is read once per session and again when the zone is needed and missing.
 - Each day's result replaces that day's saved rows in one transaction.
 
 ## 5. Storage
 
 ### 5.1 Secrets
 
-The client ID and refresh token go through `ITokenStore` into `secrets.bin`, like Cal.com's. The access token stays in memory.
+The client ID, refresh token and account email go through `ITokenStore` into `secrets.bin`, like Cal.com's. The access token stays in memory. A rotated refresh token is saved only while its sign-in is the current one, so a refresh finishing after a sign-out or a newer sign-in never saves it.
 
 ### 5.2 Saved Blocks (migration 14, `user_version` 13 → 14)
 
-Table `sunsama_block`: `day` (local date text), `task_id`, `title`, `channel`, `start_utc`, `end_utc`, `estimate_minutes` (nullable), `tracked_minutes` (nullable), `completed`, `kind` (`projected` or `timebox`), `matched_event_id` (nullable). Every statement parameterized. Disconnecting deletes every row.
+Table `sunsama_block`: `day` (local date text), `task_id`, `title`, `channel`, `start_utc`, `end_utc`, `estimate_minutes` (nullable), `tracked_minutes` (nullable), `completed`, `kind` (`projected`, `timebox` or `matched`), `matched_account_id`, `matched_calendar_id` and `matched_event_id` (nullable, set only for `matched`). Every statement parameterized. Signing out deletes every row, and so does a new sign-in (rows kept after a refusal, or another account's, go; the next pass fetches again).
 
 ### 5.3 Settings
 
-`LeafSettings` gains the two sidebar items' on/off choices (both on by default after sign-in).
+`LeafSettings` gains the two sidebar items' on/off choices (both on by default after sign-in) and `SunsamaColor` (6.1).
 
 ## 6. App
 
@@ -106,7 +106,7 @@ A Sunsama **expander** card, last in Settings › Accounts, under its own "Sunsa
 - **Stacked row inside:**
   - **Color (owner, 2026-10-17, in place of a Permissions row):** the calendar palette from Settings › Calendars, for the Sunsama blocks, the sidebar items and the details dot. The row names the color ("Tangerine" for the default); "Use the default color" goes back to Tangerine. Saved as `LeafSettings.SunsamaColor`.
 - A success InfoBar ("Successfully signed in to Sunsama", the existing provider wording) shows above the expander after a sign-in. Errors show in an InfoBar inside the expander.
-- A refused refresh token shows the signed-out state with the reason line (9).
+- A refused refresh token shows the reason line (9) with both **Sign in with Sunsama** and **Sign out**, so the saved blocks can be cleared without signing in (7). The card opens once to show the reason, then stays as you leave it.
 - Signing out deletes the tokens and every saved block, and the sidebar group goes away.
 - Every control has an `AutomationId` (`SunsamaExpander`, `SunsamaSignIn`, `SunsamaSignOut`, `SunsamaCancelSignIn`, `SunsamaStatus`).
 
@@ -151,8 +151,8 @@ For a Sunsama block: title, time, channel, estimate, tracked total, and **Open i
 
 | Case | What happens |
 | --- | --- |
-| Offline, 429, 5xx | Saved blocks stay; next pass retries. A quiet line in the sync status, nothing else. |
-| Refresh token refused | Signed-out state in Settings › Accounts; saved blocks stay until you sign out or sign in again. Google sync is unaffected. |
+| Offline, 429, 5xx | Saved blocks stay; next pass retries. After 3 passes in a row couldn't reach Sunsama, a quiet icon in the title bar's sync status slot (`SunsamaUnreachableIndicator`, only while Google itself is fine), nothing else. |
+| Refresh token refused | The needs-sign-in state in Settings › Accounts (6.1); saved blocks stay until you sign out or sign in again. Google sync is unaffected. |
 | Unreadable resource or field | That day keeps its saved rows; the error type is logged. |
 | Sign-in port busy, timeout, canceled | The same messages the Cal.com sign-in shows. |
 
@@ -166,10 +166,10 @@ Test-first, for: the tracked fill (`SunsamaTracked.Fill`: one block, split block
 
 The fake Sunsama server lives inside the fake Google server under a `sunsama/` path, like the fake Cal.com under `calcom/`, so `--fake-google` covers it and no new launch flag is added. Only these classes run, on the installed build:
 
-- The sidebar calendar list class: the Sunsama group shows when signed in; Projected tasks hides and shows blocks; Tracked time hides and shows tracked totals.
-- The calendar grid class: projected blocks draw at their times with the channel after the time; a matched task draws no block; the tracked overlay shows on a block with tracked time and its spoken name says "tracked".
-- The details panel class: a Sunsama block's details and a matched Google event's tracked total.
-- The Settings › Accounts class: sign in, cancel and sign out from the expander's header without it expanding; the expander opens to the Color row, and a picked color shows there.
+- `SunsamaGridTests` (sidebar): the Sunsama group shows when signed in; Projected tasks hides and shows blocks; Tracked time hides and shows tracked totals.
+- `SunsamaGridTests` (grid): projected blocks draw at their times with the channel after the time; a matched task draws no block; the tracked overlay shows on a block with tracked time and its spoken name says "tracked".
+- `SunsamaGridTests` (details panel): a Sunsama block's details and a matched Google event's tracked total.
+- `SunsamaSettingsTests`: sign in, cancel and sign out from the expander's header without it expanding; the expander opens to the Color row, and a picked color shows there.
 
 `ScreenshotTour` gains the Sunsama shots (8.3), and the tour is run once to make them and for a visual check in light and dark.
 

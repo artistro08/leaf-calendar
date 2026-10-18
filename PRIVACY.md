@@ -35,11 +35,11 @@ This only applies if you sign in to Cal.com in Settings › Accounts. Until you 
 
 This only applies if you sign in to Sunsama in Settings › Accounts. Until you do, Leaf Calendar never contacts Sunsama.
 
-- The first time you sign in, Leaf Calendar registers its own OAuth client with Sunsama (it has no secret). Signing in opens Sunsama's sign-in page in your browser. Leaf Calendar asks Sunsama only to read (`read`) and to stay signed in (`offline_access`).
-- **What's read:** your Sunsama email and time zone, your calendars' IDs, and, for the days on screen, your tasks (title, channel, planned and tracked time, whether they're done, and their planned times) and your calendar events' IDs, titles, and times. Task notes aren't kept or shown.
+- When you sign in for the first time, or after signing out, Leaf Calendar registers its own OAuth client with Sunsama (it has no secret). Signing in opens Sunsama's sign-in page in your browser. Leaf Calendar asks Sunsama only to read (`read`) and to stay signed in (`offline_access`).
+- **What's read:** your Sunsama email and time zone, your calendars' IDs, and, for the days on screen, your tasks (title, channel, planned and tracked time, whether they're done, and their planned times) and your calendar events' IDs, titles, and times. Task notes may arrive with a task but aren't kept or shown.
 - **What's sent:** nothing about your calendar. Leaf Calendar never changes anything in Sunsama or Google.
-- **What's kept:** the task times shown on your calendar, in `leaf.db`, so they show offline. The client ID, sign-in token, and your Sunsama email are stored encrypted in `secrets.bin`.
-- **Sign out** (Settings › Accounts) removes the sign-in token and every saved Sunsama task time. To revoke Leaf Calendar's access at Sunsama too, remove it in your Sunsama settings.
+- **What's kept:** each task's title, channel, planned and tracked time, whether it's done, its times on your calendar, and the Google event it matches, in `leaf.db`, so they show offline. The client ID, sign-in token, and your Sunsama email are stored encrypted in `secrets.bin`.
+- **Sign out** (Settings › Accounts) removes the sign-in token, client ID, and email, and every saved Sunsama task time. To revoke Leaf Calendar's access at Sunsama too, remove it in your Sunsama settings.
 - Leaf Calendar's log never includes task titles, channels, your email, or any token.
 
 ## Location Suggestions (Google Maps)
@@ -61,7 +61,6 @@ Connected apps is off until you turn it on in Settings › Connected apps. When 
 - **Your Google Cloud project.** Leaf Calendar signs in with the OAuth client ID and secret you created in Google Cloud Console, so Google counts Leaf Calendar's requests against your own project. No one else's app or key is involved.
 - **Connected apps.** To apps on this PC you allowed in Settings › Connected apps (off by default).
 - **Links you open.** When you join a meeting or open a link, a location, or "View on GitHub", Leaf Calendar hands the address to your browser or the meeting app. A location opens in Google Maps or Bing Maps (Settings › General › Open locations in), so that site gets the location's text.
-
 - **Sunsama.** Only if you sign in to it: the sign-in, and read-only requests to Sunsama's MCP server (`api.sunsama.com`) for the days on screen, over HTTPS.
 
 Leaf Calendar sends nothing else (Cal.com only if you sign in to it, see Scheduling above; Sunsama only if you sign in to it; Google Maps only if you turn on location suggestions) and runs no servers of its own.
@@ -72,7 +71,7 @@ In Leaf Calendar's app data folder (the `LocalState` folder of Leaf Calendar's p
 
 - **A copy of your calendars** in a SQLite database (`leaf.db`): your accounts' email addresses, your calendars, and their events (titles, times, descriptions, locations, guests, and meeting links), so Leaf Calendar opens quickly and works offline. Changes you make while offline wait there until Google has them.
 - **Your Leaf Calendar settings**, in the same database.
-- **Sunsama task times**, only if you sign in to Sunsama: each task's title, channel, planned and tracked time, and the times it's on your calendar, for the days you've looked at, in the same database. Sign out deletes them.
+- **Sunsama task times**, only if you sign in to Sunsama: each task's title, channel, planned and tracked time, whether it's done, the times it's on your calendar, and the Google event it matches, for the days you've looked at, in the same database. Sign out deletes them.
 - **Saved share times.** When you save or copy your availability, Leaf Calendar keeps the times, the title and the message you shared, and any guests you save with them, in its local database, so they stay on your calendar. Saved Cal.com times also keep the booking link's address. They're deleted when you approve a time, delete the group, the times pass, or Leaf Calendar finds a Cal.com booking for them. Approving a time on a Cal.com group sends its guests to Cal.com to book it; otherwise they never leave your PC.
 - **A log** (`leaf.log` in the `Logs` folder, at most about 3 MB): what Leaf Calendar did and what went wrong, by internal IDs only. It never includes event titles, descriptions, guests, locations, searches, sign-in tokens, codes, or your client secret, and a second pass masks tokens, secrets, and email addresses anyway.
 - **Crash files**, only while Settings › About › Detailed logging is on: at most two, in the log folder. A crash file can include bits of what was on screen. Turning Detailed logging off deletes them.

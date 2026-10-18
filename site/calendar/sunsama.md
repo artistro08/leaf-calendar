@@ -20,9 +20,9 @@ Sign in to [Sunsama](https://sunsama.com), and the times Sunsama plans for your 
 
 ![Settings › Accounts with the Sunsama card open, signed in](../../assets/images/sunsama-expander.png)
 
-There's no OAuth client to create: Leaf Calendar registers its own with Sunsama the first time you sign in. Leaf Calendar can only read your Sunsama tasks and calendar.
+There's no OAuth client to create: Leaf Calendar registers its own with Sunsama when you sign in for the first time, or after signing out. Leaf Calendar can only read your Sunsama tasks and calendar.
 
-To pick the color your Sunsama blocks are drawn in, open the card and click the dot next to **Color**. **Use the default color** goes back to tangerine.
+To pick the color your Sunsama blocks are drawn in, open the card and click the dot next to **Color**. **Use the default color** goes back to Tangerine.
 
 ## Turning it on and off
 
@@ -40,10 +40,10 @@ Once you're signed in, a **Sunsama** group shows in the sidebar, under your Goog
 - **Outlined** blocks are where Sunsama plans to fit a task (its projected times), drawn like an invitation you haven't answered.
 - **Solid** blocks are tasks you timeboxed in Sunsama.
 - The task's channel follows the time on the block.
-- **Stripes** show the time you've tracked, filling the block from the top. A block that's half striped is half done. A task split over several blocks fills them in order.
+- **Stripes** show the time you've tracked, filling the block from the top. A block that's half striped has had half its time tracked. A task split over several blocks fills them in order.
 - Completed tasks look faded, like past events.
 
-Click a block to see the task in the right panel: its title, time, channel, how long you planned (**2 h planned**), and how long you've tracked (**1 h 24 m tracked**). **Open in Sunsama** opens the task in the Sunsama app, or sunsama.com if you don't have the app.
+Click a block to see the task in the right panel: its title, time, channel, how long you planned (**2 h planned**), and how long you've tracked (**1 h 24 m tracked**). **Open in Sunsama** opens the task in the Sunsama app, or Sunsama's website if you don't have the app.
 
 ![The details panel for a Sunsama task, with its planned and tracked time and Open in Sunsama](../../assets/images/sunsama-details.png)
 
