@@ -22,6 +22,7 @@ public sealed class ShortcutCatalogTests
             ("D", true, true, false), ("C", false, false, false), ("Delete", false, false, false), ("Delete", true, true, false),
             ("J", true, false, false), ("V", false, false, false), ("X", false, false, false), ("A", true, false, false),
             ("C", true, false, false), ("S", false, false, false), ("P", false, false, false), ("F", false, false, false),
+            ("R", true, false, false), ("F5", false, false, false),
         ];
         var listed = ShortcutCatalog.Rows.Select(r => r.Command).ToHashSet();
 

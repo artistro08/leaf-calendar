@@ -659,6 +659,7 @@ public sealed partial class CalendarPage : Page
             case CalendarCommand.CommandMenu or CalendarCommand.Search: OpenCommandMenu(); break;
             case CalendarCommand.ShortcutSheet: ShowShortcutSheet(); break;
             case CalendarCommand.OpenSettings: vm.OpenSettings?.Invoke(SettingsSection.General); break;
+            case CalendarCommand.SyncNow: vm.Fire(vm.SyncNowAsync, "sync.now.failed"); break;
             case CalendarCommand.TimeTravel: StartTimeTravel(); break;
             case CalendarCommand.ShareAvailability: StartShareAvailability(); break;
             case CalendarCommand.PeopleOverlay: ShowPeopleOverlay(); break;

@@ -16,7 +16,7 @@ Leaf Calendar checks Google for changes on its own:
 - Every 5 minutes in the tray when Windows is on **Energy saver** or you're on a metered connection, to save battery and data.
 - Right away when you open the window, wake your PC, or get back online.
 
-Want the latest right now? Choose **Sync now** from the tray menu, the [command menu](../command-menu/), or **Settings › Accounts**.
+Want the latest right now? Press `Ctrl+R` or `F5`, or choose **Sync now** from the tray menu, the [command menu](../command-menu/), or **Settings › Accounts**.
 
 ## Working offline
 

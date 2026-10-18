@@ -256,4 +256,22 @@ public sealed class ChangeListTests : IDisposable
             Assert.False(Shows(leaf, id), $"The title bar shows {id}.");
         }
     }
+
+    // Ctrl+R and F5 sync now, like the command menu's Sync now
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SyncNow_FromItsShortcut_BringsInGooglesChanges(bool ctrlR)
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("Event_evt-single_202610011300").Click();
+        Assert.Equal("Dentist appointment", leaf.WaitFor("DetailsTitle").Name);
+
+        _google.EditOnGoogle("leaf.tester@gmail.com", "evt-single", e => e["summary"] = "Dentist (moved)");
+        var lists = _google.Requests.Count(r => r.Contains("/calendarList", StringComparison.Ordinal));
+        leaf.Press(ctrlR ? [VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_R] : [VirtualKeyShort.F5]);
+
+        Assert.True(Retry.WhileFalse(() => _google.Requests.Count(r => r.Contains("/calendarList", StringComparison.Ordinal)) > lists, Wait).Success, "The shortcut didn't sync.");
+        Assert.True(Retry.WhileFalse(() => leaf.WaitFor("DetailsTitle").Name == "Dentist (moved)", Wait).Success, "Google's change didn't come in.");
+    }
 }

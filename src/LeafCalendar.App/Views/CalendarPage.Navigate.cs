@@ -284,10 +284,6 @@ public sealed partial class CalendarPage
             case "toggle-working-hours":
                 vm.Update(s => s with { WorkingHours = s.WorkingHours with { Enabled = !s.WorkingHours.Enabled } });
                 return;
-
-            case "sync":
-                vm.Fire(vm.SyncNowAsync, "sync.now.failed");
-                return;
         }
 
         // Settings Pages
