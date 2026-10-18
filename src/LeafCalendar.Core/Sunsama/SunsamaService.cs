@@ -56,6 +56,9 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
     // ponytail: fetches every visible day each pass; cache by day + lastModified if Sunsama rate-limits
     private const int MaxDays = 42;
 
+    // Passes in a row that couldn't reach Sunsama before the sync status says so (Google's offline icon waits for 3 too)
+    private const int UnreachableAfter = 3;
+
     private readonly Lock _gate = new();
     private readonly SchedulingOAuth _oauth = new(
         endpoints.Authorize,
@@ -73,6 +76,7 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
     private DateOnly _to;
     private int _endings;
     private int _running;
+    private int _failures;
     private DateTimeOffset _waitUntil;
 
     /// <summary>Raised when <see cref="State"/> or <see cref="Email"/> changes.</summary>
@@ -87,6 +91,12 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
     /// <summary>The signed-in account's email (shown in Settings, never logged), or null when signed out.</summary>
     public string? Email { get; private set; }
 
+    /// <summary>
+    /// True once 3 passes in a row couldn't reach Sunsama (offline, 429, 5xx), until one works: the sync status's quiet
+    /// "Couldn't reach Sunsama" line. Changes raise <see cref="Changed"/>.
+    /// </summary>
+    public bool Unreachable => Volatile.Read(ref _failures) >= UnreachableAfter;
+
     /// <summary>Whether either sidebar item is on; when off, <see cref="SyncAsync"/> fetches nothing.</summary>
     public bool Enabled { get; set; } = true;
 
@@ -100,6 +110,12 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
         if (State != SunsamaState.SignedOut)
         {
             return;
+        }
+
+        int endings;
+        lock (_gate)
+        {
+            endings = _endings;
         }
 
         string? clientId;
@@ -124,7 +140,8 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
 
         lock (_gate)
         {
-            if (State != SunsamaState.SignedOut)
+            // A sign-in or a sign-out while the secrets were read wins
+            if (State != SunsamaState.SignedOut || _endings != endings)
             {
                 return;
             }
@@ -203,12 +220,21 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
 
                 tokens.SetProviderSecret(ProviderId, RefreshTokenKey, session.RefreshToken);
                 tokens.SetProviderSecret(ProviderId, EmailKey, email);
+
+                // A New Sign-In Starts Clean: rows kept after a refusal (or another account's) go, and the next pass refetches
+                using (var conn = database.Open())
+                {
+                    SunsamaStore.Clear(conn);
+                }
+
                 session.Committed = true;
                 old = _session;
                 _session = session;
                 _profile = profile;
                 State = SunsamaState.SignedIn;
                 Email = email;
+                _failures = 0;
+                _waitUntil = default;
             }
         }
         catch
@@ -220,9 +246,14 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
         old?.Dispose();
         log.Info("sunsama.signed-in");
         Changed?.Invoke(this, EventArgs.Empty);
+        DataChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Signs out: removes the saved sign-in and every saved block, and ends any sign-in or sync on its way.</summary>
+    /// <summary>
+    /// Signs out: removes every saved block and the saved sign-in, and ends any sign-in or sync on its way. The blocks go
+    /// first, and <see cref="Changed"/> and <see cref="DataChanged"/> are raised even when removing the secrets fails.
+    /// </summary>
+    /// <exception cref="IOException">The secrets couldn't be removed (signed out for this session; the next start may load them).</exception>
     public void SignOut()
     {
         Session? old;
@@ -234,15 +265,25 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
             _profile = null;
             State = SunsamaState.SignedOut;
             Email = null;
-            tokens.RemoveProviderSecrets(ProviderId);
-            using var conn = database.Open();
-            SunsamaStore.Clear(conn);
+            _failures = 0;
         }
 
-        old?.Dispose();
-        log.Info("sunsama.signed-out");
-        Changed?.Invoke(this, EventArgs.Empty);
-        DataChanged?.Invoke(this, EventArgs.Empty);
+        try
+        {
+            using (var conn = database.Open())
+            {
+                SunsamaStore.Clear(conn);
+            }
+
+            tokens.RemoveProviderSecrets(ProviderId);
+        }
+        finally
+        {
+            old?.Dispose();
+            log.Info("sunsama.signed-out");
+            Changed?.Invoke(this, EventArgs.Empty);
+            DataChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>Sets the local days on screen (at most 42 are fetched). Safe from any thread.</summary>
@@ -304,15 +345,31 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
         try
         {
             // The Zone Is Read Once Per Sign-In, and Again While It's Missing
-            var profile = _profile;
+            SunsamaProfile? profile;
+            lock (_gate)
+            {
+                profile = _profile;
+            }
+
             if (profile is null)
             {
                 using var me = await session.Mcp.ReadResourceAsync("sunsama://me", ct);
-                profile = _profile = SunsamaParser.Profile(me.RootElement);
+                profile = SunsamaParser.Profile(me.RootElement);
                 if (profile is null)
                 {
                     log.Info("sunsama.sync.no-zone");
                     return;
+                }
+
+                lock (_gate)
+                {
+                    // Another sign-in's zone isn't overwritten by this older pass
+                    if (_endings != endings)
+                    {
+                        return;
+                    }
+
+                    _profile = profile;
                 }
             }
 
@@ -347,6 +404,7 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
             }
 
             log.Info("sunsama.sync.done", string.Create(CultureInfo.InvariantCulture, $"days={days} changed={changed} blocks={blocks}"));
+            SetFailures(0, endings);
         }
         catch (SchedulingAuthException)
         {
@@ -378,6 +436,10 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
             }
 
             log.Info("sunsama.sync.failed", $"type={ex.GetType().Name} days={days.ToString(CultureInfo.InvariantCulture)}");
+            if (ex is SchedulingUnavailableException)
+            {
+                SetFailures(Volatile.Read(ref _failures) + 1, endings);
+            }
         }
         finally
         {
@@ -400,6 +462,27 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
 
     private static string? NonEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
 
+    // Counts passes in a row that couldn't reach Sunsama (for this sign-in only), and says so when Unreachable flips
+    private void SetFailures(int failures, int endings)
+    {
+        bool before;
+        lock (_gate)
+        {
+            if (_endings != endings)
+            {
+                return;
+            }
+
+            before = Unreachable;
+            _failures = failures;
+        }
+
+        if (before != Unreachable)
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
     // The same rows in any order (the store reads them back by start)
     private static bool Same(IReadOnlyList<SunsamaBlock> saved, IReadOnlyList<SunsamaBlock> fresh) =>
         saved.Count == fresh.Count && saved.OrderBy(Order).SequenceEqual(fresh.OrderBy(Order));
@@ -413,12 +496,22 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
         session.Tokens = new ProviderTokens(http, _oauth, new ProviderClient(clientId, ""), refreshToken, time, rotated =>
         {
             session.RefreshToken = rotated;
-            if (session.Committed)
+            if (!session.Committed)
+            {
+                return;
+            }
+
+            // A save that fails keeps this session working; the type only (the next start may need a new sign-in)
+            try
             {
                 tokens.SetProviderSecret(ProviderId, RefreshTokenKey, rotated);
             }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+            {
+                log.Info("sunsama.token.save-failed", $"error={ex.GetType().Name}");
+            }
         });
-        session.Mcp = new SunsamaMcpClient(http, endpoints.Mcp, session.Tokens.GetAccessTokenAsync);
+        session.Mcp = new SunsamaMcpClient(http, endpoints.Mcp, session.Tokens.GetAccessTokenAsync, session.Tokens.ForgetAccessToken);
         return session;
     }
 

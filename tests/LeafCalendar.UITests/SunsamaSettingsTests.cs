@@ -89,6 +89,22 @@ public sealed class SunsamaSettingsTests : IDisposable
 
         Assert.True(SettingsShows(leaf, "Sunsama signed you out. Sign in again to see your task plan."), "The card didn't say why.");
         Assert.NotNull(leaf.WaitInSettings("SunsamaSignIn"));
+        Assert.NotNull(leaf.WaitInSettings("SunsamaSignOut"));
+    }
+
+    // Sunsama down for 3 passes in a row: the title bar's quiet Sunsama icon says so (nothing else)
+    [Fact]
+    public void Unreachable_ShowsTheQuietSyncStatus()
+    {
+        SignedIn();
+        _google.SunsamaDown = true;
+        using var leaf = SunsamaGridTests.Launch(_profile, _google);
+
+        var icon = Retry.WhileNull(() => leaf.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("SunsamaUnreachableIndicator")), TimeSpan.FromSeconds(90)).Result;
+
+        Assert.NotNull(icon);
+        Assert.Equal("Couldn't reach Sunsama. Leaf Calendar will try again.", icon.Name);
+        Assert.False(leaf.Exists("OfflineIndicator"), "Sunsama being down showed Google's offline icon.");
     }
 
     // Opening the card shows what Leaf Calendar can see

@@ -103,6 +103,24 @@ public sealed class SunsamaMcpClientTests : IDisposable
     }
 
     [Fact]
+    public async Task ReadResourceAsync_UnauthorizedOnce_RefreshesTheTokenAndTriesAgain()
+    {
+        var refused = false;
+        _server.On(r => !refused && r.Body is not null && Method(r) == "resources/read", _ =>
+        {
+            refused = true;
+            return new HttpResponseMessage(HttpStatusCode.Unauthorized);
+        });
+        ServeSession(r => Json(ReadResult(2, "{}")));
+        var forgotten = 0;
+        var client = new SunsamaMcpClient(new HttpClient(_server), new Uri(Mcp), _ => Task.FromResult("at-1"), () => forgotten++);
+
+        using var doc = await client.ReadResourceAsync("sunsama://me", TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, forgotten);
+    }
+
+    [Fact]
     public async Task ReadResourceAsync_Unauthorized_ThrowsAuth()
     {
         _server.On(_ => true, _ => new HttpResponseMessage(HttpStatusCode.Unauthorized));

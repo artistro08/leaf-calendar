@@ -229,6 +229,10 @@ public sealed partial class DayColumn : Canvas
             // A Sunsama task's channel follows the time, and its tracked total (Tracked time on) the tooltip and name
             var channel = sunsama && task is { Block.Channel.Length: > 0 } ? $" · {task.Block.Channel}" : "";
             var tracked = vm.Settings.SunsamaTracked && task is { Fill: > 0, Block.TrackedMinutes: { } minutes } ? $" · {SunsamaText.Format(minutes)} tracked" : "";
+            if (tracked.Length > 0 && LeafBrushes.HighContrast)
+            {
+                tracked += string.Create(CultureInfo.InvariantCulture, $" ({Math.Round(task!.Fill * 100)}% of this block)");
+            }
             card.Bind(
                 b.Occurrence,
                 palette,

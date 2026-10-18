@@ -164,9 +164,10 @@ public sealed partial class AccountsPage : Page
         var sunsama = _context.Services.Sunsama;
         var signingIn = _sunsamaSignIn is not null;
         var signedIn = !signingIn && sunsama.State == SunsamaState.SignedIn;
+        var refused = !signingIn && sunsama.State == SunsamaState.NeedsSignIn;
         SunsamaHeader.Description = sunsama.State == SunsamaState.SignedIn && sunsama.Email is { Length: > 0 } email ? email : "Not signed in";
         SunsamaSignIn.Visibility = signingIn || signedIn ? Visibility.Collapsed : Visibility.Visible;
-        SunsamaSignOut.Visibility = signedIn ? Visibility.Visible : Visibility.Collapsed;
+        SunsamaSignOut.Visibility = signedIn || refused ? Visibility.Visible : Visibility.Collapsed;
         SunsamaCancel.Visibility = signingIn ? Visibility.Visible : Visibility.Collapsed;
         SunsamaRing.IsActive = signingIn;
         SunsamaRing.Visibility = signingIn ? Visibility.Visible : Visibility.Collapsed;

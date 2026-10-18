@@ -20,7 +20,8 @@ namespace LeafCalendar.Core.Sunsama;
 /// <param name="http">The shared HTTP client.</param>
 /// <param name="endpoint">The MCP server URL.</param>
 /// <param name="accessToken">Gives a current access token (refreshing as needed).</param>
-public sealed class SunsamaMcpClient(HttpClient http, Uri endpoint, Func<CancellationToken, Task<string>> accessToken) : IDisposable
+/// <param name="forgetAccessToken">Forgets the cached access token after a refusal, so one retry gets a fresh one.</param>
+public sealed class SunsamaMcpClient(HttpClient http, Uri endpoint, Func<CancellationToken, Task<string>> accessToken, Action? forgetAccessToken = null) : IDisposable
 {
     private const string ProtocolVersion = "2025-06-18";
 
@@ -37,7 +38,7 @@ public sealed class SunsamaMcpClient(HttpClient http, Uri endpoint, Func<Cancell
     /// <param name="uri">The resource URI.</param>
     /// <param name="ct">Cancels the call.</param>
     /// <returns>The resource's JSON.</returns>
-    /// <exception cref="SchedulingAuthException">Sunsama refused the access token (401, 403).</exception>
+    /// <exception cref="SchedulingAuthException">Sunsama refused the access token (401, 403) twice, the second time a fresh one.</exception>
     /// <exception cref="SchedulingUnavailableException">Offline, a timeout, 429, another error, or an unreadable answer.</exception>
     public async Task<JsonDocument> ReadResourceAsync(string uri, CancellationToken ct)
     {
@@ -45,29 +46,46 @@ public sealed class SunsamaMcpClient(HttpClient http, Uri endpoint, Func<Cancell
         await _gate.WaitAsync(ct);
         try
         {
-            ThrowIfEnded();
-            for (var attempt = 0; attempt < 2; attempt++)
+            for (var refused = 0; ; refused++)
             {
-                await EnsureSessionAsync(ct);
-                var (gone, reply) = await PostAsync("resources/read", w => w.WriteString("uri", uri), notification: false, ct);
-                if (gone)
+                try
                 {
-                    ResetSession();
-                    continue;
+                    return await ReadOnceAsync(uri, ct);
                 }
-
-                using (reply)
+                catch (SchedulingAuthException) when (refused == 0 && forgetAccessToken is not null)
                 {
-                    return Contents(reply!);
+                    // An access token Sunsama ended early: one more try with a fresh one
+                    forgetAccessToken();
                 }
             }
-
-            throw new SchedulingUnavailableException("Sunsama kept ending the session.");
         }
         finally
         {
             _gate.Release();
         }
+    }
+
+    // One read (called under the gate), starting a new session once if the server forgot it
+    private async Task<JsonDocument> ReadOnceAsync(string uri, CancellationToken ct)
+    {
+        ThrowIfEnded();
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            await EnsureSessionAsync(ct);
+            var (gone, reply) = await PostAsync("resources/read", w => w.WriteString("uri", uri), notification: false, ct);
+            if (gone)
+            {
+                ResetSession();
+                continue;
+            }
+
+            using (reply)
+            {
+                return Contents(reply!);
+            }
+        }
+
+        throw new SchedulingUnavailableException("Sunsama kept ending the session.");
     }
 
     /// <summary>Forgets the session, so the next read starts a new one (after a sign-in, or when the server forgot it).</summary>

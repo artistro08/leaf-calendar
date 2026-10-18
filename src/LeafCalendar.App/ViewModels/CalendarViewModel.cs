@@ -336,7 +336,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>The one selected event or Sunsama block, or null: where J, K and X count from.</summary>
     public CalendarOccurrence? SelectedOccurrence => SelectedInfo?.Occurrence ?? SelectedTask?.Occurrence;
 
-    /// <summary>The Sunsama task matched to the selected Google event while Tracked time is on, or null.</summary>
+    /// <summary>The Sunsama task matched to the selected Google event, or null (its tracked line shows only while Tracked time is on).</summary>
     [ObservableProperty]
     public partial SunsamaShown? SelectedTracked { get; set; }
 
@@ -390,6 +390,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>True once 3 syncs in a row couldn't reach Google (the title bar's offline and waiting icons show only then).</summary>
     [ObservableProperty]
     public partial bool ShowsOffline { get; set; }
+
+    /// <summary>True once 3 Sunsama passes in a row couldn't reach it (the title bar's quiet Sunsama icon; spec 2026-10-16, section 7).</summary>
+    [ObservableProperty]
+    public partial bool SunsamaUnreachable { get; set; }
 
     /// <summary>True while a sync you asked for (the command menu, the sync status button, the tray) is running. Nothing shows it: syncing stays in the background.</summary>
     [ObservableProperty]
@@ -806,7 +810,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             _selection.Clear();
             _selection.Add(occurrence);
             SelectedTask = null;
-            SelectedTracked = Settings.SunsamaTracked && SunsamaShownFor(occurrence) is { Block.TrackedMinutes: > 0 } tracked ? tracked : null;
+            SelectedTracked = SunsamaShownFor(occurrence);
 
             var (canEdit, canRespond) = _services.Editor.Permissions(occurrence);
             SelectedInfo = new SelectedEventInfo(
@@ -1666,6 +1670,13 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Adds an event to the selection, or takes it out (Ctrl+click, Shift+click), ending any edit like a plain click does.</summary>
     public void ToggleSelect(CalendarOccurrence occurrence)
     {
+        // A Sunsama Block Is Selected On Its Own: nothing done to several events applies to it
+        if (SunsamaOccurrences.IsSunsama(occurrence) || _selection.Exists(SunsamaOccurrences.IsSunsama))
+        {
+            Select(occurrence);
+            return;
+        }
+
         CancelEdit();
 
         var index = _selection.FindIndex(s => s.Key == occurrence.Key);
@@ -2392,9 +2403,10 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             ct);
     }
 
-    // Sunsama Signed In Or Out: forget what was shown, then reload (UI thread)
+    // Sunsama Signed In Or Out, Or Reached Again: forget what was shown, then reload (UI thread)
     private void OnSunsamaChanged(object? sender, EventArgs e) => _dispatcher.TryEnqueue(() =>
     {
+        SunsamaUnreachable = _services.Sunsama.State == SunsamaState.SignedIn && _services.Sunsama.Unreachable;
         _sunsamaShown.Clear();
         ReloadCalendars();
     });

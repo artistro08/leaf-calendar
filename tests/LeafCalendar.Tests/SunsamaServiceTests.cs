@@ -159,7 +159,7 @@ public sealed class SunsamaServiceTests : IDisposable
     public void Load_SecretsUnavailable_StaysSignedOutAndKeepsSecrets()
     {
         SeedSignedIn();
-        var unreadable = new UnreadableTokenStore(_tokens);
+        var unreadable = new FlakyTokenStore(_tokens) { FailReads = true };
         var service = Create(unreadable);
 
         service.Load();
@@ -315,6 +315,91 @@ public sealed class SunsamaServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SyncAsync_ThreeFailedPassesInARow_IsUnreachableUntilOneWorks()
+    {
+        SeedSignedIn();
+        ServeToken();
+        var down = true;
+        _server.On(r => down && IsMcp(r), _ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        ServeMcp();
+        var service = Create();
+        service.Load();
+        service.SetDays(Day, Day.AddDays(1));
+        var changed = 0;
+        service.Changed += (_, _) => changed++;
+
+        await service.SyncAsync(TestContext.Current.CancellationToken);
+        await service.SyncAsync(TestContext.Current.CancellationToken);
+        Assert.False(service.Unreachable);
+        await service.SyncAsync(TestContext.Current.CancellationToken);
+        Assert.True(service.Unreachable);
+        Assert.Equal(1, changed);
+
+        down = false;
+        await service.SyncAsync(TestContext.Current.CancellationToken);
+        Assert.False(service.Unreachable);
+        Assert.Equal(2, changed);
+    }
+
+    [Fact]
+    public async Task SignInAsync_AfterARefusal_ReplacesTheOldRows()
+    {
+        SeedSignedIn();
+        SaveRow("old-account");
+        var refuse = true;
+        _server.On(
+            r => r.Uri.AbsoluteUri == Root + "sunsama/oauth/token",
+            _ => refuse
+                ? FakeHttpHandler.Json(HttpStatusCode.BadRequest, """{"error":"invalid_grant"}""")
+                : FakeHttpHandler.Json(HttpStatusCode.OK, """{"access_token":"at-1","refresh_token":"rt-new","expires_in":3600}"""));
+        ServeMcp();
+        var service = Create();
+        service.Load();
+        service.SetDays(Day, Day.AddDays(1));
+        await service.SyncAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(SunsamaState.NeedsSignIn, service.State);
+
+        refuse = false;
+        await service.SignInAsync(Approve, TestContext.Current.CancellationToken);
+
+        Assert.Equal(SunsamaState.SignedIn, service.State);
+        Assert.Empty(Rows());
+    }
+
+    [Fact]
+    public void SignOut_SecretsCantBeRemoved_StillClearsRowsAndSaysSo()
+    {
+        SeedSignedIn();
+        SaveRow("gone");
+        var service = Create(new FlakyTokenStore(_tokens) { FailRemove = true });
+        service.Load();
+        var changed = 0;
+        service.Changed += (_, _) => changed++;
+
+        Assert.Throws<IOException>(service.SignOut);
+
+        Assert.Empty(Rows());
+        Assert.Equal(SunsamaState.SignedOut, service.State);
+        Assert.Equal(1, changed);
+    }
+
+    [Fact]
+    public async Task SyncAsync_RotatedTokenCantBeSaved_StillSyncs()
+    {
+        SeedSignedIn();
+        ServeToken();
+        ServeMcp();
+        var service = Create(new FlakyTokenStore(_tokens) { FailWrites = true });
+        service.Load();
+        service.SetDays(Day, Day.AddDays(1));
+
+        await service.SyncAsync(TestContext.Current.CancellationToken);
+
+        Assert.Single(Rows());
+        Assert.Contains("sunsama.token.save-failed", File.ReadAllText(_log.FilePath), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SyncAsync_Disabled_FetchesNothing()
     {
         SeedSignedIn();
@@ -418,8 +503,8 @@ public sealed class SunsamaServiceTests : IDisposable
         Assert.DoesNotContain("rt-new", log, StringComparison.Ordinal);
     }
 
-    // A token store whose provider secrets can't be read right now (DPAPI not ready)
-    private sealed class UnreadableTokenStore(InMemoryTokenStore inner) : ITokenStore
+    // A token store whose provider secrets can't be read, written or removed right now (DPAPI not ready, a full disk)
+    private sealed class FlakyTokenStore(InMemoryTokenStore inner) : ITokenStore
     {
         public OAuthClientCredentials? GetClientCredentials() => inner.GetClientCredentials();
 
@@ -435,11 +520,33 @@ public sealed class SunsamaServiceTests : IDisposable
 
         public IReadOnlyList<string> GetAccountIds() => inner.GetAccountIds();
 
+        public bool FailReads { get; init; }
+
+        public bool FailWrites { get; init; }
+
+        public bool FailRemove { get; init; }
+
         public string? GetProviderSecret(string providerId, string key) =>
-            throw SecretsUnavailable.Create("Secrets can't be read right now.", new IOException());
+            FailReads ? throw SecretsUnavailable.Create("Secrets can't be read right now.", new IOException()) : inner.GetProviderSecret(providerId, key);
 
-        public void SetProviderSecret(string providerId, string key, string value) => inner.SetProviderSecret(providerId, key, value);
+        public void SetProviderSecret(string providerId, string key, string value)
+        {
+            if (FailWrites)
+            {
+                throw new IOException("The disk is full.");
+            }
 
-        public void RemoveProviderSecrets(string providerId) => inner.RemoveProviderSecrets(providerId);
+            inner.SetProviderSecret(providerId, key, value);
+        }
+
+        public void RemoveProviderSecrets(string providerId)
+        {
+            if (FailRemove)
+            {
+                throw new IOException("The disk is full.");
+            }
+
+            inner.RemoveProviderSecrets(providerId);
+        }
     }
 }

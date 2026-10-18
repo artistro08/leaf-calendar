@@ -265,11 +265,13 @@ public sealed partial class DetailsPanel : UserControl
         StatusText.Text = info.StatusText;
         CalendarDot.Fill = LeafBrushes.FromHex(info.CalendarColor);
 
-        // Sunsama Tracked Time On A Matched Event
-        var tracked = _vm?.SelectedTracked?.Block.TrackedMinutes;
+        // Sunsama On A Matched Event: Open in Sunsama, and the tracked line while Tracked time is on
+        var matched = _vm?.SelectedTracked?.Block;
+        var tracked = _vm?.Settings.SunsamaTracked == true && matched?.TrackedMinutes is > 0 ? matched.TrackedMinutes : null;
         EventTrackedText.Text = tracked is { } minutes ? $"{SunsamaText.Format(minutes)} tracked" : "";
-        EventTrackedRow.Visibility = Visible(tracked is not null);
-        EventTrackedOpen.Visibility = Visible(SunsamaText.IsTaskId(_vm?.SelectedTracked?.Block.TaskId));
+        EventTrackedText.Visibility = Visible(tracked is not null);
+        EventTrackedOpen.Visibility = Visible(SunsamaText.IsTaskId(matched?.TaskId));
+        EventTrackedRow.Visibility = Visible(tracked is not null || EventTrackedOpen.Visibility == Visibility.Visible);
 
         // Join (it shows where it really goes)
         var call = d.ConferenceUri is { } uri ? LinkSafety.DisplayForm(uri) ?? "" : "";

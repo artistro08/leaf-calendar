@@ -121,6 +121,18 @@ public sealed class SunsamaParserTests
     }
 
     [Fact]
+    public void Day_ProjectedInTheSkippedHour_KeepsItsLength()
+    {
+        // 2:00 AM doesn't exist on 2026-03-08 in Chicago: the block moves to 3:00 and stays an hour long
+        var tasks = Json("""{"tasks":[{"_id":"aaaaaaaaaaaaaaaaaaaaaaa6","projectedTimeEntries":[{"startDate":"2026-03-08 2:00 AM","endDate":"2026-03-08 3:00 AM"}]}]}""");
+
+        var entry = Assert.Single(Assert.Single(SunsamaParser.Day(tasks, Json("""{"events":[]}"""), Profile())).Projected);
+
+        Assert.Equal(new DateTimeOffset(2026, 3, 8, 8, 0, 0, TimeSpan.Zero), entry.Start);
+        Assert.Equal(TimeSpan.FromHours(1), entry.End - entry.Start);
+    }
+
+    [Fact]
     public void Day_AllDayEvent_IsSkipped()
     {
         var tasks = Json("""{"tasks":[{"_id":"aaaaaaaaaaaaaaaaaaaaaaa4","title":"x","timeboxEventIds":["ev-day"]}]}""");

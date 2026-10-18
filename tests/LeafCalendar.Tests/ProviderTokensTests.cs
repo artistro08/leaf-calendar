@@ -248,6 +248,19 @@ public sealed class ProviderTokensTests : IDisposable
     }
 
     [Fact]
+    public async Task ForgetAccessToken_NextCallRefreshes()
+    {
+        _provider.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Answer("at-1"));
+        var tokens = Create();
+        await tokens.GetAccessTokenAsync(TestContext.Current.CancellationToken);
+
+        tokens.ForgetAccessToken();
+        await tokens.GetAccessTokenAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, _provider.Requests.Count);
+    }
+
+    [Fact]
     public async Task GetAccessTokenAsync_PublicClientWithResource_SendsResourceNoSecret()
     {
         _provider.On(HttpMethod.Post, TokenUrl, HttpStatusCode.OK, Answer("at-1"));

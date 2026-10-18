@@ -122,6 +122,18 @@
                                             AutomationProperties.AccessibilityView="Raw" />
                                     </Grid>
                                 </Button>
+                                <!-- Sunsama Unreachable (last in line: quiet, only while Google itself is fine) -->
+                                <Button
+                                    x:Name="SunsamaUnreachableButton"
+                                    Style="{StaticResource LeafBareIconButtonStyle}"
+                                    Visibility="Collapsed"
+                                    Click="OnSyncStatusClick"
+                                    ToolTipService.ToolTip="Couldn't reach Sunsama. Leaf Calendar will try again."
+                                    AutomationProperties.Name="Couldn't reach Sunsama. Leaf Calendar will try again."
+                                    AutomationProperties.LiveSetting="Polite"
+                                    AutomationProperties.AutomationId="SunsamaUnreachableIndicator">
+                                    <FontIcon Glyph="&#xEC9C;" FontSize="16" />
+                                </Button>
                             </Grid>
                             <!-- /Sync Status -->
 

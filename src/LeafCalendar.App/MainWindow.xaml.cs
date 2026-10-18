@@ -917,7 +917,7 @@ public sealed partial class MainWindow : Window
         {
             UpdateEventActions();
         }
-        else if (e.PropertyName is nameof(CalendarViewModel.ConflictCount) or nameof(CalendarViewModel.PendingCount) or nameof(CalendarViewModel.ShowsOffline))
+        else if (e.PropertyName is nameof(CalendarViewModel.ConflictCount) or nameof(CalendarViewModel.PendingCount) or nameof(CalendarViewModel.ShowsOffline) or nameof(CalendarViewModel.SunsamaUnreachable))
         {
             ShowSyncState();
         }
@@ -928,7 +928,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    // One icon slot left of the view button, by priority: conflicts, offline, changes waiting. Online, waiting shows only
+    // One icon slot left of the view button, by priority: conflicts, offline, changes waiting, then Sunsama unreachable. Online, waiting shows only
     // once changes have waited a moment (an edit normally goes out within a second, so the icon doesn't flash).
     // Words live in the tooltips and accessible names.
     private void ShowSyncState()
@@ -965,8 +965,12 @@ public sealed partial class MainWindow : Window
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(WaitingButton, away);
 
 
+        // Sunsama Unreachable (only while Google itself is fine)
+        var sunsama = !conflicts && !offline && vm.SunsamaUnreachable;
+        SunsamaUnreachableButton.Visibility = sunsama ? Visibility.Visible : Visibility.Collapsed;
+
         // Show The Slot And Re-Punch The Title Bar's Click-Through Holes
-        SyncStatus.Visibility = conflicts || offline || waiting ? Visibility.Visible : Visibility.Collapsed;
+        SyncStatus.Visibility = conflicts || offline || waiting || sunsama ? Visibility.Visible : Visibility.Collapsed;
         CalendarToolbar.UpdateLayout();
         AppTitleBar.RecomputeDragRegions();
     }

@@ -569,6 +569,9 @@ public sealed class FakeGoogleServer : IDisposable
     /// <summary>When true, the token endpoint refuses every request (<c>400 invalid_grant</c>): a revoked sign-in.</summary>
     public bool SunsamaRefuseToken { get; set; }
 
+    /// <summary>When true, the MCP server answers <c>503</c>: Sunsama can't be reached.</summary>
+    public bool SunsamaDown { get; set; }
+
     /// <summary>The <c>sunsama://me</c> answer: the account, its time zone and calendars (one Google, one Sunsama).</summary>
     public string SunsamaMe { get; set; } = """
         {"user":{"email":"uitest@example.com","timezone":"America/Chicago","calendars":[
@@ -597,6 +600,8 @@ public sealed class FakeGoogleServer : IDisposable
                 return SunsamaRefuseToken
                     ? (400, """{"error":"invalid_grant"}""", null)
                     : (200, $$"""{"access_token":"{{SunsamaAccessToken}}","refresh_token":"{{SunsamaRefreshToken}}","expires_in":3600}""", null);
+            case ("POST", "/mcp") when SunsamaDown:
+                return (503, """{"error":"unavailable"}""", null);
             case ("POST", "/mcp") when authorization != $"Bearer {SunsamaAccessToken}":
                 return (401, """{"error":"invalid_token"}""", null);
             case ("POST", "/mcp"):

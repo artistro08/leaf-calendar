@@ -67,9 +67,19 @@ public static class SunsamaParser
             var projected = new List<(DateTimeOffset Start, DateTimeOffset End)>();
             foreach (var entry in Items(t, "projectedTimeEntries"))
             {
-                if (SunsamaText.LocalTime(Str(entry, "startDate"), profile.Zone) is { } start
-                    && SunsamaText.LocalTime(Str(entry, "endDate"), profile.Zone) is { } end
-                    && end > start)
+                if (SunsamaText.LocalTime(Str(entry, "startDate"), profile.Zone) is not { } start
+                    || SunsamaText.LocalTime(Str(entry, "endDate"), profile.Zone) is not { } end)
+                {
+                    continue;
+                }
+
+                // A start moved out of a skipped hour (spring forward) can meet its end: keep the wall-clock length
+                if (end <= start && WallLength(entry) is { } length && length > TimeSpan.Zero)
+                {
+                    end = start + length;
+                }
+
+                if (end > start)
                 {
                     projected.Add((start, end));
                 }
@@ -100,6 +110,13 @@ public static class SunsamaParser
 
         return result;
     }
+
+    // The length on the clock between an entry's start and end text, ignoring the zone
+    private static TimeSpan? WallLength(JsonElement entry) =>
+        DateTime.TryParseExact(Str(entry, "startDate"), "yyyy-MM-dd h:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out var from)
+        && DateTime.TryParseExact(Str(entry, "endDate"), "yyyy-MM-dd h:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out var to)
+            ? to - from
+            : null;
 
     private static int? Minutes(string? text) => SunsamaText.Duration(text) is { } d ? (int)d.TotalMinutes : null;
 
