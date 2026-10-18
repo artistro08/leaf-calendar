@@ -90,6 +90,41 @@ public sealed class SunsamaParserTests
     }
 
     [Fact]
+    public void Day_CompletedTask_ReadsNotesSubtasksAndWhenItWasDone()
+    {
+        var tasks = Json("""
+            {"tasks":[{"_id":"aaaaaaaaaaaaaaaaaaaaaaa6","title":"Morning Ritual","notes":"<p>Getting ready</p>","completed":true,
+              "completedOnDate":"2026-10-16","completedAt":"2026-10-16T13:56:28.643Z","timeboxEventIds":[],
+              "subtasks":[{"_id":"s1","title":"Pray","completed":true},{"_id":"s2","title":"Read","completed":false},
+                          {"_id":"s3","completed":true},"odd"]}]}
+            """);
+
+        var task = Assert.Single(SunsamaParser.Day(tasks, Json("""{"events":[]}"""), Profile()));
+
+        Assert.Equal("<p>Getting ready</p>", task.Notes);
+        Assert.Equal([new SunsamaSubtask("Pray", true), new SunsamaSubtask("Read", false)], task.Subtasks);
+        Assert.Equal(new DateTimeOffset(2026, 10, 16, 13, 56, 28, 643, TimeSpan.Zero), task.CompletedAt);
+        Assert.Equal(new DateOnly(2026, 10, 16), task.CompletedOn);
+        Assert.False(task.HasEventIds);
+    }
+
+    [Fact]
+    public void Day_UnresolvedEventIds_StillCount()
+    {
+        var tasks = Json("""
+            {"tasks":[{"_id":"aaaaaaaaaaaaaaaaaaaaaaa7","timeboxEventIds":[],
+              "importedFrom":{"service":"googleCalendar","identifier":{"sunsamaId":"not-today"}}}]}
+            """);
+
+        var task = Assert.Single(SunsamaParser.Day(tasks, Json("""{"events":[]}"""), Profile()));
+
+        Assert.True(task.HasEventIds);
+        Assert.Empty(task.Events);
+        Assert.Equal("", task.Notes);
+        Assert.Equal([], task.Subtasks);
+    }
+
+    [Fact]
     public void Day_MissingAndOddFields_KeepsWhatItCan()
     {
         var tasks = Json("""

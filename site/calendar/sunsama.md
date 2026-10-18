@@ -41,9 +41,9 @@ Once you're signed in, a **Sunsama** group shows in the sidebar, under your Goog
 - **Solid** blocks are tasks you timeboxed in Sunsama.
 - The task's channel follows the time on the block.
 - **Stripes** show the time you've tracked, filling the block from the top. A block that's half striped has had half its time tracked. A task split over several blocks fills them in order.
-- Completed tasks look faded, like past events.
+- Completed tasks look faded, like past events. Sunsama stops planning a task once it's done, so Leaf Calendar shows it ending when you finished it, as long as you tracked (or planned) it.
 
-Click a block to see the task in the right panel: its title, time, channel, how long you planned (**2 h planned**), and how long you've tracked (**1 h 24 m tracked**). **Open in Sunsama** opens the task in the Sunsama app, or Sunsama's website if you don't have the app.
+Click a block to see the task in the right panel: its title, time, channel, how long you planned (**2 h planned**), and how long you've tracked (**1 h 24 m tracked**), then its subtasks, checked when done, and its notes. You can't change them here. **Open in Sunsama** opens the task in the Sunsama app, or Sunsama's website if you don't have the app.
 
 ![The details panel for a Sunsama task, with its planned and tracked time and Open in Sunsama](../../assets/images/sunsama-details.png)
 

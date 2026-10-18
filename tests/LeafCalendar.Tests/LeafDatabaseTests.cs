@@ -26,7 +26,7 @@ public sealed class LeafDatabaseTests : IDisposable
         foreignKeys.CommandText = "PRAGMA foreign_keys;";
 
         Assert.Equal("wal", (string)mode.ExecuteScalar()!);
-        Assert.Equal(14L, (long)version.ExecuteScalar()!);
+        Assert.Equal(15L, (long)version.ExecuteScalar()!);
         Assert.Equal(1L, (long)foreignKeys.ExecuteScalar()!);
     }
 
@@ -101,7 +101,7 @@ public sealed class LeafDatabaseTests : IDisposable
             Assert.Equal(1L, pending[1].DependsOn);
             Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM calendars;", r => r.GetInt64(0)).Single());
             Assert.Equal(1L, conn.Query(null, "SELECT COUNT(*) FROM events;", r => r.GetInt64(0)).Single());
-            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(15L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.True(AlertLedger.TryAdd(conn, "k", LeafCalendar.Core.Alerts.AlertKind.Reminder, "t", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
             conn.Close();
             SqliteConnection.ClearPool(conn);
@@ -132,7 +132,7 @@ public sealed class LeafDatabaseTests : IDisposable
             var account = Assert.Single(AccountStore.GetAll(conn));
             Assert.Equal(("acct", "a@example.com", "A"), (account.Id, account.Email, account.DisplayName));
             Assert.Null(account.HostedDomain);
-            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(15L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             conn.Close();
             SqliteConnection.ClearPool(conn);
         }
@@ -160,7 +160,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(15L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.True(Assert.Single(CalendarStore.GetAll(conn)).IsVisible);
 
             CalendarStore.ReplaceForAccount(conn, "acct", [new LeafCalendar.Core.Google.CalendarListEntry { Id = "todoist", Summary = "Todoist", Selected = false }]);
@@ -192,7 +192,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(15L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             Assert.Single(AccountStore.GetAll(conn));
             Assert.Empty(ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow));
             conn.Close();
@@ -223,7 +223,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(15L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             var group = Assert.Single(ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow));
             Assert.Equal("Coffee", group.Title);
             Assert.Empty(group.Guests);
@@ -257,7 +257,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(15L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             var groups = ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow);
             Assert.Equal(["Coffee", "Lunch"], groups.Select(g => g.Title));
             Assert.Equal([new Contact("", "pat@example.com")], groups[0].Guests);
@@ -292,7 +292,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(15L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             var group = Assert.Single(ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow));
             Assert.Equal([new Contact("", "pat@example.com"), new Contact("", "sam@example.com")], group.Guests);
             conn.Close();
@@ -323,7 +323,7 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(15L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             var group = Assert.Single(ShareGroupStore.GetAll(conn, DateTimeOffset.UtcNow));
             Assert.Equal("Held", group.Title);
             Assert.Equal(("", 0), (group.ProviderId, group.LinkMinutes));
@@ -352,10 +352,45 @@ public sealed class LeafDatabaseTests : IDisposable
 
         using (var conn = database.Open())
         {
-            Assert.Equal(14L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            Assert.Equal(15L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
             var row = new SunsamaBlock(day, "t1", "Title", "Channel", start, start.AddHours(1), 60, 30, false, SunsamaBlockKind.Projected, null, null, null);
             SunsamaStore.ReplaceDay(conn, null, day, [row]);
             Assert.Equal(row, Assert.Single(SunsamaStore.Range(conn, null, day, day.AddDays(1))));
+            conn.Close();
+            SqliteConnection.ClearPool(conn);
+        }
+    }
+
+    [Fact]
+    public void Migrate_FromVersion14_KeepsSunsamaRows_AndAddsNotesAndSubtasks()
+    {
+        using var folder = new TempFolder();
+        var database = new LeafDatabase(Path.Combine(folder.Path, "leaf.db"));
+        var day = new DateOnly(2026, 10, 16);
+        var start = new DateTimeOffset(2026, 10, 16, 15, 0, 0, TimeSpan.Zero);
+
+        // A Version 14 Database With A Saved Row (from before task notes and subtasks were kept)
+        using (var conn = database.Open())
+        using (var setup = conn.CreateCommand())
+        {
+            setup.CommandText = Schema.V1 + Schema.V2 + Schema.V3 + Schema.V4 + Schema.V5 + Schema.V6 + Schema.V7 + Schema.V8 + Schema.V9 + Schema.V10 + Schema.V11 + Schema.V12 + Schema.V13 + Schema.V14 + """
+                INSERT INTO sunsama_block VALUES ('2026-10-16', 't1', 'Title', 'Channel', '2026-10-16T15:00:00.0000000Z', '2026-10-16T16:00:00.0000000Z', 60, 30, 0, 'projected', NULL, NULL, NULL);
+                PRAGMA user_version = 14;
+                """;
+            setup.ExecuteNonQuery();
+        }
+
+        database.Migrate();
+
+        using (var conn = database.Open())
+        {
+            Assert.Equal(15L, conn.Query(null, "PRAGMA user_version;", r => r.GetInt64(0)).Single());
+            var old = Assert.Single(SunsamaStore.Range(conn, null, day, day.AddDays(1)));
+            Assert.Equal(("", ""), (old.Notes, old.Subtasks));
+
+            var done = new SunsamaBlock(day, "t2", "Done", "", start, start.AddMinutes(15), null, null, true, SunsamaBlockKind.Completed, null, null, null, "<p>Notes</p>", "1Step");
+            SunsamaStore.ReplaceDay(conn, null, day, [done]);
+            Assert.Equal(done, Assert.Single(SunsamaStore.Range(conn, null, day, day.AddDays(1))));
             conn.Close();
             SqliteConnection.ClearPool(conn);
         }

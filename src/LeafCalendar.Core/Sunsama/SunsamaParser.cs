@@ -90,6 +90,7 @@ public static class SunsamaParser
                 .Where(e => e.ValueKind == JsonValueKind.String)
                 .Select(e => e.GetString()!)
                 .Append(Str(Member(Member(t, "importedFrom"), "identifier"), "sunsamaId"));
+            var named = eventIds.Any(e => e is not null);
             var tied = eventIds
                 .Select(e => e is not null && byId.TryGetValue(e, out var found) ? found : null)
                 .OfType<SunsamaEventRef>()
@@ -105,7 +106,13 @@ public static class SunsamaParser
                 tracked is 0 ? null : tracked,
                 Member(t, "completed")?.ValueKind == JsonValueKind.True,
                 projected,
-                tied));
+                tied,
+                Str(t, "notes") ?? "",
+                [.. Items(t, "subtasks").Where(s => Str(s, "title") is not null)
+                    .Select(s => new SunsamaSubtask(Str(s, "title")!, Member(s, "completed")?.ValueKind == JsonValueKind.True))],
+                Instant(Str(t, "completedAt")),
+                DateOnly.TryParseExact(Str(t, "completedOnDate"), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var on) ? on : null,
+                named));
         }
 
         return result;

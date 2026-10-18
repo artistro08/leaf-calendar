@@ -248,4 +248,13 @@ internal static class Schema
 
         CREATE INDEX ix_sunsama_block_day ON sunsama_block (day);
         """;
+
+    /// <summary>
+    /// Version 15: <c>sunsama_block.notes</c> (Sunsama's HTML, shown as plain text) and <c>sunsama_block.subtasks</c> (one
+    /// line each, <c>SunsamaSubtasks</c>), so a task's details show offline. Rows saved before stay, with none.
+    /// </summary>
+    public const string V15 = """
+        ALTER TABLE sunsama_block ADD COLUMN notes TEXT NOT NULL DEFAULT '';
+        ALTER TABLE sunsama_block ADD COLUMN subtasks TEXT NOT NULL DEFAULT '';
+        """;
 }

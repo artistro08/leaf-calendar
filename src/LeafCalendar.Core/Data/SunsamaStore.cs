@@ -12,7 +12,7 @@ public static class SunsamaStore
 {
     private const string Columns = """
         day, task_id, title, channel, start_utc, end_utc, estimate_minutes, tracked_minutes, completed, kind,
-        matched_account_id, matched_calendar_id, matched_event_id
+        matched_account_id, matched_calendar_id, matched_event_id, notes, subtasks
         """;
 
     /// <summary>Replaces one day's rows with <paramref name="blocks"/>, in one transaction.</summary>
@@ -34,7 +34,7 @@ public static class SunsamaStore
                 t,
                 $"""
                 INSERT INTO sunsama_block ({Columns})
-                VALUES ($day, $task, $title, $channel, $start, $end, $estimate, $tracked, $completed, $kind, $account, $calendar, $event);
+                VALUES ($day, $task, $title, $channel, $start, $end, $estimate, $tracked, $completed, $kind, $account, $calendar, $event, $notes, $subtasks);
                 """,
                 ("$day", Day(day)),
                 ("$task", b.TaskId),
@@ -48,7 +48,9 @@ public static class SunsamaStore
                 ("$kind", Kind(b.Kind)),
                 ("$account", b.MatchedAccountId),
                 ("$calendar", b.MatchedCalendarId),
-                ("$event", b.MatchedEventId));
+                ("$event", b.MatchedEventId),
+                ("$notes", b.Notes),
+                ("$subtasks", b.Subtasks));
         }
 
         own?.Commit();
@@ -78,11 +80,14 @@ public static class SunsamaStore
                 {
                     "timebox" => SunsamaBlockKind.Timebox,
                     "matched" => SunsamaBlockKind.Matched,
+                    "completed" => SunsamaBlockKind.Completed,
                     _ => SunsamaBlockKind.Projected,
                 },
                 r.GetStringOrNull(10),
                 r.GetStringOrNull(11),
-                r.GetStringOrNull(12)),
+                r.GetStringOrNull(12),
+                r.GetString(13),
+                r.GetString(14)),
             ("$from", Day(from)),
             ("$to", Day(toExclusive)));
 
@@ -99,6 +104,7 @@ public static class SunsamaStore
     {
         SunsamaBlockKind.Timebox => "timebox",
         SunsamaBlockKind.Matched => "matched",
+        SunsamaBlockKind.Completed => "completed",
         _ => "projected",
     };
 }

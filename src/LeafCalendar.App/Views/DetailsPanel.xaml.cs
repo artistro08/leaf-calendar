@@ -24,6 +24,10 @@ namespace LeafCalendar.App.Views;
 /// </summary>
 public sealed partial class DetailsPanel : UserControl
 {
+    // Segoe Fluent Icons: a subtask's check box, filled when done
+    private const string CheckedGlyph = "\uE73A"; // CheckboxComposite
+    private const string UncheckedGlyph = "\uE739"; // Checkbox
+
     private CalendarViewModel? _vm;
     private string? _shownKey;
 
@@ -209,7 +213,7 @@ public sealed partial class DetailsPanel : UserControl
         Show(_vm?.SelectedInfo);
     }
 
-    // A Sunsama task: title, time, channel, planned and tracked time (Tracked time on), and Open in Sunsama
+    // A Sunsama task: title, time, channel, planned and tracked time (Tracked time on), subtasks, notes, and Open in Sunsama
     private void ShowTask(SelectedTaskInfo task)
     {
         UpcomingView.Visibility = Visibility.Collapsed;
@@ -234,7 +238,25 @@ public sealed partial class DetailsPanel : UserControl
         var tracked = _vm?.Settings.SunsamaTracked == true && block.TrackedMinutes is > 0 ? block.TrackedMinutes : null;
         SunsamaTracked.Text = tracked is { } minutes ? $"{SunsamaText.Format(minutes)} tracked" : "";
         SunsamaTracked.Visibility = Visible(tracked is not null);
+        ShowSubtasks(SunsamaSubtasks.Decode(block.Subtasks));
+        RenderDescription(SunsamaNotes, DescriptionFormatter.Format(block.Notes));
         SunsamaOpen.Visibility = Visible(SunsamaText.IsTaskId(block.TaskId));
+    }
+
+    // One row per subtask: a filled check when done, an empty box when not, then its title
+    private void ShowSubtasks(IReadOnlyList<SunsamaSubtask> subtasks)
+    {
+        SunsamaSubtaskList.Children.Clear();
+        SunsamaSubtaskList.Visibility = Visible(subtasks.Count > 0);
+        foreach (var subtask in subtasks)
+        {
+            var title = Core.Tray.DisplayText.Clean(subtask.Title, 500);
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            row.Children.Add(new FontIcon { Glyph = subtask.Completed ? CheckedGlyph : UncheckedGlyph, FontSize = 14, VerticalAlignment = VerticalAlignment.Center });
+            row.Children.Add(new TextBlock { Text = title, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true });
+            AutomationProperties.SetName(row, subtask.Completed ? $"{title}, done" : $"{title}, not done");
+            SunsamaSubtaskList.Children.Add(row);
+        }
     }
 
     private void OnOpenInSunsamaClick(object sender, RoutedEventArgs e) => _vm?.OpenSelectedInSunsama();
@@ -303,7 +325,7 @@ public sealed partial class DetailsPanel : UserControl
         GuestsText.Text = guests.Count == 1 ? "1 guest" : string.Create(CultureInfo.InvariantCulture, $"{guests.Count} guests");
         GuestList.ItemsSource = guests.Select(g => new GuestItem(Clean(g.Email), GuestDetail(g), g.Name is null ? null : Clean(g.Name))).ToList();
 
-        RenderDescription(info.DescriptionRuns);
+        RenderDescription(DescriptionBlock, info.DescriptionRuns);
         ShowShortcutHints(info, guests.Count > 0);
 
         // Dividers: one above each group that shows, never above the first group (the title block), so none sit
@@ -372,10 +394,10 @@ public sealed partial class DetailsPanel : UserControl
     };
 
     // Styled runs as native text. Links never get a NavigateUri from event content; a click goes through the allowlist.
-    private void RenderDescription(IReadOnlyList<DescriptionRun> runs)
+    private void RenderDescription(RichTextBlock target, IReadOnlyList<DescriptionRun> runs)
     {
-        DescriptionBlock.Blocks.Clear();
-        DescriptionBlock.Visibility = Visible(runs.Count > 0);
+        target.Blocks.Clear();
+        target.Visibility = Visible(runs.Count > 0);
         _hostNotes.Clear();
 
         var paragraph = new Paragraph();
@@ -412,7 +434,7 @@ public sealed partial class DetailsPanel : UserControl
             }
         }
 
-        DescriptionBlock.Blocks.Add(paragraph);
+        target.Blocks.Add(paragraph);
     }
 
     private Inline Styled(DescriptionRun run, string text)
