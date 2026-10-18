@@ -104,6 +104,67 @@
                     </controls:PinnedItemsControl.ItemTemplate>
                 </controls:PinnedItemsControl>
                 <!-- /One Expander Per Account -->
+
+                <!-- Sunsama (owner, 2026-10-16: the button sits in the header, in the space the Google account headers leave;
+                     the success bar shows above the card, errors inside it) -->
+                <InfoBar
+                    x:Name="SunsamaSuccess"
+                    CloseButtonStyle="{StaticResource LeafInfoBarCloseButtonStyle}"
+                    Severity="Success"
+                    IsClosable="True"
+                    IsOpen="False"
+                    Visibility="Collapsed"
+                    Message="Successfully signed in to Sunsama"
+                    Closed="OnSunsamaSuccessClosed"
+                    AutomationProperties.LiveSetting="Polite"
+                    AutomationProperties.AutomationId="SunsamaSuccess" />
+                <Expander
+                    x:Name="SunsamaExpander"
+                    Style="{StaticResource LeafSettingExpanderStyle}"
+                    AutomationProperties.Name="Sunsama"
+                    AutomationProperties.AutomationId="SunsamaExpander">
+                    <Expander.Header>
+                        <controls:SettingRow
+                            x:Name="SunsamaHeader"
+                            Style="{StaticResource LeafExpanderHeaderRowStyle}"
+                            Glyph="&#xE823;"
+                            Header="Sunsama"
+                            Description="Not signed in"
+                            AutomationProperties.AutomationId="SunsamaStatus">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <ProgressRing
+                                    x:Name="SunsamaRing"
+                                    Width="20"
+                                    Height="20"
+                                    IsActive="False"
+                                    Visibility="Collapsed"
+                                    AutomationProperties.Name="Finish signing in in your browser."
+                                    AutomationProperties.AutomationId="SunsamaProgress" />
+                                <Button x:Name="SunsamaCancel" Content="Cancel" Visibility="Collapsed" Click="OnSunsamaCancelClick" AutomationProperties.AutomationId="SunsamaCancelSignIn" />
+                                <Button x:Name="SunsamaSignOut" Content="Sign out" Visibility="Collapsed" Click="OnSunsamaSignOutClick" AutomationProperties.AutomationId="SunsamaSignOut" />
+                                <Button x:Name="SunsamaSignIn" Style="{StaticResource AccentButtonStyle}" Content="Sign in with Sunsama" Click="OnSunsamaSignInClick" AutomationProperties.AutomationId="SunsamaSignIn" />
+                            </StackPanel>
+                        </controls:SettingRow>
+                    </Expander.Header>
+                    <StackPanel>
+                        <InfoBar
+                            x:Name="SunsamaError"
+                            Margin="16,12,16,0"
+                            Severity="Error"
+                            IsClosable="False"
+                            IsOpen="False"
+                            Visibility="Collapsed"
+                            AutomationProperties.LiveSetting="Assertive"
+                            AutomationProperties.AutomationId="SunsamaError" />
+                        <controls:SettingRow
+                            Style="{StaticResource LeafExpanderItemRowStyle}"
+                            BorderThickness="0"
+                            Header="Permissions"
+                            Description="Leaf Calendar can only read your Sunsama tasks and calendar. It never changes anything in Sunsama."
+                            AutomationProperties.AutomationId="SunsamaPermissions" />
+                    </StackPanel>
+                </Expander>
+                <!-- /Sunsama -->
                 <controls:SettingRow Glyph="&#xE734;" Header="Main account" Description="Listed first, and used to look up people's free/busy times.">
                     <ComboBox
                         x:Name="MainAccountBox"
