@@ -20,8 +20,9 @@ public sealed class SunsamaGridTests : IDisposable
     internal const string MatchedId = "aaaaaaaaaaaaaaaaaaaaaaa2";
     internal const string Dentist = "Event_evt-single_202610011300";
 
-    // Oct 1 in Chicago (CDT, UTC-5): the projected task 9:30-10:10 AM and 12:30-1:50 PM, the timebox 2-3 PM
-    internal static readonly DateTimeOffset ProjectedStart = new(2026, 10, 1, 14, 30, 0, TimeSpan.Zero);
+    // Oct 1 in Chicago (CDT, UTC-5): the projected task 7:00-7:40 AM (started by test mode's 8:00) and 12:30-1:50 PM,
+    // the timebox 2-3 PM
+    internal static readonly DateTimeOffset ProjectedStart = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
     internal static readonly DateTimeOffset TimeboxStart = new(2026, 10, 1, 19, 0, 0, TimeSpan.Zero);
 
     private readonly FakeGoogleServer _google = new();
@@ -45,7 +46,7 @@ public sealed class SunsamaGridTests : IDisposable
         {"tasks":[
           {"_id":"{{{{ProjectedId}}}}","title":"Home Page Redesign","channel":"Illuminate Digital","timeEstimate":"2 hours",
            "completed":false,"timeboxEventIds":[],"actualTimeSpent":{"total":"1 hours and 24 minutes"},
-           "projectedTimeEntries":[{"startDate":"2026-10-01 9:30 AM","endDate":"2026-10-01 10:10 AM"},
+           "projectedTimeEntries":[{"startDate":"2026-10-01 7:00 AM","endDate":"2026-10-01 7:40 AM"},
                                    {"startDate":"2026-10-01 12:30 PM","endDate":"2026-10-01 1:50 PM"}]},
           {"_id":"{{{{TimeboxId}}}}","title":"Write copy","channel":"Work","timeEstimate":"1 hour","timeboxEventIds":["ev-box"]},
           {"_id":"{{{{MatchedId}}}}","title":"Dentist appointment","channel":"Personal","timeboxEventIds":[],
@@ -75,9 +76,9 @@ public sealed class SunsamaGridTests : IDisposable
     internal static string BlockId(string taskId, DateTimeOffset start) =>
         string.Create(CultureInfo.InvariantCulture, $"Event_{taskId}@{start.UtcTicks}_{start.UtcDateTime:yyyyMMddHHmm}");
 
-    // 3 PM on Oct 1, after the seeded blocks start: tracked time only shows on blocks that have started
+    // Test mode's "now" is 8:00 on the start date (tracked time only shows on blocks that have started by then)
     internal static LeafApp Launch(string profile, FakeGoogleServer google) =>
-        LeafApp.Launch(profile, $"--fake-google {google.BaseUri} --start-date 2026-10-01 --now 2026-10-01T15:00:00-05:00");
+        LeafApp.Launch(profile, $"--fake-google {google.BaseUri} --start-date 2026-10-01");
 
     // Sunsama is fetched after the first Google sync pass, so its blocks can take a pass or two to arrive
     internal static AutomationElement WaitForBlock(LeafApp leaf, string id) =>

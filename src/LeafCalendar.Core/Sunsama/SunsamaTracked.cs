@@ -20,7 +20,7 @@ public static class SunsamaTracked
         double remaining = blocksOfOneTaskOnOneDay.Count > 0 ? blocksOfOneTaskOnOneDay[0].TrackedMinutes ?? 0 : 0;
         foreach (var i in Enumerable.Range(0, fills.Length).OrderBy(i => blocksOfOneTaskOnOneDay[i].Start))
         {
-            if (blocksOfOneTaskOnOneDay[i].Start >= now)
+            if (blocksOfOneTaskOnOneDay[i].Start > now)
             {
                 continue;
             }

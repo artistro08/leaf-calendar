@@ -50,5 +50,9 @@ public sealed class SunsamaTrackedTests
     }
 
     [Fact]
+    public void Fill_BlockStartingNow_HasStarted() =>
+        Assert.Equal([0.5], SunsamaTracked.Fill([Block(Start, 60, 30)], now: Start));
+
+    [Fact]
     public void Fill_Empty_IsEmpty() => Assert.Empty(SunsamaTracked.Fill([]));
 }

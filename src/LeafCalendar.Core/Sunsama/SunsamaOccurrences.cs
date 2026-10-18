@@ -98,7 +98,7 @@ public static class SunsamaOccurrences
         foreach (var row in rows.Where(r => r.Kind == SunsamaBlockKind.Matched && r.MatchedEventId is not null))
         {
             var length = (row.End - row.Start).TotalMinutes;
-            var fill = length > 0 && !(row.Start >= now) ? Math.Min(1, (row.TrackedMinutes ?? 0) / length) : 0;
+            var fill = length > 0 && !(row.Start > now) ? Math.Min(1, (row.TrackedMinutes ?? 0) / length) : 0;
             byKey[MatchKey(row.MatchedAccountId!, row.MatchedCalendarId!, row.MatchedEventId!, row.Start)] = new SunsamaShown(row, fill);
         }
 
