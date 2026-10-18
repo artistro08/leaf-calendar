@@ -115,7 +115,8 @@ public sealed class SunsamaGridTests : IDisposable
         Assert.False(leaf.Exists(BlockId(MatchedId, new DateTimeOffset(2026, 10, 1, 13, 0, 0, TimeSpan.Zero))), "The matched task drew a block of its own.");
     }
 
-    // Dragging a block an hour down leaves it where it was, opens nothing and writes nothing to Google
+    // Dragging a block an hour down leaves it where it was, opens nothing, writes nothing to Google, and the notice says
+    // why with a button that opens the task in Sunsama
     [Fact]
     public void Drag_SunsamaBlock_DoesNothing()
     {
@@ -130,6 +131,19 @@ public sealed class SunsamaGridTests : IDisposable
         Assert.Equal(before.Top, WaitForBlock(leaf, id).BoundingRectangle.Top);
         Assert.False(leaf.Exists("EditorTitle"), "A drag opened the editor.");
         Assert.Empty(_google.Writes);
+
+        // The Notice Says Why, And Its Button Opens The Task In Sunsama
+        var notice = leaf.WaitFor("NoticeBar");
+        Assert.True(
+            Retry.WhileFalse(() => notice.FindAllDescendants().Prepend(notice).Any(e => e.Properties.Name.ValueOrDefault == "You can't edit projected times."), TimeSpan.FromSeconds(5)).Success,
+            "The notice didn't say the block can't be moved.");
+        Assert.False(leaf.Exists("UndoButton"), "The notice offered Undo.");
+        var open = leaf.WaitFor("NoticeActionButton");
+        Assert.Equal("Open task in sunsama", open.Name);
+        open.AsButton().Invoke();
+        Assert.True(
+            Retry.WhileFalse(() => LeafApp.LaunchedLinks(_profile).Contains($"sunsama://action/details/{ProjectedId}"), TimeSpan.FromSeconds(10)).Success,
+            $"Launched: [{string.Join(" | ", LeafApp.LaunchedLinks(_profile))}]");
     }
 
     // The right-click menu has only Open in Sunsama, and it opens the task's sunsama:// link

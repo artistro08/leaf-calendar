@@ -70,6 +70,9 @@ public sealed partial class CalendarPage : Page
 
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _noticeTimer;
 
+    // The notice's own button, made the first time a notice has one
+    private Button? _noticeAction;
+
     // "E then ..." sequences; E opens the editor at once on an event you can change, while the second key may still
     // come for 1.5 s (on an invite a lone E waits for the timer)
     private readonly KeySequence _keys = new(TimeProvider.System);
@@ -685,6 +688,18 @@ public sealed partial class CalendarPage : Page
 
         NoticeBar.Message = notice.Text;
         UndoButton.Visibility = notice.CanUndo ? Visibility.Visible : Visibility.Collapsed;
+
+        // A Notice With Its Own Button (Open task in sunsama) Shows That In Undo's Place
+        if (notice.Action is not null && notice.ActionText is { } text)
+        {
+            _noticeAction ??= NewNoticeAction();
+            _noticeAction.Content = text;
+            NoticeBar.ActionButton = _noticeAction;
+        }
+        else
+        {
+            NoticeBar.ActionButton = UndoButton;
+        }
         NoticeBar.IsOpen = true;
         ResumeNoticeTimer();
     }
@@ -717,6 +732,15 @@ public sealed partial class CalendarPage : Page
     private void OnNoticeLostFocus(object sender, RoutedEventArgs e) => ResumeNoticeTimer();
 
     private void OnUndoClick(object sender, RoutedEventArgs e) => ViewModel.Undo();
+
+    // The notice's own button (built once; its text and click come from the notice showing)
+    private Button NewNoticeAction()
+    {
+        var button = new Button();
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(button, "NoticeActionButton");
+        button.Click += (_, _) => ViewModel.Notice?.Action?.Invoke();
+        return button;
+    }
 
     // Only the user's close counts; the bar also closes in code when one notice replaces another
     private void OnNoticeClosed(InfoBar sender, InfoBarClosedEventArgs args)

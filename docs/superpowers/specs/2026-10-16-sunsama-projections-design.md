@@ -134,7 +134,7 @@ Tracked time is drawn **on top of** the block it belongs to, never as its own bl
 - **High contrast:** no stripes; the tracked part gets a solid `SystemColorHighlightColor` edge line and the fraction is spoken, so the information isn't color-only.
 - **Accessibility:** the block's spoken name and tooltip add "{duration} tracked".
 - **Tracked time off:** no overlay anywhere.
-- Blocks can't be dragged, resized or edited.
+- Blocks can't be dragged, resized or edited. A drag gives a little and springs back, and the notice bar says "You can't edit projected times." with an **Open task in sunsama** button that opens the task (owner, 2026-10-17; the button shows only for a task ID in Sunsama's shape).
 - Not shown in Month view's all-day row; Month view lists them like timed events.
 
 ### 6.4 Details Panel
@@ -226,6 +226,8 @@ The user guide shows how to use it, in the same voice and layout as `site/people
 | Sign-in timed out | "Sign-in timed out. Try again." (existing) |
 | Block tooltip and spoken name | "{title} · {time} · {channel}" plus " · {duration} tracked" when Tracked time is on |
 | Right-click menu on a Sunsama block | "Open in Sunsama" |
+| Notice after trying to move a Sunsama block | "You can't edit projected times" (owner, 2026-10-17; the bar adds the period) |
+| Its button | "Open task in sunsama" (owner, 2026-10-17, verbatim) |
 
 ## 10. Non-Goals
 

@@ -73,8 +73,15 @@ public sealed record GuestItem(string Email, string Detail, string? Name = null)
     public bool ShowAddress => Name is not null;
 }
 
-/// <summary>The bar at the bottom of the calendar ("Event deleted · Undo", or a short message).</summary>
-public sealed record NoticeInfo(string Text, bool CanUndo);
+/// <summary>
+/// The bar at the bottom of the calendar ("Event deleted · Undo", or a short message). A notice that isn't undoable can
+/// carry its own button instead (<paramref name="ActionText"/> runs <paramref name="Action"/>).
+/// </summary>
+/// <param name="Text">The message.</param>
+/// <param name="CanUndo">Shows Undo.</param>
+/// <param name="ActionText">The button's text, or null for none.</param>
+/// <param name="Action">What the button does.</param>
+public sealed record NoticeInfo(string Text, bool CanUndo, string? ActionText = null, Action? Action = null);
 
 /// <summary>A page of the Settings window.</summary>
 public enum SettingsSection
@@ -2290,9 +2297,16 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         ArgumentNullException.ThrowIfNull(occurrence);
 
-        // A Sunsama Block Just Springs Back: there's no Google event to explain
+        // A Sunsama Block: its times are Sunsama's, so the way to change them is the task in Sunsama (owner, 2026-10-17)
         if (SunsamaOccurrences.IsSunsama(occurrence))
         {
+            var canOpen = SunsamaText.IsTaskId(SunsamaShownFor(occurrence)?.Block.TaskId);
+            Notice = null;
+            Notice = new NoticeInfo(
+                Core.Tray.DisplayText.Sentence("You can't edit projected times"),
+                CanUndo: false,
+                canOpen ? "Open task in sunsama" : null,
+                canOpen ? () => OpenInSunsama(occurrence) : null);
             return;
         }
 
