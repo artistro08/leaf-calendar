@@ -123,6 +123,9 @@ public enum CalendarCommand
     /// <summary>Ctrl+, (comma): Settings.</summary>
     OpenSettings,
 
+    /// <summary>Ctrl+R or F5: sync now.</summary>
+    SyncNow,
+
     /// <summary>Z: time travel (view the calendar in another time zone).</summary>
     TimeTravel,
 
@@ -216,6 +219,7 @@ public static class ShortcutMap
                 "K" => new(CalendarCommand.CommandMenu),
                 "F" => new(CalendarCommand.Search),
                 "188" => new(CalendarCommand.OpenSettings),
+                "R" => new(CalendarCommand.SyncNow),
                 _ => default,
             };
         }
@@ -258,6 +262,7 @@ public static class ShortcutMap
             "V" => new(CalendarCommand.OpenMeetingLink),
             "X" => new(CalendarCommand.ToggleSelect),
             "Delete" => new(CalendarCommand.DeleteSelected),
+            "F5" => new(CalendarCommand.SyncNow),
             "191" or "Divide" => new(CalendarCommand.Search),
             "Z" => new(CalendarCommand.TimeTravel),
             "S" => new(CalendarCommand.ShareAvailability),

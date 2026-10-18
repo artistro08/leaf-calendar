@@ -57,6 +57,14 @@ public sealed class CommandCatalogTests
         Assert.Equal((CalendarCommand.Days, 3), (days.Command, days.Days));
     }
 
+    [Fact]
+    public void Sync_RunsThroughItsShortcut()
+    {
+        var sync = CommandCatalog.All.Single(c => c.Id == "sync");
+
+        Assert.Equal(("Ctrl+R", CalendarCommand.SyncNow), (sync.Keys, sync.Command));
+    }
+
     [Theory]
     [InlineData("sett", true)]
     [InlineData("Jump to", true)]

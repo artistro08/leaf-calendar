@@ -35,6 +35,7 @@ public static class ShortcutCatalog
         new("App", "Ctrl+F or /", "Search (command menu)", CalendarCommand.Search),
         new("App", "?", "Shortcut cheat sheet", CalendarCommand.ShortcutSheet),
         new("App", "Ctrl+,", "Settings", CalendarCommand.OpenSettings),
+        new("App", "Ctrl+R or F5", "Sync now", CalendarCommand.SyncNow),
         new("App", "Ctrl+Z", "Undo the last delete (this session)", CalendarCommand.Undo),
         new("App", "Alt+Left / Alt+Right, mouse back / forward", "Back / forward through visited views", CalendarCommand.NavigateBack),
         new("App", "Ctrl+Shift+L", "Toggle light / dark", CalendarCommand.ToggleTheme),

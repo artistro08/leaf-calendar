@@ -45,7 +45,7 @@ public static class CommandCatalog
         new("settings-accounts", "Settings › Accounts", "", Keywords: "preferences google"),
         new("settings-about", "Settings › About", "", Keywords: "version licenses logs"),
         new("shortcuts", "Show keyboard shortcuts", "?", CalendarCommand.ShortcutSheet, Keywords: "keys help cheat sheet"),
-        new("sync", "Sync now", "", Keywords: "refresh"),
+        new("sync", "Sync now", "Ctrl+R", CalendarCommand.SyncNow, Keywords: "refresh"),
         new("back", "Go back", "Alt+Left", CalendarCommand.NavigateBack),
         new("forward", "Go forward", "Alt+Right", CalendarCommand.NavigateForward),
         new("quit", "Quit Leaf Calendar", "", Keywords: "exit close"),

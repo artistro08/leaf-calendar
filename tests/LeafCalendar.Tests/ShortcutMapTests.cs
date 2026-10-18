@@ -29,6 +29,8 @@ public class ShortcutMapTests
     [InlineData("Add", true, false, CalendarCommand.ZoomIn, 0)]
     [InlineData("189", true, false, CalendarCommand.ZoomOut, 0)]
     [InlineData("Number0", true, false, CalendarCommand.ZoomReset, 0)]
+    [InlineData("R", true, false, CalendarCommand.SyncNow, 0)]
+    [InlineData("F5", false, false, CalendarCommand.SyncNow, 0)]
     public void Resolve_KnownChord_MapsCommand(string key, bool ctrl, bool shift, CalendarCommand command, int days)
     {
         Assert.Equal(new ShortcutResult(command, days), ShortcutMap.Resolve(key, ctrl, shift, alt: false));

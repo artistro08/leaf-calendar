@@ -526,6 +526,7 @@ Shortcuts written with a punctuation character (`?`, `/`, `.`, `Ctrl+,`, `Ctrl+=
 | `Ctrl+F` or `/` | Search (command menu) |
 | `?` | Shortcut cheat sheet |
 | `Ctrl+,` | Settings |
+| `Ctrl+R` or `F5` | Sync now |
 | `Ctrl+Z` | Undo the last delete (this session) |
 | `Alt+Left` / `Alt+Right`, mouse back / forward | Back / forward through visited views |
 | `Ctrl+Shift+L` | Toggle light / dark |
