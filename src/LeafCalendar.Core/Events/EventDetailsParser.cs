@@ -90,11 +90,12 @@ public static partial class EventDetailsParser
         {
             if (Get(attendee, "self") is { ValueKind: JsonValueKind.True })
             {
+                // The Organizer Has Nothing To Answer: unanswered on your own event (Sunsama's timeboxes) is accepted
                 return String(attendee, "responseStatus") switch
                 {
                     "declined" => ResponseStatus.Declined,
                     "tentative" => ResponseStatus.Tentative,
-                    "needsAction" => ResponseStatus.NeedsAction,
+                    "needsAction" when Get(Get(root, "organizer"), "self") is not { ValueKind: JsonValueKind.True } => ResponseStatus.NeedsAction,
                     _ => ResponseStatus.Accepted,
                 };
             }
