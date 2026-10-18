@@ -329,6 +329,23 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(HasSelection))]
     public partial SelectedEventInfo? SelectedInfo { get; set; }
 
+    /// <summary>The selected Sunsama block's task, or null (spec 2026-10-16, section 6.4).</summary>
+    [ObservableProperty]
+    public partial SelectedTaskInfo? SelectedTask { get; set; }
+
+    /// <summary>The Sunsama task matched to the selected Google event while Tracked time is on, or null.</summary>
+    [ObservableProperty]
+    public partial SunsamaShown? SelectedTracked { get; set; }
+
+    /// <summary>Opens the selected block's task, or the selected Google event's matched task, in Sunsama.</summary>
+    public void OpenSelectedInSunsama()
+    {
+        if ((SelectedTask?.Shown ?? SelectedTracked) is { } shown)
+        {
+            Run(async () => await _services.LaunchSunsamaAsync(shown.Block.TaskId), "sunsama.open.failed");
+        }
+    }
+
     /// <summary>True when an event is selected.</summary>
     public bool HasSelection => SelectedInfo is not null;
 
@@ -754,6 +771,24 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     // Selects and loads without touching the editor (a refresh re-selects the event behind an open editor)
     private void ShowSelected(CalendarOccurrence occurrence)
     {
+        // A Sunsama Block Has No Google Event Behind It: show the task instead
+        if (SunsamaOccurrences.IsSunsama(occurrence))
+        {
+            if (SunsamaShownFor(occurrence) is not { } task)
+            {
+                return;
+            }
+
+            _selection.Clear();
+            _selection.Add(occurrence);
+            SelectedInfo = null;
+            SelectedTracked = null;
+            SelectedTask = new SelectedTaskInfo(occurrence, task, WhenText(occurrence));
+            OnPropertyChanged(nameof(Selection));
+            OccurrencesChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
         try
         {
             using var conn = _services.Database.Open();
@@ -767,6 +802,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
             _selection.Clear();
             _selection.Add(occurrence);
+            SelectedTask = null;
+            SelectedTracked = Settings.SunsamaTracked && SunsamaShownFor(occurrence) is { Block.TrackedMinutes: > 0 } tracked ? tracked : null;
 
             var (canEdit, canRespond) = _services.Editor.Permissions(occurrence);
             SelectedInfo = new SelectedEventInfo(
@@ -801,6 +838,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
         _selection.Clear();
         SelectedInfo = null;
+        SelectedTask = null;
+        SelectedTracked = null;
         OnPropertyChanged(nameof(Selection));
         OccurrencesChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -2216,6 +2255,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
 
         SelectedInfo = null;
+        SelectedTask = null;
+        SelectedTracked = null;
         OnPropertyChanged(nameof(Selection));
         OccurrencesChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -2508,6 +2549,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         }
     }
 }
+
+/// <summary>A selected Sunsama block: the occurrence, its task as shown, and when it is ("Friday, October 16 · 10:50 – 11:30 AM").</summary>
+/// <param name="Occurrence">The block's occurrence.</param>
+/// <param name="Shown">The task and its tracked fill.</param>
+/// <param name="When">The day and time, as the details panel shows an event's.</param>
+public sealed record SelectedTaskInfo(CalendarOccurrence Occurrence, SunsamaShown Shown, string When);
 
 /// <summary>One calendar in the sidebar.</summary>
 public sealed partial class CalendarRow : ObservableObject

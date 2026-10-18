@@ -5,6 +5,7 @@ using LeafCalendar.App.Controls;
 using LeafCalendar.App.ViewModels;
 using LeafCalendar.Core.Editing;
 using LeafCalendar.Core.Events;
+using LeafCalendar.Core.Sunsama;
 using LeafCalendar.Core.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -102,7 +103,8 @@ public sealed partial class DetailsPanel : UserControl
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(CalendarViewModel.SelectedInfo) or nameof(CalendarViewModel.Editing) or nameof(CalendarViewModel.Selection))
+        if (e.PropertyName is nameof(CalendarViewModel.SelectedInfo) or nameof(CalendarViewModel.Editing) or nameof(CalendarViewModel.Selection)
+            or nameof(CalendarViewModel.SelectedTask) or nameof(CalendarViewModel.SelectedTracked))
         {
             ShowCurrent();
         }
@@ -195,8 +197,45 @@ public sealed partial class DetailsPanel : UserControl
             EditorView.Visibility = Visibility.Collapsed;
         }
 
+        // A Sunsama Block: its task, not an event
+        if (_vm?.SelectedTask is { } task)
+        {
+            ShowTask(task);
+            return;
+        }
+
+        SunsamaView.Visibility = Visibility.Collapsed;
         Show(_vm?.SelectedInfo);
     }
+
+    // A Sunsama task: title, time, channel, planned and tracked time (Tracked time on), and Open in Sunsama
+    private void ShowTask(SelectedTaskInfo task)
+    {
+        UpcomingView.Visibility = Visibility.Collapsed;
+        DetailsView.Visibility = Visibility.Collapsed;
+        SunsamaView.Visibility = Visibility.Visible;
+        UpdateUpcomingEmpty();
+        if (task.Occurrence.Key != _shownKey)
+        {
+            _shownKey = task.Occurrence.Key;
+            ScrollIndicator.Hide(ContentScroll);
+            ContentScroll.ChangeView(null, 0, null, true);
+        }
+
+        var block = task.Shown.Block;
+        SunsamaTitle.Text = Core.Tray.DisplayText.Clean(block.Title, 1000);
+        SunsamaWhen.Text = task.When;
+        SunsamaChannel.Text = Core.Tray.DisplayText.Clean(block.Channel, 200);
+        SunsamaChannelRow.Visibility = Visible(block.Channel.Length > 0);
+        SunsamaDot.Fill = LeafBrushes.FromHex(SunsamaOccurrences.Color);
+        SunsamaPlanned.Text = block.EstimateMinutes is { } planned ? $"{SunsamaText.Format(planned)} planned" : "";
+        SunsamaPlanned.Visibility = Visible(block.EstimateMinutes is not null);
+        var tracked = _vm?.Settings.SunsamaTracked == true ? block.TrackedMinutes : null;
+        SunsamaTracked.Text = tracked is { } minutes ? $"{SunsamaText.Format(minutes)} tracked" : "";
+        SunsamaTracked.Visibility = Visible(tracked is not null);
+    }
+
+    private void OnOpenInSunsamaClick(object sender, RoutedEventArgs e) => _vm?.OpenSelectedInSunsama();
 
     private void Show(SelectedEventInfo? info)
     {
@@ -224,6 +263,11 @@ public sealed partial class DetailsPanel : UserControl
         CalendarText.Text = info.CalendarName;
         StatusText.Text = info.StatusText;
         CalendarDot.Fill = LeafBrushes.FromHex(info.CalendarColor);
+
+        // Sunsama Tracked Time On A Matched Event
+        var tracked = _vm?.SelectedTracked?.Block.TrackedMinutes;
+        EventTrackedText.Text = tracked is { } minutes ? $"{SunsamaText.Format(minutes)} tracked" : "";
+        EventTrackedRow.Visibility = Visible(tracked is not null);
 
         // Join (it shows where it really goes)
         var call = d.ConferenceUri is { } uri ? LinkSafety.DisplayForm(uri) ?? "" : "";
