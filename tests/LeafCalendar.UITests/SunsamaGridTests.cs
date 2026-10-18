@@ -229,7 +229,7 @@ public sealed class SunsamaGridTests : IDisposable
         }
     }
 
-    // J from a selected block moves on to what comes after it, not back to the same block
+    // N (next event) from a selected block moves on to what comes after it, not back to the same block
     [Fact]
     public void NextEvent_FromASunsamaBlock_MovesOn()
     {
@@ -238,8 +238,8 @@ public sealed class SunsamaGridTests : IDisposable
         WaitForBlock(leaf, id).Click();
         Assert.True(Retry.WhileFalse(() => IsSelected(leaf, id), TimeSpan.FromSeconds(5)).Success, "The block didn't select.");
 
-        leaf.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.KEY_J);
+        leaf.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.KEY_N);
 
-        Assert.True(Retry.WhileTrue(() => IsSelected(leaf, id), TimeSpan.FromSeconds(5)).Success, "J stayed on the same block.");
+        Assert.True(Retry.WhileTrue(() => IsSelected(leaf, id), TimeSpan.FromSeconds(5)).Success, "N stayed on the same block.");
     }
 }

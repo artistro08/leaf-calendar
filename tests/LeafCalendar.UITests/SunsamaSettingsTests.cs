@@ -116,7 +116,7 @@ public sealed class SunsamaSettingsTests : IDisposable
 
         leaf.ExpandInSettings("SunsamaExpander");
 
-        Assert.NotNull(leaf.WaitInSettings("SunsamaPermissions"));
+        Assert.True(SettingsShows(leaf, "Permissions"));
         Assert.True(SettingsShows(leaf, "Leaf Calendar can only read your Sunsama tasks and calendar. It never changes anything in Sunsama."));
     }
 }

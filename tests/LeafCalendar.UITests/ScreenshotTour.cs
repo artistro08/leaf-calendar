@@ -193,7 +193,7 @@ public sealed class ScreenshotTour : IDisposable
             // Settings › Accounts With The Sunsama Card Open
             var settings = leaf.OpenSettings("Accounts");
             leaf.ExpandInSettings("SunsamaExpander");
-            leaf.WaitInSettings("SunsamaPermissions").Patterns.ScrollItem.Pattern.ScrollIntoView();
+            leaf.WaitInSettings("SunsamaExpander").Patterns.ScrollItem.Pattern.ScrollIntoView();
             Thread.Sleep(600);
             settings.CaptureToFile(Path.Combine(folder, $"sunsama-expander-{name}.png"));
         }
