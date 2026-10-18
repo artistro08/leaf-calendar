@@ -239,6 +239,28 @@ public sealed class SunsamaServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SyncAsync_NothingChanged_DoesNotRaiseDataChangedAgain()
+    {
+        SeedSignedIn();
+        ServeToken();
+        ServeMcp();
+        var service = Create();
+        service.Load();
+        service.SetDays(Day, Day.AddDays(1));
+        var dataChanged = 0;
+        service.DataChanged += (_, _) => dataChanged++;
+
+        await service.SyncAsync(TestContext.Current.CancellationToken);
+        await service.SyncAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, dataChanged);
+        _resources["sunsama://tasks/2026-10-16"] = """{"tasks":[]}""";
+        await service.SyncAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(2, dataChanged);
+        Assert.Empty(Rows());
+    }
+
+    [Fact]
     public async Task SyncAsync_Disabled_FetchesNothing()
     {
         SeedSignedIn();

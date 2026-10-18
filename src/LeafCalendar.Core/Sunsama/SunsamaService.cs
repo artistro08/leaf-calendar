@@ -280,6 +280,7 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
 
         var days = 0;
         var blocks = 0;
+        var changed = 0;
         try
         {
             // The Zone Is Read Once Per Sign-In, and Again While It's Missing
@@ -313,29 +314,34 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
                         return;
                     }
 
-                    SunsamaStore.ReplaceDay(conn, null, day, rows);
+                    // A day saved as it was raises nothing, so an unchanged plan doesn't reload the calendar every pass
+                    if (!Same(SunsamaStore.Range(conn, day, day.AddDays(1)), rows))
+                    {
+                        SunsamaStore.ReplaceDay(conn, null, day, rows);
+                        changed++;
+                    }
                 }
 
                 days++;
                 blocks += rows.Count;
             }
 
-            log.Info("sunsama.sync.done", string.Create(CultureInfo.InvariantCulture, $"days={days} blocks={blocks}"));
+            log.Info("sunsama.sync.done", string.Create(CultureInfo.InvariantCulture, $"days={days} changed={changed} blocks={blocks}"));
         }
         catch (SchedulingAuthException)
         {
-            var changed = false;
+            var refused = false;
             lock (_gate)
             {
                 if (_endings == endings && State == SunsamaState.SignedIn)
                 {
                     State = SunsamaState.NeedsSignIn;
-                    changed = true;
+                    refused = true;
                 }
             }
 
             log.Info("sunsama.sync.needs-sign-in");
-            if (changed)
+            if (refused)
             {
                 Changed?.Invoke(this, EventArgs.Empty);
             }
@@ -346,7 +352,7 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
         }
         finally
         {
-            if (days > 0)
+            if (changed > 0)
             {
                 DataChanged?.Invoke(this, EventArgs.Empty);
             }
@@ -364,6 +370,12 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
     }
 
     private static string? NonEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
+
+    // The same rows in any order (the store reads them back by start)
+    private static bool Same(IReadOnlyList<SunsamaBlock> saved, IReadOnlyList<SunsamaBlock> fresh) =>
+        saved.Count == fresh.Count && saved.OrderBy(Order).SequenceEqual(fresh.OrderBy(Order));
+
+    private static (DateTimeOffset, string, SunsamaBlockKind, DateTimeOffset, string?) Order(SunsamaBlock b) => (b.Start, b.TaskId, b.Kind, b.End, b.MatchedEventId);
 
     // Tokens and an MCP client for one sign-in. A rotated refresh token is saved only once the sign-in is committed
     private Session StartSession(string clientId, string refreshToken, bool committed)
