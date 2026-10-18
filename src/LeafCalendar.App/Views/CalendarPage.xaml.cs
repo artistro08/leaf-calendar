@@ -736,7 +736,8 @@ public sealed partial class CalendarPage : Page
     // The notice's own button (built once; its text and click come from the notice showing)
     private Button NewNoticeAction()
     {
-        var button = new Button();
+        // Close to the close button, like Undo (see its margin in CalendarPage.xaml)
+        var button = new Button { Margin = new Thickness(0, 0, -16, 0) };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(button, "NoticeActionButton");
         button.Click += (_, _) => ViewModel.Notice?.Action?.Invoke();
         return button;

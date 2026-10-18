@@ -148,8 +148,12 @@
                         AutomationProperties.LiveSetting="Polite"
                         AutomationProperties.AutomationId="NoticeBar">
                         <InfoBar.ActionButton>
+                            <!-- The negative right margin takes back the stock 16 the InfoBar leaves before its close button, whose own
+                                 padding still leaves 16 to its X (owner, 2026-10-17; the template reads that 16 as a StaticResource, so
+                                 it can't be overridden here). The notice's own button (CalendarPage.NewNoticeAction) does the same -->
                             <Button
                                 x:Name="UndoButton"
+                                Margin="0,0,-16,0"
                                 Content="Undo"
                                 Click="OnUndoClick"
                                 AutomationProperties.AutomationId="UndoButton" />

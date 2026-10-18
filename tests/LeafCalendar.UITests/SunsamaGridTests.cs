@@ -141,6 +141,11 @@ public sealed class SunsamaGridTests : IDisposable
         Assert.False(leaf.Exists("UndoButton"), "The notice offered Undo.");
         var open = leaf.WaitFor("NoticeActionButton");
         Assert.Equal("Open task in Sunsama", open.Name);
+
+        // The button sits right by the close button, without the stock 16 DIP between them (owner, 2026-10-17)
+        var close = notice.FindFirstDescendant(cf => cf.ByName("Close"))!.BoundingRectangle;
+        var gap = (close.Left - open.BoundingRectangle.Right) / leaf.Scale;
+        Assert.True(gap <= 8, $"The button is {gap:0.#} DIP from the close button.");
         open.AsButton().Invoke();
         Assert.True(
             Retry.WhileFalse(() => LeafApp.LaunchedLinks(_profile).Contains($"sunsama://action/details/{ProjectedId}"), TimeSpan.FromSeconds(10)).Success,
