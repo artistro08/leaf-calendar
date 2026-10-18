@@ -841,6 +841,14 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Shows or hides a calendar in Leaf Calendar.</summary>
     public void SetCalendarHidden(CalendarInfo calendar, bool hidden)
     {
+        // Sunsama's Two Rows Are Settings, Not Stored Calendars
+        if (calendar.AccountId == SunsamaOccurrences.AccountId)
+        {
+            Remember(s => calendar.Id == SunsamaOccurrences.ProjectedCalendarId ? s with { SunsamaProjected = !hidden } : s with { SunsamaTracked = !hidden });
+            ReloadCalendars();
+            return;
+        }
+
         // A Full Or Busy Database Shows A Notice; The Reload Puts The List Back As Stored
         try
         {
@@ -871,12 +879,39 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         ReloadCalendars();
     }
 
-    /// <summary>The calendars grouped by account (the main account first, then in Leaf Calendar's order), for the sidebar and Settings › Calendars.</summary>
-    public List<AccountGroup> CalendarGroups() =>
-        [.. Calendars
-            .GroupBy(c => c.AccountId)
-            .OrderBy(g => g.Key == Settings.MainAccountId ? 0 : 1)
-            .Select(g => new AccountGroup(g.Key, AccountEmails.GetValueOrDefault(g.Key, g.Key), g.Select(c => new CalendarRow(c)), isExpanded: !Settings.CollapsedAccounts.Contains(g.Key)))];
+    /// <summary>
+    /// The calendars grouped by account (the main account first, then in Leaf Calendar's order), for the sidebar and
+    /// Settings › Calendars. The sidebar also asks for the Sunsama group (<paramref name="includeSunsama"/>), shown under
+    /// the Google accounts while signed in: two rows that are settings, not stored calendars.
+    /// </summary>
+    public List<AccountGroup> CalendarGroups(bool includeSunsama = false)
+    {
+        List<AccountGroup> groups =
+        [
+            .. Calendars
+                .GroupBy(c => c.AccountId)
+                .OrderBy(g => g.Key == Settings.MainAccountId ? 0 : 1)
+                .Select(g => new AccountGroup(g.Key, AccountEmails.GetValueOrDefault(g.Key, g.Key), g.Select(c => new CalendarRow(c)), isExpanded: !Settings.CollapsedAccounts.Contains(g.Key))),
+        ];
+        if (includeSunsama && _services.Sunsama.State != SunsamaState.SignedOut)
+        {
+            groups.Add(new AccountGroup(
+                SunsamaOccurrences.AccountId,
+                "Sunsama",
+                [
+                    new CalendarRow(SunsamaRow(SunsamaOccurrences.ProjectedCalendarId, "Projected tasks", Settings.SunsamaProjected)),
+                    new CalendarRow(SunsamaRow(SunsamaOccurrences.TrackedCalendarId, "Tracked time", Settings.SunsamaTracked)),
+                ],
+                isExpanded: !Settings.CollapsedAccounts.Contains(SunsamaOccurrences.AccountId),
+                canReorder: false));
+        }
+
+        return groups;
+    }
+
+    // A Sunsama sidebar row, checked when its setting is on (one fixed color; never stored)
+    private static CalendarInfo SunsamaRow(string id, string name, bool on) =>
+        new(SunsamaOccurrences.AccountId, id, name, SunsamaOccurrences.Color, "reader", false, false, null, LeafHidden: !on, null, 0);
 
     /// <summary>
     /// Folds an account's calendars away under its header, or shows them again, in the sidebar and Settings › Calendars
@@ -932,8 +967,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             UpcomingCalendar = Calendars.FirstOrDefault(c => c.AccountId == upcoming.AccountId && c.Id == upcoming.Id);
         }
 
-        // A Disconnected Account's Choices Go With It (main account, Meet by default, tray-excluded calendars)
-        var pruned = Settings.ForAccounts([.. AccountEmails.Keys]);
+        // A Disconnected Account's Choices Go With It (main account, Meet by default, tray-excluded calendars); the
+        // Sunsama group isn't a Google account, so its folding stays
+        var pruned = Settings.ForAccounts([.. AccountEmails.Keys, SunsamaOccurrences.AccountId]);
         if (pruned != Settings)
         {
             try
@@ -2495,10 +2531,13 @@ public sealed partial class CalendarRow : ObservableObject
 }
 
 /// <summary>An account's calendars in the sidebar.</summary>
-public sealed partial class AccountGroup(string accountId, string email, IEnumerable<CalendarRow> calendars, bool isExpanded = true) : ObservableObject
+public sealed partial class AccountGroup(string accountId, string email, IEnumerable<CalendarRow> calendars, bool isExpanded = true, bool canReorder = true) : ObservableObject
 {
     /// <summary>Google account ID (stable: the list matches groups by it).</summary>
     public string AccountId { get; } = accountId;
+
+    /// <summary>Rows can be dragged into a new order (false for the Sunsama group, whose rows are settings).</summary>
+    public bool CanReorder { get; } = canReorder;
 
     /// <summary>Automation ID of the header that folds the account's calendars away.</summary>
     public string HeaderId => $"AccountHeader_{AccountId}";

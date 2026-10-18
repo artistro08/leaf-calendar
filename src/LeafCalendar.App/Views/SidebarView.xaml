@@ -123,9 +123,9 @@
                                 SelectionMode="None"
                                 ScrollViewer.VerticalScrollMode="Disabled"
                                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                                CanReorderItems="True"
-                                CanDragItems="True"
-                                AllowDrop="True"
+                                CanReorderItems="{x:Bind CanReorder}"
+                                CanDragItems="{x:Bind CanReorder}"
+                                AllowDrop="{x:Bind CanReorder}"
                                 DragItemsCompleted="OnCalendarsReordered"
                                 ContainerContentChanging="OnCalendarRowChanging"
                                 Tag="{x:Bind Email}">
