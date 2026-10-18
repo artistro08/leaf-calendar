@@ -26,7 +26,7 @@ public sealed record DefaultCalendarChoice(string Name, string? Email)
 
 /// <summary>
 /// Settings › Accounts: adding a Google account, an expander per account (Meet by default and Disconnect inside), the
-/// main account, and Sync now; the Sunsama card; the scheduling providers (<see cref="ProviderAccountCard"/>); then the
+/// main account, and Sync now; the scheduling providers (<see cref="ProviderAccountCard"/>); the Sunsama card; then the
 /// default calendar and the OAuth client.
 /// </summary>
 public sealed partial class AccountsPage : Page
@@ -56,6 +56,9 @@ public sealed partial class AccountsPage : Page
 
     // The Sunsama Sign-In Waiting On The Browser, Or Null
     private CancellationTokenSource? _sunsamaSignIn;
+
+    // True Once "Sunsama signed you out" Has Shown For This Refusal, So A Refresh Doesn't Reopen The Card
+    private bool _sunsamaRefusalShown;
 
     /// <summary>Creates the page.</summary>
     public AccountsPage()
@@ -178,9 +181,15 @@ public sealed partial class AccountsPage : Page
         SunsamaColorRow.Description = EventColors.CalendarColorNames.FirstOrDefault(c => c.Hex == color).Name ?? "Tangerine";
         SunsamaRing.Visibility = signingIn ? Visibility.Visible : Visibility.Collapsed;
 
-        // Sunsama Refused The Saved Sign-In: say why (the card opens so the reason shows)
-        if (!signingIn && sunsama.State == SunsamaState.NeedsSignIn)
+        // Sunsama Refused The Saved Sign-In: say why once (the card opens so the reason shows, and stays as you leave it)
+        if (sunsama.State != SunsamaState.NeedsSignIn)
         {
+            _sunsamaRefusalShown = false;
+        }
+
+        if (!signingIn && sunsama.State == SunsamaState.NeedsSignIn && !_sunsamaRefusalShown)
+        {
+            _sunsamaRefusalShown = true;
             ShowSunsamaError("Sunsama signed you out. Sign in again to see your task plan.");
         }
         else if (sunsama.State == SunsamaState.SignedIn)
@@ -272,10 +281,17 @@ public sealed partial class AccountsPage : Page
             RefreshSunsama();
         }
 
-        // The Browser Came Back: Leaf Calendar comes to the front
+        // The Browser Came Back: Leaf Calendar comes to the front (still inside async void, so nothing may escape)
         if (returned)
         {
-            services.NotifySignInReturned();
+            try
+            {
+                services.NotifySignInReturned();
+            }
+            catch (Exception ex)
+            {
+                services.Log.Info("sunsama.accounts.front.failed", $"error={ex.GetType().Name}");
+            }
         }
     }
 

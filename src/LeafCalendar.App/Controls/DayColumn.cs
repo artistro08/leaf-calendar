@@ -227,7 +227,7 @@ public sealed partial class DayColumn : Canvas
             card.HoldsEnd = b.Occurrence.End <= OccurrenceQuery.LocalMidnight(Date.AddDays(1), vm.Zone);
             // The card shows its times without AM/PM (its place on the grid says which); the tooltip and name keep them.
             // A Sunsama task's channel follows the time, and its tracked total (Tracked time on) the tooltip and name
-            var channel = sunsama && task is { Block.Channel.Length: > 0 } ? $" · {task.Block.Channel}" : "";
+            var channel = sunsama && task is { Block.Channel.Length: > 0 } ? $" · {Core.Tray.DisplayText.Clean(task.Block.Channel, 200)}" : "";
             var tracked = vm.Settings.SunsamaTracked && task is { Fill: > 0, Block.TrackedMinutes: { } minutes } ? $" · {SunsamaText.Format(minutes)} tracked" : "";
             if (tracked.Length > 0 && LeafBrushes.HighContrast)
             {

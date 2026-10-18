@@ -162,7 +162,9 @@ public sealed partial class EventBlock : Grid
         _trackedArea.RowDefinitions[1].Height = new GridLength(1 - fill, GridUnitType.Star);
         _trackedArea.Visibility = Visibility.Visible;
         var full = fill >= 1;
-        _tracked.CornerRadius = new CornerRadius(3, 3, full ? 3 : 0, full ? 3 : 0);
+        // Inside the card's border, so its corners follow the card's 4 less the border's width
+        var inner = Math.Max(0, _card.CornerRadius.TopLeft - _card.BorderThickness.Top);
+        _tracked.CornerRadius = new CornerRadius(inner, inner, full ? inner : 0, full ? inner : 0);
         if (LeafBrushes.HighContrast)
         {
             _tracked.Background = LeafBrushes.Transparent;
@@ -232,7 +234,6 @@ public sealed partial class EventBlock : Grid
         _select = select;
         // Spoken And Hovered With AM/PM (the card itself shows the grid form, which its place on the grid disambiguates)
         _timeText = (_owner is { } owner ? TimeLabels.Range(occurrence.Start, occurrence.End, owner.ViewModel.Zone, owner.ViewModel.Settings.Use24HourTime) : timeText) + spokenSuffix;
-        BindTracked(trackedFill, palette.Accent);
 
         // A Selected Card Is Always Solid (its palette is the accent at full strength), Even When Unanswered Or Declined
         var declined = occurrence.SelfResponse == ResponseStatus.Declined;
@@ -243,6 +244,7 @@ public sealed partial class EventBlock : Grid
         _card.Background = !outlined ? LeafBrushes.FromHex(palette.Fill) : declined ? LeafBrushes.Transparent : LeafBrushes.FromHex("#33" + palette.Fill[1..]);
         _card.BorderBrush = accent;
         _card.BorderThickness = LeafBrushes.CardBorder(selected, outlined);
+        BindTracked(trackedFill, palette.Accent);
         _accents.Visibility = declined && !selected ? Visibility.Collapsed : Visibility.Visible;
         BindStripes(stripes is { Count: > 1 } ? stripes : [palette.Accent]);
 

@@ -185,6 +185,7 @@ public sealed partial class DetailsPanel : UserControl
             EditorView?.Visibility = Visibility.Collapsed;
             UpcomingView.Visibility = Visibility.Collapsed;
             DetailsView.Visibility = Visibility.Collapsed;
+            SunsamaView.Visibility = Visibility.Collapsed;
             SelectionSummary.Text = string.Create(CultureInfo.InvariantCulture, $"{count} events selected");
             SelectionList.ItemsSource = _vm?.SelectionRows();
             UpdateUpcomingEmpty();
@@ -230,7 +231,7 @@ public sealed partial class DetailsPanel : UserControl
         SunsamaDot.Fill = LeafBrushes.FromHex(_vm?.SunsamaColor ?? SunsamaOccurrences.Color);
         SunsamaPlanned.Text = block.EstimateMinutes is { } planned ? $"{SunsamaText.Format(planned)} planned" : "";
         SunsamaPlanned.Visibility = Visible(block.EstimateMinutes is not null);
-        var tracked = _vm?.Settings.SunsamaTracked == true ? block.TrackedMinutes : null;
+        var tracked = _vm?.Settings.SunsamaTracked == true && block.TrackedMinutes is > 0 ? block.TrackedMinutes : null;
         SunsamaTracked.Text = tracked is { } minutes ? $"{SunsamaText.Format(minutes)} tracked" : "";
         SunsamaTracked.Visibility = Visible(tracked is not null);
         SunsamaOpen.Visibility = Visible(SunsamaText.IsTaskId(block.TaskId));

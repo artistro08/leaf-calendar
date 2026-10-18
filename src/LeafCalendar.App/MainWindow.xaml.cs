@@ -964,7 +964,6 @@ public sealed partial class MainWindow : Window
         SetWords(WaitingButton, count, away);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(WaitingButton, away);
 
-
         // Sunsama Unreachable (only while Google itself is fine)
         var sunsama = !conflicts && !offline && vm.SunsamaUnreachable;
         SunsamaUnreachableButton.Visibility = sunsama ? Visibility.Visible : Visibility.Collapsed;
