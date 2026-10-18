@@ -70,6 +70,7 @@ Leaf Calendar is a fast, low-memory, native Windows 11 desktop calendar with fea
 | Local DB encryption | None beyond Windows user profile protection. Tokens are encrypted separately. |
 | Share availability | Google free/busy based, copied as text, or as booking links when a scheduling provider (Cal.com) is signed in. Plus a button that opens Google's appointment schedule page. |
 | Scheduling providers | One small interface per provider action; Cal.com first (2026-10-12, issue #28). No webhooks (no Leaf server); bookings are checked after each sync while saved provider times exist. |
+| Sunsama | Read-only: Sunsama's projected and timeboxed task times drawn on the calendar, with each task's channel and tracked time (2026-10-16). Nothing is written to Sunsama or Google. See `2026-10-16-sunsama-projections-design.md`. |
 | Search | No search box. Search goes through the command menu. |
 | Tray menu | XAML menu, placement follows taskbar position. |
 | Tray flyout construction | An invisible host window opens a stock `Flyout` holding the acrylic panel (Layers' HUD pattern), so light dismiss, Esc, and focus are stock and Win32 stays on CsWin32 without marshaling (Milestone 4). |
@@ -180,6 +181,7 @@ Built in Milestone 3 (owner redesign) as its own onboarding window, shown instea
 - Writes go to a temp file that replaces `secrets.bin` in one move, so a crash never leaves half a file. A file DPAPI reports as bad data (damaged, or made for another user or profile) reads as empty (the user signs in again), and the next write moves it aside to `secrets.bin.unreadable` before replacing it. Any other failure to read it (DPAPI failing for a passing reason, such as a key not yet available after a password change, or a locked file) is reported as "try later", never as signed out, and nothing overwrites the file. Sync retries on its own schedule; at startup Leaf opens as usual without Google services (as before setup, but never showing setup to a signed-in user) and tries the secrets again every 30 seconds; sign-in and calendar changes show their usual "try again" messages.
 - Earlier builds kept secrets in the user-wide **Windows Credential Locker** (`PasswordVault`), which uninstalling doesn't clear. While `secrets.bin` doesn't exist, each start copies the Locker's secrets into it in one write, then deletes them from the Locker. If that write fails, the Locker stays untouched, that run uses it (nobody looks signed out), and the next start tries again. If the Locker can't be read, there's nothing to lose, so the file store is used. Once `secrets.bin` exists it's the store; deleting Locker leftovers is best effort and retried each start. If `secrets.bin` is bad data and leftovers exist, they rebuild it in one write first; if it can't be read right now, the leftovers are kept. The move itself never stops Leaf from starting.
 - Access tokens live in memory only.
+- Sunsama signs in with a public OAuth client Leaf Calendar registers itself (dynamic client registration, no secret) and PKCE, on a fixed loopback port (53818), with scopes `read` and `offline_access` only. Its client ID, refresh token and email are provider secrets under `sunsama`; Sign out removes them and every saved Sunsama row. See `2026-10-16-sunsama-projections-design.md` sections 3 and 4.2.
 - Scheduling provider secrets (Cal.com OAuth client ID, client secret and refresh token) live in the same file, in a separate `Providers` map, with the same encryption and atomic writes. Signing out of a provider removes its refresh token only; Remove OAuth client removes all three.
 - Disconnecting an account calls Google's revoke endpoint, removes its refresh token, and deletes its local data. If it has pending outbox changes, Leaf warns first.
 
@@ -241,6 +243,7 @@ Anyone can send an invite, so event content is treated as hostile.
 | `outbox` | Sequence, account ID, operation (create / patch / delete / move / RSVP), target event, payload JSON, base etag, send-updates choice, attempt count, last error. Also the rows before the edit (for undo and rejected edits), a hold-until time (the 6-second undo window for deletes; after it, undo (Ctrl+Z, any delete from this session) re-creates the event quietly with a new ID (no emails; guest replies reset), and restores a canceled instance or an ended repeat instead), and a state (pending or conflict). |
 | `conflicts` | Outbox entry, local version JSON, Google version JSON, detected time. |
 | `settings` | Key/value app settings. |
+| `sunsama_block` | Sunsama task times saved per local day (migration 14): task ID, title, channel, start/end, planned and tracked minutes, completed, kind (projected / timebox / matched) and the matched Google event. See `2026-10-16-sunsama-projections-design.md` 5.2. |
 
 ### 5.2 Initial Sync
 
@@ -258,6 +261,7 @@ Anyone can send an invite, so event content is treated as hostile.
 - `410 Gone` (token expired): full resync of that calendar. The outbox is untouched.
 - The calendar list, colors, and settings sync on startup and every 15 minutes.
 - The sync engine exposes a "changes available" trigger so a push relay can be added later without rework.
+- After each pass, while signed in to Sunsama and one of its sidebar items is on, Leaf Calendar fetches the days on screen from Sunsama's MCP server and replaces those days' saved rows (`2026-10-16-sunsama-projections-design.md` 4.5).
 
 ### 5.4 Offline Editing (Outbox)
 
