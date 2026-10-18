@@ -441,11 +441,25 @@ public sealed class LeafServices : IAsyncDisposable
         return google;
     }
 
-    // After Each Google Sync Pass: the booking check, then the Sunsama fetch, so both follow SyncLoop's pace
+    // After Each Google Sync Pass: the booking check, and the Sunsama fetch started beside it, so both follow SyncLoop's
+    // pace but a slow Sunsama (a month is 84 reads) never holds up the next Google pass or the edits it sends
     private async Task AfterSyncAsync(CancellationToken ct)
     {
+        _ = SyncSunsamaAsync(ct);
         await Bookings.CheckAsync(ct);
-        await Sunsama.SyncAsync(ct);
+    }
+
+    // Started and not awaited, so nothing may escape; the type only
+    private async Task SyncSunsamaAsync(CancellationToken ct)
+    {
+        try
+        {
+            await Sunsama.SyncAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            Log.Info("sunsama.sync.stopped", $"error={ex.GetType().Name}");
+        }
     }
 
     // Secrets Readable Again: Google services are built, and everything listening reattaches (GoogleChanged, any thread)

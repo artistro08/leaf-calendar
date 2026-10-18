@@ -140,7 +140,7 @@
                     <!-- Sunsama Tracked Time (a Google event matched to a Sunsama task, while Tracked time is on) -->
                     <StackPanel x:Name="EventTrackedRow" Spacing="12" Visibility="Collapsed">
                         <TextBlock x:Name="EventTrackedText" AutomationProperties.AutomationId="DetailsEventTracked" />
-                        <Button HorizontalAlignment="Stretch" Content="Open in Sunsama" Click="OnOpenInSunsamaClick" AutomationProperties.AutomationId="DetailsTrackedOpenInSunsama" />
+                        <Button x:Name="EventTrackedOpen" HorizontalAlignment="Stretch" Content="Open in Sunsama" Click="OnOpenInSunsamaClick" AutomationProperties.AutomationId="DetailsTrackedOpenInSunsama" />
                     </StackPanel>
 
                     <!-- Divider -->
@@ -308,7 +308,7 @@
                         <TextBlock x:Name="SunsamaPlanned" AutomationProperties.AutomationId="DetailsSunsamaPlanned" />
                         <TextBlock x:Name="SunsamaTracked" AutomationProperties.AutomationId="DetailsSunsamaTracked" />
                     </StackPanel>
-                    <Button HorizontalAlignment="Stretch" Content="Open in Sunsama" Click="OnOpenInSunsamaClick" AutomationProperties.AutomationId="DetailsOpenInSunsama" />
+                    <Button x:Name="SunsamaOpen" HorizontalAlignment="Stretch" Content="Open in Sunsama" Click="OnOpenInSunsamaClick" AutomationProperties.AutomationId="DetailsOpenInSunsama" />
                 </StackPanel>
                 <!-- /Sunsama Task -->
 

@@ -327,6 +327,7 @@ public sealed partial class CalendarPage : Page
         }
 
         var picked = (e.PropertyName == nameof(CalendarViewModel.SelectedInfo) && ViewModel.SelectedInfo is not null)
+            || (e.PropertyName == nameof(CalendarViewModel.SelectedTask) && ViewModel.SelectedTask is not null)
             || (e.PropertyName == nameof(CalendarViewModel.Selection) && ViewModel.Selection.Count > 1);
         if (picked && !ViewModel.IsRefreshingSelection && !ViewModel.Settings.DetailsPanelOpen)
         {

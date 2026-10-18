@@ -333,6 +333,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial SelectedTaskInfo? SelectedTask { get; set; }
 
+    /// <summary>The one selected event or Sunsama block, or null: where J, K and X count from.</summary>
+    public CalendarOccurrence? SelectedOccurrence => SelectedInfo?.Occurrence ?? SelectedTask?.Occurrence;
+
     /// <summary>The Sunsama task matched to the selected Google event while Tracked time is on, or null.</summary>
     [ObservableProperty]
     public partial SunsamaShown? SelectedTracked { get; set; }
@@ -562,7 +565,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         var todayShown = Mode == CalendarViewMode.Month
             ? ViewNavigator.MonthStartOf(Today) == PeriodStart
             : Today >= PeriodStart && Today < PeriodStart.AddDays(VisibleColumns);
-        var anchor = SelectedInfo?.Occurrence is { } selected ? DayOf(selected) : todayShown ? Today : PeriodStart;
+        var anchor = SelectedOccurrence is { } selected ? DayOf(selected) : todayShown ? Today : PeriodStart;
 
         // The Views Relayout Straight Onto The New Period (the navigation that follows finds them already there)
         SwitchingTo = ViewNavigator.PeriodStart(mode, anchor, Settings.WeekStart);
@@ -848,7 +851,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public void SelectAdjacent(int direction)
     {
         // An All-Day Anchor Counts From Local Midnight Of Its Own Date, Not Its UTC Midnight
-        var anchor = SelectedInfo?.Occurrence;
+        var anchor = SelectedOccurrence;
         var from = anchor?.StartIn(Zone) ?? Now;
         var day = anchor is null ? LocalDate(from) : DayOf(anchor);
 
@@ -1682,7 +1685,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     public void ToggleFocused()
     {
         // The event must still be on screen (a sync or edit may have moved or removed it since the mouse got there)
-        if ((PointerEvent ?? SelectedInfo?.Occurrence) is { } target && Cache.ForDay(DayOf(target)).FirstOrDefault(o => o.Key == target.Key) is { } current)
+        if ((PointerEvent ?? SelectedOccurrence) is { } target && Cache.ForDay(DayOf(target)).FirstOrDefault(o => o.Key == target.Key) is { } current)
         {
             ToggleSelect(current);
         }
@@ -2368,12 +2371,22 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 
                 // Sunsama Rows: saved by Sunsama's local day, so a day either side, kept to this window's instants
                 var (blocks, byKey) = SunsamaOccurrences.Build(SunsamaStore.Range(conn, from.AddDays(-1), to.AddDays(1)));
+                var (start, end) = (OccurrenceQuery.LocalMidnight(from, Zone), OccurrenceQuery.LocalMidnight(to, Zone));
+
+                // A task deleted or moved in Sunsama leaves this window's lookup, so a Google event loses its old tracked time
+                foreach (var (key, old) in _sunsamaShown)
+                {
+                    if (old.Block.Start >= start && old.Block.Start < end && !byKey.ContainsKey(key))
+                    {
+                        _sunsamaShown.TryRemove(key, out _);
+                    }
+                }
+
                 foreach (var (key, shown) in byKey)
                 {
                     _sunsamaShown[key] = shown;
                 }
 
-                var (start, end) = (OccurrenceQuery.LocalMidnight(from, Zone), OccurrenceQuery.LocalMidnight(to, Zone));
                 return projected ? [.. events, .. blocks.Where(b => b.Start >= start && b.Start < end)] : events;
             },
             ct);

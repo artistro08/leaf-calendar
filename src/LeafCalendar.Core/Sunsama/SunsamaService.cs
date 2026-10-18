@@ -72,6 +72,8 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
     private DateOnly _from;
     private DateOnly _to;
     private int _endings;
+    private int _running;
+    private DateTimeOffset _waitUntil;
 
     /// <summary>Raised when <see cref="State"/> or <see cref="Email"/> changes.</summary>
     public event EventHandler? Changed;
@@ -259,10 +261,28 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
     /// One pass, run after each Google sync pass: fetches each day on screen and replaces its saved rows. Does nothing
     /// unless signed in and <see cref="Enabled"/>. Offline, 429, 5xx and unreadable answers keep the saved rows and log
     /// <c>sunsama.sync.failed</c>; a refused sign-in moves to <see cref="SunsamaState.NeedsSignIn"/>. Never throws, except
-    /// <see cref="OperationCanceledException"/> when <paramref name="ct"/> is canceled.
+    /// <see cref="OperationCanceledException"/> when <paramref name="ct"/> is canceled. One pass runs at a time (a call
+    /// while one runs returns at once), and a 429's <c>Retry-After</c> skips passes until it ends.
     /// </summary>
     /// <param name="ct">Cancels the pass.</param>
     public async Task SyncAsync(CancellationToken ct)
+    {
+        if (Interlocked.Exchange(ref _running, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            await SyncOnceAsync(ct);
+        }
+        finally
+        {
+            Volatile.Write(ref _running, 0);
+        }
+    }
+
+    private async Task SyncOnceAsync(CancellationToken ct)
     {
         Session session;
         DateOnly from;
@@ -270,7 +290,7 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
         int endings;
         lock (_gate)
         {
-            if (State != SunsamaState.SignedIn || !Enabled || _session is null || _to <= _from)
+            if (State != SunsamaState.SignedIn || !Enabled || _session is null || _to <= _from || time.GetUtcNow() < _waitUntil)
             {
                 return;
             }
@@ -348,6 +368,15 @@ public sealed class SunsamaService(HttpClient http, ITokenStore tokens, LeafData
         }
         catch (Exception ex) when (ex is SchedulingUnavailableException or JsonException or SqliteException)
         {
+            // Sunsama Asked Leaf Calendar To Slow Down: no passes until it says
+            if (ex is SchedulingUnavailableException { RetryAfter: { } wait })
+            {
+                lock (_gate)
+                {
+                    _waitUntil = time.GetUtcNow() + wait;
+                }
+            }
+
             log.Info("sunsama.sync.failed", $"type={ex.GetType().Name} days={days.ToString(CultureInfo.InvariantCulture)}");
         }
         finally

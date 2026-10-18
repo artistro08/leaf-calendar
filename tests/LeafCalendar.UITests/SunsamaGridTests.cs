@@ -206,4 +206,40 @@ public sealed class SunsamaGridTests : IDisposable
         Assert.Equal("30 m tracked", leaf.WaitFor("DetailsEventTracked").Name);
         Assert.NotNull(leaf.WaitFor("DetailsTrackedOpenInSunsama"));
     }
+
+    private static bool IsSelected(LeafApp leaf, string id) =>
+        (leaf.WaitFor(id).Properties.ItemStatus.ValueOrDefault ?? "").Split(';').Contains("Selected");
+
+    // With the details panel closed, clicking a block opens it on the task, like clicking an event
+    [Fact]
+    public void Click_SunsamaBlock_OpensAClosedDetailsPanel()
+    {
+        LeafApp.DeleteProfile(_profile);
+        var closed = SignedInProfile(new LeafSettings { DetailsPanelOpen = false });
+        try
+        {
+            using var leaf = Launch(closed, _google);
+            WaitForBlock(leaf, BlockId(ProjectedId, ProjectedStart)).Click();
+
+            Assert.Equal("Home Page Redesign", leaf.WaitFor("DetailsSunsamaTitle").Name);
+        }
+        finally
+        {
+            LeafApp.DeleteProfile(closed);
+        }
+    }
+
+    // J from a selected block moves on to what comes after it, not back to the same block
+    [Fact]
+    public void NextEvent_FromASunsamaBlock_MovesOn()
+    {
+        using var leaf = Launch(_profile, _google);
+        var id = BlockId(ProjectedId, ProjectedStart);
+        WaitForBlock(leaf, id).Click();
+        Assert.True(Retry.WhileFalse(() => IsSelected(leaf, id), TimeSpan.FromSeconds(5)).Success, "The block didn't select.");
+
+        leaf.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.KEY_J);
+
+        Assert.True(Retry.WhileTrue(() => IsSelected(leaf, id), TimeSpan.FromSeconds(5)).Success, "J stayed on the same block.");
+    }
 }

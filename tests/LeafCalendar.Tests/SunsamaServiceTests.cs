@@ -261,6 +261,60 @@ public sealed class SunsamaServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SyncAsync_RateLimited_WaitsForRetryAfter()
+    {
+        SeedSignedIn();
+        ServeToken();
+        _server.On(IsMcp, _ =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+            response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(60));
+            return response;
+        });
+        var service = Create();
+        service.Load();
+        service.SetDays(Day, Day.AddDays(1));
+
+        await service.SyncAsync(TestContext.Current.CancellationToken);
+        var asked = _server.Requests.Count(IsMcp);
+        await service.SyncAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(asked, _server.Requests.Count(IsMcp));
+        _time.Advance(TimeSpan.FromSeconds(61));
+        await service.SyncAsync(TestContext.Current.CancellationToken);
+        Assert.True(_server.Requests.Count(IsMcp) > asked);
+    }
+
+    [Fact]
+    public async Task SyncAsync_WhileAPassRuns_ReturnsAtOnce()
+    {
+        SeedSignedIn();
+        ServeToken();
+        var reading = new TaskCompletionSource();
+        var release = new TaskCompletionSource();
+        _server.On(r => IsMcp(r) && Method(r) == "initialize", _ =>
+        {
+            reading.TrySetResult();
+            release.Task.Wait(TestContext.Current.CancellationToken);
+            return Rpc("""{"jsonrpc":"2.0","id":1,"result":{}}""");
+        });
+        ServeMcp();
+        var service = Create();
+        service.Load();
+        service.SetDays(Day, Day.AddDays(1));
+
+        var first = Task.Run(() => service.SyncAsync(TestContext.Current.CancellationToken), TestContext.Current.CancellationToken);
+        await reading.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        var asked = _server.Requests.Count;
+        await service.SyncAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        Assert.Equal(asked, _server.Requests.Count);
+        release.SetResult();
+        await first;
+        Assert.Single(Rows());
+    }
+
+    [Fact]
     public async Task SyncAsync_Disabled_FetchesNothing()
     {
         SeedSignedIn();

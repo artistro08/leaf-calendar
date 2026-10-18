@@ -29,12 +29,16 @@ public static class EventContextMenu
 
         var menu = new MenuFlyout();
 
-        // A Sunsama Block: nothing to change, only the task in Sunsama
+        // A Sunsama Block: nothing to change, only the task in Sunsama (no menu at all for an ID that isn't Sunsama's shape)
         if (SunsamaOccurrences.IsSunsama(occurrence))
         {
             vm.Select(occurrence);
-            menu.Items.Add(Item("Open in Sunsama", "MenuOpenInSunsama", 0xE8A7, () => vm.OpenInSunsama(occurrence)));
-            menu.ShowAt(target, position);
+            if (SunsamaText.IsTaskId(vm.SunsamaShownFor(occurrence)?.Block.TaskId))
+            {
+                menu.Items.Add(Item("Open in Sunsama", "MenuOpenInSunsama", 0xE8A7, () => vm.OpenInSunsama(occurrence)));
+                menu.ShowAt(target, position);
+            }
+
             return;
         }
 

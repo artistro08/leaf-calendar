@@ -233,6 +233,7 @@ public sealed partial class DetailsPanel : UserControl
         var tracked = _vm?.Settings.SunsamaTracked == true ? block.TrackedMinutes : null;
         SunsamaTracked.Text = tracked is { } minutes ? $"{SunsamaText.Format(minutes)} tracked" : "";
         SunsamaTracked.Visibility = Visible(tracked is not null);
+        SunsamaOpen.Visibility = Visible(SunsamaText.IsTaskId(block.TaskId));
     }
 
     private void OnOpenInSunsamaClick(object sender, RoutedEventArgs e) => _vm?.OpenSelectedInSunsama();
@@ -268,6 +269,7 @@ public sealed partial class DetailsPanel : UserControl
         var tracked = _vm?.SelectedTracked?.Block.TrackedMinutes;
         EventTrackedText.Text = tracked is { } minutes ? $"{SunsamaText.Format(minutes)} tracked" : "";
         EventTrackedRow.Visibility = Visible(tracked is not null);
+        EventTrackedOpen.Visibility = Visible(SunsamaText.IsTaskId(_vm?.SelectedTracked?.Block.TaskId));
 
         // Join (it shows where it really goes)
         var call = d.ConferenceUri is { } uri ? LinkSafety.DisplayForm(uri) ?? "" : "";
