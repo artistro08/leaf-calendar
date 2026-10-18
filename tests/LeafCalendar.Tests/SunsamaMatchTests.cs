@@ -85,6 +85,52 @@ public sealed class SunsamaMatchTests
         Assert.Empty(SunsamaMatch.Blocks(Day, [Task("t1", [], ev)], [Google("work@example.com", "g1", "Title", Noon)]));
     }
 
+    // A Done Task Sunsama No Longer Places: it ends when it was done, as long as it was tracked (else planned, else 15 m)
+    [Theory]
+    [InlineData(30, 60, 30)]
+    [InlineData(null, 60, 60)]
+    [InlineData(null, null, 15)]
+    public void Blocks_CompletedWithNoTimes_EndsWhenItWasDone(int? tracked, int? estimate, int minutes)
+    {
+        var task = new SunsamaTask("t1", "Title", "Channel", estimate, tracked, true, [], [], "<p>Notes</p>", [new("Step", true)], Noon, Day);
+
+        var block = Assert.Single(SunsamaMatch.Blocks(Day, [task], []));
+
+        Assert.Equal(SunsamaBlockKind.Completed, block.Kind);
+        Assert.Equal((Noon.AddMinutes(-minutes), Noon), (block.Start, block.End));
+        Assert.Equal(("<p>Notes</p>", "1Step"), (block.Notes, block.Subtasks));
+        Assert.True(block.Completed);
+    }
+
+    [Fact]
+    public void Blocks_CompletedOtherDayOrTiedToAnEvent_IsNotPlaced()
+    {
+        SunsamaTask Done(DateOnly on, bool hasEventIds) =>
+            new("t1", "Title", "Channel", 60, 30, true, [], [], CompletedAt: Noon, CompletedOn: on, HasEventIds: hasEventIds);
+
+        Assert.Empty(SunsamaMatch.Blocks(Day, [Done(Day.AddDays(1), false), Done(Day, true)], []));
+    }
+
+    [Fact]
+    public void Blocks_CarryTheTasksNotesAndSubtasks()
+    {
+        var task = Task("t1", [(Noon, Noon.AddHours(1))]) with { Notes = "<p>Hi</p>", Subtasks = [new("A", true), new("B", false)] };
+
+        var block = Assert.Single(SunsamaMatch.Blocks(Day, [task], []));
+
+        Assert.Equal(("<p>Hi</p>", "1A\n0B"), (block.Notes, block.Subtasks));
+        Assert.Equal([new SunsamaSubtask("A", true), new SunsamaSubtask("B", false)], SunsamaSubtasks.Decode(block.Subtasks));
+    }
+
+    [Theory]
+    [InlineData("Line\r\nbreak", "Line  break")]
+    [InlineData("", "")]
+    public void Subtasks_EncodeKeepsOneLineEach(string title, string expected) =>
+        Assert.Equal([new SunsamaSubtask(expected, false)], SunsamaSubtasks.Decode(SunsamaSubtasks.Encode([new(title, false)])));
+
+    [Fact]
+    public void Subtasks_DecodeEmpty_IsNone() => Assert.Empty(SunsamaSubtasks.Decode(""));
+
     [Fact]
     public void Blocks_AllDayCachedEvent_IsNotAMatch()
     {

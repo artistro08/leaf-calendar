@@ -11,6 +11,9 @@ public enum SunsamaBlockKind
 
     /// <summary>A task already shown as a Google event in Leaf Calendar; draws nothing, adds its tracked total to that event.</summary>
     Matched,
+
+    /// <summary>A done task Sunsama no longer places, ending when it was done; drawn like a timebox (faded, as done).</summary>
+    Completed,
 }
 
 /// <summary>
@@ -29,6 +32,8 @@ public enum SunsamaBlockKind
 /// <param name="MatchedAccountId">The matched Google occurrence's account; set only for <see cref="SunsamaBlockKind.Matched"/>.</param>
 /// <param name="MatchedCalendarId">The matched Google occurrence's calendar; set only for <see cref="SunsamaBlockKind.Matched"/>.</param>
 /// <param name="MatchedEventId">The matched Google occurrence's event ID; set only for <see cref="SunsamaBlockKind.Matched"/>.</param>
+/// <param name="Notes">The task's notes as Sunsama's HTML ("" when none); shown only as plain text.</param>
+/// <param name="Subtasks">The task's subtasks as <see cref="SunsamaSubtasks.Encode"/> text ("" when none).</param>
 public sealed record SunsamaBlock(
     DateOnly Day,
     string TaskId,
@@ -42,4 +47,6 @@ public sealed record SunsamaBlock(
     SunsamaBlockKind Kind,
     string? MatchedAccountId,
     string? MatchedCalendarId,
-    string? MatchedEventId);
+    string? MatchedEventId,
+    string Notes = "",
+    string Subtasks = "");

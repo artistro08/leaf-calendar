@@ -36,9 +36,9 @@ This only applies if you sign in to Cal.com in Settings › Accounts. Until you 
 This only applies if you sign in to Sunsama in Settings › Accounts. Until you do, Leaf Calendar never contacts Sunsama.
 
 - When you sign in for the first time, or after signing out, Leaf Calendar registers its own OAuth client with Sunsama (it has no secret). Signing in opens Sunsama's sign-in page in your browser. Leaf Calendar asks Sunsama only to read (`read`) and to stay signed in (`offline_access`).
-- **What's read:** your Sunsama email and time zone, your calendars' IDs, and, for the days on screen, your tasks (title, channel, planned and tracked time, whether they're done, and their planned times) and your calendar events' IDs, titles, and times. Task notes may arrive with a task but aren't kept or shown.
+- **What's read:** your Sunsama email and time zone, your calendars' IDs, and, for the days on screen, your tasks (title, channel, planned and tracked time, whether and when they're done, their planned times, notes, and subtasks) and your calendar events' IDs, titles, and times.
 - **What's sent:** nothing about your calendar. Leaf Calendar never changes anything in Sunsama or Google.
-- **What's kept:** each task's title, channel, planned and tracked time, whether it's done, its times on your calendar, and the Google event it matches, in `leaf.db`, so they show offline. The client ID, sign-in token, and your Sunsama email are stored encrypted in `secrets.bin`.
+- **What's kept:** each task's title, channel, planned and tracked time, whether it's done, its times on your calendar, its notes and subtasks, and the Google event it matches, in `leaf.db`, so they show offline. The client ID, sign-in token, and your Sunsama email are stored encrypted in `secrets.bin`.
 - **Sign out** (Settings › Accounts) removes the sign-in token, client ID, and email, and every saved Sunsama task time. To revoke Leaf Calendar's access at Sunsama too, remove it in your Sunsama settings.
 - Leaf Calendar's log never includes task titles, channels, your email, or any token.
 

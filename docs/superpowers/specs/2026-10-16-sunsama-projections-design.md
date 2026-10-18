@@ -39,7 +39,7 @@ From `https://api.sunsama.com/.well-known/oauth-authorization-server` and the he
 - PKCE `S256` only. Grants `authorization_code` and `refresh_token`. Scopes `read`, `execute`, `offline_access`.
 - Resources used (`resources/read`):
   - `sunsama://me`: the user's `timezone` (IANA, for example `America/Chicago`) and `calendars` (each with `id` and `provider`, `google-calendar` or `sunsama-calendar`).
-  - `sunsama://tasks/{YYYY-MM-DD}`: the day's tasks. Each task has `_id`, `title`, `channel`, `timeEstimate`, `completed`, `timeboxEventIds`, `importedFrom`, `actualTimeSpent.total`, and for projected tasks `projectedTimeEntries[]` with `startDate`/`endDate` as local text (`"2026-10-16 10:50 AM"`, no zone).
+  - `sunsama://tasks/{YYYY-MM-DD}`: the day's tasks. Each task has `_id`, `title`, `channel`, `timeEstimate`, `completed`, `timeboxEventIds`, `importedFrom`, `actualTimeSpent.total`, `notes` (HTML), `subtasks[]` (`title`, `completed`), `completedAt`, `completedOnDate`, and for projected tasks `projectedTimeEntries[]` with `startDate`/`endDate` as local text (`"2026-10-16 10:50 AM"`, no zone).
   - `sunsama://calendar/events/{YYYY-MM-DD}`: the day's events with `eventId`, `calendarId`, `start`/`end` (`dateTime` with offset, or `date`).
 - Durations come back as text (`"1 hours and 24 minutes"`, `"30 minutes"`, `"2 hours"`).
 
@@ -66,6 +66,7 @@ From `https://api.sunsama.com/.well-known/oauth-authorization-server` and the he
 - Projected entries' local text → UTC instants, using the zone from `sunsama://me` and invariant culture. DST: a time that falls in a skipped hour moves forward; a time that falls in a repeated hour uses the first one.
 - Duration text → `TimeSpan` (hours and minutes, singular or plural). Unreadable text → no total shown, never an error.
 - Timeboxes: a task's `timeboxEventIds` matched to the day's events. Only events whose calendar's `provider` is not `google-calendar` become blocks.
+- Notes are kept as Sunsama's HTML and subtasks as title and done (a subtask with no title is skipped).
 
 ### 4.4 Matching (`SunsamaMatch`, pure)
 
@@ -75,6 +76,8 @@ A Sunsama task matches a Google event Leaf Calendar has when:
 2. A Google-side event with no cached match (its calendar hidden or not synced yet) draws nothing.
 
 A task tied to a Google-side event draws no block of its own (no projected or timeboxed block), matched or not. The matched Google event shows the task's tracked total.
+
+Sunsama drops a task's projected times once it's done, so a done task with no projected times, no timebox and no imported-from event, done on the day fetched, gets one `completed` block ending when it was done (`completedAt`), as long as its tracked time, else its planned time, else 15 minutes (issue #40). It draws like a timebox, faded as done.
 
 ### 4.5 Fetching (`SunsamaService.SyncAsync`)
 
@@ -88,9 +91,9 @@ A task tied to a Google-side event draws no block of its own (no projected or ti
 
 The client ID, refresh token and account email go through `ITokenStore` into `secrets.bin`, like Cal.com's. The access token stays in memory. A rotated refresh token is saved only while its sign-in is the current one, so a refresh finishing after a sign-out or a newer sign-in never saves it.
 
-### 5.2 Saved Blocks (migration 14, `user_version` 13 → 14)
+### 5.2 Saved Blocks (migration 14, `user_version` 13 → 14; migration 15, 14 → 15)
 
-Table `sunsama_block`: `day` (local date text), `task_id`, `title`, `channel`, `start_utc`, `end_utc`, `estimate_minutes` (nullable), `tracked_minutes` (nullable), `completed`, `kind` (`projected`, `timebox` or `matched`), `matched_account_id`, `matched_calendar_id` and `matched_event_id` (nullable, set only for `matched`). Every statement parameterized. Signing out deletes every row, and so does a new sign-in (rows kept after a refusal, or another account's, go; the next pass fetches again).
+Table `sunsama_block`: `day` (local date text), `task_id`, `title`, `channel`, `start_utc`, `end_utc`, `estimate_minutes` (nullable), `tracked_minutes` (nullable), `completed`, `kind` (`projected`, `timebox`, `matched` or `completed`), `matched_account_id`, `matched_calendar_id` and `matched_event_id` (nullable, set only for `matched`), and since migration 15 `notes` (the HTML) and `subtasks` (one line each: `1` for done or `0`, then the title). Every statement parameterized. Signing out deletes every row, and so does a new sign-in (rows kept after a refusal, or another account's, go; the next pass fetches again).
 
 ### 5.3 Settings
 
@@ -139,11 +142,11 @@ Tracked time is drawn **on top of** the block it belongs to, never as its own bl
 
 ### 6.4 Details Panel
 
-For a Sunsama block: title, time, channel, estimate, tracked total, and **Open in Sunsama**. For a matched Google event: the existing details plus a tracked total line and **Open in Sunsama**. The tracked total lines show only while **Tracked time** is on.
+For a Sunsama block: title, time, channel, estimate, tracked total, its subtasks (a filled check box on each done one), its notes, and **Open in Sunsama**; nothing can be changed there. For a matched Google event: the existing details plus a tracked total line and **Open in Sunsama**. The tracked total lines show only while **Tracked time** is on.
 
 ### 6.5 Safety
 
-- Titles, channels and notes are untrusted: shown as plain text. Notes are not shown.
+- Titles, channels, subtasks and notes are untrusted: shown as plain text. Notes go through `DescriptionFormatter`, like an event's description, so only safe links are clickable, through `LinkSafety`.
 - **Open in Sunsama** builds its link from fixed text plus the task ID, and only when the ID is 24 hex characters (Sunsama's ID format); any other ID shows no link. The fallback is the fixed `https://app.sunsama.com/`. The link is built only by `SunsamaLinks.TaskLink` and opened by its own launcher (`LeafServices.LaunchSunsamaAsync`, like `LaunchReturnLinkAsync`), so `LinkSafety`'s allow-list is unchanged.
 - No task content, email or token is logged; only counts, IDs and exception type names.
 
@@ -234,4 +237,3 @@ The user guide shows how to use it, in the same voice and layout as `site/people
 - Writing anything to Sunsama (timers, timeboxing, completing tasks) or to Google.
 - Drawing tracked time as blocks.
 - Tasks with no time on the calendar (backlog, unscheduled).
-- Showing task notes.

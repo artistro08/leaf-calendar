@@ -18,12 +18,16 @@ public sealed class SunsamaGridTests : IDisposable
     internal const string ProjectedId = "6ac7a44534029300011d076e";
     internal const string TimeboxId = "aaaaaaaaaaaaaaaaaaaaaaa1";
     internal const string MatchedId = "aaaaaaaaaaaaaaaaaaaaaaa2";
+    internal const string DoneId = "aaaaaaaaaaaaaaaaaaaaaaa3";
     internal const string Dentist = "Event_evt-single_202610011300";
 
     // Oct 1 in Chicago (CDT, UTC-5): the projected task 7:00-7:40 AM (started by test mode's 8:00) and 12:30-1:50 PM,
     // the timebox 2-3 PM
     internal static readonly DateTimeOffset ProjectedStart = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
     internal static readonly DateTimeOffset TimeboxStart = new(2026, 10, 1, 19, 0, 0, TimeSpan.Zero);
+
+    // The done task: 15 minutes tracked, done at 3:30 PM, so 3:15-3:30 PM
+    internal static readonly DateTimeOffset DoneStart = new(2026, 10, 1, 20, 15, 0, TimeSpan.Zero);
 
     private readonly FakeGoogleServer _google = new();
     private readonly string _profile = SignedInProfile(new LeafSettings());
@@ -38,7 +42,8 @@ public sealed class SunsamaGridTests : IDisposable
 
     /// <summary>
     /// Seeds Oct 1: "Home Page Redesign" (Illuminate Digital, 2 hours planned, 1 h 24 m tracked over two projected
-    /// blocks), "Write copy" timeboxed on Sunsama's calendar, and "Dentist appointment" imported from the seeded Google event.
+    /// blocks, with notes and two subtasks), "Write copy" timeboxed on Sunsama's calendar, "Dentist appointment" imported
+    /// from the seeded Google event, and "Invoice clients", done at 3:30 PM with 15 minutes tracked and no times of its own.
     /// </summary>
     internal static void Seed(FakeGoogleServer google) => google.SeedSunsamaDay(
         new DateOnly(2026, 10, 1),
@@ -46,12 +51,17 @@ public sealed class SunsamaGridTests : IDisposable
         {"tasks":[
           {"_id":"{{{{ProjectedId}}}}","title":"Home Page Redesign","channel":"Illuminate Digital","timeEstimate":"2 hours",
            "completed":false,"timeboxEventIds":[],"actualTimeSpent":{"total":"1 hours and 24 minutes"},
+           "notes":"<p>Hero first, then the footer.</p>",
+           "subtasks":[{"_id":"s1","title":"Wireframe","completed":true},{"_id":"s2","title":"Build","completed":false}],
            "projectedTimeEntries":[{"startDate":"2026-10-01 7:00 AM","endDate":"2026-10-01 7:40 AM"},
                                    {"startDate":"2026-10-01 12:30 PM","endDate":"2026-10-01 1:50 PM"}]},
           {"_id":"{{{{TimeboxId}}}}","title":"Write copy","channel":"Work","timeEstimate":"1 hour","timeboxEventIds":["ev-box"]},
           {"_id":"{{{{MatchedId}}}}","title":"Dentist appointment","channel":"Personal","timeboxEventIds":[],
            "actualTimeSpent":{"total":"30 minutes"},
-           "importedFrom":{"service":"googleCalendar","identifier":{"sunsamaId":"ev-dentist"}}}]}
+           "importedFrom":{"service":"googleCalendar","identifier":{"sunsamaId":"ev-dentist"}}},
+          {"_id":"{{{{DoneId}}}}","title":"Invoice clients","channel":"Work","timeEstimate":"30 minutes","completed":true,
+           "completedAt":"2026-10-01T20:30:00.000Z","completedOnDate":"2026-10-01","timeboxEventIds":[],
+           "actualTimeSpent":{"total":"15 minutes"}}]}
         """,
         """
         {"events":[
@@ -210,6 +220,26 @@ public sealed class SunsamaGridTests : IDisposable
         Assert.Equal("1 h 24 m tracked", leaf.WaitFor("DetailsSunsamaTracked").Name);
         Assert.NotNull(leaf.WaitFor("DetailsOpenInSunsama"));
         Assert.False(leaf.Exists("DetailsTitle"), "The event details showed for a Sunsama block.");
+
+        // Its Subtasks (done or not) And Its Notes, Read-Only
+        var subtasks = leaf.WaitFor("DetailsSunsamaSubtasks");
+        Assert.NotNull(subtasks.FindFirstDescendant(cf => cf.ByName("Wireframe, done")));
+        Assert.NotNull(subtasks.FindFirstDescendant(cf => cf.ByName("Build, not done")));
+        Assert.Contains("Hero first, then the footer.", leaf.WaitFor("DetailsSunsamaNotes").Patterns.Text.Pattern.DocumentRange.GetText(-1), StringComparison.Ordinal);
+    }
+
+    // A done task Sunsama no longer places shows, ending when it was done, and its details have no subtasks or notes
+    [Fact]
+    public void CompletedTask_ShowsEndingWhenItWasDone()
+    {
+        using var leaf = Launch(_profile, _google);
+
+        var block = WaitForBlock(leaf, BlockId(DoneId, DoneStart));
+        Assert.Contains("Invoice clients", block.Name, StringComparison.Ordinal);
+        block.Click();
+
+        Assert.Equal("Invoice clients", leaf.WaitFor("DetailsSunsamaTitle").Name);
+        Assert.False(leaf.Exists("DetailsSunsamaSubtasks"), "A task with no subtasks showed a subtask list.");
     }
 
     // The dentist, matched to a task, shows the task's tracked total

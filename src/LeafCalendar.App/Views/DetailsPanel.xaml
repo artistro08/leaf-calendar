@@ -296,7 +296,7 @@
                 </StackPanel>
                 <!-- /Event Details -->
 
-                <!-- Sunsama Task (read-only; the task's text is plain text, notes aren't shown) -->
+                <!-- Sunsama Task (read-only; the task's text is plain text, its notes plain text and safe links) -->
                 <StackPanel x:Name="SunsamaView" Spacing="16" Visibility="Collapsed">
                     <TextBlock x:Name="SunsamaTitle" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsSunsamaTitle" />
                     <TextBlock x:Name="SunsamaWhen" TextWrapping="Wrap" AutomationProperties.AutomationId="DetailsSunsamaWhen" />
@@ -308,6 +308,9 @@
                         <TextBlock x:Name="SunsamaPlanned" AutomationProperties.AutomationId="DetailsSunsamaPlanned" />
                         <TextBlock x:Name="SunsamaTracked" AutomationProperties.AutomationId="DetailsSunsamaTracked" />
                     </StackPanel>
+                    <!-- Subtasks (a check on each done one; filled in code) -->
+                    <StackPanel x:Name="SunsamaSubtaskList" Spacing="4" AutomationProperties.Name="Subtasks" AutomationProperties.AutomationId="DetailsSunsamaSubtasks" />
+                    <RichTextBlock x:Name="SunsamaNotes" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsSunsamaNotes" />
                     <Button x:Name="SunsamaOpen" HorizontalAlignment="Stretch" Content="Open in Sunsama" Click="OnOpenInSunsamaClick" AutomationProperties.AutomationId="DetailsOpenInSunsama" />
                 </StackPanel>
                 <!-- /Sunsama Task -->
