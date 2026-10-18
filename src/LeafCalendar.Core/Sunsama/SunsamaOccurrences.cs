@@ -75,8 +75,9 @@ public static class SunsamaOccurrences
     /// </summary>
     /// <param name="rows">Saved rows.</param>
     /// <param name="color">The Sunsama color (<see cref="Color"/> unless one was picked).</param>
+    /// <param name="now">The current time: blocks and matched events that haven't started hold no tracked time (null fills all).</param>
     /// <returns>The occurrences and the lookup.</returns>
-    public static (List<CalendarOccurrence> Blocks, Dictionary<string, SunsamaShown> ByKey) Build(IReadOnlyList<SunsamaBlock> rows, string color = Color)
+    public static (List<CalendarOccurrence> Blocks, Dictionary<string, SunsamaShown> ByKey) Build(IReadOnlyList<SunsamaBlock> rows, string color = Color, DateTimeOffset? now = null)
     {
         ArgumentNullException.ThrowIfNull(rows);
 
@@ -85,7 +86,7 @@ public static class SunsamaOccurrences
         foreach (var group in rows.Where(r => r.Kind != SunsamaBlockKind.Matched).GroupBy(r => (r.Day, r.TaskId)))
         {
             var taskBlocks = group.ToList();
-            var fills = SunsamaTracked.Fill(taskBlocks);
+            var fills = SunsamaTracked.Fill(taskBlocks, now);
             for (var i = 0; i < taskBlocks.Count; i++)
             {
                 var occurrence = ToOccurrence(taskBlocks[i], color);
@@ -97,7 +98,7 @@ public static class SunsamaOccurrences
         foreach (var row in rows.Where(r => r.Kind == SunsamaBlockKind.Matched && r.MatchedEventId is not null))
         {
             var length = (row.End - row.Start).TotalMinutes;
-            var fill = length > 0 ? Math.Min(1, (row.TrackedMinutes ?? 0) / length) : 0;
+            var fill = length > 0 && !(row.Start >= now) ? Math.Min(1, (row.TrackedMinutes ?? 0) / length) : 0;
             byKey[MatchKey(row.MatchedAccountId!, row.MatchedCalendarId!, row.MatchedEventId!, row.Start)] = new SunsamaShown(row, fill);
         }
 

@@ -2305,7 +2305,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             Notice = new NoticeInfo(
                 Core.Tray.DisplayText.Sentence("You can't edit projected times"),
                 CanUndo: false,
-                canOpen ? "Open task in sunsama" : null,
+                canOpen ? "Open task in Sunsama" : null,
                 canOpen ? () => OpenInSunsama(occurrence) : null);
             return;
         }
@@ -2387,6 +2387,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         var sunsama = _services.Sunsama.State != SunsamaState.SignedOut;
         var projected = Settings.SunsamaProjected;
         var color = SunsamaColor;
+        var now = Now;
         return Task.Run<IReadOnlyList<CalendarOccurrence>>(
             () =>
             {
@@ -2399,7 +2400,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
                 }
 
                 // Sunsama Rows: saved by Sunsama's local day, so a day either side, kept to this window's instants
-                var (blocks, byKey) = SunsamaOccurrences.Build(SunsamaStore.Range(conn, from.AddDays(-1), to.AddDays(1)), color);
+                var (blocks, byKey) = SunsamaOccurrences.Build(SunsamaStore.Range(conn, from.AddDays(-1), to.AddDays(1)), color, now);
                 var (start, end) = (OccurrenceQuery.LocalMidnight(from, Zone), OccurrenceQuery.LocalMidnight(to, Zone));
 
                 // A task deleted or moved in Sunsama leaves this window's lookup, so a Google event loses its old tracked time

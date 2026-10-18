@@ -75,9 +75,9 @@ public sealed class SunsamaGridTests : IDisposable
     internal static string BlockId(string taskId, DateTimeOffset start) =>
         string.Create(CultureInfo.InvariantCulture, $"Event_{taskId}@{start.UtcTicks}_{start.UtcDateTime:yyyyMMddHHmm}");
 
-    // Test mode's "now" is 8:00 on the start date, so the grid opens on the morning
+    // 3 PM on Oct 1, after the seeded blocks start: tracked time only shows on blocks that have started
     internal static LeafApp Launch(string profile, FakeGoogleServer google) =>
-        LeafApp.Launch(profile, $"--fake-google {google.BaseUri} --start-date 2026-10-01");
+        LeafApp.Launch(profile, $"--fake-google {google.BaseUri} --start-date 2026-10-01 --now 2026-10-01T15:00:00-05:00");
 
     // Sunsama is fetched after the first Google sync pass, so its blocks can take a pass or two to arrive
     internal static AutomationElement WaitForBlock(LeafApp leaf, string id) =>
@@ -139,7 +139,7 @@ public sealed class SunsamaGridTests : IDisposable
             "The notice didn't say the block can't be moved.");
         Assert.False(leaf.Exists("UndoButton"), "The notice offered Undo.");
         var open = leaf.WaitFor("NoticeActionButton");
-        Assert.Equal("Open task in sunsama", open.Name);
+        Assert.Equal("Open task in Sunsama", open.Name);
         open.AsButton().Invoke();
         Assert.True(
             Retry.WhileFalse(() => LeafApp.LaunchedLinks(_profile).Contains($"sunsama://action/details/{ProjectedId}"), TimeSpan.FromSeconds(10)).Success,

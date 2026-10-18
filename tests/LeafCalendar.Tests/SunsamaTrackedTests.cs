@@ -41,5 +41,14 @@ public sealed class SunsamaTrackedTests
     }
 
     [Fact]
+    public void Fill_BlockNotStartedYet_HasNoTrackedTime()
+    {
+        // 175 m tracked so far; tomorrow's block can't hold any of it
+        var fill = SunsamaTracked.Fill([Block(Start, 60, 175), Block(Start.AddDays(1), 75, 175)], now: Start.AddHours(2));
+
+        Assert.Equal([1.0, 0.0], fill);
+    }
+
+    [Fact]
     public void Fill_Empty_IsEmpty() => Assert.Empty(SunsamaTracked.Fill([]));
 }

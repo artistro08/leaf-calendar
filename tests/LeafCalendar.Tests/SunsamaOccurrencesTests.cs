@@ -77,6 +77,15 @@ public sealed class SunsamaOccurrencesTests
         Assert.Equal(0.5, SunsamaOccurrences.Build([Block("t3", SunsamaBlockKind.Matched, 60, 30)]).ByKey[SunsamaOccurrences.MatchKey("acct", "cal", "ev", Start)].Fill);
 
     [Fact]
+    public void Build_NotStartedYet_HasNoTrackedTime()
+    {
+        var (blocks, byKey) = SunsamaOccurrences.Build([Block("t1", SunsamaBlockKind.Projected), Block("t3", SunsamaBlockKind.Matched)], now: Start.AddMinutes(-1));
+
+        Assert.Equal(0.0, byKey[blocks[0].Key].Fill);
+        Assert.Equal(0.0, byKey[SunsamaOccurrences.MatchKey("acct", "cal", "ev", Start)].Fill);
+    }
+
+    [Fact]
     public void Build_MatchedOverLength_IsFull() =>
         Assert.Equal(1.0, SunsamaOccurrences.Build([Block("t3", SunsamaBlockKind.Matched, 60, 500)]).ByKey[SunsamaOccurrences.MatchKey("acct", "cal", "ev", Start)].Fill);
 

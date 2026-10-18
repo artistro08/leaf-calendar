@@ -689,7 +689,7 @@ public sealed partial class CalendarPage : Page
         NoticeBar.Message = notice.Text;
         UndoButton.Visibility = notice.CanUndo ? Visibility.Visible : Visibility.Collapsed;
 
-        // A Notice With Its Own Button (Open task in sunsama) Shows That In Undo's Place
+        // A Notice With Its Own Button (Open task in Sunsama) Shows That In Undo's Place
         if (notice.Action is not null && notice.ActionText is { } text)
         {
             _noticeAction ??= NewNoticeAction();

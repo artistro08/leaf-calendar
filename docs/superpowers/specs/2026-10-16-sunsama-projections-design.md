@@ -128,13 +128,13 @@ A **Sunsama** group under the Google accounts in the calendar list, shown only w
 Tracked time is drawn **on top of** the block it belongs to, never as its own block beside it: no change to how side-by-side events are laid out.
 
 - **Where:** Sunsama blocks (projected and timeboxed) and Google events matched to a task (4.4).
-- **How much:** proportional, filling from the top down. A task's tracked minutes fill its blocks in time order (the task's blocks on that day; each day is filled from the task's whole tracked total, since Sunsama gives no per-day split): each block takes up to its own length, the rest carries to the next. 1 h 24 m tracked on blocks of 40 m and 1 h 20 m: the first is fully textured, the second 44 of 80 minutes (55%). Tracked time beyond the blocks' total leaves every block fully textured. A matched Google event is filled against its own length.
+- **How much:** proportional, filling from the top down. A task's tracked minutes fill its blocks in time order (the task's blocks on that day; each day is filled from the task's whole tracked total, since Sunsama gives no per-day split). A block, or matched event, that hasn't started yet holds no tracked time: the time can't have been tracked there (owner, 2026-10-17, after tomorrow's block of a task worked on today showed today's stripes): each block takes up to its own length, the rest carries to the next. 1 h 24 m tracked on blocks of 40 m and 1 h 20 m: the first is fully textured, the second 44 of 80 minutes (55%). Tracked time beyond the blocks' total leaves every block fully textured. A matched Google event is filled against its own length.
 - **Look:** a texture laid over the event's own color: diagonal stripes in the event's accent color at low opacity over its current fill, so the event's color still reads through. The edge where the texture ends is a straight line across the card. The title and time stay readable above it.
 - **Drawing:** one overlay element inside `EventBlock`, sized by a fraction (0 to 1) computed in Core (`SunsamaTracked.Fill`, pure, logic-tested). The stripes come from a `LinearGradientBrush` with hard stops repeated across the card. If WinUI won't repeat a gradient, the fallback is the same stripes from a small Composition brush. Checked in the build.
 - **High contrast:** no stripes; the tracked part gets a solid `SystemColorHighlightColor` edge line and the fraction is spoken, so the information isn't color-only.
 - **Accessibility:** the block's spoken name and tooltip add "{duration} tracked".
 - **Tracked time off:** no overlay anywhere.
-- Blocks can't be dragged, resized or edited. A drag gives a little and springs back, and the notice bar says "You can't edit projected times." with an **Open task in sunsama** button that opens the task (owner, 2026-10-17; the button shows only for a task ID in Sunsama's shape).
+- Blocks can't be dragged, resized or edited. A drag gives a little and springs back, and the notice bar says "You can't edit projected times." with an **Open task in Sunsama** button that opens the task (owner, 2026-10-17; the button shows only for a task ID in Sunsama's shape).
 - Not shown in Month view's all-day row; Month view lists them like timed events.
 
 ### 6.4 Details Panel
@@ -227,7 +227,7 @@ The user guide shows how to use it, in the same voice and layout as `site/people
 | Block tooltip and spoken name | "{title} · {time} · {channel}" plus " · {duration} tracked" when Tracked time is on |
 | Right-click menu on a Sunsama block | "Open in Sunsama" |
 | Notice after trying to move a Sunsama block | "You can't edit projected times" (owner, 2026-10-17; the bar adds the period) |
-| Its button | "Open task in sunsama" (owner, 2026-10-17, verbatim) |
+| Its button | "Open task in Sunsama" (owner, 2026-10-17) |
 
 ## 10. Non-Goals
 
