@@ -107,6 +107,24 @@ public class EventDetailsParserTests
         Assert.Equal(new Uri("https://meet.google.com/abc-defg-hij"), details.ConferenceUri);
     }
 
+    // Sunsama's timeboxes put you on the guest list of your own event, unanswered; the organizer has nothing to answer
+    [Theory]
+    [InlineData(true, "needsAction", ResponseStatus.Accepted)]
+    [InlineData(false, "needsAction", ResponseStatus.NeedsAction)]
+    [InlineData(true, "declined", ResponseStatus.Declined)]
+    public void Parse_OrganizerUnanswered_CountsAsAccepted(bool organizerSelf, string status, ResponseStatus expected)
+    {
+        var details = EventDetailsParser.Parse($$"""
+            {
+              "id": "a", "summary": "Write the report",
+              "organizer": { "email": "me@example.com", "self": {{(organizerSelf ? "true" : "false")}} },
+              "attendees": [ { "email": "me@example.com", "self": true, "responseStatus": "{{status}}" } ]
+            }
+            """);
+
+        Assert.Equal(expected, details.SelfResponse);
+    }
+
     [Theory]
     [InlineData("""{"id":"a"}""", false)]
     [InlineData("""{"id":"a","attendees":[{"email":"me@example.com","self":true}]}""", false)]
