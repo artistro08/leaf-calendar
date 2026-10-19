@@ -224,7 +224,7 @@ internal static class ApiShares
             throw ApiTime.Invalid("Booking on a link needs a guest to book for.");
         }
 
-        var (link, provider) = await ApiScheduling.FindLinkAsync(context, ApiIds.Link(group.ProviderId, group.LinkId), ct);
+        var (link, provider) = await ApiScheduling.FindLinkAsync(context, ApiIds.Link(group.ProviderId, group.LinkId), ct, anyLink: true);
         if (provider is not IBookingCreator creator)
         {
             throw ApiScheduling.NotConnected();

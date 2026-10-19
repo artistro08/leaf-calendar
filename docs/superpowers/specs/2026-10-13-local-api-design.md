@@ -114,7 +114,7 @@ IDs are opaque strings (`ApiIds`, 3.1). Calendar IDs carry the account too, sinc
 | `meetings.join` | `{ id? }` | `{ id, opened }` (`opened` is false when Windows couldn't open the link). No `id`: the meeting the join shortcut would pick (`JoinPicker`). Leaf opens the link itself with account routing, only when `LinkSafety` approves it. |
 | `app.showDay` | `{ date }` | `{}`. Leaf comes forward on that day in the current view. |
 | `app.showEvent` | `{ id }` | `{}`. Leaf comes forward on the event's day with its details open. |
-| `scheduling.links` | none | `[ { id, provider, name, minutes, allowsGuests } ]`. `id` is opaque (it carries the provider); `provider` is the provider's name, such as "Cal.com". |
+| `scheduling.links` | none | `[ { id, provider, name, minutes, allowsGuests } ]`, the links switched on in Settings › Scheduling. `id` is opaque (it carries the provider); `provider` is the provider's name, such as "Cal.com". |
 | `scheduling.openTimes` | `{ linkId, start, end }` | `[ { start, end } ]`. Range at most 31 days. |
 | `scheduling.timeLink` | `{ linkId, start, guests?: [ { name, email } ] }` | `{ url }` through the provider's `ITimeLinkBuilder`, the same link Copy makes. |
 | `people.search` | `{ query? }` | `[ { name, email } ]`, the editor's guest suggestions: `FrequentPeople` from every account's events (main account first; all of them, by frequency, with no query; `FrequentPeople.Match` otherwise), then with a query `ContactSearch.SearchAsync` on every account (`IApiHost.Contacts`; none before sign-in). Each address once, at most `ContactSearch.MaxResults`. |

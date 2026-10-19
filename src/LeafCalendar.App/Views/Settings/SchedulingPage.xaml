@@ -12,8 +12,8 @@
             <StackPanel Style="{StaticResource LeafSettingsPagePanelStyle}">
                 <TextBlock Style="{StaticResource LeafSettingsPageTitleStyle}" Text="Scheduling" />
 
-                <!-- One Default Link Card Per Signed-In Provider (built in code from SchedulingProviders.All, so a new provider
-                     needs no new page code) -->
+                <!-- One Card Per Signed-In Provider: its default link, and its links each switched on or off (built in code
+                     from SchedulingProviders.All, so a new provider needs no new page code) -->
                 <StackPanel x:Name="ProviderList" Spacing="4" />
 
                 <!-- Booking Link Note (added on its own line after the links Copy writes). An open expander card holds the

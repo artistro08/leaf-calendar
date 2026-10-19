@@ -43,10 +43,31 @@ public sealed class ApiSchedulingTests : IDisposable
 
         var links = (await _api.CallAsync("scheduling.links")).EnumerateArray().ToList();
 
-        Assert.Equal(2, links.Count);
+        Assert.Equal(3, links.Count);
         Assert.Equal("Cal.com", links[0].GetProperty("provider").GetString());
         Assert.Equal(30, links[0].GetProperty("minutes").GetInt32());
         Assert.False(links[1].GetProperty("allowsGuests").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Links_SwitchedOffInSettings_AreLeftOut()
+    {
+        SignIn();
+        _api.Host.Settings = _api.Host.Settings.WithProvider(new("calcom", "", "") { OffLinkIds = ["102"] }).Normalize();
+
+        var names = (await _api.CallAsync("scheduling.links")).EnumerateArray().Select(l => l.GetProperty("name").GetString()).ToList();
+
+        Assert.Equal(["30 min meeting", "Secret"], names);
+    }
+
+    [Fact]
+    public async Task OpenTimes_LinkSwitchedOff_IsNotFound()
+    {
+        SignIn();
+        var id = await LinkId();
+        _api.Host.Settings = _api.Host.Settings.WithProvider(new("calcom", "", "") { OffLinkIds = ["101"] }).Normalize();
+
+        Assert.Equal(ApiErrors.NotFound, (await _api.FailAsync("scheduling.openTimes", $$"""{"linkId":"{{id}}","start":"2026-10-13T00:00:00Z","end":"2026-10-14T00:00:00Z"}""")).DataCode);
     }
 
     [Fact]

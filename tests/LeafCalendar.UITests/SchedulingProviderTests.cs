@@ -327,6 +327,34 @@ public sealed class SchedulingProviderTests : IDisposable
         Assert.True(leaf.WaitFor("ShareProviderSwitch").AsToggleButton().ToggleState == ToggleState.On, "The share didn't start with the switch on.");
     }
 
+    // A link switched off in Settings › Scheduling leaves the Default link box; switched back on, it returns
+    [Fact]
+    public void LinkSwitch_Off_LeavesTheDefaultLinkBox()
+    {
+        using var leaf = Launch();
+        leaf.OpenSettings("Scheduling");
+        var box = leaf.WaitInSettings($"SchedulingDefaultLink_{Provider}").AsComboBox();
+        Assert.True(Retry.WhileFalse(() => box.SelectedItem?.Name == ThirtyMinutes, TimeSpan.FromSeconds(10)).Success, "The Default link box didn't load the links.");
+        leaf.WaitInSettings($"SchedulingCard_{Provider}").Patterns.ExpandCollapse.Pattern.Expand();
+        var quickChat = leaf.WaitInSettings($"SchedulingLinkShown_{Provider}_102").AsToggleButton();
+        Assert.Equal(ToggleState.On, quickChat.ToggleState);
+
+        quickChat.Toggle();
+        Assert.True(Retry.WhileFalse(() => ListedLinks(box).SequenceEqual([ThirtyMinutes]), TimeSpan.FromSeconds(5)).Success, "Quick chat stayed in the Default link box.");
+
+        quickChat.Toggle();
+        Assert.True(Retry.WhileFalse(() => ListedLinks(box).SequenceEqual([ThirtyMinutes, QuickChat]), TimeSpan.FromSeconds(5)).Success, "Quick chat didn't come back to the Default link box.");
+    }
+
+    // The names a link box lists (opened to read them, then closed)
+    private static List<string> ListedLinks(ComboBox box)
+    {
+        box.Expand();
+        List<string> names = [.. box.Items.Select(i => i.Name)];
+        box.Collapse();
+        return names;
+    }
+
     // Sign out hides Settings › Scheduling and the panel's switch, and a saved Cal.com group copies plain text; Remove
     // OAuth client then goes back to Add OAuth client…
     [Fact]

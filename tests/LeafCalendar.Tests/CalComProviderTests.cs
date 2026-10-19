@@ -16,13 +16,14 @@ public sealed class CalComProviderTests : IDisposable
     public void Dispose() => _cal.Dispose();
 
     [Fact]
-    public async Task GetLinksAsync_SendsTokenAndVersion_DropsHiddenUnsafeAndNull()
+    public async Task GetLinksAsync_SendsTokenAndVersion_KeepsHidden_DropsUnsafeAndNull()
     {
         _cal.On(HttpMethod.Get, Base + "v2/event-types", HttpStatusCode.OK, Fixture.Read("calcom-event-types.json"));
 
         var links = await Create().GetLinksAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(["101", "102"], links.Select(l => l.Id));
+        // 103 is hidden on the Cal.com profile; Settings › Scheduling decides whether it shows
+        Assert.Equal(["101", "102", "103"], links.Select(l => l.Id));
         Assert.Equal("30 min meeting", links[0].Name);
         Assert.Equal(30, links[0].Minutes);
         Assert.True(links[0].AllowsGuests);

@@ -1,4 +1,5 @@
 using LeafCalendar.Core.Data;
+using LeafCalendar.Core.Scheduling;
 using LeafCalendar.Core.Settings;
 using LeafCalendar.Tests.Support;
 
@@ -201,6 +202,60 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Normalize_OffLinkIds_TrimsAndDropsBlankAndRepeated()
+    {
+        var settings = new LeafSettings
+        {
+            Scheduling = [new("calcom", "", "101") { OffLinkIds = [" 102 ", "", "102", "103"] }],
+        }.Normalize();
+
+        Assert.Equal(["102", "103"], settings.ProviderSettingsFor("calcom").OffLinkIds);
+    }
+
+    [Fact]
+    public void Normalize_NullOffLinkIds_ReadsAsNone()
+    {
+        const string json = """{"Scheduling":[{"ProviderId":"calcom","Server":"","DefaultLinkId":"101","OffLinkIds":null}]}""";
+
+        var loaded = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
+
+        Assert.Empty(loaded.ProviderSettingsFor("calcom").OffLinkIds);
+    }
+
+    [Fact]
+    public void Normalize_OverTheCap_KeepsTheNewestSwitchedOff()
+    {
+        var settings = new LeafSettings
+        {
+            Scheduling = [new("calcom", "", "") { OffLinkIds = [.. Enumerable.Range(1, 201).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture))] }],
+        }.Normalize();
+
+        var off = settings.ProviderSettingsFor("calcom").OffLinkIds;
+        Assert.Equal(200, off.Count);
+        Assert.Equal("201", off[^1]);
+        Assert.DoesNotContain("1", off);
+    }
+
+    [Fact]
+    public void Normalize_CleanOffLinkIds_KeepsTheSameSettings()
+    {
+        var settings = new LeafSettings { Scheduling = [new("calcom", "", "101") { OffLinkIds = ["102"] }] }.Normalize();
+
+        Assert.Same(settings.Scheduling, settings.Normalize().Scheduling);
+    }
+
+    [Fact]
+    public void ShownLinks_LeavesOutOnlyThatProvidersLinksSwitchedOff()
+    {
+        var url = new Uri("https://cal.com/leaf-tester/x");
+        SchedulingLink[] links = [new("calcom", "101", "A", 30, url, true), new("calcom", "102", "B", 15, url, true), new("other", "102", "C", 30, url, true)];
+        var settings = new LeafSettings().WithProvider(new("calcom", "", "") { OffLinkIds = ["102"] });
+
+        Assert.Equal(["A", "C"], settings.ShownLinks(links).Select(l => l.Name));
+        Assert.Equal(3, new LeafSettings().ShownLinks(links).Count);
+    }
+
+    [Fact]
     public void BookingNotifications_DefaultsOn() => Assert.True(new LeafSettings().BookingNotifications);
 
     [Fact]
@@ -222,6 +277,17 @@ public sealed class SettingsStoreTests : IDisposable
 
         // A server saved before revision 1 still reads; it is emptied
         Assert.Equal(new ProviderSettings("calcom", "", "101"), Assert.Single(loaded.Scheduling));
+    }
+
+    [Fact]
+    public void OffLinkIds_SurviveTheJsonRoundTrip()
+    {
+        var saved = new LeafSettings().WithProvider(new("calcom", "", "101") { OffLinkIds = ["102", "103"] });
+
+        var json = System.Text.Json.JsonSerializer.Serialize(saved, LeafJsonContext.Default.LeafSettings);
+        var loaded = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
+
+        Assert.Equal(["102", "103"], loaded.ProviderSettingsFor("calcom").OffLinkIds);
     }
 
     [Fact]

@@ -21,7 +21,8 @@ namespace LeafCalendar.Core.Scheduling;
 /// refused refresh throws <see cref="SchedulingAuthException"/> before anything is sent) and sends it as
 /// <c>Authorization: Bearer</c> to <paramref name="apiBase"/> only (<c>https://api.cal.com/</c>, or the UI tests' fake),
 /// never in a URL. Each endpoint pins its <c>cal-api-version</c>. Names are cleaned and capped, and a link whose booking
-/// page isn't https or fails <see cref="LinkSafety.CanLaunch"/> is left out.
+/// page isn't https or fails <see cref="LinkSafety.CanLaunch"/> is left out. Links hidden on your Cal.com profile are
+/// kept; which links Leaf Calendar shows is your choice in Settings › Scheduling (<see cref="Settings.LeafSettings.ShownLinks"/>).
 /// </remarks>
 /// <seealso href="https://cal.com/docs/api-reference/v2/introduction"/>
 public sealed class CalComProvider(HttpClient http, Func<CancellationToken, Task<string>> accessToken, Uri apiBase)
@@ -64,7 +65,7 @@ public sealed class CalComProvider(HttpClient http, Func<CancellationToken, Task
         var links = new List<SchedulingLink>();
         foreach (var t in page.Data ?? [])
         {
-            if (t.Id is not { } id || t.Hidden == true || t.LengthInMinutes is not ({ } minutes and > 0)
+            if (t.Id is not { } id || t.LengthInMinutes is not ({ } minutes and > 0)
                 || !Uri.TryCreate(t.BookingUrl, UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps || !LinkSafety.CanLaunch(url))
             {
                 continue;

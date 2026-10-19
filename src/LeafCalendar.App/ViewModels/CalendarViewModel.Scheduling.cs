@@ -213,8 +213,9 @@ public sealed partial class CalendarViewModel
     }
 
     // Reads every connected provider's links off the UI thread, then picks the group's link (or the default) and asks
-    // for its open times. A group's link that its provider no longer lists turns the switch off; when the provider gave
-    // no links at all (offline, or it needs reconnecting) the saved link stays
+    // for its open times. Only links switched on in Settings › Scheduling are listed, but a group or pick already on a
+    // link switched off keeps it. A group's link that its provider no longer lists turns the switch off; when the
+    // provider gave no links at all (offline, or it needs reconnecting) the saved link stays
     private void LoadLinks(ShareGroup? group)
     {
         var session = _shareSession;
@@ -226,7 +227,7 @@ public sealed partial class CalendarViewModel
                 return;
             }
 
-            _links = links;
+            _links = Settings.ShownLinks(links);
             if (group is { ProviderId.Length: > 0 })
             {
                 var saved = links.FirstOrDefault(l => l.ProviderId == group.ProviderId && l.Id == group.LinkId);
@@ -247,6 +248,13 @@ public sealed partial class CalendarViewModel
                 _shareLink = _shareLink is { } picked
                     ? links.FirstOrDefault(l => l.ProviderId == picked.ProviderId && l.Id == picked.Id) ?? picked
                     : DefaultLink();
+            }
+
+            // A link switched off that's still in use (a saved group's) stays listed in its place, so the dropdown shows it
+            if (_shareLink is { } inUse && links.Contains(inUse) && !_links.Contains(inUse))
+            {
+                var shown = _links;
+                _links = [.. links.Where(l => l == inUse || shown.Contains(l))];
             }
 
             ShareChanged?.Invoke(this, EventArgs.Empty);
