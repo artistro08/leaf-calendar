@@ -371,12 +371,13 @@ public sealed partial class ShareSlotsPanel : UserControl
     // The link or line under the guest box for the account Google couldn't search, or neither
     private void ShowContactsAccess(ContactAccess access, string? accountId)
     {
+        var wasShown = _allowContacts.Visibility == Visibility.Visible || _contactsApiOff.Visibility == Visibility.Visible;
         _contactsAccount = accountId;
         _allowContacts.Visibility = access == ContactAccess.NeedsConsent && accountId is not null ? Visibility.Visible : Visibility.Collapsed;
         _contactsApiOff.Visibility = access == ContactAccess.ApiDisabled ? Visibility.Visible : Visibility.Collapsed;
 
-        // Scrolled into view, so it isn't missed below the fold of the share panel
-        if (access != ContactAccess.Allowed)
+        // Scrolled into view when it appears, so it isn't missed below the fold of the share panel
+        if (access != ContactAccess.Allowed && !wasShown)
         {
             (access == ContactAccess.ApiDisabled ? (FrameworkElement)_contactsApiOff : _allowContacts).StartBringIntoView();
         }
