@@ -168,11 +168,15 @@ public sealed class ContactSearchTests : IDisposable
     {
         _google.On(HttpMethod.Post, TokenUrl, HttpStatusCode.BadRequest, Fixture.Read("error-invalid-grant.json"));
 
-        var results = await CreateSearch().SearchAsync(Account, "alice", TestContext.Current.CancellationToken);
+        var search = CreateSearch();
+        var results = await search.SearchAsync(Account, "alice", TestContext.Current.CancellationToken);
+        await search.SearchAsync(Account, "alicia", TestContext.Current.CancellationToken);
 
         Assert.Equal(ContactAccess.NeedsConsent, results.Access);
         Assert.Empty(results.Contacts);
-        Assert.Contains($"contacts.search.blocked account={Account} access=NeedsConsent", File.ReadAllText(_log.FilePath), StringComparison.Ordinal);
+        var log = File.ReadAllText(_log.FilePath);
+        Assert.Equal(1, log.Split("contacts.search.blocked").Length - 1);
+        Assert.Contains($"contacts.search.blocked account={Account} access=NeedsConsent", log, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -153,7 +153,14 @@ public sealed partial class ShareSlotsPanel : UserControl
         AutomationProperties.SetName(_guest, "Guest email");
         AutomationProperties.SetAutomationId(_guest, "ShareGuestBox");
         FirstSuggestion.Highlight(_guest);
-        _guest.TextChanged += (_, _) => ShowCanApprove();
+        _guest.TextChanged += (_, _) =>
+        {
+            ShowCanApprove();
+            if (_guest.Text.Length == 0)
+            {
+                ShowContactsAccess(ContactAccess.Allowed, null);
+            }
+        };
         _guest.QuerySubmitted += (_, args) =>
         {
             if (_vm is not { } vm)
@@ -183,7 +190,8 @@ public sealed partial class ShareSlotsPanel : UserControl
                 vm.Fire(
                     async () =>
                     {
-                        if (await vm.AllowShareContactsAsync(account))
+                        // Sharing may have stopped while the browser was open; then the hidden box isn't searched
+                        if (await vm.AllowShareContactsAsync(account) && vm.IsSharing)
                         {
                             ShowContactsAccess(ContactAccess.Allowed, null);
                             _guestSuggestions?.SearchAgain();
@@ -366,6 +374,12 @@ public sealed partial class ShareSlotsPanel : UserControl
         _contactsAccount = accountId;
         _allowContacts.Visibility = access == ContactAccess.NeedsConsent && accountId is not null ? Visibility.Visible : Visibility.Collapsed;
         _contactsApiOff.Visibility = access == ContactAccess.ApiDisabled ? Visibility.Visible : Visibility.Collapsed;
+
+        // Scrolled into view, so it isn't missed below the fold of the share panel
+        if (access != ContactAccess.Allowed)
+        {
+            (access == ContactAccess.ApiDisabled ? (FrameworkElement)_contactsApiOff : _allowContacts).StartBringIntoView();
+        }
     }
 
     /// <summary>

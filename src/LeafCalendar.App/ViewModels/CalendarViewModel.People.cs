@@ -191,9 +191,9 @@ public sealed partial class CalendarViewModel
 
     /// <summary>
     /// Google contacts matching <paramref name="text"/> for the people picker and the share panel's guest box, from
-    /// every signed-in account at once (your main account's first), each address once (none without an account), and
-    /// the first account Google couldn't search with why (it needs to sign in again, or the People API is off), so the
-    /// box can say so instead of staying empty.
+    /// every signed-in account at once (your main account's first), each address once (none without an account). When
+    /// none came back, also the first account Google couldn't search with why (it needs to sign in again, or the People
+    /// API is off), so the box can say so instead of staying empty.
     /// </summary>
     public async Task<PeopleResults> SearchPeopleAsync(string text, CancellationToken ct)
     {
@@ -204,11 +204,9 @@ public sealed partial class CalendarViewModel
 
         var accounts = PeopleAccounts();
         var answers = await Task.WhenAll(accounts.Select(account => google.Contacts.SearchAsync(account, text, ct)));
-        var blocked = accounts.Zip(answers).FirstOrDefault(a => a.Second.Access != ContactAccess.Allowed);
-        return new(
-            [.. answers.SelectMany(a => a.Contacts).DistinctBy(c => c.Email, StringComparer.OrdinalIgnoreCase).Take(ContactSearch.MaxResults)],
-            blocked.Second?.Access ?? ContactAccess.Allowed,
-            blocked.First);
+        List<Contact> found = [.. answers.SelectMany(a => a.Contacts).DistinctBy(c => c.Email, StringComparer.OrdinalIgnoreCase).Take(ContactSearch.MaxResults)];
+        var blocked = found.Count == 0 ? accounts.Zip(answers).FirstOrDefault(a => a.Second.Access != ContactAccess.Allowed) : default;
+        return new(found, blocked.Second?.Access ?? ContactAccess.Allowed, blocked.First);
     }
 
     /// <summary>
