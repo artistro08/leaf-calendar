@@ -33,7 +33,7 @@
 
                 <!-- Setup Guide (the steps live in the user guide, so they stay current when Google Cloud Console changes;
                      the link opens a fixed address) -->
-                <TextBlock TextWrapping="Wrap" AutomationProperties.Name="Setup guide" AutomationProperties.AutomationId="SetupGuideText">
+                <TextBlock TextWrapping="Wrap" AutomationProperties.AutomationId="SetupGuideText">
                     Follow the
                     <Hyperlink Click="OnSetupGuideLinkClick" AutomationProperties.AutomationId="SetupGuideLink">
                         Google Cloud setup guide

@@ -116,7 +116,7 @@ The standard is Microsoft's .NET coding conventions and Framework Design Guideli
 - **The sign-in listener** binds loopback only, checks the PKCE state, answers only the expected redirect, never echoes query values into its pages, and survives connections that reset.
 - **Activation input is untrusted.** The `leaf-calendar:` protocol only brings Leaf Calendar forward; never parse its path or query into actions. The one exception is `leaf-calendar://connect?code=…` (`ApiHello.ReadConnectLink`): it shows the Allow window only for a code an app already registered over the pipe (`ApiApprovals.WaitForLink`), once, within 5 minutes. Anything else in the link makes it an ordinary "bring forward". Test hooks (`--fake-google` and friends) exist for UI tests; don't add new ones that can redirect Google traffic or tokens in a normal run.
 - **Secrets** go only through `ITokenStore`. Never write a secret anywhere else, never put one in a URL or log.
-- **Least privilege:** don't add package capabilities or OAuth scopes without the owner. If scopes change, update the onboarding guide text (owner-approved) and `PRIVACY.md`.
+- **Least privilege:** don't add package capabilities or OAuth scopes without the owner. If scopes change, update the user guide's Google Cloud setup page (`site/getting-started/google-cloud-setup.md`, owner-approved) and `PRIVACY.md`.
 
 ## Design Rules
 
