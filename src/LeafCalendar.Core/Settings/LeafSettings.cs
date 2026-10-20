@@ -462,7 +462,7 @@ public sealed record LeafSettings
             .Where(p => p is not null && !string.IsNullOrWhiteSpace(p.ProviderId))
             .Select(p => new ProviderSettings(Clip(p.ProviderId.Trim(), 32), "", Clip((p.DefaultLinkId ?? "").Trim(), 64))
             {
-                OffLinkIds = Keep(p.OffLinkIds, [.. (p.OffLinkIds ?? [])
+                OffLinkIds = Keep(p.OffLinkIds, [.. p.OffLinkIds
                     .Where(id => !string.IsNullOrWhiteSpace(id))
                     .Select(id => Clip(id.Trim(), 64))
                     .Distinct(StringComparer.Ordinal)
