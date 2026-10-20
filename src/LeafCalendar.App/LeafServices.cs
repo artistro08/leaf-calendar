@@ -283,13 +283,13 @@ public sealed class LeafServices : IAsyncDisposable
 
     /// <summary>
     /// Opens a link from an event, a Join button, "Email guests", or a location. Only <c>https</c>, the meeting app
-    /// schemes, <c>mailto</c>, and <c>tel</c> (a location's phone number) pass (spec 4.5); anything else is logged by scheme and dropped. In fake-Google mode nothing opens:
+    /// schemes, <c>mailto</c>, and a plain <c>tel</c> number (a location's phone number) pass (spec 4.5); anything else is logged by scheme and dropped. In fake-Google mode nothing opens:
     /// the address is appended to <c>launched.txt</c> in the profile folder, where UI tests read it. A launch that
     /// fails is logged (scheme and error only) and reported as false, never thrown.
     /// </summary>
     public async Task<bool> LaunchAsync(Uri uri)
     {
-        if (!uri.IsAbsoluteUri || (!LinkSafety.CanLaunch(uri) && uri.Scheme != Uri.UriSchemeMailto && uri.Scheme != "tel"))
+        if (!uri.IsAbsoluteUri || (!LinkSafety.CanLaunch(uri) && uri.Scheme != Uri.UriSchemeMailto && !LinkSafety.IsCallLink(uri)))
         {
             Log.Info("link.blocked", $"scheme={(uri.IsAbsoluteUri ? uri.Scheme : "relative")}");
             return false;

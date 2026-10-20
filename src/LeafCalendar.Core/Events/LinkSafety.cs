@@ -328,8 +328,10 @@ public static partial class LinkSafety
 
     /// <summary>
     /// Where a location goes (issue #49): the first <c>https</c> link in it that <see cref="CanLaunch"/> allows, a
-    /// <c>tel:</c> link when the location is only a phone number (7 to 15 digits with the usual separators), otherwise a
-    /// map search. The <c>tel:</c> link is rebuilt from the digits alone, so nothing else in the location reaches it.
+    /// <c>tel:</c> link when the location is only a phone number (10 to 15 digits, or 7 or more after a "+", with
+    /// spaces, dashes, dots and parentheses), otherwise a map search. Ten digits keeps dates and ZIP+4 codes on the map.
+    /// The <c>tel:</c> link is rebuilt from the digits alone (<see cref="IsCallLink"/>), so nothing else in the location
+    /// reaches it.
     /// </summary>
     public static (Uri Link, LocationAction Action) LocationTarget(string location, MapProvider provider)
     {
@@ -347,14 +349,22 @@ public static partial class LinkSafety
         // A Phone Number
         var trimmed = location.Trim();
         var digits = new string(trimmed.Where(char.IsAsciiDigit).ToArray());
-        if (digits.Length is >= 7 and <= 15 && trimmed.All(c => char.IsAsciiDigit(c) || " -.()".Contains(c, StringComparison.Ordinal) || c == '+')
-            && trimmed.LastIndexOf('+') <= 0)
+        var plus = trimmed.StartsWith('+');
+        if (digits.Length <= 15 && digits.Length >= (plus ? 7 : 10) && trimmed.LastIndexOf('+') <= 0
+            && trimmed.All(c => char.IsAsciiDigit(c) || char.IsWhiteSpace(c) || "+-.()\u2013".Contains(c, StringComparison.Ordinal)))
         {
-            return (new Uri("tel:" + (trimmed.StartsWith('+') ? "+" : "") + digits), LocationAction.Call);
+            return (new Uri("tel:" + (plus ? "+" : "") + digits), LocationAction.Call);
         }
 
         return (MapsSearch(location, provider), LocationAction.Map);
     }
+
+    /// <summary>True for a <c>tel:</c> link that is only an optional "+" and digits, as <see cref="LocationTarget"/> builds.</summary>
+    public static bool IsCallLink(Uri uri) =>
+        uri.IsAbsoluteUri && uri.Scheme == "tel" && CallNumber().IsMatch(uri.OriginalString.AsSpan(4));
+
+    [GeneratedRegex(@"^\+?[0-9]{7,15}$")]
+    private static partial Regex CallNumber();
 
     [GeneratedRegex(@"https://[^\s<>""']+", RegexOptions.IgnoreCase)]
     internal static partial Regex HttpsLink();

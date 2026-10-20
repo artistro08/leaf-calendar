@@ -264,6 +264,8 @@ public class LinkSafetyTests
     [InlineData("Room 4")]
     [InlineData("1600 Amphitheatre Pkwy, Mountain View, CA 94043")]
     [InlineData("12345")]
+    [InlineData("2026-10-20")]
+    [InlineData("94043-1351")]
     [InlineData("http://example.com/room")]
     [InlineData("https://meet.google.com@evil.example/abc")]
     public void LocationTarget_AnythingElse_SearchesTheMap(string location)
@@ -289,11 +291,22 @@ public class LinkSafetyTests
     [Theory]
     [InlineData("+1 (555) 123-4567", "tel:+15551234567")]
     [InlineData("555.123.4567", "tel:5551234567")]
+    [InlineData("+44\u00a020\u00a07946\u00a00958", "tel:+442079460958")]
+    [InlineData("555\u2013123\u20134567", "tel:5551234567")]
     public void LocationTarget_APhoneNumber_CallsIt(string location, string expected)
     {
         var (link, action) = LinkSafety.LocationTarget(location, MapProvider.Google);
 
         Assert.Equal(LocationAction.Call, action);
         Assert.Equal(expected, link.OriginalString);
+        Assert.True(LinkSafety.IsCallLink(link));
     }
+
+    [Theory]
+    [InlineData("tel:+15551234567", true)]
+    [InlineData("tel:+1900;phone-context=evil.example", false)]
+    [InlineData("tel:123", false)]
+    [InlineData("https://example.com", false)]
+    public void IsCallLink_OnlyPlainNumbers(string link, bool expected) =>
+        Assert.Equal(expected, LinkSafety.IsCallLink(new Uri(link)));
 }

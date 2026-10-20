@@ -194,7 +194,7 @@ Built in Milestone 3 (owner redesign) as its own onboarding window, shown instea
 
 Anyone can send an invite, so event content is treated as hostile.
 
-- **Launching links:** only `https` URLs and an allowlist of meeting app schemes (`zoommtg`, `zoomus`, `msteams`, `webex`) can be launched. Anything else (`file`, `ms-msdt`, `javascript`, custom schemes) is blocked. `mailto` links (description links and "Email guests") open the mail app. Every launch goes through one checked path.
+- **Launching links:** only `https` URLs and an allowlist of meeting app schemes (`zoommtg`, `zoomus`, `msteams`, `webex`) can be launched. Anything else (`file`, `ms-msdt`, `javascript`, custom schemes) is blocked. `mailto` links (description links and "Email guests") open the mail app. A `tel:` link opens the calling app only when it is a plain number (optional "+" and 7 to 15 digits), which is how the details panel's Call button builds it from a phone-number location. Every launch goes through one checked path.
 - **Descriptions:** Google's HTML subset is parsed into native text runs (bold, italic, underline, lists, line breaks, links). No scripts, no remote images, no embedded browser. Only `https` and `mailto` links are clickable. Edited in place with bold, italic, underline, and bullet or numbered lists (Milestone 6). Saving writes only those tags and allowlisted links back to Google, with all text encoded; an untouched description is never rewritten. Paste is plain text.
 - **Meeting link detection:** URL parsing through `Uri`, host matched against a known list (Meet, Zoom, Teams, Webex, Around, Whereby, BlueJeans, Doxy.me), never by substring.
 
