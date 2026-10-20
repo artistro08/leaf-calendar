@@ -299,7 +299,7 @@ public sealed partial class DetailsPanel : UserControl
         var matched = _vm?.SelectedTracked?.Block;
         var tracked = _vm?.Settings.SunsamaTracked == true && matched?.TrackedMinutes is > 0 ? matched.TrackedMinutes : null;
         ShowTime(EventTrackedTime, tracked, "actual");
-        EventTrackedText.Visibility = Visible(tracked is not null);
+        EventTrackedBadge.Visibility = Visible(tracked is not null);
         EventTrackedOpen.Visibility = Visible(SunsamaText.IsTaskId(matched?.TaskId));
         EventTrackedRow.Visibility = Visible(tracked is not null || EventTrackedOpen.Visibility == Visibility.Visible);
 

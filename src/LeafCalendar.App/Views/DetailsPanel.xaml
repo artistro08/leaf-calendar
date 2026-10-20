@@ -139,7 +139,7 @@
 
                     <!-- Sunsama Tracked Time (a Google event matched to a Sunsama task, while Tracked time is on) -->
                     <StackPanel x:Name="EventTrackedRow" Spacing="12" Visibility="Collapsed">
-                        <StackPanel x:Name="EventTrackedText" Orientation="Horizontal" Spacing="8">
+                        <StackPanel x:Name="EventTrackedBadge" Orientation="Horizontal" Spacing="8">
                             <Border Style="{StaticResource LeafTimeBadgeStyle}" Background="{ThemeResource SystemFillColorCautionBackgroundBrush}">
                                 <TextBlock x:Name="EventTrackedTime" Style="{StaticResource BodyLargeTextBlockStyle}" AutomationProperties.AutomationId="DetailsEventTracked" />
                             </Border>
