@@ -140,7 +140,8 @@ public sealed partial class DetailsPanel : UserControl
 
     private void OnUpcomingShowAllClick(object sender, RoutedEventArgs e) => _vm?.ShowUpcomingFor(null);
 
-    // The location button names the map service picked in Settings, and its tooltip shows where it goes
+    // The location button says what it does (open the link, call the number, or search the map service picked in
+    // Settings), and its tooltip shows where it goes
     private void ShowMapButton()
     {
         if (_vm is not { } vm)
@@ -148,9 +149,21 @@ public sealed partial class DetailsPanel : UserControl
             return;
         }
 
-        var location = vm.SelectedInfo?.Details.Location;
-        MapsLink.Content = vm.MapButtonText;
-        ToolTipService.SetToolTip(MapsLink, location is { Length: > 0 } ? LinkSafety.DisplayForm(LinkSafety.MapsSearch(location, vm.Settings.MapProvider)) : null);
+        if (vm.SelectedInfo?.Details.Location is not { Length: > 0 } location)
+        {
+            MapsLink.Content = vm.MapButtonText;
+            ToolTipService.SetToolTip(MapsLink, null);
+            return;
+        }
+
+        var (link, action) = LinkSafety.LocationTarget(location, vm.Settings.MapProvider);
+        MapsLink.Content = action switch
+        {
+            LocationAction.Link => "Open link",
+            LocationAction.Call => "Call",
+            _ => vm.MapButtonText,
+        };
+        ToolTipService.SetToolTip(MapsLink, action == LocationAction.Call ? link.OriginalString : LinkSafety.DisplayForm(link));
     }
 
     // The editor wins while it's open; otherwise the selection summary (several events), the selected event, else the upcoming list

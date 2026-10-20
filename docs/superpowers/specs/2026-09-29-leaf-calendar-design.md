@@ -385,7 +385,7 @@ A view inside the main window, modeled on the Windows 11 Settings app. See Secti
   - Autocomplete from contacts, other contacts, the Workspace directory, and people you meet often or recently. Built in the Milestone 3 polish: contacts and other contacts (People API). The Workspace directory and people you meet often are still deferred. Milestone 5 added the Workspace directory, people you meet often (from your events in the last 180 days), and rooms you've booked before (Workspace accounts).
   - Optional-guest toggle.
   - Meeting rooms and resources (Workspace accounts).
-- Location, opened in Google Maps or Bing Maps (setting).
+- Location, opened in Google Maps or Bing Maps (setting). A location with an `https` link opens the link ("Open link"), and one that is only a phone number opens a `tel:` link ("Call") (issue #49).
   - Location suggestions from Google Maps (opt-in, Settings › General, with the user's own Maps API key). See `2026-10-15-location-suggestions-design.md`.
 - Description with bold, italic, underline, links, and lists. Links are kept but not edited in the editor (Milestone 6).
 - Conferencing: auto Google Meet (default per account, or none). Pasted Zoom, Teams, Webex, and other links are detected. Built in the Milestone 3 polish: Add Google Meet / Remove in the editor, off for new events. Per-account default in Settings › Accounts (Milestone 5).

@@ -259,4 +259,41 @@ public class LinkSafetyTests
     [Fact]
     public void MapsSearch_GoogleStaysTheDefault() =>
         Assert.StartsWith("https://www.google.com/maps/search/", LinkSafety.MapsSearch("Room 4").AbsoluteUri, StringComparison.Ordinal);
+
+    [Theory]
+    [InlineData("Room 4")]
+    [InlineData("1600 Amphitheatre Pkwy, Mountain View, CA 94043")]
+    [InlineData("12345")]
+    [InlineData("http://example.com/room")]
+    [InlineData("https://meet.google.com@evil.example/abc")]
+    public void LocationTarget_AnythingElse_SearchesTheMap(string location)
+    {
+        var (link, action) = LinkSafety.LocationTarget(location, MapProvider.Bing);
+
+        Assert.Equal(LocationAction.Map, action);
+        Assert.Equal(LinkSafety.MapsSearch(location, MapProvider.Bing), link);
+    }
+
+    [Theory]
+    [InlineData("https://example.com/room", "https://example.com/room")]
+    [InlineData("  https://zoom.us/j/123  ", "https://zoom.us/j/123")]
+    [InlineData("Online (https://example.com/a).", "https://example.com/a")]
+    public void LocationTarget_ALink_OpensIt(string location, string expected)
+    {
+        var (link, action) = LinkSafety.LocationTarget(location, MapProvider.Google);
+
+        Assert.Equal(LocationAction.Link, action);
+        Assert.Equal(expected, link.AbsoluteUri.TrimEnd('/'));
+    }
+
+    [Theory]
+    [InlineData("+1 (555) 123-4567", "tel:+15551234567")]
+    [InlineData("555.123.4567", "tel:5551234567")]
+    public void LocationTarget_APhoneNumber_CallsIt(string location, string expected)
+    {
+        var (link, action) = LinkSafety.LocationTarget(location, MapProvider.Google);
+
+        Assert.Equal(LocationAction.Call, action);
+        Assert.Equal(expected, link.OriginalString);
+    }
 }

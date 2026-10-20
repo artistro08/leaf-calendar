@@ -32,6 +32,19 @@ public enum MeetingProvider
     DoxyMe,
 }
 
+/// <summary>What the details panel's location button does with a location (<see cref="LinkSafety.LocationTarget"/>).</summary>
+public enum LocationAction
+{
+    /// <summary>Searches the map site picked in Settings › General (an address, a room, anything else).</summary>
+    Map,
+
+    /// <summary>Opens the <c>https</c> link in the location.</summary>
+    Link,
+
+    /// <summary>Calls the phone number the location is (<c>tel:</c>).</summary>
+    Call,
+}
+
 /// <summary>
 /// Which links from events may be opened (spec 4.5 and 4.8). Anyone can send an invite, so every link is hostile
 /// until checked.
@@ -312,6 +325,36 @@ public static partial class LinkSafety
     public static Uri MapsSearch(string location, MapProvider provider = MapProvider.Google) => provider == MapProvider.Bing
         ? new("https://www.bing.com/maps?q=" + Uri.EscapeDataString(location))
         : new("https://www.google.com/maps/search/?api=1&query=" + Uri.EscapeDataString(location));
+
+    /// <summary>
+    /// Where a location goes (issue #49): the first <c>https</c> link in it that <see cref="CanLaunch"/> allows, a
+    /// <c>tel:</c> link when the location is only a phone number (7 to 15 digits with the usual separators), otherwise a
+    /// map search. The <c>tel:</c> link is rebuilt from the digits alone, so nothing else in the location reaches it.
+    /// </summary>
+    public static (Uri Link, LocationAction Action) LocationTarget(string location, MapProvider provider)
+    {
+        ArgumentNullException.ThrowIfNull(location);
+
+        // A Link (the same bound and trimming as meeting links)
+        foreach (Match match in HttpsLink().Matches(location.Length > 40_000 ? location[..40_000] : location))
+        {
+            if (Uri.TryCreate(TrimLinkEnd(match.Value), UriKind.Absolute, out var uri) && CanLaunch(uri))
+            {
+                return (uri, LocationAction.Link);
+            }
+        }
+
+        // A Phone Number
+        var trimmed = location.Trim();
+        var digits = new string(trimmed.Where(char.IsAsciiDigit).ToArray());
+        if (digits.Length is >= 7 and <= 15 && trimmed.All(c => char.IsAsciiDigit(c) || " -.()".Contains(c, StringComparison.Ordinal) || c == '+')
+            && trimmed.LastIndexOf('+') <= 0)
+        {
+            return (new Uri("tel:" + (trimmed.StartsWith('+') ? "+" : "") + digits), LocationAction.Call);
+        }
+
+        return (MapsSearch(location, provider), LocationAction.Map);
+    }
 
     [GeneratedRegex(@"https://[^\s<>""']+", RegexOptions.IgnoreCase)]
     internal static partial Regex HttpsLink();
