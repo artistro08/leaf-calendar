@@ -39,7 +39,7 @@ In order to get things setup, you need to setup your own Google Cloud OAuth clie
 3. Double-click the `.msix` to install it, or run:
 
     ```powershell
-    Add-AppxPackage .\LeafCalendar_0.1.315.0_x64.msix
+    Add-AppxPackage .\LeafCalendar_0.1.316.0_x64.msix
     ```
 
 4. Open Leaf Calendar and follow the setup steps to connect your Google account.
