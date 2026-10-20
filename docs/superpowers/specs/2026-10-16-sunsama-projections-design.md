@@ -142,7 +142,7 @@ Tracked time is drawn **on top of** the block it belongs to, never as its own bl
 
 ### 6.4 Details Panel
 
-For a Sunsama block: title, time, channel, estimate, tracked total, its subtasks (a filled check box on each done one), its notes, and **Open in Sunsama**; nothing can be changed there. For a matched Google event: the existing details plus a tracked total line and **Open in Sunsama**. The tracked total lines show only while **Tracked time** is on.
+For a Sunsama block: title, time, channel, estimate, tracked total, its subtasks (a filled check box on each done one), its notes, and **Open in Sunsama**; nothing can be changed there. For a matched Google event: the existing details plus a tracked total line and **Open in Sunsama**. The tracked total lines show only while **Tracked time** is on. The estimate and tracked total show as hours and minutes on a clock ("1:55", no seconds) on a badge, followed by its label: **Planned** on the success (green) background, **Actual** on the caution (orange) background. Screen readers hear the duration, "1 h 55 m planned" (issue #41).
 
 ### 6.5 Safety
 

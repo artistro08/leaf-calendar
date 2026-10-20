@@ -378,6 +378,12 @@
         <Setter Property="AutomationProperties.Name" Value="Divider" />
     </Style>
 
+    <!-- Time Badge (the details panel's Sunsama planned and actual time; the background is set where it's used) -->
+    <Style x:Key="LeafTimeBadgeStyle" TargetType="Border">
+        <Setter Property="Padding" Value="4,0" />
+        <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
+    </Style>
+
     <!-- Guest Chip (the share panel's guest rows, built in code: the event editor's guest chip look) -->
     <Style x:Key="LeafGuestChipStyle" TargetType="Border">
         <Setter Property="Padding" Value="8,4,4,4" />

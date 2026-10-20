@@ -217,7 +217,7 @@ public sealed class SunsamaGridTests : IDisposable
         Assert.Equal("Home Page Redesign", leaf.WaitFor("DetailsSunsamaTitle").Name);
         Assert.Equal("Illuminate Digital", leaf.WaitFor("DetailsSunsamaChannel").Name);
         Assert.Equal("2 h planned", leaf.WaitFor("DetailsSunsamaPlanned").Name);
-        Assert.Equal("1 h 24 m tracked", leaf.WaitFor("DetailsSunsamaTracked").Name);
+        Assert.Equal("1 h 24 m actual", leaf.WaitFor("DetailsSunsamaTracked").Name);
         Assert.NotNull(leaf.WaitFor("DetailsOpenInSunsama"));
         Assert.False(leaf.Exists("DetailsTitle"), "The event details showed for a Sunsama block.");
 
@@ -253,7 +253,7 @@ public sealed class SunsamaGridTests : IDisposable
         leaf.WaitFor(Dentist).Click();
 
         Assert.Equal("Dentist appointment", leaf.WaitFor("DetailsTitle").Name);
-        Assert.Equal("30 m tracked", leaf.WaitFor("DetailsEventTracked").Name);
+        Assert.Equal("30 m actual", leaf.WaitFor("DetailsEventTracked").Name);
         Assert.NotNull(leaf.WaitFor("DetailsTrackedOpenInSunsama"));
     }
 

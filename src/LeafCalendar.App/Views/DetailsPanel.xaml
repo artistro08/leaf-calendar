@@ -139,7 +139,12 @@
 
                     <!-- Sunsama Tracked Time (a Google event matched to a Sunsama task, while Tracked time is on) -->
                     <StackPanel x:Name="EventTrackedRow" Spacing="12" Visibility="Collapsed">
-                        <TextBlock x:Name="EventTrackedText" AutomationProperties.AutomationId="DetailsEventTracked" />
+                        <StackPanel x:Name="EventTrackedText" Orientation="Horizontal" Spacing="8">
+                            <Border Style="{StaticResource LeafTimeBadgeStyle}" Background="{ThemeResource SystemFillColorCautionBackgroundBrush}">
+                                <TextBlock x:Name="EventTrackedTime" Style="{StaticResource BodyLargeTextBlockStyle}" AutomationProperties.AutomationId="DetailsEventTracked" />
+                            </Border>
+                            <TextBlock VerticalAlignment="Center" Style="{StaticResource BodyLargeTextBlockStyle}" Text="Actual" AutomationProperties.AccessibilityView="Raw" />
+                        </StackPanel>
                         <Button x:Name="EventTrackedOpen" HorizontalAlignment="Stretch" Content="Open in Sunsama" Click="OnOpenInSunsamaClick" AutomationProperties.AutomationId="DetailsTrackedOpenInSunsama" />
                     </StackPanel>
 
@@ -304,10 +309,24 @@
                         <Ellipse x:Name="SunsamaDot" Width="10" Height="10" VerticalAlignment="Center" />
                         <TextBlock x:Name="SunsamaChannel" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsSunsamaChannel" />
                     </StackPanel>
-                    <StackPanel Spacing="4">
-                        <TextBlock x:Name="SunsamaPlanned" AutomationProperties.AutomationId="DetailsSunsamaPlanned" />
-                        <TextBlock x:Name="SunsamaTracked" AutomationProperties.AutomationId="DetailsSunsamaTracked" />
+
+                    <!-- Planned And Actual Time (each a clock time on a colored badge, then its label; screen readers hear the
+                         badge's name, "1 h 55 m planned", instead of the two pieces) -->
+                    <StackPanel Spacing="8">
+                        <StackPanel x:Name="SunsamaPlannedRow" Orientation="Horizontal" Spacing="8">
+                            <Border Style="{StaticResource LeafTimeBadgeStyle}" Background="{ThemeResource SystemFillColorSuccessBackgroundBrush}">
+                                <TextBlock x:Name="SunsamaPlanned" Style="{StaticResource BodyLargeTextBlockStyle}" AutomationProperties.AutomationId="DetailsSunsamaPlanned" />
+                            </Border>
+                            <TextBlock VerticalAlignment="Center" Style="{StaticResource BodyLargeTextBlockStyle}" Text="Planned" AutomationProperties.AccessibilityView="Raw" />
+                        </StackPanel>
+                        <StackPanel x:Name="SunsamaTrackedRow" Orientation="Horizontal" Spacing="8">
+                            <Border Style="{StaticResource LeafTimeBadgeStyle}" Background="{ThemeResource SystemFillColorCautionBackgroundBrush}">
+                                <TextBlock x:Name="SunsamaTracked" Style="{StaticResource BodyLargeTextBlockStyle}" AutomationProperties.AutomationId="DetailsSunsamaTracked" />
+                            </Border>
+                            <TextBlock VerticalAlignment="Center" Style="{StaticResource BodyLargeTextBlockStyle}" Text="Actual" AutomationProperties.AccessibilityView="Raw" />
+                        </StackPanel>
                     </StackPanel>
+                    <!-- /Planned And Actual Time -->
                     <!-- Subtasks (a check on each done one; filled in code) -->
                     <StackPanel x:Name="SunsamaSubtaskList" Spacing="4" AutomationProperties.Name="Subtasks" AutomationProperties.AutomationId="DetailsSunsamaSubtasks" />
                     <RichTextBlock x:Name="SunsamaNotes" TextWrapping="Wrap" IsTextSelectionEnabled="True" AutomationProperties.AutomationId="DetailsSunsamaNotes" />
