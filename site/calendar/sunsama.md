@@ -53,7 +53,7 @@ Sunsama blocks can't be moved, resized, copied, or deleted. Right-click one for 
 
 A Sunsama task that's already an event on one of your Google calendars (one you timeboxed on Google, or imported from it) doesn't get a second block. Instead, that event shows the task's tracked time: the stripes on its block, and its tracked time (**Actual**) and **Open in Sunsama** in its details.
 
-![The details panel for a Google event with its Sunsama tracked time](../../assets/images/sunsama-matched.png)
+![The details panel for a Google event with its Sunsama actual time on a badge](../../assets/images/sunsama-matched.png)
 
 ## Signing out
 
