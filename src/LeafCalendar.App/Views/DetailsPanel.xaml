@@ -311,7 +311,7 @@
                     </StackPanel>
 
                     <!-- Planned And Actual Time (each a clock time on a colored badge, then its label; screen readers hear the
-                         badge's name, "1 h 55 m planned", instead of the two pieces) -->
+                         badge's name, "1:55 Planned, 1 h 55 m", instead of the two pieces) -->
                     <StackPanel Spacing="8">
                         <StackPanel x:Name="SunsamaPlannedRow" Orientation="Horizontal" Spacing="8">
                             <Border Style="{StaticResource LeafTimeBadgeStyle}" Background="{ThemeResource SystemFillColorSuccessBackgroundBrush}">

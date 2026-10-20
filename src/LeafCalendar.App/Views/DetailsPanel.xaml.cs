@@ -233,21 +233,23 @@ public sealed partial class DetailsPanel : UserControl
         SunsamaChannel.Text = Core.Tray.DisplayText.Clean(block.Channel, 200);
         SunsamaChannelRow.Visibility = Visible(block.Channel.Length > 0);
         SunsamaDot.Fill = LeafBrushes.FromHex(_vm?.SunsamaColor ?? SunsamaOccurrences.Color);
-        ShowTime(SunsamaPlanned, block.EstimateMinutes, "planned");
-        SunsamaPlannedRow.Visibility = Visible(block.EstimateMinutes is not null);
+        var planned = block.EstimateMinutes is > 0 ? block.EstimateMinutes : null;
+        ShowTime(SunsamaPlanned, planned, "Planned");
+        SunsamaPlannedRow.Visibility = Visible(planned is not null);
         var tracked = _vm?.Settings.SunsamaTracked == true && block.TrackedMinutes is > 0 ? block.TrackedMinutes : null;
-        ShowTime(SunsamaTracked, tracked, "actual");
+        ShowTime(SunsamaTracked, tracked, "Actual");
         SunsamaTrackedRow.Visibility = Visible(tracked is not null);
         ShowSubtasks(SunsamaSubtasks.Decode(block.Subtasks));
         RenderDescription(SunsamaNotes, DescriptionFormatter.Format(block.Notes));
         SunsamaOpen.Visibility = Visible(SunsamaText.IsTaskId(block.TaskId));
     }
 
-    // A planned or actual time badge: the clock time ("1:55"), named for screen readers as the duration ("1 h 55 m planned")
+    // A planned or actual time badge: the clock time ("1:55"), named for screen readers with what shows first, so voice
+    // control finds it, then the duration ("1:55 Planned, 1 h 55 m")
     private static void ShowTime(TextBlock badge, int? minutes, string label)
     {
         badge.Text = minutes is { } m ? SunsamaText.Clock(m) : "";
-        AutomationProperties.SetName(badge, minutes is { } n ? $"{SunsamaText.Format(n)} {label}" : "");
+        AutomationProperties.SetName(badge, minutes is { } n ? $"{SunsamaText.Clock(n)} {label}, {SunsamaText.Format(n)}" : "");
     }
 
     // One row per subtask: a filled check when done, an empty box when not, then its title
@@ -298,7 +300,7 @@ public sealed partial class DetailsPanel : UserControl
         // Sunsama On A Matched Event: Open in Sunsama, and the tracked line while Tracked time is on
         var matched = _vm?.SelectedTracked?.Block;
         var tracked = _vm?.Settings.SunsamaTracked == true && matched?.TrackedMinutes is > 0 ? matched.TrackedMinutes : null;
-        ShowTime(EventTrackedTime, tracked, "actual");
+        ShowTime(EventTrackedTime, tracked, "Actual");
         EventTrackedBadge.Visibility = Visible(tracked is not null);
         EventTrackedOpen.Visibility = Visible(SunsamaText.IsTaskId(matched?.TaskId));
         EventTrackedRow.Visibility = Visible(tracked is not null || EventTrackedOpen.Visibility == Visibility.Visible);
