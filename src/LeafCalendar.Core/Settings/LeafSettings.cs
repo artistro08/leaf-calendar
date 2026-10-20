@@ -44,20 +44,27 @@ public sealed record ExtraTimeZone(string Id, string? Label);
 /// <param name="DefaultLinkId">The link each new share starts with, empty for the first.</param>
 public sealed record ProviderSettings(string ProviderId, string Server, string DefaultLinkId)
 {
+    // Never null: the source-generated JSON reader sets a missing or null list to null (a row saved before this setting
+    // existed has none), skipping the initializer
+    private readonly IReadOnlyList<string> _offLinkIds = [];
+
     /// <summary>
     /// The links switched off in Settings › Scheduling, by the provider's link ID. Saved as the ones switched off, so a
-    /// link made later on the provider shows until you switch it off.
+    /// link made later on the provider shows until you switch it off. Never null.
     /// </summary>
-    public IReadOnlyList<string> OffLinkIds { get; init; } = [];
+    public IReadOnlyList<string> OffLinkIds
+    {
+        get => _offLinkIds;
+        init => _offLinkIds = value ?? [];
+    }
 
-    // Null only in a damaged row read before Normalize, which comparing must survive (Normalize compares to clean it)
     /// <inheritdoc />
     public bool Equals(ProviderSettings? other) =>
         other is not null && ProviderId == other.ProviderId && Server == other.Server && DefaultLinkId == other.DefaultLinkId
-        && (OffLinkIds ?? []).SequenceEqual(other.OffLinkIds ?? []);
+        && OffLinkIds.SequenceEqual(other.OffLinkIds);
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(ProviderId, Server, DefaultLinkId, OffLinkIds?.Count ?? 0);
+    public override int GetHashCode() => HashCode.Combine(ProviderId, Server, DefaultLinkId, OffLinkIds.Count);
 }
 
 /// <summary>A calendar by account and calendar ID.</summary>
@@ -455,7 +462,7 @@ public sealed record LeafSettings
             .Where(p => p is not null && !string.IsNullOrWhiteSpace(p.ProviderId))
             .Select(p => new ProviderSettings(Clip(p.ProviderId.Trim(), 32), "", Clip((p.DefaultLinkId ?? "").Trim(), 64))
             {
-                OffLinkIds = Keep(p.OffLinkIds, [.. (p.OffLinkIds ?? [])
+                OffLinkIds = Keep(p.OffLinkIds, [.. p.OffLinkIds
                     .Where(id => !string.IsNullOrWhiteSpace(id))
                     .Select(id => Clip(id.Trim(), 64))
                     .Distinct(StringComparer.Ordinal)
