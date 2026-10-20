@@ -17,17 +17,22 @@ internal sealed class ContactSuggestions : IDisposable
     private readonly AutoSuggestBox _box;
     private readonly CalendarViewModel _vm;
     private readonly DispatcherQueueTimer _timer;
-    private readonly LatestSearch<ContactResults> _search = new();
+    private readonly LatestSearch<PeopleResults> _search = new();
+    private readonly Action<PeopleResults>? _answered;
     private readonly List<(ContactSuggestion View, Contact Person)> _shown = [];
 
     // Bumped by Cancel, so people from your events still loading never show after it
     private int _generation;
 
-    /// <summary>Suggests contacts in <paramref name="box"/> as you type in it.</summary>
-    public ContactSuggestions(AutoSuggestBox box, CalendarViewModel vm)
+    /// <summary>
+    /// Suggests contacts in <paramref name="box"/> as you type in it. <paramref name="answered"/> gets each Google answer
+    /// that lands, so the box can say when an account couldn't be searched.
+    /// </summary>
+    public ContactSuggestions(AutoSuggestBox box, CalendarViewModel vm, Action<PeopleResults>? answered = null)
     {
         _box = box;
         _vm = vm;
+        _answered = answered;
 
         // Suggestions Wait Until Typing Pauses
         _timer = box.DispatcherQueue.CreateTimer();
@@ -47,6 +52,13 @@ internal sealed class ContactSuggestions : IDisposable
     /// <summary>The contact behind a suggestion the box raised (found by reference in the list shown), or null.</summary>
     public Contact? Find(object? suggestion) =>
         suggestion is null ? null : _shown.Find(s => ReferenceEquals(s.View, suggestion)).Person;
+
+    /// <summary>Searches the box's text again (after the user allowed contact suggestions).</summary>
+    public void SearchAgain()
+    {
+        _timer.Stop();
+        _timer.Start();
+    }
 
     /// <summary>Stops waiting for a pause in typing (a search already running still lands).</summary>
     public void StopWaiting() => _timer.Stop();
@@ -87,6 +99,7 @@ internal sealed class ContactSuggestions : IDisposable
             return;
         }
 
+        _answered?.Invoke(results);
         Show([.. local.Concat(results.Contacts).DistinctBy(c => c.Email, StringComparer.OrdinalIgnoreCase).Take(ContactSearch.MaxResults)]);
     }
 

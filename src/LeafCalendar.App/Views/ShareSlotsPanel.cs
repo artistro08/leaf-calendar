@@ -73,6 +73,12 @@ public sealed partial class ShareSlotsPanel : UserControl
     private readonly TextBlock _switchLabel = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Grid _switchRow = new() { ColumnSpacing = 8 };
     private readonly HyperlinkButton _availability = new() { Content = "Troubleshoot availability", Padding = new Thickness(0) };
+
+    // Under the guest box when Google couldn't search an account's contacts, as the editor shows them: the link signs
+    // that account in again; the line says the People API is off
+    private readonly HyperlinkButton _allowContacts = new() { Content = "Allow contact suggestions", Padding = new Thickness(0), Visibility = Visibility.Collapsed };
+    private readonly TextBlock _contactsApiOff = new() { Text = "Turn on the People API in Google Cloud Console to get suggestions.", TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+    private string? _contactsAccount;
     private IReadOnlyList<SchedulingLink> _linksShown = [];
     private bool _showingLink;
 
@@ -166,6 +172,27 @@ public sealed partial class ShareSlotsPanel : UserControl
             }
         };
 
+        // Contacts Google Couldn't Search (the editor's link and line)
+        _contactsApiOff.Style = (Style)Application.Current.Resources["LeafSecondaryTextStyle"];
+        AutomationProperties.SetAutomationId(_allowContacts, "ShareAllowContacts");
+        AutomationProperties.SetAutomationId(_contactsApiOff, "ShareContactsApiOff");
+        _allowContacts.Click += (_, _) =>
+        {
+            if (_vm is { } vm && _contactsAccount is { } account)
+            {
+                vm.Fire(
+                    async () =>
+                    {
+                        if (await vm.AllowShareContactsAsync(account))
+                        {
+                            ShowContactsAccess(ContactAccess.Allowed, null);
+                            _guestSuggestions?.SearchAgain();
+                        }
+                    },
+                    "contacts.allow.failed");
+            }
+        };
+
         // Section Heading (the guests and the picked times, under a line like the footer's)
         AutomationProperties.SetName(_line, "Divider");
         AutomationProperties.SetAutomationId(_line, "ShareGuestsLine");
@@ -224,6 +251,8 @@ public sealed partial class ShareSlotsPanel : UserControl
         stack.Children.Add(_linkBox);
         stack.Children.Add(_availability);
         stack.Children.Add(_guest);
+        stack.Children.Add(_allowContacts);
+        stack.Children.Add(_contactsApiOff);
         stack.Children.Add(_guestRows);
         stack.Children.Add(_empty);
         stack.Children.Add(_rows);
@@ -274,7 +303,7 @@ public sealed partial class ShareSlotsPanel : UserControl
     {
         ArgumentNullException.ThrowIfNull(vm);
         _vm = vm;
-        _guestSuggestions ??= new ContactSuggestions(_guest, vm);
+        _guestSuggestions ??= new ContactSuggestions(_guest, vm, results => ShowContactsAccess(results.Access, results.AccountId));
 
         // Sharing Started Or Another Group Opened: the boxes show its title, message and zone, and the guest box starts
         // empty. An open group whose times all passed turns back into new picks with the boxes as typed
@@ -294,6 +323,7 @@ public sealed partial class ShareSlotsPanel : UserControl
             _guestSuggestions.Cancel();
             _guest.IsSuggestionListOpen = false;
             _guest.ItemsSource = null;
+            ShowContactsAccess(ContactAccess.Allowed, null);
         }
 
         _group = vm.OpenGroupId;
@@ -328,6 +358,14 @@ public sealed partial class ShareSlotsPanel : UserControl
         }
 
         ShowCanApprove();
+    }
+
+    // The link or line under the guest box for the account Google couldn't search, or neither
+    private void ShowContactsAccess(ContactAccess access, string? accountId)
+    {
+        _contactsAccount = accountId;
+        _allowContacts.Visibility = access == ContactAccess.NeedsConsent && accountId is not null ? Visibility.Visible : Visibility.Collapsed;
+        _contactsApiOff.Visibility = access == ContactAccess.ApiDisabled ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>

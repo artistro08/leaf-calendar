@@ -53,6 +53,27 @@ public sealed class ShareAvailabilityTests : IDisposable
         Assert.NotNull(leaf.WaitFor("ShareSlotsPanel"));
     }
 
+    // Google couldn't search contacts (the grant lacks them): the guest box offers the editor's link instead of staying
+    // empty, and allowing signs in again and searches once more (issue #50)
+    [Fact]
+    public void GuestBox_WithoutTheContactsGrant_OffersAllow_ThenSuggests()
+    {
+        _google.ContactsGranted = false;
+        using var leaf = Launch();
+        StartSharing(leaf);
+        LeafApp.TextIn(leaf.WaitFor("ShareGuestBox")).Focus();
+        Keyboard.Type("ali");
+
+        leaf.WaitFor("ShareAllowContacts").AsButton().Invoke();
+        Assert.True(Retry.WhileFalse(() => _google.ContactsGranted && !leaf.Exists("ShareAllowContacts"), TimeSpan.FromSeconds(20)).Success, "Allowing contacts didn't finish.");
+
+        var alice = Retry.WhileNull(
+            () => leaf.FindAllAnywhere("SuggestionsList").SelectMany(list => list.FindAllDescendants(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.ListItem)))
+                .FirstOrDefault(item => item.Properties.Name.ValueOrDefault == "Alice Example <alice@example.com>"),
+            TimeSpan.FromSeconds(10)).Result;
+        Assert.NotNull(alice);
+    }
+
     // Copy, then the clipboard's text once it holds the shared times
     private static string Copy(LeafApp leaf)
     {

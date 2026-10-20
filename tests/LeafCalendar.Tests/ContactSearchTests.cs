@@ -160,6 +160,7 @@ public sealed class ContactSearchTests : IDisposable
         Assert.Equal(ContactAccess.NeedsConsent, results.Access);
         Assert.Empty(results.Contacts);
         Assert.DoesNotContain(_google.Requests, r => r.Uri.Host == "people.googleapis.com");
+        Assert.Contains($"contacts.search.blocked account={Account} access=NeedsConsent", File.ReadAllText(_log.FilePath), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -171,6 +172,7 @@ public sealed class ContactSearchTests : IDisposable
 
         Assert.Equal(ContactAccess.NeedsConsent, results.Access);
         Assert.Empty(results.Contacts);
+        Assert.Contains($"contacts.search.blocked account={Account} access=NeedsConsent", File.ReadAllText(_log.FilePath), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -197,6 +199,7 @@ public sealed class ContactSearchTests : IDisposable
 
         Assert.Equal(ContactAccess.ApiDisabled, results.Access);
         Assert.Empty(results.Contacts);
+        Assert.Contains($"contacts.search.blocked account={Account} access=ApiDisabled", File.ReadAllText(_log.FilePath), StringComparison.Ordinal);
     }
 
     [Fact]

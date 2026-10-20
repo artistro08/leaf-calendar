@@ -191,20 +191,24 @@ public sealed partial class CalendarViewModel
 
     /// <summary>
     /// Google contacts matching <paramref name="text"/> for the people picker and the share panel's guest box, from
-    /// every signed-in account at once (your main account's first), each address once (none without an account). The
-    /// access state is the main account's.
+    /// every signed-in account at once (your main account's first), each address once (none without an account), and
+    /// the first account Google couldn't search with why (it needs to sign in again, or the People API is off), so the
+    /// box can say so instead of staying empty.
     /// </summary>
-    public async Task<ContactResults> SearchPeopleAsync(string text, CancellationToken ct)
+    public async Task<PeopleResults> SearchPeopleAsync(string text, CancellationToken ct)
     {
         if (_services.Google is not { } google)
         {
-            return new([], ContactAccess.Allowed);
+            return new([], ContactAccess.Allowed, null);
         }
 
-        var answers = await Task.WhenAll(PeopleAccounts().Select(account => google.Contacts.SearchAsync(account, text, ct)));
+        var accounts = PeopleAccounts();
+        var answers = await Task.WhenAll(accounts.Select(account => google.Contacts.SearchAsync(account, text, ct)));
+        var blocked = accounts.Zip(answers).FirstOrDefault(a => a.Second.Access != ContactAccess.Allowed);
         return new(
             [.. answers.SelectMany(a => a.Contacts).DistinctBy(c => c.Email, StringComparer.OrdinalIgnoreCase).Take(ContactSearch.MaxResults)],
-            answers.FirstOrDefault()?.Access ?? ContactAccess.Allowed);
+            blocked.Second?.Access ?? ContactAccess.Allowed,
+            blocked.First);
     }
 
     /// <summary>
@@ -814,3 +818,9 @@ public sealed partial class CalendarViewModel
     // A status for the log: Google's HTTP status, or the kind of failure (never a message, which could carry an address)
     private static string Status(Exception ex) => ex is GoogleApiException google ? ((int)google.Status).ToString(System.Globalization.CultureInfo.InvariantCulture) : ex.GetType().Name;
 }
+
+/// <summary>
+/// Google contacts for a person box, and the first account Google couldn't search with why (<see cref="ContactAccess"/>),
+/// or null when every account answered.
+/// </summary>
+public sealed record PeopleResults(IReadOnlyList<Contact> Contacts, ContactAccess Access, string? AccountId);

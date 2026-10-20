@@ -1529,36 +1529,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             return;
         }
 
-        string? email;
-        using (var conn = _services.Database.Open())
-        {
-            email = AccountStore.GetAll(conn).FirstOrDefault(a => a.Id == accountId)?.Email;
-        }
-
-        string? problem = null;
-        _allowingContacts = true;
-        try
-        {
-            // Only this account may come back; another Google user is never saved
-            await _services.SignInAsync(google, email, accountId, CancellationToken.None);
-        }
-        catch (WrongAccountException ex)
-        {
-            problem = $"You signed in as {ex.SignedInEmail}. Sign in as {ex.ExpectedEmail} to allow suggestions.";
-        }
-        catch (SignInException ex)
-        {
-            problem = ex.Message;
-        }
-        catch (HttpRequestException)
-        {
-            problem = "Couldn't reach Google. Check your connection and try again.";
-        }
-        finally
-        {
-            _allowingContacts = false;
-        }
-
+        var problem = await SignInForContactsAsync(google, accountId);
         if (!ReferenceEquals(Editing, editor))
         {
             return;
@@ -1574,6 +1545,61 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         editor.Error = null;
         editor.ContactsAccess = ContactAccess.Allowed;
         await editor.RefreshSuggestionsAsync();
+    }
+
+    /// <summary>
+    /// The share panel's "Allow contact suggestions": signs the account in again, as the editor's link does. A problem is
+    /// said in the notice. True when the account was signed in (the guest box searches again).
+    /// </summary>
+    public async Task<bool> AllowShareContactsAsync(string accountId)
+    {
+        if (_services.Google is not { } google || _allowingContacts)
+        {
+            return false;
+        }
+
+        if (await SignInForContactsAsync(google, accountId) is { } problem)
+        {
+            ShowMessage(problem);
+            return false;
+        }
+
+        return true;
+    }
+
+    // Signs the account in again (the Accounts page's sign-in, with its email as the hint) so Google asks for the
+    // contacts permission; one at a time. The problem to show, or null when it worked
+    private async Task<string?> SignInForContactsAsync(Core.Hosting.GoogleServices google, string accountId)
+    {
+        string? email;
+        using (var conn = _services.Database.Open())
+        {
+            email = AccountStore.GetAll(conn).FirstOrDefault(a => a.Id == accountId)?.Email;
+        }
+
+        _allowingContacts = true;
+        try
+        {
+            // Only this account may come back; another Google user is never saved
+            await _services.SignInAsync(google, email, accountId, CancellationToken.None);
+            return null;
+        }
+        catch (WrongAccountException ex)
+        {
+            return $"You signed in as {ex.SignedInEmail}. Sign in as {ex.ExpectedEmail} to allow suggestions.";
+        }
+        catch (SignInException ex)
+        {
+            return ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            return "Couldn't reach Google. Check your connection and try again.";
+        }
+        finally
+        {
+            _allowingContacts = false;
+        }
     }
 
     // Closing the panel only hides an editor; editing again (the toolbar's Edit, a double-click) brings that one back
