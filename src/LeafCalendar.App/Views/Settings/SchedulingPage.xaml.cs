@@ -3,6 +3,7 @@ using LeafCalendar.App.Controls;
 using LeafCalendar.Core.Scheduling;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 
@@ -135,6 +136,8 @@ public sealed partial class SchedulingPage : Page
         private readonly SchedulingProviderInfo _info;
         private readonly ComboBox _links;
         private readonly StackPanel _linkRows = new();
+        private readonly ProgressRing _ring;
+        private readonly TextBlock _loadingRow;
         private List<SchedulingLink> _allLinks = [];
         private List<SchedulingLink> _shownLinks = [];
         private int _linksGeneration;
@@ -149,7 +152,25 @@ public sealed partial class SchedulingPage : Page
             AutomationProperties.SetAutomationId(_links, $"SchedulingDefaultLink_{info.Id}");
             _links.SelectionChanged += (_, _) => OnLinkChanged();
 
-            var header = new SettingRow { Style = (Style)Application.Current.Resources["LeafExpanderHeaderRowStyle"], Glyph = Glyph, Header = "Default link", Description = info.Name, Content = _links };
+            // Loading: a ring beside the dropdown (as Settings › Accounts shows beside its buttons; it keeps its space
+            // when it stops, so the dropdown never moves) and, before any links have come in, a row saying so where
+            // they'll be listed, read out by screen readers when it shows
+            var loading = $"Loading your {info.Name} links.";
+            _ring = new ProgressRing { Width = 20, Height = 20, Margin = new Thickness(0, 0, 4, 0), IsActive = false };
+            AutomationProperties.SetName(_ring, loading);
+            AutomationProperties.SetAutomationId(_ring, $"SchedulingLinksProgress_{info.Id}");
+
+            // Plain text, not a SettingRow (which has no automation peer, so screen readers and UI tests can't reach
+            // it), lined up with the link rows' text (LeafExpanderItemRowStyle's padding)
+            _loadingRow = new TextBlock { Text = loading, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(48, 12, 16, 12) };
+            AutomationProperties.SetAutomationId(_loadingRow, $"SchedulingLinksLoading_{info.Id}");
+            AutomationProperties.SetLiveSetting(_loadingRow, AutomationLiveSetting.Polite);
+            _loadingRow.Loaded += (_, _) => FrameworkElementAutomationPeer.CreatePeerForElement(_loadingRow)?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+
+            var controls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            controls.Children.Add(_ring);
+            controls.Children.Add(_links);
+            var header = new SettingRow { Style = (Style)Application.Current.Resources["LeafExpanderHeaderRowStyle"], Glyph = Glyph, Header = "Default link", Description = info.Name, Content = controls };
             Row = new Expander { Style = (Style)Application.Current.Resources["LeafSettingExpanderStyle"], Header = header, Content = _linkRows, Visibility = Visibility.Collapsed };
             AutomationProperties.SetName(Row, info.Name);
             AutomationProperties.SetAutomationId(Row, $"SchedulingCard_{info.Id}");
@@ -173,6 +194,7 @@ public sealed partial class SchedulingPage : Page
         private async void LoadLinks()
         {
             var generation = ++_linksGeneration;
+            ShowLoading(true);
             try
             {
                 var links = await _page._context.Services.Scheduling.GetLinksAsync(CancellationToken.None);
@@ -188,6 +210,29 @@ public sealed partial class SchedulingPage : Page
             catch (Exception ex)
             {
                 _page._context.Services.Log.Info("scheduling.settings.links.failed", $"provider={_info.Id} error={ex.GetType().Name}");
+            }
+            finally
+            {
+                // Only the newest read stops the ring and takes the loading row away (an older one finishing late
+                // leaves them for the newest)
+                if (generation == _linksGeneration)
+                {
+                    ShowLoading(false);
+                }
+            }
+        }
+
+        // The ring spins while links load; the loading row stands in for the links only while none are listed
+        private void ShowLoading(bool loading)
+        {
+            _ring.IsActive = loading;
+            if (!loading)
+            {
+                _linkRows.Children.Remove(_loadingRow);
+            }
+            else if (_linkRows.Children.Count == 0)
+            {
+                _linkRows.Children.Add(_loadingRow);
             }
         }
 

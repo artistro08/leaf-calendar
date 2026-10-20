@@ -346,6 +346,27 @@ public sealed class SchedulingProviderTests : IDisposable
         Assert.True(Retry.WhileFalse(() => ListedLinks(box).SequenceEqual([ThirtyMinutes, QuickChat]), TimeSpan.FromSeconds(5)).Success, "Quick chat didn't come back to the Default link box.");
     }
 
+    // While Cal.com's links are slow, the card spins its ring and says it's loading where the links will be; once they
+    // come in, the links replace the message (the delay outlasts launching and opening Settings)
+    [Fact]
+    public void SlowLinks_ShowLoadingUntilTheyComeIn()
+    {
+        _google.CalComLinksDelay = TimeSpan.FromSeconds(15);
+        using var leaf = Launch();
+        leaf.OpenSettings("Scheduling");
+        leaf.WaitInSettings($"SchedulingCard_{Provider}").Patterns.ExpandCollapse.Pattern.Expand();
+
+        Assert.Equal("Loading your Cal.com links.", leaf.WaitInSettings($"SchedulingLinksLoading_{Provider}").Name);
+
+        // Windows names a spinning ring "Busy" before its own name
+        var ring = leaf.WaitInSettings($"SchedulingLinksProgress_{Provider}");
+        Assert.Equal("Busy Loading your Cal.com links.", ring.Name);
+
+        Assert.True(Retry.WhileFalse(() => InSettings(leaf, $"SchedulingLinkShown_{Provider}_101"), TimeSpan.FromSeconds(30)).Success, "The links didn't come in.");
+        Assert.False(InSettings(leaf, $"SchedulingLinksLoading_{Provider}"), "The loading message stayed after the links came in.");
+        Assert.True(Retry.WhileFalse(() => ring.Name == "Loading your Cal.com links.", TimeSpan.FromSeconds(5)).Success, $"The ring is still \"{ring.Name}\" after the links came in.");
+    }
+
     // The names a link box lists (opened to read them, then closed)
     private static List<string> ListedLinks(ComboBox box)
     {
