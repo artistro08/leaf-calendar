@@ -134,7 +134,7 @@ public sealed class SchedulingHubTests : IDisposable
 
         var links = await hub.SignInAsync("calcom", Approves(), TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, links.Count);
+        Assert.Equal(3, links.Count);
         Assert.Equal("rt-1", _tokens.GetProviderSecret("calcom", "refresh_token"));
         Assert.Equal(ProviderState.SignedIn, hub.StateOf("calcom"));
         Assert.NotNull(hub.Get("calcom"));
@@ -272,7 +272,7 @@ public sealed class SchedulingHubTests : IDisposable
         Assert.Equal(ProviderState.SignedIn, hub.StateOf("calcom"));
         Assert.Empty(_cal.Requests);
 
-        Assert.Equal(2, (await hub.GetLinksAsync(TestContext.Current.CancellationToken)).Count);
+        Assert.Equal(3, (await hub.GetLinksAsync(TestContext.Current.CancellationToken)).Count);
         Assert.Equal("rt-1", _cal.Requests[0].Form("refresh_token"));
         Assert.Equal("at-1", _cal.Last.BearerToken);
     }
@@ -379,7 +379,7 @@ public sealed class SchedulingHubTests : IDisposable
         hub.Load();
         tokens.FailWrites = true;
 
-        Assert.Equal(2, (await hub.GetLinksAsync(TestContext.Current.CancellationToken)).Count);
+        Assert.Equal(3, (await hub.GetLinksAsync(TestContext.Current.CancellationToken)).Count);
         Assert.Equal(ProviderState.SignedIn, hub.StateOf("calcom"));
     }
 
@@ -398,7 +398,7 @@ public sealed class SchedulingHubTests : IDisposable
         var links = await hub.GetLinksAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(2, LinkRequests);
-        Assert.Equal(2, links.Count);
+        Assert.Equal(3, links.Count);
         Assert.Equal(ProviderState.SignedIn, hub.StateOf("calcom"));
     }
 

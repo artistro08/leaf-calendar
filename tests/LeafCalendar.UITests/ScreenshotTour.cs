@@ -266,6 +266,10 @@ public sealed class ScreenshotTour : IDisposable
                     leaf.WaitInSettings("SchedulingDefaultLink_calcom");
                     Thread.Sleep(600);
                     settings.CaptureToFile(Path.Combine(folder, $"scheduling-page-{suffix}.png"));
+                    leaf.WaitInSettings("SchedulingCard_calcom").Patterns.ExpandCollapse.Pattern.Expand();
+                    leaf.WaitInSettings("SchedulingLinkShown_calcom_102");
+                    Thread.Sleep(600);
+                    settings.CaptureToFile(Path.Combine(folder, $"scheduling-links-{suffix}.png"));
                     leaf.OpenSettings("Notifications");
                     leaf.WaitInSettings("BookingNotificationsSwitch").Patterns.ScrollItem.Pattern.ScrollIntoView();
                     Thread.Sleep(600);

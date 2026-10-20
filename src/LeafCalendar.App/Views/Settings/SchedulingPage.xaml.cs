@@ -9,9 +9,9 @@ using Microsoft.UI.Xaml.Navigation;
 namespace LeafCalendar.App.Views.Settings;
 
 /// <summary>
-/// Settings › Scheduling (scheduling providers spec 9.1): one Default link card per signed-in provider. Signing in and out
-/// lives in Settings › Accounts; the Settings list only shows this page while a provider is signed in (or needs
-/// reconnecting).
+/// Settings › Scheduling (scheduling providers spec 9.1): one card per signed-in provider, picking its default link and
+/// which of its links Leaf Calendar shows. Signing in and out lives in Settings › Accounts; the Settings list only shows
+/// this page while a provider is signed in (or needs reconnecting).
 /// </summary>
 /// <remarks>
 /// The hub's <see cref="SchedulingHub.Changed"/> is raised on any thread, so it's marshaled to the UI thread, and it's
@@ -126,12 +126,16 @@ public sealed partial class SchedulingPage : Page
     // LINK CARD
     // =========================================================================
 
-    // One provider's Default link card, shown while it's signed in (or needs reconnecting, when its links can't load)
+    // One provider's card, shown while it's signed in (or needs reconnecting, when its links can't load): an expander
+    // whose header picks the default link and whose rows switch each link on or off (every link, hidden ones on the
+    // provider's profile too). Only links switched on are in the dropdown
     private sealed class LinkCard
     {
         private readonly SchedulingPage _page;
         private readonly SchedulingProviderInfo _info;
         private readonly ComboBox _links;
+        private readonly StackPanel _linkRows = new();
+        private List<SchedulingLink> _allLinks = [];
         private List<SchedulingLink> _shownLinks = [];
         private int _linksGeneration;
         private bool _loading;
@@ -145,12 +149,13 @@ public sealed partial class SchedulingPage : Page
             AutomationProperties.SetAutomationId(_links, $"SchedulingDefaultLink_{info.Id}");
             _links.SelectionChanged += (_, _) => OnLinkChanged();
 
-            Row = new SettingRow { Glyph = Glyph, Header = "Default link", Description = info.Name, Content = _links, Visibility = Visibility.Collapsed };
+            var header = new SettingRow { Style = (Style)Application.Current.Resources["LeafExpanderHeaderRowStyle"], Glyph = Glyph, Header = "Default link", Description = info.Name, Content = _links };
+            Row = new Expander { Style = (Style)Application.Current.Resources["LeafSettingExpanderStyle"], Header = header, Content = _linkRows, Visibility = Visibility.Collapsed };
             AutomationProperties.SetName(Row, info.Name);
             AutomationProperties.SetAutomationId(Row, $"SchedulingCard_{info.Id}");
         }
 
-        public SettingRow Row { get; }
+        public Expander Row { get; }
 
         public void Refresh()
         {
@@ -176,20 +181,77 @@ public sealed partial class SchedulingPage : Page
                     return;
                 }
 
-                var saved = _page._context.Calendar.Settings.ProviderSettingsFor(_info.Id).DefaultLinkId;
-                _shownLinks = [.. links.Where(l => l.ProviderId == _info.Id)];
-                _loading = true;
-                _links.ItemsSource = _shownLinks.Select(LinkLabel).ToList();
-                _links.SelectedIndex = _shownLinks.Count == 0 ? -1 : Math.Max(_shownLinks.FindIndex(l => l.Id == saved), 0);
+                _allLinks = [.. links.Where(l => l.ProviderId == _info.Id)];
+                ShowLinkRows();
+                ShowDefaultLinks();
             }
             catch (Exception ex)
             {
                 _page._context.Services.Log.Info("scheduling.settings.links.failed", $"provider={_info.Id} error={ex.GetType().Name}");
             }
+        }
+
+        // The dropdown: the links switched on, the saved default picked (the first when it's missing or switched off)
+        private void ShowDefaultLinks()
+        {
+            var settings = _page._context.Calendar.Settings;
+            var saved = settings.ProviderSettingsFor(_info.Id).DefaultLinkId;
+            _shownLinks = [.. settings.ShownLinks(_allLinks)];
+            _loading = true;
+            try
+            {
+                _links.ItemsSource = _shownLinks.Select(LinkLabel).ToList();
+                _links.SelectedIndex = _shownLinks.Count == 0 ? -1 : Math.Max(_shownLinks.FindIndex(l => l.Id == saved), 0);
+            }
             finally
             {
                 _loading = false;
             }
+        }
+
+        // One row per link with its switch, the way Settings › Calendars switches calendars
+        private void ShowLinkRows()
+        {
+            var off = _page._context.Calendar.Settings.ProviderSettingsFor(_info.Id).OffLinkIds;
+            var rowStyle = (Style)Application.Current.Resources["LeafExpanderItemRowStyle"];
+            var switchStyle = (Style)Application.Current.Resources["LeafCardToggleSwitchStyle"];
+            _linkRows.Children.Clear();
+            foreach (var link in _allLinks)
+            {
+                var toggle = new ToggleSwitch { Style = switchStyle, IsOn = !off.Contains(link.Id, StringComparer.Ordinal) };
+                AutomationProperties.SetName(toggle, $"Show {link.Name}");
+                AutomationProperties.SetAutomationId(toggle, $"SchedulingLinkShown_{_info.Id}_{link.Id}");
+                var linkId = link.Id;
+                toggle.Toggled += (_, _) => OnLinkToggled(linkId, toggle.IsOn);
+
+                var row = new SettingRow { Style = rowStyle, Header = LinkLabel(link), Content = toggle };
+                if (_linkRows.Children.Count == 0)
+                {
+                    row.BorderThickness = new Thickness(0);
+                }
+
+                _linkRows.Children.Add(row);
+            }
+        }
+
+        // Saves the link as switched on or off, then lists the links switched on in the dropdown. The default link
+        // switched off stops being the default, so the first link shown is (as the dropdown then shows)
+        private void OnLinkToggled(string linkId, bool isOn)
+        {
+            var id = _info.Id;
+            _page._context.Save(s =>
+            {
+                var saved = s.ProviderSettingsFor(id);
+                List<string> off = [.. saved.OffLinkIds.Where(l => l != linkId)];
+                if (!isOn)
+                {
+                    off.Add(linkId);
+                }
+
+                var defaultLinkId = !isOn && saved.DefaultLinkId == linkId ? "" : saved.DefaultLinkId;
+                return s.WithProvider(saved with { DefaultLinkId = defaultLinkId, OffLinkIds = off });
+            });
+            ShowDefaultLinks();
         }
 
         private void OnLinkChanged()

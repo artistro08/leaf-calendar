@@ -17,7 +17,7 @@ internal static class ApiScheduling
     public static async Task<JsonElement> LinksAsync(ApiContext context, NoParams _, CancellationToken ct)
     {
         RequireConnected(context);
-        var links = await context.Scheduling.GetLinksAsync(ct);
+        var links = context.Host.Settings.ShownLinks(await context.Scheduling.GetLinksAsync(ct));
         List<LinkResult> result = [.. links.Select(l => new LinkResult(ApiIds.Link(l.ProviderId, l.Id), context.Scheduling.Get(l.ProviderId)?.Name ?? l.ProviderId, l.Name, l.Minutes, l.AllowsGuests))];
         return ApiParams.Write(result, ApiJsonContext.Default.ListLinkResult);
     }
@@ -90,14 +90,18 @@ internal static class ApiScheduling
         return ApiParams.Write(new UrlResult(url.AbsoluteUri), ApiJsonContext.Default.UrlResult);
     }
 
-    /// <summary>The link a link ID names, among the signed-in provider's current links.</summary>
+    /// <summary>
+    /// The link a link ID names, among the signed-in provider's current links: only the ones switched on in Settings ›
+    /// Scheduling, unless <paramref name="anyLink"/> (a saved group keeps its link after it's switched off).
+    /// </summary>
     /// <exception cref="ApiException">No provider is signed in (<see cref="ApiErrors.NotConnected"/>), or it has no such link (<see cref="ApiErrors.NotFound"/>).</exception>
-    internal static async Task<(SchedulingLink Link, ISchedulingProvider Provider)> FindLinkAsync(ApiContext context, string? id, CancellationToken ct)
+    internal static async Task<(SchedulingLink Link, ISchedulingProvider Provider)> FindLinkAsync(ApiContext context, string? id, CancellationToken ct, bool anyLink = false)
     {
         var (providerId, linkId) = ApiIds.ReadLink(id) ?? throw ApiTime.Invalid("linkId isn't a scheduling link ID.");
         RequireConnected(context);
         var provider = context.Scheduling.Get(providerId) ?? throw NotConnected();
-        var links = await context.Scheduling.GetLinksAsync(ct);
+        var read = await context.Scheduling.GetLinksAsync(ct);
+        var links = anyLink ? read : context.Host.Settings.ShownLinks(read);
         if (context.Scheduling.StateOf(providerId) != ProviderState.SignedIn)
         {
             throw NotConnected();

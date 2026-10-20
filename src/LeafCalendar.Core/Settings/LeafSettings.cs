@@ -42,7 +42,23 @@ public sealed record ExtraTimeZone(string Id, string? Label);
 /// <param name="ProviderId">The provider's ID.</param>
 /// <param name="Server">No longer used (self-hosted servers were dropped); always empty, kept so saved settings still read.</param>
 /// <param name="DefaultLinkId">The link each new share starts with, empty for the first.</param>
-public sealed record ProviderSettings(string ProviderId, string Server, string DefaultLinkId);
+public sealed record ProviderSettings(string ProviderId, string Server, string DefaultLinkId)
+{
+    /// <summary>
+    /// The links switched off in Settings › Scheduling, by the provider's link ID. Saved as the ones switched off, so a
+    /// link made later on the provider shows until you switch it off.
+    /// </summary>
+    public IReadOnlyList<string> OffLinkIds { get; init; } = [];
+
+    // Null only in a damaged row read before Normalize, which comparing must survive (Normalize compares to clean it)
+    /// <inheritdoc />
+    public bool Equals(ProviderSettings? other) =>
+        other is not null && ProviderId == other.ProviderId && Server == other.Server && DefaultLinkId == other.DefaultLinkId
+        && (OffLinkIds ?? []).SequenceEqual(other.OffLinkIds ?? []);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(ProviderId, Server, DefaultLinkId, OffLinkIds?.Count ?? 0);
+}
 
 /// <summary>A calendar by account and calendar ID.</summary>
 public sealed record CalendarRef(string AccountId, string CalendarId);
@@ -117,6 +133,9 @@ public sealed record LeafSettings
     public const int MaxApprovedApps = 50;
 
     private const int MaxAppNameLength = 100;
+
+    // The most links a provider keeps switched off
+    private const int MaxOffLinks = 200;
 
     /// <summary>Most days the tray flyout's agenda lists.</summary>
     public const int MaxFlyoutDays = 14;
@@ -429,17 +448,34 @@ public sealed record LeafSettings
             })
             .TakeLast(MaxApprovedApps)];
 
-    // Trimmed, capped, unknown and repeated provider IDs dropped (the first kept), the unused server emptied
+    // Trimmed, capped, unknown and repeated provider IDs dropped (the first kept), the unused server emptied; the links
+    // switched off trimmed and capped (the newest kept, since a switch-off is added last), blank and repeated ones dropped
     private static List<ProviderSettings> CleanScheduling(IReadOnlyList<ProviderSettings>? list) =>
         [.. (list ?? [])
             .Where(p => p is not null && !string.IsNullOrWhiteSpace(p.ProviderId))
-            .Select(p => new ProviderSettings(Clip(p.ProviderId.Trim(), 32), "", Clip((p.DefaultLinkId ?? "").Trim(), 64)))
+            .Select(p => new ProviderSettings(Clip(p.ProviderId.Trim(), 32), "", Clip((p.DefaultLinkId ?? "").Trim(), 64))
+            {
+                OffLinkIds = Keep(p.OffLinkIds, [.. (p.OffLinkIds ?? [])
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Select(id => Clip(id.Trim(), 64))
+                    .Distinct(StringComparer.Ordinal)
+                    .TakeLast(MaxOffLinks)]),
+            })
             .Where(p => SchedulingProviders.Find(p.ProviderId) is not null)
             .DistinctBy(p => p.ProviderId, StringComparer.Ordinal)];
 
     /// <summary>Returns the saved choices for a provider, or an empty set when none are saved.</summary>
     public ProviderSettings ProviderSettingsFor(string providerId) =>
         Scheduling.FirstOrDefault(p => p.ProviderId == providerId) ?? new ProviderSettings(providerId, "", "");
+
+    /// <summary>
+    /// The links Leaf Calendar shows: every link except the ones switched off in Settings › Scheduling, in the order
+    /// given. The share panel, its default link and the local API's link list use these.
+    /// </summary>
+    /// <param name="links">Links read from the signed-in providers.</param>
+    /// <returns>The links still switched on.</returns>
+    public IReadOnlyList<SchedulingLink> ShownLinks(IEnumerable<SchedulingLink> links) =>
+        [.. links.Where(l => !ProviderSettingsFor(l.ProviderId).OffLinkIds.Contains(l.Id, StringComparer.Ordinal))];
 
     /// <summary>Returns a copy with this provider's choices replacing the saved ones, or added when none were saved.</summary>
     public LeafSettings WithProvider(ProviderSettings settings) =>

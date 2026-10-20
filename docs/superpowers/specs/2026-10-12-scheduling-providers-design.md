@@ -93,7 +93,7 @@ All calls go to `https://api.cal.com/` with `Authorization: Bearer <access token
 
 | Action | Request | `cal-api-version` |
 | --- | --- | --- |
-| Links | `GET /v2/event-types` (your own; hidden links left out) | `2024-06-14` |
+| Links | `GET /v2/event-types` (your own, hidden ones too; Settings › Scheduling picks which show, owner 2026-10-19) | `2024-06-14` |
 | Open times | `GET /v2/slots?eventTypeId=&start=&end=&format=range` (UTC) | `2024-09-04` |
 | Bookings | `GET /v2/bookings?eventTypeId=&afterCreatedAt=&status=upcoming` | `2024-08-13` |
 | Book | `POST /v2/bookings` with `start` (UTC), `eventTypeId`, `attendee` (`name`, `email`, `timeZone`), and `guests` (extra emails, only when the link allows them) | `2024-08-13` |
@@ -232,9 +232,10 @@ With the switch off, Copy is unchanged.
 ### 9.1 Settings › Scheduling (new page, between Calendars and Time zones; revision 1)
 
 - Shown in the Settings list only while at least one provider is signed in (or needs reconnecting); otherwise the page and its nav item are hidden.
-- One card per signed-in provider: **Default link** (`ComboBox` of your links, "{name} · {minutes} min"). Nothing about credentials here.
+- One card per signed-in provider: **Default link** (`ComboBox` of your links switched on, "{name} · {minutes} min"). Nothing about credentials here.
+- The card is an expander (owner, 2026-10-19): one row per link, hidden ones on the provider's profile too, each "{name} · {minutes} min" with a switch (on by default). A link switched off leaves the Default link box, the share panel's link box and the local API (`scheduling.links` leaves it out; asking for its open times, a time link or a share on it is `not_found`); a saved group already on it keeps it, in the app and when booked through the API. Switching off the default link clears the default, so the first link shown starts each share. Saved as `ProviderSettings.OffLinkIds`, so a link made later shows until you switch it off.
 - A **Booking link note** card (an open expander with a text box, at most 500 characters, and **Reset to default**), saving `BookingLinkNote` on losing focus or leaving the page. AutomationIds `BookingLinkNoteBox`, `BookingLinkNoteReset`.
-- AutomationIds: `SchedulingCard_{id}`, `SchedulingDefaultLink_{id}`.
+- AutomationIds: `SchedulingCard_{id}`, `SchedulingDefaultLink_{id}`, `SchedulingLinkShown_{id}_{linkId}`.
 
 ### 9.3 Settings › Accounts: Scheduling Providers (revision 1)
 
@@ -263,7 +264,7 @@ After the first sync, before Done, an optional step: "Schedule with Cal.com", "O
 - `DragMathTests`: `MoveRange` keeps the length, snaps to 15 minutes, crosses midnight and DST days, and moves between days.
 - `SlotFittingTests`: fully covered kept; more than half expanded; exactly half and less removed; the 9:10–10:10 example; drag with no open time; slot interval shorter than length (no doubling up); split by open times and offline by length; DST days; cross-midnight; summary values.
 - `BookingMatchTests`: exact start, in-between start, start at a range's end (no match), other link, created before the group, two groups both matched.
-- `CalComProviderTests` (fake `HttpMessageHandler` with recorded JSON): links parse and hidden ones are dropped, open times parse with offsets, bookings parse, 401 → auth exception, unsafe or non-https booking addresses dropped, headers and query strings exact, key never in a URL.
+- `CalComProviderTests` (fake `HttpMessageHandler` with recorded JSON): links parse and hidden ones are kept, open times parse with offsets, bookings parse, 401 → auth exception, unsafe or non-https booking addresses dropped, headers and query strings exact, key never in a URL.
 - `CalComProviderTests` also: `BookAsync` sends the exact body (booker name falls back to the email, guests only when allowed), parses the created booking, and maps a taken time to `SchedulingSlotTakenException`.
 - `CalComLinkTests`: time and block links, `date` in the share's zone, guests prefill and escape; several guests on a link that allows them; only the first on one that doesn't; `disableGuests` parsed into `AllowsGuests`.
 - `ProtectedFileTokenStoreTests`: provider secrets round trip, remove, survive client and token writes.
@@ -297,6 +298,7 @@ AOT publish (`publish-aot.ps1`), package size check, memory budget run (results 
 | Settings nav item | Scheduling |
 | Cal.com card description | Share times as booking links from your Cal.com account. |
 | Default link card | Default link |
+| Link switch name (owner, 2026-10-19; like Settings › Calendars) | Show {link name} |
 | Accounts section header (owner, 2026-10-13) | {provider} OAuth client |
 | Sign-in success (owner, 2026-10-13) | Successfully signed in to Cal.com |
 | Add client button (revision 1) | Add OAuth client… |
