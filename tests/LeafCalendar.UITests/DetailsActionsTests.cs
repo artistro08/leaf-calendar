@@ -58,6 +58,35 @@ public sealed class DetailsActionsTests : IDisposable
         Assert.True(Launched("https://www.google.com/maps/search/?api=1&query=Room%204"));
     }
 
+    // A Location That's A Link Opens It, And One That's A Phone Number Calls It (issue #49)
+    [Fact]
+    public void LocationButton_OpensALinkOrCallsANumber()
+    {
+        foreach (var (id, hour, location) in new[] { ("evt-loc-link", 10, "https://example.com/room"), ("evt-loc-call", 11, "+1 (555) 123-4567") })
+        {
+            _google.AddEvent(SeededProfile.Email, new System.Text.Json.Nodes.JsonObject
+            {
+                ["id"] = id,
+                ["status"] = "confirmed",
+                ["summary"] = "Somewhere",
+                ["location"] = location,
+                ["start"] = new System.Text.Json.Nodes.JsonObject { ["dateTime"] = $"2026-10-01T{hour}:00:00-04:00" },
+                ["end"] = new System.Text.Json.Nodes.JsonObject { ["dateTime"] = $"2026-10-01T{hour}:30:00-04:00" },
+            });
+        }
+
+        using var leaf = Launch();
+        foreach (var (id, label, link) in new[] { ("Event_evt-loc-link_202610011400", "Open link", "https://example.com/room"), ("Event_evt-loc-call_202610011500", "Call", "tel:+15551234567") })
+        {
+            leaf.WaitFor(id).Click();
+            var button = leaf.WaitFor("DetailsMapsLink");
+            Assert.True(Retry.WhileFalse(() => button.Name == label, TimeSpan.FromSeconds(5)).Success, $"The button reads \"{button.Name}\".");
+            button.AsButton().Invoke();
+
+            Assert.True(Launched(link), $"Launched: {string.Join(" | ", LeafApp.LaunchedLinks(_profile))}");
+        }
+    }
+
     [Fact]
     public void Join_NamesTheServiceAndCopiesTheLink()
     {

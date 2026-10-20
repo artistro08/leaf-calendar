@@ -163,7 +163,7 @@ public sealed partial class DetailsPanel : UserControl
             LocationAction.Call => "Call",
             _ => vm.MapButtonText,
         };
-        ToolTipService.SetToolTip(MapsLink, action == LocationAction.Call ? link.OriginalString : LinkSafety.DisplayForm(link));
+        ToolTipService.SetToolTip(MapsLink, action == LocationAction.Call ? link.OriginalString["tel:".Length..] : LinkSafety.DisplayForm(link));
     }
 
     // The editor wins while it's open; otherwise the selection summary (several events), the selected event, else the upcoming list
