@@ -215,11 +215,24 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Normalize_NullOffLinkIds_ReadsAsNone()
     {
-        const string json = """{"Scheduling":[{"ProviderId":"calcom","Server":"","DefaultLinkId":"101","OffLinkIds":null}]}""";
+        const string json = """{"scheduling":[{"providerId":"calcom","server":"","defaultLinkId":"101","offLinkIds":null}]}""";
 
         var loaded = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
 
         Assert.Empty(loaded.ProviderSettingsFor("calcom").OffLinkIds);
+    }
+
+    // A row saved before the link switches existed has no OffLinkIds: every link shows
+    [Fact]
+    public void Normalize_RowWithoutOffLinkIds_ShowsEveryLink()
+    {
+        const string json = """{"scheduling":[{"providerId":"calcom","server":"","defaultLinkId":"101"}]}""";
+        var url = new Uri("https://cal.com/leaf-tester/x");
+
+        var loaded = System.Text.Json.JsonSerializer.Deserialize(json, LeafJsonContext.Default.LeafSettings)!.Normalize();
+
+        Assert.NotNull(loaded.ProviderSettingsFor("calcom").OffLinkIds);
+        Assert.Single(loaded.ShownLinks([new("calcom", "101", "A", 30, url, true)]));
     }
 
     [Fact]
