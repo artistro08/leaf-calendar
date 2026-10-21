@@ -287,8 +287,7 @@ public sealed class LeafServices : IAsyncDisposable
     /// the address is appended to <c>launched.txt</c> in the profile folder, where UI tests read it. A launch that
     /// fails is logged (scheme and error only) and reported as false, never thrown.
     /// </summary>
-    public Task<bool> LaunchAsync(Uri uri) =>
-        LaunchCheckedAsync(uri, uri.IsAbsoluteUri && (LinkSafety.CanLaunch(uri) || uri.Scheme == Uri.UriSchemeMailto));
+    public Task<bool> LaunchAsync(Uri uri) => LaunchCheckedAsync(uri, IsLaunchable(uri));
 
     /// <summary>
     /// Opens what the details panel's location button found (<see cref="LinkSafety.LocationTarget"/>): everything
@@ -296,7 +295,10 @@ public sealed class LeafServices : IAsyncDisposable
     /// can open. Logged, recorded and reported like <see cref="LaunchAsync"/>.
     /// </summary>
     public Task<bool> LaunchLocationAsync(Uri uri) =>
-        LaunchCheckedAsync(uri, uri.IsAbsoluteUri && (LinkSafety.CanLaunch(uri) || uri.Scheme == Uri.UriSchemeMailto || LinkSafety.IsWebLink(uri) || LinkSafety.IsCallLink(uri)));
+        LaunchCheckedAsync(uri, IsLaunchable(uri) || LinkSafety.IsWebLink(uri) || LinkSafety.IsCallLink(uri));
+
+    // What any link may be: https, a meeting app scheme, or mailto (spec 4.5)
+    private static bool IsLaunchable(Uri uri) => uri.IsAbsoluteUri && (LinkSafety.CanLaunch(uri) || uri.Scheme == Uri.UriSchemeMailto);
 
     // Opens an allowed link, or logs a blocked one by scheme
     private async Task<bool> LaunchCheckedAsync(Uri uri, bool allowed)
