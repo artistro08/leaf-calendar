@@ -41,6 +41,10 @@ public sealed partial class ClientPage : Page
         _context.Host.Show(SettingsSection.Accounts);
     }
 
+    // The user guide's Google Cloud setup page (LaunchAsync logs a failed launch and never throws)
+    private void OnSetupGuideLinkClick(Microsoft.UI.Xaml.Documents.Hyperlink sender, Microsoft.UI.Xaml.Documents.HyperlinkClickEventArgs args) =>
+        _ = _context.Services.LaunchAsync(OnboardingViewModel.SetupGuideUri);
+
     private void OnCancelClick(object sender, RoutedEventArgs e) => _context.Host.Show(SettingsSection.Accounts);
 
     // Enter in the client ID moves on to the secret

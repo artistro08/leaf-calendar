@@ -210,6 +210,19 @@ public sealed class SettingsTests : IDisposable
         Assert.NotNull(leaf.WaitInSettings("AddAccountButton"));
     }
 
+    // The form links to the user guide's Google Cloud setup page, as onboarding does
+    [Fact]
+    public void ChangeOAuthClient_SetupGuideLink_OpensTheUserGuide()
+    {
+        using var leaf = Launch();
+        leaf.OpenSettings("Accounts");
+        leaf.WaitInSettings("ChangeClientButton").AsButton().Invoke();
+
+        leaf.WaitInSettings("SettingsSetupGuideLink").Patterns.Invoke.Pattern.Invoke();
+
+        Assert.True(Retry.WhileFalse(() => LeafApp.LaunchedLinks(_profile).Contains("https://artistro08.github.io/leaf-calendar/getting-started/google-cloud-setup/"), TimeSpan.FromSeconds(5)).Success);
+    }
+
     [Fact]
     public void ChangeOAuthClient_TitleBarBack_ReturnsToAccounts_ThenToTheCalendar()
     {

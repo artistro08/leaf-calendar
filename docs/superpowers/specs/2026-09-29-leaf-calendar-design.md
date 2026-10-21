@@ -188,7 +188,7 @@ Built in Milestone 3 (owner redesign) as its own onboarding window, shown instea
 ### 4.4 Local Data
 
 - SQLite database in the package's `LocalFolder`. Only the current Windows user can read it.
-- No database-level encryption (decision). BitLocker is recommended in the setup guide.
+- No database-level encryption (decision).
 
 ### 4.5 Untrusted Content
 
@@ -590,7 +590,7 @@ Ctrl+wheel over the time grid zooms like Ctrl+= / Ctrl+-.
 - All-day default (Appearance group)
 
 **Accounts**
-- Google OAuth client ID and secret, with the setup guide
+- Google OAuth client ID and secret, with a link to the user guide's Google Cloud setup page (issue #46)
 - Add or disconnect accounts
 - Primary account
 - Default calendar for new events (built in the Milestone 3 polish)

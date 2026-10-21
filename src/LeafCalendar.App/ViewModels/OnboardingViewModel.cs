@@ -20,8 +20,8 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     // Shown when a step fails for a reason the user can't act on
     private const string NoConnection = OnboardingFlow.NoConnection;
 
-    // The user guide's steps for creating the OAuth client (the client step's link)
-    private static readonly Uri SetupGuideUri = new("https://artistro08.github.io/leaf-calendar/getting-started/google-cloud-setup/");
+    /// <summary>The user guide's steps for creating the OAuth client (onboarding's and Settings' link).</summary>
+    internal static readonly Uri SetupGuideUri = new("https://artistro08.github.io/leaf-calendar/getting-started/google-cloud-setup/");
 
     // How often the Syncing step reads back what the sync has saved so far
     private static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(500);
