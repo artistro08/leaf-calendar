@@ -49,6 +49,17 @@ public sealed class AppLogTests : IDisposable
         Assert.EndsWith("ERROR sync.failed InvalidOperationException: bad token [token]", File.ReadAllLines(log.FilePath).Single(), StringComparison.Ordinal);
     }
 
+    // A COM error's message is often empty, so its HRESULT is what tells failures apart (a busy clipboard, for one)
+    [Fact]
+    public void Error_ComException_WritesItsHresult()
+    {
+        var log = new AppLog(_folder.Path, _time);
+
+        log.Error("share.copy.failed", new ComError(unchecked((int)0x800401D0)));
+
+        Assert.EndsWith("ERROR share.copy.failed ComError (hresult=0x800401D0): ", File.ReadAllLines(log.FilePath).Single(), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Info_OverOneMegabyte_RollsToBackupFile()
     {
@@ -190,3 +201,6 @@ public sealed class AppLogTests : IDisposable
         Assert.Contains("line3", line);
     }
 }
+
+// A COM-style error with an empty message, as WinRT throws them
+internal sealed class ComError(int hresult) : System.Runtime.InteropServices.COMException("", hresult);

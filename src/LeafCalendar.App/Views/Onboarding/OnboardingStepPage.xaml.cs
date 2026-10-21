@@ -76,7 +76,7 @@ public sealed partial class OnboardingStepPage : Page
     private static Visibility Shown(bool shown) => shown ? Visibility.Visible : Visibility.Collapsed;
 
     // Safe as async void: LaunchAsync logs a failed launch and returns false, it never throws
-    private async void OnConsoleLinkClick(Hyperlink sender, HyperlinkClickEventArgs args) => await ViewModel.OpenConsoleAsync();
+    private async void OnSetupGuideLinkClick(Hyperlink sender, HyperlinkClickEventArgs args) => await ViewModel.OpenSetupGuideAsync();
 
     // Safe as async void: LaunchAsync logs a failed launch and returns false, it never throws
     private async void OnCalClientPageClick(Hyperlink sender, HyperlinkClickEventArgs args) => await ViewModel.OpenCalClientPageAsync();

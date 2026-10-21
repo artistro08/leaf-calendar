@@ -31,43 +31,18 @@
                     <TextBlock Style="{StaticResource LeafSecondaryTextStyle}" TextWrapping="Wrap" Text="Leaf Calendar signs in with your own Google OAuth client. You only need to do this once." />
                 </StackPanel>
 
-                <!-- Setup Guide (Google Cloud console as of 2025, where the consent screen and clients live under Google Auth
-                     Platform; numbers hang to the left of their wrapped lines, in one 14 DIP column so every step's text starts
-                     on the same edge; the link opens a fixed address) -->
-                <StackPanel Spacing="4" AutomationProperties.Name="Setup guide" AutomationProperties.AutomationId="SetupGuideText">
-                    <Grid ColumnSpacing="4" ColumnDefinitions="14,*">
-                        <TextBlock Text="1." />
-                        <TextBlock Grid.Column="1" TextWrapping="Wrap">
-                            Open
-                            <Hyperlink Click="OnConsoleLinkClick" AutomationProperties.AutomationId="ConsoleLink">
-                                Google Cloud Console
-                            </Hyperlink>
-                            and create a project.
-                        </TextBlock>
-                    </Grid>
-                    <Grid ColumnSpacing="4" ColumnDefinitions="14,*">
-                        <TextBlock Text="2." />
-                        <TextBlock Grid.Column="1" TextWrapping="Wrap" Text="In APIs &amp; Services › Library, enable the Google Calendar API and the People API." />
-                    </Grid>
-                    <Grid ColumnSpacing="4" ColumnDefinitions="14,*">
-                        <TextBlock Text="3." />
-                        <TextBlock Grid.Column="1" TextWrapping="Wrap" Text="In Google Auth Platform, click Get started and choose External as the audience. Then, in Audience › Test users, add your Google account. While it's in Testing, Google signs you out every 7 days; click Publish app to stop that." />
-                    </Grid>
-                    <Grid ColumnSpacing="4" ColumnDefinitions="14,*">
-                        <TextBlock Text="4." />
-                        <TextBlock Grid.Column="1" TextWrapping="Wrap" Text="In Google Auth Platform › Clients, create a client of type Desktop app. Paste its Client ID and Client secret below. Google shows the secret only once." />
-                    </Grid>
+                <!-- Setup Guide (the steps live in the user guide, so they stay current when Google Cloud Console changes;
+                     the link opens a fixed address) -->
+                <TextBlock TextWrapping="Wrap" AutomationProperties.AutomationId="SetupGuideText">
+                    Follow the
+                    <Hyperlink Click="OnSetupGuideLinkClick" AutomationProperties.AutomationId="SetupGuideLink">
+                        Google Cloud setup guide
+                    </Hyperlink>
+                    to create your client, then paste its Client ID and Client secret below.
+                </TextBlock>
 
-                    <!-- Scopes (a side note, not a step) -->
-                    <TextBlock
-                        Style="{StaticResource LeafSecondaryTextStyle}"
-                        TextWrapping="Wrap"
-                        Text="Leaf Calendar asks Google for your calendars, your contacts and other contacts (read-only), and your Google Workspace directory (directory.readonly, so coworkers show up as guest suggestions). If you list scopes in Data access, add these." />
-                </StackPanel>
-                <!-- /Setup Guide -->
-
-                <!-- Credentials, full width so a whole Client ID shows (the step's tighter 12 and the guide's 4 keep both above
-                     the footer without scrolling). Enter in the ID moves to the secret; Enter in the secret runs Next, which
+                <!-- Credentials, full width so a whole Client ID shows (the step's tighter 12 keeps both above the footer
+                     without scrolling). Enter in the ID moves to the secret; Enter in the secret runs Next, which
                      stays off until both have text -->
                 <StackPanel Spacing="8">
                     <TextBox

@@ -1816,7 +1816,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
             package.SetText(string.Join(Environment.NewLine, copies.Select(c => $"{c.o.Title} · {WhenText(c.o)}")));
             package.SetData(ClipboardFormat, "1");
-            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+            Interop.ClipboardWriter.Set(package);
 
             _clipboard.Clear();
             _clipboard.AddRange(copies);
@@ -2105,7 +2105,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         {
             var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
             package.SetText(text);
-            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+            Interop.ClipboardWriter.Set(package);
             Say("Link copied", canUndo: false);
         }
         catch (System.Runtime.InteropServices.COMException ex)

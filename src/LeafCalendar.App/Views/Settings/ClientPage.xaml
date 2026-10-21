@@ -14,6 +14,15 @@
 
                 <!-- Client -->
                 <TextBlock Style="{StaticResource LeafSettingsGroupHeaderStyle}" Margin="0,0,0,8" Text="Google Cloud OAuth client" />
+
+                <!-- Setup Guide (onboarding's sentence and link) -->
+                <TextBlock Margin="0,0,0,8" TextWrapping="Wrap" AutomationProperties.AutomationId="SettingsSetupGuideText">
+                    Follow the
+                    <Hyperlink Click="OnSetupGuideLinkClick" AutomationProperties.AutomationId="SettingsSetupGuideLink">
+                        Google Cloud setup guide
+                    </Hyperlink>
+                    to create your client, then paste its Client ID and Client secret below.
+                </TextBlock>
                 <TextBlock
                     Style="{StaticResource LeafSecondaryTextStyle}"
                     Margin="0,0,0,8"

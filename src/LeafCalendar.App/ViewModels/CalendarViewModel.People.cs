@@ -765,8 +765,7 @@ public sealed partial class CalendarViewModel
                 package.SetText(BuildAvailability());
             }
 
-            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
-            Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
+            Interop.ClipboardWriter.Set(package, flush: true);
         }
         catch (System.Runtime.InteropServices.COMException ex)
         {

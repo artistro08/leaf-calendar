@@ -20,8 +20,8 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     // Shown when a step fails for a reason the user can't act on
     private const string NoConnection = OnboardingFlow.NoConnection;
 
-    // Where the OAuth client is created (the setup guide's link)
-    private static readonly Uri ConsoleUri = new("https://console.cloud.google.com/");
+    /// <summary>The user guide's steps for creating the OAuth client (onboarding's and Settings' link).</summary>
+    internal static readonly Uri SetupGuideUri = new("https://artistro08.github.io/leaf-calendar/getting-started/google-cloud-setup/");
 
     // How often the Syncing step reads back what the sync has saved so far
     private static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(500);
@@ -198,8 +198,8 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Opens Google Cloud Console (a fixed address; fake-Google mode records it instead).</summary>
-    public Task OpenConsoleAsync() => _services.LaunchAsync(ConsoleUri);
+    /// <summary>Opens the user guide's Google Cloud setup page (a fixed address; fake-Google mode records it instead).</summary>
+    public Task OpenSetupGuideAsync() => _services.LaunchAsync(SetupGuideUri);
 
     /// <summary>Goes back one step (client and sign-in only, while nothing runs).</summary>
     public void GoBack()

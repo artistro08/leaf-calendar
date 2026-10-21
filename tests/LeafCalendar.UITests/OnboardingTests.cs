@@ -120,7 +120,7 @@ public sealed class OnboardingTests : IDisposable
     }
 
     [Fact]
-    public void ConsoleLink_OpensGoogleCloudConsole()
+    public void SetupGuideLink_OpensTheUserGuide()
     {
         var profile = LeafApp.NewProfile();
         try
@@ -129,9 +129,9 @@ public sealed class OnboardingTests : IDisposable
             leaf.WaitInOnboarding("OnboardingWelcome");
             leaf.OnboardingPrimary();
 
-            leaf.WaitInOnboarding("ConsoleLink").Patterns.Invoke.Pattern.Invoke();
+            leaf.WaitInOnboarding("SetupGuideLink").Patterns.Invoke.Pattern.Invoke();
 
-            Assert.True(Retry.WhileFalse(() => LeafApp.LaunchedLinks(profile).Contains("https://console.cloud.google.com/"), TimeSpan.FromSeconds(5)).Success);
+            Assert.True(Retry.WhileFalse(() => LeafApp.LaunchedLinks(profile).Contains("https://artistro08.github.io/leaf-calendar/getting-started/google-cloud-setup/"), TimeSpan.FromSeconds(5)).Success);
         }
         finally
         {

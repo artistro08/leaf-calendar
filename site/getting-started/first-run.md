@@ -16,7 +16,7 @@ Click **Get started**.
 
 ## 2. Connect your Google Cloud client
 
-![The OAuth client step, with the setup guide and boxes for the Client ID and Client secret](../../assets/images/onboarding-client.png)
+![The OAuth client step, with a link to the Google Cloud setup guide and boxes for the Client ID and Client secret](../../assets/images/onboarding-client.png)
 
 Paste the **Client ID** and **Client secret** from your OAuth client, then click **Next**. Haven't made one yet? Follow the [Google Cloud setup guide](../google-cloud-setup/) first, and don't forget to [add yourself as a test user](../google-cloud-setup/#4-add-yourself-as-a-test-user).
 

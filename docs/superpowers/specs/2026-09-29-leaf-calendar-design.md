@@ -155,7 +155,7 @@ Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manag
 
 Built in Milestone 3 (owner redesign) as its own onboarding window, shown instead of the main window until there's an OAuth client and an account:
 - A small fixed-size window (640 × 640 DIP; 640 wide since 2026-10-13, owner), centered on the monitor under the cursor, Mica, custom title bar, only the Close button.
-- Steps: Welcome, OAuth client (guide with the fixed Google Cloud Console link, client ID and secret saved encrypted in the profile folder, spec 4.3), Sign in with Google, Syncing (calendars and events found so far), an optional Cal.com step (owner, 2026-10-13: client ID and secret, the redirect URI to register, Sign in with Cal.com, and Skip just left of it; `2026-10-12-scheduling-providers-design.md` 9.4), Done ("Open Leaf Calendar" closes onboarding and opens the main window).
+- Steps: Welcome, OAuth client (one line linking to the user guide's Google Cloud setup page, a fixed address, so the steps stay current when Google Cloud Console changes; issue #46; client ID and secret saved encrypted in the profile folder, spec 4.3), Sign in with Google, Syncing (calendars and events found so far), an optional Cal.com step (owner, 2026-10-13: client ID and secret, the redirect URI to register, Sign in with Cal.com, and Skip just left of it; `2026-10-12-scheduling-providers-design.md` 9.4), Done ("Open Leaf Calendar" closes onboarding and opens the main window).
 - Steps slide in from the right going forward and from the left going back. A stock `PipsPager`, restyled so each pip is a short line, shows the step at the bottom.
 - Closing before the end asks "Leave setup?" first. Leaving without an account exits Leaf.
 - Changing the OAuth client later happens in Settings › Accounts.
@@ -188,7 +188,7 @@ Built in Milestone 3 (owner redesign) as its own onboarding window, shown instea
 ### 4.4 Local Data
 
 - SQLite database in the package's `LocalFolder`. Only the current Windows user can read it.
-- No database-level encryption (decision). BitLocker is recommended in the setup guide.
+- No database-level encryption (decision).
 
 ### 4.5 Untrusted Content
 
@@ -590,7 +590,7 @@ Ctrl+wheel over the time grid zooms like Ctrl+= / Ctrl+-.
 - All-day default (Appearance group)
 
 **Accounts**
-- Google OAuth client ID and secret, with the setup guide
+- Google OAuth client ID and secret, with a link to the user guide's Google Cloud setup page (issue #46)
 - Add or disconnect accounts
 - Primary account
 - Default calendar for new events (built in the Milestone 3 polish)

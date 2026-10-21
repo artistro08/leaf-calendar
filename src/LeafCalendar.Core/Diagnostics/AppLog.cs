@@ -37,9 +37,14 @@ public sealed partial class AppLog(string directory, TimeProvider time)
     /// <summary>Writes an informational line.</summary>
     public void Info(string eventName, string? detail = null) => Write("INFO", eventName, detail);
 
-    /// <summary>Writes an error line with the exception type and redacted message (no stack trace).</summary>
+    /// <summary>
+    /// Writes an error line with the exception type and redacted message (no stack trace). A COM error also gets its
+    /// HRESULT, since its message is often empty and the code is what tells a busy clipboard from other failures.
+    /// </summary>
     public void Error(string eventName, Exception exception) =>
-        Write("ERROR", eventName, $"{exception.GetType().Name}: {exception.Message}");
+        Write("ERROR", eventName, exception is System.Runtime.InteropServices.COMException
+            ? string.Create(CultureInfo.InvariantCulture, $"{exception.GetType().Name} (hresult=0x{exception.HResult:X8}): {exception.Message}")
+            : $"{exception.GetType().Name}: {exception.Message}");
 
     /// <summary>Writes a breadcrumb (a navigation or a command, internal names only) when <see cref="Detailed"/> is on.</summary>
     public void Trace(string eventName, string? detail = null)
