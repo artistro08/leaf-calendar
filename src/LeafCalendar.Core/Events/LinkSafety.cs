@@ -335,7 +335,7 @@ public static partial class LinkSafety
     /// <summary>
     /// Where a location goes (issue #49): the first web link in it (<see cref="IsWebLink"/>), opened as a map when it's
     /// a Google Maps or Bing Maps link (<see cref="MapSiteOf"/>); a <c>mailto:</c> link with one plain address; a
-    /// <c>tel:</c> link, or a location that's only a phone number (10 to 15 digits, or 7 or more after a "+", after a
+    /// <c>tel:</c> link (a vanity one's letters dialed as keypad digits), or a location that's only a phone number (10 to 15 digits, or 7 or more after a "+", after a
     /// label such as "Tel:" and before an extension such as "ext. 12"); otherwise a map search. Ten digits keeps dates
     /// and ZIP+4 codes on the map. Call and email links are rebuilt from the digits or the address alone
     /// (<see cref="IsCallLink"/>), so nothing else in the location reaches them.
@@ -361,7 +361,8 @@ public static partial class LinkSafety
         }
 
         // A Phone Number: a tel: link is one whatever its length; a location needs to be only a number
-        if (TelLink().Match(text) is { Success: true } tel && CallLink(tel.Groups["number"].Value, 3) is { } dial)
+        if (TelLink().Match(text) is { Success: true } tel
+            && CallLink(tel.Groups["vanity"].Success ? Keypad(tel.Groups["number"].Value) : tel.Groups["number"].Value, 3) is { } dial)
         {
             return (dial, LocationAction.Call);
         }
@@ -426,6 +427,20 @@ public static partial class LinkSafety
         return isNumber ? new Uri("tel:" + (plus ? "+" : "") + digits + extension) : null;
     }
 
+    // A vanity number's letters as the keypad digits they're on ("1-800-FLOWERS" is 1-800-3569377)
+    private static string Keypad(string number) => string.Concat(number.Select(c => char.ToUpperInvariant(c) switch
+    {
+        >= 'A' and <= 'C' => '2',
+        >= 'D' and <= 'F' => '3',
+        >= 'G' and <= 'I' => '4',
+        >= 'J' and <= 'L' => '5',
+        >= 'M' and <= 'O' => '6',
+        >= 'P' and <= 'S' => '7',
+        >= 'T' and <= 'V' => '8',
+        >= 'W' and <= 'Z' => '9',
+        var other => other,
+    }));
+
     [GeneratedRegex(@"^\+?[0-9]{3,15}(;ext=[0-9]{1,6})?$")]
     private static partial Regex CallNumber();
 
@@ -435,7 +450,7 @@ public static partial class LinkSafety
     [GeneratedRegex(@"\bmailto:(?<to>[^\s?<>""']+)", RegexOptions.IgnoreCase)]
     private static partial Regex MailtoLink();
 
-    [GeneratedRegex(@"\btel:\s*(?<number>[+0-9(][0-9\s().+\-\u2013]*(?:(?:ext\.?|x|;ext=)\s*[0-9]{1,6})?)(?![\w\-])", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\btel:\s*(?<number>(?<vanity>\+?[0-9][0-9\-]*[A-Za-z][A-Za-z0-9\-]*)|[+0-9(][0-9\s().+\-\u2013]*(?:(?:ext\.?|x|;ext=)\s*[0-9]{1,6})?)(?![\w\-])", RegexOptions.IgnoreCase)]
     private static partial Regex TelLink();
 
     [GeneratedRegex(@"^(?:tel|phone|ph|call|mobile|cell)\b\s*[:.]?\s*", RegexOptions.IgnoreCase)]
