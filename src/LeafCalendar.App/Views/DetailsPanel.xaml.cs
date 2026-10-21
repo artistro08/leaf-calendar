@@ -161,7 +161,10 @@ public sealed partial class DetailsPanel : UserControl
         {
             LocationAction.Link => "Open link",
             LocationAction.Call => "Call",
-            _ => vm.MapButtonText,
+            LocationAction.Email => "Send email",
+
+            // A map names the site it opens on (a pasted map link may be on the other one)
+            _ => LinkSafety.MapSiteOf(link) == Core.Settings.MapProvider.Bing ? "Open in Bing Maps" : "Open in Google Maps",
         };
         ToolTipService.SetToolTip(MapsLink, action == LocationAction.Call ? link.OriginalString["tel:".Length..] : LinkSafety.DisplayForm(link));
     }

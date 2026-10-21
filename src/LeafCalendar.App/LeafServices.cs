@@ -290,7 +290,7 @@ public sealed class LeafServices : IAsyncDisposable
     /// </summary>
     public async Task<bool> LaunchAsync(Uri uri)
     {
-        if (!uri.IsAbsoluteUri || (!LinkSafety.CanLaunch(uri) && uri.Scheme != Uri.UriSchemeMailto && !LinkSafety.IsCallLink(uri)))
+        if (!uri.IsAbsoluteUri || (!LinkSafety.CanLaunch(uri) && uri.Scheme != Uri.UriSchemeMailto && !LinkSafety.IsCallLink(uri) && !LinkSafety.IsWebLink(uri)))
         {
             Log.Info("link.blocked", $"scheme={(uri.IsAbsoluteUri ? uri.Scheme : "relative")}");
             return false;

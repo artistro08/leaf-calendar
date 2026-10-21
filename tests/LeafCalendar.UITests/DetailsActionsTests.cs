@@ -58,11 +58,17 @@ public sealed class DetailsActionsTests : IDisposable
         Assert.True(Launched("https://www.google.com/maps/search/?api=1&query=Room%204"));
     }
 
-    // A Location That's A Link Opens It, And One That's A Phone Number Calls It (issue #49)
+    // A Location's Button Opens Its Web Link (a map site's on that map), Calls Its Number, Or Writes To Its Address (issue #49)
     [Fact]
     public void LocationButton_OpensALinkOrCallsANumber()
     {
-        foreach (var (id, hour, location) in new[] { ("evt-loc-link", 10, "https://example.com/room"), ("evt-loc-call", 11, "+1 (555) 123-4567") })
+        foreach (var (id, hour, location) in new[]
+        {
+            ("evt-loc-link", 10, "http://example.com/room"),
+            ("evt-loc-call", 11, "Tel: +1 (555) 123-4567 ext. 12"),
+            ("evt-loc-mail", 12, "mailto:sam@example.com"),
+            ("evt-loc-map", 13, "https://www.bing.com/maps?q=Room"),
+        })
         {
             _google.AddEvent(SeededProfile.Email, new System.Text.Json.Nodes.JsonObject
             {
@@ -76,7 +82,13 @@ public sealed class DetailsActionsTests : IDisposable
         }
 
         using var leaf = Launch();
-        foreach (var (id, label, link) in new[] { ("Event_evt-loc-link_202610011400", "Open link", "https://example.com/room"), ("Event_evt-loc-call_202610011500", "Call", "tel:+15551234567") })
+        foreach (var (id, label, link) in new[]
+        {
+            ("Event_evt-loc-link_202610011400", "Open link", "http://example.com/room"),
+            ("Event_evt-loc-call_202610011500", "Call", "tel:+15551234567;ext=12"),
+            ("Event_evt-loc-mail_202610011600", "Send email", "mailto:sam@example.com"),
+            ("Event_evt-loc-map_202610011700", "Open in Bing Maps", "https://www.bing.com/maps?q=Room"),
+        })
         {
             leaf.WaitFor(id).Click();
             var button = leaf.WaitFor("DetailsMapsLink");

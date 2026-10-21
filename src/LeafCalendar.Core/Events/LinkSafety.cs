@@ -35,14 +35,20 @@ public enum MeetingProvider
 /// <summary>What the details panel's location button does with a location (<see cref="LinkSafety.LocationTarget"/>).</summary>
 public enum LocationAction
 {
-    /// <summary>Searches the map site picked in Settings › General (an address, a room, anything else).</summary>
+    /// <summary>
+    /// Opens a map: a search on the map site picked in Settings › General (an address, a room, anything else), or a
+    /// Google Maps or Bing Maps link in the location.
+    /// </summary>
     Map,
 
-    /// <summary>Opens the <c>https</c> link in the location.</summary>
+    /// <summary>Opens the web link in the location.</summary>
     Link,
 
-    /// <summary>Calls the phone number the location is (<c>tel:</c>).</summary>
+    /// <summary>Calls the phone number in the location (<c>tel:</c>).</summary>
     Call,
+
+    /// <summary>Writes an email to the address in the location's <c>mailto:</c> link.</summary>
+    Email,
 }
 
 /// <summary>
@@ -327,44 +333,114 @@ public static partial class LinkSafety
         : new("https://www.google.com/maps/search/?api=1&query=" + Uri.EscapeDataString(location));
 
     /// <summary>
-    /// Where a location goes (issue #49): the first <c>https</c> link in it that <see cref="CanLaunch"/> allows, a
-    /// <c>tel:</c> link when the location is only a phone number (10 to 15 digits, or 7 or more after a "+", with
-    /// spaces, dashes, dots and parentheses), otherwise a map search. Ten digits keeps dates and ZIP+4 codes on the map.
-    /// The <c>tel:</c> link is rebuilt from the digits alone (<see cref="IsCallLink"/>), so nothing else in the location
-    /// reaches it.
+    /// Where a location goes (issue #49): the first web link in it (<see cref="IsWebLink"/>), opened as a map when it's
+    /// a Google Maps or Bing Maps link (<see cref="MapSiteOf"/>); a <c>mailto:</c> link with one plain address; a
+    /// <c>tel:</c> link, or a location that's only a phone number (10 to 15 digits, or 7 or more after a "+", after a
+    /// label such as "Tel:" and before an extension such as "ext. 12"); otherwise a map search. Ten digits keeps dates
+    /// and ZIP+4 codes on the map. Call and email links are rebuilt from the digits or the address alone
+    /// (<see cref="IsCallLink"/>), so nothing else in the location reaches them.
     /// </summary>
     public static (Uri Link, LocationAction Action) LocationTarget(string location, MapProvider provider)
     {
         ArgumentNullException.ThrowIfNull(location);
+        var text = location.Length > 40_000 ? location[..40_000] : location;
 
-        // A Link (the same bound and trimming as meeting links)
-        foreach (Match match in HttpsLink().Matches(location.Length > 40_000 ? location[..40_000] : location))
+        // A Web Link (the same bound and trimming as meeting links); a map site's own link opens as a map
+        foreach (Match match in WebLink().Matches(text))
         {
-            if (Uri.TryCreate(TrimLinkEnd(match.Value), UriKind.Absolute, out var uri) && CanLaunch(uri))
+            if (Uri.TryCreate(TrimLinkEnd(match.Value), UriKind.Absolute, out var uri) && IsWebLink(uri))
             {
-                return (uri, LocationAction.Link);
+                return (uri, MapSiteOf(uri) is null ? LocationAction.Link : LocationAction.Map);
             }
         }
 
-        // A Phone Number
-        var trimmed = location.Trim();
-        var digits = new string(trimmed.Where(char.IsAsciiDigit).ToArray());
-        var plus = trimmed.StartsWith('+');
-        if (digits.Length <= 15 && digits.Length >= (plus ? 7 : 10) && trimmed.LastIndexOf('+') <= 0
-            && trimmed.All(c => char.IsAsciiDigit(c) || char.IsWhiteSpace(c) || "+-.()\u2013".Contains(c, StringComparison.Ordinal)))
+        // An Email Link
+        if (MailtoLink().Match(text) is { Success: true } mail && IsPlainAddress(mail.Groups["to"].Value))
         {
-            return (new Uri("tel:" + (plus ? "+" : "") + digits), LocationAction.Call);
+            return (new Uri("mailto:" + mail.Groups["to"].Value), LocationAction.Email);
+        }
+
+        // A Phone Number: a tel: link is one whatever its length; a location needs to be only a number
+        if (TelLink().Match(text) is { Success: true } tel && CallLink(tel.Groups["number"].Value, 3) is { } dial)
+        {
+            return (dial, LocationAction.Call);
+        }
+
+        if (CallLink(PhoneLabel().Replace(location.Trim(), ""), 10) is { } call)
+        {
+            return (call, LocationAction.Call);
         }
 
         return (MapsSearch(location, provider), LocationAction.Map);
     }
 
-    /// <summary>True for a <c>tel:</c> link that is only an optional "+" and digits, as <see cref="LocationTarget"/> builds.</summary>
+    /// <summary>
+    /// The map site a web link opens on: Google Maps (google.com/maps, maps.google.com, maps.app.goo.gl, goo.gl/maps)
+    /// or Bing Maps (bing.com/maps), or null for any other link. Hosts are matched exactly, never by substring.
+    /// </summary>
+    public static MapProvider? MapSiteOf(Uri uri)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
+        if (!IsWebLink(uri) || !TryIdnHost(uri, out var idnHost))
+        {
+            return null;
+        }
+
+        var host = idnHost.TrimEnd('.').ToLowerInvariant();
+        var maps = uri.AbsolutePath.StartsWith("/maps", StringComparison.OrdinalIgnoreCase);
+        return host switch
+        {
+            "maps.google.com" or "maps.app.goo.gl" => MapProvider.Google,
+            "google.com" or "www.google.com" or "goo.gl" when maps => MapProvider.Google,
+            "bing.com" or "www.bing.com" when maps => MapProvider.Bing,
+            _ => null,
+        };
+    }
+
+    /// <summary>True for an <c>http</c> or <c>https</c> link without a user name (which can pose as a host) and with an ASCII host form.</summary>
+    public static bool IsWebLink(Uri uri) =>
+        uri.IsAbsoluteUri && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp) && uri.UserInfo.Length == 0 && TryIdnHost(uri, out _);
+
+    /// <summary>True for a <c>tel:</c> link that is only an optional "+", digits, and an optional extension, as <see cref="LocationTarget"/> builds.</summary>
     public static bool IsCallLink(Uri uri) =>
         uri.IsAbsoluteUri && uri.Scheme == "tel" && CallNumber().IsMatch(uri.OriginalString.AsSpan(4));
 
-    [GeneratedRegex(@"^\+?[0-9]{7,15}$")]
+    // A tel: link from a phone number as people write it ("+1 (555) 123-4567 ext. 12"), or null when it isn't one.
+    // Without a "+" it needs minDigits digits (with one, 7 at most)
+    private static Uri? CallLink(string number, int minDigits)
+    {
+        var text = number.Trim();
+        var extension = "";
+        if (PhoneExtension().Match(text) is { Success: true } ext)
+        {
+            extension = ";ext=" + ext.Groups["ext"].Value;
+            text = text[..ext.Index].TrimEnd();
+        }
+
+        var digits = new string(text.Where(char.IsAsciiDigit).ToArray());
+        var plus = text.StartsWith('+');
+        var isNumber = digits.Length <= 15 && digits.Length >= (plus ? Math.Min(minDigits, 7) : minDigits) && text.LastIndexOf('+') <= 0
+            && text.All(c => char.IsAsciiDigit(c) || char.IsWhiteSpace(c) || "+-.()\u2013".Contains(c, StringComparison.Ordinal));
+        return isNumber ? new Uri("tel:" + (plus ? "+" : "") + digits + extension) : null;
+    }
+
+    [GeneratedRegex(@"^\+?[0-9]{3,15}(;ext=[0-9]{1,6})?$")]
     private static partial Regex CallNumber();
+
+    [GeneratedRegex(@"https?://[^\s<>""']+", RegexOptions.IgnoreCase)]
+    private static partial Regex WebLink();
+
+    [GeneratedRegex(@"mailto:(?<to>[^\s?<>""']+)", RegexOptions.IgnoreCase)]
+    private static partial Regex MailtoLink();
+
+    [GeneratedRegex(@"tel:\s*(?<number>[+0-9(][0-9\s().+\-\u2013]*(?:(?:ext\.?|x|;ext=)\s*[0-9]{1,6})?)", RegexOptions.IgnoreCase)]
+    private static partial Regex TelLink();
+
+    [GeneratedRegex(@"^(?:tel|phone|ph|call|mobile|cell)\b\s*[:.]?\s*", RegexOptions.IgnoreCase)]
+    private static partial Regex PhoneLabel();
+
+    [GeneratedRegex(@"(?:ext\.?|extension|x|;ext=)\s*(?<ext>[0-9]{1,6})$", RegexOptions.IgnoreCase)]
+    private static partial Regex PhoneExtension();
 
     [GeneratedRegex(@"https://[^\s<>""']+", RegexOptions.IgnoreCase)]
     internal static partial Regex HttpsLink();
