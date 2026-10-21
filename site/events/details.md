@@ -45,7 +45,7 @@ Click **Email guests** (or press `E` then `E`) to start an email to everyone on 
 
 ## Locations
 
-Click the location to open it in Google Maps or Bing Maps. Pick which one in **Settings › General › Open locations in**.
+Click the button under the location to open it. A location with a web link opens the link (**Open link**). A Google Maps or Bing Maps link opens on that map. A phone number, with or without **Tel:** or an extension, calls it (**Call**), and an email link writes to that address (**Send email**). Anything else, such as an address or a room, opens in Google Maps or Bing Maps. Pick which one in **Settings › General › Open locations in**.
 
 ## Right-click menu
 

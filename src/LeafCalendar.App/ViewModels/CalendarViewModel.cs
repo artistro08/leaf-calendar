@@ -2118,16 +2118,19 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>Opens a description link (checked against the allowlist again).</summary>
     public Task OpenLinkAsync(Uri link) => _services.LaunchAsync(link);
 
-    /// <summary>Opens the selected event's location in the map service picked in Settings › General.</summary>
+    /// <summary>
+    /// Opens the selected event's location: its link, a call to its phone number, or a search in the map service
+    /// picked in Settings › General (<see cref="LinkSafety.LocationTarget"/>).
+    /// </summary>
     public async Task OpenLocationAsync()
     {
         if (SelectedInfo?.Details.Location is { Length: > 0 } location)
         {
-            await _services.LaunchAsync(LinkSafety.MapsSearch(location, Settings.MapProvider));
+            await _services.LaunchAsync(LinkSafety.LocationTarget(location, Settings.MapProvider).Link);
         }
     }
 
-    /// <summary>The details panel's location button: "Open in Google Maps" or "Open in Bing Maps".</summary>
+    /// <summary>The details panel's location button for a map search: "Open in Google Maps" or "Open in Bing Maps".</summary>
     public string MapButtonText => Settings.MapProvider == MapProvider.Bing ? "Open in Bing Maps" : "Open in Google Maps";
 
     /// <summary>How many hours ahead the upcoming list looks (the details panel's empty text says so).</summary>
