@@ -19,19 +19,30 @@ internal static class ClipboardWriter
 
     /// <summary>
     /// Sets <paramref name="package"/> as the clipboard's content, and keeps it there after Leaf Calendar closes when
-    /// <paramref name="flush"/> is true.
+    /// <paramref name="flush"/> is true. A flush that stays busy is let go: the content is already on the clipboard and
+    /// pastes, it just goes when Leaf Calendar closes.
     /// </summary>
     /// <exception cref="COMException">The clipboard stayed busy, or Windows refused it for another reason.</exception>
     public static void Set(DataPackage package, bool flush = false)
     {
         WhileBusy(() => Clipboard.SetContent(package));
-        if (flush)
+        if (!flush)
+        {
+            return;
+        }
+
+        try
         {
             WhileBusy(Clipboard.Flush);
         }
+        catch (COMException ex) when (ex.HResult == CantOpen)
+        {
+            // Copied all the same (see above)
+        }
     }
 
-    // ponytail: waits on the calling (UI) thread, at most about 200 ms; make it async if a copy ever feels slow
+    // ponytail: waits on the calling (UI) thread, about 200 ms per step at most (twice with a flush); make it async if
+    // a copy ever feels slow
     private static void WhileBusy(Action write)
     {
         for (var attempt = 1; ; attempt++)
