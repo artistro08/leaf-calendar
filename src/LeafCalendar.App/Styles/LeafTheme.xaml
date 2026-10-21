@@ -380,8 +380,17 @@
 
     <!-- Time Badge (the details panel's Sunsama planned and actual time; the background is set where it's used) -->
     <Style x:Key="LeafTimeBadgeStyle" TargetType="Border">
-        <Setter Property="Padding" Value="4,0" />
+        <Setter Property="Padding" Value="4,2" />
+        <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
+    </Style>
+
+    <!-- Time Badge Text (smaller and bold, centered in the badge) -->
+    <Style x:Key="LeafTimeBadgeTextStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextAlignment" Value="Center" />
     </Style>
 
     <!-- Guest Chip (the share panel's guest rows, built in code: the event editor's guest chip look) -->
