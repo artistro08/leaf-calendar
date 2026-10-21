@@ -140,8 +140,8 @@ public sealed partial class DetailsPanel : UserControl
 
     private void OnUpcomingShowAllClick(object sender, RoutedEventArgs e) => _vm?.ShowUpcomingFor(null);
 
-    // The location button says what it does (open the link, call the number, or search the map service picked in
-    // Settings), and its tooltip shows where it goes
+    // The location button says what it does (open the link, call the number, send an email, or open a map: a pasted
+    // map link on its own site, else a search on the one picked in Settings), and its tooltip shows where it goes
     private void ShowMapButton()
     {
         if (_vm is not { } vm)
@@ -166,7 +166,7 @@ public sealed partial class DetailsPanel : UserControl
             // A map names the site it opens on (a pasted map link may be on the other one)
             _ => LinkSafety.MapSiteOf(link) == Core.Settings.MapProvider.Bing ? "Open in Bing Maps" : "Open in Google Maps",
         };
-        ToolTipService.SetToolTip(MapsLink, action == LocationAction.Call ? link.OriginalString["tel:".Length..] : LinkSafety.DisplayForm(link));
+        ToolTipService.SetToolTip(MapsLink, action == LocationAction.Call ? link.OriginalString["tel:".Length..].Replace(";ext=", " ext. ", StringComparison.Ordinal) : LinkSafety.DisplayForm(link));
     }
 
     // The editor wins while it's open; otherwise the selection summary (several events), the selected event, else the upcoming list

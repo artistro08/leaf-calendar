@@ -355,9 +355,9 @@ public static partial class LinkSafety
         }
 
         // An Email Link
-        if (MailtoLink().Match(text) is { Success: true } mail && IsPlainAddress(mail.Groups["to"].Value))
+        if (MailtoLink().Match(text) is { Success: true } mail && TrimLinkEnd(mail.Groups["to"].Value) is var to && IsPlainAddress(to))
         {
-            return (new Uri("mailto:" + mail.Groups["to"].Value), LocationAction.Email);
+            return (new Uri("mailto:" + to), LocationAction.Email);
         }
 
         // A Phone Number: a tel: link is one whatever its length; a location needs to be only a number
@@ -366,7 +366,7 @@ public static partial class LinkSafety
             return (dial, LocationAction.Call);
         }
 
-        if (CallLink(PhoneLabel().Replace(location.Trim(), ""), 10) is { } call)
+        if (CallLink(PhoneLabel().Replace(text.Trim(), ""), 10) is { } call)
         {
             return (call, LocationAction.Call);
         }
@@ -381,10 +381,12 @@ public static partial class LinkSafety
     public static MapProvider? MapSiteOf(Uri uri)
     {
         ArgumentNullException.ThrowIfNull(uri);
-        if (!IsWebLink(uri) || !TryIdnHost(uri, out var idnHost))
+        if (!IsWebLink(uri))
         {
             return null;
         }
+
+        var idnHost = uri.IdnHost;
 
         var host = idnHost.TrimEnd('.').ToLowerInvariant();
         var maps = uri.AbsolutePath.StartsWith("/maps", StringComparison.OrdinalIgnoreCase);
@@ -430,10 +432,10 @@ public static partial class LinkSafety
     [GeneratedRegex(@"https?://[^\s<>""']+", RegexOptions.IgnoreCase)]
     private static partial Regex WebLink();
 
-    [GeneratedRegex(@"mailto:(?<to>[^\s?<>""']+)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bmailto:(?<to>[^\s?<>""']+)", RegexOptions.IgnoreCase)]
     private static partial Regex MailtoLink();
 
-    [GeneratedRegex(@"tel:\s*(?<number>[+0-9(][0-9\s().+\-\u2013]*(?:(?:ext\.?|x|;ext=)\s*[0-9]{1,6})?)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\btel:\s*(?<number>[+0-9(][0-9\s().+\-\u2013]*(?:(?:ext\.?|x|;ext=)\s*[0-9]{1,6})?)(?![\w\-])", RegexOptions.IgnoreCase)]
     private static partial Regex TelLink();
 
     [GeneratedRegex(@"^(?:tel|phone|ph|call|mobile|cell)\b\s*[:.]?\s*", RegexOptions.IgnoreCase)]

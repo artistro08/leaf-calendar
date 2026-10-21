@@ -269,6 +269,8 @@ public class LinkSafetyTests
     [InlineData("https://meet.google.com@evil.example/abc")]
     [InlineData("mailto:a@b@c.example")]
     [InlineData("tel:12")]
+    [InlineData("Hotel: 123 Main St")]
+    [InlineData("tel:1-800-FLOWERS")]
     public void LocationTarget_AnythingElse_SearchesTheMap(string location)
     {
         var (link, action) = LinkSafety.LocationTarget(location, MapProvider.Bing);
@@ -336,6 +338,8 @@ public class LinkSafetyTests
     [Theory]
     [InlineData("mailto:sam@example.com", "mailto:sam@example.com")]
     [InlineData("Email mailto:sam@example.com?subject=Hi", "mailto:sam@example.com")]
+    [InlineData("Write to mailto:sam@example.com.", "mailto:sam@example.com")]
+    [InlineData("(book via mailto:sam@example.com)", "mailto:sam@example.com")]
     public void LocationTarget_AMailtoLink_EmailsIt(string location, string expected)
     {
         var (link, action) = LinkSafety.LocationTarget(location, MapProvider.Google);
