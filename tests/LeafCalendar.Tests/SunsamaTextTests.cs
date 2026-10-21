@@ -67,4 +67,14 @@ public sealed class SunsamaTextTests
     [InlineData(120, "2 h")]
     [InlineData(0, "0 m")]
     public void Format_Minutes_ReadsLikeADuration(int minutes, string text) => Assert.Equal(text, SunsamaText.Format(minutes));
+
+    [Theory]
+    [InlineData(115, "1:55")]
+    [InlineData(55, "0:55")]
+    [InlineData(5, "0:05")]
+    [InlineData(600, "10:00")]
+    public void Clock_Minutes_ReadsLikeAClock(int minutes, string text) => Assert.Equal(text, SunsamaText.Clock(minutes));
+
+    [Fact]
+    public void Clock_Negative_Throws() => Assert.Throws<ArgumentOutOfRangeException>(() => SunsamaText.Clock(-5));
 }

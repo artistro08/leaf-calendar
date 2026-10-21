@@ -19,7 +19,7 @@ You see when Sunsama plans for you to work on each task, next to your real event
 | Direction | **Read-only, Leaf Calendar only.** Nothing is written to Google or to Sunsama. No syncing between them, and Sunsama blocks are never copied into Google Calendar. |
 | What's shown | Projected times (Sunsama's automatic placement) and timeboxes on a non-Google calendar (Sunsama's own "Sunsama Calendar", where timeboxes go by default). |
 | Look | Projected tasks look like an unanswered invitation (outlined, light fill). Timeboxed tasks look like a regular event (solid). |
-| Tracked time | Shown as a total in details ("1 h 24 m tracked") and as a striped texture laid **on top of** the task's blocks (and a matched Google event), filling them from the top in proportion to the time tracked (6.3.1). Sunsama gives totals only, not when the time was worked, so tracked time is never drawn as its own block. |
+| Tracked time | Shown as a total in details (a "1:24" **Actual** badge, 6.4) and as a striped texture laid **on top of** the task's blocks (and a matched Google event), filling them from the top in proportion to the time tracked (6.3.1). Sunsama gives totals only, not when the time was worked, so tracked time is never drawn as its own block. |
 | Duplicates | When a Sunsama task matches a Google event Leaf Calendar already shows, the Sunsama block is hidden and the tracked total goes on the Google event (5.2). |
 | Turning it off | Two sidebar items, like calendars. **Projected tasks** off hides every Sunsama block. **Tracked time** off hides every tracked total, on Sunsama blocks and on Google events. Each works on its own. |
 | Open in Sunsama | Opens the Sunsama app with `sunsama://action/details/<task id>` (Sunsama help: "Linking to Sunsama"). When no app handles `sunsama://`, Windows opens `https://app.sunsama.com/` instead (`LauncherOptions.FallbackUri`). Sunsama's web task link needs a workspace ID the MCP server doesn't give, so the web fallback opens Sunsama's home page. |
@@ -142,7 +142,7 @@ Tracked time is drawn **on top of** the block it belongs to, never as its own bl
 
 ### 6.4 Details Panel
 
-For a Sunsama block: title, time, channel, estimate, tracked total, its subtasks (a filled check box on each done one), its notes, and **Open in Sunsama**; nothing can be changed there. For a matched Google event: the existing details plus a tracked total line and **Open in Sunsama**. The tracked total lines show only while **Tracked time** is on.
+For a Sunsama block: title, time, channel, estimate, tracked total, its subtasks (a filled check box on each done one), its notes, and **Open in Sunsama**; nothing can be changed there. For a matched Google event: the existing details plus a tracked total line and **Open in Sunsama**. The tracked total lines show only while **Tracked time** is on. The estimate and tracked total show as hours and minutes on a clock ("1:55", no seconds) on a badge, followed by its label in the body text size; the clock time is caption size and bold, centered in its badge: **Planned** on the success (green) background, **Actual** on the caution (orange) background. Screen readers hear the badge as shown, then the duration: "1:55 Planned, 1 h 55 m" (issue #41). An estimate of 0 or less shows no Planned badge, as tracked time of 0 shows no Actual badge.
 
 ### 6.5 Safety
 
@@ -218,8 +218,8 @@ The user guide shows how to use it, in the same voice and layout as `site/people
 | Signed out after a refusal | "Sunsama signed you out. Sign in again to see your task plan." |
 | Sidebar group | "Sunsama" |
 | Sidebar items | "Projected tasks", "Tracked time" |
-| Details: tracked | "{duration} tracked" |
-| Details: estimate | "{duration} planned" |
+| Details: tracked | "{clock}" badge, then "Actual" (spoken: "{clock} Actual, {duration}") |
+| Details: estimate | "{clock}" badge, then "Planned" (spoken: "{clock} Planned, {duration}") |
 | Details: link | "Open in Sunsama" |
 | Sync status | "Couldn't reach Sunsama. Leaf Calendar will try again." |
 | Browser page after sign-in | the existing page: "You're signed in" / "You can close this tab and go back to Leaf Calendar." |

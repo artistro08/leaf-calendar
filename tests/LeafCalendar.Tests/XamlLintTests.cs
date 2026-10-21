@@ -24,6 +24,7 @@ public class XamlLintTests
         "Styles/LeafTheme.xaml|spacing|10,0 (Setter in LeafToolbarButtonStyle)",   // Same 10 px sides as the Today button
         "Styles/LeafTheme.xaml|spacing|9,12,0,4 (Setter in LeafSectionHeaderStyle)",   // 9 on the sidebar's shared left edge (style comment)
         "Styles/LeafTheme.xaml|spacing|9,4,8,4 (Setter in LeafFoldHeaderButtonStyle)",   // The account email stays on the sidebar's shared 9 px left edge
+        "Styles/LeafTheme.xaml|spacing|4,1,4,3 (Setter in LeafTimeBadgeStyle)",   // Lifts the badge time a pixel: caption digits sit low in their line box (style comment)
 
         // Optical alignment tuned by hand (title bar lift, sidebar glyph centers); see the comments in each file
         "Views/CalendarPage.xaml|spacing|0,9,0,8 (TextBlock in PeriodTitle)",

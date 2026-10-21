@@ -71,6 +71,16 @@ public static partial class SunsamaText
         (var h, var m) => string.Create(CultureInfo.InvariantCulture, $"{h} h {m} m"),
     };
 
+    /// <summary>Writes minutes as hours and minutes on a clock, as the details panel's planned and actual badges show them: "1:55", "0:05".</summary>
+    /// <param name="minutes">A duration in minutes.</param>
+    /// <returns>The clock text.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="minutes"/> is negative.</exception>
+    public static string Clock(int minutes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(minutes);
+        return string.Create(CultureInfo.InvariantCulture, $"{minutes / 60}:{minutes % 60:00}");
+    }
+
     /// <summary>True for Sunsama's task ID shape: 24 lowercase hex characters.</summary>
     /// <param name="id">A task ID from Sunsama.</param>
     /// <returns>True when the ID is safe to put in a link.</returns>
