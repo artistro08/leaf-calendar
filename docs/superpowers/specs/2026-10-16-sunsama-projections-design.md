@@ -142,7 +142,7 @@ Tracked time is drawn **on top of** the block it belongs to, never as its own bl
 
 ### 6.4 Details Panel
 
-For a Sunsama block: title, time, channel, estimate, tracked total, its subtasks (a filled check box on each done one), its notes, and **Open in Sunsama**; nothing can be changed there. For a matched Google event: the existing details plus a tracked total line and **Open in Sunsama**. The tracked total lines show only while **Tracked time** is on. The estimate and tracked total show as hours and minutes on a clock ("1:55", no seconds) on a badge, followed by its label, in the body text size like the rest of the panel: **Planned** on the success (green) background, **Actual** on the caution (orange) background. Screen readers hear the badge as shown, then the duration: "1:55 Planned, 1 h 55 m" (issue #41). An estimate of 0 or less shows no Planned badge, as tracked time of 0 shows no Actual badge.
+For a Sunsama block: title, time, channel, estimate, tracked total, its subtasks (a filled check box on each done one), its notes, and **Open in Sunsama**; nothing can be changed there. For a matched Google event: the existing details plus a tracked total line and **Open in Sunsama**. The tracked total lines show only while **Tracked time** is on. The estimate and tracked total show as hours and minutes on a clock ("1:55", no seconds) on a badge, followed by its label in the body text size; the clock time is caption size and bold, centered in its badge: **Planned** on the success (green) background, **Actual** on the caution (orange) background. Screen readers hear the badge as shown, then the duration: "1:55 Planned, 1 h 55 m" (issue #41). An estimate of 0 or less shows no Planned badge, as tracked time of 0 shows no Actual badge.
 
 ### 6.5 Safety
 
@@ -218,8 +218,8 @@ The user guide shows how to use it, in the same voice and layout as `site/people
 | Signed out after a refusal | "Sunsama signed you out. Sign in again to see your task plan." |
 | Sidebar group | "Sunsama" |
 | Sidebar items | "Projected tasks", "Tracked time" |
-| Details: tracked | "{duration} tracked" |
-| Details: estimate | "{duration} planned" |
+| Details: tracked | "{clock}" badge, then "Actual" (spoken: "{clock} Actual, {duration}") |
+| Details: estimate | "{clock}" badge, then "Planned" (spoken: "{clock} Planned, {duration}") |
 | Details: link | "Open in Sunsama" |
 | Sync status | "Couldn't reach Sunsama. Leaf Calendar will try again." |
 | Browser page after sign-in | the existing page: "You're signed in" / "You can close this tab and go back to Leaf Calendar." |
