@@ -2152,7 +2152,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     {
         if (SelectedInfo?.Details.Location is { Length: > 0 } location)
         {
-            await _services.LaunchAsync(LinkSafety.LocationTarget(location, Settings.MapProvider).Link);
+            await _services.LaunchLocationAsync(LinkSafety.LocationTarget(location, Settings.MapProvider).Link);
         }
     }
 

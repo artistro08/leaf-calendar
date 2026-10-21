@@ -20,7 +20,8 @@ namespace LeafCalendar.App.Views;
 /// Right panel, on the window's Mica like the sidebar. With nothing selected it lists upcoming events (next 8 hours)
 /// with Join buttons. With an event selected it shows the details, the Join button, your reply, the guests,
 /// and the description. Event content is plain text; description links are clickable only when the allowlist
-/// allows them, and every click goes through <see cref="LeafServices.LaunchAsync"/>.
+/// allows them, and every click goes through <see cref="LeafServices.LaunchAsync"/> (the location button through
+/// <see cref="LeafServices.LaunchLocationAsync"/>, which also allows plain http and tel: links).
 /// </summary>
 public sealed partial class DetailsPanel : UserControl
 {
