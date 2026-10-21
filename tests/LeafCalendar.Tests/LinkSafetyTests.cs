@@ -270,6 +270,8 @@ public class LinkSafetyTests
     [InlineData("mailto:a@b@c.example")]
     [InlineData("tel:12")]
     [InlineData("Hotel: 123 Main St")]
+    [InlineData("mailto:a@b|c")]
+    [InlineData("mailto:sam@example.com:99999999")]
     public void LocationTarget_AnythingElse_SearchesTheMap(string location)
     {
         var (link, action) = LinkSafety.LocationTarget(location, MapProvider.Bing);
@@ -304,6 +306,9 @@ public class LinkSafetyTests
     [InlineData("tel:911", "tel:911")]
     [InlineData("Dial in: tel:+15551234567", "tel:+15551234567")]
     [InlineData("tel:1-800-FLOWERS", "tel:18003569377")]
+    [InlineData("tel:1-800-FLOWERS x12", "tel:18003569377;ext=12")]
+    [InlineData("tel:555-123-4567x12", "tel:5551234567;ext=12")]
+    [InlineData("tel:+15551234567ext.12", "tel:+15551234567;ext=12")]
     [InlineData("Order at tel:+1-800-flowers.", "tel:+18003569377")]
     public void LocationTarget_APhoneNumber_CallsIt(string location, string expected)
     {

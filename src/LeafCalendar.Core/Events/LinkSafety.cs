@@ -355,14 +355,16 @@ public static partial class LinkSafety
         }
 
         // An Email Link
-        if (MailtoLink().Match(text) is { Success: true } mail && TrimLinkEnd(mail.Groups["to"].Value) is var to && IsPlainAddress(to))
+        // (an address Uri can't read, such as "a@b|c", is no email link, never an exception)
+        if (MailtoLink().Match(text) is { Success: true } mail && TrimLinkEnd(mail.Groups["to"].Value) is var to && IsPlainAddress(to)
+            && Uri.TryCreate("mailto:" + to, UriKind.Absolute, out var mailto))
         {
-            return (new Uri("mailto:" + to), LocationAction.Email);
+            return (mailto, LocationAction.Email);
         }
 
         // A Phone Number: a tel: link is one whatever its length; a location needs to be only a number
         if (TelLink().Match(text) is { Success: true } tel
-            && CallLink(tel.Groups["vanity"].Success ? Keypad(tel.Groups["number"].Value) : tel.Groups["number"].Value, 3) is { } dial)
+            && CallLink(tel.Groups["number"].Value, 3, vanity: tel.Groups["vanity"].Success) is { } dial)
         {
             return (dial, LocationAction.Call);
         }
@@ -382,12 +384,10 @@ public static partial class LinkSafety
     public static MapProvider? MapSiteOf(Uri uri)
     {
         ArgumentNullException.ThrowIfNull(uri);
-        if (!IsWebLink(uri))
+        if (!IsWebLink(uri) || !TryIdnHost(uri, out var idnHost))
         {
             return null;
         }
-
-        var idnHost = uri.IdnHost;
 
         var host = idnHost.TrimEnd('.').ToLowerInvariant();
         var maps = uri.AbsolutePath.StartsWith("/maps", StringComparison.OrdinalIgnoreCase);
@@ -410,7 +410,7 @@ public static partial class LinkSafety
 
     // A tel: link from a phone number as people write it ("+1 (555) 123-4567 ext. 12"), or null when it isn't one.
     // Without a "+" it needs minDigits digits (with one, 7 at most)
-    private static Uri? CallLink(string number, int minDigits)
+    private static Uri? CallLink(string number, int minDigits, bool vanity = false)
     {
         var text = number.Trim();
         var extension = "";
@@ -418,6 +418,12 @@ public static partial class LinkSafety
         {
             extension = ";ext=" + ext.Groups["ext"].Value;
             text = text[..ext.Index].TrimEnd();
+        }
+
+        // A vanity number's letters are dialed as their keypad digits (its extension was split off first)
+        if (vanity)
+        {
+            text = Keypad(text);
         }
 
         var digits = new string(text.Where(char.IsAsciiDigit).ToArray());
@@ -450,7 +456,7 @@ public static partial class LinkSafety
     [GeneratedRegex(@"\bmailto:(?<to>[^\s?<>""']+)", RegexOptions.IgnoreCase)]
     private static partial Regex MailtoLink();
 
-    [GeneratedRegex(@"\btel:\s*(?<number>(?<vanity>\+?[0-9][0-9\-]*[A-Za-z][A-Za-z0-9\-]*)|[+0-9(][0-9\s().+\-\u2013]*(?:(?:ext\.?|x|;ext=)\s*[0-9]{1,6})?)(?![\w\-])", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\btel:\s*(?<number>(?<vanity>\+?[0-9][0-9\-]*(?!ext)[A-Za-z]{2}[A-Za-z0-9\-]*(?:\s*(?:ext\.?|x)\s*[0-9]{1,6})?)|[+0-9(][0-9\s().+\-\u2013]*(?:(?:ext\.?|x|;ext=)\s*[0-9]{1,6})?)(?![\w\-])", RegexOptions.IgnoreCase)]
     private static partial Regex TelLink();
 
     [GeneratedRegex(@"^(?:tel|phone|ph|call|mobile|cell)\b\s*[:.]?\s*", RegexOptions.IgnoreCase)]
