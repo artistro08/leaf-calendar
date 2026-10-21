@@ -42,7 +42,7 @@ public sealed partial class AppLog(string directory, TimeProvider time)
     /// HRESULT, since its message is often empty and the code is what tells a busy clipboard from other failures.
     /// </summary>
     public void Error(string eventName, Exception exception) =>
-        Write("ERROR", eventName, exception is System.Runtime.InteropServices.ExternalException
+        Write("ERROR", eventName, exception is System.Runtime.InteropServices.COMException
             ? string.Create(CultureInfo.InvariantCulture, $"{exception.GetType().Name} (hresult=0x{exception.HResult:X8}): {exception.Message}")
             : $"{exception.GetType().Name}: {exception.Message}");
 

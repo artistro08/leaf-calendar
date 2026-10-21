@@ -203,4 +203,4 @@ public sealed class AppLogTests : IDisposable
 }
 
 // A COM-style error with an empty message, as WinRT throws them
-internal sealed class ComError(int hresult) : System.Runtime.InteropServices.ExternalException("", hresult);
+internal sealed class ComError(int hresult) : System.Runtime.InteropServices.COMException("", hresult);

@@ -24,16 +24,21 @@ internal static class ClipboardWriter
     /// <exception cref="COMException">The clipboard stayed busy, or Windows refused it for another reason.</exception>
     public static void Set(DataPackage package, bool flush = false)
     {
+        WhileBusy(() => Clipboard.SetContent(package));
+        if (flush)
+        {
+            WhileBusy(Clipboard.Flush);
+        }
+    }
+
+    // ponytail: waits on the calling (UI) thread, at most about 200 ms; make it async if a copy ever feels slow
+    private static void WhileBusy(Action write)
+    {
         for (var attempt = 1; ; attempt++)
         {
             try
             {
-                Clipboard.SetContent(package);
-                if (flush)
-                {
-                    Clipboard.Flush();
-                }
-
+                write();
                 return;
             }
             catch (COMException ex) when (ex.HResult == CantOpen && attempt < Tries)
