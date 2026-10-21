@@ -382,15 +382,15 @@ public sealed partial class TimeGridView : Grid, IDisposable
             return;
         }
 
-        // Whole-Pixel Columns (the few pixels left over become a margin at the right edge)
-        var scale = XamlRoot?.RasterizationScale ?? 1;
-        var width = Math.Max(48, Math.Floor(available * scale / _vm.VisibleColumns) / scale);
+        // Whole-Pixel Columns (the few pixels left over become a margin at the right edge; ColumnFit keeps that margin
+        // whole pixels, so layout rounding can't hand a pixel back and forth with it)
+        var (width, spareWidth) = ColumnFit.Fit(available, XamlRoot?.RasterizationScale ?? 1, _vm.VisibleColumns);
         if (!force && width == ColumnWidth && _bodyRepeater.Height == BodyHeight)
         {
             return;
         }
 
-        var spare = new Thickness(0, 0, Math.Max(0, available - width * _vm.VisibleColumns), 0);
+        var spare = new Thickness(0, 0, spareWidth, 0);
         ColumnWidth = width;
         _bodyScroll.Margin = spare;
         _headerScroll.Margin = spare;
