@@ -379,8 +379,10 @@
     </Style>
 
     <!-- Time Badge (the details panel's Sunsama planned and actual time; the background is set where it's used) -->
+    <!-- The odd 1 and 3 lift the digits a pixel: caption text sits a pixel low in its line box, so even padding
+         looks off center -->
     <Style x:Key="LeafTimeBadgeStyle" TargetType="Border">
-        <Setter Property="Padding" Value="4,2" />
+        <Setter Property="Padding" Value="4,1,4,3" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
     </Style>
