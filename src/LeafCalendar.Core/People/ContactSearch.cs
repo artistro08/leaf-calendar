@@ -38,7 +38,7 @@ public sealed record ContactResults(IReadOnlyList<Contact> Contacts, ContactAcce
 /// <remarks>
 /// <para>
 /// Results are untrusted text: control and format characters are removed, names are capped, and only addresses that
-/// parse exactly are kept. Nothing is stored; logs carry the account ID and HTTP status only.
+/// parse exactly are kept. Nothing is stored; logs carry the account ID, HTTP status, and access state only.
 /// </para>
 /// <para>
 /// The sources are searched at once, each limited to <see cref="Timeout"/>. A source that fails is left out and the
@@ -77,6 +77,9 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
 
     private readonly Uri _root = (endpoints ?? GoogleEndpoints.Default).PeopleApi;
 
+    // Account ID -> the access state last logged for it (contacts.search.blocked is written when it changes)
+    private readonly ConcurrentDictionary<string, ContactAccess> _lastAccess = new(StringComparer.Ordinal);
+
     // "account source" -> the warmup request (completed after the first search)
     private readonly ConcurrentDictionary<string, Task> _warmups = new(StringComparer.Ordinal);
 
@@ -98,6 +101,24 @@ public sealed class ContactSearch(HttpClient http, AccessTokenProvider tokens, A
     /// </summary>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was canceled (the user kept typing).</exception>
     public async Task<ContactResults> SearchAsync(string accountId, string query, bool workspace, CancellationToken ct)
+    {
+        // A Search The User Has To Fix Is Logged (account ID and why only, once each time it changes), so a report of an
+        // empty box can be traced
+        var results = await SearchAccountAsync(accountId, query, workspace, ct);
+        var access = results.Contacts.Count == 0 ? results.Access : ContactAccess.Allowed;
+        if (_lastAccess.TryGetValue(accountId, out var last) ? last != access : access != ContactAccess.Allowed)
+        {
+            _lastAccess[accountId] = access;
+            if (access != ContactAccess.Allowed)
+            {
+                log.Info("contacts.search.blocked", $"account={accountId} access={access}");
+            }
+        }
+
+        return results;
+    }
+
+    private async Task<ContactResults> SearchAccountAsync(string accountId, string query, bool workspace, CancellationToken ct)
     {
         // Nothing To Search
         query = query.Trim();
