@@ -50,6 +50,12 @@ public class ColumnFitTests
         Assert.Equal(first, ColumnFit.Fit(scroller + first.Spare, scale, columns));
     }
 
+    [Theory]
+    [InlineData(0, 4)]
+    [InlineData(1.25, 0)]
+    public void Fit_NoScaleOrNoColumns_Throws(double scale, int columns) =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => ColumnFit.Fit(800, scale, columns));
+
     [Fact]
     public void Fit_NarrowSpace_KeepsTheMinimumWidth()
     {

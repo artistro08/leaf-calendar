@@ -9,16 +9,21 @@ namespace LeafCalendar.Core.Views;
 /// </summary>
 public static class ColumnFit
 {
-    /// <summary>The narrowest a day column gets, in DIPs.</summary>
+    /// <summary>The narrowest a day column gets, in DIPs (rounded up to a whole pixel).</summary>
     public const double MinWidth = 48;
 
     /// <summary>
     /// Fits <paramref name="columns"/> day columns into <paramref name="available"/> DIPs at the monitor's
     /// <paramref name="scale"/>: each column a whole number of pixels, and the pixels left over as the spare at the right edge.
     /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="scale"/> or <paramref name="columns"/> isn't positive.</exception>
     public static (double Width, double Spare) Fit(double available, double scale, int columns)
     {
-        var pixels = Math.Round(available * scale);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scale);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(columns);
+
+        // (half a pixel rounds up, as layout rounding does)
+        var pixels = Math.Round(available * scale, MidpointRounding.AwayFromZero);
         var column = Math.Max(Math.Ceiling(MinWidth * scale), Math.Floor(pixels / columns));
         return (column / scale, Math.Max(0, pixels - (column * columns)) / scale);
     }

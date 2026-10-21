@@ -385,7 +385,7 @@ public sealed partial class TimeGridView : Grid, IDisposable
         // Whole-Pixel Columns (the few pixels left over become a margin at the right edge; ColumnFit keeps that margin
         // whole pixels, so layout rounding can't hand a pixel back and forth with it)
         var (width, spareWidth) = ColumnFit.Fit(available, XamlRoot?.RasterizationScale ?? 1, _vm.VisibleColumns);
-        if (!force && width == ColumnWidth && _bodyRepeater.Height == BodyHeight)
+        if (!force && width == ColumnWidth && _bodyScroll.Margin.Right == spareWidth && _bodyRepeater.Height == BodyHeight)
         {
             return;
         }
