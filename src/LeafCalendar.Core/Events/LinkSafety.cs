@@ -456,7 +456,7 @@ public static partial class LinkSafety
     [GeneratedRegex(@"\bmailto:(?<to>[^\s?<>""']+)", RegexOptions.IgnoreCase)]
     private static partial Regex MailtoLink();
 
-    [GeneratedRegex(@"\btel:\s*(?<number>(?<vanity>\+?[0-9][0-9\-]*(?!ext)[A-Za-z]{2}[A-Za-z0-9\-]*(?:\s*(?:ext\.?|x)\s*[0-9]{1,6})?)|[+0-9(][0-9\s().+\-\u2013]*(?:(?:ext\.?|x|;ext=)\s*[0-9]{1,6})?)(?![\w\-])", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\btel:\s*(?<number>(?<vanity>\+?[0-9][0-9\-]*(?!ext)[A-Za-z]{2}[A-Za-z0-9\-]*(?:\s*(?:extension|ext\.?|x)\s*[0-9]{1,6})?)|[+0-9(][0-9\s().+\-\u2013]*(?:(?:extension|ext\.?|x|;ext=)\s*[0-9]{1,6})?)(?![\w\-])", RegexOptions.IgnoreCase)]
     private static partial Regex TelLink();
 
     [GeneratedRegex(@"^(?:tel|phone|ph|call|mobile|cell)\b\s*[:.]?\s*", RegexOptions.IgnoreCase)]

@@ -309,6 +309,7 @@ public class LinkSafetyTests
     [InlineData("tel:1-800-FLOWERS x12", "tel:18003569377;ext=12")]
     [InlineData("tel:555-123-4567x12", "tel:5551234567;ext=12")]
     [InlineData("tel:+15551234567ext.12", "tel:+15551234567;ext=12")]
+    [InlineData("tel:555-123-4567 extension 12", "tel:5551234567;ext=12")]
     [InlineData("Order at tel:+1-800-flowers.", "tel:+18003569377")]
     public void LocationTarget_APhoneNumber_CallsIt(string location, string expected)
     {
