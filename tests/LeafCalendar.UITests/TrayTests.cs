@@ -31,6 +31,27 @@ public sealed class TrayTests : IDisposable
         Assert.NotEqual(0, leaf.TrayWindow());
     }
 
+    // Closing hides the window to the tray and keeps it built: a dialog open in it (here Settings › Accounts' "Disconnect
+    // this account?") must close with it, not come back over the calendar, where Disconnect would still remove the account
+    [Fact]
+    public void CloseWithDialogOpen_ReopensWithoutTheDialog()
+    {
+        using var leaf = Launch();
+        leaf.WaitFor("CalendarRoot");
+        leaf.OpenSettings("Accounts");
+        leaf.PressDisconnectInSettings();
+        leaf.WaitForAnywhere("PrimaryButton");
+
+        leaf.MainWindow.Close();
+        Assert.True(Retry.WhileTrue(() => leaf.MainWindowCount() > 0, TimeSpan.FromSeconds(10)).Success);
+
+        using var second = Launch();
+        Assert.True(Retry.WhileFalse(() => second.App.HasExited, TimeSpan.FromSeconds(15)).Success);
+        Assert.NotNull(leaf.WaitFor("CalendarRoot"));
+        Thread.Sleep(TimeSpan.FromSeconds(1));
+        Assert.False(leaf.ExistsAnywhere("PrimaryButton"), "The Disconnect dialog came back with the window.");
+    }
+
     [Fact]
     public void LaunchAgainAfterClosing_OpensTheMainWindow()
     {

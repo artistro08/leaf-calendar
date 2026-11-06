@@ -18,6 +18,8 @@
         <ApplicationIcon>Assets\LeafCalendar.ico</ApplicationIcon>
         <!-- One .msix with every logo scale (scale-qualified logos would otherwise split into a bundle of resource packages) -->
         <AppxBundle>Never</AppxBundle>
+        <!-- No Background GC Thread: the heap is small, so a full collection is short, and tray-only Leaf Calendar keeps less memory -->
+        <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
         <!-- Program.cs owns Main (single instance per profile) -->
         <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     </PropertyGroup>

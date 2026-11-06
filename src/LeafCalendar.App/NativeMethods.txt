@@ -64,3 +64,8 @@ IsIconic
 ShowWindow
 GetPackageFullName
 GetPackagePathByFullName
+DwmSetWindowAttribute
+GetMessage
+PeekMessage
+PostThreadMessage
+WM_QUIT

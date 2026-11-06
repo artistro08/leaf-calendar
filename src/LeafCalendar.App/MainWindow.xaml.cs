@@ -31,7 +31,8 @@ namespace LeafCalendar.App;
 /// title bar stays transparent and only its buttons take clicks. Settings and accounts show in place of
 /// the calendar (<see cref="SettingsPage"/>, <see cref="ShowSettings"/>), under the title bar, whose back
 /// button returns to the calendar; they share the calendar view model, so a change shows in the calendar right away, and
-/// they close with this window (Leaf Calendar lives in the tray).
+/// they close when this window is closed. Closing hides it to the tray (it's kept built, so it opens again instantly);
+/// only Quit closes it (<see cref="Shutdown"/>).
 /// </summary>
 [SuppressMessage("Design", "CA1001", Justification = "Windows aren't disposable; the App owns the view model.")]
 public sealed partial class MainWindow : Window
@@ -75,6 +76,13 @@ public sealed partial class MainWindow : Window
 
     // The Settings view while it shows in place of the calendar
     private SettingsPage? _settings;
+
+    // True while the window is shown but cloaked, waiting for XAML to draw it; the timer uncloaks it anyway
+    private bool _cloaked;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _uncloakAnyway;
+
+    // Set by Shutdown (Quit), so the Close that follows isn't turned into a hide
+    private bool _shuttingDown;
 
     /// <summary>Creates the window on the App's calendar view model (Settings shares it). <see cref="App"/> owns both.</summary>
     public MainWindow(LeafServices services, CalendarViewModel calendar)
@@ -132,9 +140,10 @@ public sealed partial class MainWindow : Window
         // (the minimum applies first, and a size saved before the minimum grew is grown to it)
         var opening = (_calendar.Settings.MainWindowSize ?? Core.Views.WindowSize.MainDefault).AtLeast(MinimumWidth, MinimumHeight);
         ApplyMinimumSize();
+        // (never maximized here: that would show a window built hidden in the tray; BringToFront maximizes it on show)
         _restoredSize = opening with { Maximized = false };
         _wasMaximized = opening.Maximized;
-        Interop.WindowPlacement.Restore(AppWindow, _presenter, opening);
+        Interop.WindowPlacement.Restore(AppWindow, _presenter, _restoredSize);
         AppWindow.Changed += (_, e) =>
         {
             if (e.DidSizeChange && _presenter.State == OverlappedPresenterState.Restored)
@@ -178,23 +187,136 @@ public sealed partial class MainWindow : Window
             };
         };
 
+        // Each Show Waits Cloaked For A Drawn Frame (CloakUntilDrawn), at most half a second
+        _uncloakAnyway = DispatcherQueue.CreateTimer();
+        _uncloakAnyway.Interval = TimeSpan.FromMilliseconds(500);
+        _uncloakAnyway.IsRepeating = false;
+        _uncloakAnyway.Tick += (_, _) => Uncloak();
+
         Activated += OnActivated;
         Closed += (_, _) =>
         {
-            // Closing doesn't navigate, so release the page's views here; the view model is the App's (Leaf Calendar stays in
-            // the tray). Settings goes with the window.
+            // Quit: closing doesn't navigate, so release the page's views here; the view model is the App's, which disposes
+            // it. Settings goes with the window.
             CloseSettings();
             (ContentFrame.Content as CalendarPage)?.Detach();
             _calendar.LayoutChanged -= OnCalendarLayoutChanged;
             _calendar.PropertyChanged -= OnCalendarPropertyChanged;
             _calendar.ShareChanged -= OnCalendarShareChanged;
+            RememberSize();
 
-            // Remember The Size For Next Time (the restored size, and whether it was maximized)
-            var size = _restoredSize with { Maximized = _wasMaximized };
-            _calendar.Remember(s => s with { MainWindowSize = size }, inBackground: false);
+            // The frame clock is static, so its handlers would keep a closed window alive (not cloaked first: there's
+            // no window left to uncloak)
+            _cloaked = false;
+            Uncloak();
+        };
+
+        // Closing Hides It (Leaf Calendar lives in the tray): opening it again shows this same window at once, where a
+        // new one took hundreds of milliseconds to build, and closing for real freed nothing measurable (spec 3.4). Only
+        // Quit closes it (Shutdown)
+        AppWindow.Closing += (_, e) =>
+        {
+            if (!_shuttingDown)
+            {
+                e.Cancel = true;
+                HideToTray();
+            }
         };
 
         ShowCalendar();
+    }
+
+    /// <summary>Raised when the window is hidden to the tray (closed by the user, or by the tray probe).</summary>
+    public event EventHandler? Hidden;
+
+    /// <summary>True while the window is hidden in the tray (closed, until it's opened again).</summary>
+    public bool IsHidden => !AppWindow.IsVisible;
+
+    /// <summary>
+    /// Hides the window to the tray, as its Close button does: open dialogs and Settings close (the calendar shows when
+    /// it opens again) and its size is saved, but the window and the calendar stay built, so opening it again is instant.
+    /// </summary>
+    public void HideToTray()
+    {
+        if (IsHidden)
+        {
+            return;
+        }
+
+        // Open Dialogs Close First (as Cancel): kept with the hidden window, one came back over the calendar, where
+        // Settings › Accounts' Disconnect still removed the account, and it blocked the next dialog (only one can be open)
+        foreach (var popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(RootGrid.XamlRoot))
+        {
+            if (popup.Child is ContentDialog dialog)
+            {
+                dialog.Hide();
+            }
+        }
+
+        CloseSettings();
+        RememberSize();
+        AppWindow.Hide();
+        Hidden?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Lets the window really close (Quit).</summary>
+    public void Shutdown()
+    {
+        _shuttingDown = true;
+        Close();
+    }
+
+    // The restored size, and whether it was maximized, for the next launch
+    private void RememberSize()
+    {
+        var size = _restoredSize with { Maximized = _wasMaximized };
+        _calendar.Remember(s => s with { MainWindowSize = size }, inBackground: false);
+    }
+
+    // Shown From Hidden, The Window Stays Cloaked Until XAML Has Drawn It (the Messages app's pattern): WinUI drops what
+    // it drew while the window was hidden, so shown at once it was blank for its first frames (black on the first show,
+    // the theme's gray after). Cloaked, it's still shown, active and drawn; only the screen doesn't show it yet. XAML
+    // draws only when something changed, so Rendering is watched too, which asks for a frame every tick until one is
+    // drawn. Half a second shows it anyway, so a frame that never comes can't leave it invisible
+    private void CloakUntilDrawn()
+    {
+        if (_cloaked)
+        {
+            return;
+        }
+
+        _cloaked = true;
+        Interop.WindowCloak.Set(this, cloaked: true);
+        CompositionTarget.Rendering += OnFrameWanted;
+        CompositionTarget.Rendered += OnFrameRendered;
+        _uncloakAnyway.Start();
+    }
+
+    // Empty on purpose: while anything listens to Rendering, XAML draws a frame every tick
+    private static void OnFrameWanted(object? sender, object e)
+    {
+    }
+
+    // A frame is drawn; on the first show, only one with the content loaded counts
+    private void OnFrameRendered(object? sender, RenderedEventArgs e)
+    {
+        if (RootGrid.IsLoaded)
+        {
+            Uncloak();
+        }
+    }
+
+    // Shows the cloaked window and stops asking for frames (a drawn frame, the half-second fallback, or the close)
+    private void Uncloak()
+    {
+        CompositionTarget.Rendering -= OnFrameWanted;
+        CompositionTarget.Rendered -= OnFrameRendered;
+        _uncloakAnyway.Stop();
+        if (_cloaked)
+        {
+            _cloaked = false;
+            Interop.WindowCloak.Set(this, cloaked: false);
+        }
     }
 
     /// <summary>Raised when the window is minimized, or comes back from minimized.</summary>
@@ -203,9 +325,22 @@ public sealed partial class MainWindow : Window
     /// <summary>True while the window is minimized (nothing of it is on screen).</summary>
     public bool IsMinimized => _presenter.State == OverlappedPresenterState.Minimized;
 
-    /// <summary>Restores the window if it's minimized and brings it to the front (another launch was redirected here).</summary>
+    /// <summary>Shows the window if it's hidden in the tray or minimized, and brings it to the front.</summary>
     public void BringToFront()
     {
+        // Shown From The Tray Where A New Window Would Open: on the monitor under the cursor at its size, maximized when it
+        // last was. One hidden while maximized comes back maximized where it was
+        if (IsHidden)
+        {
+            CloakUntilDrawn();
+            if (_presenter.State != OverlappedPresenterState.Maximized)
+            {
+                Interop.WindowPlacement.Restore(AppWindow, _presenter, _restoredSize with { Maximized = _wasMaximized });
+            }
+
+            AppWindow.Show(activateWindow: true);
+        }
+
         if (_presenter.State == OverlappedPresenterState.Minimized)
         {
             _presenter.Restore();

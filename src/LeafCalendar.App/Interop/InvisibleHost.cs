@@ -56,14 +56,15 @@ internal static class InvisibleHost
     public static bool TakeForeground(Window window) => Foreground.Take(Handle(window));
 
     /// <summary>
-    /// True when the screen point (physical pixels) is on one of <paramref name="window"/>'s own popups (or the host itself):
-    /// the window under it is owned, at the root, by the host.
+    /// True when the screen point (physical pixels) is on one of the host's own popups (or the host itself): the window
+    /// under it is owned, at the root, by <paramref name="host"/>. Plain Win32, so it's safe off the UI thread.
     /// </summary>
-    public static bool IsOnPopup(Window window, int x, int y)
+    public static bool IsOnPopup(HWND host, int x, int y)
     {
         var under = PInvoke.WindowFromPoint(new System.Drawing.Point(x, y));
-        return !under.IsNull && PInvoke.GetAncestor(under, GET_ANCESTOR_FLAGS.GA_ROOTOWNER) == Handle(window);
+        return !under.IsNull && PInvoke.GetAncestor(under, GET_ANCESTOR_FLAGS.GA_ROOTOWNER) == host;
     }
 
-    private static HWND Handle(Window window) => new(WindowNative.GetWindowHandle(window));
+    /// <summary>The window's handle (read it on the UI thread).</summary>
+    public static HWND Handle(Window window) => new(WindowNative.GetWindowHandle(window));
 }
