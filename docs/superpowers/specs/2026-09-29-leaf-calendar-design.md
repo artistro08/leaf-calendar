@@ -135,7 +135,7 @@ Leaf Calendar is a fast, low-memory, native Windows 11 desktop calendar with fea
 Measured on a minimal WinUI 3 window: AOT ~53 MB private working set (Task Manager "Memory"), ~72 MB private bytes. Closing the window frees almost nothing once WinUI is loaded.
 
 1. Native AOT on Release.
-2. When the app goes to tray-only, trim the working set (`SetProcessWorkingSetSize(-1, -1)`). Measured drop from ~55 MB to ~8 MB in Task Manager. Pages return from the page file when the window reopens.
+2. When the app goes to tray-only, trim the working set (`SetProcessWorkingSetSize(-1, -1)`). Measured drop from ~55 MB to ~8 MB in Task Manager. Pages return from the page file when the window reopens. Since 2026-11-05 the hidden main window is kept (closing it for real freed nothing measurable): measured tray-only at 111 MB private bytes and 6 MB working set, and the flyout trims the same way when it closes with no window on screen.
 3. Windows efficiency mode (EcoQoS) while idle in the tray, for CPU and battery.
 4. Event data kept in a bounded sliding window (Section 6.4). Event visuals recycled.
 5. No WebView2. Event descriptions render with native text controls.
@@ -435,7 +435,7 @@ A view inside the main window, modeled on the Windows 11 Settings app. See Secti
 
 - Tooltip: next event and countdown ("Standup in 12 min"). Countdowns read in minutes under an hour ("in 59 min", never "in 60 min"), in hours up to 47 ("in 5 h"), then in days ("in 3 days").
 - Created with `Shell_NotifyIcon` through CsWin32, owned by a hidden message window.
-- Leaf starts with Windows (MSIX `StartupTask`, setting, on by default). Closing the main window keeps Leaf in the tray. Only Quit exits.
+- Leaf starts with Windows (MSIX `StartupTask`, setting, on by default). Closing the main window keeps Leaf in the tray. Only Quit exits. Since 2026-11-05 (owner) closing hides the main window instead of destroying it, and Leaf Calendar builds it hidden soon after a start in the tray, so opening it from the tray, the flyout or a notification is instant (a new window took hundreds of milliseconds to build and showed blank meanwhile). Flyout buttons close the flyout at once and act right away.
 
 ### 8.2 Tray Flyout (Left-Click)
 

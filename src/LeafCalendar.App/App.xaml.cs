@@ -27,9 +27,9 @@ namespace LeafCalendar.App;
 /// the tray icon, sync, and reminders, and only Quit ends it. Started by Windows at sign-in, it stays in the tray.
 /// </summary>
 /// <remarks>
-/// The main window and Settings share one calendar view model, which the App creates when either opens and releases
-/// once neither is open. Tray-only Leaf Calendar then polls every 60 seconds, runs in Windows efficiency mode, and trims its
-/// memory (spec 3.4, 5.3).
+/// The main window and Settings share one calendar view model. The window is built once (hidden, soon after a start in
+/// the tray) and its Close button hides it, so it opens instantly; only Quit closes it. Tray-only Leaf Calendar polls every
+/// 60 seconds, runs in Windows efficiency mode, and trims its memory (spec 3.4, 5.3).
 /// </remarks>
 [SuppressMessage("Design", "CA1001", Justification = "The App lives as long as the process; Quit disposes the tray icon, notifier, alerts, and view model.")]
 public partial class App : Application
@@ -209,6 +209,22 @@ public partial class App : Application
                 {
                     HandleToast(Program.StartArgument);
                 }
+
+                // The Window Is Built Hidden Once The Start Is Done, so the first open is instant; then the trim again
+                _dispatcher.TryEnqueue(DispatcherQueuePriority.Low, () =>
+                {
+                    // Nothing may escape a queued callback; the window is built on the first open instead
+                    try
+                    {
+                        BuildMainWindow();
+                    }
+                    catch (Exception ex)
+                    {
+                        _log?.Info("window.main.build.failed", $"error={ex.GetType().Name}");
+                    }
+
+                    GoToTrayIfHidden();
+                });
             }
             else
             {
@@ -514,36 +530,17 @@ public partial class App : Application
     // WINDOWS
     // =========================================================================
 
-    // Opens the main window, or brings the open one to the front
+    // Opens the main window, or brings it back from the tray at once
     private void ShowMainWindow()
     {
-        if (_services is not { } services)
+        if (_services is not { } services || BuildMainWindow() is not { } window)
         {
             return;
         }
 
-        if (_window is { } open)
-        {
-            open.BringToFront();
-            return;
-        }
-
-        services.Log.Trace("window.main", "open");
-        var window = new MainWindow(services, AcquireCalendar());
-        window.Closed += (_, _) =>
-        {
-            services.Log.Trace("window.main", "closed");
-            _window = null;
-            if (!_quitting)
-            {
-                _dispatcher?.TryEnqueue(ReleaseIfHidden);
-            }
-        };
-        window.MinimizedChanged += (_, _) => UpdateSyncMode();
-        _window = window;
-        EfficiencyMode.Set(false);
-        window.Activate();
+        services.Log.Trace("window.main", "show");
         window.BringToFront();
+        UpdateSyncMode();
 
         // Tray Probe: the memory budget test measures tray-only Leaf Calendar a few seconds after the window rendered
         if (services.Options.TrayProbe && _probeTimer is null)
@@ -551,9 +548,45 @@ public partial class App : Application
             _probeTimer = _dispatcher!.CreateTimer();
             _probeTimer.Interval = TimeSpan.FromSeconds(3);
             _probeTimer.IsRepeating = false;
-            _probeTimer.Tick += (_, _) => _window?.Close();
+            _probeTimer.Tick += (_, _) => _window?.HideToTray();
             _probeTimer.Start();
         }
+    }
+
+    // The main window, built once and kept: its Close button hides it to the tray, so showing it again is instant, where
+    // building one took hundreds of milliseconds (and closing it for real freed nothing measurable, spec 3.4). Started
+    // in the tray, Leaf Calendar builds it hidden at low priority, so even the first open is instant
+    private MainWindow? BuildMainWindow()
+    {
+        if (_window is { } built)
+        {
+            return built;
+        }
+
+        if (_services is not { } services)
+        {
+            return null;
+        }
+
+        services.Log.Trace("window.main", "build");
+        var window = new MainWindow(services, AcquireCalendar());
+
+        // Hidden To The Tray: tray pace, efficiency mode and a trimmed working set, once the hide is done
+        window.Hidden += (_, _) =>
+        {
+            services.Log.Trace("window.main", "hidden");
+            _dispatcher?.TryEnqueue(DispatcherQueuePriority.Low, GoToTrayIfHidden);
+        };
+
+        // Closed For Real Only By Quit
+        window.Closed += (_, _) =>
+        {
+            services.Log.Trace("window.main", "closed");
+            _window = null;
+        };
+        window.MinimizedChanged += (_, _) => UpdateSyncMode();
+        _window = window;
+        return window;
     }
 
     // A sign-in starts in onboarding or the main window (Settings › Accounts, or allowing contact suggestions): whichever is
@@ -564,9 +597,10 @@ public partial class App : Application
         {
             onboarding.BringToFront();
         }
-        else
+        else if (_window is { IsHidden: false } window)
         {
-            _window?.BringToFront();
+            // Only one on screen: a window closed to the tray while the browser was open stays there
+            window.BringToFront();
         }
     }
 
@@ -674,19 +708,6 @@ public partial class App : Application
         _window?.ShowSettings(section);
     }
 
-    // Tray only: no window uses the view model any more, so its caches and timers go
-    private void ReleaseIfHidden()
-    {
-        if (_window is not null)
-        {
-            return;
-        }
-
-        _calendar?.Dispose();
-        _calendar = null;
-        GoToTray();
-    }
-
     // Tray-pace polling (60 s, or 5 minutes on Energy Saver or a metered connection), efficiency mode, and a trimmed
     // working set
     private void GoToTray()
@@ -695,20 +716,26 @@ public partial class App : Application
         MemoryTrimmer.Trim();
     }
 
-    // The flyout closed (its slide is done). With no window open, Leaf Calendar is back to tray only: opening the flyout
-    // drew its acrylic panel and rows (a test profile's working set went from 23 MB to 67 MB), so it trims like a closed
-    // window. The trim waits behind what the flyout's click asked for (queued first), so a window it opens isn't paged
-    // out as it's built, and none happens while the menu that replaced the flyout is open
+    // Tray only (no window on screen, nor the flyout or menu): back to the tray's pace and a trimmed working set. Queued
+    // behind whatever the closing click asked for, so a window it shows isn't paged out as it opens
+    private void GoToTrayIfHidden()
+    {
+        if (_window is null or { IsHidden: true } && _onboarding is null && _host is not { IsAgendaOpen: true } and not { IsMenuOpen: true })
+        {
+            GoToTray();
+        }
+        else
+        {
+            UpdateSyncMode();
+        }
+    }
+
+    // The flyout closed. With no window on screen, Leaf Calendar is back to tray only: opening the flyout drew its acrylic
+    // panel and rows (a test profile's working set went from 23 MB to 67 MB), so it trims like a hidden window
     private void OnAgendaClosed()
     {
         UpdateSyncMode();
-        _dispatcher.TryEnqueue(DispatcherQueuePriority.Low, () =>
-        {
-            if (_window is null && _onboarding is null && _host is { IsAgendaOpen: false, IsMenuOpen: false })
-            {
-                MemoryTrimmer.Trim();
-            }
-        });
+        _dispatcher.TryEnqueue(DispatcherQueuePriority.Low, GoToTrayIfHidden);
     }
 
     // =========================================================================
@@ -857,7 +884,7 @@ public partial class App : Application
         // Runs from the flyout's open and close events, so nothing may escape
         try
         {
-            var visible = _window is { IsMinimized: false } || _host?.IsAgendaOpen == true;
+            var visible = _window is { IsHidden: false, IsMinimized: false } || _host?.IsAgendaOpen == true;
             if (_services?.Google is { } google)
             {
                 google.Loop.Mode = SyncLoop.ModeFor(visible, IsEnergySaverOn(), _metered);
@@ -1149,7 +1176,7 @@ public partial class App : Application
                 _tray?.Dispose();
                 _tray = null;
             });
-            QuitStep("window", () => _window?.Close());
+            QuitStep("window", () => _window?.Shutdown());
             QuitStep("host", () => _host?.Shutdown());
             QuitStep("calendar", () =>
             {
