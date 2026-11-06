@@ -7,9 +7,9 @@ using Windows.Win32.Graphics.Dwm;
 namespace LeafCalendar.App.Interop;
 
 /// <summary>
-/// Keeps a new window off the screen until XAML has drawn it. <c>Activate</c> shows a window at once, and until XAML's
-/// first frame it is solid black (measured at about 200 ms opening the main window from the tray). A cloaked window is
-/// still shown, active and drawn by Windows; only the screen doesn't show it (DWM cloaking, as Windows' own apps use it).
+/// Keeps a window being shown off the screen until XAML has drawn it. Shown at once, a window is blank until XAML's
+/// first frame (black on its first show, the theme's gray after a hide). A cloaked window is still shown, active and
+/// drawn by Windows; only the screen doesn't show it (DWM cloaking, as Windows' own apps use it).
 /// </summary>
 internal static unsafe class WindowCloak
 {

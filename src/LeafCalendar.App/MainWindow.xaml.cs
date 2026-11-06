@@ -77,9 +77,9 @@ public sealed partial class MainWindow : Window
     // The Settings view while it shows in place of the calendar
     private SettingsPage? _settings;
 
-    // Frames drawn since the content loaded, while the window waits off screen (null once it's shown)
-    private int? _framesBeforeReveal = 0;
-    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _revealTimer;
+    // True while the window is shown but cloaked, waiting for XAML to draw it; the timer uncloaks it anyway
+    private bool _cloaked;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _uncloakAnyway;
 
     // Set by Shutdown (Quit), so the Close that follows isn't turned into a hide
     private bool _shuttingDown;
@@ -187,19 +187,11 @@ public sealed partial class MainWindow : Window
             };
         };
 
-        // Off Screen Until First Drawn (shown and active as usual, but the black frames before XAML's first one aren't
-        // seen); at most a second from its first load (it may be built hidden long before), so a frame clock that never
-        // ticks can't leave the window invisible
-        Interop.WindowCloak.Set(this, cloaked: true);
-        _revealTimer = DispatcherQueue.CreateTimer();
-        _revealTimer.Interval = TimeSpan.FromSeconds(1);
-        _revealTimer.IsRepeating = false;
-        _revealTimer.Tick += (_, _) => Reveal();
-        RootGrid.Loaded += (_, _) =>
-        {
-            CompositionTarget.Rendering += OnFrameBeforeReveal;
-            _revealTimer.Start();
-        };
+        // Each Show Waits Cloaked For A Drawn Frame (CloakUntilDrawn), at most half a second
+        _uncloakAnyway = DispatcherQueue.CreateTimer();
+        _uncloakAnyway.Interval = TimeSpan.FromMilliseconds(500);
+        _uncloakAnyway.IsRepeating = false;
+        _uncloakAnyway.Tick += (_, _) => Uncloak();
 
         Activated += OnActivated;
         Closed += (_, _) =>
@@ -213,9 +205,10 @@ public sealed partial class MainWindow : Window
             _calendar.ShareChanged -= OnCalendarShareChanged;
             RememberSize();
 
-            // The frame clock is static, so its handler would keep a closed window alive (null first: nothing to show)
-            _framesBeforeReveal = null;
-            Reveal();
+            // The frame clock is static, so its handlers would keep a closed window alive (not cloaked first: there's
+            // no window left to uncloak)
+            _cloaked = false;
+            Uncloak();
         };
 
         // Closing Hides It (Leaf Calendar lives in the tray): opening it again shows this same window at once, where a
@@ -270,27 +263,50 @@ public sealed partial class MainWindow : Window
         _calendar.Remember(s => s with { MainWindowSize = size }, inBackground: false);
     }
 
-    // The frame with the loaded content was handed to Windows when the next one starts, so the window shows drawn (a
-    // later Loaded finds it shown, and the handler leaves at once: subscribed, it would draw every frame)
-    private void OnFrameBeforeReveal(object? sender, object e)
+    // Shown From Hidden, The Window Stays Cloaked Until XAML Has Drawn It (the Messages app's pattern): WinUI drops what
+    // it drew while the window was hidden, so shown at once it was blank for its first frames (black on the first show,
+    // the theme's gray after). Cloaked, it's still shown, active and drawn; only the screen doesn't show it yet. XAML
+    // draws only when something changed, so Rendering is watched too, which asks for a frame every tick until one is
+    // drawn. Half a second shows it anyway, so a frame that never comes can't leave it invisible
+    private void CloakUntilDrawn()
     {
-        if (_framesBeforeReveal is null || ++_framesBeforeReveal >= 2)
-        {
-            Reveal();
-        }
-    }
-
-    private void Reveal()
-    {
-        CompositionTarget.Rendering -= OnFrameBeforeReveal;
-        _revealTimer.Stop();
-        if (_framesBeforeReveal is null)
+        if (_cloaked)
         {
             return;
         }
 
-        _framesBeforeReveal = null;
-        Interop.WindowCloak.Set(this, cloaked: false);
+        _cloaked = true;
+        Interop.WindowCloak.Set(this, cloaked: true);
+        CompositionTarget.Rendering += OnFrameWanted;
+        CompositionTarget.Rendered += OnFrameRendered;
+        _uncloakAnyway.Start();
+    }
+
+    // Empty on purpose: while anything listens to Rendering, XAML draws a frame every tick
+    private static void OnFrameWanted(object? sender, object e)
+    {
+    }
+
+    // A frame is drawn; on the first show, only one with the content loaded counts
+    private void OnFrameRendered(object? sender, RenderedEventArgs e)
+    {
+        if (RootGrid.IsLoaded)
+        {
+            Uncloak();
+        }
+    }
+
+    // Shows the cloaked window and stops asking for frames (a drawn frame, the half-second fallback, or the close)
+    private void Uncloak()
+    {
+        CompositionTarget.Rendering -= OnFrameWanted;
+        CompositionTarget.Rendered -= OnFrameRendered;
+        _uncloakAnyway.Stop();
+        if (_cloaked)
+        {
+            _cloaked = false;
+            Interop.WindowCloak.Set(this, cloaked: false);
+        }
     }
 
     /// <summary>Raised when the window is minimized, or comes back from minimized.</summary>
@@ -305,6 +321,11 @@ public sealed partial class MainWindow : Window
         // Shown From The Tray Where A New Window Would Open: on the monitor under the cursor at its size, maximized when it
         // last was (placing it reads the size back, so whether it was maximized is kept first). One hidden while
         // maximized comes back maximized where it was
+        if (IsHidden)
+        {
+            CloakUntilDrawn();
+        }
+
         if (IsHidden && _presenter.State == OverlappedPresenterState.Maximized)
         {
             AppWindow.Show(activateWindow: true);
