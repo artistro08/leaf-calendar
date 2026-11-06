@@ -233,14 +233,24 @@ public sealed partial class MainWindow : Window
     public bool IsHidden => !AppWindow.IsVisible;
 
     /// <summary>
-    /// Hides the window to the tray, as its Close button does: Settings closes (the calendar shows when it opens again)
-    /// and its size is saved, but the window and the calendar stay built, so opening it again is instant.
+    /// Hides the window to the tray, as its Close button does: open dialogs and Settings close (the calendar shows when
+    /// it opens again) and its size is saved, but the window and the calendar stay built, so opening it again is instant.
     /// </summary>
     public void HideToTray()
     {
         if (IsHidden)
         {
             return;
+        }
+
+        // Open Dialogs Close First (as Cancel): kept with the hidden window, one came back over the calendar, where
+        // Settings › Accounts' Disconnect still removed the account, and it blocked the next dialog (only one can be open)
+        foreach (var popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(RootGrid.XamlRoot))
+        {
+            if (popup.Child is ContentDialog dialog)
+            {
+                dialog.Hide();
+            }
         }
 
         CloseSettings();
@@ -319,21 +329,15 @@ public sealed partial class MainWindow : Window
     public void BringToFront()
     {
         // Shown From The Tray Where A New Window Would Open: on the monitor under the cursor at its size, maximized when it
-        // last was (placing it reads the size back, so whether it was maximized is kept first). One hidden while
-        // maximized comes back maximized where it was
+        // last was. One hidden while maximized comes back maximized where it was
         if (IsHidden)
         {
             CloakUntilDrawn();
-        }
+            if (_presenter.State != OverlappedPresenterState.Maximized)
+            {
+                Interop.WindowPlacement.Restore(AppWindow, _presenter, _restoredSize with { Maximized = _wasMaximized });
+            }
 
-        if (IsHidden && _presenter.State == OverlappedPresenterState.Maximized)
-        {
-            AppWindow.Show(activateWindow: true);
-        }
-        else if (IsHidden)
-        {
-            var maximize = _wasMaximized;
-            Interop.WindowPlacement.Restore(AppWindow, _presenter, _restoredSize with { Maximized = maximize });
             AppWindow.Show(activateWindow: true);
         }
 

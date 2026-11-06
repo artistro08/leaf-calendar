@@ -204,13 +204,12 @@ public partial class App : Application
             var signInMinimized = Program.StartKind == ExtendedActivationKind.StartupTask && !CurrentSettings().OpenWindowAtSignIn;
             if (signInMinimized || options.Restarted || Program.StartKind == ExtendedActivationKind.AppNotification)
             {
-                GoToTray();
                 if (Program.StartKind == ExtendedActivationKind.AppNotification)
                 {
                     HandleToast(Program.StartArgument);
                 }
 
-                // The Window Is Built Hidden Once The Start Is Done, so the first open is instant; then the trim again
+                // The Window Is Built Hidden Once The Start Is Done, so the first open is instant; then the tray's pace and trim
                 _dispatcher.TryEnqueue(DispatcherQueuePriority.Low, () =>
                 {
                     // Nothing may escape a queued callback; the window is built on the first open instead
@@ -275,7 +274,7 @@ public partial class App : Application
             host.SettingsRequested += (_, _) => OpenSettings(SettingsSection.General);
             host.QuitRequested += (_, _) => Quit();
             host.AgendaOpened += (_, _) => UpdateSyncMode(flyoutOpened: true);
-            host.AgendaClosed += (_, _) => OnAgendaClosed();
+            host.AgendaClosed += (_, _) => _dispatcher.TryEnqueue(DispatcherQueuePriority.Low, GoToTrayIfHidden);
             host.OpenEventRequested += (_, occurrence) => RevealEvent(occurrence);
             host.JoinRequested += (_, occurrence) => JoinEvent(occurrence);
             _host = host;
@@ -708,34 +707,17 @@ public partial class App : Application
         _window?.ShowSettings(section);
     }
 
-    // Tray-pace polling (60 s, or 5 minutes on Energy Saver or a metered connection), efficiency mode, and a trimmed
-    // working set
-    private void GoToTray()
-    {
-        UpdateSyncMode();
-        MemoryTrimmer.Trim();
-    }
-
-    // Tray only (no window on screen, nor the flyout or menu): back to the tray's pace and a trimmed working set. Queued
-    // behind whatever the closing click asked for, so a window it shows isn't paged out as it opens
+    // The sync pace and efficiency mode for what's on screen; tray only (no window on screen, nor the flyout or menu),
+    // also a trimmed working set. Queued behind whatever the closing click asked for, so a window it shows isn't paged
+    // out as it opens. The flyout trims too: opening it drew its acrylic panel and rows (a test profile's working set
+    // went from 23 MB to 67 MB)
     private void GoToTrayIfHidden()
     {
+        UpdateSyncMode();
         if (_window is null or { IsHidden: true } && _onboarding is null && _host is not { IsAgendaOpen: true } and not { IsMenuOpen: true })
         {
-            GoToTray();
+            MemoryTrimmer.Trim();
         }
-        else
-        {
-            UpdateSyncMode();
-        }
-    }
-
-    // The flyout closed. With no window on screen, Leaf Calendar is back to tray only: opening the flyout drew its acrylic
-    // panel and rows (a test profile's working set went from 23 MB to 67 MB), so it trims like a hidden window
-    private void OnAgendaClosed()
-    {
-        UpdateSyncMode();
-        _dispatcher.TryEnqueue(DispatcherQueuePriority.Low, GoToTrayIfHidden);
     }
 
     // =========================================================================

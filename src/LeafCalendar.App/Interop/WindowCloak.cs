@@ -1,4 +1,3 @@
-using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Windows.Win32;
 using Windows.Win32.Foundation;
@@ -16,7 +15,7 @@ internal static unsafe class WindowCloak
     /// <summary>Hides (<paramref name="cloaked"/> true) or shows <paramref name="window"/> on screen without hiding the window itself.</summary>
     public static void Set(Window window, bool cloaked)
     {
-        var hwnd = new HWND(Win32Interop.GetWindowFromWindowId(window.AppWindow.Id));
+        var hwnd = InvisibleHost.Handle(window);
         BOOL value = cloaked;
         _ = PInvoke.DwmSetWindowAttribute(hwnd, DWMWINDOWATTRIBUTE.DWMWA_CLOAK, &value, (uint)sizeof(BOOL));
     }
