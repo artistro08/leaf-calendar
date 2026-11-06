@@ -9,10 +9,14 @@ namespace LeafCalendar.App.Interop;
 /// <summary>
 /// Reports every mouse button press anywhere on screen (a low-level <c>WH_MOUSE_LL</c> hook), in physical pixels, while
 /// it's started: the tray menu and flyout close on a click outside them even when Windows never told their host it
-/// lost the foreground. Presses are only watched, never swallowed. One watch at a time; it runs on the thread that
-/// started it (the UI thread), while that thread pumps messages, and the hook procedure is a static
+/// lost the foreground. Presses are only watched, never swallowed. One watch at a time; the hook procedure is a static
 /// <c>[UnmanagedCallersOnly]</c> function (no delegate for the GC to collect).
 /// </summary>
+/// <remarks>
+/// Windows passes every mouse move through a low-level hook and waits for it, so the hook runs on a thread of its own:
+/// on the UI thread, anything that kept it busy (building the main window, layout, a collection) made the whole mouse
+/// stutter. Presses are reported on that thread; the caller marshals to the UI.
+/// </remarks>
 internal static unsafe class MouseDownWatch
 {
     private const uint WmLeftDown = 0x0201;
@@ -20,33 +24,67 @@ internal static unsafe class MouseDownWatch
     private const uint WmMiddleDown = 0x0207;
     private const uint WmXDown = 0x020B;
 
-    private static HHOOK s_hook;
-    private static Action<int, int>? s_pressed;
+    // The watch thread's ID (0 when none runs), and where its presses go
+    private static uint s_threadId;
+    private static volatile Action<int, int>? s_pressed;
 
     /// <summary>True while a watch is installed.</summary>
-    public static bool IsWatching => !s_hook.IsNull;
+    public static bool IsWatching => s_threadId != 0;
 
-    /// <summary>Starts reporting presses to <paramref name="pressed"/> (replacing a watch already running). False when Windows refused.</summary>
+    /// <summary>
+    /// Starts reporting presses to <paramref name="pressed"/>, on the watch's own thread (replacing a watch already
+    /// running). False when Windows refused the hook.
+    /// </summary>
     public static bool Start(Action<int, int> pressed)
     {
         ArgumentNullException.ThrowIfNull(pressed);
 
         Stop();
         s_pressed = pressed;
-        var module = (HINSTANCE)(nint)PInvoke.GetModuleHandle(default(PCWSTR)).Value;
-        s_hook = PInvoke.SetWindowsHookEx(WINDOWS_HOOK_ID.WH_MOUSE_LL, &HookProc, module, 0);
-        return !s_hook.IsNull;
+
+        // The Thread Reports Its ID Once The Hook Is In (0 when refused); the wait is only for SetWindowsHookEx
+        uint threadId = 0;
+        using var started = new ManualResetEventSlim();
+        var thread = new Thread(() =>
+        {
+            var module = (HINSTANCE)(nint)PInvoke.GetModuleHandle(default(PCWSTR)).Value;
+            var hook = PInvoke.SetWindowsHookEx(WINDOWS_HOOK_ID.WH_MOUSE_LL, &HookProc, module, 0);
+            if (hook.IsNull)
+            {
+                started.Set();
+                return;
+            }
+
+            // A message queue first, so Stop's quit message can't arrive before there's a queue to take it
+            PInvoke.PeekMessage(out _, HWND.Null, 0, 0, PEEK_MESSAGE_REMOVE_TYPE.PM_NOREMOVE);
+            threadId = PInvoke.GetCurrentThreadId();
+            started.Set();
+
+            // The hook runs while this loop waits for messages; quit ends it
+            while (PInvoke.GetMessage(out _, HWND.Null, 0, 0) > 0)
+            {
+            }
+
+            PInvoke.UnhookWindowsHookEx(hook);
+        })
+        {
+            IsBackground = true,
+            Name = "Leaf Calendar mouse watch",
+        };
+        thread.Start();
+        started.Wait();
+
+        s_threadId = threadId;
+        return threadId != 0;
     }
 
-    /// <summary>Stops the watch (safe to call when none is running).</summary>
+    /// <summary>Stops the watch (safe to call when none is running). It ends on its own thread a moment later.</summary>
     public static void Stop()
     {
-        // The handle goes either way: Windows drops a low-level hook on its own when its callback is too slow, and
-        // unhooking that one fails; kept, it would read as still watching and no new watch would ever start
-        if (!s_hook.IsNull)
+        if (s_threadId != 0)
         {
-            PInvoke.UnhookWindowsHookEx(s_hook);
-            s_hook = default;
+            PInvoke.PostThreadMessage(s_threadId, PInvoke.WM_QUIT, 0, 0);
+            s_threadId = 0;
         }
 
         s_pressed = null;

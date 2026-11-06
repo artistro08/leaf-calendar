@@ -18,6 +18,7 @@ using Microsoft.UI.Xaml.Media.Animation;
 using Windows.Foundation;
 using Windows.Graphics;
 using Windows.Win32;
+using Windows.Win32.Foundation;
 
 namespace LeafCalendar.App.Tray;
 
@@ -52,8 +53,12 @@ public sealed partial class TrayHost : Window
     private const long ReopenGuardMs = 300;
 
     private readonly AppLog _log;
+
+    // Read on the UI thread for the mouse watch, whose presses arrive on a thread of its own
+    private readonly HWND _hwnd;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueue _dispatcher;
     private Action? _pendingOpen;
-    private Action? _menuAfterAgenda;
+    private Action? _afterAgenda;
     private TaskbarEdge _edge;
     private AgendaModel? _model;
     private Storyboard? _motion;
@@ -71,6 +76,8 @@ public sealed partial class TrayHost : Window
         _log = log;
         InitializeComponent();
         InvisibleHost.Apply(this);
+        _hwnd = InvisibleHost.Handle(this);
+        _dispatcher = DispatcherQueue;
         ScrollIndicator.ShowOnHover(AgendaScroll);
 
         // A host shown for the first time loads its content a moment later, so the open waits for it
@@ -130,6 +137,9 @@ public sealed partial class TrayHost : Window
     /// <summary>True while the flyout is open.</summary>
     public bool IsAgendaOpen => Agenda.IsOpen;
 
+    /// <summary>True while the menu is open.</summary>
+    public bool IsMenuOpen => Menu.IsOpen;
+
     /// <summary>
     /// Opens the menu for a right-click at a screen point (physical pixels), growing away from the taskbar. Its join item
     /// names <paramref name="join"/> ("Join Standup"), or reads "Join next meeting" and is off when there's nothing to join.
@@ -150,7 +160,7 @@ public sealed partial class TrayHost : Window
             // host, or took the menu's focus, so the menu light-dismissed)
             if (Agenda.IsOpen)
             {
-                _menuAfterAgenda = () => ShowMenu(x, y, theme, join);
+                _afterAgenda = () => ShowMenu(x, y, theme, join);
                 CloseAgendaAtOnce();
                 return;
             }
@@ -382,17 +392,35 @@ public sealed partial class TrayHost : Window
             () => Request(JoinRequested, o));
     }
 
-    // Closes the flyout, then hands the event to the App (a click handler, so nothing may escape)
-    private void Request(EventHandler<CalendarOccurrence>? handler, CalendarOccurrence occurrence)
+    // Closes the flyout, then hands the event to the App
+    private void Request(EventHandler<CalendarOccurrence>? handler, CalendarOccurrence occurrence) =>
+        CloseAgendaThen(() => handler?.Invoke(this, occurrence));
+
+    // A flyout button's action runs once the flyout has slid out (or at once with it closed, from the menu): started
+    // during the slide, opening the main window made the slide stutter and the window pop in over it. A click handler
+    // and a queued action, so nothing may escape
+    private void CloseAgendaThen(Action action)
     {
-        try
+        void Run()
         {
-            HideAgenda();
-            handler?.Invoke(this, occurrence);
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                _log.Info("tray.flyout.click.failed", $"error={ex.GetType().Name}");
+            }
         }
-        catch (Exception ex)
+
+        if (Agenda.IsOpen)
         {
-            _log.Info("tray.flyout.click.failed", $"error={ex.GetType().Name}");
+            _afterAgenda = Run;
+            HideAgenda();
+        }
+        else
+        {
+            Run();
         }
     }
 
@@ -474,11 +502,12 @@ public sealed partial class TrayHost : Window
         StopWatchingIfIdle();
         AgendaClosed?.Invoke(this, EventArgs.Empty);
 
-        // A Right-Click That Closed The Flyout Opens The Menu Now (once the close is done; ShowMenu catches its own errors)
-        if (_menuAfterAgenda is { } showMenu)
+        // What Closed It Runs Now, once the close is done: the menu for a right-click (ShowMenu catches its own errors), or
+        // a button's action (CloseAgendaThen catches its own)
+        if (_afterAgenda is { } after)
         {
-            _menuAfterAgenda = null;
-            DispatcherQueue.TryEnqueue(() => showMenu());
+            _afterAgenda = null;
+            DispatcherQueue.TryEnqueue(() => after());
         }
     }
 
@@ -584,15 +613,15 @@ public sealed partial class TrayHost : Window
         }
     }
 
-    // Raised inside the hook (on this thread): only the cheap check here, the close after it returns
+    // Raised inside the hook, on the watch's own thread: only the cheap Win32 check here, the close on the UI thread
     private void OnPressed(int x, int y)
     {
-        if (InvisibleHost.IsOnPopup(this, x, y))
+        if (InvisibleHost.IsOnPopup(_hwnd, x, y))
         {
             return;
         }
 
-        DispatcherQueue.TryEnqueue(() =>
+        _dispatcher.TryEnqueue(() =>
         {
             try
             {
@@ -617,19 +646,9 @@ public sealed partial class TrayHost : Window
         });
     }
 
-    // The flyout's Open Leaf Calendar: the flyout closes, then the main window opens (a click handler, so nothing may escape)
-    private void OnFlyoutOpenClick(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            HideAgenda();
-            OpenRequested?.Invoke(this, EventArgs.Empty);
-        }
-        catch (Exception ex)
-        {
-            _log.Info("tray.flyout.click.failed", $"error={ex.GetType().Name}");
-        }
-    }
+    // The flyout's Open Leaf Calendar: the flyout closes, then the main window opens
+    private void OnFlyoutOpenClick(object sender, RoutedEventArgs e) =>
+        CloseAgendaThen(() => OpenRequested?.Invoke(this, EventArgs.Empty));
 
     // An agenda row's button, under its Join button (the first child of the pair's grid)
     private static Button? AgendaRowUnder(object join) =>
@@ -675,19 +694,9 @@ public sealed partial class TrayHost : Window
         }
     }
 
-    // A click handler, so nothing may escape
-    private void OnNewEventClick(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            HideAgenda();
-            NewEventRequested?.Invoke(this, EventArgs.Empty);
-        }
-        catch (Exception ex)
-        {
-            _log.Info("tray.flyout.click.failed", $"error={ex.GetType().Name}");
-        }
-    }
+    // The menu's or the flyout's New event…: with the flyout open, it closes first
+    private void OnNewEventClick(object sender, RoutedEventArgs e) =>
+        CloseAgendaThen(() => NewEventRequested?.Invoke(this, EventArgs.Empty));
 
     private void OnJoinNextClick(object sender, RoutedEventArgs e) => JoinNextRequested?.Invoke(this, EventArgs.Empty);
 

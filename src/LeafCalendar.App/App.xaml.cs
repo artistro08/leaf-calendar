@@ -441,9 +441,8 @@ public partial class App : Application
     // Today's day of the month on the PC clock (the taskbar's date), for the tray icon
     private int TrayDay() => TimeZoneInfo.ConvertTime(_services?.Time.GetUtcNow() ?? DateTimeOffset.UtcNow, _zone.Zone).Day;
 
-    // "Standup in 12 min" (spec 8.1), within the tray lookahead setting. The read runs on the thread pool: the flyout's
-    // mouse hook runs on this thread, and a synthetic 2,000-event profile measured medians of 31.5 ms (tooltip) and
-    // 54.8 ms (agenda) per tray read here.
+    // "Standup in 12 min" (spec 8.1), within the tray lookahead setting. The read runs on the thread pool, off the UI
+    // thread: a synthetic 2,000-event profile measured medians of 31.5 ms (tooltip) and 54.8 ms (agenda) per tray read here.
     private async void RefreshTooltip()
     {
         // async void: anything that escapes here would end the process (runs from the minute clock and syncs)
@@ -697,14 +696,19 @@ public partial class App : Application
     }
 
     // The flyout closed (its slide is done). With no window open, Leaf Calendar is back to tray only: opening the flyout
-    // drew its acrylic panel and rows (a test profile's working set went from 23 MB to 67 MB), so it trims like a closed window
+    // drew its acrylic panel and rows (a test profile's working set went from 23 MB to 67 MB), so it trims like a closed
+    // window. The trim waits behind what the flyout's click asked for (queued first), so a window it opens isn't paged
+    // out as it's built, and none happens while the menu that replaced the flyout is open
     private void OnAgendaClosed()
     {
         UpdateSyncMode();
-        if (_window is null && _onboarding is null)
+        _dispatcher.TryEnqueue(DispatcherQueuePriority.Low, () =>
         {
-            MemoryTrimmer.Trim();
-        }
+            if (_window is null && _onboarding is null && _host is { IsAgendaOpen: false, IsMenuOpen: false })
+            {
+                MemoryTrimmer.Trim();
+            }
+        });
     }
 
     // =========================================================================
