@@ -25,6 +25,24 @@ public class EventIdsTests
         Assert.Equal("evt-weekly_20261007T133000Z", EventIds.InstanceId("evt-weekly", start, isAllDay: false));
     }
 
+    // A series split with "this and following" gets the ID {original}_R{start}, but Google names its instances after
+    // the original ID: "…_R20251010T173000_20261106T183000Z" is a 404, and a reply sent to it was lost
+    [Fact]
+    public void InstanceId_SplitSeries_UsesTheOriginalSeriesId()
+    {
+        var start = new DateTimeOffset(2026, 11, 6, 12, 30, 0, TimeSpan.FromHours(-6));
+
+        Assert.Equal("1k4r22f863ud8abau7qnchhdv5_20261106T183000Z", EventIds.InstanceId("1k4r22f863ud8abau7qnchhdv5_R20251010T173000", start, isAllDay: false));
+    }
+
+    [Fact]
+    public void InstanceId_SplitAllDaySeries_UsesTheOriginalSeriesId()
+    {
+        var start = new DateTimeOffset(2026, 10, 12, 0, 0, 0, TimeSpan.Zero);
+
+        Assert.Equal("holiday_20261012", EventIds.InstanceId("holiday_R20260101", start, isAllDay: true));
+    }
+
     [Fact]
     public void InstanceId_AllDay_UsesDateOnly()
     {
