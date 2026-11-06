@@ -259,7 +259,7 @@ public partial class App : Application
             host.SettingsRequested += (_, _) => OpenSettings(SettingsSection.General);
             host.QuitRequested += (_, _) => Quit();
             host.AgendaOpened += (_, _) => UpdateSyncMode(flyoutOpened: true);
-            host.AgendaClosed += (_, _) => UpdateSyncMode();
+            host.AgendaClosed += (_, _) => OnAgendaClosed();
             host.OpenEventRequested += (_, occurrence) => RevealEvent(occurrence);
             host.JoinRequested += (_, occurrence) => JoinEvent(occurrence);
             _host = host;
@@ -694,6 +694,17 @@ public partial class App : Application
     {
         UpdateSyncMode();
         MemoryTrimmer.Trim();
+    }
+
+    // The flyout closed (its slide is done). With no window open, Leaf Calendar is back to tray only: opening the flyout
+    // drew its acrylic panel and rows (a test profile's working set went from 23 MB to 67 MB), so it trims like a closed window
+    private void OnAgendaClosed()
+    {
+        UpdateSyncMode();
+        if (_window is null && _onboarding is null)
+        {
+            MemoryTrimmer.Trim();
+        }
     }
 
     // =========================================================================

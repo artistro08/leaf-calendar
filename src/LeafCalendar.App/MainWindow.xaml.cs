@@ -76,6 +76,10 @@ public sealed partial class MainWindow : Window
     // The Settings view while it shows in place of the calendar
     private SettingsPage? _settings;
 
+    // Frames drawn since the content loaded, while the window waits off screen (null once it's shown)
+    private int? _framesBeforeReveal = 0;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _revealTimer;
+
     /// <summary>Creates the window on the App's calendar view model (Settings shares it). <see cref="App"/> owns both.</summary>
     public MainWindow(LeafServices services, CalendarViewModel calendar)
     {
@@ -178,6 +182,16 @@ public sealed partial class MainWindow : Window
             };
         };
 
+        // Off Screen Until Drawn (shown and active as usual, but the black frames before XAML's first one aren't seen); at
+        // most a second, so a frame clock that never ticks can't leave the window invisible
+        Interop.WindowCloak.Set(this, cloaked: true);
+        RootGrid.Loaded += (_, _) => CompositionTarget.Rendering += OnFrameBeforeReveal;
+        _revealTimer = DispatcherQueue.CreateTimer();
+        _revealTimer.Interval = TimeSpan.FromSeconds(1);
+        _revealTimer.IsRepeating = false;
+        _revealTimer.Tick += (_, _) => Reveal();
+        _revealTimer.Start();
+
         Activated += OnActivated;
         Closed += (_, _) =>
         {
@@ -192,9 +206,36 @@ public sealed partial class MainWindow : Window
             // Remember The Size For Next Time (the restored size, and whether it was maximized)
             var size = _restoredSize with { Maximized = _wasMaximized };
             _calendar.Remember(s => s with { MainWindowSize = size }, inBackground: false);
+
+            // The frame clock is static, so its handler would keep a closed window alive (null first: nothing to show)
+            _framesBeforeReveal = null;
+            Reveal();
         };
 
         ShowCalendar();
+    }
+
+    // The frame with the loaded content was handed to Windows when the next one starts, so the window shows drawn (a
+    // later Loaded finds it shown, and the handler leaves at once: subscribed, it would draw every frame)
+    private void OnFrameBeforeReveal(object? sender, object e)
+    {
+        if (_framesBeforeReveal is null || ++_framesBeforeReveal >= 2)
+        {
+            Reveal();
+        }
+    }
+
+    private void Reveal()
+    {
+        CompositionTarget.Rendering -= OnFrameBeforeReveal;
+        _revealTimer.Stop();
+        if (_framesBeforeReveal is null)
+        {
+            return;
+        }
+
+        _framesBeforeReveal = null;
+        Interop.WindowCloak.Set(this, cloaked: false);
     }
 
     /// <summary>Raised when the window is minimized, or comes back from minimized.</summary>

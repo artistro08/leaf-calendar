@@ -64,3 +64,4 @@ IsIconic
 ShowWindow
 GetPackageFullName
 GetPackagePathByFullName
+DwmSetWindowAttribute

@@ -467,8 +467,9 @@ public sealed partial class TrayHost : Window
         _agendaClosedAt = Environment.TickCount64;
         _exitFinished = false;
 
-        // The rows stay for the next open (UpdateAgenda refills them); only the model goes
+        // The rows go with the model (every open fills them again), so the App's trim after this event can free them
         _model = null;
+        AgendaDays.ItemsSource = null;
         HideHostIfIdle();
         StopWatchingIfIdle();
         AgendaClosed?.Invoke(this, EventArgs.Empty);
